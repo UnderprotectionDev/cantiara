@@ -18,6 +18,11 @@ import {
   type TestResultBindingStored,
   type TestSupersessionStored,
 } from "./test-review-signals";
+import type {
+  TestSummary,
+  TestSummaryFacts,
+  TestSummaryInput,
+} from "./test-review-summary";
 
 /**
  * Test Review seam (spec 57), independent lifecycle of session and item review.
@@ -347,6 +352,8 @@ export const testReviewSessionSchema = z
     newContextAfterClose: z.boolean(),
     projectId: identifierSchema,
     reportedAt: z.string().datetime({ offset: true }),
+    /** Who reported it, as the acceptance recorded it; `null` when unknown. */
+    reporter: z.string().nullable(),
     reviewState: stateSchema,
     /** `null` when the summary was redacted. */
     summary: z.string().nullable(),
@@ -560,6 +567,7 @@ export interface TestReviewStoredSession {
   items: TestReviewStoredItem[];
   projectId: string;
   reportedAt: string;
+  reporter?: string | null;
   reviewState: TestReviewState;
   summary: string | null;
   targetContext: Record<string, string> | null;
@@ -596,6 +604,15 @@ export interface TestReviewTransaction {
   listSupersessions: () => Promise<TestSupersessionStored[]>;
   projectName: string;
   readOnly: boolean;
+  /**
+   * Read-only facts of other features for one summary scope (Planned Test
+   * Cases, Handoffs, Test Gaps, Test Assessments and which Session Tests are
+   * related). `null` when the Feature or Project Release is not in this
+   * Project. It has no write counterpart: the summary never writes.
+   */
+  readSummaryFacts: (
+    scope: TestSummaryInput["scope"],
+  ) => Promise<TestSummaryFacts | null>;
   /** Writes only the review state of the given Session Tests. */
   writeItemStates: (ids: string[], state: TestReviewState) => Promise<void>;
   /** Writes only the review state of the Test Session row. */
@@ -662,6 +679,8 @@ export interface TestReviewAccess {
     accountId: string,
     input: SetSessionReviewStateInput,
   ) => Promise<TestReviewReceipt>;
+  /** Live neutral Test Summary (or Tests overview) of one scope; read only. */
+  summary: (accountId: string, input: TestSummaryInput) => Promise<TestSummary>;
   supersede: (
     accountId: string,
     input: SupersedeInput,
@@ -817,6 +836,7 @@ export function viewSession(
     newContextAfterClose: laterThan(sessionClosedAt, ownEvents),
     projectId: session.projectId,
     reportedAt: session.reportedAt,
+    reporter: session.reporter ?? null,
     reviewState: session.reviewState,
     summary: isRedacted(ownEvents, "Session summary", session.id, null)
       ? null

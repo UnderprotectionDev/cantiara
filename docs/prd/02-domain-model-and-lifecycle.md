@@ -340,6 +340,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Bağlam değişti | `Context changed` | Bağlı Birincil spec sürümü ya da kayıtlı branch/commit/build hedef bağlamla uyuşmadığında görünen açıklanabilir sinyal; sonucu geçersiz, eski veya başarısız saymaz |
 | Takip işi oluştur (Test İnceleme) | `Create follow-up work` | Oturum Testinden önizlemeli takip İşi; hedefi, `Originates from` (Test Oturumu) ve değişmez `Origin Location` (kesin Oturum Testi) bağını onaydan önce gösterir, sonucu yazmaz |
 | Geçerli sonucu bağla | `Bind valid result` | Çelişen sonuçlardan kullanıcının geçerli saydığı kesin Oturum Testini kaydeder; çelişki sinyalini kapatır |
+| Test özeti | `Test Summary` | Özellik ve Proje Sürümü detayındaki canlı, türetilmiş, nötr test manzarası; skor, coverage, genel geçti/kaldı, istisna, yayın kapısı veya Sürüm Kanıt Paketi değildir ve ikinci kayıt yazmaz |
+| Dikkat (test özeti) | `Attention` | Test özetinde eksik test, bağlam değişikliği, çelişki, `Failed`/`Blocked`/`Inconclusive`/`Skipped`, incelenmemiş rapor, açık Test Açığı ve değerlendirme sonrası yeni bağlamı kaynaklarıyla listeleyen nötr bilgi; hüküm veya sıra taşımaz |
+| Testler genel görünümü | `Tests overview` | Testler alanındaki canlı türetilmiş bölümler: `Unreviewed reports`, `Follow-up needed results`, `Open and planned Test Gaps`, `Conflicting or awaiting-supersede results`, `Context-changed results`, `Active Handoffs`, `Recent sessions`, `Recent assessments`; her sayı kesin kümeyi açar, faz veya CI panosu değildir |
 | Geçti | `Passed` | Normalize bildirilen sonuç; Ürün kabul kanıtı değildir |
 | Kaldı | `Failed` | Normalize bildirilen sonuç |
 | Bloke | `Blocked` | Normalize bildirilen sonuç |

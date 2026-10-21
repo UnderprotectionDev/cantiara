@@ -554,6 +554,10 @@ import {
   followUpReceiptSchema,
 } from "../test-review-signals";
 import {
+  testSummaryInputSchema,
+  testSummarySchema,
+} from "../test-review-summary";
+import {
   convertUserFlowNodeInputSchema,
   createUserFlowFromTemplateInputSchema,
   createUserFlowInputSchema,
@@ -6453,6 +6457,14 @@ export const appRouter = {
           context.session.user.id,
           input.projectId,
         ),
+      ),
+    ),
+  projectTestSummary: protectedProcedure
+    .input(testSummaryInputSchema)
+    .output(testSummarySchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).summary(context.session.user.id, input),
       ),
     ),
   setReviewSessionState: protectedProcedure

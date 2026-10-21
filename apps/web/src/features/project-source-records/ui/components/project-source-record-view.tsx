@@ -6,6 +6,7 @@ import type {
 import { useQuery } from "@tanstack/react-query";
 import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
 import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
+import TestSummarySurface from "@/features/test-review/ui/test-summary-surface";
 import { orpc } from "@/utils/orpc";
 
 export default function ProjectSourceRecordView({
@@ -88,6 +89,12 @@ export default function ProjectSourceRecordView({
           </div>
         ))}
       </dl>
+      {source.data.sourceType === "Project Release" ? (
+        <TestSummarySurface
+          projectId={projectId}
+          scope={{ id: source.data.id, kind: "Project Release" }}
+        />
+      ) : null}
     </section>
   );
 }

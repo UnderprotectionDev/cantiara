@@ -47,6 +47,7 @@ import {
 } from "@/features/record-actions/ui/components/record-action-runner";
 import WorkRelations from "@/features/relations/ui/components/work-relations";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
+import TestSummarySurface from "@/features/test-review/ui/test-summary-surface";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import WorkChecklistEditor from "@/features/work-checklists/ui/components/work-checklist-editor";
@@ -351,6 +352,12 @@ export default function ProjectWorkList({
                 formattingPreferences={accountFormattingPreferences}
                 work={work}
               />
+              {work.type === "Feature" ? (
+                <TestSummarySurface
+                  projectId={projectId}
+                  scope={{ id: work.id, kind: "Feature" }}
+                />
+              ) : null}
               <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-border/70 border-t pt-3">
                 {work.recreatedFrom ? (
                   <p className="basis-full text-muted-foreground text-xs">

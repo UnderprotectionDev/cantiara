@@ -54,6 +54,11 @@ import {
   type TestResultBindingStored,
   viewSupersessions,
 } from "@cantiara/api/test-review-signals";
+import {
+  deriveTestSummary,
+  type TestSummaryInput,
+  testSummaryInputSchema,
+} from "@cantiara/api/test-review-summary";
 
 export class TestReviewProjectNotFoundError extends Error {
   readonly code = "TEST_REVIEW_PROJECT_NOT_FOUND" as const;
@@ -501,6 +506,35 @@ function signalSessions(
   return sessions;
 }
 
+async function listOf(transaction: TestReviewTransaction) {
+  const reviewEvents = await transaction.listEvents();
+  const resultEvents = await transaction.listResultEvents();
+  const sessions = [...(await transaction.listSessions())]
+    .sort(
+      (a, b) =>
+        b.reportedAt.localeCompare(a.reportedAt) || a.id.localeCompare(b.id),
+    )
+    .map((session) => viewSession(session, reviewEvents, resultEvents));
+  const edges = await transaction.listSupersessions();
+  const bindings = await transaction.listBindings();
+  return {
+    bindings: [...bindings].sort((a, b) =>
+      b.recordedAt.localeCompare(a.recordedAt),
+    ),
+    conflicts: deriveConflicts(signalSessions(sessions), edges, bindings),
+    contextChanges: deriveContextChanges(signalSessions(sessions), edges),
+    events: [...reviewEvents].sort(
+      (a, b) =>
+        b.recordedAt.localeCompare(a.recordedAt) || b.id.localeCompare(a.id),
+    ),
+    followUps: await transaction.listFollowUps(),
+    readOnly: transaction.readOnly,
+    resultEvents: viewResultEvents(resultEvents).reverse(),
+    sessions,
+    supersessions: viewSupersessions(signalSessions(sessions), edges),
+  };
+}
+
 export function createTestReview(store: TestReviewStore): TestReviewAccess {
   async function read<T>(
     accountId: string,
@@ -655,36 +689,7 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
       const { projectId } = testReviewProjectInputSchema.parse({
         projectId: rawProjectId,
       });
-      return await read(accountId, projectId, async (transaction) => {
-        const reviewEvents = await transaction.listEvents();
-        const resultEvents = await transaction.listResultEvents();
-        const sessions = [...(await transaction.listSessions())]
-          .sort(
-            (a, b) =>
-              b.reportedAt.localeCompare(a.reportedAt) ||
-              a.id.localeCompare(b.id),
-          )
-          .map((session) => viewSession(session, reviewEvents, resultEvents));
-        const edges = await transaction.listSupersessions();
-        const bindings = await transaction.listBindings();
-        return {
-          bindings: [...bindings].sort((a, b) =>
-            b.recordedAt.localeCompare(a.recordedAt),
-          ),
-          conflicts: deriveConflicts(signalSessions(sessions), edges, bindings),
-          contextChanges: deriveContextChanges(signalSessions(sessions), edges),
-          events: [...reviewEvents].sort(
-            (a, b) =>
-              b.recordedAt.localeCompare(a.recordedAt) ||
-              b.id.localeCompare(a.id),
-          ),
-          followUps: await transaction.listFollowUps(),
-          readOnly: transaction.readOnly,
-          resultEvents: viewResultEvents(resultEvents).reverse(),
-          sessions,
-          supersessions: viewSupersessions(signalSessions(sessions), edges),
-        };
-      });
+      return await read(accountId, projectId, listOf);
     },
 
     async previewBulkReview(accountId, rawInput) {
@@ -839,6 +844,19 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
           }),
         ]);
         return { outcome: "applied" as const, remaining };
+      });
+    },
+
+    async summary(accountId, rawInput: TestSummaryInput) {
+      const input = testSummaryInputSchema.parse(rawInput);
+      return await read(accountId, input.projectId, async (transaction) => {
+        const facts = await transaction.readSummaryFacts(input.scope);
+        if (facts === null) {
+          throw new TestReviewRecordNotFoundError(
+            "id" in input.scope ? input.scope.id : input.projectId,
+          );
+        }
+        return deriveTestSummary(facts, await listOf(transaction));
       });
     },
 

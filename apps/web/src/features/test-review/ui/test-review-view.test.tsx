@@ -61,6 +61,7 @@ const session: TestReviewSession = {
   newContextAfterClose: false,
   projectId: "p1",
   reportedAt: "2026-10-01T09:00:00.000Z",
+  reporter: null,
   reviewState: "Unreviewed",
   summary: "Checkout run",
   summaryRedacted: false,
