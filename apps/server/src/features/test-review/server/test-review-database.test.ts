@@ -252,12 +252,12 @@ describeDatabase("Test Review PostgreSQL integration", () => {
     expect(preview.changes).toHaveLength(2);
     const first = await access.commitBulkReview(accountId, {
       ...selection,
-      previewed: preview.changes,
+      previewFingerprint: preview.fingerprint,
     });
     expect(first.outcome).toBe("applied");
     const again = await access.commitBulkReview(accountId, {
       ...selection,
-      previewed: preview.changes,
+      previewFingerprint: preview.fingerprint,
     });
     expect(again).toEqual({ changed: [], outcome: "unchanged" });
     const { events, sessions } = await access.list(accountId, projectId);

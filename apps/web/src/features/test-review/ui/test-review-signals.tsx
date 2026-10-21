@@ -22,7 +22,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { errorText, usePanelFocus } from "./test-review-panel";
 
 export interface TestReviewSignalActions {
   bindResult: (
@@ -47,10 +48,6 @@ export type TestReviewSignalData = Pick<
   "bindings" | "conflicts" | "contextChanges" | "followUps" | "supersessions"
 >;
 
-function errorText(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
 function endLine(end: TestReviewResultEnd) {
   const reported = end.normalizedResult
     ? resultLabel(end.normalizedResult)
@@ -68,16 +65,6 @@ function reasonLine(reason: TestReviewContextChangeReason) {
     return `Primary spec ${reason.title} changed from revision ${reason.boundRevision} to ${reason.currentRevision}`;
   }
   return `Recorded ${reason.key} ${reason.recorded} differs from target ${reason.target}`;
-}
-
-function usePanelFocus(open: boolean) {
-  const ref = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
-    if (open) {
-      ref.current?.focus();
-    }
-  }, [open]);
-  return ref;
 }
 
 function allItems(sessions: TestReviewSession[]) {

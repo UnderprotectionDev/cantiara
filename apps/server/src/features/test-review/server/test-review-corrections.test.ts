@@ -347,6 +347,107 @@ describe("Test Review: security redaction", () => {
     expect(JSON.stringify(list)).not.toContain(SECRET);
   });
 
+  test("a redacted value appears in no derived output", async () => {
+    const SUMMARY = "SUMMARY-SECRET-ghp_111";
+    const RESULT = "NORMALIZED-SECRET-ghp_222";
+    const harness = createMemoryHarness(
+      [
+        fixtureSession(
+          "s1",
+          [
+            {
+              id: "t1",
+              normalized: RESULT,
+              raw: RESULT,
+              scenario: ["case-1", 1],
+              title: "Login works",
+            },
+            {
+              id: "t2",
+              normalized: "failed",
+              scenario: ["case-1", 1],
+              title: "Login again",
+            },
+            {
+              id: "t3",
+              normalized: "passed",
+              scenario: ["case-1", 1],
+              title: "Login third",
+            },
+          ],
+          { summary: SUMMARY },
+        ),
+      ],
+      [
+        {
+          id: "work-1",
+          key: "PRJ-1",
+          status: "Not Started",
+          title: "Existing",
+          type: "Task",
+        },
+      ],
+    );
+    const redact = (sessionTestId: string | null) =>
+      harness.testReview.recordRedaction(accountId, {
+        projectId,
+        reason: "Secret.",
+        sessionId: "s1",
+        sessionTestId,
+      });
+    await redact(null);
+    await redact("t1");
+    const leaks = (value: unknown) => {
+      const text = JSON.stringify(value);
+      return [SUMMARY, RESULT].filter((secret) => text.includes(secret));
+    };
+    const newTarget = { mode: "new" as const };
+    const bulkInput = {
+      projectId,
+      sessionId: "s1",
+      sessionTestIds: ["t1", "t2"],
+    };
+    const bulk = await harness.testReview.previewBulkReview(
+      accountId,
+      bulkInput,
+    );
+    const preview = await harness.testReview.previewFollowUp(accountId, {
+      projectId,
+      sessionTestIds: ["t1"],
+      target: newTarget,
+    });
+    const existing = await harness.testReview.previewFollowUp(accountId, {
+      projectId,
+      sessionTestIds: ["t1", "t2"],
+      target: { mode: "existing", workId: "work-1" },
+    });
+    await harness.testReview.commitFollowUp(accountId, {
+      previewFingerprint: preview.fingerprint,
+      projectId,
+      sessionTestIds: ["t1"],
+      target: newTarget,
+      workId: "work-new",
+    });
+    const committed = await harness.testReview.commitBulkReview(accountId, {
+      ...bulkInput,
+      previewFingerprint: bulk.fingerprint,
+    });
+    expect([
+      leaks(await harness.testReview.list(accountId, projectId)),
+      leaks(
+        await harness.testReview.summary(accountId, {
+          projectId,
+          scope: { kind: "Project" },
+        }),
+      ),
+      leaks(bulk),
+      leaks(committed),
+      leaks(preview),
+      leaks(existing),
+      leaks(harness.works),
+    ]).toEqual([[], [], [], [], [], [], []]);
+  });
+
   test("redaction is not Trash: it deletes no record and changes no review state", async () => {
     const harness = setup();
     await harness.testReview.setItemReviewState(accountId, {
