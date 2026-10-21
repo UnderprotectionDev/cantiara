@@ -292,6 +292,18 @@ import {
   updatePriorityMetricMutationInputSchema,
 } from "../priority-metrics";
 import {
+  confirmProductGapFollowUpInputSchema,
+  previewProductGapFollowUpInputSchema,
+  productGapFollowUpPlanSchema,
+  productGapFollowUpResultSchema,
+  productGapLinkTargetSchema,
+  productGapLinkTargetsInputSchema,
+  productGapListSchema,
+  productGapRecordSchema,
+  recordProductGapInputSchema,
+  setProductGapStatusInputSchema,
+} from "../product-gaps";
+import {
   createProjectGoalInputSchema,
   ProjectGoalConflictError,
   projectGoalInputSchema,
@@ -1238,6 +1250,13 @@ function requirePlannedTests(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.plannedTests;
+}
+
+function requireProductGaps(context: Context) {
+  if (!context.productGaps) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.productGaps;
 }
 
 function requireTestGaps(context: Context) {
@@ -3360,6 +3379,67 @@ async function runTestGapOperation<T>(operation: () => Promise<T>): Promise<T> {
     }
     const failure = Object.hasOwn(TEST_GAP_FAILURES, error.code)
       ? TEST_GAP_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message: failure.message,
+    });
+  }
+}
+
+interface ProductGapFailure {
+  message: string;
+  status: "BAD_REQUEST" | "NOT_FOUND" | "PRECONDITION_FAILED";
+}
+
+const PRODUCT_GAP_FAILURES: Record<string, ProductGapFailure> = {
+  PRODUCT_GAP_FOLLOW_UP_STALE: {
+    message: "The follow-up preview is stale. Open the preview again.",
+    status: "PRECONDITION_FAILED",
+  },
+  PRODUCT_GAP_FOLLOW_UP_TARGET_UNAVAILABLE: {
+    message: "The follow-up Project or Feature is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PRODUCT_GAP_LINK_TARGET_UNAVAILABLE: {
+    message:
+      "A related record is not an existing, active record of this Workspace.",
+    status: "BAD_REQUEST",
+  },
+  PRODUCT_GAP_NOT_FOUND: {
+    message: "Product Gap is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PRODUCT_GAP_PROJECT_READ_ONLY: {
+    message: "Archived Projects are read-only.",
+    status: "BAD_REQUEST",
+  },
+  PRODUCT_GAP_STATUS_CONFLICT: {
+    message: "Product Gap changed since it was loaded. Reload and try again.",
+    status: "PRECONDITION_FAILED",
+  },
+  PRODUCT_GAP_WORKSPACE_NOT_FOUND: {
+    message: "Workspace is unavailable.",
+    status: "NOT_FOUND",
+  },
+};
+
+async function runProductGapOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(PRODUCT_GAP_FAILURES, error.code)
+      ? PRODUCT_GAP_FAILURES[error.code]
       : undefined;
     if (!failure) {
       throw error;
@@ -6405,6 +6485,59 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runTestGapOperation(() =>
         requireTestGaps(context).relationTargets(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  productGaps: protectedProcedure
+    .output(productGapListSchema)
+    .handler(({ context }) =>
+      runProductGapOperation(() =>
+        requireProductGaps(context).list(context.session.user.id),
+      ),
+    ),
+  recordProductGap: protectedProcedure
+    .input(recordProductGapInputSchema)
+    .output(productGapRecordSchema)
+    .handler(({ context, input }) =>
+      runProductGapOperation(() =>
+        requireProductGaps(context).record(context.session.user.id, input),
+      ),
+    ),
+  setProductGapStatus: protectedProcedure
+    .input(setProductGapStatusInputSchema)
+    .output(productGapRecordSchema)
+    .handler(({ context, input }) =>
+      runProductGapOperation(() =>
+        requireProductGaps(context).setStatus(context.session.user.id, input),
+      ),
+    ),
+  productGapLinkTargets: protectedProcedure
+    .input(productGapLinkTargetsInputSchema)
+    .output(z.array(productGapLinkTargetSchema))
+    .handler(({ context, input }) =>
+      runProductGapOperation(() =>
+        requireProductGaps(context).linkTargets(context.session.user.id, input),
+      ),
+    ),
+  previewProductGapFollowUp: protectedProcedure
+    .input(previewProductGapFollowUpInputSchema)
+    .output(productGapFollowUpPlanSchema)
+    .handler(({ context, input }) =>
+      runProductGapOperation(() =>
+        requireProductGaps(context).previewFollowUp(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  confirmProductGapFollowUp: protectedProcedure
+    .input(confirmProductGapFollowUpInputSchema)
+    .output(productGapFollowUpResultSchema)
+    .handler(({ context, input }) =>
+      runProductGapOperation(() =>
+        requireProductGaps(context).confirmFollowUp(
           context.session.user.id,
           input,
         ),

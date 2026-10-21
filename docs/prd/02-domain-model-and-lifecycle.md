@@ -1288,6 +1288,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Eşleşen komut yok | `No matching command` | Palet süzgecinin komut döndürmediği durum |
 | Burada çalışmaz | `Can’t run this here` | Kapsam dışı veya desteklenmeyen palet komutunun görünür başarısızlığı |
 | Kapat | `Close` | Paleti kapatma eylemi |
+| Ürün boşluğu kaydet | `Record Product Gap` | Kurucunun açıkça başlattığı Çalışma Alanı Ürün Boşluğu kaydı; otomatik telemetry, benzer başlık birleştirmesi veya İş dönüşümü değildir |
+| Ürün Boşluğu | `Product Gap` | Karşılanmayan ihtiyaç için Çalışma Alanı ana kaydı; İş veya özellik isteği değildir |
+| Karşılanmayan ihtiyaç | `Unmet need` | Ürün Boşluğunun zorunlu metni |
+| Kapsam | `Scope` | Ürün Boşluğunun isteğe bağlı kapsam açıklaması |
+| İlgili kayıtlar | `Related records` | Ürün Boşluğuna bağlı Proje, İş, Özellik ve Karar ilişkileri; ilişki bağlı kaydın yaşam döngüsüne yazmaz |
+| Açık | `Open` | Ürün Boşluğu durumu `Açık`; kurucu seçer, tekrar sayısı yazmaz |
+| Değerlendiriliyor | `Evaluating` | Ürün Boşluğu durumu `Değerlendiriliyor` |
+| Karşılandı | `Met` | Ürün Boşluğu durumu `Karşılandı` |
+| Bilinçli sınır | `Conscious boundary` | Ürün Boşluğu durumu `Bilinçli sınır`; yüksek etkili kaçışın kapanış kanıtını kaldırmaz |
+| Takip İşi oluştur | `Create follow-up work` | Ürün Boşluğundan açık önizleme ve onayla tek İş açar veya mevcut Özellik ilişkisi kurar; kendiliğinden dönüşmez |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 
