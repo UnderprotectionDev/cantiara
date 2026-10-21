@@ -18,6 +18,10 @@ import { workDescriptionSchema, workTitleSchema } from "./work-lifecycle";
  * priority, score, telemetry, similarity or auto-convert concept, and every
  * input is `.strict()` so none of those can be smuggled in. The status is the
  * founder's; changing it writes nothing but the Gap.
+ *
+ * Tool Escapes (Dış Araca Kaçış, #418) are dated, append-only events a Gap
+ * owns. The repeat count of a Gap is only the number of recorded events, never
+ * stored, and there is no severity, `High-impact`, priority or score field.
  */
 
 const identifierSchema = z.string().trim().min(1).max(255);
@@ -173,6 +177,8 @@ export interface ProductGapLinkView {
 
 export interface ProductGapRecord {
   createdAt: string;
+  /** Derived: the number of recorded Tool Escapes that match the filter. */
+  escapeCount: number;
   id: string;
   links: ProductGapLinkView[];
   scope: string | null;
@@ -185,6 +191,8 @@ export interface ProductGapRecord {
 
 export interface ProductGapList {
   gaps: ProductGapRecord[];
+  /** Distinct external tools of all recorded escapes, for the tool filter. */
+  tools: string[];
 }
 
 export type ProductGapTargetLive =
@@ -206,6 +214,7 @@ export const productGapLinkViewSchema = z
 export const productGapRecordSchema = z
   .object({
     createdAt: z.string(),
+    escapeCount: z.number().int().min(0),
     id: identifierSchema,
     links: z.array(productGapLinkViewSchema),
     scope: z.string().nullable(),
@@ -218,7 +227,10 @@ export const productGapRecordSchema = z
   .strict();
 
 export const productGapListSchema = z
-  .object({ gaps: z.array(productGapRecordSchema) })
+  .object({
+    gaps: z.array(productGapRecordSchema),
+    tools: z.array(z.string()),
+  })
   .strict();
 
 export const productGapLinkTargetSchema = z
@@ -235,6 +247,13 @@ export const productGapLinkTargetSchema = z
  */
 export interface ProductGapTargetResolver {
   bind: (link: ProductGapLinkInput) => Promise<{ label: string } | null>;
+  /**
+   * Binds the source context of a Tool Escape: a visible record of this
+   * Workspace and the Project it belongs to.
+   */
+  bindSource: (
+    link: ProductGapLinkInput,
+  ) => Promise<{ label: string; projectId: string } | null>;
   candidates: (
     targetType: ProductGapLinkTargetType,
   ) => Promise<ProductGapLinkTarget[]>;
@@ -248,7 +267,10 @@ export interface ProductGapTransaction {
     gapId: string,
     lock: boolean,
   ) => Promise<ProductGapStoredRecord | null>;
+  insertEscape: (event: ToolEscapeStored) => Promise<void>;
   insertGap: (record: ProductGapStoredRecord) => Promise<void>;
+  /** Events are append-only: there is no update or delete operation. */
+  listEscapes: (filter: ToolEscapeFilter) => Promise<ToolEscapeStored[]>;
   listGaps: () => Promise<ProductGapStoredRecord[]>;
   resolver: ProductGapTargetResolver;
   /**
@@ -467,6 +489,174 @@ export function isSameProductGapFollowUpPlan(
   );
 }
 
+export const TOOL_ESCAPE_LABEL = "Tool Escape";
+
+/** Closed reasons. PRD 04 stores the Turkish values in the same order. */
+export const TOOL_ESCAPE_REASONS = [
+  "Missing capability",
+  "Faster",
+  "More reliable",
+  "Usability",
+  "Habit",
+] as const;
+export const toolEscapeReasonSchema = z.enum(TOOL_ESCAPE_REASONS);
+export type ToolEscapeReason = z.infer<typeof toolEscapeReasonSchema>;
+
+export const TOOL_ESCAPE_REASON_PRD_VALUES: Record<ToolEscapeReason, string> = {
+  Faster: "Daha hızlı",
+  Habit: "Alışkanlık",
+  "Missing capability": "Eksik yetenek",
+  "More reliable": "Daha güvenilir",
+  Usability: "Kullanılabilirlik",
+};
+
+export const TOOL_ESCAPE_TOOL_MAX = 120;
+
+const timestampSchema = z.string().datetime({ offset: true });
+
+const optionalNote = z
+  .string()
+  .trim()
+  .max(
+    PRODUCT_GAP_TEXT_MAX,
+    `Note must be ${PRODUCT_GAP_TEXT_MAX} characters or fewer.`,
+  )
+  .nullish()
+  .transform((value) => (value ? value : null));
+
+/**
+ * The event the founder writes by hand. It has no content, session, severity,
+ * `High-impact` or count field: a Tool Escape is a dated record of what was
+ * meant to happen elsewhere and why, never a copy of the other tool.
+ */
+export const toolEscapeInputSchema = z
+  .object({
+    intendedJob: requiredText("Intended job", PRODUCT_GAP_TEXT_MAX),
+    note: optionalNote,
+    occurredAt: timestampSchema,
+    reasons: z
+      .array(toolEscapeReasonSchema)
+      .min(1, "Choose at least one reason.")
+      .max(TOOL_ESCAPE_REASONS.length)
+      .transform((reasons) => [...new Set(reasons)]),
+    /** Source Project or record context, bound live to this Workspace. */
+    source: productGapLinkInputSchema,
+    tool: requiredText("External tool", TOOL_ESCAPE_TOOL_MAX),
+  })
+  .strict();
+export type ToolEscapeInput = z.input<typeof toolEscapeInputSchema>;
+export type ParsedToolEscapeInput = z.output<typeof toolEscapeInputSchema>;
+
+/** A deliberate choice: a new Gap, or one the founder names. Never by title. */
+export const toolEscapeGapChoiceSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("New"),
+      links: z
+        .array(productGapLinkInputSchema)
+        .max(PRODUCT_GAP_LINK_MAX)
+        .default([]),
+      scope: optionalScope,
+      title: requiredText("Title", 255),
+      unmetNeed: requiredText("Unmet need", PRODUCT_GAP_TEXT_MAX),
+    })
+    .strict(),
+  z.object({ gapId: identifierSchema, kind: z.literal("Existing") }).strict(),
+]);
+
+export const recordToolEscapeInputSchema = z
+  .object({
+    escape: toolEscapeInputSchema,
+    gap: toolEscapeGapChoiceSchema,
+  })
+  .strict();
+export type RecordToolEscapeInput = z.input<typeof recordToolEscapeInputSchema>;
+
+/** Dogfooding filters. They select; nothing here orders or scores. */
+export const toolEscapeFilterSchema = z
+  .object({
+    projectId: identifierSchema.optional(),
+    reason: toolEscapeReasonSchema.optional(),
+    tool: z.string().trim().min(1).max(TOOL_ESCAPE_TOOL_MAX).optional(),
+  })
+  .strict();
+export type ToolEscapeFilterInput = z.infer<typeof toolEscapeFilterSchema>;
+
+export const productGapListInputSchema = toolEscapeFilterSchema
+  .extend({ status: productGapStatusSchema.optional() })
+  .strict();
+export type ProductGapListInput = z.input<typeof productGapListInputSchema>;
+
+export const listToolEscapesInputSchema = toolEscapeFilterSchema
+  .extend({ gapId: identifierSchema })
+  .strict();
+export type ListToolEscapesInput = z.input<typeof listToolEscapesInputSchema>;
+
+export interface ToolEscapeFilter extends ToolEscapeFilterInput {
+  gapId?: string;
+}
+
+export interface ToolEscapeStored {
+  gapId: string;
+  id: string;
+  intendedJob: string;
+  note: string | null;
+  occurredAt: string;
+  reasons: ToolEscapeReason[];
+  recordedAt: string;
+  source: {
+    projectId: string;
+    targetId: string;
+    targetType: ProductGapLinkTargetType;
+  };
+  tool: string;
+}
+
+export interface ToolEscapeRecord extends Omit<ToolEscapeStored, "source"> {
+  source: {
+    brokenReason: BrokenReferenceReason | null;
+    label: string | null;
+    projectId: string;
+    state: "broken" | "resolved";
+    targetId: string;
+    targetType: ProductGapLinkTargetType;
+  };
+}
+
+export const toolEscapeRecordSchema = z
+  .object({
+    gapId: identifierSchema,
+    id: identifierSchema,
+    intendedJob: z.string().min(1),
+    note: z.string().nullable(),
+    occurredAt: z.string(),
+    reasons: z.array(toolEscapeReasonSchema).min(1),
+    recordedAt: z.string(),
+    source: z
+      .object({
+        brokenReason: brokenReferenceReasonSchema.nullable(),
+        label: z.string().nullable(),
+        projectId: identifierSchema,
+        state: z.enum(["broken", "resolved"]),
+        targetId: identifierSchema,
+        targetType: productGapLinkTargetTypeSchema,
+      })
+      .strict(),
+    tool: z.string().min(1),
+  })
+  .strict();
+
+export const toolEscapeListSchema = z.array(toolEscapeRecordSchema);
+
+export interface RecordToolEscapeResult {
+  escape: ToolEscapeRecord;
+  gap: ProductGapRecord;
+}
+
+export const recordToolEscapeResultSchema = z
+  .object({ escape: toolEscapeRecordSchema, gap: productGapRecordSchema })
+  .strict();
+
 export interface ProductGapStore {
   /** Atomic follow-up write; `null` when the Gap or Workspace is unavailable. */
   confirmFollowUp: (
@@ -497,7 +687,16 @@ export interface ProductGapsAccess {
     accountId: string,
     input: ProductGapLinkTargetsInput,
   ) => Promise<ProductGapLinkTarget[]>;
-  list: (accountId: string) => Promise<ProductGapList>;
+  /** Dogfooding summary: filters gaps, ranks nothing. */
+  list: (
+    accountId: string,
+    filter?: ProductGapListInput,
+  ) => Promise<ProductGapList>;
+  /** The exact event set behind a repeat count. */
+  listEscapes: (
+    accountId: string,
+    input: ListToolEscapesInput,
+  ) => Promise<ToolEscapeRecord[]>;
   /** Read-only preview of a follow-up Work or Feature relation. */
   previewFollowUp: (
     accountId: string,
@@ -508,6 +707,14 @@ export interface ProductGapsAccess {
     accountId: string,
     input: RecordProductGapInput,
   ) => Promise<ProductGapRecord>;
+  /**
+   * `Record Product Gap` with a dated Tool Escape: a new Gap or an existing one
+   * the founder chose, plus the event, in one unit of work.
+   */
+  recordToolEscape: (
+    accountId: string,
+    input: RecordToolEscapeInput,
+  ) => Promise<RecordToolEscapeResult>;
   /** The founder's status change. Writes the Gap row alone. */
   setStatus: (
     accountId: string,

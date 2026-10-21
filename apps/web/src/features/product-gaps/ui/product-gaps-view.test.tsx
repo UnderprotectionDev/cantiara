@@ -28,6 +28,7 @@ const timestamp = "2026-10-01T09:00:00.000Z";
 
 const record: ProductGapRecord = {
   createdAt: timestamp,
+  escapeCount: 2,
   id: "g1",
   links: [
     {
@@ -95,11 +96,14 @@ function mount(props: Partial<Parameters<typeof ProductGapsView>[0]> = {}) {
     root?.render(
       <ProductGapsView
         gaps={[]}
+        loadEscapes={vi.fn().mockResolvedValue([])}
         loadTargets={loadTargets}
         onConfirmFollowUp={vi.fn().mockResolvedValue(undefined)}
+        onFilterChange={vi.fn()}
         onPreviewFollowUp={vi.fn().mockResolvedValue(workPlan)}
         onRecord={vi.fn().mockResolvedValue(undefined)}
         onSetStatus={vi.fn().mockResolvedValue(undefined)}
+        tools={["Spreadsheet"]}
         {...props}
       />,
     );
@@ -164,6 +168,17 @@ test("offers Record Product Gap with title, unmet need, scope and related record
     "Unmet need",
     "Scope (optional)",
     "Related records",
+    "Tool Escape",
+    "Occurred at",
+    "External tool",
+    "Source",
+    "Intended job",
+    "Missing capability",
+    "Faster",
+    "More reliable",
+    "Usability",
+    "Habit",
+    "Note (optional)",
     "No Product Gaps recorded yet.",
   ]) {
     expect(text).toContain(label);
@@ -173,7 +188,38 @@ test("offers Record Product Gap with title, unmet need, scope and related record
   }
 });
 
-test("submits what the founder typed, with the chosen related record", async () => {
+async function submitForm() {
+  const form = document.querySelector('form[aria-label="Record Product Gap"]');
+  await act(async () => {
+    form?.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+    await Promise.resolve();
+  });
+}
+
+function check(reason: string) {
+  const box = [...document.querySelectorAll("label")]
+    .find((item) => item.textContent === reason)
+    ?.querySelector("input");
+  if (!box) {
+    throw new Error(`No ${reason} reason`);
+  }
+  act(() => box.click());
+}
+
+async function fillEscape() {
+  await flush();
+  setValue("product-gap-escape-occurred", "2026-10-01T09:30");
+  setValue("product-gap-escape-tool", "Spreadsheet");
+  setValue("product-gap-escape-source", "p1");
+  setValue("product-gap-escape-job", "Bulk rename forty Works");
+  check("Missing capability");
+  check("Faster");
+  setValue("product-gap-escape-note", "Needed a sort of its own.");
+}
+
+test("submits a new Product Gap with its Tool Escape and the chosen records", async () => {
   const onRecord = vi.fn().mockResolvedValue(undefined);
   mount({ onRecord });
   await flush();
@@ -183,15 +229,23 @@ test("submits what the founder typed, with the chosen related record", async () 
   setValue("product-gap-new-scope", "Board view only.");
   setValue("product-gap-new-link-target", "p1");
   await click("Add related record");
-  const form = document.querySelector('form[aria-label="Record Product Gap"]');
-  await act(async () => {
-    form?.dispatchEvent(
-      new Event("submit", { bubbles: true, cancelable: true }),
-    );
-    await Promise.resolve();
-  });
+  await fillEscape();
+  await submitForm();
 
   expect(onRecord).toHaveBeenCalledWith({
+    escape: {
+      intendedJob: "Bulk rename forty Works",
+      note: "Needed a sort of its own.",
+      occurredAt: "2026-10-01T09:30",
+      reasons: ["Missing capability", "Faster"],
+      source: {
+        label: "Project: Checkout",
+        targetId: "p1",
+        targetType: "Project",
+      },
+      tool: "Spreadsheet",
+    },
+    existingGapId: "",
     links: [
       { label: "Project: Checkout", targetId: "p1", targetType: "Project" },
     ],
@@ -199,6 +253,112 @@ test("submits what the founder typed, with the chosen related record", async () 
     title: "Bulk edit across projects",
     unmetNeed: "I edit many Works in another tool.",
   });
+});
+
+test("attaches to a Gap the founder picks, with no title or merge step", async () => {
+  const onRecord = vi.fn().mockResolvedValue(undefined);
+  mount({ gaps: [record], onRecord });
+  await flush();
+
+  setValue("product-gap-new-choice", "g1");
+  expect(document.getElementById("product-gap-new-title")).toBeNull();
+  await fillEscape();
+  await submitForm();
+
+  expect(onRecord).toHaveBeenCalledWith(
+    expect.objectContaining({ existingGapId: "g1" }),
+  );
+});
+
+test("refuses to submit without a source or a reason", async () => {
+  const onRecord = vi.fn().mockResolvedValue(undefined);
+  mount({ onRecord });
+  await flush();
+  setValue("product-gap-new-title", "Bulk edit across projects");
+  setValue("product-gap-new-need", "I edit many Works in another tool.");
+  setValue("product-gap-escape-tool", "Spreadsheet");
+  setValue("product-gap-escape-job", "Bulk rename");
+
+  await submitForm();
+  expect(document.body.textContent).toContain(
+    "Choose the source Project or record.",
+  );
+  setValue("product-gap-escape-source", "p1");
+  await submitForm();
+  expect(document.body.textContent).toContain("Choose at least one reason.");
+  expect(onRecord).not.toHaveBeenCalled();
+});
+
+test("every Tool Escape and filter control has a visible label for keyboard and screen reader use", () => {
+  mount({ gaps: [record] });
+
+  const controls = document.querySelectorAll(
+    'form input:not([type="checkbox"]), form select, form textarea',
+  );
+  expect(controls.length).toBeGreaterThan(8);
+  for (const control of controls) {
+    expect((control as HTMLInputElement).labels?.length).toBeGreaterThan(0);
+  }
+  expect(
+    document.querySelectorAll('input[type="checkbox"]').length,
+  ).toBeGreaterThanOrEqual(5);
+});
+
+test("filters by tool, reason, Project and status without ordering anything", () => {
+  const onFilterChange = vi.fn();
+  mount({ gaps: [record], onFilterChange });
+
+  setValue("product-gap-filter-tool", "Spreadsheet");
+  expect(onFilterChange).toHaveBeenLastCalledWith({
+    projectId: "",
+    reason: "",
+    status: "",
+    tool: "Spreadsheet",
+  });
+  setValue("product-gap-filter-reason", "Habit");
+  setValue("product-gap-status-filter", "Met");
+  expect(onFilterChange).toHaveBeenCalledTimes(3);
+  const text = document.body.textContent ?? "";
+  for (const word of FORBIDDEN_WORDS) {
+    expect(text).not.toMatch(word);
+  }
+});
+
+test("opens the exact Tool Escape events behind the number under the active filter", async () => {
+  const loadEscapes = vi.fn().mockResolvedValue([
+    {
+      gapId: "g1",
+      id: "e1",
+      intendedJob: "Bulk rename forty Works",
+      note: "Needed a sort of its own.",
+      occurredAt: timestamp,
+      reasons: ["Missing capability", "Faster"],
+      recordedAt: timestamp,
+      source: {
+        brokenReason: null,
+        label: "Checkout",
+        projectId: "p1",
+        state: "resolved",
+        targetId: "p1",
+        targetType: "Project",
+      },
+      tool: "Spreadsheet",
+    },
+  ]);
+  const filter = { projectId: "", reason: "Faster", status: "", tool: "" };
+  mount({ filter, gaps: [record], loadEscapes });
+
+  await click("Open 2 Tool Escapes of Bulk edit across projects");
+
+  expect(loadEscapes).toHaveBeenCalledWith(record, filter);
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("Spreadsheet");
+  expect(text).toContain("Reasons: Missing capability, Faster");
+  expect(text).toContain("Source Project: Checkout");
+  expect(text).toContain("Note: Needed a sort of its own.");
+  for (const word of FORBIDDEN_WORDS) {
+    expect(text).not.toMatch(word);
+  }
 });
 
 test("lists a Gap with its status, need, scope and related records, naming a gone record as unavailable", () => {

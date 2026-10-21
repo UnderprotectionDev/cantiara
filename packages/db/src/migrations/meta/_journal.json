@@ -1065,6 +1065,13 @@
       "when": 1792565495389,
       "tag": "0151_product_gap_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1792566566773,
+      "tag": "0152_tool_escape_event",
+      "breakpoints": true
     }
   ]
 }

@@ -1298,6 +1298,18 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Karşılandı | `Met` | Ürün Boşluğu durumu `Karşılandı` |
 | Bilinçli sınır | `Conscious boundary` | Ürün Boşluğu durumu `Bilinçli sınır`; yüksek etkili kaçışın kapanış kanıtını kaldırmaz |
 | Takip İşi oluştur | `Create follow-up work` | Ürün Boşluğundan açık önizleme ve onayla tek İş açar veya mevcut Özellik ilişkisi kurar; kendiliğinden dönüşmez |
+| Dış Araca Kaçış | `Tool Escape` | Ürün Boşluğuna bağlı tarihli, eklemeli olay; GitHub bağlantısı, Test Handoff'u veya Dış yürütme devri değildir; şiddet veya `High-impact` bayrağı taşımaz; sayısı yalnız kayıtlı olaylardan türetilir ve sıralama ya da öncelik üretmez |
+| Gerçekleşme zamanı | `Occurred at` | Dış Araca Kaçışın gerçekleştiği zaman |
+| Dış araç | `External tool` | Kullanıcının geçtiği aracın adı; dış içerik veya oturum kopyası değildir |
+| Kaynak | `Source` | Dış Araca Kaçışın kaynak Proje, İş, Özellik veya Karar bağlamı |
+| Yapılmak istenen iş | `Intended job` | Kullanıcının dış araçta bitirmek istediği iş |
+| Nedenler | `Reasons` | Dış Araca Kaçış için bir veya daha fazla kapalı neden |
+| Eksik yetenek | `Missing capability` | Dış Araca Kaçış nedeni `Eksik yetenek` |
+| Daha hızlı | `Faster` | Dış Araca Kaçış nedeni `Daha hızlı` |
+| Daha güvenilir | `More reliable` | Dış Araca Kaçış nedeni `Daha güvenilir` |
+| Kullanılabilirlik | `Usability` | Dış Araca Kaçış nedeni `Kullanılabilirlik` |
+| Alışkanlık | `Habit` | Dış Araca Kaçış nedeni `Alışkanlık` |
+| Araca, nedene, Projeye veya duruma göre süz | `Filter by external tool`, `Filter by reason`, `Filter by Project`, `Filter by status` | Dogfooding özetinin yalnız seçen süzgeçleri; sıralama veya puan üretmez |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 

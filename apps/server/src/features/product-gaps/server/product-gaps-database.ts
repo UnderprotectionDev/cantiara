@@ -15,14 +15,21 @@ import {
   type ProductGapStoredRecord,
   type ProductGapTargetLive,
   type ProductGapTargetResolver,
+  type ToolEscapeFilter,
+  type ToolEscapeReason,
+  type ToolEscapeStored,
 } from "@cantiara/api/product-gaps";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
-import { productGap, productGapLink } from "@cantiara/db/schema/product-gap";
+import {
+  productGap,
+  productGapLink,
+  toolEscape,
+} from "@cantiara/db/schema/product-gap";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { insertWorkWithKeyAllocation } from "../../evidence/server/evidence-record-creation";
 import type { FeedbackExecutor } from "../../feedback/server/feedback-database";
 import {
@@ -86,7 +93,11 @@ function createGapResolver(
     switch (type) {
       case "Project": {
         const [found] = await executor
-          .select({ archivedAt: project.archivedAt, title: project.name })
+          .select({
+            archivedAt: project.archivedAt,
+            projectId: project.id,
+            title: project.name,
+          })
           .from(project)
           .where(
             and(eq(project.id, targetId), eq(project.workspaceId, workspaceId)),
@@ -98,6 +109,7 @@ function createGapResolver(
         const [found] = await executor
           .select({
             archivedAt: work.archivedAt,
+            projectId: work.projectId,
             status: work.status,
             title: work.title,
             trashedAt: work.trashedAt,
@@ -115,7 +127,7 @@ function createGapResolver(
       }
       default: {
         const [found] = await executor
-          .select({ title: decision.title })
+          .select({ projectId: decision.projectId, title: decision.title })
           .from(decision)
           .innerJoin(project, eq(project.id, decision.projectId))
           .where(
@@ -143,6 +155,12 @@ function createGapResolver(
   }
 
   return {
+    bindSource: async (link) => {
+      const found = await row(link.targetType, link.targetId);
+      return found && !hiddenReason(found)
+        ? { label: found.title, projectId: found.projectId }
+        : null;
+    },
     bind: async (link) => {
       const live = await read(link);
       return live.state === "resolved" ? { label: live.label } : null;
@@ -246,6 +264,24 @@ async function toStoredGaps(
     unmetNeed: row.unmetNeed,
     updatedAt: row.updatedAt.toISOString(),
   }));
+}
+
+function toStoredEscape(row: typeof toolEscape.$inferSelect): ToolEscapeStored {
+  return {
+    gapId: row.gapId,
+    id: row.id,
+    intendedJob: row.intendedJob,
+    note: row.note,
+    occurredAt: row.occurredAt.toISOString(),
+    reasons: row.reasons as ToolEscapeReason[],
+    recordedAt: row.recordedAt.toISOString(),
+    source: {
+      projectId: row.projectId,
+      targetId: row.sourceId,
+      targetType: row.sourceType as ProductGapLinkTargetType,
+    },
+    tool: row.tool,
+  };
 }
 
 async function findGapRow(
@@ -541,6 +577,21 @@ export function createDatabaseProductGapStore(
                 ? ((await toStoredGaps(executor, [row]))[0] ?? null)
                 : null;
             },
+            insertEscape: async (event) => {
+              await executor.insert(toolEscape).values({
+                gapId: event.gapId,
+                id: event.id,
+                intendedJob: event.intendedJob,
+                note: event.note,
+                occurredAt: new Date(event.occurredAt),
+                projectId: event.source.projectId,
+                reasons: event.reasons,
+                recordedAt: new Date(event.recordedAt),
+                sourceId: event.source.targetId,
+                sourceType: event.source.targetType,
+                tool: event.tool,
+              });
+            },
             insertGap: async (record) => {
               await executor.insert(productGap).values({
                 createdAt: new Date(record.createdAt),
@@ -565,6 +616,32 @@ export function createDatabaseProductGapStore(
                 });
               }
             },
+            // Only this Workspace's Gaps own events; no row is ever updated.
+            listEscapes: async (filter: ToolEscapeFilter) =>
+              (
+                await executor
+                  .select({ event: toolEscape })
+                  .from(toolEscape)
+                  .innerJoin(productGap, eq(productGap.id, toolEscape.gapId))
+                  .where(
+                    and(
+                      eq(productGap.workspaceId, workspaceId),
+                      filter.gapId
+                        ? eq(toolEscape.gapId, filter.gapId)
+                        : undefined,
+                      filter.tool
+                        ? sql`lower(${toolEscape.tool}) = lower(${filter.tool})`
+                        : undefined,
+                      filter.reason
+                        ? sql`${filter.reason} = any(${toolEscape.reasons})`
+                        : undefined,
+                      filter.projectId
+                        ? eq(toolEscape.projectId, filter.projectId)
+                        : undefined,
+                    ),
+                  )
+                  .orderBy(desc(toolEscape.occurredAt), asc(toolEscape.id))
+              ).map(({ event }) => toStoredEscape(event)),
             listGaps: async () =>
               await toStoredGaps(
                 executor,

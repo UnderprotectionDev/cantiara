@@ -3,6 +3,7 @@ import {
   confirmProductGapFollowUpInputSchema,
   duplicateProductGapLink,
   isSameProductGapFollowUpPlan,
+  listToolEscapesInputSchema,
   type ProductGapLinkInput,
   type ProductGapRecord,
   type ProductGapStore,
@@ -12,8 +13,12 @@ import {
   type ProductGapTargetResolver,
   previewProductGapFollowUpInputSchema,
   productGapLinkTargetsInputSchema,
+  productGapListInputSchema,
   recordProductGapInputSchema,
+  recordToolEscapeInputSchema,
   setProductGapStatusInputSchema,
+  type ToolEscapeRecord,
+  type ToolEscapeStored,
 } from "@cantiara/api/product-gaps";
 
 export class ProductGapWorkspaceNotFoundError extends Error {
@@ -85,9 +90,40 @@ export class ProductGapFollowUpStaleError extends Error {
   }
 }
 
+/** The source of an escape must be a visible record of this Workspace. */
+export class ToolEscapeSourceError extends Error {
+  readonly code = "TOOL_ESCAPE_SOURCE_UNAVAILABLE" as const;
+
+  constructor(link: Pick<ProductGapLinkInput, "targetId" | "targetType">) {
+    super(
+      `${link.targetType} ${link.targetId} is not an available escape source.`,
+    );
+    this.name = "ToolEscapeSourceError";
+  }
+}
+
+async function toEscapeRecord(
+  resolver: ProductGapTargetResolver,
+  stored: ToolEscapeStored,
+): Promise<ToolEscapeRecord> {
+  const live = await resolver.read(stored.source);
+  return {
+    ...stored,
+    source: {
+      brokenReason: live.state === "broken" ? live.reason : null,
+      label: live.state === "resolved" ? live.label : null,
+      projectId: stored.source.projectId,
+      state: live.state,
+      targetId: stored.source.targetId,
+      targetType: stored.source.targetType,
+    },
+  };
+}
+
 async function toGapRecord(
   resolver: ProductGapTargetResolver,
   stored: ProductGapStoredRecord,
+  escapeCount: number,
 ): Promise<ProductGapRecord> {
   const links = await Promise.all(
     stored.links.map(async (link) => {
@@ -105,6 +141,7 @@ async function toGapRecord(
   );
   return {
     createdAt: stored.createdAt,
+    escapeCount,
     id: stored.id,
     links,
     scope: stored.scope,
@@ -140,6 +177,18 @@ async function bindLinks(
       };
     }),
   );
+}
+
+/** Distinct tool names, first spelling wins, ordered for a stable filter list. */
+function distinctTools(escapes: readonly ToolEscapeStored[]) {
+  const seen = new Map<string, string>();
+  for (const { tool } of escapes) {
+    const key = tool.toLowerCase();
+    if (!seen.has(key)) {
+      seen.set(key, tool);
+    }
+  }
+  return [...seen.values()].sort((left, right) => left.localeCompare(right));
 }
 
 /**
@@ -189,7 +238,7 @@ export function createProductGaps(store: ProductGapStore): ProductGapsAccess {
             updatedAt: now,
           };
           await transaction.insertGap(stored);
-          return await toGapRecord(transaction.resolver, stored);
+          return await toGapRecord(transaction.resolver, stored, 0);
         },
       );
       if (!created) {
@@ -198,22 +247,126 @@ export function createProductGaps(store: ProductGapStore): ProductGapsAccess {
       return created;
     },
 
-    async list(accountId) {
-      const listed = await store.run(
-        accountId,
-        "read",
-        async (transaction) => ({
-          gaps: await Promise.all(
-            (await transaction.listGaps()).map((stored) =>
-              toGapRecord(transaction.resolver, stored),
+    async list(accountId, rawFilter) {
+      const filter = productGapListInputSchema.parse(rawFilter ?? {});
+      const { status, ...escapeFilter } = filter;
+      const filteringEvents = Object.keys(escapeFilter).length > 0;
+      const listed = await store.run(accountId, "read", async (transaction) => {
+        const [stored, matching, every] = await Promise.all([
+          transaction.listGaps(),
+          transaction.listEscapes(escapeFilter),
+          filteringEvents ? transaction.listEscapes({}) : null,
+        ]);
+        const counts = new Map<string, number>();
+        for (const event of matching) {
+          counts.set(event.gapId, (counts.get(event.gapId) ?? 0) + 1);
+        }
+        // Filters only select. The order stays the order of recording.
+        const gaps = await Promise.all(
+          stored
+            .filter(
+              (gap) =>
+                (!status || gap.status === status) &&
+                (!filteringEvents || counts.has(gap.id)),
+            )
+            .map((gap) =>
+              toGapRecord(transaction.resolver, gap, counts.get(gap.id) ?? 0),
             ),
-          ),
-        }),
-      );
+        );
+        return { gaps, tools: distinctTools(every ?? matching) };
+      });
       if (!listed) {
         throw new ProductGapWorkspaceNotFoundError();
       }
       return listed;
+    },
+
+    async listEscapes(accountId, rawInput) {
+      const input = listToolEscapesInputSchema.parse(rawInput);
+      const listed = await store.run(accountId, "read", async (transaction) => {
+        if (!(await transaction.findGap(input.gapId, false))) {
+          throw new ProductGapNotFoundError(input.gapId);
+        }
+        return await Promise.all(
+          (await transaction.listEscapes(input)).map((event) =>
+            toEscapeRecord(transaction.resolver, event),
+          ),
+        );
+      });
+      if (!listed) {
+        throw new ProductGapWorkspaceNotFoundError();
+      }
+      return listed;
+    },
+
+    async recordToolEscape(accountId, rawInput) {
+      const input = recordToolEscapeInputSchema.parse(rawInput);
+      const recorded = await store.run(
+        accountId,
+        "write",
+        async (transaction) => {
+          const now = new Date().toISOString();
+          const source = await transaction.resolver.bindSource(
+            input.escape.source,
+          );
+          if (!source) {
+            throw new ToolEscapeSourceError(input.escape.source);
+          }
+          // A deliberate choice: a new Gap, or the one the founder names. A
+          // similar title never selects or merges anything.
+          let stored: ProductGapStoredRecord;
+          if (input.gap.kind === "Existing") {
+            const found = await transaction.findGap(input.gap.gapId, true);
+            if (!found) {
+              throw new ProductGapNotFoundError(input.gap.gapId);
+            }
+            stored = found;
+          } else {
+            stored = {
+              createdAt: now,
+              id: crypto.randomUUID(),
+              links: await bindLinks(
+                transaction.resolver,
+                input.gap.links,
+                now,
+              ),
+              scope: input.gap.scope,
+              status: "Open",
+              statusChangedAt: now,
+              title: input.gap.title,
+              unmetNeed: input.gap.unmetNeed,
+              updatedAt: now,
+            };
+            await transaction.insertGap(stored);
+          }
+          const event: ToolEscapeStored = {
+            gapId: stored.id,
+            id: crypto.randomUUID(),
+            intendedJob: input.escape.intendedJob,
+            note: input.escape.note,
+            occurredAt: new Date(input.escape.occurredAt).toISOString(),
+            reasons: input.escape.reasons,
+            recordedAt: now,
+            source: {
+              projectId: source.projectId,
+              targetId: input.escape.source.targetId,
+              targetType: input.escape.source.targetType,
+            },
+            tool: input.escape.tool,
+          };
+          await transaction.insertEscape(event);
+          const count = (await transaction.listEscapes({ gapId: stored.id }))
+            .length;
+          return {
+            escape: await toEscapeRecord(transaction.resolver, event),
+            gap: await toGapRecord(transaction.resolver, stored, count),
+          };
+        },
+      );
+      if (!recorded) {
+        throw new ProductGapWorkspaceNotFoundError();
+      }
+      return recorded;
     },
 
     async setStatus(accountId, rawInput) {
@@ -229,8 +382,10 @@ export function createProductGaps(store: ProductGapStore): ProductGapsAccess {
           if (gap.status !== input.expectedStatus) {
             throw new ProductGapStatusConflictError(gap.id);
           }
+          const count = (await transaction.listEscapes({ gapId: gap.id }))
+            .length;
           if (input.status === gap.status) {
-            return await toGapRecord(transaction.resolver, gap);
+            return await toGapRecord(transaction.resolver, gap, count);
           }
           const changedAt = new Date().toISOString();
           if (
@@ -243,12 +398,16 @@ export function createProductGaps(store: ProductGapStore): ProductGapsAccess {
           ) {
             throw new ProductGapStatusConflictError(gap.id);
           }
-          return await toGapRecord(transaction.resolver, {
-            ...gap,
-            status: input.status,
-            statusChangedAt: changedAt,
-            updatedAt: changedAt,
-          });
+          return await toGapRecord(
+            transaction.resolver,
+            {
+              ...gap,
+              status: input.status,
+              statusChangedAt: changedAt,
+              updatedAt: changedAt,
+            },
+            count,
+          );
         },
       );
       if (!changed) {
@@ -314,7 +473,13 @@ export function createProductGaps(store: ProductGapStore): ProductGapsAccess {
       }
       const gap = await store.run(accountId, "read", async (transaction) => {
         const stored = await transaction.findGap(input.gapId, false);
-        return stored ? await toGapRecord(transaction.resolver, stored) : null;
+        return stored
+          ? await toGapRecord(
+              transaction.resolver,
+              stored,
+              (await transaction.listEscapes({ gapId: stored.id })).length,
+            )
+          : null;
       });
       if (!gap) {
         throw new ProductGapNotFoundError(input.gapId);

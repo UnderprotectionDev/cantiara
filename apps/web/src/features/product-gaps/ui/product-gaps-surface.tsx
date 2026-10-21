@@ -1,23 +1,42 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the Workspace.
 import type { ProductGapLinkTargetType } from "@cantiara/api/product-gaps";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { useCallback, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
-import { toLinkInputs } from "../lib/product-gap-form";
+import {
+  EMPTY_GAP_FILTER,
+  type GapFilterValues,
+  toListFilter,
+  toRecordToolEscapeInput,
+} from "../lib/product-gap-form";
 import { ProductGapsView } from "./product-gaps-view";
 
 /**
- * The Workspace's Product Gap list. It records, relates and converts nothing
- * by itself: every write is the founder's explicit action.
+ * The Workspace's Product Gap list and dogfooding summary. It records, relates
+ * and converts nothing by itself: every write is the founder's explicit action.
  */
 export default function ProductGapsSurface() {
   const queryClient = useQueryClient();
-  const options = orpc.productGaps.queryOptions();
-  const gaps = useQuery(options);
+  const [filter, setFilter] = useState<GapFilterValues>(EMPTY_GAP_FILTER);
+  const options = orpc.productGaps.queryOptions({
+    input: toListFilter(filter),
+  });
+  const gaps = useQuery({ ...options, placeholderData: keepPreviousData });
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: options.queryKey });
+    queryClient.invalidateQueries({
+      queryKey: orpc.productGaps.key(),
+    });
+  const loadEscapes = useCallback(
+    (gap: { id: string }, active: GapFilterValues) =>
+      client.productGapEscapes({ ...toListFilter(active), gapId: gap.id }),
+    [],
+  );
   const loadTargets = useCallback(
     (targetType: ProductGapLinkTargetType) =>
       client.productGapLinkTargets({ targetType }),
@@ -42,7 +61,9 @@ export default function ProductGapsSurface() {
   }
   return (
     <ProductGapsView
+      filter={filter}
       gaps={gaps.data.gaps}
+      loadEscapes={loadEscapes}
       loadTargets={loadTargets}
       onConfirmFollowUp={async (gap, plan) => {
         try {
@@ -60,17 +81,17 @@ export default function ProductGapsSurface() {
           await refresh();
         }
       }}
+      onFilterChange={setFilter}
       onPreviewFollowUp={(gap, request) =>
         client.previewProductGapFollowUp({ ...request, gapId: gap.id })
       }
       onRecord={async (values) => {
+        const { source } = values.escape;
+        if (!source) {
+          throw new Error("Choose the source Project or record.");
+        }
         await runOnlineOnlyWrite(() =>
-          client.recordProductGap({
-            links: toLinkInputs(values.links),
-            scope: values.scope || null,
-            title: values.title,
-            unmetNeed: values.unmetNeed,
-          }),
+          client.recordToolEscape(toRecordToolEscapeInput(values, source)),
         );
         await refresh();
       }}
@@ -87,6 +108,7 @@ export default function ProductGapsSurface() {
           await refresh();
         }
       }}
+      tools={gaps.data.tools}
     />
   );
 }

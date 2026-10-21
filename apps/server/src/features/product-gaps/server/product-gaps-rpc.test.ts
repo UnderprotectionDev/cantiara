@@ -8,7 +8,7 @@ import {
   createProductGapHarness,
 } from "./product-gaps-memory-store";
 
-const PRODUCT_GAP_PROCEDURE = /product ?gap/i;
+const PRODUCT_GAP_PROCEDURE = /product ?gap|tool ?escape/i;
 
 function setup(authenticated = true) {
   const harness = createProductGapHarness([
@@ -88,6 +88,45 @@ describe("Product Gaps RPC seam", () => {
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
 
+  test("records a Tool Escape, opens its event set and filters the summary", async () => {
+    const { client, writes } = setup();
+    const toolEscape = {
+      intendedJob: "Bulk rename forty Works",
+      occurredAt: "2026-10-01T09:30:00.000Z",
+      reasons: ["Faster" as const],
+      source: { targetId: "p1", targetType: "Project" as const },
+      tool: "Spreadsheet",
+    };
+
+    const first = await client.recordToolEscape({
+      escape: toolEscape,
+      gap: { kind: "New", ...gap },
+    });
+    await client.recordToolEscape({
+      escape: { ...toolEscape, tool: "Notes" },
+      gap: { gapId: first.gap.id, kind: "Existing" },
+    });
+
+    expect(first.escape).toMatchObject({ tool: "Spreadsheet" });
+    expect(
+      await client.productGapEscapes({ gapId: first.gap.id, tool: "notes" }),
+    ).toHaveLength(1);
+    expect((await client.productGaps({ reason: "Faster" })).gaps).toMatchObject(
+      [{ escapeCount: 2, id: first.gap.id }],
+    );
+    expect((await client.productGaps({ tool: "Missing" })).gaps).toEqual([]);
+    await expect(
+      client.recordToolEscape({
+        escape: {
+          ...toolEscape,
+          source: { targetId: "nope", targetType: "Work" },
+        },
+        gap: { kind: "New", ...gap },
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(writes).toEqual([]);
+  });
+
   test("maps domain refusals to typed failures", async () => {
     const { client } = setup();
     const created = await client.recordProductGap(gap);
@@ -126,9 +165,11 @@ describe("Product Gaps RPC seam", () => {
     expect(names.sort()).toEqual([
       "confirmProductGapFollowUp",
       "previewProductGapFollowUp",
+      "productGapEscapes",
       "productGapLinkTargets",
       "productGaps",
       "recordProductGap",
+      "recordToolEscape",
       "setProductGapStatus",
     ]);
   });
