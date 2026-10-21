@@ -2450,7 +2450,19 @@ describeDatabase("Documents database boundary", () => {
     ).toMatchObject({
       model: { nodes: [{ label: "Web" }, { label: "API" }] },
     });
-    const confirmed = { ...command, clientIdempotencyKey: crypto.randomUUID() };
+    const confirmed = {
+      ...command,
+      clientIdempotencyKey: crypto.randomUUID(),
+      previewToken: preview.previewToken,
+    };
+    await expect(
+      api.convertMermaidToTechnicalDiagram({
+        ...confirmed,
+        clientIdempotencyKey: crypto.randomUUID(),
+        previewToken: "stale",
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await api.technicalDiagrams({ projectId })).toHaveLength(0);
     const concurrentConversions = await Promise.all([
       api.convertMermaidToTechnicalDiagram(confirmed),
       api.convertMermaidToTechnicalDiagram(confirmed),
@@ -2533,7 +2545,11 @@ describeDatabase("Documents database boundary", () => {
       unparseableLines: [{ line: 4, text: "classDef x fill:red" }],
     });
 
-    const stale = { ...command, clientIdempotencyKey: crypto.randomUUID() };
+    const stale = {
+      ...command,
+      clientIdempotencyKey: crypto.randomUUID(),
+      previewToken: preview.previewToken,
+    };
     await api.updateDocument({
       baseRevision: saved.revision,
       body: `${saved.body}\nEdited`,
@@ -2553,12 +2569,33 @@ describeDatabase("Documents database boundary", () => {
     ).toHaveLength(0);
 
     const current = await api.document({ documentId: saved.id });
-    const fresh = {
+    const freshRange = {
       ...command,
       documentRevision: current.revision,
       blockStart: current.body.indexOf(block),
       blockEnd: current.body.indexOf(block) + block.length,
+    };
+    const freshPreview = await api.previewMermaidConversion(freshRange);
+    await expect(
+      api.convertMermaidToTechnicalDiagram({
+        ...freshRange,
+        clientIdempotencyKey: crypto.randomUUID(),
+        previewToken: preview.previewToken,
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(
+      api.convertMermaidToTechnicalDiagram({
+        ...freshRange,
+        clientIdempotencyKey: crypto.randomUUID(),
+        originalBlock: "Keep independent",
+        previewToken: freshPreview.previewToken,
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await api.technicalDiagrams({ projectId })).toHaveLength(0);
+    const fresh = {
+      ...freshRange,
       clientIdempotencyKey: crypto.randomUUID(),
+      previewToken: freshPreview.previewToken,
     };
     const [created] = await Promise.all([
       api.convertMermaidToTechnicalDiagram(fresh),
@@ -2576,7 +2613,11 @@ describeDatabase("Documents database boundary", () => {
         .from(usageLink)
         .where(eq(usageLink.sourceRecordId, created.id)),
     ).toMatchObject([
-      { surfaceRecordId: saved.id, surfaceRecordType: "Document" },
+      {
+        location: { documentLiveOrdinal: 0 },
+        surfaceRecordId: saved.id,
+        surfaceRecordType: "Document",
+      },
     ]);
   });
 

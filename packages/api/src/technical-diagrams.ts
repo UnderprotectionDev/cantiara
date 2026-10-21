@@ -94,6 +94,7 @@ export const mermaidConversionInputSchema = z
 export const confirmMermaidConversionInputSchema = mermaidConversionInputSchema
   .extend({
     clientIdempotencyKey: z.string().uuid(),
+    previewToken: z.string().min(1),
   })
   .strict();
 
@@ -230,6 +231,7 @@ export interface TechnicalDiagramsAccess {
     input: MermaidConversionInput,
   ) => Promise<
     | (MermaidConversionEffects & {
+        previewToken: string;
         source: MermaidConversionSource;
         title: string;
         projectId: string;

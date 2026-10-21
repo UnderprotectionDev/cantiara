@@ -105,3 +105,41 @@ export function describeMermaidConversion(
 export function lineOfOffset(body: string, offset: number) {
   return body.slice(0, offset).split("\n").length;
 }
+
+/**
+ * Token of one previewed outcome: the block, chosen outcome, title, lost lines
+ * and resulting model. Confirm is refused unless it carries the current token.
+ */
+export async function mermaidPreviewToken(input: {
+  blockEnd: number;
+  blockStart: number;
+  canConvert: boolean;
+  documentId: string;
+  documentRevision: number;
+  lostLines: MermaidConversionLostLine[];
+  model: unknown;
+  originalBlock: MermaidBlockOutcome;
+  source: string;
+  title: string;
+}): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(
+      JSON.stringify([
+        input.documentId,
+        input.documentRevision,
+        input.blockStart,
+        input.blockEnd,
+        input.source,
+        input.originalBlock,
+        input.title,
+        input.canConvert,
+        input.lostLines,
+        input.model,
+      ]),
+    ),
+  );
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}

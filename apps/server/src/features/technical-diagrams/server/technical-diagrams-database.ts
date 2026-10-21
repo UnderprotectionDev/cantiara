@@ -28,6 +28,7 @@ import {
   liveDiagramReference,
   MERMAID_CONVERT_LABELS,
   mermaidBlockSource,
+  mermaidPreviewToken,
 } from "@cantiara/api/technical-diagram-mermaid";
 import {
   diagramGraph,
@@ -67,7 +68,6 @@ import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
 import { project } from "@cantiara/db/schema/project";
-import { usageLink } from "@cantiara/db/schema/relation";
 import {
   diagramAuthorityOrigin,
   diagramDocumentOrigin,
@@ -80,7 +80,14 @@ import {
 } from "@cantiara/db/schema/technical-diagram";
 import { and, asc, eq, sql } from "drizzle-orm";
 
+import { assertDocumentSectionAcyclic } from "../../documents/server/document-live-section-database";
+import {
+  resolveInlineTags,
+  syncDocumentInlineUsageLinks,
+  syncDocumentLiveUsageLinks,
+} from "../../documents/server/documents-database";
 import { insertConvertedRecord } from "../../evidence/server/evidence-record-creation";
+import { openSpecChangeReviews } from "../../spec-change-review/server/spec-change-review-database";
 import { readRecordRows } from "../../user-flow/server/user-flow-database";
 import { previewMermaidArchitecture } from "./mermaid-conversion";
 
@@ -129,12 +136,22 @@ export function createDatabaseTechnicalDiagrams(
       documentRevision: input.documentRevision,
       documentTitle: row.document.title,
     };
+    const previewToken = await mermaidPreviewToken({
+      ...conversionSource,
+      canConvert: conversion.canConvert,
+      lostLines: conversion.unparseableLines,
+      model: conversion.model,
+      originalBlock,
+      source,
+      title: input.title,
+    });
     return {
       ...describeMermaidConversion(
         conversionSource,
         originalBlock,
         conversion.unparseableLines,
       ),
+      previewToken,
       source: conversionSource,
       title: input.title,
       projectId: row.projectId,
@@ -1157,10 +1174,16 @@ export function createDatabaseTechnicalDiagrams(
           "The Mermaid block has no convertible diagram edges.",
         );
       }
+      if (preview.previewToken !== input.previewToken) {
+        throw new MermaidConversionConflictError(
+          "Preview the Mermaid conversion again before confirming.",
+        );
+      }
       const inserted = await database.transaction(async (tx) => {
         const [saved] = await tx
           .select({
             body: document.body,
+            inlineTags: document.inlineTags,
             projectId: project.id,
             revision: document.revision,
             workspaceId: workspace.id,
@@ -1219,12 +1242,25 @@ export function createDatabaseTechnicalDiagrams(
             MERMAID_CONVERT_LABELS.replace,
             diagramId,
           );
+          const committedAt = new Date();
+          await assertDocumentSectionAcyclic(
+            tx,
+            accountId,
+            input.documentId,
+            nextBody,
+          );
           const [updatedDocument] = await tx
             .update(document)
             .set({
               body: nextBody,
+              inlineTags: await resolveInlineTags(
+                tx,
+                accountId,
+                nextBody,
+                saved.inlineTags,
+              ),
               revision: input.documentRevision + 1,
-              updatedAt: new Date(),
+              updatedAt: committedAt,
             })
             .where(
               and(
@@ -1232,30 +1268,44 @@ export function createDatabaseTechnicalDiagrams(
                 eq(document.revision, input.documentRevision),
               ),
             )
-            .returning({ id: document.id });
+            .returning({
+              id: document.id,
+              projectId: document.projectId,
+              revision: document.revision,
+            });
           if (!updatedDocument) {
             throw new MermaidConversionConflictError(
               "The Document changed after preview.",
             );
           }
-          const ordinal = documentLiveDirectives(nextBody).findIndex(
-            ({ id, kind }) => id === diagramId && kind === "Technical Diagram",
-          );
-          if (ordinal < 0) {
+          if (
+            !documentLiveDirectives(nextBody).some(
+              ({ id, kind }) =>
+                id === diagramId && kind === "Technical Diagram",
+            )
+          ) {
             throw new MermaidConversionConflictError(
               "The live Technical Diagram reference could not be written.",
             );
           }
-          await tx.insert(usageLink).values({
-            id: crypto.randomUUID(),
-            kind: "Live block",
-            location: { documentLiveOrdinal: ordinal },
-            revision: 1,
-            sourceRecordId: diagramId,
-            sourceRecordType: "Technical Diagram",
-            surfaceRecordId: input.documentId,
-            surfaceRecordType: "Document",
-            workspaceId: saved.workspaceId,
+          await syncDocumentLiveUsageLinks(
+            tx,
+            accountId,
+            input.documentId,
+            nextBody,
+          );
+          await syncDocumentInlineUsageLinks(
+            tx,
+            accountId,
+            input.documentId,
+            nextBody,
+          );
+          await openSpecChangeReviews(tx, {
+            createdAt: committedAt,
+            documentId: input.documentId,
+            nextRevision: updatedDocument.revision,
+            previousRevision: input.documentRevision,
+            projectId: updatedDocument.projectId,
           });
         }
         return true;

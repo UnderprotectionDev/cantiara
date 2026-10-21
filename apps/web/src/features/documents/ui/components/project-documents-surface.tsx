@@ -345,6 +345,17 @@ function DocumentEditor({
       if (!conversionSelection) {
         throw new Error("No Mermaid block selected.");
       }
+      if (
+        !matchesDiagramConversionPreview(
+          conversionPreview.data,
+          conversionSelection,
+          conversionTitle,
+          originalBlockOutcome,
+        )
+      ) {
+        throw new Error("Preview the Mermaid conversion again.");
+      }
+      const previewToken = conversionPreview.data?.previewToken as string;
       conversionKey.current ??= crypto.randomUUID();
       return runOnlineOnlyWrite(() =>
         client.convertMermaidToTechnicalDiagram({
@@ -354,6 +365,7 @@ function DocumentEditor({
           blockEnd: conversionSelection.end,
           originalBlock: originalBlockOutcome,
           title: conversionTitle,
+          previewToken,
           clientIdempotencyKey: conversionKey.current as string,
         }),
       );

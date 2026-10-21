@@ -233,7 +233,7 @@ async function resolveWorkspaceTags(
     : [];
 }
 
-async function resolveInlineTags(
+export async function resolveInlineTags(
   executor: MutationDatabaseExecutor,
   accountId: string,
   body: string,
@@ -318,7 +318,7 @@ function liveUsageLocation(
   return location;
 }
 
-async function syncDocumentLiveUsageLinks(
+export async function syncDocumentLiveUsageLinks(
   executor: MutationDatabaseExecutor,
   accountId: string,
   documentId: string,
@@ -438,7 +438,7 @@ async function syncDocumentLiveUsageLinks(
   }
 }
 
-async function syncDocumentInlineUsageLinks(
+export async function syncDocumentInlineUsageLinks(
   executor: MutationDatabaseExecutor,
   accountId: string,
   documentId: string,

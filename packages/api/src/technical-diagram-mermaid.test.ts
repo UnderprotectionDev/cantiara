@@ -7,6 +7,7 @@ import {
   liveDiagramReference,
   MERMAID_CONVERT_LABELS,
   mermaidBlockSource,
+  mermaidPreviewToken,
 } from "./technical-diagram-mermaid";
 
 const block = "```mermaid\ngraph TD\nweb[Web] --> api[API]\n```";
@@ -94,5 +95,43 @@ describe("conversion preview", () => {
       describeMermaidConversion(source, MERMAID_CONVERT_LABELS.keep, lost)
         .lostLines,
     ).toEqual(lost);
+  });
+});
+
+describe("preview token", () => {
+  const previewed = {
+    ...range,
+    canConvert: true,
+    documentId: "doc-1",
+    documentRevision: 4,
+    lostLines: [] as { line: number; reason: string; text: string }[],
+    model: { nodes: [{ id: "web" }] },
+    originalBlock: MERMAID_CONVERT_LABELS.replace,
+    source: "graph TD\nweb[Web] --> api[API]",
+    title: "Web architecture",
+  };
+
+  test("is stable for the same previewed outcome", async () => {
+    expect(await mermaidPreviewToken(previewed)).toBe(
+      await mermaidPreviewToken({ ...previewed }),
+    );
+  });
+
+  test("changes with the outcome, lost lines, block, title or revision", async () => {
+    const token = await mermaidPreviewToken(previewed);
+    const tokens = await Promise.all(
+      [
+        { originalBlock: MERMAID_CONVERT_LABELS.keep },
+        {
+          lostLines: [{ line: 3, reason: "Unsupported", text: "classDef x" }],
+        },
+        { source: "graph TD\nweb[Web] --> db[DB]" },
+        { title: "Other" },
+        { documentRevision: 5 },
+      ].map((changed) => mermaidPreviewToken({ ...previewed, ...changed })),
+    );
+    for (const changedToken of tokens) {
+      expect(changedToken).not.toBe(token);
+    }
   });
 });
