@@ -8,29 +8,34 @@ import {
   type ProductGapLinkTarget,
   type ProductGapRecord,
   type ProductGapStatus,
-  RECORD_PRODUCT_GAP_LABEL,
 } from "@cantiara/api/product-gaps";
 import { Button } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
-import { Textarea } from "@cantiara/ui/components/textarea";
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
-  EMPTY_GAP_FORM,
+  EMPTY_GAP_FILTER,
   errorText,
-  type GapFormValues,
+  type GapFilterValues,
   linkLabel,
 } from "../lib/product-gap-form";
 import {
-  type LoadProductGapTargets,
-  ProductGapLinksField,
-} from "./product-gap-links-field";
+  GapFilterBar,
+  type LoadEscapes,
+  ToolEscapesPanel,
+} from "./dogfooding-summary";
+import type { LoadProductGapTargets } from "./product-gap-links-field";
+import {
+  type RecordGap,
+  RecordProductGapForm,
+} from "./record-product-gap-form";
+
+export type { LoadEscapes } from "./dogfooding-summary";
+export type { RecordGap } from "./record-product-gap-form";
 
 export type FollowUpRequest =
   | { kind: "Feature relation"; featureId: string }
   | { kind: "Work"; projectId: string; workType: ProductGapFollowUpWorkType };
 
-export type RecordGap = (values: GapFormValues) => Promise<unknown>;
 export type SetGapStatus = (
   gap: ProductGapRecord,
   status: ProductGapStatus,
@@ -43,96 +48,6 @@ export type ConfirmFollowUp = (
   gap: ProductGapRecord,
   plan: ProductGapFollowUpPlan,
 ) => Promise<unknown>;
-
-/**
- * Recording form. The founder writes the title, the unmet need, an optional
- * scope and the related records; there is no status, count or priority field.
- */
-function RecordForm({
-  loadTargets,
-  onSubmit,
-}: {
-  loadTargets: LoadProductGapTargets;
-  onSubmit: RecordGap;
-}) {
-  const [values, setValues] = useState<GapFormValues>(EMPTY_GAP_FORM);
-  const [error, setError] = useState<string>();
-  const [pending, setPending] = useState(false);
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(undefined);
-    setPending(true);
-    try {
-      await onSubmit(values);
-      setValues(EMPTY_GAP_FORM);
-    } catch (caught) {
-      setError(errorText(caught, `${PRODUCT_GAP_LABEL} was not saved.`));
-    } finally {
-      setPending(false);
-    }
-  }
-  return (
-    <form
-      aria-label={RECORD_PRODUCT_GAP_LABEL}
-      className="space-y-4 rounded-lg border border-border/70 p-5"
-      onSubmit={submit}
-    >
-      <h3 className="font-medium">{RECORD_PRODUCT_GAP_LABEL}</h3>
-      {error ? (
-        <p className="text-destructive text-sm" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <div className="grid gap-2 text-sm">
-        <label htmlFor="product-gap-new-title">Title</label>
-        <Input
-          disabled={pending}
-          id="product-gap-new-title"
-          maxLength={255}
-          onChange={(event) =>
-            setValues({ ...values, title: event.target.value })
-          }
-          required
-          value={values.title}
-        />
-      </div>
-      <div className="grid gap-2 text-sm">
-        <label htmlFor="product-gap-new-need">Unmet need</label>
-        <Textarea
-          disabled={pending}
-          id="product-gap-new-need"
-          onChange={(event) =>
-            setValues({ ...values, unmetNeed: event.target.value })
-          }
-          required
-          rows={3}
-          value={values.unmetNeed}
-        />
-      </div>
-      <div className="grid gap-2 text-sm">
-        <label htmlFor="product-gap-new-scope">Scope (optional)</label>
-        <Textarea
-          disabled={pending}
-          id="product-gap-new-scope"
-          onChange={(event) =>
-            setValues({ ...values, scope: event.target.value })
-          }
-          rows={2}
-          value={values.scope}
-        />
-      </div>
-      <ProductGapLinksField
-        idPrefix="product-gap-new"
-        loadTargets={loadTargets}
-        onChange={(links) => setValues({ ...values, links })}
-        value={values.links}
-      />
-      <Button disabled={pending} type="submit">
-        {RECORD_PRODUCT_GAP_LABEL}
-      </Button>
-    </form>
-  );
-}
 
 function StatusControl({
   onSetStatus,
@@ -391,29 +306,50 @@ function FollowUpPanel({
 }
 
 export function ProductGapsView({
+  filter = EMPTY_GAP_FILTER,
   gaps,
+  loadEscapes,
   loadTargets,
   onConfirmFollowUp,
+  onFilterChange,
   onPreviewFollowUp,
   onRecord,
   onSetStatus,
+  tools,
 }: {
+  filter?: GapFilterValues;
   gaps: ProductGapRecord[];
+  loadEscapes: LoadEscapes;
   loadTargets: LoadProductGapTargets;
   onConfirmFollowUp: ConfirmFollowUp;
+  onFilterChange: (filter: GapFilterValues) => void;
   onPreviewFollowUp: PreviewFollowUp;
   onRecord: RecordGap;
   onSetStatus: SetGapStatus;
+  tools: string[];
 }) {
+  const filtering = Object.values(filter).some(Boolean);
   return (
     <section aria-labelledby="product-gaps-heading" className="space-y-6">
       <h2 className="font-semibold text-lg" id="product-gaps-heading">
         Product Gaps
       </h2>
-      <RecordForm loadTargets={loadTargets} onSubmit={onRecord} />
+      <RecordProductGapForm
+        gaps={gaps}
+        loadTargets={loadTargets}
+        onSubmit={onRecord}
+      />
+      <GapFilterBar
+        filter={filter}
+        loadTargets={loadTargets}
+        onChange={onFilterChange}
+        tools={tools}
+      />
       {gaps.length === 0 ? (
         <p className="text-muted-foreground text-sm">
-          No Product Gaps recorded yet.
+          {filtering
+            ? "No Product Gaps match these filters."
+            : "No Product Gaps recorded yet."}
         </p>
       ) : (
         <ul aria-label="Product Gaps" className="space-y-4">
@@ -440,6 +376,12 @@ export function ProductGapsView({
                     ))}
                   </ul>
                 )}
+                <ToolEscapesPanel
+                  filter={filter}
+                  key={`${record.id}:${record.escapeCount}:${JSON.stringify(filter)}`}
+                  loadEscapes={loadEscapes}
+                  record={record}
+                />
                 <StatusControl onSetStatus={onSetStatus} record={record} />
                 <FollowUpPanel
                   loadTargets={loadTargets}

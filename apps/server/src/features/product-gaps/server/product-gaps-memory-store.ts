@@ -4,6 +4,7 @@ import type {
   ProductGapStore,
   ProductGapStoredRecord,
   ProductGapTargetResolver,
+  ToolEscapeStored,
 } from "@cantiara/api/product-gaps";
 
 import { createProductGaps } from "./product-gaps";
@@ -14,6 +15,8 @@ export type CatalogState = "active" | "archived" | "trashed" | "gone";
 
 export interface ProductGapCatalogEntry {
   label: string;
+  /** The Project a Work, Feature or Decision belongs to (a Project is its own). */
+  projectId?: string;
   /** Project only: an archived Project stays readable but takes no Work. */
   readOnly?: boolean;
   state?: CatalogState;
@@ -36,6 +39,7 @@ export function createProductGapHarness(
     catalog.set(key(entry.targetType, entry.targetId), { ...entry });
   }
   const gaps = new Map<string, ProductGapStoredRecord>();
+  const escapes: ToolEscapeStored[] = [];
   const writes: string[] = [];
   const receipts = new Map<
     string,
@@ -44,6 +48,20 @@ export function createProductGapHarness(
   let workCount = 0;
 
   const resolver: ProductGapTargetResolver = {
+    bindSource: (link) => {
+      const entry = catalog.get(key(link.targetType, link.targetId));
+      return Promise.resolve(
+        entry && (entry.state ?? "active") === "active"
+          ? {
+              label: entry.label,
+              projectId:
+                entry.targetType === "Project"
+                  ? entry.targetId
+                  : (entry.projectId ?? "project-unknown"),
+            }
+          : null,
+      );
+    },
     bind: (link) => {
       const entry = catalog.get(key(link.targetType, link.targetId));
       return Promise.resolve(
@@ -199,10 +217,32 @@ export function createProductGapHarness(
       }
       return work({
         findGap: (gapId) => Promise.resolve(gaps.get(gapId) ?? null),
+        insertEscape: (event) => {
+          escapes.push(event);
+          return Promise.resolve();
+        },
         insertGap: (record) => {
           gaps.set(record.id, record);
           return Promise.resolve();
         },
+        listEscapes: (filter) =>
+          Promise.resolve(
+            escapes
+              .filter(
+                (event) =>
+                  (!filter.gapId || event.gapId === filter.gapId) &&
+                  (!filter.tool ||
+                    event.tool.toLowerCase() === filter.tool.toLowerCase()) &&
+                  (!filter.reason || event.reasons.includes(filter.reason)) &&
+                  (!filter.projectId ||
+                    event.source.projectId === filter.projectId),
+              )
+              .sort(
+                (left, right) =>
+                  right.occurredAt.localeCompare(left.occurredAt) ||
+                  left.id.localeCompare(right.id),
+              ),
+          ),
         listGaps: () =>
           Promise.resolve(
             [...gaps.values()].sort((left, right) =>
@@ -229,6 +269,7 @@ export function createProductGapHarness(
 
   return {
     catalog,
+    escapes,
     gaps,
     productGaps: createProductGaps(store),
     writes,

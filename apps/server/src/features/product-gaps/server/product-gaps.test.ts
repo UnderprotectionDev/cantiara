@@ -495,8 +495,10 @@ describe("Product Gaps stay free of telemetry", () => {
       "confirmFollowUp",
       "linkTargets",
       "list",
+      "listEscapes",
       "previewFollowUp",
       "record",
+      "recordToolEscape",
       "setStatus",
     ]);
   });

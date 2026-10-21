@@ -2,7 +2,11 @@
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
-import { productGap, productGapLink } from "@cantiara/db/schema/product-gap";
+import {
+  productGap,
+  productGapLink,
+  toolEscape,
+} from "@cantiara/db/schema/product-gap";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
@@ -22,6 +26,7 @@ import {
   ProductGapProjectReadOnlyError,
   ProductGapStatusConflictError,
   ProductGapWorkspaceNotFoundError,
+  ToolEscapeSourceError,
 } from "./product-gaps";
 import { createDatabaseProductGaps } from "./product-gaps-database";
 
@@ -400,5 +405,133 @@ describeDatabase("Product Gaps PostgreSQL integration", () => {
         projectId: otherProjectId,
       }),
     ).rejects.toBeInstanceOf(ProductGapNotFoundError);
+  });
+
+  test("records dated Tool Escapes, attaches by choice, derives the count and filters", async () => {
+    const db = requireDatabase();
+    const access = createDatabaseProductGaps(db);
+    const base = {
+      intendedJob: "Bulk rename forty Works",
+      occurredAt: "2026-10-01T09:30:00.000Z",
+      tool: "Spreadsheet",
+    };
+
+    const first = await access.recordToolEscape(accountId, {
+      escape: {
+        ...base,
+        note: "Needed a sort of its own.",
+        reasons: ["Missing capability", "Faster"],
+        source: { targetId: ids.task, targetType: "Work" },
+      },
+      gap: { kind: "New", ...gap },
+    });
+    const second = await access.recordToolEscape(accountId, {
+      escape: {
+        ...base,
+        occurredAt: "2026-10-02T09:30:00.000Z",
+        reasons: ["Habit"],
+        source: { targetId: projectId, targetType: "Project" },
+        tool: "Notes App",
+      },
+      gap: { gapId: first.gap.id, kind: "Existing" },
+    });
+    // The same title is a separate Gap: nothing is merged.
+    const same = await access.recordToolEscape(accountId, {
+      escape: {
+        ...base,
+        reasons: ["Usability"],
+        source: { targetId: ids.decision, targetType: "Decision" },
+      },
+      gap: { kind: "New", ...gap },
+    });
+
+    expect(first.escape).toMatchObject({
+      note: "Needed a sort of its own.",
+      reasons: ["Missing capability", "Faster"],
+      source: { label: "Fix export", projectId, state: "resolved" },
+    });
+    expect(second.gap).toMatchObject({ escapeCount: 2, id: first.gap.id });
+    expect(same.gap.id).not.toBe(first.gap.id);
+    expect(
+      (await access.listEscapes(accountId, { gapId: first.gap.id })).map(
+        ({ id }) => id,
+      ),
+    ).toEqual([second.escape.id, first.escape.id]);
+    expect(
+      (await access.list(accountId, { tool: "notes app" })).gaps.map(
+        ({ id, escapeCount }) => [id, escapeCount],
+      ),
+    ).toEqual([[first.gap.id, 1]]);
+    expect(
+      (await access.list(accountId, { reason: "Usability" })).gaps.map(
+        ({ id }) => id,
+      ),
+    ).toEqual([same.gap.id]);
+    expect(
+      (await access.list(accountId, { projectId })).gaps
+        .map(({ id }) => id)
+        .sort(),
+    ).toEqual([first.gap.id, same.gap.id].sort());
+    expect((await access.list(accountId, { status: "Met" })).gaps).toEqual([]);
+    expect((await access.list(otherAccountId)).gaps).toEqual([]);
+
+    // A status change rewrites no event; a foreign Gap or source is refused.
+    const before = await db.select().from(toolEscape);
+    await access.setStatus(accountId, {
+      expectedStatus: "Open",
+      gapId: first.gap.id,
+      status: "Conscious boundary",
+    });
+    expect(await db.select().from(toolEscape)).toEqual(before);
+    await expect(
+      access.recordToolEscape(accountId, {
+        escape: {
+          ...base,
+          reasons: ["Faster"],
+          source: { targetId: ids.otherWork, targetType: "Work" },
+        },
+        gap: { kind: "New", ...gap },
+      }),
+    ).rejects.toBeInstanceOf(ToolEscapeSourceError);
+    await expect(
+      access.recordToolEscape(otherAccountId, {
+        escape: {
+          ...base,
+          reasons: ["Faster"],
+          source: { targetId: otherProjectId, targetType: "Project" },
+        },
+        gap: { gapId: first.gap.id, kind: "Existing" },
+      }),
+    ).rejects.toBeInstanceOf(ProductGapNotFoundError);
+    expect(await db.select().from(toolEscape)).toHaveLength(3);
+  });
+
+  test("the database refuses an event with no reason, an unknown reason or an unknown source type", async () => {
+    const db = requireDatabase();
+    const access = createDatabaseProductGaps(db);
+    const created = await access.record(accountId, gap);
+    const row = {
+      gapId: created.id,
+      intendedJob: "Job",
+      occurredAt: new Date(),
+      projectId,
+      sourceId: projectId,
+      sourceType: "Project",
+      tool: "Tool",
+    };
+
+    for (const bad of [
+      { reasons: [] },
+      { reasons: ["Cheaper"] },
+      { reasons: ["Faster"], sourceType: "Contact" },
+    ]) {
+      await expect(
+        db.insert(toolEscape).values({
+          ...row,
+          id: crypto.randomUUID(),
+          ...bad,
+        }),
+      ).rejects.toThrow();
+    }
   });
 });

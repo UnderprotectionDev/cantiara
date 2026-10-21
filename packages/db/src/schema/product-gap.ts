@@ -93,3 +93,54 @@ export const productGapLink = pgTable(
     ),
   ],
 );
+
+/**
+ * Tool Escape (Dış Araca Kaçış) event of a Gap, spec 58. Append-only: the
+ * seam has no update or delete, and a Gap status change never touches a row.
+ * There is deliberately no severity, `High-impact`, priority, score, content or
+ * session column: the repeat count of a Gap is `count(*)` of its rows and
+ * nothing else. `source_*` names the Project or record the work left; the
+ * polymorphic `source_id` has no foreign key so a gone record reads as broken,
+ * and `project_id` is the Project that source belonged to when it was recorded.
+ */
+export const toolEscape = pgTable(
+  "workspace_tool_escape",
+  {
+    gapId: text("gap_id").notNull(),
+    id: text("id").primaryKey(),
+    intendedJob: text("intended_job").notNull(),
+    note: text("note"),
+    occurredAt: timestamp("occurred_at").notNull(),
+    projectId: text("project_id").notNull(),
+    reasons: text("reasons").array().notNull(),
+    recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+    sourceId: text("source_id").notNull(),
+    sourceType: text("source_type").notNull(),
+    tool: text("tool").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.gapId],
+      foreignColumns: [productGap.id],
+      name: "workspace_tool_escape_gap_fk",
+    }).onDelete("cascade"),
+    index("workspace_tool_escape_gap_idx").on(table.gapId, table.occurredAt),
+    index("workspace_tool_escape_project_idx").on(table.projectId),
+    check(
+      "workspace_tool_escape_source_type_check",
+      sql`${table.sourceType} in ('Project', 'Work', 'Feature', 'Decision')`,
+    ),
+    check(
+      "workspace_tool_escape_reasons_check",
+      sql`cardinality(${table.reasons}) between 1 and 5 and ${table.reasons} <@ array['Missing capability', 'Faster', 'More reliable', 'Usability', 'Habit']::text[]`,
+    ),
+    check(
+      "workspace_tool_escape_tool_check",
+      sql`length(btrim(${table.tool})) between 1 and 120`,
+    ),
+    check(
+      "workspace_tool_escape_intended_job_check",
+      sql`length(btrim(${table.intendedJob})) >= 1`,
+    ),
+  ],
+);

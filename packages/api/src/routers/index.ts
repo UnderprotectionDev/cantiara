@@ -293,15 +293,20 @@ import {
 } from "../priority-metrics";
 import {
   confirmProductGapFollowUpInputSchema,
+  listToolEscapesInputSchema,
   previewProductGapFollowUpInputSchema,
   productGapFollowUpPlanSchema,
   productGapFollowUpResultSchema,
   productGapLinkTargetSchema,
   productGapLinkTargetsInputSchema,
+  productGapListInputSchema,
   productGapListSchema,
   productGapRecordSchema,
   recordProductGapInputSchema,
+  recordToolEscapeInputSchema,
+  recordToolEscapeResultSchema,
   setProductGapStatusInputSchema,
+  toolEscapeListSchema,
 } from "../product-gaps";
 import {
   createProjectGoalInputSchema,
@@ -3398,6 +3403,11 @@ interface ProductGapFailure {
 }
 
 const PRODUCT_GAP_FAILURES: Record<string, ProductGapFailure> = {
+  TOOL_ESCAPE_SOURCE_UNAVAILABLE: {
+    message:
+      "The escape source is not an existing, active record of this Workspace.",
+    status: "BAD_REQUEST",
+  },
   PRODUCT_GAP_FOLLOW_UP_STALE: {
     message: "The follow-up preview is stale. Open the preview again.",
     status: "PRECONDITION_FAILED",
@@ -6491,10 +6501,11 @@ export const appRouter = {
       ),
     ),
   productGaps: protectedProcedure
+    .input(productGapListInputSchema.optional())
     .output(productGapListSchema)
-    .handler(({ context }) =>
+    .handler(({ context, input }) =>
       runProductGapOperation(() =>
-        requireProductGaps(context).list(context.session.user.id),
+        requireProductGaps(context).list(context.session.user.id, input),
       ),
     ),
   recordProductGap: protectedProcedure
@@ -6503,6 +6514,25 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runProductGapOperation(() =>
         requireProductGaps(context).record(context.session.user.id, input),
+      ),
+    ),
+  recordToolEscape: protectedProcedure
+    .input(recordToolEscapeInputSchema)
+    .output(recordToolEscapeResultSchema)
+    .handler(({ context, input }) =>
+      runProductGapOperation(() =>
+        requireProductGaps(context).recordToolEscape(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  productGapEscapes: protectedProcedure
+    .input(listToolEscapesInputSchema)
+    .output(toolEscapeListSchema)
+    .handler(({ context, input }) =>
+      runProductGapOperation(() =>
+        requireProductGaps(context).listEscapes(context.session.user.id, input),
       ),
     ),
   setProductGapStatus: protectedProcedure
