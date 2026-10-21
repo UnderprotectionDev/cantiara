@@ -1,4 +1,4 @@
-import type { DiagramModel } from "@cantiara/db/schema/technical-diagram";
+import type { ArchitectureModel } from "@cantiara/db/schema/technical-diagram";
 import mermaid from "mermaid";
 
 const graphHeader = /^(?:graph|flowchart)\s+(?:TD|TB|LR|RL|BT)$/;
@@ -13,15 +13,15 @@ export interface MermaidUnparseableLine {
 
 export interface MermaidArchitecturePreview {
   canConvert: boolean;
-  model: DiagramModel;
+  model: ArchitectureModel;
   unparseableLines: MermaidUnparseableLine[];
 }
 
 function addMermaidEdge(
   raw: string,
   line: number,
-  nodes: Map<string, DiagramModel["nodes"][number]>,
-  links: DiagramModel["links"],
+  nodes: Map<string, ArchitectureModel["nodes"][number]>,
+  links: ArchitectureModel["links"],
   unparseableLines: MermaidUnparseableLine[],
 ) {
   const match = edgeLine.exec(raw.trim());
@@ -69,10 +69,43 @@ function addMermaidEdge(
       kind: "Component",
     });
   }
-  links.push({ from, to, label: null });
+  links.push({ from, kind: "Depends on", label: null, to });
 }
 
-async function validateGraph(header: string, links: DiagramModel["links"]) {
+const syntaxErrorMarker = /Parse error|Lexical error/;
+const parseErrorLine = /on line (\d+)/;
+
+/**
+ * Mermaid is the parse input: its parser decides whether the source is valid
+ * syntax. A syntax error is a preview outcome, never a throw. Mermaid's server
+ * parser cannot sanitize labels without a browser, so a failure that is not a
+ * syntax error (a missing DOM sanitizer) leaves the guarded regex path in charge.
+ */
+async function findSyntaxError(
+  source: string,
+  lines: string[],
+): Promise<MermaidUnparseableLine | null> {
+  try {
+    await mermaid.parse(source);
+    return null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!syntaxErrorMarker.test(message)) {
+      return null;
+    }
+    const line = Number(parseErrorLine.exec(message)?.[1] ?? 1);
+    return {
+      line,
+      reason: `Mermaid could not parse this diagram: ${message.split("\n")[0]}`,
+      text: lines[line - 1] ?? "",
+    };
+  }
+}
+
+async function validateGraph(
+  header: string,
+  links: ArchitectureModel["links"],
+): Promise<string | null> {
   // Mermaid's server parser requires a browser sanitizer for labels. Parse the
   // exact supported graph topology without labels, then retain labels above.
   const graph = [
@@ -81,13 +114,13 @@ async function validateGraph(header: string, links: DiagramModel["links"]) {
   ].join("\n");
   try {
     const parsed = await mermaid.parse(graph);
-    if (!parsed.diagramType.startsWith("flowchart")) {
-      throw new Error("Unsupported Mermaid diagram type");
-    }
+    return parsed.diagramType.startsWith("flowchart")
+      ? null
+      : "Unsupported Mermaid diagram type.";
   } catch (error) {
-    throw new Error("Invalid or unsupported Mermaid flowchart.", {
-      cause: error,
-    });
+    return error instanceof Error
+      ? error.message
+      : "Invalid Mermaid flowchart.";
   }
 }
 
@@ -110,8 +143,16 @@ export async function previewMermaidArchitecture(
       unparseableLines,
     };
   }
-  const nodes = new Map<string, DiagramModel["nodes"][number]>();
-  const links: DiagramModel["links"] = [];
+  const syntaxError = await findSyntaxError(source, lines);
+  if (syntaxError) {
+    return {
+      canConvert: false,
+      model: { nodes: [], links: [] },
+      unparseableLines: [syntaxError],
+    };
+  }
+  const nodes = new Map<string, ArchitectureModel["nodes"][number]>();
+  const links: ArchitectureModel["links"] = [];
   for (const [index, raw] of lines.entries()) {
     if (index === 0 || !raw.trim()) {
       continue;
@@ -125,7 +166,17 @@ export async function previewMermaidArchitecture(
       unparseableLines,
     };
   }
-  await validateGraph(header, links);
+  const graphError = await validateGraph(header, links);
+  if (graphError) {
+    return {
+      canConvert: false,
+      model: { nodes: [...nodes.values()], links },
+      unparseableLines: [
+        ...unparseableLines,
+        { line: 1, reason: graphError, text: header },
+      ],
+    };
+  }
   return {
     canConvert: true,
     model: { nodes: [...nodes.values()], links },
@@ -136,7 +187,7 @@ export async function previewMermaidArchitecture(
 /** Strict parser retained for callers that require a lossless conversion. */
 export async function parseMermaidArchitecture(
   source: string,
-): Promise<DiagramModel> {
+): Promise<ArchitectureModel> {
   const preview = await previewMermaidArchitecture(source);
   const [firstUnparseable] = preview.unparseableLines;
   if (firstUnparseable) {

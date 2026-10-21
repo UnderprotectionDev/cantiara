@@ -92,6 +92,11 @@ export const projectWallItem = pgTable(
     // the source type never changes after insert. Wall view state, never a
     // copy.
     diagramViewId: text("diagram_view_id"),
+    // Exact `Diagram Version` a `Technical Diagram` card is pinned to; null
+    // means the card follows the live diagram (`Live`). An explicit choice,
+    // never filled by following the newest checkpoint. API-enforced like
+    // `diagram_view_id`.
+    diagramVersionId: text("diagram_version_id"),
     // Wall-only membership; deleting a group keeps its cards.
     groupId: text("group_id").references(() => projectWallGroup.id, {
       onDelete: "set null",

@@ -202,6 +202,9 @@ export const addProjectWallCardInputSchema = projectWallInputSchema
     // The selected Diagram View of a Technical Diagram card (its default view
     // when omitted). No other source type takes it.
     diagramViewId: identifierSchema.optional(),
+    // Exact Diagram Version the card is pinned to (`Exact`); omitted means the
+    // card follows the live diagram (`Live`).
+    diagramVersionId: identifierSchema.optional(),
     position: projectWallPositionSchema.default({ x: 0, y: 0 }),
     sourceId: identifierSchema,
     sourceType: projectWallSourceTypeSchema,
@@ -214,6 +217,15 @@ export const addProjectWallCardInputSchema = projectWallInputSchema
     {
       message: "Only a Technical Diagram card selects a Diagram View.",
       path: ["diagramViewId"],
+    },
+  )
+  .refine(
+    (input) =>
+      input.diagramVersionId === undefined ||
+      input.sourceType === "Technical Diagram",
+    {
+      message: "Only a Technical Diagram card pins a Diagram Version.",
+      path: ["diagramVersionId"],
     },
   );
 export type AddProjectWallCardInput = z.input<
@@ -247,6 +259,17 @@ export const setProjectWallCardDensityInputSchema = projectWallInputSchema
   .strict();
 export type SetProjectWallCardDensityInput = z.input<
   typeof setProjectWallCardDensityInputSchema
+>;
+
+/** `null` returns the card to `Live`; a version id pins it to `Exact`. */
+export const setProjectWallCardDiagramPinInputSchema = projectWallInputSchema
+  .extend({
+    cardId: identifierSchema,
+    diagramVersionId: identifierSchema.nullable(),
+  })
+  .strict();
+export type SetProjectWallCardDiagramPinInput = z.input<
+  typeof setProjectWallCardDiagramPinInputSchema
 >;
 
 export const setProjectWallCardHighlightInputSchema = projectWallInputSchema
@@ -367,6 +390,8 @@ export type SetProjectWallCardGroupInput = z.input<
 
 export interface ProjectWallItemRecord {
   density: ProjectWallDensity;
+  /** Pinned Diagram Version of a Technical Diagram card; null is `Live`. */
+  diagramVersionId: string | null;
   /** Selected Diagram View of a Technical Diagram card; otherwise null. */
   diagramViewId: string | null;
   /** Wall-only group membership; never a relation or classification. */
@@ -452,6 +477,10 @@ export interface ProjectWallDiagramPreview {
   links: Array<{ from: string; label: string | null; to: string }>;
   nodes: Array<{ id: string; kind: string; label: string }>;
   pin: "Exact" | "Live";
+  /** The pinned Diagram Version; all null when `Live`. */
+  versionId: string | null;
+  versionName: string | null;
+  versionNumber: number | null;
   viewName: string | null;
 }
 
@@ -708,6 +737,7 @@ export interface ProjectWallStore extends ProjectWallViewportStore {
     accountId: string,
     input: {
       density: ProjectWallDensity;
+      diagramVersionId: string | null;
       diagramViewId: string | null;
       id: string;
       placedAt: string;
@@ -808,6 +838,15 @@ export interface ProjectWallStore extends ProjectWallViewportStore {
     input: {
       cardId: string;
       density: ProjectWallDensity;
+      projectId: string;
+      wallId: string;
+    },
+  ) => Promise<boolean>;
+  setCardDiagramVersion: (
+    accountId: string,
+    input: {
+      cardId: string;
+      diagramVersionId: string | null;
       projectId: string;
       wallId: string;
     },
@@ -945,6 +984,10 @@ export interface ProjectWallAccess {
     accountId: string,
     input: SetProjectWallCardLockInput,
   ) => Promise<ProjectWallView>;
+  setCardPin: (
+    accountId: string,
+    input: SetProjectWallCardDiagramPinInput,
+  ) => Promise<ProjectWallView>;
   setFocusOrder: (
     accountId: string,
     input: SetProjectWallFocusOrderInput,
@@ -979,6 +1022,7 @@ export interface ProjectWallRelationPreview {
 /** Read-only diagram seam of the Technical Diagrams feature; no write method. */
 export interface ProjectWallDiagrams {
   get: TechnicalDiagramsAccess["get"];
+  getVersion: TechnicalDiagramsAccess["getVersion"];
   list: TechnicalDiagramsAccess["list"];
   listViews: TechnicalDiagramsAccess["listViews"];
 }

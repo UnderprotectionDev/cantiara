@@ -1,11 +1,12 @@
 import type { ProjectWallViewport } from "@cantiara/api/project-wall-viewport";
+import { LiteDebouncer } from "@tanstack/pacer-lite";
 import {
   skipToken,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { client, orpc } from "@/utils/orpc";
 
@@ -49,42 +50,37 @@ export function usePersonalProjectWallView(
         saved,
       ),
   });
-  const pending = useRef<Pending | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const { mutate } = save;
-
-  const flush = useCallback(() => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-    if (pending.current) {
-      mutate(pending.current);
-      pending.current = null;
-    }
-  }, [mutate]);
+  const mutateRef = useRef(mutate);
+  mutateRef.current = mutate;
+  const debouncer = useMemo(
+    () =>
+      new LiteDebouncer((pending: Pending) => mutateRef.current(pending), {
+        wait: SAVE_DELAY_MS,
+      }),
+    [],
+  );
+  // The wall of the last scheduled view; a different wall flushes it first.
+  const scheduledWall = useRef<string | null>(null);
 
   const schedule = useCallback(
     (view: ProjectWallViewport) => {
       if (!wallId) {
         return;
       }
-      if (pending.current && pending.current.wallId !== wallId) {
-        flush();
+      if (scheduledWall.current && scheduledWall.current !== wallId) {
+        debouncer.flush();
       }
-      pending.current = { view, wallId };
-      if (timer.current) {
-        clearTimeout(timer.current);
-      }
-      timer.current = setTimeout(flush, SAVE_DELAY_MS);
+      scheduledWall.current = wallId;
+      debouncer.maybeExecute({ view, wallId });
     },
-    [flush, wallId],
+    [debouncer, wallId],
   );
 
   // Switching or leaving a wall keeps the last position.
   // biome-ignore lint/correctness/useExhaustiveDependencies: A new wall id is the trigger to flush the old wall's pending save.
-  useEffect(() => flush, [flush, wallId]);
+  useEffect(() => () => debouncer.flush(), [debouncer, wallId]);
 
   return {
     isReady: wallId === null || query.isSuccess || query.isError,

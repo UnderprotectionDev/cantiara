@@ -2,6 +2,8 @@
 
 Where code lives and what may import what. Copy the shapes here, not the nearest file: some existing code breaks these rules (see Known deviations). The smallest feature that follows every rule is `apps/web/src/features/account-preferences/`.
 
+Per-feature file ownership, migrations and seam tests are recorded in [`docs/source-ownership.md`](docs/source-ownership.md); read only the entry for the feature you change.
+
 ## One feature across layers
 
 `<feature>` is the [`CONTEXT.md`](CONTEXT.md) canonical English term in `kebab-case`, the same in every layer. Open only the folders the feature uses.
