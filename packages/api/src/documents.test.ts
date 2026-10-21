@@ -279,4 +279,20 @@ describe("Documents", () => {
       { id: "diagram-1", kind: "Technical Diagram", viewId: "view-2" },
     ]);
   });
+
+  it("reads an optional exact Diagram Version pin on a live diagram card", () => {
+    expect(
+      documentLiveDirectives(
+        ':::live-diagram{diagramId="diagram-1" versionId="version-3"}\n:::live-diagram{diagramId="diagram-2" viewId="view-1" versionId="version-4"}\n:::live-diagram{diagramId="diagram-3"}',
+      ),
+    ).toMatchObject([
+      { id: "diagram-1", versionId: "version-3" },
+      { id: "diagram-2", versionId: "version-4", viewId: "view-1" },
+      { id: "diagram-3" },
+    ]);
+    expect(
+      documentLiveDirectives(':::live-diagram{diagramId="diagram-3"}')[0]
+        ?.versionId,
+    ).toBeUndefined();
+  });
 });

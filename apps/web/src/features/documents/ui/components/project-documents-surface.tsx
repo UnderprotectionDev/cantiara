@@ -319,6 +319,7 @@ function DocumentEditor({
     availableSections,
     diagrams,
     diagramViews,
+    diagramVersions,
     sourceRecords,
   } = useDocumentReferenceSources(
     record,
@@ -1062,6 +1063,7 @@ function DocumentEditor({
                       bulkRows={bulkRows}
                       collectionViews={collectionViews}
                       diagrams={diagrams}
+                      diagramVersions={diagramVersions}
                       diagramViews={diagramViews}
                       documentsForSections={documentsForSections}
                       field={field}
@@ -2347,6 +2349,7 @@ function DocumentMarkdownEditor({
   selectedDiagramId,
   diagrams,
   diagramViews,
+  diagramVersions,
   setRecordReferenceChoice,
   recordReferenceChoice,
   recordReferenceOptions,
@@ -2395,6 +2398,10 @@ function DocumentMarkdownEditor({
   >;
   diagramViews: import("@tanstack/react-query").UseQueryResult<
     { id: string; name: string; selectedNodeIds: string[] }[],
+    Error
+  >;
+  diagramVersions: import("@tanstack/react-query").UseQueryResult<
+    { id: string; name: string; number: number }[],
     Error
   >;
   setRecordReferenceChoice: import("react").Dispatch<
@@ -2572,6 +2579,29 @@ function DocumentMarkdownEditor({
             {diagramViews.data?.map((diagramView) => (
               <NativeSelectOption key={diagramView.id} value={diagramView.id}>
                 {diagramView.name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+          <Label htmlFor="document-live-diagram-version">Diagram Version</Label>
+          <NativeSelect
+            id="document-live-diagram-version"
+            onChange={(event) => {
+              const versionId = event.target.value;
+              if (versionId) {
+                const spacer = field.state.value.trimEnd() ? "\n\n" : "";
+                field.handleChange(
+                  `${field.state.value.trimEnd()}${spacer}:::live-diagram{diagramId="${selectedDiagramId}" versionId="${versionId}"}\n`,
+                );
+              }
+            }}
+            value=""
+          >
+            <NativeSelectOption value="">
+              Pin exact Diagram Version
+            </NativeSelectOption>
+            {diagramVersions.data?.map((version) => (
+              <NativeSelectOption key={version.id} value={version.id}>
+                {version.name} · v{version.number}
               </NativeSelectOption>
             ))}
           </NativeSelect>
@@ -2829,6 +2859,12 @@ function useDocumentReferenceSources(
     }),
     enabled: view === "markdown" && selectedDiagramId.length > 0,
   });
+  const diagramVersions = useQuery({
+    ...orpc.technicalDiagramVersions.queryOptions({
+      input: { diagramId: selectedDiagramId },
+    }),
+    enabled: view === "markdown" && selectedDiagramId.length > 0,
+  });
   return {
     collectionViews,
     documentsForSections,
@@ -2836,6 +2872,7 @@ function useDocumentReferenceSources(
     availableSections,
     diagrams,
     diagramViews,
+    diagramVersions,
     sourceRecords,
   };
 }

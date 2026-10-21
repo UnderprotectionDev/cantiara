@@ -7,7 +7,10 @@ import {
 } from "@cantiara/api/documents";
 import type { ProjectSourceType } from "@cantiara/api/project-source-records";
 import type { SmartCollectionViewSource } from "@cantiara/api/smart-collections";
-import { diagramGraph } from "@cantiara/api/technical-diagram-structure";
+import {
+  DIAGRAM_CARD_LABELS,
+  diagramCardProjection,
+} from "@cantiara/api/technical-diagram-card";
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
 import { defaultHighlighter } from "@tanstack/highlight";
@@ -400,6 +403,8 @@ interface LiveOtherBlock {
     | TechnicalDiagramSource
     | DocumentLiveSectionSource
     | null;
+  /** Exact Diagram Version of a pinned diagram card; absent or null is Live. */
+  versionId?: string | null;
   viewId: string | null;
 }
 
@@ -661,21 +666,22 @@ function LiveOtherCard({
       </section>
     );
   }
-  const graph = diagramGraph(diagram.model);
-  const selected =
-    diagram.view?.selectedNodeIds ?? graph.nodes.map(({ id }) => id);
-  const selectedNodes = graph.nodes.filter(({ id }) => selected.includes(id));
-  const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
-  const selectedLinks = graph.links.filter(
-    ({ from, to }) => selected.includes(from) && selected.includes(to),
-  );
+  const card = diagramCardProjection(diagram);
+  const selectedNodes = card.nodes;
+  const nodesById = new Map(card.nodes.map((node) => [node.id, node]));
+  const selectedLinks = card.links;
   return (
     <section
       aria-label="Technical Diagram"
       className="space-y-2 rounded-lg border p-4"
     >
       <p className="text-xs">
-        Technical Diagram · {diagram.view?.name ?? "Default"}
+        Technical Diagram ·{" "}
+        {DIAGRAM_CARD_LABELS[card.pin === "Exact" ? "exact" : "live"]}
+        {card.versionName
+          ? ` · ${card.versionName} (v${card.versionNumber})`
+          : ""}{" "}
+        · {diagram.view?.name ?? "Default"}
       </p>
       <h3 className="font-medium">{diagram.title}</h3>
       <p className="text-muted-foreground text-sm">
@@ -924,6 +930,7 @@ export default function DocumentPreview({
             (candidate) =>
               candidate.id === part.value &&
               candidate.kind === kind &&
+              (candidate.versionId ?? null) === (part.versionId ?? null) &&
               candidate.viewId === (part.viewId ?? null),
           );
           return (
@@ -1006,6 +1013,7 @@ function parseDocumentPreviewParts(source: string) {
     value: string;
     start?: number;
     end?: number;
+    versionId?: string;
     viewId?: string;
     sectionId?: string;
   }> = [];
@@ -1027,6 +1035,7 @@ function parseDocumentPreviewParts(source: string) {
         kind: livePartKind[directive.kind],
         value: directive.id,
         sectionId: directive.sectionId,
+        versionId: directive.versionId,
         viewId: directive.viewId,
       });
       last = directive.end - offset;

@@ -72,6 +72,25 @@ function setup() {
       ownerAccountId: ACCOUNT,
       projectId: PROJECT,
       title: "Platform architecture",
+      versions: [
+        {
+          authorityMode: "Product-authored Model",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          diagramId: "diagram-1",
+          id: "version-1",
+          model: {
+            links: [{ from: "api", kind: "Calls", label: null, to: "db" }],
+            nodes: [
+              { id: "api", kind: "Service", label: "Gateway" },
+              { id: "db", kind: "Datastore", label: "Postgres" },
+            ],
+          },
+          name: "Launch",
+          number: 1,
+          revision: 1,
+          type: "Technical Architecture",
+        },
+      ],
       views: [
         { id: "view-core", name: "Core", selectedNodeIds: ["api", "db"] },
       ],
@@ -468,6 +487,7 @@ describe("Project Wall: read-only Technical Diagram card", () => {
     // The seam the wall holds can only read a diagram.
     expect(Object.keys(context.diagrams.access).sort()).toEqual([
       "get",
+      "getVersion",
       "list",
       "listViews",
     ]);
@@ -489,6 +509,110 @@ describe("Project Wall: read-only Technical Diagram card", () => {
     context.diagrams.rename("diagram-1", "Platform architecture v2");
     const live = await context.seam.get(ACCOUNT, PROJECT, wall.id);
     expect(live.cards[0]?.source.title).toBe("Platform architecture v2");
+  });
+
+  test("an exact pin reads the Diagram Version, is labeled Exact and ignores later live edits", async () => {
+    const context = setup();
+    const wall = await context.seam.create(ACCOUNT, {
+      projectId: PROJECT,
+      title: "Architecture",
+    });
+    const added = await context.seam.addCard(ACCOUNT, {
+      diagramViewId: "view-core",
+      projectId: PROJECT,
+      sourceId: "diagram-1",
+      sourceType: "Technical Diagram",
+      wallId: wall.id,
+    });
+    const cardId = added.cards[0]?.id ?? "";
+    const diagramBefore = context.diagrams.snapshot();
+
+    const pinned = await context.seam.setCardPin(ACCOUNT, {
+      cardId,
+      diagramVersionId: "version-1",
+      projectId: PROJECT,
+      wallId: wall.id,
+    });
+    expect(pinned.cards[0]?.preview).toMatchObject({
+      pin: "Exact",
+      versionId: "version-1",
+      versionName: "Launch",
+      versionNumber: 1,
+      viewName: "Core",
+    });
+
+    // A live edit never reaches the Exact card; the checkpoint is what shows.
+    context.diagrams.editModel("diagram-1", { links: [], nodes: [] });
+    const later = await context.seam.get(ACCOUNT, PROJECT, wall.id);
+    const preview = later.cards[0]?.preview;
+    if (preview?.kind !== "Technical Diagram") {
+      throw new Error("Expected a Technical Diagram preview.");
+    }
+    expect(preview.pin).toBe("Exact");
+    expect(preview.nodes.map(({ label }) => label)).toEqual([
+      "Gateway",
+      "Postgres",
+    ]);
+    // Pinning is wall view state: the diagram and its checkpoints are untouched.
+    expect(context.diagrams.snapshot()[0]?.versions).toEqual(
+      diagramBefore[0]?.versions,
+    );
+
+    // Unpinning returns the card to Live with the live model.
+    const live = await context.seam.setCardPin(ACCOUNT, {
+      cardId,
+      diagramVersionId: null,
+      projectId: PROJECT,
+      wallId: wall.id,
+    });
+    expect(live.cards[0]?.preview).toMatchObject({
+      pin: "Live",
+      versionId: null,
+    });
+  });
+
+  test("a pin must be a checkpoint of this very diagram and only a Technical Diagram card takes one", async () => {
+    const context = setup();
+    const wall = await context.seam.create(ACCOUNT, {
+      projectId: PROJECT,
+      title: "Architecture",
+    });
+    const added = await context.seam.addCard(ACCOUNT, {
+      projectId: PROJECT,
+      sourceId: "diagram-1",
+      sourceType: "Technical Diagram",
+      wallId: wall.id,
+    });
+    await expect(
+      context.seam.setCardPin(ACCOUNT, {
+        cardId: added.cards[0]?.id ?? "",
+        diagramVersionId: "no-such-version",
+        projectId: PROJECT,
+        wallId: wall.id,
+      }),
+    ).rejects.toThrow(NOT_ACTIVE);
+    await expect(
+      context.seam.addCard(ACCOUNT, {
+        diagramVersionId: "version-1",
+        projectId: PROJECT,
+        sourceId: "work-1",
+        sourceType: "Work",
+        wallId: wall.id,
+      }),
+    ).rejects.toBeInstanceOf(ZodError);
+    const exact = await context.seam.addCard(ACCOUNT, {
+      diagramVersionId: "version-1",
+      projectId: PROJECT,
+      sourceId: "diagram-1",
+      sourceType: "Technical Diagram",
+      wallId: (
+        await context.seam.create(ACCOUNT, {
+          projectId: PROJECT,
+          title: "Second",
+        })
+      ).id,
+    });
+    expect(exact.cards[0]?.preview).toMatchObject({ pin: "Exact" });
   });
 
   test("a diagram of another Project or a missing view cannot become a card", async () => {
@@ -558,6 +682,7 @@ describe("Project Wall: Smart Collection summary block", () => {
     });
     expect(Object.keys(context.wallRows()[0]?.items[0] ?? {}).sort()).toEqual([
       "density",
+      "diagramVersionId",
       "diagramViewId",
       "groupId",
       "highlight",

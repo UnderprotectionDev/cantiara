@@ -39,10 +39,12 @@ import {
   renameProjectWallInputSchema,
   reorderProjectWallCardsInputSchema,
   type SetProjectWallCardDensityInput,
+  type SetProjectWallCardDiagramPinInput,
   type SetProjectWallCardGroupInput,
   type SetProjectWallCardHighlightInput,
   type SetProjectWallCardLockInput,
   setProjectWallCardDensityInputSchema,
+  setProjectWallCardDiagramPinInputSchema,
   setProjectWallCardGroupInputSchema,
   setProjectWallCardHighlightInputSchema,
   setProjectWallCardLockInputSchema,
@@ -66,7 +68,10 @@ import {
   type SaveProjectWallViewportInput,
   saveProjectWallViewportInputSchema,
 } from "@cantiara/api/project-wall-viewport";
-import { diagramGraph } from "@cantiara/api/technical-diagram-structure";
+import {
+  diagramCardProjection,
+  pinDiagramToVersion,
+} from "@cantiara/api/technical-diagram-card";
 
 export class ProjectWallProjectNotFoundError extends Error {
   readonly code = "PROJECT_WALL_PROJECT_NOT_FOUND" as const;
@@ -227,39 +232,52 @@ export function createProjectWall(
 
   async function lookupDiagram(
     accountId: string,
-    ref: Pick<ProjectWallItemRecord, "diagramViewId" | "sourceId">,
+    ref: Pick<
+      ProjectWallItemRecord,
+      "diagramVersionId" | "diagramViewId" | "sourceId"
+    >,
   ): Promise<ProjectWallSourceLookup | null> {
-    const diagram = await diagrams?.get(
+    const live = await diagrams?.get(
       accountId,
       ref.sourceId,
       ref.diagramViewId ?? undefined,
     );
+    // `Exact` reads the pinned checkpoint, never the live model; a checkpoint
+    // that is gone or foreign is a broken card, not the live diagram.
+    const version =
+      live && ref.diagramVersionId
+        ? await diagrams?.getVersion(accountId, ref.diagramVersionId)
+        : null;
+    const diagram = ref.diagramVersionId
+      ? live && version && pinDiagramToVersion(live, version)
+      : live;
     // The diagram seam answers null both for a dead diagram and a foreign
     // account's diagram; the common presentation then labels it "Permanently
     // deleted" as a documented approximation of the inaccessible case.
     if (!diagram) {
       return null;
     }
-    const selected = diagram.view?.selectedNodeIds ?? [];
-    const graph = diagramGraph(diagram.model);
-    const nodes = (
-      selected.length > 0
-        ? graph.nodes.filter(({ id }) => selected.includes(id))
-        : graph.nodes
-    ).slice(0, PROJECT_WALL_DIAGRAM_PREVIEW_NODE_LIMIT);
-    const shown = new Set(nodes.map(({ id }) => id));
+    const projection = diagramCardProjection(
+      diagram,
+      PROJECT_WALL_DIAGRAM_PREVIEW_NODE_LIMIT,
+    );
     return {
       archived: false,
       kind: "found",
       preview: {
-        diagramType: diagram.type,
+        diagramType: projection.diagramType,
         kind: "Technical Diagram",
-        links: graph.links
-          .filter((link) => shown.has(link.from) && shown.has(link.to))
-          .map(({ from, label, to }) => ({ from, label, to })),
-        nodes,
-        pin: "Live",
-        viewName: diagram.view?.name ?? null,
+        links: projection.links.map(({ from, label, to }) => ({
+          from,
+          label,
+          to,
+        })),
+        nodes: projection.nodes,
+        pin: projection.pin,
+        versionId: projection.versionId,
+        versionName: projection.versionName,
+        versionNumber: projection.versionNumber,
+        viewName: projection.viewName,
       },
       projectId: diagram.projectId,
       status: null,
@@ -330,7 +348,7 @@ export function createProjectWall(
     accountId: string,
     refs: Pick<
       ProjectWallItemRecord,
-      "diagramViewId" | "sourceId" | "sourceType"
+      "diagramVersionId" | "diagramViewId" | "sourceId" | "sourceType"
     >[],
   ) {
     const lookups = new Map<string, ProjectWallSourceLookup>();
@@ -567,6 +585,7 @@ export function createProjectWall(
       }
       const lookups = await lookupSources(accountId, [
         {
+          diagramVersionId: input.diagramVersionId ?? null,
           diagramViewId: input.diagramViewId ?? null,
           sourceId: input.sourceId,
           sourceType: input.sourceType,
@@ -587,6 +606,7 @@ export function createProjectWall(
       }
       const added = await store.addCard(accountId, {
         density: input.density,
+        diagramVersionId: input.diagramVersionId ?? null,
         diagramViewId: input.diagramViewId ?? null,
         id: generateId(),
         placedAt: now().toISOString(),
@@ -855,6 +875,31 @@ export function createProjectWall(
         );
       }
       await store.setCardGroup(accountId, input);
+      return reload(accountId, input.projectId, input.wallId);
+    },
+
+    async setCardPin(accountId, rawInput: SetProjectWallCardDiagramPinInput) {
+      const input = setProjectWallCardDiagramPinInputSchema.parse(rawInput);
+      const wall = await load(accountId, input.projectId, input.wallId);
+      const card = wall.items.find(({ id }) => id === input.cardId);
+      if (!card) {
+        throw new ProjectWallCardNotFoundError(input.cardId);
+      }
+      if (card.sourceType !== "Technical Diagram") {
+        throw new ProjectWallSourceUnavailableError();
+      }
+      if (input.diagramVersionId) {
+        // The pin must be a checkpoint of this very diagram.
+        const pinned = await lookupDiagram(accountId, {
+          diagramVersionId: input.diagramVersionId,
+          diagramViewId: card.diagramViewId,
+          sourceId: card.sourceId,
+        });
+        if (!pinned) {
+          throw new ProjectWallSourceUnavailableError();
+        }
+      }
+      await store.setCardDiagramVersion(accountId, input);
       return reload(accountId, input.projectId, input.wallId);
     },
 

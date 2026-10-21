@@ -1079,6 +1079,13 @@
       "when": 1792566991404,
       "tag": "0153_narrow_kronos",
       "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1792567920690,
+      "tag": "0154_useful_power_man",
+      "breakpoints": true
     }
   ]
 }

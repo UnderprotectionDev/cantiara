@@ -3,7 +3,6 @@ import type {
   DiagramModel,
 } from "@cantiara/db/schema/technical-diagram";
 import { z } from "zod";
-
 import type {
   AuthorityConversionInput,
   AuthorityConversionPreview,
@@ -12,12 +11,24 @@ import type {
   CreateTechnicalDiagramInput,
   ExternalSourceLink,
 } from "./technical-diagram-authority";
+import type {
+  ConfirmConvertToRecordInput,
+  ConvertToRecordPlan,
+  DiagramRecordCardRecord,
+  DiagramRecordCardView,
+  DiagramRecordLinkResult,
+  MoveDiagramRecordCardInput,
+  PlaceDiagramRecordCardInput,
+  PreviewConvertToRecordInput,
+  RemoveDiagramRecordCardInput,
+} from "./technical-diagram-card";
 import {
   structuralModelSchema,
   TECHNICAL_DIAGRAM_TYPES,
 } from "./technical-diagram-structure";
 import type {
   CreateDiagramVersionInput,
+  DiagramVersionReference,
   RestoreDiagramVersionInput,
   TechnicalDiagramVersion,
 } from "./technical-diagram-version";
@@ -100,6 +111,11 @@ export type ConfirmMermaidConversionInput = z.infer<
 
 export interface TechnicalDiagramSource {
   authorityMode: CreatableAuthorityMode;
+  /**
+   * Set only when a card reads one exact checkpoint: `model`, `revision` and
+   * the view selection are then that Diagram Version's. Absent means `Live`.
+   */
+  exactVersion?: DiagramVersionReference | null;
   /** Set only for `External Source Link`; content stays in the external tool. */
   externalSource: ExternalSourceLink | null;
   id: string;
@@ -129,11 +145,20 @@ export interface TechnicalDiagramsAccess {
     accountId: string,
     input: ConfirmMermaidConversionInput,
   ) => Promise<TechnicalDiagramSource | null>;
-  /** Writes only after the matching preview; mints a new identity. */
   convertAuthority: (
     accountId: string,
     input: ConfirmAuthorityConversionInput,
   ) => Promise<TechnicalDiagramSource | null>;
+  /** Writes only after the matching preview; mints a new identity. */
+  /**
+   * Writes exactly one İş, Karar, Risk or Açık Soru from a node of an exact
+   * Diagram Version after the matching preview, plus its link to that version.
+   * Never touches the diagram or its authority mode. Idempotent by key.
+   */
+  convertToRecord: (
+    accountId: string,
+    input: ConfirmConvertToRecordInput,
+  ) => Promise<DiagramRecordLinkResult | null>;
   create: (
     accountId: string,
     input: CreateTechnicalDiagramInput,
@@ -152,7 +177,6 @@ export interface TechnicalDiagramsAccess {
     diagramId: string,
     viewId?: string,
   ) => Promise<TechnicalDiagramSource | null>;
-  /** Exact read of one checkpoint by its identity, never the live record. */
   getVersion: (
     accountId: string,
     versionId: string,
@@ -161,6 +185,12 @@ export interface TechnicalDiagramsAccess {
     accountId: string,
     projectId: string,
   ) => Promise<TechnicalDiagramSource[]>;
+  /** Exact read of one checkpoint by its identity, never the live record. */
+  /** Read-only live cards of existing records placed on one diagram canvas. */
+  listRecordCards: (
+    accountId: string,
+    diagramId: string,
+  ) => Promise<DiagramRecordCardView[] | null>;
   listVersions: (
     accountId: string,
     diagramId: string,
@@ -174,6 +204,15 @@ export interface TechnicalDiagramsAccess {
     name: string;
     selectedNodeIds: string[];
   }> | null>;
+  moveRecordCard: (
+    accountId: string,
+    input: MoveDiagramRecordCardInput,
+  ) => Promise<DiagramRecordCardRecord | null>;
+  /** Stores the source identity and position only; the record is never written. */
+  placeRecordCard: (
+    accountId: string,
+    input: PlaceDiagramRecordCardInput,
+  ) => Promise<DiagramRecordCardRecord | null>;
   previewAuthorityConversion: (
     accountId: string,
     input: AuthorityConversionInput,
@@ -195,6 +234,14 @@ export interface TechnicalDiagramsAccess {
     model: ArchitectureModel;
     unparseableLines: Array<{ line: number; reason: string; text: string }>;
   } | null>;
+  previewConvertToRecord: (
+    accountId: string,
+    input: PreviewConvertToRecordInput,
+  ) => Promise<ConvertToRecordPlan | null>;
+  removeRecordCard: (
+    accountId: string,
+    input: RemoveDiagramRecordCardInput,
+  ) => Promise<boolean>;
   /** Writes a new live revision from a checkpoint; the checkpoint is untouched. */
   restoreVersion: (
     accountId: string,

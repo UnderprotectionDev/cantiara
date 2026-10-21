@@ -5,6 +5,13 @@ import {
   previewAuthorityConversion,
 } from "@cantiara/api/technical-diagram-authority";
 import {
+  buildConvertToRecordPlan,
+  DiagramConversionError,
+  type DiagramRecordCardRecord,
+  isSameConvertToRecordPlan,
+  pinDiagramToVersion,
+} from "@cantiara/api/technical-diagram-card";
+import {
   diagramGraph,
   emptyStructuralModel,
   resolveStructuralModel,
@@ -24,6 +31,7 @@ import { createRouterClient } from "@orpc/server";
 import { describe, expect, test } from "vitest";
 
 const DIAGRAM_VERSION_COMMAND = /diagramversion/i;
+const DIAGRAM_RECORD_CARD_COMMAND = /diagramrecordcard/i;
 const AUTHORITY_COMMAND =
   /diagram.*(authority|mode|reclassif)|(authority|mode|reclassif).*diagram/i;
 const accountId = "account-1";
@@ -38,6 +46,16 @@ const externalSource = {
 function createFixture() {
   const diagrams = new Map<string, TechnicalDiagramSource>();
   const versions = new Map<string, TechnicalDiagramVersion>();
+  /** Master records the cards read; the fixture proves cards never write them. */
+  const records = new Map<
+    string,
+    { projectId: string; status: string; title: string; type: string }
+  >();
+  const cards = new Map<string, DiagramRecordCardRecord>();
+  const links = new Map<
+    string,
+    { diagramId: string; nodeId: string; versionId: string }
+  >();
   const present = (id: string): TechnicalDiagramSource | null => {
     const diagram = diagrams.get(id);
     return diagram ? { ...diagram, origins: [...diagram.origins] } : null;
@@ -174,6 +192,103 @@ function createFixture() {
       diagram.revision = restored.revision;
       return Promise.resolve(present(diagram.id));
     },
+    placeRecordCard: (_account, input) => {
+      if (!diagrams.has(input.diagramId)) {
+        return Promise.resolve(null);
+      }
+      const card: DiagramRecordCardRecord = {
+        diagramId: input.diagramId,
+        id: input.clientIdempotencyKey,
+        sourceId: input.sourceId,
+        sourceType: input.sourceType,
+        x: input.x ?? 0,
+        y: input.y ?? 0,
+      };
+      cards.set(card.id, card);
+      return Promise.resolve(card);
+    },
+    moveRecordCard: (_account, input) => {
+      const card = cards.get(input.cardId);
+      if (!card) {
+        return Promise.resolve(null);
+      }
+      card.x = input.x;
+      card.y = input.y;
+      return Promise.resolve(card);
+    },
+    listRecordCards: (_account, diagramId) =>
+      Promise.resolve(
+        diagrams.has(diagramId)
+          ? [...cards.values()]
+              .filter((card) => card.diagramId === diagramId)
+              .map((card) => {
+                const record = records.get(
+                  `${card.sourceType}:${card.sourceId}`,
+                );
+                return {
+                  ...card,
+                  broken: record
+                    ? null
+                    : {
+                        canOpenSourceRecord: false,
+                        reason: "Permanently deleted" as const,
+                      },
+                  openPath: record ? `/open/${card.sourceId}` : null,
+                  status: record?.status ?? null,
+                  title: record?.title ?? null,
+                };
+              })
+          : null,
+      ),
+    previewConvertToRecord: (_account, input) => {
+      const diagram = diagrams.get(input.diagramId);
+      const version = versions.get(input.versionId);
+      if (!(diagram && version)) {
+        return Promise.resolve(null);
+      }
+      const plan = buildConvertToRecordPlan(
+        { diagram, projectName: "Cantiara", version },
+        { ...input, workType: input.workType ?? "Task" },
+      );
+      if (!plan) {
+        throw new DiagramConversionError(
+          "The node is not in this Diagram Version.",
+        );
+      }
+      return Promise.resolve(plan);
+    },
+    convertToRecord: async (account, input) => {
+      const derived = await access.previewConvertToRecord(account, {
+        diagramId: input.plan.diagram.id,
+        nodeId: input.plan.node.id,
+        target: input.plan.record.type,
+        versionId: input.plan.version.versionId,
+        workType: input.plan.record.workType ?? "Task",
+      });
+      if (!(derived && isSameConvertToRecordPlan(input.plan, derived))) {
+        throw new DiagramConversionError("The conversion preview changed.");
+      }
+      const recordId = input.clientIdempotencyKey;
+      if (!links.has(recordId)) {
+        records.set(`${input.plan.record.type}:${recordId}`, {
+          projectId: input.plan.targetProject.id,
+          status: "Open",
+          title: input.plan.record.title,
+          type: input.plan.record.type,
+        });
+        links.set(recordId, {
+          diagramId: input.plan.diagram.id,
+          nodeId: input.plan.node.id,
+          versionId: input.plan.version.versionId,
+        });
+      }
+      return {
+        nodeId: input.plan.node.id,
+        recordId,
+        recordType: input.plan.record.type,
+        version: input.plan.version,
+      };
+    },
     previewAuthorityConversion: (_account, input) => {
       const source = diagrams.get(input.sourceDiagramId);
       return source
@@ -191,8 +306,11 @@ function createFixture() {
     technicalDiagrams: access,
   } as unknown as Context;
   return {
+    cards,
     client: createRouterClient(appRouter, { context }),
     diagrams,
+    links,
+    records,
     versions,
   };
 }
@@ -710,6 +828,189 @@ describe("Sequence lifeline bound to an exact Diagram Version", () => {
       client.saveTechnicalDiagramStructure({
         diagramId: keys[1] as string,
         model: sequenceWith(version.id, "Gateway"),
+      }),
+    ).rejects.toThrow();
+  });
+});
+
+describe("Live cards and composition", () => {
+  const cardKeys = [
+    "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  ];
+  const diagramKey = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+  const versionKey = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+
+  async function seed() {
+    const fixture = createFixture();
+    await create(fixture.client, diagramKey);
+    const version = await fixture.client.createDiagramVersion({
+      clientIdempotencyKey: versionKey,
+      diagramId: diagramKey,
+      name: "Launch",
+    });
+    return { ...fixture, version };
+  }
+
+  test("a card keeps the live read and the Exact read apart, and exact ignores later live edits", async () => {
+    const { client, diagrams, version } = await seed();
+    await client.saveTechnicalDiagramStructure({
+      diagramId: diagramKey,
+      model: {
+        links: [],
+        nodes: [{ id: "api", kind: "Service", label: "Gateway" }],
+      },
+    });
+    const live = diagrams.get(diagramKey) as TechnicalDiagramSource;
+    expect(live.exactVersion ?? null).toBeNull();
+    const exact = pinDiagramToVersion(live, version);
+    expect(exact?.exactVersion).toMatchObject({
+      kind: "Diagram Version",
+      name: "Launch",
+      versionId: versionKey,
+    });
+    expect(
+      diagramGraph((exact as TechnicalDiagramSource).model).nodes,
+    ).toHaveLength(2);
+    expect(diagramGraph(live.model).nodes).toHaveLength(1);
+  });
+
+  test("a record card stores identity and position, never the record", async () => {
+    const { cards, client, records } = await seed();
+    records.set("Risk:risk-1", {
+      projectId: "project-1",
+      status: "Open",
+      title: "Vendor lock-in",
+      type: "Risk",
+    });
+    const before = structuredClone([...records.entries()]);
+    const placed = await client.placeDiagramRecordCard({
+      clientIdempotencyKey: cardKeys[0] as string,
+      diagramId: diagramKey,
+      sourceId: "risk-1",
+      sourceType: "Risk",
+      x: 10,
+      y: 20,
+    });
+    expect(Object.keys(placed).sort()).toEqual([
+      "diagramId",
+      "id",
+      "sourceId",
+      "sourceType",
+      "x",
+      "y",
+    ]);
+    await client.moveDiagramRecordCard({
+      cardId: placed.id,
+      diagramId: diagramKey,
+      x: 300,
+      y: 400,
+    });
+    expect(cards.get(placed.id)).toMatchObject({ x: 300, y: 400 });
+    expect([...records.entries()]).toEqual(before);
+    expect(
+      await client.technicalDiagramRecordCards({ diagramId: diagramKey }),
+    ).toMatchObject([
+      { broken: null, status: "Open", title: "Vendor lock-in", x: 300, y: 400 },
+    ]);
+  });
+
+  test("a deleted source reads as a broken card, not stale content", async () => {
+    const { client, records } = await seed();
+    records.set("Work:work-1", {
+      projectId: "project-1",
+      status: "Not Started",
+      title: "Old title",
+      type: "Work",
+    });
+    await client.placeDiagramRecordCard({
+      clientIdempotencyKey: cardKeys[0] as string,
+      diagramId: diagramKey,
+      sourceId: "work-1",
+      sourceType: "Work",
+    });
+    records.delete("Work:work-1");
+    const [card] = await client.technicalDiagramRecordCards({
+      diagramId: diagramKey,
+    });
+    expect(card).toMatchObject({
+      broken: { reason: "Permanently deleted" },
+      title: null,
+    });
+  });
+
+  test("exposes no command that writes a record from a card or edits it", () => {
+    const names = Object.keys(appRouter).filter((name) =>
+      DIAGRAM_RECORD_CARD_COMMAND.test(name),
+    );
+    expect(names.sort()).toEqual([
+      "moveDiagramRecordCard",
+      "placeDiagramRecordCard",
+      "removeDiagramRecordCard",
+      "technicalDiagramRecordCards",
+    ]);
+  });
+
+  test("Convert to record and link previews target, fields, exact version and origin, then writes one record", async () => {
+    const { client, diagrams, links, records } = await seed();
+    const input = {
+      diagramId: diagramKey,
+      nodeId: "db",
+      target: "Decision" as const,
+      versionId: versionKey,
+    };
+    const plan = await client.previewDiagramNodeConversion(input);
+    expect(records.size).toBe(0);
+    expect(plan).toMatchObject({
+      authorityEffect: "None",
+      originLocation: { nodeId: "db", versionId: versionKey },
+      record: { title: "Database", type: "Decision", workType: null },
+      recordCount: 1,
+      targetProject: { id: "project-1" },
+      version: { kind: "Diagram Version", name: "Launch", number: 1 },
+    });
+    const before = structuredClone(diagrams.get(diagramKey));
+    const first = await client.convertDiagramNodeToRecord({
+      clientIdempotencyKey: cardKeys[1] as string,
+      plan,
+    });
+    const retry = await client.convertDiagramNodeToRecord({
+      clientIdempotencyKey: cardKeys[1] as string,
+      plan,
+    });
+    expect(retry).toEqual(first);
+    expect(records.size).toBe(1);
+    expect(links.get(cardKeys[1] as string)).toEqual({
+      diagramId: diagramKey,
+      nodeId: "db",
+      versionId: versionKey,
+    });
+    expect(diagrams.get(diagramKey)).toEqual(before);
+  });
+
+  test("refuses a node the exact version does not hold and a tampered plan", async () => {
+    const { client } = await seed();
+    await expect(
+      client.previewDiagramNodeConversion({
+        diagramId: diagramKey,
+        nodeId: "missing",
+        target: "Risk",
+        versionId: versionKey,
+      }),
+    ).rejects.toThrow();
+    const plan = await client.previewDiagramNodeConversion({
+      diagramId: diagramKey,
+      nodeId: "api",
+      target: "Risk",
+      versionId: versionKey,
+    });
+    await expect(
+      client.convertDiagramNodeToRecord({
+        clientIdempotencyKey: cardKeys[1] as string,
+        plan: {
+          ...plan,
+          record: { ...plan.record, title: "Something else" },
+        },
       }),
     ).rejects.toThrow();
   });

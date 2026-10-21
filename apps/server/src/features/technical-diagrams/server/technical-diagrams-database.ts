@@ -1,4 +1,5 @@
 import { documentLiveDirectives } from "@cantiara/api/documents";
+import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
 import {
   type AuthorityConversionInput,
   assertPreviewedConversion,
@@ -7,6 +8,19 @@ import {
   creatableAuthorityModeSchema,
   previewAuthorityConversion,
 } from "@cantiara/api/technical-diagram-authority";
+import {
+  buildConvertToRecordPlan,
+  type ConfirmConvertToRecordInput,
+  DiagramConversionError,
+  type DiagramRecordCardRecord,
+  type DiagramRecordCardView,
+  isSameConvertToRecordPlan,
+  type MoveDiagramRecordCardInput,
+  type PlaceDiagramRecordCardInput,
+  type PreviewConvertToRecordInput,
+  previewConvertToRecordInputSchema,
+  type RemoveDiagramRecordCardInput,
+} from "@cantiara/api/technical-diagram-card";
 import {
   diagramGraph,
   emptyStructuralModel,
@@ -31,6 +45,11 @@ import type {
   TechnicalDiagramsAccess,
 } from "@cantiara/api/technical-diagrams";
 import { technicalDiagramTypeSchema } from "@cantiara/api/technical-diagrams";
+import {
+  type RecordLookup,
+  type RecordLookupKind,
+  resolveRecordReference,
+} from "@cantiara/api/user-flow";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
@@ -39,12 +58,16 @@ import { usageLink } from "@cantiara/db/schema/relation";
 import {
   diagramAuthorityOrigin,
   diagramDocumentOrigin,
+  diagramRecordCard,
+  diagramRecordLink,
   diagramVersion,
   diagramView,
   technicalDiagram,
 } from "@cantiara/db/schema/technical-diagram";
 import { and, asc, eq, sql } from "drizzle-orm";
 
+import { insertConvertedRecord } from "../../evidence/server/evidence-record-creation";
+import { readRecordRows } from "../../user-flow/server/user-flow-database";
 import { previewMermaidArchitecture } from "./mermaid-conversion";
 
 export class MermaidConversionConflictError extends Error {}
@@ -399,6 +422,275 @@ export function createDatabaseTechnicalDiagrams(
         : null,
     };
   }
+  async function ownedLiveDiagram(accountId: string, diagramId: string) {
+    return await get(accountId, diagramId);
+  }
+  function toRecordCard(
+    row: typeof diagramRecordCard.$inferSelect,
+  ): DiagramRecordCardRecord {
+    return {
+      diagramId: row.diagramId,
+      id: row.id,
+      sourceId: row.sourceId,
+      sourceType: row.sourceType as RecordLookupKind,
+      x: row.x,
+      y: row.y,
+    };
+  }
+  /** Live read of the record behind each card; nothing of it is stored. */
+  async function readRecordCards(
+    accountId: string,
+    diagram: TechnicalDiagramSource,
+    cards: DiagramRecordCardRecord[],
+  ): Promise<DiagramRecordCardView[]> {
+    const lookups = new Map<string, RecordLookup>();
+    for (const kind of new Set(cards.map(({ sourceType }) => sourceType))) {
+      const ids = cards
+        .filter(({ sourceType }) => sourceType === kind)
+        .map(({ sourceId }) => sourceId);
+      for (const row of await readRecordRows(database, kind, ids)) {
+        lookups.set(
+          `${kind}:${row.id}`,
+          row.ownerAccountId === accountId
+            ? {
+                archived: row.archived,
+                kind: "found",
+                projectId: row.projectId,
+                status: row.status,
+                title: row.title,
+                trashed: row.trashed,
+              }
+            : { kind: "inaccessible" },
+        );
+      }
+    }
+    return cards.map((card) => {
+      const resolved = resolveRecordReference({
+        flowProjectId: diagram.projectId,
+        kind: card.sourceType,
+        lookup: lookups.get(`${card.sourceType}:${card.sourceId}`),
+        placedAt: "",
+        recordId: card.sourceId,
+      });
+      return {
+        ...card,
+        broken: resolved.broken
+          ? {
+              canOpenSourceRecord: resolved.broken.canOpenSourceRecord,
+              reason: resolved.broken.reason,
+            }
+          : null,
+        openPath: resolved.openPath,
+        status: resolved.status,
+        title: resolved.title,
+      };
+    });
+  }
+  async function previewConvertToRecord(
+    accountId: string,
+    rawInput: PreviewConvertToRecordInput,
+  ) {
+    const input = previewConvertToRecordInputSchema.parse(rawInput);
+    const diagram = await get(accountId, input.diagramId);
+    const version = await getVersion(accountId, input.versionId);
+    if (!(diagram && version)) {
+      return null;
+    }
+    const [owner] = await database
+      .select({ name: project.name })
+      .from(project)
+      .where(eq(project.id, diagram.projectId))
+      .limit(1);
+    const plan = owner
+      ? buildConvertToRecordPlan(
+          { diagram, projectName: owner.name, version },
+          input,
+        )
+      : null;
+    if (!plan) {
+      throw new DiagramConversionError(
+        "The node is not in this Diagram Version.",
+      );
+    }
+    return plan;
+  }
+  async function convertToRecord(
+    accountId: string,
+    input: ConfirmConvertToRecordInput,
+  ) {
+    const { plan } = input;
+    const recordId = input.clientIdempotencyKey;
+    const [prior] = await database
+      .select()
+      .from(diagramRecordLink)
+      .where(eq(diagramRecordLink.id, recordId))
+      .limit(1);
+    if (prior) {
+      if (
+        prior.diagramId !== plan.diagram.id ||
+        prior.versionId !== plan.version.versionId ||
+        prior.nodeId !== plan.node.id ||
+        prior.recordType !== plan.record.type
+      ) {
+        throw new DiagramConversionError(
+          "This confirmation key was used for another conversion.",
+        );
+      }
+      return {
+        nodeId: prior.nodeId,
+        recordId,
+        recordType: plan.record.type,
+        version: plan.version,
+      };
+    }
+    const derived = await previewConvertToRecord(accountId, {
+      diagramId: plan.diagram.id,
+      nodeId: plan.node.id,
+      target: plan.record.type,
+      versionId: plan.version.versionId,
+      workType: plan.record.workType ?? "Task",
+    });
+    if (!derived) {
+      return null;
+    }
+    if (!isSameConvertToRecordPlan(plan, derived)) {
+      throw new DiagramConversionError(
+        "The conversion preview changed. Preview it again.",
+      );
+    }
+    const payloadFingerprint = await fingerprintMutationPayload({
+      operation: "convertDiagramNodeToRecord",
+      ...JSON.parse(JSON.stringify(plan)),
+    });
+    await database.transaction(async (tx) => {
+      const [owner] = await tx
+        .select()
+        .from(project)
+        .where(eq(project.id, plan.targetProject.id))
+        .for("update");
+      if (!owner || owner.archivedAt) {
+        throw new DiagramConversionError("The Project is archived.");
+      }
+      await insertConvertedRecord(tx, owner, {
+        body: plan.record.body,
+        committedAt: new Date(),
+        idempotencyKey: recordId,
+        origin: {
+          componentId: plan.originLocation.nodeId,
+          ownerRecordId: plan.originLocation.diagramId,
+          sourceVersion: plan.originLocation.versionId,
+        },
+        payloadFingerprint,
+        recordId,
+        title: plan.record.title,
+        type: plan.record.type,
+        workType: plan.record.workType,
+      });
+      await tx.insert(diagramRecordLink).values({
+        diagramId: plan.diagram.id,
+        id: recordId,
+        nodeId: plan.node.id,
+        recordType: plan.record.type,
+        versionId: plan.version.versionId,
+      });
+    });
+    return {
+      nodeId: plan.node.id,
+      recordId,
+      recordType: plan.record.type,
+      version: plan.version,
+    };
+  }
+  async function placeRecordCard(
+    accountId: string,
+    input: PlaceDiagramRecordCardInput,
+  ) {
+    const diagram = await ownedLiveDiagram(accountId, input.diagramId);
+    if (!diagram) {
+      return null;
+    }
+    const kind = input.sourceType;
+    const [found] = await readRecordRows(database, kind, [input.sourceId]);
+    if (
+      !found ||
+      found.ownerAccountId !== accountId ||
+      found.projectId !== diagram.projectId ||
+      found.archived ||
+      found.trashed
+    ) {
+      throw new DiagramConversionError(
+        "The record is not an active record of this Project.",
+      );
+    }
+    const [created] = await database
+      .insert(diagramRecordCard)
+      .values({
+        diagramId: diagram.id,
+        id: input.clientIdempotencyKey,
+        sourceId: input.sourceId,
+        sourceType: kind,
+        x: input.x ?? 0,
+        y: input.y ?? 0,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (created) {
+      return toRecordCard(created);
+    }
+    const [existing] = await database
+      .select()
+      .from(diagramRecordCard)
+      .where(
+        and(
+          eq(diagramRecordCard.diagramId, diagram.id),
+          eq(diagramRecordCard.sourceType, kind),
+          eq(diagramRecordCard.sourceId, input.sourceId),
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      return toRecordCard(existing);
+    }
+    throw new DiagramConversionError("This confirmation key is already used.");
+  }
+  async function moveRecordCard(
+    accountId: string,
+    input: MoveDiagramRecordCardInput,
+  ) {
+    if (!(await ownedLiveDiagram(accountId, input.diagramId))) {
+      return null;
+    }
+    // Position is the only column written: moving never reaches the record.
+    const [moved] = await database
+      .update(diagramRecordCard)
+      .set({ x: input.x, y: input.y })
+      .where(
+        and(
+          eq(diagramRecordCard.id, input.cardId),
+          eq(diagramRecordCard.diagramId, input.diagramId),
+        ),
+      )
+      .returning();
+    return moved ? toRecordCard(moved) : null;
+  }
+  async function removeRecordCard(
+    accountId: string,
+    input: RemoveDiagramRecordCardInput,
+  ) {
+    if (!(await ownedLiveDiagram(accountId, input.diagramId))) {
+      return false;
+    }
+    const removed = await database
+      .delete(diagramRecordCard)
+      .where(
+        and(
+          eq(diagramRecordCard.id, input.cardId),
+          eq(diagramRecordCard.diagramId, input.diagramId),
+        ),
+      )
+      .returning({ id: diagramRecordCard.id });
+    return removed.length > 0;
+  }
   /**
    * A Sequence lifeline may bind an exact Architecture node of the same
    * Project. A new or changed bind must name an existing node and its current
@@ -710,6 +1002,23 @@ export function createDatabaseTechnicalDiagrams(
   }
   return {
     convertAuthority,
+    convertToRecord,
+    moveRecordCard,
+    placeRecordCard,
+    previewConvertToRecord,
+    removeRecordCard,
+    async listRecordCards(accountId, diagramId) {
+      const diagram = await get(accountId, diagramId);
+      if (!diagram) {
+        return null;
+      }
+      const rows = await database
+        .select()
+        .from(diagramRecordCard)
+        .where(eq(diagramRecordCard.diagramId, diagramId))
+        .orderBy(asc(diagramRecordCard.createdAt), asc(diagramRecordCard.id));
+      return readRecordCards(accountId, diagram, rows.map(toRecordCard));
+    },
     create,
     createVersion,
     get,

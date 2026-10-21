@@ -16,6 +16,7 @@ import {
   documentRecordReferences,
 } from "@cantiara/api/documents";
 import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
+import { pinDiagramToVersion } from "@cantiara/api/technical-diagram-card";
 import { diagramGraph } from "@cantiara/api/technical-diagram-structure";
 import type { Database } from "@cantiara/db";
 import { document, documentConflictDraft } from "@cantiara/db/schema/document";
@@ -90,12 +91,22 @@ export function createDatabaseDocumentTransfers(
         ));
       case "Smart Collection":
         return !!(await collections.getView(accountId, directive.id));
-      default:
-        return !!(await diagrams.get(
+      default: {
+        const found = await diagrams.get(
           accountId,
           directive.id,
           directive.viewId,
-        ));
+        );
+        if (!(found && directive.versionId)) {
+          return !!found;
+        }
+        // An exact card needs its own checkpoint, not only the live diagram.
+        const version = await diagrams.getVersion(
+          accountId,
+          directive.versionId,
+        );
+        return !!version && version.diagramId === found.id;
+      }
     }
   }
   async function replayCancellations() {
@@ -683,11 +694,19 @@ export function createDatabaseDocumentTransfers(
               text: text || "No Work.",
             };
           }
-          const record = await diagrams.get(
+          const liveRecord = await diagrams.get(
             accountId,
             directive.id,
             directive.viewId,
           );
+          const version =
+            liveRecord && directive.versionId
+              ? await diagrams.getVersion(accountId, directive.versionId)
+              : null;
+          const record =
+            liveRecord && directive.versionId
+              ? version && pinDiagramToVersion(liveRecord, version)
+              : liveRecord;
           if (!record) {
             return null;
           }
@@ -704,7 +723,7 @@ export function createDatabaseDocumentTransfers(
                 `- ${labels.get(link.from)} → ${labels.get(link.to)}${link.label ? ` — ${link.label}` : ""}`,
             );
           return {
-            label: `${record.title}${record.view ? ` / ${record.view.name}` : ""}`,
+            label: `${record.title}${record.view ? ` / ${record.view.name}` : ""}${record.exactVersion ? ` / Exact: ${record.exactVersion.name}` : ""}`,
             text: [
               ...nodes.map((node) => `- ${node.label} (${node.kind})`),
               ...links,

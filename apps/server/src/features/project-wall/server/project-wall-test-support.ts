@@ -17,6 +17,7 @@ import type {
 } from "@cantiara/api/project-wall-presentation";
 import type { ProjectWallViewport } from "@cantiara/api/project-wall-viewport";
 import type { SmartCollectionViewSource } from "@cantiara/api/smart-collections";
+import type { TechnicalDiagramVersion } from "@cantiara/api/technical-diagram-version";
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 
 import { ProjectWallProjectReadOnlyError } from "./project-wall";
@@ -100,6 +101,7 @@ export function createFakeProjectWallStore(input: {
       }
       const added: ProjectWallItemRecord = {
         density: card.density,
+        diagramVersionId: card.diagramVersionId,
         diagramViewId: card.diagramViewId,
         groupId: null,
         highlight: null,
@@ -180,6 +182,17 @@ export function createFakeProjectWallStore(input: {
         return false;
       }
       card.groupId = change.groupId;
+      touch(wall);
+      return true;
+    },
+
+    async setCardDiagramVersion(accountId, change) {
+      const wall = ownedWall(accountId, change.projectId, change.wallId);
+      const card = wall ? item(wall, change.cardId) : undefined;
+      if (!(wall && card)) {
+        return false;
+      }
+      card.diagramVersionId = change.diagramVersionId;
       touch(wall);
       return true;
     },
@@ -517,6 +530,8 @@ export interface FakeDiagram {
   ownerAccountId: string;
   projectId: string;
   title: string;
+  /** Immutable checkpoints the fake reads; live edits never change them. */
+  versions?: TechnicalDiagramVersion[];
   views: Array<{ id: string; name: string; selectedNodeIds: string[] }>;
 }
 
@@ -560,6 +575,16 @@ export function createFakeProjectWallDiagrams(input: FakeDiagram[]) {
       return source(accountId, diagram, view);
     },
     // biome-ignore lint/suspicious/useAwait: Seam methods are async.
+    async getVersion(accountId, versionId) {
+      for (const diagram of diagrams.values()) {
+        const version = diagram.versions?.find(({ id }) => id === versionId);
+        if (version && diagram.ownerAccountId === accountId) {
+          return structuredClone(version);
+        }
+      }
+      return null;
+    },
+    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async list(accountId, projectId) {
       return [...diagrams.values()]
         .filter((diagram) => diagram.projectId === projectId)
@@ -578,6 +603,13 @@ export function createFakeProjectWallDiagrams(input: FakeDiagram[]) {
   };
   return {
     access,
+    /** The owning feature's live edit: the model changes, checkpoints do not. */
+    editModel(id: string, model: TechnicalDiagramSource["model"]) {
+      const diagram = diagrams.get(id);
+      if (diagram) {
+        diagram.model = model;
+      }
+    },
     rename(id: string, title: string) {
       const diagram = diagrams.get(id);
       if (diagram) {

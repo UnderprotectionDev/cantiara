@@ -270,7 +270,7 @@ function rethrowConversionError(error: unknown, userFlowId: string): unknown {
   return cause instanceof UserFlowProjectReadOnlyError ? cause : error;
 }
 
-interface RecordKindRow {
+export interface RecordKindRow {
   archived: boolean;
   id: string;
   ownerAccountId: string;
@@ -280,7 +280,7 @@ interface RecordKindRow {
   trashed: boolean;
 }
 
-async function readRecordRows(
+export async function readRecordRows(
   database: Database,
   kind: RecordLookupKind,
   ids: string[],

@@ -1,4 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each Diagram View form binds its own selected nodes.
+import type {
+  ConvertToRecordPlan,
+  PreviewConvertToRecordInput,
+} from "@cantiara/api/technical-diagram-card";
 import { diagramGraph } from "@cantiara/api/technical-diagram-structure";
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
@@ -18,6 +22,10 @@ import {
   DiagramOrigins,
   ExternalSourceLinkDetails,
 } from "./diagram-authority-controls";
+import {
+  DiagramCompositionPanel,
+  type RecordCardOption,
+} from "./diagram-composition-panel";
 import { DiagramVersionPanel } from "./diagram-version-panel";
 import { NewTechnicalDiagramForm } from "./new-technical-diagram-form";
 import { TechnicalDiagramCanvas } from "./technical-diagram-canvas";
@@ -30,9 +38,11 @@ import { TechnicalDiagramOutline } from "./technical-diagram-outline";
 function DiagramCard({
   bindOptions,
   diagram,
+  recordOptions,
 }: {
   bindOptions: ArchitectureBindOption[];
   diagram: TechnicalDiagramSource;
+  recordOptions: RecordCardOption[];
 }) {
   const graph = diagramGraph(diagram.model);
   const queryClient = useQueryClient();
@@ -96,6 +106,87 @@ function DiagramCard({
       ),
     onSuccess: async () => {
       setVersionError(null);
+      await invalidate();
+    },
+  });
+  const [plan, setPlan] = useState<ConvertToRecordPlan | null>(null);
+  const [compositionError, setCompositionError] = useState<string | null>(null);
+  const placeKey = useRef<string | null>(null);
+  const convertKey = useRef<string | null>(null);
+  const recordCards = useQuery(
+    orpc.technicalDiagramRecordCards.queryOptions({
+      input: { diagramId: diagram.id },
+    }),
+  );
+  const compositionFailure = (fallback: string) => (failure: unknown) =>
+    setCompositionError(failure instanceof Error ? failure.message : fallback);
+  const placeCard = useMutation({
+    mutationFn: (option: RecordCardOption) => {
+      placeKey.current ??= crypto.randomUUID();
+      return runOnlineOnlyWrite(() =>
+        client.placeDiagramRecordCard({
+          clientIdempotencyKey: placeKey.current as string,
+          diagramId: diagram.id,
+          sourceId: option.id,
+          sourceType: option.sourceType,
+          x: 40,
+          y: 40,
+        }),
+      );
+    },
+    onError: compositionFailure("The record card could not be placed."),
+    onSuccess: async () => {
+      placeKey.current = null;
+      setCompositionError(null);
+      await invalidate();
+    },
+  });
+  const moveCard = useMutation({
+    mutationFn: (input: { cardId: string; x: number; y: number }) =>
+      runOnlineOnlyWrite(() =>
+        client.moveDiagramRecordCard({ diagramId: diagram.id, ...input }),
+      ),
+    onSuccess: invalidate,
+  });
+  const removeCard = useMutation({
+    mutationFn: (cardId: string) =>
+      runOnlineOnlyWrite(() =>
+        client.removeDiagramRecordCard({ cardId, diagramId: diagram.id }),
+      ),
+    onError: compositionFailure("The record card could not be removed."),
+    onSuccess: invalidate,
+  });
+  const previewConvert = useMutation({
+    mutationFn: (input: Omit<PreviewConvertToRecordInput, "diagramId">) => {
+      convertKey.current = null;
+      return runOnlineOnlyWrite(() =>
+        client.previewDiagramNodeConversion({
+          diagramId: diagram.id,
+          ...input,
+        }),
+      );
+    },
+    onError: compositionFailure("The conversion could not be previewed."),
+    onSuccess: (preview) => {
+      setCompositionError(null);
+      setPlan(preview);
+    },
+  });
+  const confirmConvert = useMutation({
+    mutationFn: (confirmed: ConvertToRecordPlan) => {
+      convertKey.current ??= crypto.randomUUID();
+      return runOnlineOnlyWrite(() =>
+        client.convertDiagramNodeToRecord({
+          clientIdempotencyKey: convertKey.current as string,
+          plan: confirmed,
+        }),
+      );
+    },
+    onError: compositionFailure("The conversion could not be confirmed."),
+    onSuccess: async () => {
+      convertKey.current = null;
+      setPlan(null);
+      setCompositionError(null);
       await invalidate();
     },
   });
@@ -166,6 +257,10 @@ function DiagramCard({
         <TechnicalDiagramCanvas
           diagram={diagram}
           onMove={(id, position) => saveLayout.mutate({ id, ...position })}
+          onMoveRecordCard={(cardId, position) =>
+            moveCard.mutate({ cardId, ...position })
+          }
+          recordCards={recordCards.data ?? []}
         />
       )}
       <TechnicalDiagramEditor
@@ -180,6 +275,28 @@ function DiagramCard({
         error={versionError}
         onCreate={(versionName) => createVersion.mutate(versionName)}
         onRestore={(version) => restoreVersion.mutate(version.id)}
+        versions={versions.data ?? []}
+      />
+      <DiagramCompositionPanel
+        cards={recordCards.data ?? []}
+        diagram={diagram}
+        disabled={
+          placeCard.isPending ||
+          removeCard.isPending ||
+          previewConvert.isPending ||
+          confirmConvert.isPending
+        }
+        error={compositionError}
+        onCancelConvert={() => {
+          convertKey.current = null;
+          setPlan(null);
+        }}
+        onConfirmConvert={(confirmed) => confirmConvert.mutate(confirmed)}
+        onPlace={(option) => placeCard.mutate(option)}
+        onPreviewConvert={(input) => previewConvert.mutate(input)}
+        onRemove={(cardId) => removeCard.mutate(cardId)}
+        options={recordOptions}
+        plan={plan}
         versions={versions.data ?? []}
       />
       <DiagramAuthorityConversion diagram={diagram} />
@@ -252,6 +369,38 @@ export default function ProjectTechnicalDiagramsSurface({
   const visible = selectedDiagramId
     ? diagrams.data?.filter(({ id }) => id === selectedDiagramId)
     : diagrams.data;
+  const sourceRecords = useQuery(
+    orpc.projectSourceRecords.queryOptions({ input: { projectId } }),
+  );
+  const works = useQuery(
+    orpc.projectWallSourceOptions.queryOptions({ input: { projectId } }),
+  );
+  const recordOptions: RecordCardOption[] = [
+    ...(works.data ?? []).flatMap((option) =>
+      option.sourceType === "Work"
+        ? [
+            {
+              id: option.id,
+              sourceType: "Work" as const,
+              title: option.title,
+            },
+          ]
+        : [],
+    ),
+    ...(sourceRecords.data ?? []).flatMap((record) =>
+      record.sourceType === "Decision" ||
+      record.sourceType === "Risk" ||
+      record.sourceType === "Open Question"
+        ? [
+            {
+              id: record.id,
+              sourceType: record.sourceType,
+              title: record.title,
+            },
+          ]
+        : [],
+    ),
+  ];
   const architectures = (diagrams.data ?? []).filter(
     (item) =>
       item.type === "Technical Architecture" &&
@@ -298,6 +447,7 @@ export default function ProjectTechnicalDiagramsSurface({
           )}
           diagram={diagram}
           key={diagram.id}
+          recordOptions={recordOptions}
         />
       ))}
     </section>

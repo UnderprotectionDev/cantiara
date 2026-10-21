@@ -341,6 +341,7 @@ import {
   renameProjectWallInputSchema,
   reorderProjectWallCardsInputSchema,
   setProjectWallCardDensityInputSchema,
+  setProjectWallCardDiagramPinInputSchema,
   setProjectWallCardGroupInputSchema,
   setProjectWallCardHighlightInputSchema,
   setProjectWallCardLockInputSchema,
@@ -505,6 +506,15 @@ import {
   createTechnicalDiagramInputSchema,
   DiagramAuthorityError,
 } from "../technical-diagram-authority";
+import {
+  confirmConvertToRecordInputSchema,
+  DiagramConversionError,
+  moveDiagramRecordCardInputSchema,
+  pinDiagramToVersion,
+  placeDiagramRecordCardInputSchema,
+  previewConvertToRecordInputSchema,
+  removeDiagramRecordCardInputSchema,
+} from "../technical-diagram-card";
 import { StructuralModelError } from "../technical-diagram-structure";
 import {
   createDiagramVersionInputSchema,
@@ -1584,13 +1594,21 @@ async function liveDocumentBlockSource(
       (await context.smartCollections?.getView(accountId, directive.id)) ?? null
     );
   }
-  return (
-    (await context.technicalDiagrams?.get(
-      accountId,
-      directive.id,
-      directive.viewId,
-    )) ?? null
+  const diagram = await context.technicalDiagrams?.get(
+    accountId,
+    directive.id,
+    directive.viewId,
   );
+  if (!(diagram && directive.versionId)) {
+    return diagram ?? null;
+  }
+  // An exact card reads its checkpoint, never the live model; a checkpoint
+  // that is gone or foreign is a broken reference, not the live diagram.
+  const version = await context.technicalDiagrams?.getVersion(
+    accountId,
+    directive.versionId,
+  );
+  return version ? pinDiagramToVersion(diagram, version) : null;
 }
 
 function rethrowFileAttachmentError(error: unknown): never {
@@ -4184,6 +4202,7 @@ export const appRouter = {
             id: directive.id,
             kind: directive.kind,
             sectionId: directive.sectionId ?? null,
+            versionId: directive.versionId ?? null,
             viewId: directive.viewId ?? null,
             source: await liveDocumentBlockSource(
               context,
@@ -4423,6 +4442,13 @@ export const appRouter = {
           context.session.user.id,
           input,
         ),
+      ),
+    ),
+  setProjectWallCardDiagramPin: protectedProcedure
+    .input(setProjectWallCardDiagramPinInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).setCardPin(context.session.user.id, input),
       ),
     ),
   setProjectWallCardHighlight: protectedProcedure
@@ -5239,6 +5265,118 @@ export const appRouter = {
           throw error;
         }
         throw new ORPCError("CONFLICT", { cause: error });
+      }
+    }),
+  technicalDiagramRecordCards: protectedProcedure
+    .input(z.object({ diagramId: z.string().min(1) }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const cards = await context.technicalDiagrams.listRecordCards(
+        context.session.user.id,
+        input.diagramId,
+      );
+      if (!cards) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return cards;
+    }),
+  placeDiagramRecordCard: protectedProcedure
+    .input(placeDiagramRecordCardInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const card = await context.technicalDiagrams.placeRecordCard(
+          context.session.user.id,
+          input,
+        );
+        if (!card) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return card;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError("CONFLICT", { cause: error });
+      }
+    }),
+  moveDiagramRecordCard: protectedProcedure
+    .input(moveDiagramRecordCardInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const card = await context.technicalDiagrams.moveRecordCard(
+        context.session.user.id,
+        input,
+      );
+      if (!card) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return card;
+    }),
+  removeDiagramRecordCard: protectedProcedure
+    .input(removeDiagramRecordCardInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      if (
+        !(await context.technicalDiagrams.removeRecordCard(
+          context.session.user.id,
+          input,
+        ))
+      ) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return { removed: true };
+    }),
+  previewDiagramNodeConversion: protectedProcedure
+    .input(previewConvertToRecordInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const plan = await context.technicalDiagrams.previewConvertToRecord(
+          context.session.user.id,
+          input,
+        );
+        if (!plan) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return plan;
+      } catch (error) {
+        if (error instanceof DiagramConversionError) {
+          throw new ORPCError("CONFLICT", { cause: error });
+        }
+        throw error;
+      }
+    }),
+  convertDiagramNodeToRecord: protectedProcedure
+    .input(confirmConvertToRecordInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const linked = await context.technicalDiagrams.convertToRecord(
+          context.session.user.id,
+          input,
+        );
+        if (!linked) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return linked;
+      } catch (error) {
+        if (error instanceof DiagramConversionError) {
+          throw new ORPCError("CONFLICT", { cause: error });
+        }
+        throw error;
       }
     }),
   technicalDiagramVersions: protectedProcedure

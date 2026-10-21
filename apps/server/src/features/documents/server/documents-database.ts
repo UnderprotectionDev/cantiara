@@ -298,6 +298,7 @@ function liveUsageLocation(
   ordinal: number,
   sectionId?: string,
   viewId?: string,
+  versionId?: string,
 ) {
   const location: Record<string, unknown> = {};
   if (kind === "Live block") {
@@ -310,6 +311,9 @@ function liveUsageLocation(
   }
   if (viewId) {
     location.viewId = viewId;
+  }
+  if (versionId) {
+    location.versionId = versionId;
   }
   return location;
 }
@@ -356,6 +360,7 @@ async function syncDocumentLiveUsageLinks(
     kind: "Live block" | "Section reference";
     ordinal: number;
     sectionId?: string;
+    versionId?: string;
     viewId?: string;
   }[] = [];
   let sectionOrdinal = 0;
@@ -380,6 +385,7 @@ async function syncDocumentLiveUsageLinks(
           kind,
           ordinal,
           sectionId: directive.sectionId,
+          versionId: directive.versionId,
           viewId: directive.viewId,
         });
       }
@@ -393,6 +399,7 @@ async function syncDocumentLiveUsageLinks(
         ordinal,
         directive.sectionId,
         directive.viewId,
+        directive.versionId,
       ),
       revision: 1,
       sourceRecordId: directive.id,
@@ -411,10 +418,18 @@ async function syncDocumentLiveUsageLinks(
     );
   }
   await Promise.all(
-    locationUpdates.map(({ id, kind, ordinal, sectionId, viewId }) =>
+    locationUpdates.map(({ id, kind, ordinal, sectionId, versionId, viewId }) =>
       executor
         .update(usageLink)
-        .set({ location: liveUsageLocation(kind, ordinal, sectionId, viewId) })
+        .set({
+          location: liveUsageLocation(
+            kind,
+            ordinal,
+            sectionId,
+            viewId,
+            versionId,
+          ),
+        })
         .where(eq(usageLink.id, id)),
     ),
   );

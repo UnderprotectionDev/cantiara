@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -268,6 +269,66 @@ export const diagramDocumentOrigin = pgTable(
     check(
       "diagram_origin_block_check",
       sql`${table.blockStart} >= 0 and ${table.blockEnd} > ${table.blockStart}`,
+    ),
+  ],
+);
+
+/**
+ * Read-only live card of an existing İş, Karar, Risk or Açık Soru on a diagram
+ * canvas. It holds the source identity and the card position only; the source
+ * has no foreign key on purpose (a permanently deleted source stays a broken
+ * target), and nothing here is ever written back to the record.
+ */
+export const diagramRecordCard = pgTable(
+  "diagram_record_card",
+  {
+    id: text("id").primaryKey(),
+    diagramId: text("diagram_id")
+      .notNull()
+      .references(() => technicalDiagram.id, { onDelete: "cascade" }),
+    sourceType: text("source_type").notNull(),
+    sourceId: text("source_id").notNull(),
+    x: doublePrecision("x").notNull().default(0),
+    y: doublePrecision("y").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("diagram_record_card_source_unique").on(
+      table.diagramId,
+      table.sourceType,
+      table.sourceId,
+    ),
+    check(
+      "diagram_record_card_source_type_check",
+      sql`${table.sourceType} in ('Work', 'Decision', 'Risk', 'Open Question')`,
+    ),
+  ],
+);
+
+/**
+ * `Convert to record and link`: the record opened from a node of one exact
+ * `Diagram Version`. `id` is the new record's id, so one conversion links one
+ * record and a retry cannot mint a second.
+ */
+export const diagramRecordLink = pgTable(
+  "diagram_record_link",
+  {
+    id: text("id").primaryKey(),
+    diagramId: text("diagram_id")
+      .notNull()
+      .references(() => technicalDiagram.id, { onDelete: "cascade" }),
+    versionId: text("version_id")
+      .notNull()
+      .references(() => diagramVersion.id, { onDelete: "cascade" }),
+    nodeId: text("node_id").notNull(),
+    recordType: text("record_type").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("diagram_record_link_diagram_idx").on(table.diagramId),
+    check(
+      "diagram_record_link_record_type_check",
+      sql`${table.recordType} in ('Work', 'Decision', 'Risk', 'Open Question')`,
     ),
   ],
 );
