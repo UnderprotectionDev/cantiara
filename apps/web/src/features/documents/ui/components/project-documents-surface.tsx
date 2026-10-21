@@ -1669,26 +1669,30 @@ function DocumentDiagramConversionDialog({
           {conversionPreview.data &&
           !conversionPreview.isFetching &&
           previewMatchesSelection ? (
-            <div className="text-sm">
+            <section aria-label="Conversion preview" className="text-sm">
               <p>
                 Document: {record.title} · Version:{" "}
                 {conversionPreview.data.documentRevision}
               </p>
               <p>Technical Architecture · Imported Independent Copy</p>
               <p>
-                Mermaid block: {conversionPreview.data.blockStart}–
+                Mermaid block: line {conversionPreview.data.source.blockLine} ·
+                offsets {conversionPreview.data.blockStart}–
                 {conversionPreview.data.blockEnd}
               </p>
+              <p>{conversionPreview.data.originRelation}</p>
               <p>
-                Original Mermaid block: {conversionPreview.data.originalBlock}
+                Original Mermaid block: {conversionPreview.data.originalBlock}.{" "}
+                {conversionPreview.data.blockEffect}
               </p>
+              <p>No live round-trip: later edits never sync back.</p>
               <p>
                 {conversionPreview.data.model.nodes.length} nodes ·{" "}
                 {conversionPreview.data.model.links.length} links
               </p>
               {conversionPreview.data.unparseableLines.length > 0 ? (
                 <div>
-                  <p>Unparseable items</p>
+                  <p>Unparseable items (left out of the diagram)</p>
                   <ul className="list-inside list-disc">
                     {conversionPreview.data.unparseableLines.map((line) => (
                       <li key={`${line.line}-${line.text}`}>
@@ -1699,7 +1703,7 @@ function DocumentDiagramConversionDialog({
                   </ul>
                 </div>
               ) : null}
-            </div>
+            </section>
           ) : null}
           {conversionPreview.isError ? (
             <p role="alert">{conversionPreview.error.message}</p>

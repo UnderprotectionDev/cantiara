@@ -22,6 +22,14 @@ import {
   type RemoveDiagramRecordCardInput,
 } from "@cantiara/api/technical-diagram-card";
 import {
+  applyMermaidBlockOutcome,
+  describeMermaidConversion,
+  lineOfOffset,
+  liveDiagramReference,
+  MERMAID_CONVERT_LABELS,
+  mermaidBlockSource,
+} from "@cantiara/api/technical-diagram-mermaid";
+import {
   diagramGraph,
   emptyStructuralModel,
   parseStoredStructuralModel,
@@ -72,26 +80,6 @@ import { previewMermaidArchitecture } from "./mermaid-conversion";
 
 export class MermaidConversionConflictError extends Error {}
 
-const mermaidFenceOpening = /^ {0,3}(`{3,}|~{3,})mermaid[ \t]*$/;
-
-function mermaidBlockSource(block: string): string | null {
-  const lines = block.replaceAll("\r\n", "\n").split("\n");
-  const opening = mermaidFenceOpening.exec(lines[0] ?? "");
-  if (!opening || lines.length < 3) {
-    return null;
-  }
-  const [, fence] = opening;
-  const closing = lines.at(-1)?.trim() ?? "";
-  if (
-    !fence ||
-    closing.length < fence.length ||
-    ![...closing].every((character) => character === fence[0])
-  ) {
-    return null;
-  }
-  return lines.slice(1, -1).join("\n");
-}
-
 export function createDatabaseTechnicalDiagrams(
   database: Database,
 ): TechnicalDiagramsAccess {
@@ -126,7 +114,22 @@ export function createDatabaseTechnicalDiagrams(
       );
     }
     const conversion = await previewMermaidArchitecture(source);
+    const originalBlock = input.originalBlock ?? MERMAID_CONVERT_LABELS.keep;
+    const conversionSource = {
+      blockEnd: input.blockEnd,
+      blockLine: lineOfOffset(row.document.body, input.blockStart),
+      blockStart: input.blockStart,
+      documentId: input.documentId,
+      documentRevision: input.documentRevision,
+      documentTitle: row.document.title,
+    };
     return {
+      ...describeMermaidConversion(
+        conversionSource,
+        originalBlock,
+        conversion.unparseableLines,
+      ),
+      source: conversionSource,
       title: input.title,
       projectId: row.projectId,
       documentId: input.documentId,
@@ -135,7 +138,7 @@ export function createDatabaseTechnicalDiagrams(
       blockEnd: input.blockEnd,
       type: "Technical Architecture" as const,
       authorityMode: "Imported Independent Copy" as const,
-      originalBlock: input.originalBlock ?? ("Keep independent" as const),
+      originalBlock,
       canConvert: conversion.canConvert,
       model: conversion.model,
       unparseableLines: conversion.unparseableLines,
@@ -1108,7 +1111,7 @@ export function createDatabaseTechnicalDiagrams(
           .from(document)
           .where(eq(document.id, input.documentId))
           .limit(1);
-        const reference = `:::live-diagram{diagramId="${diagramId}"}`;
+        const reference = liveDiagramReference(diagramId);
         const actualOutcome = documentAfter?.body.includes(reference)
           ? "Replace with live reference"
           : "Keep independent";
@@ -1196,11 +1199,12 @@ export function createDatabaseTechnicalDiagrams(
           (input.originalBlock ?? "Keep independent") ===
           "Replace with live reference"
         ) {
-          const liveReference = `:::live-diagram{diagramId="${diagramId}"}`;
-          const nextBody =
-            saved.body.slice(0, input.blockStart) +
-            liveReference +
-            saved.body.slice(input.blockEnd);
+          const nextBody = applyMermaidBlockOutcome(
+            saved.body,
+            input,
+            MERMAID_CONVERT_LABELS.replace,
+            diagramId,
+          );
           const [updatedDocument] = await tx
             .update(document)
             .set({

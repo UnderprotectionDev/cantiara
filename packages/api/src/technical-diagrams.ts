@@ -22,6 +22,10 @@ import type {
   PreviewConvertToRecordInput,
   RemoveDiagramRecordCardInput,
 } from "./technical-diagram-card";
+import type {
+  MermaidConversionEffects,
+  MermaidConversionSource,
+} from "./technical-diagram-mermaid";
 import {
   structuralModelSchema,
   TECHNICAL_DIAGRAM_TYPES,
@@ -220,20 +224,24 @@ export interface TechnicalDiagramsAccess {
   previewConversion: (
     accountId: string,
     input: MermaidConversionInput,
-  ) => Promise<{
-    title: string;
-    projectId: string;
-    documentId: string;
-    documentRevision: number;
-    blockStart: number;
-    blockEnd: number;
-    type: "Technical Architecture";
-    authorityMode: "Imported Independent Copy";
-    originalBlock: "Keep independent" | "Replace with live reference";
-    canConvert: boolean;
-    model: ArchitectureModel;
-    unparseableLines: Array<{ line: number; reason: string; text: string }>;
-  } | null>;
+  ) => Promise<
+    | (MermaidConversionEffects & {
+        source: MermaidConversionSource;
+        title: string;
+        projectId: string;
+        documentId: string;
+        documentRevision: number;
+        blockStart: number;
+        blockEnd: number;
+        type: "Technical Architecture";
+        authorityMode: "Imported Independent Copy";
+        originalBlock: "Keep independent" | "Replace with live reference";
+        canConvert: boolean;
+        model: ArchitectureModel;
+        unparseableLines: Array<{ line: number; reason: string; text: string }>;
+      })
+    | null
+  >;
   previewConvertToRecord: (
     accountId: string,
     input: PreviewConvertToRecordInput,

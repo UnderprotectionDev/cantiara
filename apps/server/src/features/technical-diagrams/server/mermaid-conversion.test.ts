@@ -1,6 +1,31 @@
 import { expect, test } from "vitest";
 
-import { parseMermaidArchitecture } from "./mermaid-conversion";
+import {
+  parseMermaidArchitecture,
+  previewMermaidArchitecture,
+} from "./mermaid-conversion";
+
+test("preview reports each unsupported line and still converts the supported subset", async () => {
+  const preview = await previewMermaidArchitecture(
+    "graph TD\nweb[Web] --> api[API]\nclassDef danger fill:red\nstyle web fill:#f00",
+  );
+  expect(preview.canConvert).toBe(true);
+  expect(preview.model.links).toHaveLength(1);
+  expect(
+    preview.unparseableLines.map(({ line, text }) => [line, text]),
+  ).toEqual([
+    [3, "classDef danger fill:red"],
+    [4, "style web fill:#f00"],
+  ]);
+});
+
+test("preview refuses a non-flowchart and reports its header as lost", async () => {
+  const preview = await previewMermaidArchitecture(
+    "sequenceDiagram\nAlice->>Bob: Hello",
+  );
+  expect(preview.canConvert).toBe(false);
+  expect(preview.unparseableLines[0]).toMatchObject({ line: 1 });
+});
 
 test("converts a supported Mermaid flowchart into an independent structural model", async () => {
   expect(

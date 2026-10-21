@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 
 const serverUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 
+const liveDiagramPattern = /:::live-diagram\{diagramId="/;
+
 test("keyboard-reachable structured outline, Diagram View and Diagram Version", async ({
   context,
   page,
@@ -61,4 +63,62 @@ test("keyboard-reachable structured outline, Diagram View and Diagram Version", 
   await expect(outline).toContainText("API · Component");
   await expect(versions.getByRole("list")).toContainText("Baseline");
   await expect(versions).toContainText("the Diagram Version stays unchanged");
+});
+
+test("Mermaid'den Teknik Diyagram dönüşümü", async ({
+  context,
+  page,
+  request,
+}) => {
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=documents`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = (await response.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+    projectId: string;
+  };
+  await context.addCookies([setup.cookie]);
+  await page.goto(`/projects/${setup.projectId}#documents`);
+  await page.getByRole("button", { name: "Create Document" }).click();
+  const create = page.getByRole("dialog", { name: "Create Document" });
+  await create.getByLabel("Title").fill("Platform notes");
+  await create.getByRole("button", { name: "Create Document" }).click();
+  const editor = page.getByRole("region", { name: "Document", exact: true });
+  await editor.getByRole("tab", { name: "Markdown" }).click();
+  await editor
+    .getByLabel("Markdown source")
+    .fill(
+      "```mermaid\ngraph TD\nweb[Web] --> api[API]\nclassDef x fill:red\n```",
+    );
+  await editor.getByRole("button", { name: "Save" }).click();
+  await editor.getByRole("tab", { name: "Preview" }).click();
+
+  // Keyboard-only: a named button opens the dialog, and the preview names
+  // every consequence before the one confirmation.
+  await editor
+    .getByRole("button", { name: "Convert to Technical Diagram" })
+    .focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog", {
+    name: "Convert to Technical Diagram",
+  });
+  await expect(dialog).toBeVisible();
+  const preview = dialog.getByRole("region", { name: "Conversion preview" });
+  await expect(preview).toContainText("Imported Independent Copy");
+  await expect(preview).toContainText("Originates from Platform notes");
+  await expect(preview).toContainText("classDef x fill:red");
+  await expect(preview).toContainText("No live round-trip");
+  await dialog
+    .getByLabel("Original Mermaid block")
+    .selectOption("Replace with live reference");
+  await expect(preview).toContainText("live Technical Diagram reference");
+  await dialog
+    .getByRole("button", { name: "Convert to Technical Diagram" })
+    .click();
+  await expect(dialog).not.toBeVisible();
+  await editor.getByRole("tab", { name: "Markdown" }).click();
+  await expect(editor.getByLabel("Markdown source")).toHaveValue(
+    liveDiagramPattern,
+  );
 });
