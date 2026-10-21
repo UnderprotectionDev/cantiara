@@ -1167,6 +1167,23 @@ export function createDatabaseTechnicalDiagrams(
       }
       const preview = await previewConversion(accountId, input);
       if (!preview) {
+        const [visible] = await database
+          .select({ revision: document.revision })
+          .from(document)
+          .innerJoin(project, eq(document.projectId, project.id))
+          .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+          .where(
+            and(
+              eq(document.id, input.documentId),
+              eq(workspace.ownerAccountId, accountId),
+            ),
+          )
+          .limit(1);
+        if (visible && visible.revision !== input.documentRevision) {
+          throw new MermaidConversionConflictError(
+            "The Document changed after the preview; preview the conversion again.",
+          );
+        }
         return null;
       }
       if (!preview.canConvert) {
@@ -1200,9 +1217,7 @@ export function createDatabaseTechnicalDiagrams(
           .for("update")
           .limit(1);
         if (saved?.revision !== input.documentRevision) {
-          throw new MermaidConversionConflictError(
-            "The Document changed after preview.",
-          );
+          return false;
         }
         const [created] = await tx
           .insert(technicalDiagram)
@@ -1311,7 +1326,13 @@ export function createDatabaseTechnicalDiagrams(
         return true;
       });
       if (!inserted) {
-        return repeatedConversion();
+        const repeated = await repeatedConversion();
+        if (!repeated) {
+          throw new MermaidConversionConflictError(
+            "The Document changed after preview.",
+          );
+        }
+        return repeated;
       }
       return get(accountId, diagramId);
     },

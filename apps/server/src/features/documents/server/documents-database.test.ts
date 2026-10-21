@@ -2542,7 +2542,7 @@ describeDatabase("Documents database boundary", () => {
       documentRevisionAfter: saved.revision + 1,
       originRelation: `Originates from Design, version ${saved.revision}, line 3`,
       roundTripSync: false,
-      unparseableLines: [{ line: 4, text: "classDef x fill:red" }],
+      unparseableLines: [{ line: 3, text: "classDef x fill:red" }],
     });
 
     const stale = {
