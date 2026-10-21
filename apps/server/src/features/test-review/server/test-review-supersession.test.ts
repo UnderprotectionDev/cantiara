@@ -745,6 +745,32 @@ describe("Create follow-up work", () => {
     );
   });
 
+  test("an existing Work resolves by its visible key as well as its id", async () => {
+    const harness = setup();
+    const preview = await harness.testReview.previewFollowUp(accountId, {
+      projectId,
+      sessionTestIds: ["fail", "other"],
+      target: { mode: "existing", workId: "PRJ-1" },
+    });
+    expect(preview.plan.target).toMatchObject({
+      mode: "existing",
+      work: { id: "work-1", key: "PRJ-1" },
+    });
+    const receipt = await harness.testReview.commitFollowUp(accountId, {
+      previewFingerprint: preview.fingerprint,
+      projectId,
+      sessionTestIds: ["fail", "other"],
+      target: { mode: "existing", workId: "PRJ-1" },
+      workId: "ignored",
+    });
+    // The links carry the resolved Work id, not the typed key.
+    expect(receipt.links.map((link) => link.workId)).toEqual([
+      "work-1",
+      "work-1",
+    ]);
+    expect(harness.writes).toEqual(["follow-up-link"]);
+  });
+
   test("follow-up work never calls Test Gap, assessment or report acceptance writers", async () => {
     const harness = setup();
     const preview = await harness.testReview.previewFollowUp(accountId, {

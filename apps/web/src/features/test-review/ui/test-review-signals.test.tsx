@@ -45,6 +45,7 @@ function makeSession(
     reporter: null,
     reviewState: "Unreviewed",
     summary: null,
+    currentSummary: null,
     summaryRedacted: false,
     targetContext: null,
     withdrawn: false,
@@ -263,6 +264,20 @@ test("Create follow-up work previews target, Originates from and Origin Location
   expect(document.activeElement).toBe(heading);
   await click(button("Create follow-up work"));
   expect(actions.commitFollowUp).toHaveBeenCalledTimes(1);
+});
+
+test("attaching to an existing İş accepts the visible id or key", async () => {
+  const actions = actionsMock();
+  await mount(actions);
+  // The second mode radio is "Attach results to an existing İş".
+  const [, attachRadio] = [...document.querySelectorAll('input[type="radio"]')];
+  if (!attachRadio) {
+    throw new Error("No attach mode radio");
+  }
+  await click(attachRadio);
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("Existing İş id or key");
+  expect(text).toContain("Attach results to an existing İş");
 });
 
 test("a read-only Project disables every write control", async () => {

@@ -489,7 +489,7 @@ function FollowUpPanel({
         ) : (
           <div className="grid gap-2">
             <label htmlFor="test-review-follow-up-work">
-              Existing İş identity
+              Existing İş id or key
             </label>
             <Input
               disabled={disabled || pending}

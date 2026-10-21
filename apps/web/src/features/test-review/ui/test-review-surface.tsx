@@ -3,6 +3,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import { followUpWorkId } from "./test-review-panel";
 import type { TestReviewSignalActions } from "./test-review-signals";
 import { type TestReviewActions, TestReviewView } from "./test-review-view";
 
@@ -113,7 +114,9 @@ export default function TestReviewSurface({
           projectId,
           sessionTestIds,
           target,
-          workId: crypto.randomUUID(),
+          // Derived from the preview, so a retried commit reuses the same
+          // Work identity and the server-side idempotency key.
+          workId: followUpWorkId(preview.fingerprint),
         }),
       );
       await refresh();

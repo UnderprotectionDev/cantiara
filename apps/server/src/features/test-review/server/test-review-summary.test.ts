@@ -2,7 +2,7 @@
 import type { TestSummary } from "@cantiara/api/test-review-summary";
 import { describe, expect, test } from "vitest";
 
-import { TestReviewRecordNotFoundError } from "./test-review";
+import { TestReviewSummaryScopeNotFoundError } from "./test-review";
 import {
   accountId,
   createMemoryHarness,
@@ -339,7 +339,25 @@ describe("Feature Test Summary", () => {
         projectId,
         scope: { id: "missing", kind: "Feature" },
       }),
-    ).rejects.toBeInstanceOf(TestReviewRecordNotFoundError);
+    ).rejects.toBeInstanceOf(TestReviewSummaryScopeNotFoundError);
+  });
+
+  test("a session Correction promotes the corrected summary into the Test Sessions section", async () => {
+    const { testReview } = setup();
+    await testReview.recordCorrection(accountId, {
+      note: "Checkout run against the fixed build.",
+      projectId,
+      reason: "The summary described the wrong build.",
+      sessionId: "s-feature",
+    });
+    const summary = await testReview.summary(accountId, {
+      projectId,
+      scope: { id: "feature-1", kind: "Feature" },
+    });
+    const record = section(summary, "sessions").records.find(
+      (entry) => entry.id === "s-feature",
+    );
+    expect(record?.label).toBe("Checkout run against the fixed build.");
   });
 });
 

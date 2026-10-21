@@ -136,7 +136,9 @@ describe("Test Review RPC seam", () => {
         projectId,
         scope: { id: "missing", kind: "Feature" },
       }),
-    ).rejects.toMatchObject({ data: { code: "TEST_REVIEW_RECORD_NOT_FOUND" } });
+    ).rejects.toMatchObject({
+      data: { code: "TEST_REVIEW_SUMMARY_SCOPE_NOT_FOUND" },
+    });
     await expect(
       setup(false).projectTestSummary({
         projectId,

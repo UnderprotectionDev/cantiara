@@ -58,6 +58,7 @@ const session: TestReviewSession = {
   ],
   context: null,
   targetContext: null,
+  currentSummary: null,
   newContextAfterClose: false,
   projectId: "p1",
   reportedAt: "2026-10-01T09:00:00.000Z",
@@ -384,4 +385,17 @@ test("a redacted value shows the mark and is not usable evidence", async () => {
   expect(text).toContain("Reason: Token pasted.");
   expect(text).not.toContain("FAIL)");
   expect(byLabel("Redact reported result of Login works").disabled).toBe(true);
+});
+
+test("a session Correction promotes the corrected summary and keeps the original", async () => {
+  await mount(actionsMock(), {
+    session: {
+      ...session,
+      summary: "Checkout run",
+      currentSummary: "Checkout run against the fixed build.",
+    },
+  });
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("Checkout run against the fixed build.");
+  expect(text).toContain("Reported summary: Checkout run");
 });

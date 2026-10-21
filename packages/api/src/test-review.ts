@@ -354,8 +354,13 @@ export const testReviewSessionSchema = z
     /** Who reported it, as the acceptance recorded it; `null` when unknown. */
     reporter: z.string().nullable(),
     reviewState: stateSchema,
-    /** `null` when the summary was redacted. */
+    /** The original reported summary; `null` when the summary was redacted. */
     summary: z.string().nullable(),
+    /**
+     * The head Correction's promoted summary, as the current view shows it;
+     * `null` while the original report stands (or its note was redacted).
+     */
+    currentSummary: z.string().nullable(),
     summaryRedacted: z.boolean(),
     /** Branch/commit/build the bound Handoff targeted; `null` when none. */
     targetContext: z.record(z.string(), z.string()).nullable(),
@@ -769,9 +774,11 @@ export interface TestReviewLinkedEvents {
 
 /**
  * The review view of one stored session: the original report stays intact
- * and the chain head is promoted as the current result. Redacted values are
- * replaced by the mark and never leave this function. A Closed record that
- * received a Correction, Withdrawal or Redaction after it was closed carries
+ * and the chain head is promoted as the current result — for the Test
+ * Session itself, the head Correction's note is promoted as
+ * `currentSummary`. Redacted values are replaced by the mark and never
+ * leave this function. A Closed record that received a Correction,
+ * Withdrawal or Redaction after it was closed carries
  * `newContextAfterClose`; its review state is never changed here.
  */
 export function viewSession(
@@ -809,6 +816,10 @@ export function viewSession(
     since !== null &&
     [...ids].some((id) => linkTimes(id).some((time) => time > since));
   return {
+    currentSummary:
+      sessionHead?.kind === "Correction" && !erased.has(sessionHead.id)
+        ? (sessionHead.note ?? null)
+        : null,
     executorName: session.executorName,
     id: session.id,
     context: session.context,

@@ -212,7 +212,11 @@ function sessionRecord(session: ViewedSession): TestSummaryRecord {
     detail: `${session.reviewState} · reported ${session.reportedAt}`,
     id: session.id,
     kind: "Test Session",
-    label: session.summary ?? `Test Session by ${session.executorName}`,
+    // The current view promotes a head Correction's summary over the report.
+    label:
+      session.currentSummary ??
+      session.summary ??
+      `Test Session by ${session.executorName}`,
     provenance: null,
   };
 }

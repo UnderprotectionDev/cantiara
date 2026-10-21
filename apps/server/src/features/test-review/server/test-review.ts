@@ -89,6 +89,16 @@ export class TestReviewRecordNotFoundError extends Error {
   }
 }
 
+/** The bound Primary spec or scope record of one Test Summary is not found. */
+export class TestReviewSummaryScopeNotFoundError extends Error {
+  readonly code = "TEST_REVIEW_SUMMARY_SCOPE_NOT_FOUND" as const;
+
+  constructor(id: string) {
+    super(`The Test Summary scope ${id} was not found in this Project.`);
+    this.name = "TestReviewSummaryScopeNotFoundError";
+  }
+}
+
 /** The record's reported value or event content is already redacted. */
 export class TestReviewAlreadyRedactedError extends Error {
   readonly code = "TEST_REVIEW_ALREADY_REDACTED" as const;
@@ -153,10 +163,15 @@ const REVIEWED: TestReviewState = "Reviewed";
 
 /** Only the viewed session is labelled: a redacted summary never leaks. */
 function sessionLabel(
-  session: Pick<TestReviewSession, "executorName" | "reportedAt" | "summary">,
+  session: Pick<
+    TestReviewSession,
+    "currentSummary" | "executorName" | "reportedAt" | "summary"
+  >,
 ) {
   return (
-    session.summary?.trim() || `${session.executorName}, ${session.reportedAt}`
+    session.currentSummary?.trim() ||
+    session.summary?.trim() ||
+    `${session.executorName}, ${session.reportedAt}`
   );
 }
 
@@ -875,7 +890,7 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
       return await read(accountId, input.projectId, async (transaction) => {
         const facts = await transaction.readSummaryFacts(input.scope);
         if (facts === null) {
-          throw new TestReviewRecordNotFoundError(
+          throw new TestReviewSummaryScopeNotFoundError(
             "id" in input.scope ? input.scope.id : input.projectId,
           );
         }

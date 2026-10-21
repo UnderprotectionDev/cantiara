@@ -68,7 +68,12 @@ export interface TestReviewActions {
 }
 
 function sessionTitle(session: TestReviewSession) {
-  return session.summary ?? `Test Session by ${session.executorName}`;
+  // The current view promotes a head Correction's summary over the report.
+  return (
+    session.currentSummary ??
+    session.summary ??
+    `Test Session by ${session.executorName}`
+  );
 }
 
 function StateButtons({
@@ -628,6 +633,11 @@ function SessionReview({
       {session.summaryRedacted ? (
         <p className="text-muted-foreground text-sm">
           The summary was redacted.
+        </p>
+      ) : null}
+      {session.currentSummary && session.summary ? (
+        <p className="text-muted-foreground text-sm">
+          {`Reported summary: ${session.summary}`}
         </p>
       ) : null}
       <p className="text-muted-foreground text-sm">

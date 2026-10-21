@@ -39,6 +39,7 @@ import {
   isNotNull,
   isNull,
   ne,
+  or,
 } from "drizzle-orm";
 
 import { insertWorkWithKeyAllocation } from "../../evidence/server/evidence-record-creation";
@@ -51,8 +52,6 @@ import { createTestReview } from "./test-review";
 import { readSummaryFacts } from "./test-review-summary-database";
 
 type Executor = FeedbackExecutor;
-
-const EVENT_LIMIT = 500;
 
 /**
  * Primary spec revisions each exact scenario version was bound to, beside the
@@ -391,7 +390,8 @@ export function createDatabaseTestReviewStore(
               .from(work)
               .where(
                 and(
-                  eq(work.id, workId),
+                  // The founder may name the İş by its visible key or its id.
+                  or(eq(work.id, workId), eq(work.key, workId)),
                   eq(work.projectId, owned.id),
                   ne(work.type, "Feature"),
                   isNull(work.trashedAt),
@@ -503,16 +503,17 @@ export function createDatabaseTestReviewStore(
           findSession: async (sessionId) =>
             (await readSessions(executor, owned.id, sessionId))[0] ?? null,
           listEvents: async () =>
+            // The full review history is read: `New context after close` is
+            // derived from it, so a display cap must never live here.
             (
               await executor
                 .select()
                 .from(testReviewEvent)
                 .where(eq(testReviewEvent.projectId, owned.id))
                 .orderBy(
-                  desc(testReviewEvent.recordedAt),
-                  desc(testReviewEvent.id),
+                  asc(testReviewEvent.recordedAt),
+                  asc(testReviewEvent.id),
                 )
-                .limit(EVENT_LIMIT)
             ).map(toEvent),
           listResultEvents: async () =>
             (

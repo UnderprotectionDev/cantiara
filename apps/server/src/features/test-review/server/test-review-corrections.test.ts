@@ -184,6 +184,52 @@ describe("Test Review: Correction and Withdrawal", () => {
     expect(itemOf(list, "s1", "t1").current.source).toBe("Reported");
   });
 
+  test("a session Correction promotes the corrected summary and keeps the original", async () => {
+    const harness = createMemoryHarness([
+      fixtureSession("s1", [{ id: "t1", title: "Login works" }], {
+        summary: "Checkout run",
+      }),
+    ]);
+    const { event } = await harness.testReview.recordCorrection(accountId, {
+      note: "Checkout run against the fixed build.",
+      projectId,
+      reason: "The summary described the wrong build.",
+      sessionId: "s1",
+    });
+    const list = await view(harness);
+    const session = list.sessions.find(({ id }) => id === "s1");
+    expect(session?.currentSummary).toBe(
+      "Checkout run against the fixed build.",
+    );
+    // The original report stays beside the promoted correction.
+    expect(session?.summary).toBe("Checkout run");
+    expect(event.note).toBe("Checkout run against the fixed build.");
+  });
+
+  test("redacting the session Correction note drops it from the current view", async () => {
+    const harness = createMemoryHarness([
+      fixtureSession("s1", [{ id: "t1", title: "Login works" }], {
+        summary: "Checkout run",
+      }),
+    ]);
+    const { event } = await harness.testReview.recordCorrection(accountId, {
+      note: "Checkout run containing a secret",
+      projectId,
+      reason: "Wrong build.",
+      sessionId: "s1",
+    });
+    await harness.testReview.recordRedaction(accountId, {
+      eventId: event.id,
+      projectId,
+      reason: "Secret in the corrected summary.",
+      sessionId: "s1",
+    });
+    const list = await view(harness);
+    const session = list.sessions.find(({ id }) => id === "s1");
+    expect(session?.currentSummary).toBeNull();
+    expect(session?.summary).toBe("Checkout run");
+  });
+
   test("a reason is required and a Session Test Correction needs a result", async () => {
     const harness = setup();
     await expect(

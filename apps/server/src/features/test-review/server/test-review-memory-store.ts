@@ -110,7 +110,9 @@ export function createMemoryHarness(
             return Promise.resolve(key);
           },
           findFollowUpWork: (workId) => {
-            const found = works.find((entry) => entry.id === workId);
+            const found = works.find(
+              (entry) => entry.id === workId || entry.key === workId,
+            );
             return Promise.resolve(
               found && found.type !== "Feature"
                 ? {

@@ -2,6 +2,7 @@ import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { sessionTest, testSession } from "@cantiara/db/schema/planned-test";
 import { project } from "@cantiara/db/schema/project";
+import { testReviewEvent } from "@cantiara/db/schema/test-review";
 import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
 import {
@@ -231,10 +232,11 @@ describeDatabase("Test Review PostgreSQL integration", () => {
         await access.previewFollowUp(accountId, {
           projectId,
           sessionTestIds: [itemB],
-          target: { mode: "existing", workId },
+          // The founder may name the target İş by its visible key too.
+          target: { mode: "existing", workId: created.links[0]?.workKey ?? "" },
         })
       ).fingerprint,
-      target: { mode: "existing", workId },
+      target: { mode: "existing", workId: created.links[0]?.workKey ?? "" },
       workId: "ignored",
     });
     expect(attached.links[0]?.mode).toBe("Attached");
@@ -243,6 +245,56 @@ describeDatabase("Test Review PostgreSQL integration", () => {
     expect(
       list.sessions[0]?.items.map((item) => item.normalizedResult),
     ).toEqual(["Failed", "Passed"]);
+  });
+
+  test("New context after close survives more than 500 later review events", async () => {
+    const access = createDatabaseTestReview(requireDatabase());
+    await access.setSessionReviewState(accountId, {
+      projectId,
+      sessionId,
+      state: "Closed",
+    });
+    const listed = await access.list(accountId, projectId);
+    const close = listed.events.find((event) => event.toState === "Closed");
+    if (!close) {
+      throw new Error("No close event");
+    }
+    const closeAt = Date.parse(close.recordedAt);
+    // Synthetic fixture history written strictly after the close, larger than
+    // any display cap: the derivation must read the whole review history.
+    const fillers = 600;
+    await requireDatabase()
+      .insert(testReviewEvent)
+      .values(
+        Array.from({ length: fillers }, (_, index) => ({
+          action: "Review state set",
+          actorAccountId: accountId,
+          batchId: null,
+          fromState: "Reviewed",
+          id: `filler-${index}-${suffix}`,
+          projectId,
+          reason: null,
+          recordedAt: new Date(closeAt + index + 1),
+          remaining: null,
+          sessionId,
+          sessionTestId: itemA,
+          toState: "Reviewed",
+        })),
+      );
+    await access.recordCorrection(accountId, {
+      correctedResult: "passed",
+      note: null,
+      projectId,
+      reason: "After the close.",
+      sessionId,
+      sessionTestId: itemB,
+    });
+    const after = await access.list(accountId, projectId);
+    const [session] = after.sessions;
+    expect(session?.reviewState).toBe("Closed");
+    expect(session?.newContextAfterClose).toBe(true);
+    // The seam lists the full review history, never a capped slice.
+    expect(after.events.length).toBeGreaterThan(fillers);
   });
 
   test("the bulk commit is atomic and idempotent", async () => {

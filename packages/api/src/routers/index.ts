@@ -3454,6 +3454,10 @@ const TEST_REVIEW_FAILURES: Record<string, TestReviewFailure> = {
     message: "Test Session or Session Test is unavailable.",
     status: "NOT_FOUND",
   },
+  TEST_REVIEW_SUMMARY_SCOPE_NOT_FOUND: {
+    message: "The Test Summary scope is unavailable.",
+    status: "NOT_FOUND",
+  },
 };
 
 async function runTestReviewOperation<T>(
