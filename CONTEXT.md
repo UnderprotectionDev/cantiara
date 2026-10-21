@@ -1344,6 +1344,11 @@ Bir Test Oturumu içinde bağımsız olarak denendiği bildirilen davranışı, 
 UI: `Session Test`.
 _Avoid_: Planlı Test Senaryosu, Test Oturumu özeti, GitHub check'i
 
+**Test incelemesi**:
+Kurucunun bir Test Oturumu ile her Oturum Testi üzerinde ayrı ayrı yürüttüğü yönetim kararı; her kayıt kendi inceleme durumunu taşır (`Unreviewed`, `Reviewed`, `Follow-up needed`, `Closed`), biri diğerini örtük değiştirmez ve bildirilen ham ya da normalize sonucu yazmaz. Yayın kapısı, Proje Sürümü sonucu, yeni test koşusu veya Handoff geçişi değildir; Oturum Testi tek başına arşivlenmez veya Çöp'e alınmaz (tarihsel bütün Test Oturumudur). Kalan `Unreviewed` ya da `Follow-up needed` maddelerle oturum kapatılabilir; kalan kesin kayıtlar ve isteğe bağlı gerekçe korunur. Açık toplu eylem `Mark session and selected results as reviewed` değişecek kesin kayıtları önizler, tek atomik ve idempotent işlemle uygular. İnceleme ve kapanış Kayıt geçmişidir, Denetim kaydı değildir.
+UI: `Test Review`; durumlar `Unreviewed`, `Reviewed`, `Follow-up needed`, `Closed`; toplu eylem `Mark session and selected results as reviewed`.
+_Avoid_: Onay, yayın kapısı, sürüm kanıtı, test skoru, otomatik kapanış, Denetim kaydı
+
 **Yürüten**:
 Bir Test Oturumunu gerçekte yürüten kullanıcı ya da Codex, Claude Code, Playwright CI gibi araç; `Yürüten türü` (`Kullanıcı`, `AI ajanı`, `Harici araç`), adı ve varsa sürümüyle yalnız kullanıcıya gösterilen tarihsel atıftır, idempotency anahtarına girmez ve güven puanı değildir.
 UI: `Executor type`, `Executor`.

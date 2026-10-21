@@ -82,6 +82,7 @@ import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surfa
 import TestAssessmentsSurface from "@/features/test-assessments/ui/test-assessments-surface";
 import TestGapsSurface from "@/features/test-gaps/ui/test-gaps-surface";
 import TestSessionsSurface from "@/features/test-report/ui/test-sessions-surface";
+import TestReviewSurface from "@/features/test-review/ui/test-review-surface";
 import ProjectAssumptionsSurface from "@/features/uncertainty-records/ui/components/project-assumptions-surface";
 import OpenQuestionsSurface from "@/features/uncertainty-records/ui/open-questions-surface";
 import ValidationRecordsSurface from "@/features/validation-records/ui/validation-records-surface";
@@ -165,6 +166,10 @@ function projectTestsSurface(
       <TestGapsSurface key={`test-gaps:${projectId}`} projectId={projectId} />
       <TestSessionsSurface
         key={`test-sessions:${projectId}`}
+        projectId={projectId}
+      />
+      <TestReviewSurface
+        key={`test-review:${projectId}`}
         projectId={projectId}
       />
       <TestAssessmentsSurface
