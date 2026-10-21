@@ -324,7 +324,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yürüten | `Executor` | Testi yürüten kullanıcı ya da araç adı ve sürümü; tarihsel atıf |
 | Raporlayan | `Reporter` | Raporu teslim eden doğrulanmış kullanıcı ya da entegrasyon |
 | Giriş yolu | `Ingress` | `Application`, `File import` veya `MCP`; saklanan olgu, puan değildir |
-| İncelenmedi | `Unreviewed` | Yeni Test Oturumunun başlangıç inceleme durumu; inceleme yaşam döngüsü 57'dedir |
+| Test incelemesi | `Test Review` | Test Oturumu ve Oturum Testi inceleme bölümü; sonuç, yayın kapısı veya Proje Sürümü sonucu değildir |
+| İncelenmedi | `Unreviewed` | Test Oturumunun ve her Oturum Testinin başlangıç inceleme durumu |
+| İncelendi | `Reviewed` | Kullanıcının oturum ya da maddeye verdiği inceleme durumu; bildirilen sonucu değiştirmez |
+| Takip gerekli | `Follow-up needed` | Oturum ya da madde için inceleme durumu; otomatik İş, Bug veya Test Açığı üretmez |
+| Kapatıldı | `Closed` | Test Oturumu ya da Oturum Testi inceleme durumu; kalan açık maddeler kapıyı engellemez, alt maddeleri kapatmaz |
+| Oturumu ve seçili sonuçları incelendi işaretle | `Mark session and selected results as reviewed` | Önizleme gerektiren, tek atomik ve idempotent toplu inceleme eylemi |
 | Geçti | `Passed` | Normalize bildirilen sonuç; Ürün kabul kanıtı değildir |
 | Kaldı | `Failed` | Normalize bildirilen sonuç |
 | Bloke | `Blocked` | Normalize bildirilen sonuç |
