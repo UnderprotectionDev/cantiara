@@ -536,8 +536,10 @@ export function createFakeProjectWallDiagrams(input: FakeDiagram[]) {
     }
     return {
       authorityMode: "Product-authored Model",
+      externalSource: null,
       id: diagram.id,
       model: structuredClone(diagram.model),
+      origins: [],
       projectId: diagram.projectId,
       title: diagram.title,
       type: "Technical Architecture",

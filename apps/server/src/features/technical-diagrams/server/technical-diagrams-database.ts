@@ -1,4 +1,13 @@
 import { documentLiveDirectives } from "@cantiara/api/documents";
+import {
+  type AuthorityConversionInput,
+  assertPreviewedConversion,
+  type ConfirmAuthorityConversionInput,
+  type CreateTechnicalDiagramInput,
+  creatableAuthorityModeSchema,
+  EMPTY_DIAGRAM_MODEL,
+  previewAuthorityConversion,
+} from "@cantiara/api/technical-diagram-authority";
 import type {
   MermaidConversionInput,
   TechnicalDiagramSource,
@@ -11,6 +20,7 @@ import { document } from "@cantiara/db/schema/document";
 import { project } from "@cantiara/db/schema/project";
 import { usageLink } from "@cantiara/db/schema/relation";
 import {
+  diagramAuthorityOrigin,
   diagramDocumentOrigin,
   diagramView,
   technicalDiagram,
@@ -90,6 +100,211 @@ export function createDatabaseTechnicalDiagrams(
       unparseableLines: conversion.unparseableLines,
     };
   }
+  async function originsOf(
+    diagramId: string,
+  ): Promise<TechnicalDiagramSource["origins"]> {
+    const columns = {
+      authorityMode: technicalDiagram.authorityMode,
+      diagramId: technicalDiagram.id,
+      title: technicalDiagram.title,
+    };
+    const [originated, derived] = await Promise.all([
+      database
+        .select(columns)
+        .from(diagramAuthorityOrigin)
+        .innerJoin(
+          technicalDiagram,
+          eq(diagramAuthorityOrigin.sourceDiagramId, technicalDiagram.id),
+        )
+        .where(eq(diagramAuthorityOrigin.targetDiagramId, diagramId)),
+      database
+        .select(columns)
+        .from(diagramAuthorityOrigin)
+        .innerJoin(
+          technicalDiagram,
+          eq(diagramAuthorityOrigin.targetDiagramId, technicalDiagram.id),
+        )
+        .where(eq(diagramAuthorityOrigin.sourceDiagramId, diagramId)),
+    ]);
+    const origins: TechnicalDiagramSource["origins"] = [];
+    for (const [relation, rows] of [
+      ["Originates from", originated],
+      ["Derived", derived],
+    ] as const) {
+      for (const row of rows) {
+        const mode = creatableAuthorityModeSchema.safeParse(row.authorityMode);
+        if (mode.success) {
+          origins.push({ ...row, authorityMode: mode.data, relation });
+        }
+      }
+    }
+    return origins;
+  }
+  async function ownedProjectId(accountId: string, projectId: string) {
+    const [row] = await database
+      .select({ id: project.id })
+      .from(project)
+      .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+      .where(
+        and(eq(project.id, projectId), eq(workspace.ownerAccountId, accountId)),
+      )
+      .limit(1);
+    return row?.id ?? null;
+  }
+  function sameExternalSource(
+    a: TechnicalDiagramSource["externalSource"],
+    b: TechnicalDiagramSource["externalSource"],
+  ) {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+  async function insertDiagram(
+    executor: Pick<Database, "insert">,
+    values: {
+      authorityMode: TechnicalDiagramSource["authorityMode"];
+      externalSource: TechnicalDiagramSource["externalSource"];
+      id: string;
+      model: TechnicalDiagramSource["model"];
+      projectId: string;
+      title: string;
+      type: TechnicalDiagramSource["type"];
+    },
+  ) {
+    const [created] = await executor
+      .insert(technicalDiagram)
+      .values({
+        id: values.id,
+        projectId: values.projectId,
+        title: values.title,
+        type: values.type,
+        authorityMode: values.authorityMode,
+        model: values.model,
+        externalUrl: values.externalSource?.url ?? null,
+        externalRevision: values.externalSource?.revision ?? null,
+        externalTool: values.externalSource?.tool ?? null,
+        externalCheckedAt: values.externalSource
+          ? new Date(values.externalSource.lastCheckedAt)
+          : null,
+      })
+      .onConflictDoNothing()
+      .returning({ id: technicalDiagram.id });
+    if (created) {
+      await executor.insert(diagramView).values({
+        id: `${values.id}:default`,
+        diagramId: values.id,
+        name: "Default",
+        selectedNodeIds: values.model.nodes.map(({ id }) => id),
+      });
+    }
+    return Boolean(created);
+  }
+  async function create(accountId: string, input: CreateTechnicalDiagramInput) {
+    const projectId = await ownedProjectId(accountId, input.projectId);
+    if (!projectId) {
+      return null;
+    }
+    const diagramId = input.clientIdempotencyKey;
+    const externalSource =
+      input.authorityMode === "External Source Link"
+        ? input.externalSource
+        : null;
+    const model =
+      input.authorityMode === "Product-authored Model"
+        ? input.model
+        : EMPTY_DIAGRAM_MODEL;
+    const inserted = await database.transaction((tx) =>
+      insertDiagram(tx, {
+        authorityMode: input.authorityMode,
+        externalSource,
+        id: diagramId,
+        model,
+        projectId,
+        title: input.title,
+        type: input.type,
+      }),
+    );
+    const saved = await get(accountId, diagramId);
+    if (
+      !inserted &&
+      (saved?.projectId !== projectId ||
+        saved.title !== input.title ||
+        saved.type !== input.type ||
+        saved.authorityMode !== input.authorityMode ||
+        !sameExternalSource(saved.externalSource, externalSource) ||
+        JSON.stringify(saved.model) !== JSON.stringify(model))
+    ) {
+      throw new MermaidConversionConflictError(
+        "This confirmation key was used for another Technical Diagram.",
+      );
+    }
+    return saved;
+  }
+  async function previewAuthority(
+    accountId: string,
+    input: AuthorityConversionInput,
+  ) {
+    const source = await get(accountId, input.sourceDiagramId);
+    return source ? previewAuthorityConversion(source, input) : null;
+  }
+  async function convertAuthority(
+    accountId: string,
+    input: ConfirmAuthorityConversionInput,
+  ) {
+    const source = await get(accountId, input.sourceDiagramId);
+    if (!source) {
+      return null;
+    }
+    const targetId = input.clientIdempotencyKey;
+    const [prior] = await database
+      .select()
+      .from(diagramAuthorityOrigin)
+      .where(eq(diagramAuthorityOrigin.targetDiagramId, targetId))
+      .limit(1);
+    if (prior) {
+      const repeated = await get(accountId, targetId);
+      if (
+        repeated?.title !== input.title ||
+        repeated.authorityMode !== input.targetMode ||
+        prior.sourceDiagramId !== source.id ||
+        !sameExternalSource(
+          repeated.externalSource,
+          input.externalSource ?? null,
+        )
+      ) {
+        throw new MermaidConversionConflictError(
+          "This confirmation key was used for another conversion.",
+        );
+      }
+      return repeated;
+    }
+    const preview = await assertPreviewedConversion(source, input);
+    await database.transaction(async (tx) => {
+      const inserted = await insertDiagram(tx, {
+        authorityMode: preview.targetMode,
+        externalSource: input.externalSource ?? null,
+        id: targetId,
+        model:
+          preview.targetMode === "External Source Link"
+            ? EMPTY_DIAGRAM_MODEL
+            : source.model,
+        projectId: source.projectId,
+        title: input.title,
+        type: source.type,
+      });
+      if (!inserted) {
+        throw new MermaidConversionConflictError(
+          "This confirmation key was used for another Technical Diagram.",
+        );
+      }
+      await tx.insert(diagramAuthorityOrigin).values({
+        loss: preview.loss,
+        sourceDiagramId: source.id,
+        sourceMode: source.authorityMode,
+        targetDiagramId: targetId,
+        targetMode: preview.targetMode,
+      });
+    });
+    return get(accountId, targetId);
+  }
   async function get(
     accountId: string,
     diagramId: string,
@@ -107,10 +322,10 @@ export function createDatabaseTechnicalDiagrams(
         ),
       )
       .limit(1);
-    if (
-      row?.diagram.authorityMode !== "Imported Independent Copy" &&
-      row?.diagram.authorityMode !== "Product-authored Model"
-    ) {
+    const mode = creatableAuthorityModeSchema.safeParse(
+      row?.diagram.authorityMode,
+    );
+    if (!(row && mode.success)) {
       return null;
     }
     const [view] = await database
@@ -136,9 +351,21 @@ export function createDatabaseTechnicalDiagrams(
       projectId: diagram.projectId,
       title: diagram.title,
       type: diagram.type as TechnicalDiagramSource["type"],
-      authorityMode:
-        diagram.authorityMode as TechnicalDiagramSource["authorityMode"],
+      authorityMode: mode.data,
+      externalSource:
+        mode.data === "External Source Link" &&
+        diagram.externalUrl &&
+        diagram.externalTool &&
+        diagram.externalCheckedAt
+          ? {
+              url: diagram.externalUrl,
+              revision: diagram.externalRevision,
+              tool: diagram.externalTool,
+              lastCheckedAt: diagram.externalCheckedAt.toISOString(),
+            }
+          : null,
       model: parsedModel.data,
+      origins: await originsOf(diagramId),
       view: view
         ? {
             id: view.id,
@@ -149,7 +376,10 @@ export function createDatabaseTechnicalDiagrams(
     };
   }
   return {
+    convertAuthority,
+    create,
     get,
+    previewAuthorityConversion: previewAuthority,
     previewConversion,
     async createView(accountId, input) {
       const diagram = await get(accountId, input.diagramId);

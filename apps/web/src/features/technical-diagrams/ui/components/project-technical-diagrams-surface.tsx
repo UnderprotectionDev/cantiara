@@ -5,9 +5,14 @@ import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import {
+  DiagramAuthorityConversion,
+  DiagramOrigins,
+  ExternalSourceLinkDetails,
+} from "./diagram-authority-controls";
+import { NewTechnicalDiagramForm } from "./new-technical-diagram-form";
 
 function DiagramCard({ diagram }: { diagram: TechnicalDiagramSource }) {
   const queryClient = useQueryClient();
@@ -52,6 +57,10 @@ function DiagramCard({ diagram }: { diagram: TechnicalDiagramSource }) {
       <p className="text-muted-foreground text-sm">
         {diagram.type} · {diagram.authorityMode}
       </p>
+      <DiagramOrigins origins={diagram.origins} />
+      {diagram.externalSource ? (
+        <ExternalSourceLinkDetails source={diagram.externalSource} />
+      ) : null}
       <ol className="list-inside list-decimal">
         {diagram.model.nodes.map((node) => (
           <li key={node.id}>
@@ -59,6 +68,7 @@ function DiagramCard({ diagram }: { diagram: TechnicalDiagramSource }) {
           </li>
         ))}
       </ol>
+      <DiagramAuthorityConversion diagram={diagram} />
       <section aria-label="Diagram View" className="space-y-2">
         <h4 className="font-medium">Diagram View</h4>
         {views.data?.map((view) => (
@@ -134,6 +144,7 @@ export default function ProjectTechnicalDiagramsSurface({
       {diagrams.isError ? (
         <p role="alert">Technical Diagram is unavailable.</p>
       ) : null}
+      <NewTechnicalDiagramForm projectId={projectId} />
       {visible?.map((diagram) => (
         <DiagramCard diagram={diagram} key={diagram.id} />
       ))}

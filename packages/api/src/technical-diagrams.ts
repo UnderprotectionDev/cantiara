@@ -1,6 +1,15 @@
 import type { DiagramModel } from "@cantiara/db/schema/technical-diagram";
 import { z } from "zod";
 
+import type {
+  AuthorityConversionInput,
+  AuthorityConversionPreview,
+  ConfirmAuthorityConversionInput,
+  CreatableAuthorityMode,
+  CreateTechnicalDiagramInput,
+  ExternalSourceLink,
+} from "./technical-diagram-authority";
+
 export const technicalDiagramTypeSchema = z.enum([
   "Technical Architecture",
   "Data Model",
@@ -94,9 +103,18 @@ export type ConfirmMermaidConversionInput = z.infer<
 >;
 
 export interface TechnicalDiagramSource {
-  authorityMode: "Imported Independent Copy" | "Product-authored Model";
+  authorityMode: CreatableAuthorityMode;
+  /** Set only for `External Source Link`; content stays in the external tool. */
+  externalSource: ExternalSourceLink | null;
   id: string;
   model: DiagramModel;
+  /** Two-way authority-conversion origin: `Originates from` / `Derived`. */
+  origins: Array<{
+    authorityMode: CreatableAuthorityMode;
+    diagramId: string;
+    relation: "Originates from" | "Derived";
+    title: string;
+  }>;
   projectId: string;
   title: string;
   type: z.infer<typeof technicalDiagramTypeSchema>;
@@ -107,6 +125,15 @@ export interface TechnicalDiagramsAccess {
   convert: (
     accountId: string,
     input: ConfirmMermaidConversionInput,
+  ) => Promise<TechnicalDiagramSource | null>;
+  /** Writes only after the matching preview; mints a new identity. */
+  convertAuthority: (
+    accountId: string,
+    input: ConfirmAuthorityConversionInput,
+  ) => Promise<TechnicalDiagramSource | null>;
+  create: (
+    accountId: string,
+    input: CreateTechnicalDiagramInput,
   ) => Promise<TechnicalDiagramSource | null>;
   createView: (
     accountId: string,
@@ -129,6 +156,10 @@ export interface TechnicalDiagramsAccess {
     name: string;
     selectedNodeIds: string[];
   }> | null>;
+  previewAuthorityConversion: (
+    accountId: string,
+    input: AuthorityConversionInput,
+  ) => Promise<AuthorityConversionPreview | null>;
   previewConversion: (
     accountId: string,
     input: MermaidConversionInput,

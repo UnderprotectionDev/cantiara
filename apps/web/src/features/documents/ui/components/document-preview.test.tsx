@@ -119,6 +119,8 @@ test("renders named collection and Diagram View blocks from their resolved sourc
             projectId: "project-1",
             type: "Technical Architecture",
             authorityMode: "Imported Independent Copy",
+            externalSource: null,
+            origins: [],
             model: {
               nodes: [{ id: "api", label: "API", kind: "Component" }],
               links: [],

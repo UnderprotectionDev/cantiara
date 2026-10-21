@@ -38,6 +38,10 @@ export const technicalDiagram = pgTable(
     type: text("type").notNull(),
     authorityMode: text("authority_mode").notNull(),
     model: jsonb("model").$type<DiagramModel>().notNull(),
+    externalUrl: text("external_url"),
+    externalRevision: text("external_revision"),
+    externalTool: text("external_tool"),
+    externalCheckedAt: timestamp("external_checked_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -54,6 +58,34 @@ export const technicalDiagram = pgTable(
     check(
       "technical_diagram_authority_mode_check",
       sql`${table.authorityMode} in ('Product-authored Model', 'Imported Independent Copy', 'External Source Link')`,
+    ),
+  ],
+);
+
+/** Authority conversion: the target `Originates from` the source (inverse `Derived`). */
+export const diagramAuthorityOrigin = pgTable(
+  "diagram_authority_origin",
+  {
+    targetDiagramId: text("target_diagram_id")
+      .primaryKey()
+      .references(() => technicalDiagram.id, { onDelete: "cascade" }),
+    sourceDiagramId: text("source_diagram_id")
+      .notNull()
+      .references(() => technicalDiagram.id, { onDelete: "cascade" }),
+    sourceMode: text("source_mode").notNull(),
+    targetMode: text("target_mode").notNull(),
+    loss: jsonb("loss").$type<string[]>().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("diagram_authority_origin_source_idx").on(table.sourceDiagramId),
+    check(
+      "diagram_authority_origin_distinct_check",
+      sql`${table.sourceDiagramId} <> ${table.targetDiagramId} and ${table.sourceMode} <> ${table.targetMode}`,
+    ),
+    check(
+      "diagram_authority_origin_modes_check",
+      sql`${table.sourceMode} in ('Product-authored Model', 'Imported Independent Copy', 'External Source Link') and ${table.targetMode} in ('Product-authored Model', 'Imported Independent Copy', 'External Source Link')`,
     ),
   ],
 );

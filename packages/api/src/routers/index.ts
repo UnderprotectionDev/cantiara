@@ -500,6 +500,12 @@ import {
   undoTagRenameInputSchema,
 } from "../tags";
 import {
+  authorityConversionInputSchema,
+  confirmAuthorityConversionInputSchema,
+  createTechnicalDiagramInputSchema,
+  DiagramAuthorityError,
+} from "../technical-diagram-authority";
+import {
   confirmMermaidConversionInputSchema,
   createDiagramViewInputSchema,
   mermaidConversionInputSchema,
@@ -5111,6 +5117,72 @@ export const appRouter = {
         throw new ORPCError("NOT_FOUND");
       }
       return diagram;
+    }),
+  createTechnicalDiagram: protectedProcedure
+    .input(createTechnicalDiagramInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const diagram = await context.technicalDiagrams.create(
+          context.session.user.id,
+          input,
+        );
+        if (!diagram) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return diagram;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError(
+          error instanceof DiagramAuthorityError ? "BAD_REQUEST" : "CONFLICT",
+          { cause: error },
+        );
+      }
+    }),
+  previewDiagramAuthorityConversion: protectedProcedure
+    .input(authorityConversionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const preview =
+        await context.technicalDiagrams.previewAuthorityConversion(
+          context.session.user.id,
+          input,
+        );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return preview;
+    }),
+  convertDiagramAuthority: protectedProcedure
+    .input(confirmAuthorityConversionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const diagram = await context.technicalDiagrams.convertAuthority(
+          context.session.user.id,
+          input,
+        );
+        if (!diagram) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return diagram;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError(
+          error instanceof DiagramAuthorityError ? "BAD_REQUEST" : "CONFLICT",
+          { cause: error },
+        );
+      }
     }),
   createDiagramView: protectedProcedure
     .input(createDiagramViewInputSchema)
