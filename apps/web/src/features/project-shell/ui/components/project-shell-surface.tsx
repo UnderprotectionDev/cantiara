@@ -47,6 +47,7 @@ import {
   type DailyAction,
   dailyActionFromHash,
   documentRecordFromHash,
+  isTestsAreaRecordHash,
   isWorkRecordHash,
   isWorkRelationsHash,
   isWorkSurfaceHash,
@@ -82,6 +83,8 @@ import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surfa
 import TestAssessmentsSurface from "@/features/test-assessments/ui/test-assessments-surface";
 import TestGapsSurface from "@/features/test-gaps/ui/test-gaps-surface";
 import TestSessionsSurface from "@/features/test-report/ui/test-sessions-surface";
+import TestReviewSurface from "@/features/test-review/ui/test-review-surface";
+import TestSummarySurface from "@/features/test-review/ui/test-summary-surface";
 import ProjectAssumptionsSurface from "@/features/uncertainty-records/ui/components/project-assumptions-surface";
 import OpenQuestionsSurface from "@/features/uncertainty-records/ui/open-questions-surface";
 import ValidationRecordsSurface from "@/features/validation-records/ui/validation-records-surface";
@@ -155,9 +158,15 @@ function projectTestsSurface(
 ) {
   const isTestsSurface =
     ["tests", "project-area-tests"].includes(activeHash) ||
-    gapSourceId !== null;
+    gapSourceId !== null ||
+    isTestsAreaRecordHash(activeHash);
   return isTestsSurface ? (
     <div className="space-y-10">
+      <TestSummarySurface
+        key={`test-summary:${projectId}`}
+        projectId={projectId}
+        scope={{ kind: "Project" }}
+      />
       <PlannedTestsSurface
         key={`planned-tests:${projectId}`}
         projectId={projectId}
@@ -165,6 +174,10 @@ function projectTestsSurface(
       <TestGapsSurface key={`test-gaps:${projectId}`} projectId={projectId} />
       <TestSessionsSurface
         key={`test-sessions:${projectId}`}
+        projectId={projectId}
+      />
+      <TestReviewSurface
+        key={`test-review:${projectId}`}
         projectId={projectId}
       />
       <TestAssessmentsSurface

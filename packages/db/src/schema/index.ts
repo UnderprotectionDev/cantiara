@@ -45,6 +45,7 @@ export * from "./tags";
 export * from "./technical-diagram";
 export * from "./test-assessment";
 export * from "./test-gap";
+export * from "./test-review";
 export * from "./user-flow";
 export * from "./validation-record";
 export * from "./work";

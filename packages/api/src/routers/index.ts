@@ -546,6 +546,37 @@ import {
   testSessionProjectInputSchema,
 } from "../test-report";
 import {
+  bindValidResultInputSchema,
+  bindValidResultReceiptSchema,
+  commitBulkReviewInputSchema,
+  commitFollowUpInputSchema,
+  previewBulkReviewInputSchema,
+  previewFollowUpInputSchema,
+  previewSessionCloseInputSchema,
+  recordCorrectionInputSchema,
+  recordRedactionInputSchema,
+  recordWithdrawalInputSchema,
+  setItemReviewStateInputSchema,
+  setSessionReviewStateInputSchema,
+  supersedeInputSchema,
+  supersedeReceiptSchema,
+  testResultEventReceiptSchema,
+  testReviewBulkPreviewSchema,
+  testReviewBulkReceiptSchema,
+  testReviewClosePreviewSchema,
+  testReviewListOutputSchema,
+  testReviewProjectInputSchema,
+  testReviewReceiptSchema,
+} from "../test-review";
+import {
+  followUpPreviewSchema,
+  followUpReceiptSchema,
+} from "../test-review-signals";
+import {
+  testSummaryInputSchema,
+  testSummarySchema,
+} from "../test-review-summary";
+import {
   convertUserFlowNodeInputSchema,
   createUserFlowFromTemplateInputSchema,
   createUserFlowInputSchema,
@@ -1257,6 +1288,13 @@ function requirePlannedTests(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.plannedTests;
+}
+
+function requireTestReview(context: Context) {
+  if (!context.testReview) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.testReview;
 }
 
 function requireProductGaps(context: Context) {
@@ -3386,6 +3424,79 @@ async function runTestGapOperation<T>(operation: () => Promise<T>): Promise<T> {
     }
     const failure = Object.hasOwn(TEST_GAP_FAILURES, error.code)
       ? TEST_GAP_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message: failure.message,
+    });
+  }
+}
+
+interface TestReviewFailure {
+  message: string;
+  status: "BAD_REQUEST" | "NOT_FOUND";
+}
+
+const TEST_REVIEW_FAILURES: Record<string, TestReviewFailure> = {
+  TEST_REVIEW_ALREADY_REDACTED: {
+    message: "This value was already redacted.",
+    status: "BAD_REQUEST",
+  },
+  TEST_REVIEW_ALREADY_WITHDRAWN: {
+    message: "This record was already withdrawn.",
+    status: "BAD_REQUEST",
+  },
+  TEST_REVIEW_BINDING_INVALID: {
+    message: "Bind a usable result of the same exact scenario version.",
+    status: "BAD_REQUEST",
+  },
+  TEST_REVIEW_SUPERSEDE_CYCLE: {
+    message: "This Supersedes relation would close a cycle.",
+    status: "BAD_REQUEST",
+  },
+  TEST_REVIEW_SUPERSEDE_TYPE_MISMATCH: {
+    message:
+      "Supersedes relates two Session Tests of the same specialist type.",
+    status: "BAD_REQUEST",
+  },
+  TEST_REVIEW_PREVIEW_STALE: {
+    message: "The records changed since the preview. Preview again to confirm.",
+    status: "BAD_REQUEST",
+  },
+  TEST_REVIEW_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  TEST_REVIEW_PROJECT_READ_ONLY: {
+    message: "Archived Projects are read-only.",
+    status: "BAD_REQUEST",
+  },
+  TEST_REVIEW_RECORD_NOT_FOUND: {
+    message: "Test Session or Session Test is unavailable.",
+    status: "NOT_FOUND",
+  },
+  TEST_REVIEW_SUMMARY_SCOPE_NOT_FOUND: {
+    message: "The Test Summary scope is unavailable.",
+    status: "NOT_FOUND",
+  },
+};
+
+async function runTestReviewOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(TEST_REVIEW_FAILURES, error.code)
+      ? TEST_REVIEW_FAILURES[error.code]
       : undefined;
     if (!failure) {
       throw error;
@@ -6446,6 +6557,154 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runPlannedTestOperation(() =>
         requirePlannedTests(context).relationTargets(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectTestReview: protectedProcedure
+    .input(testReviewProjectInputSchema)
+    .output(testReviewListOutputSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).list(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  projectTestSummary: protectedProcedure
+    .input(testSummaryInputSchema)
+    .output(testSummarySchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).summary(context.session.user.id, input),
+      ),
+    ),
+  setReviewSessionState: protectedProcedure
+    .input(setSessionReviewStateInputSchema)
+    .output(testReviewReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).setSessionReviewState(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setReviewItemState: protectedProcedure
+    .input(setItemReviewStateInputSchema)
+    .output(testReviewReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).setItemReviewState(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewReviewClose: protectedProcedure
+    .input(previewSessionCloseInputSchema)
+    .output(testReviewClosePreviewSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).previewSessionClose(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewReviewBulk: protectedProcedure
+    .input(previewBulkReviewInputSchema)
+    .output(testReviewBulkPreviewSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).previewBulkReview(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  commitReviewBulk: protectedProcedure
+    .input(commitBulkReviewInputSchema)
+    .output(testReviewBulkReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).commitBulkReview(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  recordReviewCorrection: protectedProcedure
+    .input(recordCorrectionInputSchema)
+    .output(testResultEventReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).recordCorrection(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  recordReviewWithdrawal: protectedProcedure
+    .input(recordWithdrawalInputSchema)
+    .output(testResultEventReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).recordWithdrawal(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  recordReviewRedaction: protectedProcedure
+    .input(recordRedactionInputSchema)
+    .output(testResultEventReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).recordRedaction(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  supersedeReviewResult: protectedProcedure
+    .input(supersedeInputSchema)
+    .output(supersedeReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).supersede(context.session.user.id, input),
+      ),
+    ),
+  bindReviewResult: protectedProcedure
+    .input(bindValidResultInputSchema)
+    .output(bindValidResultReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).bindValidResult(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewReviewFollowUp: protectedProcedure
+    .input(previewFollowUpInputSchema)
+    .output(followUpPreviewSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).previewFollowUp(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  commitReviewFollowUp: protectedProcedure
+    .input(commitFollowUpInputSchema)
+    .output(followUpReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).commitFollowUp(
           context.session.user.id,
           input,
         ),

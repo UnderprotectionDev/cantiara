@@ -324,7 +324,25 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yürüten | `Executor` | Testi yürüten kullanıcı ya da araç adı ve sürümü; tarihsel atıf |
 | Raporlayan | `Reporter` | Raporu teslim eden doğrulanmış kullanıcı ya da entegrasyon |
 | Giriş yolu | `Ingress` | `Application`, `File import` veya `MCP`; saklanan olgu, puan değildir |
-| İncelenmedi | `Unreviewed` | Yeni Test Oturumunun başlangıç inceleme durumu; inceleme yaşam döngüsü 57'dedir |
+| Test incelemesi | `Test Review` | Test Oturumu ve Oturum Testi inceleme bölümü; sonuç, yayın kapısı veya Proje Sürümü sonucu değildir |
+| İncelenmedi | `Unreviewed` | Test Oturumunun ve her Oturum Testinin başlangıç inceleme durumu |
+| İncelendi | `Reviewed` | Kullanıcının oturum ya da maddeye verdiği inceleme durumu; bildirilen sonucu değiştirmez |
+| Takip gerekli | `Follow-up needed` | Oturum ya da madde için inceleme durumu; otomatik İş, Bug veya Test Açığı üretmez |
+| Kapatıldı | `Closed` | Test Oturumu ya da Oturum Testi inceleme durumu; kalan açık maddeler kapıyı engellemez, alt maddeleri kapatmaz |
+| Oturumu ve seçili sonuçları incelendi işaretle | `Mark session and selected results as reviewed` | Önizleme gerektiren, tek atomik ve idempotent toplu inceleme eylemi |
+| Düzeltme | `Correction` | Önceki Test Oturumu ya da Oturum Testi kaydına bağlı, gerekçeli yeni olay; güncel görünümde öne çıkar, özgün bildirim yerinde kalır |
+| Geri çekme | `Withdrawal` | Önceki kayda bağlı, gerekçeli yeni olay; sonucu güncel kanıt olmaktan çıkarır, özgün bildirim silinmez |
+| Güvenlik redaksiyonu işareti | `Redact value` | Hassas değerin yerine içeriksiz işaret, zaman, gerekçe ve aktör gösterir; Çöp Kutusu veya yerinde yeniden yazma değildir |
+| Kapanıştan sonra yeni bağlam | `New context after close` | Kapalı kayda sonradan gelen düzeltme, geri çekme veya redaksiyon sinyali; inceleme durumunu geri almaz |
+| Yerine geçer (Oturum Testi) | `Supersedes` | Aynı uzman türdeki kesin Oturum Testleri arasında yönlü, döngüsüz ilişki; iki tarihsel sonucu ve teknik bağlam farkını korur, hiçbirini yazmaz |
+| Yerine geçildi (Oturum Testi) | `Superseded` | `Supersedes` ilişkisinin eski ucu; sonuç silinmez, çelişki karşılaştırmasından çıkar |
+| Çelişen sonuç sinyali | `test-result-conflict` | Aynı kesin senaryo sürümünde farklı normalize sonuç ve yerine-geçme yokluğundan türetilen Dikkat sinyali; kazananı sistem seçmez, kullanıcı geçerli sonucu bağlayınca kapanır |
+| Bağlam değişti | `Context changed` | Bağlı Birincil spec sürümü ya da kayıtlı branch/commit/build hedef bağlamla uyuşmadığında görünen açıklanabilir sinyal; sonucu geçersiz, eski veya başarısız saymaz |
+| Takip işi oluştur (Test İnceleme) | `Create follow-up work` | Oturum Testinden önizlemeli takip İşi; hedefi, `Originates from` (Test Oturumu) ve değişmez `Origin Location` (kesin Oturum Testi) bağını onaydan önce gösterir, sonucu yazmaz |
+| Geçerli sonucu bağla | `Bind valid result` | Çelişen sonuçlardan kullanıcının geçerli saydığı kesin Oturum Testini kaydeder; çelişki sinyalini kapatır |
+| Test özeti | `Test Summary` | Özellik ve Proje Sürümü detayındaki canlı, türetilmiş, nötr test manzarası; skor, coverage, genel geçti/kaldı, istisna, yayın kapısı veya Sürüm Kanıt Paketi değildir ve ikinci kayıt yazmaz |
+| Dikkat (test özeti) | `Attention` | Test özetinde eksik test, bağlam değişikliği, çelişki, `Failed`/`Blocked`/`Inconclusive`/`Skipped`, incelenmemiş rapor, açık Test Açığı ve değerlendirme sonrası yeni bağlamı kaynaklarıyla listeleyen nötr bilgi; hüküm veya sıra taşımaz |
+| Testler genel görünümü | `Tests overview` | Testler alanındaki canlı türetilmiş bölümler: `Unreviewed reports`, `Follow-up needed results`, `Open and planned Test Gaps`, `Conflicting or awaiting-supersede results`, `Context-changed results`, `Active Handoffs`, `Recent sessions`, `Recent assessments`; her sayı kesin kümeyi açar, faz veya CI panosu değildir |
 | Geçti | `Passed` | Normalize bildirilen sonuç; Ürün kabul kanıtı değildir |
 | Kaldı | `Failed` | Normalize bildirilen sonuç |
 | Bloke | `Blocked` | Normalize bildirilen sonuç |
