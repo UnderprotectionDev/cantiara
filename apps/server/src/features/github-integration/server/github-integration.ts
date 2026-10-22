@@ -38,6 +38,12 @@ import {
   GitHubRateLimitedError,
   GitHubRequestError,
 } from "./github-app-gateway";
+import {
+  applyCheckEvent,
+  applyCheckReads,
+  createGitHubChecks,
+  observePullHead,
+} from "./github-checks";
 import type { GitHubSecrets } from "./github-credential-envelope";
 import {
   applyKeyMatches,
@@ -477,6 +483,14 @@ export function createGitHubIntegration(
         { explicit: syncOptions.explicit, origin: "reconcile" },
       );
       await applyIngested(transaction, outcomes, snapshots);
+      // Read-only PR check summary: current head SHA and its checks (no log).
+      await applyCheckReads(
+        transaction,
+        link.id,
+        await gateway.listPullRequestChecks(token, probe.repository),
+        now(),
+      );
+      await refreshAttentionSignals(transaction, now());
       for (const outcome of outcomes) {
         if (outcome.result === "applied") {
           report.applied += 1;
@@ -669,6 +683,15 @@ export function createGitHubIntegration(
         entries.push({ recordId: outcome.recordId, snapshot });
       }
     }
+    for (const { recordId, snapshot } of entries) {
+      // A Pull request payload names its head SHA: results of an older SHA are superseded.
+      const record = snapshot.headSha
+        ? await transaction.recordById(recordId)
+        : null;
+      if (record && snapshot.headSha) {
+        await observePullHead(transaction, record, snapshot.headSha, now());
+      }
+    }
     await applyKeyMatches(transaction, entries, { newId, now });
     await refreshAttentionSignals(transaction, now());
   }
@@ -755,7 +778,12 @@ export function createGitHubIntegration(
     store,
   });
 
-  const base: Omit<GitHubIntegrationAccess, keyof typeof workLinks> = {
+  const checkSummary = createGitHubChecks({ scope: inScope, store });
+
+  const base: Omit<
+    GitHubIntegrationAccess,
+    keyof typeof workLinks | keyof typeof checkSummary
+  > = {
     async applyWebhookEvent(event: GitHubWebhookEvent) {
       if (event.kind === "installation-removed") {
         await store.runForInstallation(event.installationId, (tx) =>
@@ -801,6 +829,10 @@ export function createGitHubIntegration(
         } else if (event.kind === "repository-renamed") {
           await observeIdentity(tx, link, event.repository);
           results.push("renamed");
+        } else if (event.kind === "check") {
+          const matched = await applyCheckEvent(tx, link.id, event, now());
+          await refreshAttentionSignals(tx, now());
+          results.push(matched > 0 ? "check applied" : "check ignored");
         } else {
           const outcomes = await tx.upsertExternalRecords(
             [
@@ -1272,5 +1304,5 @@ export function createGitHubIntegration(
     },
   };
 
-  return { ...base, ...workLinks };
+  return { ...base, ...workLinks, ...checkSummary };
 }

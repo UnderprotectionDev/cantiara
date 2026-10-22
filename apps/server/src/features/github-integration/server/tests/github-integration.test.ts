@@ -326,6 +326,8 @@ describe("GitHub Integration: first triage never writes Work", () => {
       "archiveRecord",
       "attentionSignals",
       "availableRepositories",
+      // Ticket 04: the read-only PR check summary.
+      "checks",
       "completeInstall",
       "createWorkAndLink",
       "deleteRecordPermanently",

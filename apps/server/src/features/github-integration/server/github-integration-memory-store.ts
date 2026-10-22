@@ -1,6 +1,9 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Each Project's installation effect is applied in its own rollback scope.
 import { createHmac } from "node:crypto";
-
+import type {
+  GitHubStoredCheck,
+  GitHubStoredPullHead,
+} from "@cantiara/api/github-checks";
 import type {
   GitHubIntegrationStore,
   GitHubIntegrationTransaction,
@@ -53,11 +56,13 @@ type MemoryWork = GitHubWorkRef & { description: string; projectId: string };
 interface MemoryState {
   archivedProjects: Set<string>;
   archivedRecords: Set<string>;
+  checks: GitHubStoredCheck[];
   credentials: Map<string, GitHubStoredCredential>;
   history: Map<string, { name: string; observedAt: string; owner: string }[]>;
   installations: GitHubStoredInstallation[];
   linkHistory: Map<string, GitHubLinkHistoryEntry[]>;
   links: GitHubStoredLink[];
+  pullHeads: GitHubStoredPullHead[];
   records: GitHubStoredRecord[];
   signals: GitHubStoredSignal[];
   suggestions: GitHubStoredSuggestion[];
@@ -84,6 +89,8 @@ function emptyState(): MemoryState {
   return {
     archivedProjects: new Set([archivedProjectId]),
     archivedRecords: new Set(),
+    checks: [],
+    pullHeads: [],
     trashedRecords: new Set(),
     credentials: new Map(),
     history: new Map(),
@@ -201,6 +208,52 @@ function createMemoryStore(state: {
           current.signals = current.signals.filter(
             (row) => row.recordId !== recordId,
           );
+          current.checks = current.checks.filter(
+            (row) => row.recordId !== recordId,
+          );
+          current.pullHeads = current.pullHeads.filter(
+            (row) => row.recordId !== recordId,
+          );
+        }
+        return Promise.resolve();
+      },
+      checks: () =>
+        Promise.resolve(
+          inProject(state.current.checks).map((row) => ({ ...row })),
+        ),
+      pruneSupersededChecks: (recordId, headSha) => {
+        state.current.checks = state.current.checks.filter(
+          (row) => row.recordId !== recordId || row.headSha === headSha,
+        );
+        return Promise.resolve();
+      },
+      pullHeads: () =>
+        Promise.resolve(
+          inProject(state.current.pullHeads).map((row) => ({ ...row })),
+        ),
+      setPullHead: (head) => {
+        state.current.pullHeads = [
+          ...state.current.pullHeads.filter(
+            (row) => row.recordId !== head.recordId,
+          ),
+          { ...head },
+        ];
+        return Promise.resolve();
+      },
+      upsertChecks: (rows) => {
+        for (const row of rows) {
+          state.current.checks = [
+            ...state.current.checks.filter(
+              (item) =>
+                !(
+                  item.recordId === row.recordId &&
+                  item.headSha === row.headSha &&
+                  item.provider === row.provider &&
+                  item.checkId === row.checkId
+                ),
+            ),
+            { ...row },
+          ];
         }
         return Promise.resolve();
       },

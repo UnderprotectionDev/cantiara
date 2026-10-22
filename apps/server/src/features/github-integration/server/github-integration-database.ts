@@ -1,4 +1,9 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Each Project's installation effect is applied in its own transaction.
+
+import type {
+  GitHubStoredCheck,
+  GitHubStoredPullHead,
+} from "@cantiara/api/github-checks";
 import type {
   GitHubAppGateway,
   GitHubExternalRecord,
@@ -27,6 +32,8 @@ import {
   githubInstallation,
   githubInstallationCredential,
   githubLinkHistory,
+  githubPullRequestCheck,
+  githubPullRequestHead,
   githubRepositoryLink,
   githubRepositoryLinkName,
   githubWorkLink,
@@ -252,6 +259,101 @@ function transactionFor(
         title: input.title,
         trashed: false,
       };
+    },
+    checks: async () =>
+      (
+        await executor
+          .select()
+          .from(githubPullRequestCheck)
+          .where(eq(githubPullRequestCheck.projectId, projectId))
+      ).map(
+        (row): GitHubStoredCheck => ({
+          checkId: row.checkId,
+          detailsUrl: row.detailsUrl,
+          headSha: row.headSha,
+          name: row.name,
+          observedAt: iso(row.observedAt),
+          outcome: row.outcome as GitHubStoredCheck["outcome"],
+          projectId: row.projectId,
+          provider: row.provider,
+          recordId: row.recordId,
+          required: row.requirement === "Required" ? true : null,
+          requirement: row.requirement as GitHubStoredCheck["requirement"],
+        }),
+      ),
+    pruneSupersededChecks: async (recordId, headSha) => {
+      await executor
+        .delete(githubPullRequestCheck)
+        .where(
+          and(
+            eq(githubPullRequestCheck.recordId, recordId),
+            ne(githubPullRequestCheck.headSha, headSha),
+          ),
+        );
+    },
+    pullHeads: async () =>
+      (
+        await executor
+          .select()
+          .from(githubPullRequestHead)
+          .where(eq(githubPullRequestHead.projectId, projectId))
+      ).map(
+        (row): GitHubStoredPullHead => ({
+          headSha: row.headSha,
+          observedAt: iso(row.observedAt),
+          projectId: row.projectId,
+          recordId: row.recordId,
+        }),
+      ),
+    setPullHead: async (head) => {
+      await executor
+        .insert(githubPullRequestHead)
+        .values({
+          headSha: head.headSha,
+          observedAt: new Date(head.observedAt),
+          projectId: head.projectId,
+          recordId: head.recordId,
+        })
+        .onConflictDoUpdate({
+          set: {
+            headSha: head.headSha,
+            observedAt: new Date(head.observedAt),
+          },
+          target: githubPullRequestHead.recordId,
+        });
+    },
+    upsertChecks: async (rows) => {
+      for (const row of rows) {
+        await executor
+          .insert(githubPullRequestCheck)
+          .values({
+            checkId: row.checkId,
+            detailsUrl: row.detailsUrl,
+            headSha: row.headSha,
+            name: row.name,
+            observedAt: new Date(row.observedAt),
+            outcome: row.outcome,
+            projectId: row.projectId,
+            provider: row.provider,
+            recordId: row.recordId,
+            requirement: row.requirement,
+          })
+          .onConflictDoUpdate({
+            set: {
+              detailsUrl: row.detailsUrl,
+              name: row.name,
+              observedAt: new Date(row.observedAt),
+              outcome: row.outcome,
+              requirement: row.requirement,
+            },
+            target: [
+              githubPullRequestCheck.recordId,
+              githubPullRequestCheck.headSha,
+              githubPullRequestCheck.provider,
+              githubPullRequestCheck.checkId,
+            ],
+          });
+      }
     },
     deleteWorkLink: async (id) => {
       await executor.delete(githubWorkLink).where(eq(githubWorkLink.id, id));

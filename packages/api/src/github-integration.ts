@@ -1,6 +1,15 @@
 import { z } from "zod";
 
 import type {
+  GitHubChecksOverview,
+  GitHubObservedCheck,
+  GitHubPullRequestChecksRead,
+  GitHubStoredCheck,
+  GitHubStoredPullHead,
+  gitHubChecksInputSchema,
+} from "./github-checks";
+
+import type {
   GitHubWorkLinkAccess,
   GitHubWorkLinkTransaction,
 } from "./github-work-links";
@@ -97,6 +106,14 @@ export const GITHUB_ALLOWED_ENDPOINTS: readonly AllowedEndpoint[] = [
     route: "GET /repos/{owner}/{repo}/issues/{issue_number}",
   },
   { permission: "Pull requests", route: "GET /repos/{owner}/{repo}/pulls" },
+  {
+    permission: "Checks",
+    route: "GET /repos/{owner}/{repo}/commits/{ref}/check-runs",
+  },
+  {
+    permission: "Commit statuses",
+    route: "GET /repos/{owner}/{repo}/commits/{ref}/status",
+  },
   {
     permission: "Contents",
     route: "GET /repos/{owner}/{repo}/releases/tags/{tag}",
@@ -304,6 +321,8 @@ export interface GitHubKeyMatchText {
 /** What a gateway reports about one Issue or Pull request; no body, diff or payload is kept. */
 export interface GitHubIssueSnapshot {
   githubId: number;
+  /** Transient: the Pull request head SHA a payload carried; kept in the head table, never on the record. */
+  headSha?: string | null;
   htmlUrl: string;
   kind: (typeof GITHUB_RECORD_KINDS)[number];
   labels: string[];
@@ -574,6 +593,14 @@ export interface GitHubAppGateway {
     repository: Pick<GitHubRepository, "name" | "owner">,
     options?: { since?: string },
   ) => Promise<GitHubIssueSnapshot[]>;
+  /**
+   * Open Pull requests with their current head SHA and the checks GitHub
+   * reports on it (Pull requests, Checks and Commit statuses read; no log).
+   */
+  listPullRequestChecks: (
+    token: string,
+    repository: Pick<GitHubRepository, "name" | "owner">,
+  ) => Promise<GitHubPullRequestChecksRead[]>;
   mintInstallationToken: (
     installationId: number,
   ) => Promise<GitHubInstallationToken | null>;
@@ -617,6 +644,15 @@ export type GitHubWebhookEvent =
       kind: "record";
       repositoryId: number;
       snapshot: GitHubIssueSnapshot;
+    }
+  | {
+      check: GitHubObservedCheck;
+      headSha: string;
+      installationId: number;
+      kind: "check";
+      /** Pull request numbers the payload named; empty for a bare commit status. */
+      pullRequestNumbers: number[];
+      repositoryId: number;
     };
 
 export interface GitHubStoredInstallation {
@@ -693,6 +729,8 @@ export interface GitHubIntegrationTransaction
     linkId: string,
     entry: GitHubLinkHistoryEntry,
   ) => Promise<void>;
+  /** Stored checks of this seam (PR check summary); never a Test Session row. */
+  checks: () => Promise<GitHubStoredCheck[]>;
   /** Installation rows (any Project) that claim a GitHub installation id. */
   claimsOfInstallation: (installationId: number) => Promise<
     {
@@ -721,6 +759,9 @@ export interface GitHubIntegrationTransaction
   nameHistory: (
     linkId: string,
   ) => Promise<{ name: string; observedAt: string; owner: string }[]>;
+  /** Drops the checks of a Pull request that belong to another head SHA. */
+  pruneSupersededChecks: (recordId: string, headSha: string) => Promise<void>;
+  pullHeads: () => Promise<GitHubStoredPullHead[]>;
   readOnly: boolean;
   recordById: (recordId: string) => Promise<GitHubStoredRecord | null>;
   recordNameHistory: (
@@ -736,6 +777,7 @@ export interface GitHubIntegrationTransaction
     installationRowId: string,
     credential: GitHubStoredCredential,
   ) => Promise<void>;
+  setPullHead: (head: GitHubStoredPullHead) => Promise<void>;
   setRecordLifecycle: (
     recordId: string,
     patch: {
@@ -774,6 +816,7 @@ export interface GitHubIntegrationTransaction
       >
     >,
   ) => Promise<void>;
+  upsertChecks: (rows: GitHubStoredCheck[]) => Promise<void>;
   /**
    * Applies source snapshots by GitHub id and `updated_at`: an older one never
    * rewinds, an equal one prefers the reconcile snapshot, a tombstoned source is
@@ -833,6 +876,11 @@ export interface GitHubIntegrationAccess extends GitHubWorkLinkAccess {
     accountId: string,
     input: z.input<typeof gitHubAvailableRepositoriesInputSchema>,
   ) => Promise<z.output<typeof gitHubAvailableRepositoriesOutputSchema>>;
+  /** Read-only PR check summary on the current head SHA (never a Test Session). */
+  checks: (
+    accountId: string,
+    input: z.input<typeof gitHubChecksInputSchema>,
+  ) => Promise<GitHubChecksOverview>;
   completeInstall: (
     accountId: string,
     input: z.input<typeof gitHubInstallCompleteInputSchema>,

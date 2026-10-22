@@ -114,6 +114,8 @@ describe("GitHub Integration RPC seam", () => {
       "previewGitHubDisconnect",
       "previewGitHubReconnect",
       "projectGitHubAttentionSignals",
+      // Ticket 04: the read-only PR check summary; no run, re-run or log procedure.
+      "projectGitHubChecks",
       "projectGitHubOverview",
       "projectGitHubWorkLinks",
       "reconnectGitHubRepository",

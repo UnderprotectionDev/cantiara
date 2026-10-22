@@ -9,6 +9,7 @@ import {
   type GitHubIntegrationActions,
   GitHubIntegrationView,
 } from "../views/github-integration-view";
+import { GitHubChecksPanel } from "./github-checks-panel";
 import {
   type GitHubWorkLinkActions,
   GitHubWorkLinksPanel,
@@ -47,6 +48,10 @@ export default function GitHubIntegrationSurface({
     input: { projectId },
   });
   const workLinks = useQuery({ ...linksOptions, enabled: overview.isSuccess });
+  const checks = useQuery({
+    ...orpc.projectGitHubChecks.queryOptions({ input: { projectId } }),
+    enabled: overview.isSuccess,
+  });
   const recordsOptions = orpc.searchGitHubRecords.queryOptions({
     input: { projectId, query: "" },
   });
@@ -136,6 +141,9 @@ export default function GitHubIntegrationSurface({
   return (
     <div className="space-y-6">
       <GitHubIntegrationView actions={actions} overview={overview.data} />
+      {checks.data && overview.data.links.length > 0 ? (
+        <GitHubChecksPanel data={checks.data} />
+      ) : null}
       {workLinks.data && overview.data.links.length > 0 ? (
         <GitHubWorkLinksPanel
           actions={linkActions}
