@@ -198,6 +198,19 @@ import {
   gitHubSyncNowOutputSchema,
   gitHubTriagePreviewSchema,
 } from "../github-integration";
+import {
+  gitHubAttentionSignalSchema,
+  gitHubCreateWorkInputSchema,
+  gitHubCreateWorkOutputSchema,
+  gitHubCreateWorkPreviewInputSchema,
+  gitHubCreateWorkPreviewSchema,
+  gitHubDismissSignalInputSchema,
+  gitHubLinkWorkInputSchema,
+  gitHubUnlinkWorkInputSchema,
+  gitHubWorkLinkSchema,
+  gitHubWorkLinksInputSchema,
+  gitHubWorkLinksOutputSchema,
+} from "../github-work-links";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
   MoodboardSnapshotError,
@@ -3398,6 +3411,15 @@ const GITHUB_INTEGRATION_FAILURES: Record<string, GitHubIntegrationFailure> = {
     message: null,
     status: "PRECONDITION_FAILED",
   },
+  GITHUB_SIGNAL_NOT_FOUND: { message: null, status: "NOT_FOUND" },
+  GITHUB_WORK_LINK_EXISTS: { message: null, status: "CONFLICT" },
+  GITHUB_WORK_LINK_NOT_FOUND: { message: null, status: "NOT_FOUND" },
+  GITHUB_WORK_LINK_ROLE_INVALID: { message: null, status: "BAD_REQUEST" },
+  GITHUB_WORK_LINK_TARGET_UNAVAILABLE: {
+    message: null,
+    status: "PRECONDITION_FAILED",
+  },
+  GITHUB_WORK_NOT_FOUND: { message: null, status: "NOT_FOUND" },
 };
 
 async function runGitHubIntegrationOperation<T>(
@@ -6945,6 +6967,81 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runGitHubIntegrationOperation(() =>
         requireGitHubIntegration(context).searchRecords(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectGitHubWorkLinks: protectedProcedure
+    .input(gitHubWorkLinksInputSchema)
+    .output(gitHubWorkLinksOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).workLinks(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  linkGitHubWork: protectedProcedure
+    .input(gitHubLinkWorkInputSchema)
+    .output(gitHubWorkLinkSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).linkWork(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  unlinkGitHubWork: protectedProcedure
+    .input(gitHubUnlinkWorkInputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).unlinkWork(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewGitHubCreateWork: protectedProcedure
+    .input(gitHubCreateWorkPreviewInputSchema)
+    .output(gitHubCreateWorkPreviewSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).previewCreateWork(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  createGitHubWorkAndLink: protectedProcedure
+    .input(gitHubCreateWorkInputSchema)
+    .output(gitHubCreateWorkOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).createWorkAndLink(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectGitHubAttentionSignals: protectedProcedure
+    .input(gitHubWorkLinksInputSchema)
+    .output(z.array(gitHubAttentionSignalSchema))
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).attentionSignals(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  dismissGitHubAttentionSignal: protectedProcedure
+    .input(gitHubDismissSignalInputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).dismissSignal(
           context.session.user.id,
           input,
         ),

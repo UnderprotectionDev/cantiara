@@ -4,10 +4,33 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import type { LinkWorkValues } from "../forms/link-work-form";
 import {
   type GitHubIntegrationActions,
   GitHubIntegrationView,
 } from "../views/github-integration-view";
+import {
+  type GitHubWorkLinkActions,
+  GitHubWorkLinksPanel,
+} from "./github-work-links-panel";
+
+function targetOf(values: LinkWorkValues) {
+  if (values.target === "record") {
+    return { kind: "record" as const, recordId: values.recordId };
+  }
+  if (values.target === "Commit") {
+    return {
+      kind: "Commit" as const,
+      linkId: values.linkId,
+      sha: values.reference,
+    };
+  }
+  return {
+    kind: "Branch" as const,
+    linkId: values.linkId,
+    name: values.reference,
+  };
+}
 
 /** The Project GitHub area: GitHub App install, Repository links, first triage. */
 export default function GitHubIntegrationSurface({
@@ -20,6 +43,45 @@ export default function GitHubIntegrationSurface({
     input: { projectId },
   });
   const overview = useQuery(options);
+  const linksOptions = orpc.projectGitHubWorkLinks.queryOptions({
+    input: { projectId },
+  });
+  const workLinks = useQuery({ ...linksOptions, enabled: overview.isSuccess });
+  const recordsOptions = orpc.searchGitHubRecords.queryOptions({
+    input: { projectId, query: "" },
+  });
+  const records = useQuery({ ...recordsOptions, enabled: overview.isSuccess });
+  const linkActions = useMemo<GitHubWorkLinkActions>(() => {
+    const write = async <T,>(action: () => Promise<T>) => {
+      const result = await runOnlineOnlyWrite(action);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: linksOptions.queryKey }),
+        queryClient.invalidateQueries({ queryKey: recordsOptions.queryKey }),
+      ]);
+      return result;
+    };
+    return {
+      onCreateWork: (values) =>
+        write(() => client.createGitHubWorkAndLink({ ...values, projectId })),
+      onDismissSignal: (signalId) =>
+        write(() =>
+          client.dismissGitHubAttentionSignal({ projectId, signalId }),
+        ),
+      onLinkWork: (values) =>
+        write(() =>
+          client.linkGitHubWork({
+            projectId,
+            role: values.role as "Contextual" | "Required for completion",
+            target: targetOf(values),
+            workId: values.workId,
+          }),
+        ),
+      onPreviewCreateWork: (recordId) =>
+        client.previewGitHubCreateWork({ projectId, recordId }),
+      onUnlink: (linkId) =>
+        write(() => client.unlinkGitHubWork({ linkId, projectId })),
+    };
+  }, [linksOptions.queryKey, projectId, queryClient, recordsOptions.queryKey]);
   const actions = useMemo<GitHubIntegrationActions>(() => {
     const refresh = () =>
       queryClient.invalidateQueries({ queryKey: options.queryKey });
@@ -71,5 +133,20 @@ export default function GitHubIntegrationSurface({
       </div>
     );
   }
-  return <GitHubIntegrationView actions={actions} overview={overview.data} />;
+  return (
+    <div className="space-y-6">
+      <GitHubIntegrationView actions={actions} overview={overview.data} />
+      {workLinks.data && overview.data.links.length > 0 ? (
+        <GitHubWorkLinksPanel
+          actions={linkActions}
+          data={workLinks.data}
+          records={records.data?.records ?? []}
+          repositories={overview.data.links.map((link) => ({
+            id: link.id,
+            label: `${link.owner}/${link.name}`,
+          }))}
+        />
+      ) : null}
+    </div>
+  );
 }

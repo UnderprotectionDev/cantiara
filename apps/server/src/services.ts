@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
@@ -52,6 +54,7 @@ import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
 } from "./features/documents/server/documents-database";
+import { insertWorkWithKeyAllocation } from "./features/evidence/server/evidence-record-creation";
 import { createDatabaseExternalExecutionHandoffs } from "./features/external-handoffs/server/external-handoffs-database";
 import { createDatabaseFavorites } from "./features/favorites/server/favorites-database";
 import { createDatabaseFeedbackWithFeed } from "./features/feedback/server/feedback-feed-database";
@@ -267,6 +270,20 @@ export const testAssessments = createDatabaseTestAssessments(db);
 const configuredGitHub = createConfiguredGitHubIntegration(db, {
   appId: env.GITHUB_APP_ID,
   appSlug: env.GITHUB_APP_SLUG,
+  // `Create work and link` uses the Work owner's Project-key allocation.
+  createWork: (executor, owner, input) =>
+    insertWorkWithKeyAllocation(executor, owner, {
+      committedAt: new Date(),
+      description: input.description === "" ? null : input.description,
+      idempotencyKey: `github-create-work:${input.workId}`,
+      originOwnerRecordId: input.originRecordId,
+      payloadFingerprint: createHash("sha256")
+        .update(input.workId)
+        .digest("hex"),
+      title: input.title,
+      type: input.type,
+      workId: input.workId,
+    }),
   keyRing: env.GITHUB_APP_KEY_RING,
   keyVersion: env.GITHUB_APP_KEY_VERSION,
   privateKey: env.GITHUB_APP_PRIVATE_KEY,

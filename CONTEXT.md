@@ -1529,6 +1529,10 @@ _Avoid_: Repository adı eşleşmesi, kurulum takma adı
 GitHub kaynak kimliğini ve son uzlaştırılmış kaynak durumunu salt okunur taşıyan, GitHub'daki kayıttan bağımsız yerel yaşam döngüsüne sahip [Proje ana kaydı](docs/prd/12-github-and-project-releases.md#github-geliştirme-kayıtları).
 _Avoid_: Canlı GitHub kaydı, GitHub senkron kopyası, bağlantının sahipli bileşeni
 
+**İş–GitHub bağlantı rolü**:
+Bir İşi GitHub dış kaydına (Issue, PR) veya bir commit ya da branch'e bağlayan ilişkinin kapalı katalogdaki rolü: `Tamamlanma için gerekli` ya da `Bağlamsal`. Rolü hazır kural (62) okur; bağ kurmak veya kaldırmak İş durumunu, kapanışını veya blokajını ve GitHub kaydını yazmaz, Kanıt bağı ya da kullanım gömüsü değildir ([PR ve İş bağlantısı](docs/prd/12-github-and-project-releases.md#github-geliştirme-kayıtları)). UI: `Required for completion`, `Contextual`, `Create work and link`.
+_Avoid_: Kanıt bağı, kullanım gömüsü, otomatik kapanış, ikinci İş durumu, Unlinked-PR kaydı
+
 **Akıllı bağlantı önizlemesi**:
 Kimlik doğrulaması istemeyen herkese açık bir HTTP(S) adresinden türetilen, ana kayıt veya tarihsel Kaynak snapshot'ı olmayan [geçici sunum](docs/prd/08-search-relations-and-evidence.md#akıllı-bağlantı-önizlemesi) (bu sözlükte daha önce `Dış URL önizlemesi` olarak geçiyordu).
 UI: `Save as Source`, `Live external source`, `Live preview`, `Historical snapshot`.

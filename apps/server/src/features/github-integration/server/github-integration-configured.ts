@@ -9,7 +9,10 @@ import {
   type GitHubKeyRing,
   parseGitHubKeyRing,
 } from "./github-credential-envelope";
-import { createDatabaseGitHubIntegration } from "./github-integration-database";
+import {
+  createDatabaseGitHubIntegration,
+  type GitHubWorkCreation,
+} from "./github-integration-database";
 import {
   createGitHubWebhookInbox,
   type GitHubWebhookInbox,
@@ -20,6 +23,8 @@ import { logOperatorAlarm } from "./github-webhook-worker";
 export interface GitHubAppConfiguration {
   appId?: number;
   appSlug?: string;
+  /** The Work owner's insert for `Create work and link`, wired by the server root. */
+  createWork?: GitHubWorkCreation;
   keyRing?: string;
   keyVersion: number;
   privateKey?: string;
@@ -34,7 +39,8 @@ export function createConfiguredGitHubIntegration(
   database: Database,
   configuration: GitHubAppConfiguration,
 ) {
-  const { appId, appSlug, keyRing, keyVersion, privateKey } = configuration;
+  const { appId, appSlug, createWork, keyRing, keyVersion, privateKey } =
+    configuration;
   const configured = Boolean(appId && appSlug && keyRing && privateKey);
   const ring: GitHubKeyRing =
     configured && keyRing
@@ -45,6 +51,7 @@ export function createConfiguredGitHubIntegration(
         };
   const secrets = createGitHubSecrets(ring);
   const integration = createDatabaseGitHubIntegration({
+    createWork,
     database,
     gateway:
       configured && appId && appSlug && privateKey
