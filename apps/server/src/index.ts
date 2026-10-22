@@ -31,6 +31,7 @@ import {
   focusPeriod,
   getDb,
   gitHubIntegration,
+  gitHubWebhookInbox,
   githubAvailability,
   githubIdentityConfirmation,
   moodboardMutationContracts,
@@ -64,6 +65,7 @@ import {
   specChangeReviewMutationContracts,
   startBacklogReappearSignalWorker,
   startFileAttachmentPreviewWorker,
+  startGitHubWebhookWorker,
   startMaintenanceWorker,
   startPersonalReminderWorker,
   startSmartCollectionSubscriptionSignalWorker,
@@ -103,6 +105,7 @@ await Promise.all([
 await sweepExpiredFileAttachmentUploads();
 await sweepExpiredResearchSessionBindingPreviews();
 await startMaintenanceWorker();
+await startGitHubWebhookWorker();
 
 const app = createApp({
   documentEvidence: createDatabaseDocumentEvidence(getDb()),
@@ -176,6 +179,7 @@ const app = createApp({
   testReports,
   testReview,
   gitHubIntegration,
+  gitHubWebhookInbox,
   specChangeReview,
   specChangeReviewMutationContracts,
   tagMutationContracts,

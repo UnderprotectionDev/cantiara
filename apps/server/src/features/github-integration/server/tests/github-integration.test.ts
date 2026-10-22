@@ -318,17 +318,28 @@ describe("GitHub Integration: first triage never writes Work", () => {
 
   test("the seam has no operation that creates Work", () => {
     const { github } = seeded();
+    // No operation writes Work, GitHub or a login; the record lifecycle is local.
     expect(Object.keys(github).sort()).toEqual([
+      "applyWebhookEvent",
+      "archiveRecord",
       "availableRepositories",
       "completeInstall",
+      "deleteRecordPermanently",
       "disconnect",
       "linkRepository",
       "overview",
+      "previewDisconnect",
+      "previewReconnect",
+      "reconcileDue",
       "reconnect",
       "recordInstallationRemoved",
+      "reincludeRecord",
+      "restoreRecord",
       "searchRecords",
       "skipTriage",
       "startInstall",
+      "syncNow",
+      "trashRecord",
       "triagePreview",
     ]);
   });

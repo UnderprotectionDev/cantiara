@@ -37,9 +37,18 @@ const connected: GitHubRepositoryLink = {
   previousNames: [
     { name: "web", observedAt: "2026-10-02T09:00:00.000Z", owner: "acme" },
   ],
+  pauseReason: null,
   projectId: "p1",
   repositoryId: 11,
   stopReason: null,
+  sync: {
+    firstSyncOverdue: false,
+    lastError: null,
+    lastErrorAt: null,
+    lastSuccessAt: "2026-10-03T09:00:00.000Z",
+    outOfDate: false,
+    rateLimitedUntil: null,
+  },
   triage: "Pending",
 };
 
@@ -95,6 +104,16 @@ function actionsOf(
         repositoryId: 11,
       },
     ]),
+    loadPreview: vi
+      .fn()
+      .mockImplementation((action: "Disconnect" | "Reconnect") =>
+        Promise.resolve({
+          action,
+          affected: { issues: 2, pullRequests: 1, repository: "new-co/site" },
+          effects: ["Nothing is written to GitHub."],
+          link: connected,
+        }),
+      ),
     loadTriage: vi.fn().mockResolvedValue({
       groups: [
         {
@@ -107,9 +126,12 @@ function actionsOf(
               id: "r1",
               kind: "Issue",
               labels: [],
+              lifecycle: "Active",
               linkId: "link-1",
               milestone: "v1",
+              needsReconcile: false,
               number: 1,
+              origin: null,
               projectId: "p1",
               sourceState: "open",
               sourceUpdatedAt: "2026-09-30T10:00:00.000Z",
@@ -127,6 +149,12 @@ function actionsOf(
     onSearch: vi.fn().mockResolvedValue([]),
     onSkipTriage: vi.fn().mockResolvedValue(undefined),
     onStartInstall: vi.fn().mockResolvedValue(undefined),
+    onSyncNow: vi.fn().mockResolvedValue({
+      applied: 2,
+      outcome: "ran",
+      restoredDiffs: [],
+      stale: 0,
+    }),
     ...overrides,
   };
 }
@@ -222,6 +250,15 @@ test("lists a renamed link once with its earlier name and exact action labels", 
     buttonNamed("Disconnect").click();
     await settle();
   });
+  expect(actions.loadPreview).toHaveBeenCalledWith("Disconnect", "link-1");
+  expect(host?.textContent).toContain(
+    "Affects new-co/site: 2 Issues and 1 Pull requests.",
+  );
+  expect(actions.onDisconnect).not.toHaveBeenCalled();
+  await act(async () => {
+    buttonNamed("Confirm Disconnect").click();
+    await settle();
+  });
   expect(actions.onDisconnect).toHaveBeenCalledWith("link-1");
   expect(host?.querySelector('[role="status"]')?.textContent).toBe(
     "Disconnected.",
@@ -257,6 +294,11 @@ test("shows the stop reason and Reconnect for an uninstalled App without any log
     buttonNamed("Reconnect").click();
     await settle();
   });
+  expect(actions.onReconnect).not.toHaveBeenCalled();
+  await act(async () => {
+    buttonNamed("Confirm Reconnect").click();
+    await settle();
+  });
   expect(actions.onReconnect).toHaveBeenCalledWith("link-1");
   expect(text).not.toContain("Confirm GitHub Identity");
   expect(text).not.toContain("Sign in");
@@ -277,6 +319,10 @@ test("shows a refusal as an alert", async () => {
   );
   await act(async () => {
     buttonNamed("Reconnect").click();
+    await settle();
+  });
+  await act(async () => {
+    buttonNamed("Confirm Reconnect").click();
     await settle();
   });
   expect(host?.querySelector('p[role="alert"]')?.textContent).toBe(
@@ -332,4 +378,75 @@ test("operates by keyboard: native buttons are named and described by their Repo
   );
   expect(host?.querySelector("section[aria-labelledby]")).not.toBeNull();
   expect(host?.querySelector('[aria-live="polite"]')).not.toBeNull();
+});
+
+test("Sync now reports what happened and the sync status shows the last success", async () => {
+  const actions = await mount(overviewOf([connected]));
+  expect(host?.textContent).toContain("Last successful sync:");
+  expect(host?.textContent).not.toContain("Out of date");
+  await act(async () => {
+    buttonNamed("Sync now").click();
+    await settle();
+  });
+  expect(actions.onSyncNow).toHaveBeenCalledWith("link-1");
+  expect(host?.querySelector('[role="status"]')?.textContent).toBe(
+    "Synced. 2 GitHub records updated, 0 already newer.",
+  );
+});
+
+test("an Out of date link says so and shows the last error and the rate-limit wait", async () => {
+  await mount(
+    overviewOf([
+      {
+        ...connected,
+        sync: {
+          firstSyncOverdue: false,
+          lastError: "GitHub rate limit reached.",
+          lastErrorAt: "2026-10-03T09:40:00.000Z",
+          lastSuccessAt: "2026-10-03T09:00:00.000Z",
+          outOfDate: true,
+          rateLimitedUntil: "2026-10-03T10:00:00.000Z",
+        },
+      },
+    ]),
+  );
+  const text = host?.textContent ?? "";
+  expect(text).toContain("Out of date");
+  expect(text).toContain("Last error: GitHub rate limit reached.");
+  expect(text).toContain("Rate limit: GitHub asked us to wait until");
+  expect(host?.querySelectorAll("time").length).toBeGreaterThanOrEqual(3);
+});
+
+test("a paused link shows Paused with its reason, offers Reconnect and no Sync now", async () => {
+  await mount(
+    overviewOf([
+      { ...connected, connection: "Paused", pauseReason: "Project archived" },
+    ]),
+  );
+  expect(host?.textContent).toContain("Status: Paused, Project archived");
+  expect(() => buttonNamed("Sync now")).toThrow();
+  buttonNamed("Reconnect");
+  buttonNamed("Disconnect");
+});
+
+test("the Reconnect preview takes focus and can be cancelled from the keyboard", async () => {
+  const actions = await mount(
+    overviewOf([
+      { ...connected, connection: "Paused", pauseReason: "Project archived" },
+    ]),
+  );
+  await act(async () => {
+    buttonNamed("Reconnect").click();
+    await settle();
+  });
+  const heading = host?.querySelector("h5");
+  expect(heading?.textContent).toBe("Reconnect preview");
+  expect(document.activeElement).toBe(heading);
+  expect(buttonNamed("Reconnect").getAttribute("aria-expanded")).toBe("true");
+  await act(async () => {
+    buttonNamed("Cancel").click();
+    await settle();
+  });
+  expect(host?.querySelector("h5")).toBeNull();
+  expect(actions.onReconnect).not.toHaveBeenCalled();
 });

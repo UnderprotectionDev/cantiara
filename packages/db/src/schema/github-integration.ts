@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   check,
   index,
   integer,
@@ -72,6 +73,15 @@ export const githubRepositoryLink = pgTable(
     disconnectedAt: timestamp("disconnected_at"),
     htmlUrl: text("html_url").notNull(),
     id: text("id").primaryKey(),
+    lastError: text("last_error"),
+    lastErrorAt: timestamp("last_error_at"),
+    lastSuccessAt: timestamp("last_success_at"),
+    /** Project archive paused the link; unarchive never clears it (explicit Reconnect does). */
+    pausedAt: timestamp("paused_at"),
+    /** Retry-After / rate-limit reset: no read before this instant. */
+    rateLimitedUntil: timestamp("rate_limited_until"),
+    /** Start of the last successful incremental read; the next one asks GitHub `since` it. */
+    syncCursor: timestamp("sync_cursor"),
     installationRowId: text("installation_row_id")
       .notNull()
       .references(() => githubInstallation.id, { onDelete: "cascade" }),
@@ -128,7 +138,16 @@ export const githubRepositoryLinkName = pgTable(
 export const githubExternalRecord = pgTable(
   "project_github_external_record",
   {
+    archivedAt: timestamp("archived_at"),
     capturedAt: timestamp("captured_at").defaultNow().notNull(),
+    /** Set on restore from Trash: only an explicit Sync now applies the missed source state. */
+    needsReconcile: boolean("needs_reconcile").default(false).notNull(),
+    /** `reconcile` or `webhook`: at an equal `updated_at` the reconcile snapshot wins. */
+    appliedFrom: text("applied_from").default("reconcile").notNull(),
+    /** Product identity of the permanently deleted record this one was re-included from. */
+    originRecordId: text("origin_record_id"),
+    originDeletedAt: timestamp("origin_deleted_at"),
+    trashedAt: timestamp("trashed_at"),
     githubId: bigint("github_id", { mode: "number" }).notNull(),
     htmlUrl: text("html_url").notNull(),
     id: text("id").primaryKey(),
@@ -157,6 +176,10 @@ export const githubExternalRecord = pgTable(
       table.sourceUpdatedAt,
     ),
     check(
+      "project_github_external_record_applied_from_check",
+      sql`${table.appliedFrom} in ('reconcile', 'webhook')`,
+    ),
+    check(
       "project_github_external_record_kind_check",
       sql`${table.kind} in ('Issue', 'Pull request')`,
     ),
@@ -166,3 +189,102 @@ export const githubExternalRecord = pgTable(
     ),
   ],
 );
+
+/**
+ * Permanent delete tombstone: content-free (ids only). A later webhook,
+ * reconcile or relink finding the same source never recreates the record;
+ * only an explicit re-include mints a new product identity.
+ */
+export const githubExternalRecordTombstone = pgTable(
+  "project_github_external_record_tombstone",
+  {
+    deletedAt: timestamp("deleted_at").notNull(),
+    githubId: bigint("github_id", { mode: "number" }).notNull(),
+    kind: text("kind").notNull(),
+    linkId: text("link_id")
+      .notNull()
+      .references(() => githubRepositoryLink.id, { onDelete: "cascade" }),
+    /** The source's issue or PR number: an id, not content; re-include reads it by number. */
+    number: integer("number").notNull(),
+    recordId: text("record_id").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.linkId, table.kind, table.githubId],
+      name: "project_github_external_record_tombstone_pk",
+    }),
+  ],
+);
+
+/** Visible connection history: pauses, stops, conflicts at one timestamp. */
+export const githubLinkHistory = pgTable(
+  "project_github_link_history",
+  {
+    at: timestamp("at").notNull(),
+    detail: text("detail").notNull(),
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(),
+    linkId: text("link_id")
+      .notNull()
+      .references(() => githubRepositoryLink.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("project_github_link_history_link_idx").on(table.linkId, table.at),
+  ],
+);
+
+/**
+ * Webhook inbox: one row per GitHub delivery id, written only after the
+ * signature verified. Kept 30 days as id, hash and result; the raw payload
+ * lives in `github_webhook_payload` and is deleted by the retention sweep.
+ */
+export const githubWebhookDelivery = pgTable(
+  "github_webhook_delivery",
+  {
+    attempts: integer("attempts").default(0).notNull(),
+    deliveryId: text("delivery_id").primaryKey(),
+    event: text("event").notNull(),
+    installationId: bigint("installation_id", { mode: "number" }),
+    lastError: text("last_error"),
+    payloadHash: text("payload_hash").notNull(),
+    processedAt: timestamp("processed_at"),
+    receivedAt: timestamp("received_at").notNull(),
+    result: text("result"),
+    status: text("status").default("received").notNull(),
+  },
+  (table) => [
+    index("github_webhook_delivery_received_idx").on(table.receivedAt),
+    index("github_webhook_delivery_status_idx").on(table.status),
+    check(
+      "github_webhook_delivery_status_check",
+      sql`${table.status} in ('received', 'processed', 'failed', 'dead-letter')`,
+    ),
+  ],
+);
+
+/** Envelope-encrypted raw payload; success <= 24 h, failed <= 7 days, then physically deleted. */
+export const githubWebhookPayload = pgTable(
+  "github_webhook_payload",
+  {
+    ciphertext: text("ciphertext").notNull(),
+    deliveryId: text("delivery_id")
+      .primaryKey()
+      .references(() => githubWebhookDelivery.deliveryId, {
+        onDelete: "cascade",
+      }),
+    expiresAt: timestamp("expires_at").notNull(),
+    keyVersion: integer("key_version").notNull(),
+    wrappedDataKey: text("wrapped_data_key").notNull(),
+  },
+  (table) => [index("github_webhook_payload_expires_idx").on(table.expiresAt)],
+);
+
+/** Envelope-encrypted webhook secrets; the previous one verifies for 15 minutes after rotation. */
+export const githubWebhookSecret = pgTable("github_webhook_secret", {
+  activatedAt: timestamp("activated_at").notNull(),
+  ciphertext: text("ciphertext").notNull(),
+  id: text("id").primaryKey(),
+  keyVersion: integer("key_version").notNull(),
+  retiredAt: timestamp("retired_at"),
+  wrappedDataKey: text("wrapped_data_key").notNull(),
+});

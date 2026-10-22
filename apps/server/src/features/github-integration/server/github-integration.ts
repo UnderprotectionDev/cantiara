@@ -2,26 +2,40 @@
 import {
   GITHUB_APP_PERMISSIONS,
   GITHUB_CONTENTS_REASON,
+  GITHUB_FIRST_SYNC_BUDGET_MS,
+  GITHUB_OUT_OF_DATE_AFTER_MS,
   type GitHubAppGateway,
+  type GitHubConnection,
   type GitHubExternalRecord,
+  type GitHubExternalRecordWrite,
   type GitHubIntegrationAccess,
   type GitHubIntegrationStore,
   type GitHubIntegrationTransaction,
+  type GitHubLinkPreview,
   type GitHubOverview,
   type GitHubRepository,
   type GitHubRepositoryLink,
   type GitHubStoredInstallation,
   type GitHubStoredLink,
+  type GitHubStoredRecord,
+  type GitHubSyncStatus,
+  type GitHubWebhookEvent,
   gitHubAvailableRepositoriesInputSchema,
   gitHubInstallCompleteInputSchema,
   gitHubInstallStartInputSchema,
   gitHubLinkInputSchema,
   gitHubLinkRepositoryInputSchema,
   gitHubProjectInputSchema,
+  gitHubRecordInputSchema,
+  gitHubReincludeInputSchema,
   gitHubSearchRecordsInputSchema,
   groupTriageCandidates,
 } from "@cantiara/api/github-integration";
 
+import {
+  GitHubRateLimitedError,
+  GitHubRequestError,
+} from "./github-app-gateway";
 import type { GitHubSecrets } from "./github-credential-envelope";
 
 class GitHubIntegrationError extends Error {
@@ -106,6 +120,33 @@ export class GitHubLinkNotFoundError extends GitHubIntegrationError {
   }
 }
 
+export class GitHubRecordNotFoundError extends GitHubIntegrationError {
+  constructor(recordId: string) {
+    super(
+      "GITHUB_RECORD_NOT_FOUND",
+      `GitHub record ${recordId} was not found.`,
+    );
+  }
+}
+
+export class GitHubRecordNotInTrashError extends GitHubIntegrationError {
+  constructor() {
+    super(
+      "GITHUB_RECORD_NOT_IN_TRASH",
+      "Only a GitHub record in Trash can be deleted permanently.",
+    );
+  }
+}
+
+export class GitHubReincludeUnavailableError extends GitHubIntegrationError {
+  constructor() {
+    super(
+      "GITHUB_REINCLUDE_UNAVAILABLE",
+      "The source cannot be re-included: it was not deleted permanently, the link is not connected, or GitHub no longer shows it.",
+    );
+  }
+}
+
 export interface GitHubIntegrationOptions {
   /** `null` while the App credentials are not configured. */
   gateway: GitHubAppGateway | null;
@@ -130,6 +171,37 @@ class Refusal {
 const LEADING_HASH = /^#/;
 const TOKEN_REFRESH_MARGIN_MS = 60_000;
 const SEARCH_LIMIT = 200;
+/** An incremental read re-asks a little before the last cursor: GitHub timestamps can lag. */
+const SINCE_OVERLAP_MS = 5 * 60 * 1000;
+
+type ReconcileOutcome =
+  | "disconnected"
+  | "failed"
+  | "paused"
+  | "rate-limited"
+  | "ran";
+
+interface ReconcileReport {
+  applied: number;
+  outcome: ReconcileOutcome;
+  restoredDiffs: {
+    from: { sourceState: GitHubExternalRecord["sourceState"]; title: string };
+    recordId: string;
+    to: { sourceState: GitHubExternalRecord["sourceState"]; title: string };
+  }[];
+  stale: number;
+}
+
+function toExternalRecord(record: GitHubStoredRecord): GitHubExternalRecord {
+  const { appliedFrom: _appliedFrom, ...external } = record;
+  return external;
+}
+
+function failureText(error: unknown) {
+  return error instanceof GitHubRequestError
+    ? error.message
+    : "The sync failed unexpectedly. It will be retried.";
+}
 
 export function createGitHubIntegration(
   options: GitHubIntegrationOptions,
@@ -257,11 +329,23 @@ export function createGitHubIntegration(
         !link.disconnectedAt &&
         !link.stopReason
       ) {
-        await transaction.updateLink(link.id, {
-          stopReason: "App uninstalled",
-        });
+        await stopLink(transaction, link.id, "App uninstalled");
       }
     }
+  }
+
+  /** Access revoked, Repository not found and App uninstalled stop sync and say why. */
+  async function stopLink(
+    transaction: GitHubIntegrationTransaction,
+    linkId: string,
+    reason: NonNullable<GitHubStoredLink["stopReason"]>,
+  ) {
+    await transaction.updateLink(linkId, { stopReason: reason });
+    await transaction.appendHistory(linkId, {
+      at: now().toISOString(),
+      detail: reason,
+      kind: "stopped",
+    });
   }
 
   /** The same stable id seen under a new owner or name is the same link. */
@@ -285,21 +369,199 @@ export function createGitHubIntegration(
     });
   }
 
-  async function capture(
+  /**
+   * One read-only reconcile of one link. It never writes to GitHub, respects
+   * rate limits instead of polling, and always leaves the outcome on the link:
+   * last success, last error or the wait until GitHub allows another read.
+   */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: One read-only reconcile keeps stop reasons, rate limits, ordering outcomes and the sync record in one unit of work.
+  async function reconcileInTx(
     transaction: GitHubIntegrationTransaction,
-    token: string,
     link: GitHubStoredLink,
-    repository: GitHubRepository,
-  ) {
-    const snapshots = await requireGateway().listIssues(token, repository);
-    await transaction.upsertExternalRecords(
-      snapshots.map((snapshot) => ({
-        id: newId(),
-        linkId: link.id,
-        projectId: link.projectId,
-        snapshot,
-      })),
+    syncOptions: { explicit: boolean },
+  ): Promise<ReconcileReport> {
+    const report: ReconcileReport = {
+      applied: 0,
+      outcome: "ran",
+      restoredDiffs: [],
+      stale: 0,
+    };
+    if (link.disconnectedAt || link.stopReason) {
+      return { ...report, outcome: "disconnected" };
+    }
+    if (transaction.readOnly || link.pausedAt) {
+      if (!link.pausedAt) {
+        await transaction.updateLink(link.id, {
+          pausedAt: now().toISOString(),
+        });
+        await transaction.appendHistory(link.id, {
+          at: now().toISOString(),
+          detail: "Project archived",
+          kind: "paused",
+        });
+      }
+      return { ...report, outcome: "paused" };
+    }
+    if (
+      link.rateLimitedUntil &&
+      Date.parse(link.rateLimitedUntil) > now().getTime()
+    ) {
+      return { ...report, outcome: "rate-limited" };
+    }
+    const installation = (await transaction.installations()).find(
+      ({ id }) => id === link.installationRowId,
     );
+    if (!installation || installation.removedAt) {
+      await stopLink(transaction, link.id, "App uninstalled");
+      return { ...report, outcome: "disconnected" };
+    }
+    const startedAt = now();
+    try {
+      const gateway = requireGateway();
+      const token = await usableToken(transaction, installation);
+      if (!token) {
+        await markRemoved(transaction, installation.installationId);
+        return { ...report, outcome: "disconnected" };
+      }
+      const probe = await gateway.probeRepository(token, link.repositoryId);
+      if (probe.status !== "ok") {
+        await stopLink(
+          transaction,
+          link.id,
+          probe.status === "forbidden"
+            ? "Access revoked"
+            : "Repository not found",
+        );
+        return { ...report, outcome: "disconnected" };
+      }
+      await observeIdentity(transaction, link, probe.repository);
+      const since = link.syncCursor
+        ? new Date(Date.parse(link.syncCursor) - SINCE_OVERLAP_MS).toISOString()
+        : undefined;
+      const snapshots = await gateway.listIssues(token, probe.repository, {
+        since,
+      });
+      if (syncOptions.explicit) {
+        // A restored record's missed state is read again by number, then applied.
+        for (const record of await transaction.records(link.id)) {
+          if (!record.needsReconcile) {
+            continue;
+          }
+          const missed = await gateway.getIssue(
+            token,
+            probe.repository,
+            record.number,
+          );
+          if (missed) {
+            snapshots.push(missed);
+          }
+        }
+      }
+      const outcomes = await transaction.upsertExternalRecords(
+        snapshots.map(
+          (snapshot): GitHubExternalRecordWrite => ({
+            id: newId(),
+            linkId: link.id,
+            projectId: link.projectId,
+            snapshot,
+          }),
+        ),
+        { explicit: syncOptions.explicit, origin: "reconcile" },
+      );
+      for (const outcome of outcomes) {
+        if (outcome.result === "applied") {
+          report.applied += 1;
+        } else if (outcome.result === "stale") {
+          report.stale += 1;
+        }
+        if (outcome.conflict) {
+          await transaction.appendHistory(link.id, {
+            at: startedAt.toISOString(),
+            detail: `Conflict at the same updated_at for ${outcome.kind} ${outcome.githubId}; the reconcile snapshot was kept.`,
+            kind: "conflict",
+          });
+        }
+        if (
+          outcome.replaced &&
+          outcome.recordId &&
+          outcome.result === "applied"
+        ) {
+          const applied = snapshots.find(
+            (snapshot) =>
+              snapshot.kind === outcome.kind &&
+              snapshot.githubId === outcome.githubId,
+          );
+          if (applied) {
+            report.restoredDiffs.push({
+              from: outcome.replaced,
+              recordId: outcome.recordId,
+              to: { sourceState: applied.sourceState, title: applied.title },
+            });
+          }
+        }
+      }
+      await transaction.updateLink(link.id, {
+        lastError: null,
+        lastErrorAt: null,
+        lastSuccessAt: startedAt.toISOString(),
+        rateLimitedUntil: null,
+        syncCursor: startedAt.toISOString(),
+      });
+      return report;
+    } catch (error) {
+      if (error instanceof GitHubRateLimitedError) {
+        const until = new Date(
+          startedAt.getTime() + error.retryAfterSeconds * 1000,
+        ).toISOString();
+        await transaction.updateLink(link.id, {
+          lastError: `GitHub rate limit reached. The next read waits until ${until}.`,
+          lastErrorAt: startedAt.toISOString(),
+          rateLimitedUntil: until,
+        });
+        return { ...report, outcome: "rate-limited" };
+      }
+      await transaction.updateLink(link.id, {
+        lastError: failureText(error),
+        lastErrorAt: startedAt.toISOString(),
+      });
+      return { ...report, outcome: "failed" };
+    }
+  }
+
+  function connectionOf(
+    transaction: GitHubIntegrationTransaction,
+    link: GitHubStoredLink,
+  ): GitHubConnection {
+    if (link.disconnectedAt || link.stopReason) {
+      return "Disconnected";
+    }
+    // Archive pauses the link; leaving the archive does not resume it.
+    return link.pausedAt || transaction.readOnly ? "Paused" : "Connected";
+  }
+
+  function syncStatusOf(
+    link: GitHubStoredLink,
+    connection: GitHubConnection,
+  ): GitHubSyncStatus {
+    const reference = Date.parse(link.lastSuccessAt ?? link.linkedAt);
+    const behind = now().getTime() - reference;
+    return {
+      // Past the budget a connected link says so; stale data is never shown as current.
+      firstSyncOverdue:
+        link.lastSuccessAt === null &&
+        now().getTime() - Date.parse(link.linkedAt) >
+          GITHUB_FIRST_SYNC_BUDGET_MS,
+      lastError: link.lastError,
+      lastErrorAt: link.lastErrorAt,
+      lastSuccessAt: link.lastSuccessAt,
+      outOfDate:
+        connection === "Connected" && behind > GITHUB_OUT_OF_DATE_AFTER_MS,
+      rateLimitedUntil:
+        link.rateLimitedUntil &&
+        Date.parse(link.rateLimitedUntil) > now().getTime()
+          ? link.rateLimitedUntil
+          : null,
+    };
   }
 
   async function present(
@@ -311,10 +573,12 @@ export function createGitHubIntegration(
       transaction.nameHistory(link.id),
       transaction.records(link.id),
     ]);
+    const connection = connectionOf(transaction, link);
     return {
       accountLogin: installation?.accountLogin ?? "",
-      connection:
-        link.disconnectedAt || link.stopReason ? "Disconnected" : "Connected",
+      connection,
+      pauseReason: connection === "Paused" ? "Project archived" : null,
+      sync: syncStatusOf(link, connection),
       disconnectedAt: link.disconnectedAt,
       externalRecordCount: records.length,
       htmlUrl: link.htmlUrl,
@@ -365,7 +629,268 @@ export function createGitHubIntegration(
     return { installation, link };
   }
 
+  async function recordOf(
+    transaction: GitHubIntegrationTransaction,
+    recordId: string,
+  ) {
+    const record = await transaction.recordById(recordId);
+    if (!record) {
+      throw new GitHubRecordNotFoundError(recordId);
+    }
+    return record;
+  }
+
+  async function lifecycleChange(
+    accountId: string,
+    rawInput: unknown,
+    change: (
+      transaction: GitHubIntegrationTransaction,
+      record: GitHubStoredRecord,
+    ) => Promise<void>,
+  ) {
+    const input = gitHubRecordInputSchema.parse(rawInput);
+    return await inScope(accountId, input.projectId, "write", async (tx) => {
+      await change(tx, await recordOf(tx, input.recordId));
+      return toExternalRecord(await recordOf(tx, input.recordId));
+    });
+  }
+
+  async function preview(
+    accountId: string,
+    rawInput: unknown,
+    action: GitHubLinkPreview["action"],
+  ): Promise<GitHubLinkPreview> {
+    const input = gitHubLinkInputSchema.parse(rawInput);
+    return await inScope(accountId, input.projectId, "read", async (tx) => {
+      const { link } = await requireLink(tx, input.linkId);
+      const records = await tx.records(link.id);
+      const link_ = await presentLink(tx, link.id);
+      const effects =
+        action === "Disconnect"
+          ? [
+              "Captured records stay as historical sources with their last source state.",
+              "New syncing stops and the stored GitHub credential is no longer used.",
+              "Nothing is written to GitHub.",
+            ]
+          : [
+              "A new credential is minted and the link is read again from the current source.",
+              "Events missed while paused or stopped are not recreated.",
+              "Nothing is written to GitHub.",
+            ];
+      return {
+        action,
+        affected: {
+          issues: records.filter((record) => record.kind === "Issue").length,
+          pullRequests: records.filter(
+            (record) => record.kind === "Pull request",
+          ).length,
+          repository: `${link.owner}/${link.name}`,
+        },
+        effects,
+        link: link_,
+      };
+    });
+  }
+
   return {
+    async applyWebhookEvent(event: GitHubWebhookEvent) {
+      if (event.kind === "installation-removed") {
+        await store.runForInstallation(event.installationId, (tx) =>
+          markRemoved(tx, event.installationId),
+        );
+        return "installation removed";
+      }
+      const results: string[] = [];
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Each webhook event kind maps to one link effect inside one installation scope.
+      await store.runForInstallation(event.installationId, async (tx) => {
+        const repositoryId =
+          event.kind === "repository-renamed"
+            ? event.repository.repositoryId
+            : event.repositoryId;
+        const link = await tx.linkByRepositoryId(repositoryId);
+        if (!link) {
+          results.push("no link");
+          return;
+        }
+        if (link.disconnectedAt || link.stopReason) {
+          results.push("disconnected");
+          return;
+        }
+        if (tx.readOnly || link.pausedAt) {
+          // Paused by archive: no event is applied or invented for the gap.
+          if (!link.pausedAt) {
+            await tx.updateLink(link.id, { pausedAt: now().toISOString() });
+            await tx.appendHistory(link.id, {
+              at: now().toISOString(),
+              detail: "Project archived",
+              kind: "paused",
+            });
+          }
+          results.push("paused");
+          return;
+        }
+        if (event.kind === "repository-access-removed") {
+          await stopLink(tx, link.id, "Access revoked");
+          results.push("access revoked");
+        } else if (event.kind === "repository-missing") {
+          await stopLink(tx, link.id, "Repository not found");
+          results.push("repository not found");
+        } else if (event.kind === "repository-renamed") {
+          await observeIdentity(tx, link, event.repository);
+          results.push("renamed");
+        } else {
+          const [outcome] = await tx.upsertExternalRecords(
+            [
+              {
+                id: newId(),
+                linkId: link.id,
+                projectId: link.projectId,
+                snapshot: event.snapshot,
+              },
+            ],
+            { explicit: false, origin: "webhook" },
+          );
+          results.push(outcome?.result ?? "ignored");
+        }
+      });
+      return results.length > 0 ? results.join(", ") : "no link";
+    },
+
+    async archiveRecord(accountId, rawInput) {
+      return await lifecycleChange(accountId, rawInput, (tx, record) =>
+        tx.setRecordLifecycle(record.id, { archivedAt: now().toISOString() }),
+      );
+    },
+
+    async deleteRecordPermanently(accountId, rawInput) {
+      const input = gitHubRecordInputSchema.parse(rawInput);
+      await inScope(accountId, input.projectId, "write", async (tx) => {
+        const record = await recordOf(tx, input.recordId);
+        if (record.lifecycle !== "Trash") {
+          return new Refusal(new GitHubRecordNotInTrashError());
+        }
+        await tx.deleteRecordWithTombstone(record.id, now().toISOString());
+        return true;
+      });
+    },
+
+    async previewDisconnect(accountId, rawInput) {
+      return await preview(accountId, rawInput, "Disconnect");
+    },
+
+    async previewReconnect(accountId, rawInput) {
+      return await preview(accountId, rawInput, "Reconnect");
+    },
+
+    async reconcileDue() {
+      const totals = { failed: 0, ran: 0, skipped: 0 };
+      for (const scope of await store.linkScopes()) {
+        try {
+          const report = await store.runForProject(
+            scope.projectId,
+            async (tx) => {
+              const link = await tx.linkById(scope.linkId);
+              return link
+                ? await reconcileInTx(tx, link, { explicit: false })
+                : null;
+            },
+          );
+          if (report?.outcome === "ran") {
+            totals.ran += 1;
+          } else if (report?.outcome === "failed") {
+            totals.failed += 1;
+          } else {
+            totals.skipped += 1;
+          }
+        } catch {
+          totals.failed += 1;
+        }
+      }
+      return totals;
+    },
+
+    async reincludeRecord(accountId, rawInput) {
+      const input = gitHubReincludeInputSchema.parse(rawInput);
+      return await inScope(accountId, input.projectId, "write", async (tx) => {
+        const { installation, link } = await requireLink(tx, input.linkId);
+        const tombstone = await tx.tombstone(
+          link.id,
+          input.kind,
+          input.githubId,
+        );
+        if (
+          !tombstone ||
+          link.disconnectedAt ||
+          link.stopReason ||
+          link.pausedAt ||
+          installation.removedAt
+        ) {
+          return new Refusal(new GitHubReincludeUnavailableError());
+        }
+        const token = await usableToken(tx, installation);
+        const source = token
+          ? await requireGateway().getIssue(token, link, tombstone.number)
+          : null;
+        if (!source || source.githubId !== input.githubId) {
+          return new Refusal(new GitHubReincludeUnavailableError());
+        }
+        // A new product identity; the permanently deleted one stays visible as origin.
+        return toExternalRecord(
+          await tx.reincludeRecord({
+            id: newId(),
+            linkId: link.id,
+            origin: {
+              deletedAt: tombstone.deletedAt,
+              recordId: tombstone.recordId,
+            },
+            projectId: link.projectId,
+            snapshot: source,
+          }),
+        );
+      });
+    },
+
+    async restoreRecord(accountId, rawInput) {
+      return await lifecycleChange(accountId, rawInput, (tx, record) =>
+        // The missed source state is not applied silently: Sync now does it, visibly.
+        tx.setRecordLifecycle(record.id, {
+          needsReconcile: record.lifecycle === "Trash" ? true : undefined,
+          trashedAt: null,
+        }),
+      );
+    },
+
+    async syncNow(accountId, rawInput) {
+      const input = gitHubLinkInputSchema.parse(rawInput);
+      // Archived Projects answer `paused` instead of refusing the click.
+      const result = await store.run(
+        accountId,
+        input.projectId,
+        "write",
+        async (tx) => {
+          const { link } = await requireLink(tx, input.linkId);
+          const report = await reconcileInTx(tx, link, { explicit: true });
+          return {
+            applied: report.applied,
+            link: await presentLink(tx, link.id),
+            outcome: report.outcome,
+            restoredDiffs: report.restoredDiffs,
+            stale: report.stale,
+          };
+        },
+      );
+      if (result === null) {
+        throw new GitHubProjectNotFoundError(input.projectId);
+      }
+      return result;
+    },
+
+    async trashRecord(accountId, rawInput) {
+      return await lifecycleChange(accountId, rawInput, (tx, record) =>
+        tx.setRecordLifecycle(record.id, { trashedAt: now().toISOString() }),
+      );
+    },
+
     async availableRepositories(accountId, rawInput) {
       const input = gitHubAvailableRepositoriesInputSchema.parse(rawInput);
       return await inScope(accountId, input.projectId, "write", async (tx) => {
@@ -454,6 +979,17 @@ export function createGitHubIntegration(
             disconnectedAt: now().toISOString(),
           });
         }
+        // The credential is revoked once no live link still reads through it.
+        const stillInUse = (await tx.links()).some(
+          (other) =>
+            other.id !== link.id &&
+            other.installationRowId === link.installationRowId &&
+            !other.disconnectedAt &&
+            !other.stopReason,
+        );
+        if (!stillInUse) {
+          await tx.deleteCredential(link.installationRowId);
+        }
         const presented = await presentLink(tx, link.id);
         // Captured records are historical sources; Disconnect deletes none.
         return {
@@ -486,8 +1022,15 @@ export function createGitHubIntegration(
           await tx.updateLink(existing.id, {
             disconnectedAt: null,
             installationRowId: installation.id,
+            pausedAt: null,
+            rateLimitedUntil: null,
             stopReason: null,
+            syncCursor: null,
           });
+          const relinked = await tx.linkById(existing.id);
+          if (relinked) {
+            await reconcileInTx(tx, relinked, { explicit: true });
+          }
           return await presentLink(tx, existing.id);
         }
         const link: GitHubStoredLink = {
@@ -502,9 +1045,16 @@ export function createGitHubIntegration(
           repositoryId: repository.repositoryId,
           stopReason: null,
           triage: "Pending",
+          lastError: null,
+          lastErrorAt: null,
+          lastSuccessAt: null,
+          pausedAt: null,
+          rateLimitedUntil: null,
+          syncCursor: null,
         };
         await tx.insertLink(link);
-        await capture(tx, token, link, repository);
+        // First sync of a new link runs now; past 30 minutes the status says so.
+        await reconcileInTx(tx, link, { explicit: false });
         return await presentLink(tx, link.id);
       });
     },
@@ -568,10 +1118,24 @@ export function createGitHubIntegration(
           return new Refusal(new GitHubRepositoryUnavailableError());
         }
         await observeIdentity(tx, link, repository);
+        // Explicit Reconnect resumes a paused or stopped link and reads the
+        // gap again from the current source; nothing missed is invented.
         await tx.updateLink(link.id, {
           disconnectedAt: null,
+          pausedAt: null,
+          rateLimitedUntil: null,
           stopReason: null,
+          syncCursor: null,
         });
+        await tx.appendHistory(link.id, {
+          at: now().toISOString(),
+          detail: "Reconnected",
+          kind: "reconnected",
+        });
+        const resumed = await tx.linkById(link.id);
+        if (resumed) {
+          await reconcileInTx(tx, resumed, { explicit: false });
+        }
         return await presentLink(tx, link.id);
       });
     },
@@ -595,7 +1159,10 @@ export function createGitHubIntegration(
             ...record.labels,
           ].some((value) => value.toLowerCase().includes(needle));
         return {
+          // Archived records leave normal lists; Trash records are no search input.
           records: (await tx.records())
+            .filter((record) => record.lifecycle === "Active")
+            .map(toExternalRecord)
             .filter(matches)
             .sort((a, b) => b.sourceUpdatedAt.localeCompare(a.sourceUpdatedAt))
             .slice(0, SEARCH_LIMIT),
@@ -629,7 +1196,11 @@ export function createGitHubIntegration(
       return await inScope(accountId, input.projectId, "read", async (tx) => {
         await requireLink(tx, input.linkId);
         return {
-          groups: groupTriageCandidates(await tx.records(input.linkId)),
+          groups: groupTriageCandidates(
+            (await tx.records(input.linkId))
+              .filter((record) => record.lifecycle === "Active")
+              .map(toExternalRecord),
+          ),
           linkId: input.linkId,
           writesWork: false as const,
         };

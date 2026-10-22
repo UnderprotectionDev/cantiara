@@ -9,8 +9,10 @@ import {
   GITHUB_RECONNECT_LABEL,
   GITHUB_REPOSITORY_LABEL,
   GITHUB_SKIP_TRIAGE_LABEL,
+  GITHUB_SYNC_NOW_LABEL,
   GITHUB_TRIAGE_LABEL,
   type GitHubExternalRecord,
+  type GitHubLinkPreview,
   type GitHubOverview,
   type GitHubRepositoryLink,
   type GitHubTriagePreview,
@@ -18,6 +20,9 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { linkActionsFor, syncNowMessage } from "../../lib/github-sync-labels";
+import { GitHubLinkPreviewPanel } from "../components/github-link-preview";
+import { GitHubSyncStatusPanel } from "../components/github-sync-status";
 import {
   LinkRepositoryForm,
   type LoadRepositories,
@@ -26,6 +31,10 @@ import {
 import { SearchGitHubRecordsForm } from "../forms/search-github-records-form";
 
 export interface GitHubIntegrationActions {
+  loadPreview: (
+    action: GitHubLinkPreview["action"],
+    linkId: string,
+  ) => Promise<GitHubLinkPreview>;
   loadRepositories: LoadRepositories;
   loadTriage: (linkId: string) => Promise<GitHubTriagePreview>;
   onDisconnect: (linkId: string) => Promise<unknown>;
@@ -34,6 +43,15 @@ export interface GitHubIntegrationActions {
   onSearch: (query: string) => Promise<GitHubExternalRecord[]>;
   onSkipTriage: (linkId: string) => Promise<unknown>;
   onStartInstall: () => Promise<unknown>;
+  onSyncNow: (linkId: string) => Promise<{
+    applied: number;
+    outcome: "disconnected" | "failed" | "paused" | "ran" | "rate-limited";
+    restoredDiffs: {
+      from: { title: string };
+      to: { title: string };
+    }[];
+    stale: number;
+  }>;
 }
 
 type Notice = { kind: "alert" | "status"; text: string } | undefined;
@@ -154,10 +172,29 @@ function LinkItem({
 }: {
   actions: GitHubIntegrationActions;
   link: GitHubRepositoryLink;
-  run: (done: string, action: () => Promise<unknown>) => void;
+  run: <T>(
+    done: string | ((result: T) => string),
+    action: () => Promise<T>,
+  ) => void;
 }) {
   const nameId = `github-link-${link.id}`;
-  const connected = link.connection === "Connected";
+  const available = linkActionsFor(link.connection);
+  const [pending, setPending] = useState<GitHubLinkPreview["action"]>();
+  const preview = useQuery({
+    enabled: pending !== undefined,
+    gcTime: 0,
+    queryFn: () => actions.loadPreview(pending ?? "Reconnect", link.id),
+    queryKey: ["github-link-preview", link.id, pending],
+  });
+  const confirm = () => {
+    const action = pending;
+    setPending(undefined);
+    if (action === "Disconnect") {
+      run("Disconnected.", () => actions.onDisconnect(link.id));
+    } else if (action === "Reconnect") {
+      run("Reconnected.", () => actions.onReconnect(link.id));
+    }
+  };
   return (
     <li className="space-y-2 rounded-lg border border-border/70 p-4 text-sm">
       <h4 className="font-medium" id={nameId}>
@@ -172,7 +209,9 @@ function LinkItem({
         <span className="text-muted-foreground">Status: </span>
         {link.connection}
         {link.stopReason ? `, ${link.stopReason}` : ""}
+        {link.pauseReason ? `, ${link.pauseReason}` : ""}
       </p>
+      <GitHubSyncStatusPanel sync={link.sync} />
       {link.previousNames.length > 0 ? (
         <p className="text-muted-foreground">
           {`Formerly ${link.previousNames
@@ -184,29 +223,59 @@ function LinkItem({
         {`${GITHUB_APP_LABEL} account ${link.accountLogin}, ${link.externalRecordCount} GitHub records kept`}
       </p>
       <div className="flex flex-wrap gap-2">
-        {connected ? (
+        {available.canSyncNow ? (
           <Button
             aria-describedby={nameId}
             onClick={() =>
-              run("Disconnected.", () => actions.onDisconnect(link.id))
+              run(
+                (result: Awaited<ReturnType<typeof actions.onSyncNow>>) =>
+                  [
+                    syncNowMessage(result),
+                    ...result.restoredDiffs.map(
+                      ({ from, to }) => `${from.title} became ${to.title}.`,
+                    ),
+                  ].join(" "),
+                () => actions.onSyncNow(link.id),
+              )
             }
+            type="button"
+            variant="outline"
+          >
+            {GITHUB_SYNC_NOW_LABEL}
+          </Button>
+        ) : null}
+        {available.canReconnect ? (
+          <Button
+            aria-describedby={nameId}
+            aria-expanded={pending === "Reconnect"}
+            onClick={() => setPending("Reconnect")}
+            type="button"
+          >
+            {GITHUB_RECONNECT_LABEL}
+          </Button>
+        ) : null}
+        {available.canDisconnect ? (
+          <Button
+            aria-describedby={nameId}
+            aria-expanded={pending === "Disconnect"}
+            onClick={() => setPending("Disconnect")}
             type="button"
             variant="outline"
           >
             {GITHUB_DISCONNECT_LABEL}
           </Button>
-        ) : (
-          <Button
-            aria-describedby={nameId}
-            onClick={() =>
-              run("Reconnected.", () => actions.onReconnect(link.id))
-            }
-            type="button"
-          >
-            {GITHUB_RECONNECT_LABEL}
-          </Button>
-        )}
+        ) : null}
       </div>
+      {pending ? (
+        <GitHubLinkPreviewPanel
+          action={pending}
+          error={preview.isError}
+          linkId={link.id}
+          onCancel={() => setPending(undefined)}
+          onConfirm={confirm}
+          preview={preview.data}
+        />
+      ) : null}
       <TriagePanel
         link={link}
         loadTriage={actions.loadTriage}
@@ -282,10 +351,17 @@ export function GitHubIntegrationView({
   overview: GitHubOverview;
 }) {
   const [notice, setNotice] = useState<Notice>();
-  const run = (done: string, action: () => Promise<unknown>) => {
+  const run = <T,>(
+    done: string | ((result: T) => string),
+    action: () => Promise<T>,
+  ) => {
     setNotice(undefined);
     action().then(
-      () => setNotice({ kind: "status", text: done }),
+      (result) =>
+        setNotice({
+          kind: "status",
+          text: typeof done === "string" ? done : done(result),
+        }),
       (caught: unknown) =>
         setNotice({
           kind: "alert",

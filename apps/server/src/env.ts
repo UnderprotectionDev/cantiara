@@ -16,6 +16,7 @@ const sensitiveEnvKeys = [
   "GITHUB_APP_KEY_RING",
   "GITHUB_APP_PRIVATE_KEY",
   "GITHUB_CLIENT_SECRET",
+  "GITHUB_WEBHOOK_SECRET",
   "R2_SECRET_ACCESS_KEY",
   "SECURITY_EVENT_DATABASE_URL",
 ] as const;
@@ -126,6 +127,8 @@ export function createServerEnv(
       GITHUB_APP_KEY_VERSION: z.coerce.number().int().positive().default(1),
       GITHUB_APP_PRIVATE_KEY: z.string().min(1).optional(),
       GITHUB_APP_SLUG: z.string().min(1).optional(),
+      /** Seeds the sealed webhook secret on first use; rotation then lives in the database. */
+      GITHUB_WEBHOOK_SECRET: z.string().min(16).optional(),
       GITHUB_CLIENT_ID: z.string().min(1),
       GITHUB_CLIENT_SECRET: z.string().min(1),
       R2_ACCESS_KEY_ID: z.string().min(1).optional(),
