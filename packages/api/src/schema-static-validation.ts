@@ -24,7 +24,6 @@ export const STATIC_VALIDATION_CHECKS = [
   "Structural invariants",
   "Extension matrix",
   "Dependency order",
-  "Generator goldens",
   "Disposable parse and apply",
 ] as const;
 

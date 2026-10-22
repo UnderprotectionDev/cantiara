@@ -262,7 +262,6 @@ function isWidening(from: ParsedType, to: ParsedType): boolean {
 function columnTypeOperation(
   source: SchemaDefinition,
   target: SchemaDefinition,
-  table: SchemaTable,
   was: SchemaColumn,
   now: SchemaColumn,
   path: string,
@@ -303,7 +302,7 @@ function columnTypeOperation(
       !!numericParams(from.params) &&
       !!numericParams(to.params)) ||
     (from.base === "text" && to.base === "varchar" && !!to.params);
-  if (narrowing && table.id) {
+  if (narrowing) {
     return operation(
       "Narrow column type",
       path,
@@ -981,15 +980,10 @@ function diffColumns(
       continue;
     }
     const current = names.column(now.id, column.id, "new");
-    const typeOp = columnTypeOperation(
-      source,
-      target,
-      now,
-      previous,
-      column,
-      path,
-      { column: current, table: newTable },
-    );
+    const typeOp = columnTypeOperation(source, target, previous, column, path, {
+      column: current,
+      table: newTable,
+    });
     if (typeOp) {
       out.push(typeOp);
     }
@@ -1084,7 +1078,6 @@ function diffColumns(
 }
 
 /** Computes the typed schema-only difference of two exact definitions. */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Orchestrates the closed catalog diff in its fixed order.
 export function buildSchemaChangeDraft(
   source: SchemaDefinition,
   target: SchemaDefinition,
