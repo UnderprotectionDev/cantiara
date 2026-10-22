@@ -1,9 +1,11 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: The draft binds its own edit and reset handlers.
 import type { SchemaChangePreview } from "@cantiara/api/schema-artifacts";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { orpc } from "@/utils/orpc";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { client, orpc } from "@/utils/orpc";
 
+import { ConfirmArtifactForm } from "../forms/confirm-artifact-form";
 import { UpEditForm } from "../forms/up-edit-form";
 import { SqlOutput } from "./sql-output";
 import { StaticValidationStatus } from "./static-validation-status";
@@ -87,12 +89,49 @@ function EditDiff({ draft }: { draft: Ready }) {
 
 /** Schema Change Draft between two exact Diagram Versions of one Data Model. */
 export function ChangeDraft({
+  artifacts,
   sourceVersionId,
   targetVersionId,
 }: {
+  artifacts: { id: string; label: string }[];
   sourceVersionId: string;
   targetVersionId: string;
 }) {
+  const queryClient = useQueryClient();
+  const confirmKey = useRef<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const confirm = useMutation({
+    mutationFn: (input: {
+      confirmedDestructiveOperationIds: string[];
+      supersedes: string | null;
+      upSql: string;
+      generated: string;
+    }) => {
+      confirmKey.current ??= crypto.randomUUID();
+      return runOnlineOnlyWrite(() =>
+        client.confirmMigrationArtifact({
+          clientIdempotencyKey: confirmKey.current as string,
+          confirmedDestructiveOperationIds:
+            input.confirmedDestructiveOperationIds,
+          editedUpSql: input.upSql === input.generated ? null : input.upSql,
+          sourceVersionId,
+          supersedes: input.supersedes,
+          targetVersionId,
+        }),
+      );
+    },
+    onError: (failure) =>
+      setConfirmError(
+        failure instanceof Error
+          ? failure.message
+          : "Migration Artifact could not be confirmed.",
+      ),
+    onSuccess: async () => {
+      confirmKey.current = null;
+      setConfirmError(null);
+      await queryClient.invalidateQueries();
+    },
+  });
   const [edited, setEdited] = useState<string | null>(null);
   const preview = useQuery(
     orpc.schemaChangePreview.queryOptions({
@@ -160,6 +199,43 @@ export function ChangeDraft({
           />
         </>
       ) : null}
+      <section aria-label="Safe Down" className="space-y-1">
+        <h5 className="font-medium">Down</h5>
+        {data.down.status === "Produced" ? (
+          <SqlOutput exported={null} label="Down SQL" sql={data.down.sql} />
+        ) : (
+          <div role="note">
+            <p className="font-medium">{data.down.label}</p>
+            <ul className="text-sm">
+              {data.down.blockers.map((blocker) => (
+                <li key={`${blocker.operation}:${blocker.path}`}>
+                  {`${blocker.operation} · ${blocker.path} — ${blocker.criterion}`}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+      {data.confirmable ? (
+        <ConfirmArtifactForm
+          destructive={data.operations
+            .filter(({ id }) => data.destructiveOperationIds.includes(id))
+            .map(({ id, operation, path }) => ({
+              id,
+              label: `${operation} ${path}`,
+            }))}
+          disabled={confirm.isPending}
+          onConfirm={(input) =>
+            confirm.mutate({
+              ...input,
+              generated: data.generatedUpSql,
+              upSql: data.upSql,
+            })
+          }
+          supersedable={artifacts}
+        />
+      ) : null}
+      {confirmError ? <p role="alert">{confirmError}</p> : null}
       {data.confirmBlockedBy ? (
         <p className="text-muted-foreground text-sm">{data.confirmBlockedBy}</p>
       ) : null}

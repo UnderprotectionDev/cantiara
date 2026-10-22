@@ -444,6 +444,11 @@ import {
   schemaDdlPreviewInputSchema,
 } from "../schema-artifacts";
 import {
+  confirmMigrationArtifactInputSchema,
+  migrationArtifactInputSchema,
+  migrationArtifactListInputSchema,
+} from "../schema-migration-artifact";
+import {
   confirmConvertAndBindInputSchema,
   confirmRebindInputSchema,
   createScreenFromTemplateInputSchema,
@@ -5361,6 +5366,54 @@ export const appRouter = {
         throw new ORPCError("NOT_FOUND");
       }
       return preview;
+    }),
+  confirmMigrationArtifact: protectedProcedure
+    .input(confirmMigrationArtifactInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.schemaArtifacts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const artifact = await context.schemaArtifacts.confirmArtifact(
+          context.session.user.id,
+          input,
+        );
+        if (!artifact) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return artifact;
+      } catch (error) {
+        if (error instanceof SchemaArtifactError) {
+          throw new ORPCError("CONFLICT", { cause: error });
+        }
+        throw error;
+      }
+    }),
+  migrationArtifacts: protectedProcedure
+    .input(migrationArtifactListInputSchema)
+    .handler(({ context, input }) => {
+      if (!context.schemaArtifacts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return context.schemaArtifacts.listArtifacts(
+        context.session.user.id,
+        input.diagramId,
+      );
+    }),
+  migrationArtifactExport: protectedProcedure
+    .input(migrationArtifactInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.schemaArtifacts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const exported = await context.schemaArtifacts.exportArtifact(
+        context.session.user.id,
+        input.artifactId,
+      );
+      if (!exported) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return exported;
     }),
   schemaChangePreview: protectedProcedure
     .input(schemaChangePreviewInputSchema)

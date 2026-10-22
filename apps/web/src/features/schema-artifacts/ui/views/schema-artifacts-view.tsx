@@ -4,7 +4,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { orpc } from "@/utils/orpc";
-
+import { ArtifactList } from "../components/artifact-list";
 import { ChangeDraft } from "../components/change-draft";
 import { DdlPreview } from "../components/ddl-preview";
 
@@ -13,6 +13,9 @@ function DataModelArtifacts({ diagram }: { diagram: TechnicalDiagramSource }) {
     orpc.technicalDiagramVersions.queryOptions({
       input: { diagramId: diagram.id },
     }),
+  );
+  const artifacts = useQuery(
+    orpc.migrationArtifacts.queryOptions({ input: { diagramId: diagram.id } }),
   );
   const [versionId, setVersionId] = useState<string | null>(null);
   const [sourceId, setSourceId] = useState<string | null>(null);
@@ -76,12 +79,17 @@ function DataModelArtifacts({ diagram }: { diagram: TechnicalDiagramSource }) {
         ))}
         {sourceId && targetId && sourceId !== targetId ? (
           <ChangeDraft
+            artifacts={(artifacts.data ?? []).map((artifact) => ({
+              id: artifact.id,
+              label: `${artifact.source.name} → ${artifact.target.name} (${artifact.digest.slice(0, 8)})`,
+            }))}
             key={`${sourceId}:${targetId}`}
             sourceVersionId={sourceId}
             targetVersionId={targetId}
           />
         ) : null}
       </section>
+      <ArtifactList diagramId={diagram.id} />
     </article>
   );
 }

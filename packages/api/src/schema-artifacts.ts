@@ -6,6 +6,12 @@ import type {
 } from "./schema-change-draft";
 import type { SchemaWarning } from "./schema-ddl";
 import type { SchemaViolation } from "./schema-invariants";
+import type {
+  ConfirmMigrationArtifactInput,
+  MigrationArtifact,
+  MigrationArtifactExport,
+} from "./schema-migration-artifact";
+import type { SafeDown } from "./schema-safe-down";
 import type { StaticValidation } from "./schema-static-validation";
 import type { UpEditDiff, UpEditIssue } from "./schema-up-edit";
 
@@ -136,6 +142,8 @@ export type SchemaChangePreview =
       edit: { diff: UpEditDiff; issues: UpEditIssue[] };
       generatedUpSql: string;
       generatorVersion: string;
+      /** Safe Down, or the operation that dropped the whole inverse. */
+      down: SafeDown;
       operations: SchemaOperationView[];
       /** Extra confirmation is required before the artifact can be minted. */
       requiresDestructiveConfirmation: boolean;
@@ -149,6 +157,26 @@ export type SchemaChangePreview =
     };
 
 export interface SchemaArtifactsAccess {
+  /**
+   * Mints the immutable artifact after the matching draft re-validates. The
+   * product stores and exports it; it never runs it. Idempotent by key.
+   */
+  confirmArtifact: (
+    accountId: string,
+    input: ConfirmMigrationArtifactInput,
+  ) => Promise<MigrationArtifact | null>;
+  exportArtifact: (
+    accountId: string,
+    artifactId: string,
+  ) => Promise<MigrationArtifactExport | null>;
+  getArtifact: (
+    accountId: string,
+    artifactId: string,
+  ) => Promise<MigrationArtifact | null>;
+  listArtifacts: (
+    accountId: string,
+    diagramId: string,
+  ) => Promise<MigrationArtifact[]>;
   previewChange: (
     accountId: string,
     input: SchemaChangePreviewInput,

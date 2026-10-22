@@ -104,6 +104,7 @@ import { createDatabaseReturnToWork } from "./features/return-to-work/server/ret
 import { createDatabaseRoadmapHorizon } from "./features/roadmap-horizon/server/roadmap-horizon-database";
 import { createNeonDisposableDatabase } from "./features/schema-artifacts/server/neon-disposable-database";
 import { createSchemaArtifacts } from "./features/schema-artifacts/server/schema-artifacts";
+import { createDatabaseMigrationArtifacts } from "./features/schema-artifacts/server/schema-artifacts-database";
 import { createDatabaseScreens } from "./features/screens/server/screens-database";
 import { createSmartCollectionSubscriptionSignalWorker } from "./features/smart-collections/server/smart-collection-subscription-signal-worker";
 import {
@@ -160,6 +161,7 @@ export const schemaArtifacts = createSchemaArtifacts({
           { connect: connectDisposable },
         )
       : undefined,
+  store: createDatabaseMigrationArtifacts(db),
   versions: technicalDiagrams,
 });
 export const userFlow = createDatabaseUserFlow(db);
