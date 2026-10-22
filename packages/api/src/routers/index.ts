@@ -203,6 +203,10 @@ import {
   gitHubTriagePreviewSchema,
 } from "../github-integration";
 import {
+  gitHubPrContextInputSchema,
+  gitHubPrContextOutputSchema,
+} from "../github-pr-context";
+import {
   gitHubAttentionSignalSchema,
   gitHubCreateWorkInputSchema,
   gitHubCreateWorkOutputSchema,
@@ -7047,6 +7051,17 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runGitHubIntegrationOperation(() =>
         requireGitHubIntegration(context).checks(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectGitHubPrContext: protectedProcedure
+    .input(gitHubPrContextInputSchema)
+    .output(gitHubPrContextOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).prContext(
           context.session.user.id,
           input,
         ),

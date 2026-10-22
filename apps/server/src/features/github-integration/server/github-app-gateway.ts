@@ -322,6 +322,64 @@ export function createGitHubAppGateway(options: {
       return reads;
     },
 
+    async listPullRequestReviewers(token, repository, number) {
+      const auth = asInstallation(token);
+      const params = {
+        owner: repository.owner,
+        per_page: 100,
+        pull_number: number,
+        repo: repository.name,
+      };
+      // A missing Pull requests grant reads as no reviewer data, not a failure.
+      const [reviews, requested] = await Promise.all([
+        orNotFound(
+          () =>
+            transport.request({
+              auth,
+              params,
+              route: "GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews",
+            }) as Promise<
+              {
+                html_url?: string;
+                state?: string;
+                submitted_at?: string | null;
+                user?: { login?: string } | null;
+              }[]
+            >,
+        ),
+        orNotFound(
+          () =>
+            transport.request({
+              auth,
+              params,
+              route:
+                "GET /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers",
+            }) as Promise<{
+              teams?: { slug?: string }[];
+              users?: { login?: string }[];
+            }>,
+        ),
+      ]);
+      return {
+        requested: [
+          ...(requested?.users ?? []).map((user) => user.login ?? ""),
+          ...(requested?.teams ?? []).map((team) => team.slug ?? ""),
+        ].filter((login) => login !== ""),
+        reviews: (reviews ?? []).flatMap((review) =>
+          review.user?.login && review.state
+            ? [
+                {
+                  login: review.user.login,
+                  state: review.state,
+                  submittedAt: review.submitted_at ?? null,
+                  url: review.html_url ?? null,
+                },
+              ]
+            : [],
+        ),
+      };
+    },
+
     async probeRepository(token, repositoryId) {
       try {
         const raw = (await transport.request({

@@ -121,7 +121,10 @@ describeDatabase("GitHub Integration PR check summary PostgreSQL seam", () => {
       projectId,
       repositoryId: 31,
     });
-    const works = await requireDatabase().select().from(work);
+    const works = await requireDatabase()
+      .select()
+      .from(work)
+      .where(eq(work.projectId, projectId));
 
     const [pull] = (await github.checks(accountId, { projectId })).pullRequests;
     expect(pull?.headSha).toBe(HEAD_A);
@@ -168,6 +171,11 @@ describeDatabase("GitHub Integration PR check summary PostgreSQL seam", () => {
         .from(githubAttentionSignal)
         .where(eq(githubAttentionSignal.projectId, projectId)),
     ).toHaveLength(2);
-    expect(await requireDatabase().select().from(work)).toEqual(works);
+    expect(
+      await requireDatabase()
+        .select()
+        .from(work)
+        .where(eq(work.projectId, projectId)),
+    ).toEqual(works);
   });
 });

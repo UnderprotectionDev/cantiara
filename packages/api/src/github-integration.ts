@@ -8,7 +8,12 @@ import type {
   GitHubStoredPullHead,
   gitHubChecksInputSchema,
 } from "./github-checks";
-
+import type {
+  GitHubPrContextOverview,
+  GitHubPrContextWorkFacts,
+  GitHubReviewerRead,
+  gitHubPrContextInputSchema,
+} from "./github-pr-context";
 import type {
   GitHubWorkLinkAccess,
   GitHubWorkLinkTransaction,
@@ -106,6 +111,14 @@ export const GITHUB_ALLOWED_ENDPOINTS: readonly AllowedEndpoint[] = [
     route: "GET /repos/{owner}/{repo}/issues/{issue_number}",
   },
   { permission: "Pull requests", route: "GET /repos/{owner}/{repo}/pulls" },
+  {
+    permission: "Pull requests",
+    route: "GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews",
+  },
+  {
+    permission: "Pull requests",
+    route: "GET /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers",
+  },
   {
     permission: "Checks",
     route: "GET /repos/{owner}/{repo}/commits/{ref}/check-runs",
@@ -601,6 +614,15 @@ export interface GitHubAppGateway {
     token: string,
     repository: Pick<GitHubRepository, "name" | "owner">,
   ) => Promise<GitHubPullRequestChecksRead[]>;
+  /**
+   * Requested reviewers and submitted reviews of one Pull request (reviews and
+   * requested reviewers, read only; no diff, comment body or write).
+   */
+  listPullRequestReviewers: (
+    token: string,
+    repository: Pick<GitHubRepository, "name" | "owner">,
+    number: number,
+  ) => Promise<GitHubReviewerRead>;
   mintInstallationToken: (
     installationId: number,
   ) => Promise<GitHubInstallationToken | null>;
@@ -759,6 +781,11 @@ export interface GitHubIntegrationTransaction
   nameHistory: (
     linkId: string,
   ) => Promise<{ name: string; observedAt: string; owner: string }[]>;
+  /**
+   * Read-only facts the PR Context Card derives from owner records (Work text,
+   * Karar, Risk, Feedback, Proje Surumu). Nothing here can write them.
+   */
+  prContextFacts: (workIds: string[]) => Promise<GitHubPrContextWorkFacts[]>;
   /** Drops the checks of a Pull request that belong to another head SHA. */
   pruneSupersededChecks: (recordId: string, headSha: string) => Promise<void>;
   pullHeads: () => Promise<GitHubStoredPullHead[]>;
@@ -898,6 +925,14 @@ export interface GitHubIntegrationAccess extends GitHubWorkLinkAccess {
     input: z.input<typeof gitHubLinkRepositoryInputSchema>,
   ) => Promise<GitHubRepositoryLink>;
   overview: (accountId: string, projectId: string) => Promise<GitHubOverview>;
+  /**
+   * Read-only PR Context Card of each linked Pull request, derived live from
+   * owner records. It has no review, approve, merge or close-Work command.
+   */
+  prContext: (
+    accountId: string,
+    input: z.input<typeof gitHubPrContextInputSchema>,
+  ) => Promise<GitHubPrContextOverview>;
   previewDisconnect: (
     accountId: string,
     input: z.input<typeof gitHubLinkInputSchema>,

@@ -396,6 +396,8 @@ describe("PR check summary is not a Test Session", () => {
         "archivedProjects",
         "archivedRecords",
         "checks",
+        // The owner-record fixture the PR Context Card reads; the seam never writes it.
+        "contextFacts",
         "credentials",
         "history",
         "installations",

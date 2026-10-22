@@ -336,6 +336,7 @@ describe("GitHub Integration: first triage never writes Work", () => {
       "linkRepository",
       "linkWork",
       "overview",
+      "prContext",
       "previewCreateWork",
       "previewDisconnect",
       "previewReconnect",
