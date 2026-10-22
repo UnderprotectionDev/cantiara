@@ -146,7 +146,7 @@ function conditionHolds(
   return work.type === condition.type;
 }
 
-function proposalsFor(
+function proposalFor(
   rule: WorkAutomationRule,
   action: WorkAutomationAction,
   eventId: string,
@@ -195,7 +195,7 @@ function evaluateRule(
     }
   }
   return rule.definition.actions.map((action) =>
-    proposalsFor(rule, action, eventId, work),
+    proposalFor(rule, action, eventId, work),
   );
 }
 

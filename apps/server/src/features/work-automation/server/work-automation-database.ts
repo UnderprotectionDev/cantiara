@@ -230,6 +230,12 @@ async function planUndo(
   if (row.status !== change.value.status) {
     return { clobbered: `${change.workId}:status`, restore: null };
   }
+  if (
+    "closureResult" in change.value &&
+    row.closureResult !== change.value.closureResult
+  ) {
+    return { clobbered: `${change.workId}:closureResult`, restore: null };
+  }
   return {
     clobbered: null,
     restore: { revision: row.revision, value: before, workId: row.id },

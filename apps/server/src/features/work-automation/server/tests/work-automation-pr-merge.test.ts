@@ -361,3 +361,19 @@ describe("Work Automation boundaries", () => {
     }
   });
 });
+
+describe("reserved prepared name", () => {
+  test("no other rule may borrow the prepared PR-merge name", () => {
+    expect(
+      createWorkAutomationRuleInputSchema.safeParse({
+        definition: {
+          actions: [{ kind: "set-work-status", status: "In Progress" }],
+          conditions: [],
+          trigger: { kind: "work-created" },
+        },
+        name: WORK_AUTOMATION_UI_LABELS.requiredPrMerge,
+        projectId: PROJECT_ID,
+      }).success,
+    ).toBe(false);
+  });
+});

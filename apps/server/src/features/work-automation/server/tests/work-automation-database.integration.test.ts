@@ -282,6 +282,18 @@ describeDatabase("Work Automation PostgreSQL integration", () => {
       status: "Closed",
     });
 
+    await db
+      .update(work)
+      .set({ closureResult: "Abandoned" })
+      .where(eq(work.id, workId));
+    expect(await access.undo(accountId, result.receipt?.id ?? "")).toEqual({
+      fields: [`${workId}:closureResult`],
+      status: "conflict",
+    });
+    await db
+      .update(work)
+      .set({ closureResult: "Completed" })
+      .where(eq(work.id, workId));
     expect(await access.undo(accountId, result.receipt?.id ?? "")).toEqual({
       status: "undone",
     });

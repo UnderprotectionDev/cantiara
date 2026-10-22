@@ -26,6 +26,7 @@ export function withWorkAutomationEvents<T extends WorkLifecycleAccess>(
     }
   }
 
+  // Without a receipt the command changed nothing, so there is no original event.
   function statusEvent(result: {
     id: string;
     projectId: string;
@@ -33,7 +34,7 @@ export function withWorkAutomationEvents<T extends WorkLifecycleAccess>(
     status: string;
   }) {
     return {
-      id: `status:${result.receiptId ?? `${result.id}:${now().toISOString()}`}`,
+      id: `status:${result.receiptId}`,
       kind: "work-status-changed",
       occurredAt: now().toISOString(),
       origin: "user",
@@ -73,7 +74,9 @@ export function withWorkAutomationEvents<T extends WorkLifecycleAccess>(
       ...args: unknown[]
     ) => {
       const result = await original.apply(lifecycle, args);
-      await emit(statusEvent(result));
+      if (result.receiptId) {
+        await emit(statusEvent(result));
+      }
       return result;
     };
   }

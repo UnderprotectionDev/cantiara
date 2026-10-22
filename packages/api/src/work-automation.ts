@@ -20,7 +20,6 @@ export const WORK_AUTOMATION_UI_LABELS = {
 } as const;
 
 export const WORK_AUTOMATION_UNDO_WINDOW_MS = 10_000;
-export const WORK_AUTOMATION_ACTOR_ID = "work-automation";
 
 export const workAutomationRuleNameSchema = z
   .string()
@@ -160,13 +159,13 @@ function validatePreparedRuleName(
   input: { definition: { trigger: { kind: string } }; name: string },
   context: z.RefinementCtx,
 ) {
-  if (
-    input.definition.trigger.kind === "required-prs-merged" &&
-    input.name !== WORK_AUTOMATION_UI_LABELS.requiredPrMerge
-  ) {
+  const isPrepared = input.definition.trigger.kind === "required-prs-merged";
+  const usesPreparedName =
+    input.name === WORK_AUTOMATION_UI_LABELS.requiredPrMerge;
+  if (isPrepared !== usesPreparedName) {
     context.addIssue({
       code: "custom",
-      message: `The prepared PR-merge rule is named "${WORK_AUTOMATION_UI_LABELS.requiredPrMerge}".`,
+      message: `Only the prepared PR-merge rule is named "${WORK_AUTOMATION_UI_LABELS.requiredPrMerge}".`,
       path: ["name"],
     });
   }
