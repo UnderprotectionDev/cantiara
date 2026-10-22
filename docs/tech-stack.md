@@ -133,7 +133,7 @@ Return to Work calls the canvas owner's public viewport API through `packages/ap
 | `htmlparser2` | HTML ayrıştırma |
 | `pg_trgm` | Benzerlik tabanlı arama |
 | GitHub App | Yalnız repository installation, repository seçimi, read-only yetki ve eşitleme; kullanıcı login'i veya ürün oturumu taşımaz |
-| Octokit | GitHub API ve webhook entegrasyonu |
+| Octokit | GitHub API ve webhook entegrasyonu; paket `octokit` (`App` ile App JWT, `request` ile REST) yalnız `apps/server/src/features/github-integration/server/github-app-octokit.ts` içinde taşıma portunun arkasındadır, her çağrı önce `GITHUB_ALLOWED_ENDPOINTS` izin listesinden geçer |
 | Scalar | API dokümantasyonu |
 | T3 Env | Ortam değişkeni doğrulama; sunucuda `process.env` yalnız `apps/server/src/env.ts` ve ayrı dağıtılan Smart Link egress servisinin `apps/server/src/smart-link-egress-env.ts` dosyasında okunur |
 | MCP TypeScript SDK v1 | MCP sunucusu |
@@ -175,7 +175,7 @@ Return to Work calls the canvas owner's public viewport API through `packages/ap
 
 ### Güvenlik verisi ve restore sınırı
 
-- Dinamik GitHub ve entegrasyon token'ları uygulama katmanında envelope encryption ile şifrelenmiş ciphertext olarak PostgreSQL'de tutulur. Sürümlü üst anahtar Railway sealed runtime secret'tan gelir; üretim, entegrasyon, yedek ve export alanları ayrı döndürülebilir veri anahtarı kullanır. Secret düz metni log, arama, export, kanıt veya normal domain kaydına yazılmaz.
+- Dinamik GitHub ve entegrasyon token'ları uygulama katmanında envelope encryption ile şifrelenmiş ciphertext olarak PostgreSQL'de tutulur. Sürümlü üst anahtar Railway sealed runtime secret'tan gelir; üretim, entegrasyon, yedek ve export alanları ayrı döndürülebilir veri anahtarı kullanır. Secret düz metni log, arama, export, kanıt veya normal domain kaydına yazılmaz. GitHub App installation token'ları için zarflama `node:crypto` AES-256-GCM ile yapılır (kayıt başına rastgele veri anahtarı, sürümlü anahtar halkasıyla sarılır; `GITHUB_APP_KEY_RING`, `GITHUB_APP_KEY_VERSION`); ek dependency yoktur.
 - Append-only güvenlik olay günlüğü birincil PostgreSQL + R2 restore biriminin dışında ayrı restore alanında tutulur; [ADR-0019](adr/0019-guvenlik-olay-gunlugunu-ve-ust-anahtari-ayri-guven-alaninda-tut.md) bu alanı ayrı kimlik bilgileriyle erişilen ayrı bir yönetilen PostgreSQL projesi olarak sabitler. Kalıcı silme, redaksiyon, yüzey/token/parola ve oturum iptali ile anahtar/entegrasyon rotasyonu restore sonrasında buradan replay edilir; replay tamamlanmadan dış erişim açılmaz. Kesin deployment topolojisi yeni veri teknolojisi seçmeden bu ayrılığı korur.
 - Yüzey kapsamlı HTML, Dosya Eki ve range istekleri ham R2/CDN adresi açıklamaz. Hono/edge sınırı güncel Dış yüzey, ziyaretçi oturumu ve kesin asset sürümünü cache tesliminden önce doğrular; purge yalnız artalan hijyenidir.
 

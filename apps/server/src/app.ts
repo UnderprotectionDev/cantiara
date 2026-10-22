@@ -46,6 +46,7 @@ import {
   fileAttachmentStageInputSchema,
 } from "@cantiara/api/file-attachments";
 import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
+import type { GitHubIntegrationAccess } from "@cantiara/api/github-integration";
 import type { MoodboardSnapshotsAccess } from "@cantiara/api/moodboard-snapshot";
 import type { PersonalMoodboardViewsAccess } from "@cantiara/api/moodboard-viewport";
 import type {
@@ -196,6 +197,7 @@ export interface AppDependencies {
   feedback?: FeedbackAccess;
   fileAttachments?: FileAttachmentAccess;
   focusPeriod?: FocusPeriodAccess;
+  gitHubIntegration?: GitHubIntegrationAccess;
   githubAvailability: Pick<
     GitHubAvailability,
     "getStatus" | "requiresFreshConsent"
@@ -1266,6 +1268,7 @@ export function createApp(dependencies: AppDependencies) {
       productGaps: dependencies.productGaps,
       testReports: dependencies.testReports,
       testAssessments: dependencies.testAssessments,
+      gitHubIntegration: dependencies.gitHubIntegration,
       specChangeReview: dependencies.specChangeReview,
       specChangeReviewMutationContracts:
         dependencies.specChangeReviewMutationContracts,

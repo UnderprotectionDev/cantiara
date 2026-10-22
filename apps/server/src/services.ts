@@ -62,6 +62,7 @@ import { createFileAttachments } from "./features/file-attachments/server/file-a
 import { createDatabaseFileAttachments } from "./features/file-attachments/server/file-attachments-database";
 import { createFileAttachmentObjectStore } from "./features/file-attachments/server/file-attachments-object-store";
 import { createDatabaseFocusPeriod } from "./features/focus-period/server/focus-period-database";
+import { createConfiguredGitHubIntegration } from "./features/github-integration/server/github-integration-configured";
 import { createDatabaseMoodboardPersonalViews } from "./features/moodboards/server/moodboard-personal-views-database";
 import { createDatabaseMoodboardSnapshots } from "./features/moodboards/server/moodboard-snapshots-database";
 import { createDatabaseMoodboards } from "./features/moodboards/server/moodboards-database";
@@ -262,6 +263,13 @@ export const testReview = createDatabaseTestReview(db);
 export const productGaps = createDatabaseProductGaps(db);
 export const testReports = createDatabaseTestReports(db);
 export const testAssessments = createDatabaseTestAssessments(db);
+export const gitHubIntegration = createConfiguredGitHubIntegration(db, {
+  appId: env.GITHUB_APP_ID,
+  appSlug: env.GITHUB_APP_SLUG,
+  keyRing: env.GITHUB_APP_KEY_RING,
+  keyVersion: env.GITHUB_APP_KEY_VERSION,
+  privateKey: env.GITHUB_APP_PRIVATE_KEY,
+});
 export const specChangeReview = createSpecChangeReview(
   createDatabaseSpecChangeReviewStore(db),
   documents,

@@ -22,7 +22,7 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, type ReactNode, Suspense, useEffect, useState } from "react";
 import type { WorkStatusActionRequest } from "@/components/work-status-form";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
 import ProjectDecisionsSurface from "@/features/decisions/ui/components/project-decisions-surface";
@@ -189,6 +189,13 @@ function projectTestsSurface(
       />
     </div>
   ) : null;
+}
+
+/** The route composes the GitHub area, so the shell never imports another feature's `ui/`. */
+function projectGitHubSurface(activeHash: string, githubArea?: ReactNode) {
+  return githubArea && ["github", "project-area-github"].includes(activeHash)
+    ? githubArea
+    : null;
 }
 
 function liveSourceRouteForHash(activeHash: string, projectId: string) {
@@ -367,12 +374,14 @@ function projectUncertaintySurface(
 function ProjectShellContent({
   accountId,
   accountFormattingPreferences,
+  githubArea,
   project,
   projectId,
   scopeTreeQuery,
 }: {
   accountId?: string;
   accountFormattingPreferences: AccountPreferences;
+  githubArea?: ReactNode;
   project: ProjectProfile;
   projectId: string;
   scopeTreeQuery: UseQueryResult<ScopeTree>;
@@ -509,6 +518,7 @@ function ProjectShellContent({
       projectId,
       testGapRecordFromHash(activeHash),
     ) ??
+    projectGitHubSurface(activeHash, githubArea) ??
     projectUncertaintySurface(
       projectId,
       accountId,

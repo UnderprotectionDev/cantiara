@@ -35,6 +35,7 @@ import type { FavoritesAccess } from "@cantiara/api/favorites";
 import type { FeedbackAccess } from "@cantiara/api/feedback";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
+import type { GitHubIntegrationAccess } from "@cantiara/api/github-integration";
 import type { MoodboardSnapshotsAccess } from "@cantiara/api/moodboard-snapshot";
 import type { PersonalMoodboardViewsAccess } from "@cantiara/api/moodboard-viewport";
 import type {
@@ -134,6 +135,7 @@ export interface CreateContextOptions {
   feedback?: FeedbackAccess;
   fileAttachments?: FileAttachmentAccess;
   focusPeriod?: FocusPeriodAccess;
+  gitHubIntegration?: GitHubIntegrationAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   moodboardMutationContracts?: MoodboardMutationContracts;
@@ -260,6 +262,7 @@ export async function createContext({
   productGaps,
   testReports,
   testAssessments,
+  gitHubIntegration,
   specChangeReview,
   specChangeReviewMutationContracts,
   relations,
@@ -354,6 +357,7 @@ export async function createContext({
     productGaps,
     testReports,
     testAssessments,
+    gitHubIntegration,
     specChangeReview,
     specChangeReviewMutationContracts,
     relations,

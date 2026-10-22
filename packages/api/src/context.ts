@@ -26,6 +26,7 @@ import type { FavoritesAccess } from "./favorites";
 import type { FeedbackAccess } from "./feedback";
 import type { FileAttachmentAccess } from "./file-attachments";
 import type { FocusPeriodAccess } from "./focus-period";
+import type { GitHubIntegrationAccess } from "./github-integration";
 import type { MoodboardSnapshotsAccess } from "./moodboard-snapshot";
 import type { PersonalMoodboardViewsAccess } from "./moodboard-viewport";
 import type {
@@ -195,6 +196,7 @@ export interface Context {
   feedback?: FeedbackAccess;
   fileAttachments?: FileAttachmentAccess;
   focusPeriod?: FocusPeriodAccess;
+  gitHubIntegration?: GitHubIntegrationAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
   moodboardMutationContracts?: MoodboardMutationContracts;
