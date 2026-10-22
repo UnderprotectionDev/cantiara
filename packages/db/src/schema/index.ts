@@ -49,6 +49,7 @@ export * from "./test-review";
 export * from "./user-flow";
 export * from "./validation-record";
 export * from "./work";
+export * from "./work-automation";
 export * from "./work-draft";
 export * from "./work-external-handoff";
 export * from "./work-not-now";

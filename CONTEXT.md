@@ -1547,6 +1547,10 @@ _Avoid_: Ürün oturumu, tarayıcı clip arşivi, Safari Web Clipper
 Ürünün kapalı ve deterministik kurallarla kesin kaynaklardan saptadığı, kullanıcının incelemesine sunulan açıklanabilir olgu; bütün riskleri kapsadığı veya sağlık hükmü verdiği iddiasını taşımaz.
 _Avoid_: Sağlık uyarısı, AI önerisi, eksiksiz risk tespiti
 
+**Otomasyon kuralı**:
+Kurucunun kapalı katalogdan seçtiği tetikleyici, isteğe bağlı koşul ve eylemlerle oluşturduğu, yalnız açıkça etkinleştirilince çalışan Proje kuralı; her kaydedilmiş tanım değişikliği sürümlenir ve bir kuralın yazması başka kuralı tetiklemez ([otomasyon kuralları](docs/prd/06-work-management-and-planning.md#hafif-uygulama-içi-otomasyon-kuralları)). UI: `Automation rule`.
+_Avoid_: açık uçlu betik, webhook, run günlüğü, kural sırası, davranıştan kural önerme
+
 **Otomasyon çatışması**:
 Aynı kaynak olaydan eşleşen kuralların aynı hedef alana birlikte uygulanamayacak değerler önermesi; hiçbir öneriyi kazanan ilan etmez ve hedefte otomatik değişiklik oluşturmaz ([otomasyon kuralları](docs/prd/06-work-management-and-planning.md#hafif-uygulama-içi-otomasyon-kuralları)).
 _Avoid_: Son yazan kazanır, kural sırası, otomatik uzlaştırma

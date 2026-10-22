@@ -92,6 +92,7 @@ import type { TestReportAcceptanceAccess } from "@cantiara/api/test-report";
 import type { TestReviewAccess } from "@cantiara/api/test-review";
 import type { UserFlowAccess } from "@cantiara/api/user-flow";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
+import type { WorkAutomationAccess } from "@cantiara/api/work-automation";
 import type { WorkContextAccess } from "@cantiara/api/work-context";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
@@ -180,6 +181,7 @@ export interface CreateContextOptions {
   usageLinks?: UsageLinksAccess;
   userFlow?: UserFlowAccess;
   webCapture?: WebCaptureAccess;
+  workAutomation?: WorkAutomationAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
   workHandoffs?: ExternalExecutionHandoffsAccess;
@@ -249,6 +251,7 @@ export async function createContext({
   prioritizationSessions,
   personalReminders,
   recordActions,
+  workAutomation,
   workspaceOverview,
   tags,
   contacts,
@@ -343,6 +346,7 @@ export async function createContext({
     prioritizationSessions,
     personalReminders,
     recordActions,
+    workAutomation,
     workspaceOverview,
     tags,
     contacts,

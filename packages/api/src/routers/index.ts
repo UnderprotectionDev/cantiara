@@ -622,6 +622,19 @@ import {
 import type { WebCaptureAccess } from "../web-capture";
 import { WireframeDocumentError } from "../wireframe-document";
 import {
+  createWorkAutomationRuleMutationInputSchema,
+  restoreWorkAutomationRuleVersionInputSchema,
+  setWorkAutomationRuleEnabledInputSchema,
+  trashWorkAutomationRuleInputSchema,
+  updateWorkAutomationRuleInputSchema,
+  updateWorkAutomationRuleMutationInputSchema,
+  type WorkAutomationAccess,
+  workAutomationDryRunInputSchema,
+  workAutomationRulesInputSchema,
+  workAutomationRuleVersionsInputSchema,
+  workAutomationUndoInputSchema,
+} from "../work-automation";
+import {
   previewWorkContextLayout,
   type WorkContextAccess,
   workContextInputSchema,
@@ -1054,6 +1067,40 @@ function requireRecordActions(context: Context): RecordActionsAccess {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.recordActions;
+}
+
+function requireWorkAutomation(context: Context): WorkAutomationAccess {
+  if (!context.workAutomation) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.workAutomation;
+}
+
+function rethrowWorkAutomationError(error: unknown): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+  if (error.code === "WORK_AUTOMATION_PROJECT_NOT_FOUND") {
+    throw new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "Project is unavailable.",
+    });
+  }
+  if (error.code === "WORK_AUTOMATION_RULE_NAME_CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code },
+      defined: true,
+      message: "An Automation rule with this name already exists.",
+    });
+  }
+  if (error.code === "WORK_AUTOMATION_STALE_REVISION") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: { code: error.code },
+      defined: true,
+      message: "Automation rule changed. Reload and try again.",
+    });
+  }
+  throw error;
 }
 
 function rethrowRecordActionError(error: unknown): never {
@@ -6637,6 +6684,169 @@ export const appRouter = {
         rethrowRecordActionError(error);
       }
     }),
+  workAutomationRules: protectedProcedure
+    .input(workAutomationRulesInputSchema)
+    .handler(async ({ context, input }) => {
+      const rules = await requireWorkAutomation(context).list(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!rules) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Project is unavailable.",
+        });
+      }
+      return rules;
+    }),
+  workAutomationRuleVersions: protectedProcedure
+    .input(workAutomationRuleVersionsInputSchema)
+    .handler(async ({ context, input }) => {
+      const versions = await requireWorkAutomation(context).versions(
+        context.session.user.id,
+        input.ruleId,
+      );
+      if (!versions) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Automation rule is unavailable.",
+        });
+      }
+      return versions;
+    }),
+  createWorkAutomationRule: protectedProcedure
+    .input(createWorkAutomationRuleMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision: _baseRevision,
+        clientIdempotencyKey: _key,
+        ...payload
+      } = input;
+      try {
+        return await requireWorkAutomation(context).create(
+          context.session.user.id,
+          payload,
+        );
+      } catch (error) {
+        rethrowWorkAutomationError(error);
+      }
+    }),
+  updateWorkAutomationRule: protectedProcedure
+    .input(updateWorkAutomationRuleMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision,
+        clientIdempotencyKey: _key,
+        ruleId,
+        ...payload
+      } = input;
+      try {
+        const updated = await requireWorkAutomation(context).update(
+          context.session.user.id,
+          ruleId,
+          baseRevision,
+          updateWorkAutomationRuleInputSchema.parse(payload),
+        );
+        if (!updated) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Automation rule is unavailable.",
+          });
+        }
+        return updated;
+      } catch (error) {
+        rethrowWorkAutomationError(error);
+      }
+    }),
+  setWorkAutomationRuleEnabled: protectedProcedure
+    .input(setWorkAutomationRuleEnabledInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const updated = await requireWorkAutomation(context).setEnabled(
+          context.session.user.id,
+          {
+            baseRevision: input.baseRevision,
+            enabled: input.enabled,
+            ruleId: input.ruleId,
+          },
+        );
+        if (!updated) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Automation rule is unavailable.",
+          });
+        }
+        return updated;
+      } catch (error) {
+        rethrowWorkAutomationError(error);
+      }
+    }),
+  restoreWorkAutomationRuleVersion: protectedProcedure
+    .input(restoreWorkAutomationRuleVersionInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const restored = await requireWorkAutomation(context).restoreVersion(
+          context.session.user.id,
+          {
+            baseRevision: input.baseRevision,
+            ruleId: input.ruleId,
+            version: input.version,
+          },
+        );
+        if (!restored) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Automation rule version is unavailable.",
+          });
+        }
+        return restored;
+      } catch (error) {
+        rethrowWorkAutomationError(error);
+      }
+    }),
+  trashWorkAutomationRule: protectedProcedure
+    .input(trashWorkAutomationRuleInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const trashed = await requireWorkAutomation(context).trash(
+          context.session.user.id,
+          input.ruleId,
+          input.baseRevision,
+        );
+        if (!trashed) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Automation rule is unavailable.",
+          });
+        }
+        return trashed;
+      } catch (error) {
+        rethrowWorkAutomationError(error);
+      }
+    }),
+  dryRunWorkAutomationRule: protectedProcedure
+    .input(workAutomationDryRunInputSchema)
+    .handler(async ({ context, input }) => {
+      const result = await requireWorkAutomation(context).dryRun(
+        context.session.user.id,
+        input.ruleId,
+      );
+      if (!result) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Automation rule is unavailable.",
+        });
+      }
+      return result;
+    }),
+  undoWorkAutomation: protectedProcedure
+    .input(workAutomationUndoInputSchema)
+    .handler(({ context, input }) =>
+      requireWorkAutomation(context).undo(
+        context.session.user.id,
+        input.receiptId,
+      ),
+    ),
   healthCheck: publicProcedure.handler(() => "OK"),
   githubAvailability: publicProcedure.handler(({ context }) => ({
     status: context.githubAvailability.getStatus(),

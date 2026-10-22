@@ -49,6 +49,7 @@ export const primarySchemaFiles = [
   "./src/schema/work-draft.ts",
   "./src/schema/work-template.ts",
   "./src/schema/record-action.ts",
+  "./src/schema/work-automation.ts",
   "./src/schema/roadmap-horizon.ts",
   "./src/schema/work-not-now.ts",
   "./src/schema/relation.ts",
