@@ -1522,6 +1522,7 @@ _Avoid_: Invoice, fiyat paketi, banka uzlaştırma
 
 **GitHub bağlantısı**:
 Bir Projeyi GitHub'daki tek kararlı repository kimliğine bağlayan ve yeniden yetkilendirmelerde geçmişini koruyan [entegrasyon kaydı](docs/adr/0006-github-entegrasyon-guven-siniri.md); repository sahibi veya adı kimlik sayılmaz.
+UI: `GitHub App`, `Repository`, `Reconnect`, `Disconnect`; özellik klasörü `github-integration` (GitHub Integration seam'i).
 _Avoid_: Repository adı eşleşmesi, kurulum takma adı
 
 **GitHub dış kaydı**:
