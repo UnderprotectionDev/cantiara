@@ -76,6 +76,7 @@ import type {
 import type { ResearchSessionsAccess } from "@cantiara/api/research-sessions";
 import type { ReturnToWorkAccess } from "@cantiara/api/return-to-work";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
+import type { SchemaArtifactsAccess } from "@cantiara/api/schema-artifacts";
 import type { ScreensAccess } from "@cantiara/api/screens";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
 import type { SmartLinkPreviewAccess } from "@cantiara/api/smart-link-preview";
@@ -159,6 +160,7 @@ export interface CreateContextOptions {
   researchSessions?: ResearchSessionsAccess;
   returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
+  schemaArtifacts?: SchemaArtifactsAccess;
   screens?: ScreensAccess;
   smartCollections?: SmartCollectionsAccess;
   smartLinkPreview?: SmartLinkPreviewAccess;
@@ -214,6 +216,7 @@ export async function createContext({
   moodboardPersonalViews,
   moodboardSnapshots,
   moodboards,
+  schemaArtifacts,
   technicalDiagrams,
   projectWall,
   userFlow,
@@ -305,6 +308,7 @@ export async function createContext({
     moodboardPersonalViews,
     moodboardSnapshots,
     moodboards,
+    schemaArtifacts,
     technicalDiagrams,
     projectWall,
     userFlow,

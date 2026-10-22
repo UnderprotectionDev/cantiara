@@ -438,6 +438,7 @@ import {
   updateResearchDirectionInputSchema,
   updateWorkHorizonInputSchema,
 } from "../roadmap-horizon";
+import { schemaDdlPreviewInputSchema } from "../schema-artifacts";
 import {
   confirmConvertAndBindInputSchema,
   confirmRebindInputSchema,
@@ -5341,6 +5342,21 @@ export const appRouter = {
       } catch (error) {
         rethrowMoodboardSnapshotError(error);
       }
+    }),
+  schemaDdlPreview: protectedProcedure
+    .input(schemaDdlPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.schemaArtifacts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const preview = await context.schemaArtifacts.previewDdl(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return preview;
     }),
   technicalDiagrams: protectedProcedure
     .input(z.object({ projectId: projectIdSchema }).strict())
