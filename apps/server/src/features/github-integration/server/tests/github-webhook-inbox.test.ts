@@ -165,6 +165,41 @@ describe("GitHub Integration: webhook signature and durable inbox", () => {
     expect(JSON.stringify(payload)).not.toContain("Secret title in payload");
   });
 
+  test("a missing or malformed signature header is rejected before any secret store read", async () => {
+    const harness = seeded();
+    const memory = createMemoryInboxStore();
+    let storeReads = 0;
+    const inbox = createGitHubWebhookInbox({
+      alarm: () => undefined,
+      bootstrapSecret: WEBHOOK_SECRET,
+      enqueue: () => Promise.resolve(),
+      integration: harness.github,
+      secrets: harness.secrets,
+      store: {
+        ...memory.store,
+        secrets: () => {
+          storeReads += 1;
+          return memory.store.secrets();
+        },
+      },
+    });
+    for (const signature of [null, "", "deadbeef", "sha256=not-hex"]) {
+      // biome-ignore lint/performance/noAwaitInLoops: Each header is checked in turn.
+      const result = await inbox.receive({
+        deliveryId: "d-bad-header",
+        event: "ping",
+        rawBody: "{}",
+        signature,
+      });
+      expect(result).toMatchObject({
+        body: { error: "invalid-signature" },
+        status: 401,
+      });
+    }
+    expect(storeReads).toBe(0);
+    expect(memory.deliveries.size).toBe(0);
+  });
+
   test("the acknowledgement does not wait for the queue", async () => {
     const harness = seeded();
     const memory = createMemoryInboxStore();

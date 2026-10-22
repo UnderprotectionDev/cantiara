@@ -20,8 +20,13 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { errorText } from "../../lib/github-error-text";
 import { linkActionsFor, syncNowMessage } from "../../lib/github-sync-labels";
 import { GitHubLinkPreviewPanel } from "../components/github-link-preview";
+import {
+  GitHubNotice,
+  type GitHubNoticeState,
+} from "../components/github-notice";
 import { GitHubSyncStatusPanel } from "../components/github-sync-status";
 import {
   LinkRepositoryForm,
@@ -52,12 +57,6 @@ export interface GitHubIntegrationActions {
     }[];
     stale: number;
   }>;
-}
-
-type Notice = { kind: "alert" | "status"; text: string } | undefined;
-
-function errorText(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
 }
 
 function PermissionsPanel({ app }: { app: GitHubOverview["app"] }) {
@@ -350,7 +349,7 @@ export function GitHubIntegrationView({
   actions: GitHubIntegrationActions;
   overview: GitHubOverview;
 }) {
-  const [notice, setNotice] = useState<Notice>();
+  const [notice, setNotice] = useState<GitHubNoticeState>();
   const run = <T,>(
     done: string | ((result: T) => string),
     action: () => Promise<T>,
@@ -378,14 +377,7 @@ export function GitHubIntegrationView({
       <p className="text-muted-foreground text-sm">
         {`The ${GITHUB_APP_LABEL} installation, not your GitHub login, gives this Project read-only access to the ${GITHUB_REPOSITORY_LABEL} you select. Removing either one leaves the other alone.`}
       </p>
-      <div aria-live="polite" role="status">
-        {notice?.kind === "status" ? notice.text : null}
-      </div>
-      {notice?.kind === "alert" ? (
-        <p className="text-destructive text-sm" role="alert">
-          {notice.text}
-        </p>
-      ) : null}
+      <GitHubNotice alertClassName="text-destructive text-sm" notice={notice} />
       {app.configured ? null : (
         <p className="text-sm" role="alert">
           {`The ${GITHUB_APP_LABEL} is not configured on this server.`}

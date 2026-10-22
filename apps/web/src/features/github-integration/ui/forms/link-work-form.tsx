@@ -14,6 +14,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useState } from "react";
+import { errorText } from "../../lib/github-error-text";
 
 export type LinkWorkValues =
   | { recordId: string; role: string; target: "record"; workId: string }
@@ -30,10 +31,6 @@ export type SubmitLinkWork = (values: LinkWorkValues) => Promise<unknown>;
 export interface RepositoryChoice {
   id: string;
   label: string;
-}
-
-function errorText(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
 }
 
 /**

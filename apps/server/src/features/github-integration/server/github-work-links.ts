@@ -193,6 +193,11 @@ export async function refreshAttentionSignals(
         .map((link) => link.id),
     ),
     links: links.filter((link) => !link.removedAt),
+    pausedLinkIds: new Set(
+      repositoryLinks
+        .filter((link) => link.pausedAt || transaction.readOnly)
+        .map((link) => link.id),
+    ),
     records,
     works: scope.works,
   });

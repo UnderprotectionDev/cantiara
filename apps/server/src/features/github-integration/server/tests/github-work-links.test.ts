@@ -1,5 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: The role refusals are checked one target after another.
 import {
+  deriveAttentionSignals,
   GITHUB_ROLE_CONTEXTUAL_LABEL,
   GITHUB_ROLE_REQUIRED_LABEL,
   GITHUB_WORK_LINK_ROLES,
@@ -899,5 +900,31 @@ describe("Attention signals", () => {
     expect(
       await harness.github.attentionSignals(accountId, { projectId }),
     ).toEqual([]);
+  });
+
+  test("an open Pull request of a Paused link raises no unlinked-open-pr signal", () => {
+    const input = {
+      disconnectedLinkIds: new Set<string>(),
+      links: [],
+      records: [
+        {
+          htmlUrl: "https://github.com/acme/web/pull/5",
+          id: "record-1",
+          kind: "Pull request" as const,
+          lifecycle: "Active" as const,
+          linkId: "link-1",
+          number: 5,
+          sourceState: "open" as const,
+          title: "Open PR",
+        },
+      ],
+      works: [],
+    };
+    expect(
+      deriveAttentionSignals({ ...input, pausedLinkIds: new Set(["link-1"]) }),
+    ).toEqual([]);
+    expect(
+      deriveAttentionSignals({ ...input, pausedLinkIds: new Set() }),
+    ).toHaveLength(1);
   });
 });

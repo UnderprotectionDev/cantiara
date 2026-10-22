@@ -15,6 +15,7 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useState } from "react";
+import { errorText } from "../../lib/github-error-text";
 
 export type PreviewCreateWork = (
   recordId: string,
@@ -25,10 +26,6 @@ export type SubmitCreateWork = (values: {
   title: string;
   type: GitHubWorkType;
 }) => Promise<unknown>;
-
-function errorText(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
 
 function DraftForm({
   onCancel,

@@ -13,6 +13,7 @@ import {
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { errorText } from "../../lib/github-error-text";
 
 export type AvailableRepository = GitHubRepository & { linked: boolean };
 export type LoadRepositories = (
@@ -22,10 +23,6 @@ export type SubmitLinkRepository = (values: {
   installationId: number;
   repositoryId: number;
 }) => Promise<unknown>;
-
-function errorText(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
 
 /**
  * Link a Repository chosen by GitHub's stable numeric id. The visible label is

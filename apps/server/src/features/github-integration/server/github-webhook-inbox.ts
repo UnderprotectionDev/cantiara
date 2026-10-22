@@ -123,6 +123,7 @@ export interface GitHubWebhookInboxOptions {
 
 const MIN_SECRET_LENGTH = 16;
 const SIGNATURE_PREFIX = "sha256=";
+const SIGNATURE_FORMAT = /^sha256=[0-9a-f]{64}$/i;
 const PENDING_GRACE_MS = 60_000;
 const ERROR_TEXT_LIMIT = 300;
 
@@ -239,6 +240,10 @@ export function createGitHubWebhookInbox(options: GitHubWebhookInboxOptions) {
     },
 
     async receive(input: ReceiveInput): Promise<ReceiveResult> {
+      // A missing or malformed header costs no store read or decrypt.
+      if (!(input.signature && SIGNATURE_FORMAT.test(input.signature))) {
+        return { body: { error: "invalid-signature" }, status: 401 };
+      }
       const candidates = await verifyingSecrets();
       if (candidates.length === 0) {
         return { body: { error: "not-configured" }, status: 503 };

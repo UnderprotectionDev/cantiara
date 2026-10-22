@@ -286,6 +286,8 @@ export function deriveAttentionSignals(input: {
   /** Failed checks on the current head SHA of a Pull request (spec 61, story 14). */
   failedChecks?: GitHubFailedCheck[];
   links: GitHubSignalWorkLink[];
+  /** Links that are not Connected: they raise no unlinked-open-pr signal. */
+  pausedLinkIds: ReadonlySet<string>;
   records: GitHubSignalRecord[];
   works: GitHubWorkRef[];
 }): GitHubDesiredSignal[] {
@@ -301,7 +303,12 @@ export function deriveAttentionSignals(input: {
     }
     const linked = input.links.filter((link) => link.recordId === record.id);
     if (linked.length === 0) {
-      if (!input.disconnectedLinkIds.has(record.linkId)) {
+      if (
+        !(
+          input.disconnectedLinkIds.has(record.linkId) ||
+          input.pausedLinkIds.has(record.linkId)
+        )
+      ) {
         desired.push({
           recordId: record.id,
           signalId: `unlinked-open-pr:${record.id}`,

@@ -8,6 +8,7 @@ import {
 } from "@cantiara/api/github-work-links";
 import { Button } from "@cantiara/ui/components/button";
 import { useState } from "react";
+import { errorText } from "../../lib/github-error-text";
 import {
   CreateWorkForm,
   type PreviewCreateWork,
@@ -18,6 +19,7 @@ import {
   type RepositoryChoice,
   type SubmitLinkWork,
 } from "../forms/link-work-form";
+import { GitHubNotice, type GitHubNoticeState } from "./github-notice";
 
 export interface GitHubWorkLinkActions {
   onCreateWork: SubmitCreateWork;
@@ -25,12 +27,6 @@ export interface GitHubWorkLinkActions {
   onLinkWork: SubmitLinkWork;
   onPreviewCreateWork: PreviewCreateWork;
   onUnlink: (linkId: string) => Promise<unknown>;
-}
-
-type Notice = { kind: "alert" | "status"; text: string } | undefined;
-
-function errorText(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
 }
 
 function originText(link: GitHubWorkLink) {
@@ -98,7 +94,7 @@ export function GitHubWorkLinksPanel({
   records: GitHubExternalRecord[];
   repositories: RepositoryChoice[];
 }) {
-  const [notice, setNotice] = useState<Notice>();
+  const [notice, setNotice] = useState<GitHubNoticeState>();
   const run = (done: string, action: () => Promise<unknown>) => {
     setNotice(undefined);
     action().then(
@@ -123,14 +119,7 @@ export function GitHubWorkLinksPanel({
         A link relates a Work to a GitHub record. It never changes the Work
         status, closes it or edits GitHub.
       </p>
-      <div aria-live="polite" role="status">
-        {notice?.kind === "status" ? notice.text : null}
-      </div>
-      {notice?.kind === "alert" ? (
-        <p className="text-destructive" role="alert">
-          {notice.text}
-        </p>
-      ) : null}
+      <GitHubNotice notice={notice} />
       {data.signals.length > 0 ? (
         <section aria-labelledby="github-signals-heading" className="space-y-2">
           <h4 className="font-medium" id="github-signals-heading">
