@@ -1,9 +1,17 @@
+import type { GitHubPullRequestChecksRead } from "@cantiara/api/github-checks";
 import {
   assertGitHubRequestAllowed,
   type GitHubAppGateway,
   type GitHubIssueSnapshot,
   type GitHubRepository,
 } from "@cantiara/api/github-integration";
+
+import {
+  type RawCheckRun,
+  type RawCommitStatus,
+  toObservedCheckRun,
+  toObservedStatus,
+} from "./github-check-mapping";
 
 /**
  * The GitHub App gateway over a transport port. Every request is checked
@@ -89,7 +97,7 @@ export interface RawRepository {
 
 export interface RawIssue {
   body?: string | null;
-  head?: { ref?: string | null } | null;
+  head?: { ref?: string | null; sha?: string | null } | null;
   html_url: string;
   id: number;
   labels?: (string | { name?: string })[];
@@ -123,6 +131,7 @@ export function toSnapshot(raw: RawIssue): GitHubIssueSnapshot {
   }
   return {
     githubId: raw.id,
+    headSha: isPullRequest ? (raw.head?.sha ?? null) : null,
     htmlUrl: raw.html_url,
     kind: isPullRequest ? "Pull request" : "Issue",
     labels: (raw.labels ?? [])
@@ -155,6 +164,8 @@ async function orNotFound<T>(read: () => Promise<T>): Promise<T | null> {
 /** Newest-first pages of at most 100; a read stops after `MAX_PAGES` and the next one continues. */
 const TRIAGE_PAGE_SIZE = 100;
 const MAX_PAGES = 10;
+/** Open Pull requests whose checks one reconcile reads; the next one continues. */
+const MAX_CHECKED_PULL_REQUESTS = 50;
 
 export function createGitHubAppGateway(options: {
   appSlug: string;
@@ -251,6 +262,64 @@ export function createGitHubAppGateway(options: {
         }
       }
       return snapshots;
+    },
+
+    async listPullRequestChecks(token, repository) {
+      const auth = asInstallation(token);
+      // A missing Checks or Commit statuses grant reads as no checks, not a failed sync.
+      const pulls =
+        (await orNotFound(
+          () =>
+            transport.request({
+              auth,
+              params: {
+                owner: repository.owner,
+                per_page: MAX_CHECKED_PULL_REQUESTS,
+                repo: repository.name,
+                state: "open",
+              },
+              route: "GET /repos/{owner}/{repo}/pulls",
+            }) as Promise<{ head?: { sha?: string }; number: number }[]>,
+        )) ?? [];
+      const reads: GitHubPullRequestChecksRead[] = [];
+      for (const pull of pulls) {
+        const headSha = pull.head?.sha;
+        if (!headSha) {
+          continue;
+        }
+        const params = {
+          owner: repository.owner,
+          per_page: 100,
+          ref: headSha,
+          repo: repository.name,
+        };
+        // biome-ignore lint/performance/noAwaitInLoops: One open Pull request is read at a time to stay inside GitHub's rate limit.
+        const runs = await orNotFound(
+          () =>
+            transport.request({
+              auth,
+              params,
+              route: "GET /repos/{owner}/{repo}/commits/{ref}/check-runs",
+            }) as Promise<{ check_runs?: RawCheckRun[] }>,
+        );
+        const statuses = await orNotFound(
+          () =>
+            transport.request({
+              auth,
+              params,
+              route: "GET /repos/{owner}/{repo}/commits/{ref}/status",
+            }) as Promise<{ statuses?: RawCommitStatus[] }>,
+        );
+        reads.push({
+          checks: [
+            ...(runs?.check_runs ?? []).map(toObservedCheckRun),
+            ...(statuses?.statuses ?? []).map(toObservedStatus),
+          ],
+          headSha,
+          number: pull.number,
+        });
+      }
+      return reads;
     },
 
     async probeRepository(token, repositoryId) {

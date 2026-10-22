@@ -1,5 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Each record or signal is applied in order inside one unit of work.
 
+import { failedChecksOnCurrentHead } from "@cantiara/api/github-checks";
 import type {
   GitHubIntegrationStore,
   GitHubIntegrationTransaction,
@@ -117,7 +118,8 @@ export interface GitHubWorkLinkDependencies {
 }
 
 function stripMatchText(snapshot: GitHubIssueSnapshot): GitHubIssueSnapshot {
-  const { matchText: _matchText, ...stored } = snapshot;
+  // The head SHA lives in the head table of the PR check summary, not on the record.
+  const { headSha: _headSha, matchText: _matchText, ...stored } = snapshot;
   return stored;
 }
 
@@ -150,6 +152,9 @@ function summaryOf(
   if (signal.signalType === "unlinked-open-pr") {
     return `Pull request #${record.number} is open and no Work links it.`;
   }
+  if (signal.signalType === "failed-check") {
+    return `A check failed on the current head of Pull request #${record.number}.`;
+  }
   return `${work?.key ?? "A Work"} is Completed and Pull request #${record.number} is open.`;
 }
 
@@ -163,14 +168,25 @@ export async function refreshAttentionSignals(
   transaction: GitHubIntegrationTransaction,
   now: Date,
 ) {
-  const [records, links, repositoryLinks, scope, stored] = await Promise.all([
+  const [
+    records,
+    links,
+    repositoryLinks,
+    scope,
+    stored,
+    pullHeads,
+    storedChecks,
+  ] = await Promise.all([
     transaction.records(),
     transaction.workLinks(),
     transaction.links(),
     transaction.keyScope(),
     transaction.signals(),
+    transaction.pullHeads(),
+    transaction.checks(),
   ]);
   const desired = deriveAttentionSignals({
+    failedChecks: failedChecksOnCurrentHead(pullHeads, storedChecks),
     disconnectedLinkIds: new Set(
       repositoryLinks
         .filter((link) => link.disconnectedAt)

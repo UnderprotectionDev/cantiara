@@ -413,11 +413,74 @@ export const githubAttentionSignal = pgTable(
     index("project_github_attention_signal_project_idx").on(table.projectId),
     check(
       "project_github_attention_signal_type_check",
-      sql`${table.signalType} in ('unlinked-open-pr', 'work-pr-status-conflict')`,
+      sql`${table.signalType} in ('unlinked-open-pr', 'work-pr-status-conflict', 'failed-check')`,
     ),
     check(
       "project_github_attention_signal_presentation_check",
       sql`${table.presentation} = 'Action Required'`,
+    ),
+  ],
+);
+
+/**
+ * Current head SHA of a Pull request as GitHub last reported it (webhook or
+ * reconcile). Checks of another SHA are superseded, never current.
+ */
+export const githubPullRequestHead = pgTable(
+  "project_github_pull_request_head",
+  {
+    headSha: text("head_sha").notNull(),
+    observedAt: timestamp("observed_at").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    recordId: text("record_id")
+      .primaryKey()
+      .references(() => githubExternalRecord.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("project_github_pull_request_head_project_idx").on(table.projectId),
+  ],
+);
+
+/**
+ * PR check summary source rows: one check as GitHub reported it for one head
+ * SHA, keyed by provider and the provider's stable check id. Read-only
+ * mirror: not a Test Session, Session Test, scenario result or release gate,
+ * and no column refers to specs 54 or 57. `requirement` is `Required` only
+ * when GitHub said so, otherwise `Unknown`. No log text is stored.
+ */
+export const githubPullRequestCheck = pgTable(
+  "project_github_pull_request_check",
+  {
+    checkId: text("check_id").notNull(),
+    detailsUrl: text("details_url"),
+    headSha: text("head_sha").notNull(),
+    name: text("name").notNull(),
+    observedAt: timestamp("observed_at").notNull(),
+    outcome: text("outcome").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    recordId: text("record_id")
+      .notNull()
+      .references(() => githubExternalRecord.id, { onDelete: "cascade" }),
+    requirement: text("requirement").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.recordId, table.headSha, table.provider, table.checkId],
+      name: "project_github_pull_request_check_pk",
+    }),
+    index("project_github_pull_request_check_project_idx").on(table.projectId),
+    check(
+      "project_github_pull_request_check_outcome_check",
+      sql`${table.outcome} in ('Passed', 'Failed', 'Pending', 'Cancelled', 'Skipped')`,
+    ),
+    check(
+      "project_github_pull_request_check_requirement_check",
+      sql`${table.requirement} in ('Required', 'Unknown')`,
     ),
   ],
 );

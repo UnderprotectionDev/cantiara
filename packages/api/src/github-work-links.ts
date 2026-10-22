@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import type { GitHubFailedCheck } from "./github-checks";
+
 /**
  * GitHub Integration seam (spec 61, ticket 03: Work-GitHub links and PR roles).
  *
@@ -70,6 +72,7 @@ export type GitHubSuggestionReason = (typeof GITHUB_SUGGESTION_REASONS)[number];
 export const GITHUB_ATTENTION_SIGNAL_TYPES = [
   "unlinked-open-pr",
   "work-pr-status-conflict",
+  "failed-check",
 ] as const;
 export type GitHubAttentionSignalType =
   (typeof GITHUB_ATTENTION_SIGNAL_TYPES)[number];
@@ -280,6 +283,8 @@ export interface GitHubDesiredSignal {
  */
 export function deriveAttentionSignals(input: {
   disconnectedLinkIds: ReadonlySet<string>;
+  /** Failed checks on the current head SHA of a Pull request (spec 61, story 14). */
+  failedChecks?: GitHubFailedCheck[];
   links: GitHubSignalWorkLink[];
   records: GitHubSignalRecord[];
   works: GitHubWorkRef[];
@@ -316,6 +321,25 @@ export function deriveAttentionSignals(input: {
           workId: work.id,
         });
       }
+    }
+  }
+  for (const failed of input.failedChecks ?? []) {
+    const record = input.records.find((item) => item.id === failed.recordId);
+    if (
+      record?.kind === "Pull request" &&
+      record.sourceState === "open" &&
+      record.lifecycle === "Active" &&
+      !input.disconnectedLinkIds.has(record.linkId)
+    ) {
+      // The id carries the head SHA: a new push that fails again opens a new
+      // signal, while the old head's signal ends as superseded. Closing or
+      // opening Work stays with spec 62.
+      desired.push({
+        recordId: record.id,
+        signalId: `failed-check:${record.id}:${failed.headSha}:${failed.provider}:${failed.checkId}`,
+        signalType: "failed-check",
+        workId: null,
+      });
     }
   }
   return desired;

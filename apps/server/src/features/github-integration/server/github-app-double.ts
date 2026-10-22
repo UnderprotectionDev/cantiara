@@ -25,6 +25,23 @@ interface DoubleIssue {
   updated_at: string;
 }
 
+interface DoubleCheckRun {
+  app?: { slug: string };
+  conclusion: string | null;
+  html_url: string;
+  id: number;
+  is_required?: boolean;
+  name: string;
+  status: string;
+}
+
+interface DoublePullRequest {
+  checkRuns: DoubleCheckRun[];
+  headSha: string;
+  number: number;
+  statuses: { context: string; state: string; target_url?: string }[];
+}
+
 interface DoubleRepository {
   forbidden?: boolean;
   id: number;
@@ -32,6 +49,7 @@ interface DoubleRepository {
   name: string;
   owner: string;
   private: boolean;
+  pulls: DoublePullRequest[];
 }
 
 interface DoubleInstallation {
@@ -87,6 +105,19 @@ export function createGitHubAppDouble(
     }
     if (repository.forbidden) {
       throw new GitHubRequestError(403);
+    }
+    return repository;
+  };
+
+  const repositoryOf = (call: GitHubCall) => {
+    const installation = installationOfToken(call);
+    const repository = [...installation.repositories.values()].find(
+      (candidate) =>
+        candidate.owner === call.params.owner &&
+        candidate.name === call.params.repo,
+    );
+    if (!repository) {
+      throw new GitHubRequestError(404);
     }
     return repository;
   };
@@ -190,6 +221,31 @@ export function createGitHubAppDouble(
           }
           return Promise.resolve(issue);
         }
+        case "GET /repos/{owner}/{repo}/pulls": {
+          const repository = repositoryOf(call);
+          return Promise.resolve(
+            repository.pulls.map((pull) => ({
+              head: { sha: pull.headSha },
+              number: pull.number,
+            })),
+          );
+        }
+        case "GET /repos/{owner}/{repo}/commits/{ref}/check-runs": {
+          const repository = repositoryOf(call);
+          return Promise.resolve({
+            check_runs: repository.pulls
+              .filter((pull) => pull.headSha === params.ref)
+              .flatMap((pull) => pull.checkRuns),
+          });
+        }
+        case "GET /repos/{owner}/{repo}/commits/{ref}/status": {
+          const repository = repositoryOf(call);
+          return Promise.resolve({
+            statuses: repository.pulls
+              .filter((pull) => pull.headSha === params.ref)
+              .flatMap((pull) => pull.statuses),
+          });
+        }
         case "GET /repos/{owner}/{repo}/git/commits/{commit_sha}": {
           installationOfToken(call);
           return Promise.resolve({
@@ -231,7 +287,7 @@ export function createGitHubAppDouble(
         ...(issue.headBranch === undefined
           ? {}
           : { head: { ref: issue.headBranch } }),
-        html_url: `https://github.com/${repository.owner}/${repository.name}/issues/${issue.number}`,
+        html_url: `https://github.com/${repository.owner}/${repository.name}/${issue.pullRequest ? "pull" : "issues"}/${issue.number}`,
         id: issue.id,
         labels: (issue.labels ?? []).map((name) => ({ name })),
         milestone: issue.milestone ? { title: issue.milestone } : null,
@@ -257,11 +313,60 @@ export function createGitHubAppDouble(
         repositories: new Map(
           repositories.map((repository) => [
             repository.id,
-            { ...repository, issues: [], private: repository.private ?? false },
+            {
+              ...repository,
+              issues: [],
+              private: repository.private ?? false,
+              pulls: [],
+            },
           ]),
         ),
         uninstalled: false,
       });
+    },
+    /** An open Pull request at a head SHA with the checks GitHub shows on it. */
+    setPullRequestChecks(
+      installationId: number,
+      repositoryId: number,
+      pull: {
+        checkRuns?: {
+          appSlug?: string;
+          conclusion?: string | null;
+          id: number;
+          name: string;
+          required?: boolean;
+          status?: string;
+        }[];
+        headSha: string;
+        number: number;
+        statuses?: { context: string; state: string }[];
+      },
+    ) {
+      const repository = installations
+        .get(installationId)
+        ?.repositories.get(repositoryId);
+      if (!repository) {
+        throw new Error("Unknown double repository");
+      }
+      repository.pulls = [
+        ...repository.pulls.filter((item) => item.number !== pull.number),
+        {
+          checkRuns: (pull.checkRuns ?? []).map((run) => ({
+            app: { slug: run.appSlug ?? "github-actions" },
+            conclusion: run.conclusion ?? null,
+            html_url: `https://github.com/${repository.owner}/${repository.name}/runs/${run.id}`,
+            id: run.id,
+            ...(run.required === undefined
+              ? {}
+              : { is_required: run.required }),
+            name: run.name,
+            status: run.status ?? "completed",
+          })),
+          headSha: pull.headSha,
+          number: pull.number,
+          statuses: pull.statuses ?? [],
+        },
+      ];
     },
     /** The Repository is still there but the App may no longer read it (403). */
     forbidRepository(installationId: number, repositoryId: number) {

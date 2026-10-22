@@ -180,6 +180,10 @@ import {
   focusPeriodMembershipInputSchema,
 } from "../focus-period";
 import {
+  gitHubChecksInputSchema,
+  gitHubChecksOutputSchema,
+} from "../github-checks";
+import {
   gitHubAvailableRepositoriesInputSchema,
   gitHubAvailableRepositoriesOutputSchema,
   gitHubDisconnectOutputSchema,
@@ -7032,6 +7036,17 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runGitHubIntegrationOperation(() =>
         requireGitHubIntegration(context).attentionSignals(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectGitHubChecks: protectedProcedure
+    .input(gitHubChecksInputSchema)
+    .output(gitHubChecksOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).checks(
           context.session.user.id,
           input,
         ),
