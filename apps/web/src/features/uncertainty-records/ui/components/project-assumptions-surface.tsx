@@ -5,10 +5,8 @@ import { useRef, useState } from "react";
 import EvidenceFlowPanel from "@/features/evidence/ui/components/evidence-flow-panel";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
-import {
-  type AssumptionDraft,
-  ProjectAssumptionsView,
-} from "./project-assumptions-view";
+import type { AssumptionDraft } from "../forms/assumption-editor-form";
+import { ProjectAssumptionsView } from "./project-assumptions-view";
 
 export default function ProjectAssumptionsSurface({
   projectId,

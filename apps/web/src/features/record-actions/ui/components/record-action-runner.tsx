@@ -9,7 +9,6 @@ import {
   type RecordAction,
   type RecordActionMutationValue,
   type RecordActionPreview,
-  type RecordActionRuntimeInputs,
 } from "@cantiara/api/record-actions";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
@@ -28,47 +27,11 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useEffect, useRef, useState } from "react";
-
+import type { FormEvent } from "react";
+import { DatePicker } from "@/components/date-picker";
 import type { RecordActionRunnerState } from "../../hooks/use-record-action-runner";
-
-interface RuntimeInputDraft {
-  customFieldValues: Record<string, ParsedCustomFieldValuePayload | undefined>;
-  relations: Record<string, string | undefined>;
-}
-
-const EMPTY_RUNTIME_INPUT_DRAFT: RuntimeInputDraft = {
-  customFieldValues: {},
-  relations: {},
-};
-
-function runtimeInputsFromDraft(
-  action: RecordAction,
-  draft: RuntimeInputDraft,
-): RecordActionRuntimeInputs | null {
-  const customFieldValues: Record<string, ParsedCustomFieldValuePayload> = {};
-  const relations: Record<string, { recordId: string; recordType: "Work" }> =
-    {};
-  for (const step of action.steps) {
-    if (
-      step.kind === "custom-field-value" &&
-      step.value.kind === "runtime-input"
-    ) {
-      const value = draft.customFieldValues[step.definitionId];
-      if (!value) {
-        return null;
-      }
-      customFieldValues[step.definitionId] = value;
-    } else if (step.kind === "related-work") {
-      const recordId = draft.relations[step.inputId];
-      if (!recordId) {
-        return null;
-      }
-      relations[step.inputId] = { recordId, recordType: "Work" };
-    }
-  }
-  return { customFieldValues, relations };
-}
+import { useRecordActionRuntimeInputForm } from "../../hooks/use-record-action-runtime-input-form";
+import { recordActionRuntimeInputsFormSchema } from "../../lib/record-action-runtime-inputs";
 
 function RuntimeCustomFieldControl({
   definition,
@@ -85,18 +48,13 @@ function RuntimeCustomFieldControl({
 }) {
   if (definition.type === "Date") {
     return (
-      <Input
-        aria-label={definition.name}
+      <DatePicker
+        ariaLabel={definition.name}
         disabled={disabled}
         id={id}
-        onChange={(event) =>
-          onChange(
-            event.target.value
-              ? { date: event.target.value, kind: "date" }
-              : undefined,
-          )
+        onChange={(next) =>
+          onChange(next ? { date: next, kind: "date" } : undefined)
         }
-        type="date"
         value={value?.kind === "date" ? value.date : ""}
       />
     );
@@ -340,15 +298,15 @@ function RecordActionCurrentValue({
   );
 }
 
+type RuntimeInputForm = ReturnType<typeof useRecordActionRuntimeInputForm>;
+
 function RecordActionRuntimeInputForm({
   active,
-  draft,
-  onDraftChange,
+  form,
   runner,
 }: {
   active: NonNullable<RecordActionRunnerState["active"]>;
-  draft: RuntimeInputDraft;
-  onDraftChange: (draft: RuntimeInputDraft) => void;
+  form: RuntimeInputForm;
   runner: RecordActionRunnerState;
 }) {
   const customFieldSteps = active.action.steps.filter(
@@ -358,7 +316,9 @@ function RecordActionRuntimeInputForm({
   const relatedWorkSteps = active.action.steps.filter(
     (step) => step.kind === "related-work",
   );
-  const runtimeInputs = runtimeInputsFromDraft(active.action, draft);
+  const runtimeInputsSchema = recordActionRuntimeInputsFormSchema(
+    active.action,
+  );
   const availableWorks = runner.runtimeWorks.filter(
     (work) => work.id !== active.work.id,
   );
@@ -373,11 +333,10 @@ function RecordActionRuntimeInputForm({
     <form
       aria-label="Record Action inputs"
       className="space-y-4 rounded-md border p-3"
-      onSubmit={(event) => {
+      onSubmit={(event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (runtimeInputs) {
-          runner.previewWithInputs(runtimeInputs);
-        }
+        event.stopPropagation();
+        form.handleSubmit().catch(() => undefined);
       }}
     >
       <h3 className="font-medium text-sm">Runtime inputs</h3>
@@ -414,21 +373,17 @@ function RecordActionRuntimeInputForm({
             <FieldLabel htmlFor={`record-action-input-${step.definitionId}`}>
               {definition.name}
             </FieldLabel>
-            <RuntimeCustomFieldControl
-              definition={definition}
-              disabled={runner.isPreviewing || isLoading || isUnavailable}
-              id={`record-action-input-${step.definitionId}`}
-              onChange={(value) =>
-                onDraftChange({
-                  ...draft,
-                  customFieldValues: {
-                    ...draft.customFieldValues,
-                    [step.definitionId]: value,
-                  },
-                })
-              }
-              value={draft.customFieldValues[step.definitionId]}
-            />
+            <form.Field name={`customFieldValues.${step.definitionId}`}>
+              {(field) => (
+                <RuntimeCustomFieldControl
+                  definition={definition}
+                  disabled={runner.isPreviewing || isLoading || isUnavailable}
+                  id={`record-action-input-${step.definitionId}`}
+                  onChange={(value) => field.handleChange(value)}
+                  value={field.state.value}
+                />
+              )}
+            </form.Field>
           </Field>
         );
       })}
@@ -441,34 +396,33 @@ function RecordActionRuntimeInputForm({
             <FieldLabel htmlFor={`record-action-input-${step.inputId}`}>
               Related Work
             </FieldLabel>
-            <NativeSelect
-              disabled={
-                runner.isPreviewing ||
-                isLoading ||
-                isUnavailable ||
-                availableWorks.length === 0
-              }
-              id={`record-action-input-${step.inputId}`}
-              onChange={(event) =>
-                onDraftChange({
-                  ...draft,
-                  relations: {
-                    ...draft.relations,
-                    [step.inputId]: event.target.value || undefined,
-                  },
-                })
-              }
-              value={draft.relations[step.inputId] ?? ""}
-            >
-              <NativeSelectOption value="">
-                Choose an existing Work
-              </NativeSelectOption>
-              {availableWorks.map((work) => (
-                <NativeSelectOption key={work.id} value={work.id}>
-                  {work.key} · {work.title}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
+            <form.Field name={`relations.${step.inputId}`}>
+              {(field) => (
+                <NativeSelect
+                  disabled={
+                    runner.isPreviewing ||
+                    isLoading ||
+                    isUnavailable ||
+                    availableWorks.length === 0
+                  }
+                  id={`record-action-input-${step.inputId}`}
+                  name={field.name}
+                  onChange={(event) =>
+                    field.handleChange(event.target.value || undefined)
+                  }
+                  value={field.state.value ?? ""}
+                >
+                  <NativeSelectOption value="">
+                    Choose an existing Work
+                  </NativeSelectOption>
+                  {availableWorks.map((work) => (
+                    <NativeSelectOption key={work.id} value={work.id}>
+                      {work.key} · {work.title}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              )}
+            </form.Field>
             {availableWorks.length === 0 && !isLoading ? (
               <p className="text-muted-foreground text-xs">
                 No other Work records are available in this Project.
@@ -477,14 +431,21 @@ function RecordActionRuntimeInputForm({
           </Field>
         );
       })}
-      <Button
-        disabled={
-          !runtimeInputs || runner.isPreviewing || isLoading || isUnavailable
-        }
-        type="submit"
-      >
-        {runner.isPreviewing ? "Preparing preview…" : "Preview changes"}
-      </Button>
+      <form.Subscribe selector={(state) => state.values}>
+        {(values) => (
+          <Button
+            disabled={
+              !runtimeInputsSchema.safeParse(values).success ||
+              runner.isPreviewing ||
+              isLoading ||
+              isUnavailable
+            }
+            type="submit"
+          >
+            {runner.isPreviewing ? "Preparing preview…" : "Preview changes"}
+          </Button>
+        )}
+      </form.Subscribe>
     </form>
   );
 }
@@ -630,17 +591,7 @@ export function RecordActionRunDialog({
 }: {
   runner: RecordActionRunnerState;
 }) {
-  const [runtimeInputDraft, setRuntimeInputDraft] = useState<RuntimeInputDraft>(
-    EMPTY_RUNTIME_INPUT_DRAFT,
-  );
-  const runVersionRef = useRef(runner.runVersion);
-  useEffect(() => {
-    if (runVersionRef.current === runner.runVersion) {
-      return;
-    }
-    runVersionRef.current = runner.runVersion;
-    setRuntimeInputDraft(EMPTY_RUNTIME_INPUT_DRAFT);
-  }, [runner.runVersion]);
+  const runtimeInputForm = useRecordActionRuntimeInputForm(runner);
   const {
     active,
     error,
@@ -692,8 +643,7 @@ export function RecordActionRunDialog({
           isPreviewing={isPreviewing}
           preview={preview}
           runner={runner}
-          runtimeInputDraft={runtimeInputDraft}
-          setRuntimeInputDraft={setRuntimeInputDraft}
+          runtimeInputForm={runtimeInputForm}
           statusMessage={statusMessage}
         />
         <RecordActionRunDialogFooter
@@ -735,8 +685,7 @@ function RecordActionPreviewContent({
   runner,
   preview,
   active,
-  runtimeInputDraft,
-  setRuntimeInputDraft,
+  runtimeInputForm,
   isFinalizing,
   currentValue,
   statusMessage,
@@ -746,10 +695,7 @@ function RecordActionPreviewContent({
   runner: RecordActionRunnerState;
   preview: RecordActionPreview | null;
   active: NonNullable<RecordActionRunnerState["active"]>;
-  runtimeInputDraft: RuntimeInputDraft;
-  setRuntimeInputDraft: import("react").Dispatch<
-    import("react").SetStateAction<RuntimeInputDraft>
-  >;
+  runtimeInputForm: RuntimeInputForm;
   isFinalizing: boolean;
   currentValue:
     | import("@cantiara/api/mutation-and-undo").MutationTarget<RecordActionMutationValue>
@@ -769,8 +715,7 @@ function RecordActionPreviewContent({
       {runner.needsRuntimeInput && !preview ? (
         <RecordActionRuntimeInputForm
           active={active}
-          draft={runtimeInputDraft}
-          onDraftChange={setRuntimeInputDraft}
+          form={runtimeInputForm}
           runner={runner}
         />
       ) : null}

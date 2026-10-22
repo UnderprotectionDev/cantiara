@@ -132,7 +132,7 @@ describe("Daily Focus selected profile day", () => {
     );
 
     expect(mocks.dayInput).toHaveBeenCalledWith("2026-09-27");
-    expect(html).toContain('value="2026-09-27"');
+    expect(html).toContain("Sep 27, 2026");
     expect(html).toContain("No Work in Daily Focus for this day.");
   });
 

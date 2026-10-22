@@ -14,6 +14,10 @@ import {
 } from "@cantiara/api/moodboard-outline";
 import { MOODBOARD_UI_LABELS, type Moodboard } from "@cantiara/api/moodboards";
 import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
+import {
   DndContext,
   type DragEndEvent,
   KeyboardSensor,
@@ -187,24 +191,29 @@ function ItemRow({ context, dragHandle, index, item }: ItemRowProps) {
           {MOODBOARD_UI_LABELS.moveDown}
         </button>
         {item.kind === "Color Swatch" ? (
-          <label className="inline-flex items-center gap-1 text-xs">
+          <label
+            className="inline-flex items-center gap-1 text-xs"
+            htmlFor={`moodboard-group-${item.id}`}
+          >
             <span>{MOODBOARD_UI_LABELS.group}</span>
-            <select
+            <NativeSelect
               aria-label={`${MOODBOARD_UI_LABELS.group}: ${item.label}`}
-              className="rounded border bg-background px-1 py-1"
               disabled={context.busy}
+              id={`moodboard-group-${item.id}`}
               onChange={(event) =>
                 context.onGroup(item.id, event.target.value || null)
               }
               value={item.sectionKey === "ungrouped" ? "" : item.sectionKey}
             >
-              <option value="">{MOODBOARD_UI_LABELS.noPaletteGroup}</option>
+              <NativeSelectOption value="">
+                {MOODBOARD_UI_LABELS.noPaletteGroup}
+              </NativeSelectOption>
               {context.moodboard.paletteGroups.map((group) => (
-                <option key={group.id} value={group.id}>
+                <NativeSelectOption key={group.id} value={group.id}>
                   {group.name}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         ) : null}
         <button

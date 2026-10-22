@@ -1,25 +1,18 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Outline rows bind their own card to each action.
+
 import type {
   ProjectWallCardView,
   ProjectWallLinkView,
   ProjectWallView,
 } from "@cantiara/api/project-wall";
 import { Button } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
-import { Label } from "@cantiara/ui/components/label";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { observeElementRect, useVirtualizer } from "@tanstack/react-virtual";
-import {
-  type FormEvent,
-  type KeyboardEvent,
-  type ReactNode,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { type KeyboardEvent, type ReactNode, useRef, useState } from "react";
+import { AppLink } from "@/components/app-link";
 
 import {
   buildOutline,
@@ -27,6 +20,8 @@ import {
   moveInOutline,
   type OutlineRow,
 } from "../../lib/project-wall-outline";
+import BindLinkForm from "../forms/bind-link-form";
+import GroupSelectionForm from "../forms/group-selection-form";
 import {
   ProjectWallCard,
   type ProjectWallCardActions,
@@ -160,13 +155,13 @@ function CardRow({
         Inspect
       </Button>
       {canOpen ? (
-        <a
+        <AppLink
           aria-label={`Open Source Record: ${title}`}
           className="text-primary text-xs underline"
           href={openPath ?? ""}
         >
           Open Source Record
-        </a>
+        </AppLink>
       ) : null}
       <span className="sr-only">
         Position {order.indexOf(card.id) + 1} of {order.length}
@@ -378,116 +373,6 @@ function VirtualOutline({
   );
 }
 
-function GroupSelectionForm({
-  onGroupSelection,
-  selection,
-}: {
-  onGroupSelection: ProjectWallOutlineActions["onGroupSelection"];
-  selection: readonly string[];
-}) {
-  const id = useId();
-  const [title, setTitle] = useState("");
-  const ready = title.trim() !== "" && selection.length > 0;
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!ready) {
-      return;
-    }
-    if (await onGroupSelection(title.trim(), [...selection])) {
-      // Only a persisted group clears the draft; a failed write keeps it.
-      setTitle("");
-    }
-  }
-  return (
-    <form
-      aria-label="Group selection"
-      className="flex flex-wrap items-end gap-2"
-      onSubmit={submit}
-    >
-      <div className="space-y-1">
-        <Label htmlFor={id}>Group name</Label>
-        <Input
-          id={id}
-          onChange={(event) => setTitle(event.target.value)}
-          value={title}
-        />
-      </div>
-      <Button disabled={!ready} type="submit" variant="outline">
-        Group selection
-      </Button>
-      <span className="text-muted-foreground text-xs">
-        {selection.length} selected
-      </span>
-    </form>
-  );
-}
-
-function BindForm({
-  actions,
-  card,
-  cards,
-}: {
-  actions: ProjectWallOutlineActions;
-  card: ProjectWallCardView;
-  cards: ProjectWallCardView[];
-}) {
-  const toId = useId();
-  const labelId = useId();
-  const [to, setTo] = useState("");
-  const [label, setLabel] = useState("");
-  const ready = to !== "" && to !== card.id && label.trim() !== "";
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!ready) {
-      return;
-    }
-    await actions.onDrawLink({
-      fromCardId: card.id,
-      label: label.trim(),
-      toCardId: to,
-    });
-    setLabel("");
-  }
-  return (
-    <form
-      aria-label="Bind Visual link"
-      className="flex flex-wrap items-end gap-2"
-      onSubmit={submit}
-    >
-      <p className="text-xs">From: {cardTitle(card)}</p>
-      <div className="space-y-1">
-        <Label htmlFor={toId}>To</Label>
-        <NativeSelect
-          id={toId}
-          onChange={(event) => setTo(event.target.value)}
-          value={to}
-        >
-          <NativeSelectOption value="">Select a card</NativeSelectOption>
-          {cards
-            .filter(({ id }) => id !== card.id)
-            .map((other) => (
-              <NativeSelectOption key={other.id} value={other.id}>
-                {other.sourceType} · {cardTitle(other)}
-              </NativeSelectOption>
-            ))}
-        </NativeSelect>
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor={labelId}>Label</Label>
-        <Input
-          id={labelId}
-          maxLength={120}
-          onChange={(event) => setLabel(event.target.value)}
-          value={label}
-        />
-      </div>
-      <Button disabled={!ready} type="submit" variant="outline">
-        Bind
-      </Button>
-    </form>
-  );
-}
-
 function LinkList({
   actions,
   card,
@@ -554,10 +439,10 @@ function Inspector({
         cards={context.wall.cards}
         links={context.wall.links}
       />
-      <BindForm
-        actions={context.actions}
+      <BindLinkForm
         card={card}
         cards={context.wall.cards}
+        onDrawLink={context.actions.onDrawLink}
       />
     </section>
   );

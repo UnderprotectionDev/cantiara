@@ -19,6 +19,7 @@ export default function TestAssessmentsSurface({
     input: { projectId },
   });
   const assessments = useQuery(options);
+  const preferences = useQuery(orpc.accountPreferences.queryOptions());
   const loadContextTargets = useCallback(
     (kind: TestAssessmentContextKind) =>
       client.testAssessmentContextTargets({ kind, projectId }),
@@ -49,6 +50,7 @@ export default function TestAssessmentsSurface({
         await runOnlineOnlyWrite(() => client.recordTestAssessment(input));
         await queryClient.invalidateQueries({ queryKey: options.queryKey });
       }}
+      preferences={preferences.data}
     />
   );
 }

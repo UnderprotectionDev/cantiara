@@ -23,6 +23,7 @@ import {
 } from "@tanstack/react-router";
 import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
+import type { WorkStatusActionRequest } from "@/components/work-status-form";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
 import ProjectDecisionsSurface from "@/features/decisions/ui/components/project-decisions-surface";
 import FeedSurface from "@/features/feedback/ui/components/feed-surface";
@@ -92,7 +93,6 @@ import { ClientShellStatus } from "@/features/web-macos-client/ui/components/cli
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
 import ScopeTreeView from "@/features/work-lifecycle/ui/components/scope-tree";
-import type { WorkStatusActionRequest } from "@/features/work-lifecycle/ui/forms/work-status-form";
 
 const PriorityMap = lazy(
   () => import("@/features/priority-metrics/ui/components/priority-map"),

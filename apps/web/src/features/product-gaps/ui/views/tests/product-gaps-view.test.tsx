@@ -5,6 +5,7 @@ import type {
   ProductGapFollowUpPlan,
   ProductGapRecord,
 } from "@cantiara/api/product-gaps";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
@@ -77,6 +78,7 @@ let root: Root | undefined;
 let host: HTMLDivElement | undefined;
 
 afterEach(() => {
+  vi.useRealTimers();
   act(() => root?.unmount());
   host?.remove();
 });
@@ -98,27 +100,33 @@ function mount(props: Partial<Parameters<typeof ProductGapsView>[0]> = {}) {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   act(() => {
     root?.render(
-      <ProductGapsView
-        formatDateTime={computeTestDateTime}
-        gaps={[]}
-        loadEscapes={vi.fn().mockResolvedValue([])}
-        loadTargets={loadTargets}
-        onConfirmFollowUp={vi.fn().mockResolvedValue(undefined)}
-        onFilterChange={vi.fn()}
-        onPreviewFollowUp={vi.fn().mockResolvedValue(workPlan)}
-        onRecord={vi.fn().mockResolvedValue(undefined)}
-        onSetStatus={vi.fn().mockResolvedValue(undefined)}
-        tools={["Spreadsheet"]}
-        {...props}
-      />,
+      <QueryClientProvider client={queryClient}>
+        <ProductGapsView
+          formatDateTime={computeTestDateTime}
+          gaps={[]}
+          loadEscapes={vi.fn().mockResolvedValue([])}
+          loadTargets={loadTargets}
+          onConfirmFollowUp={vi.fn().mockResolvedValue(undefined)}
+          onFilterChange={vi.fn()}
+          onPreviewFollowUp={vi.fn().mockResolvedValue(workPlan)}
+          onRecord={vi.fn().mockResolvedValue(undefined)}
+          onSetStatus={vi.fn().mockResolvedValue(undefined)}
+          tools={["Spreadsheet"]}
+          {...props}
+        />
+      </QueryClientProvider>,
     );
   });
 }
 
 function setValue(id: string, value: string) {
-  const field = document.getElementById(id) as
+  const field = (document.getElementById(id) ??
+    document.querySelector(`[aria-label="${id}"]`)) as
     | HTMLInputElement
     | HTMLTextAreaElement
     | HTMLSelectElement
@@ -144,6 +152,12 @@ function setValue(id: string, value: string) {
   });
 }
 
+async function settle() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 async function click(label: string) {
   const button = [...document.querySelectorAll("button")].find(
     (item) =>
@@ -154,13 +168,13 @@ async function click(label: string) {
   }
   await act(async () => {
     button.click();
-    await Promise.resolve();
+    await settle();
   });
 }
 
 async function flush() {
   await act(async () => {
-    await Promise.resolve();
+    await settle();
   });
 }
 
@@ -217,7 +231,7 @@ function check(reason: string) {
 
 async function fillEscape() {
   await flush();
-  setValue("product-gap-escape-occurred", "2026-10-01T09:30");
+  setValue("Occurred at time", "09:30");
   setValue("product-gap-escape-tool", "Spreadsheet");
   setValue("product-gap-escape-source", "p1");
   setValue("product-gap-escape-job", "Bulk rename forty Works");
@@ -228,6 +242,8 @@ async function fillEscape() {
 
 test("submits a new Product Gap with its Tool Escape and the chosen records", async () => {
   const onRecord = vi.fn().mockResolvedValue(undefined);
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 9, 1, 8, 0));
   mount({ onRecord });
   await flush();
 
@@ -304,7 +320,10 @@ test("every Tool Escape and filter control has a visible label for keyboard and 
   );
   expect(controls.length).toBeGreaterThan(8);
   for (const control of controls) {
-    expect((control as HTMLInputElement).labels?.length).toBeGreaterThan(0);
+    expect(
+      (control as HTMLInputElement).labels?.length ||
+        control.getAttribute("aria-label"),
+    ).toBeTruthy();
   }
   expect(
     document.querySelectorAll('input[type="checkbox"]').length,

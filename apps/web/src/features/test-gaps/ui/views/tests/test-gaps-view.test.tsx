@@ -7,10 +7,17 @@ import type {
   TestHandoffRecord,
 } from "@cantiara/api/planned-tests";
 import type { TestGapRecord } from "@cantiara/api/test-gaps";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
 import { TestGapsView } from "../test-gaps-view";
+
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -140,28 +147,40 @@ const loadTargets = () =>
     },
   ]);
 
+async function settle() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function mount(props: Partial<Parameters<typeof TestGapsView>[0]> = {}) {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
   act(() => {
     root?.render(
-      <TestGapsView
-        cases={plannedCases}
-        gaps={[]}
-        handoffs={handoffRecords}
-        loadDecisions={loadDecisions}
-        loadTargets={loadTargets}
-        onClose={vi.fn().mockResolvedValue(undefined)}
-        onCreate={vi.fn().mockResolvedValue(undefined)}
-        onPlanCase={vi.fn().mockResolvedValue(undefined)}
-        onPlanHandoff={vi.fn().mockResolvedValue(undefined)}
-        onUnplanCase={vi.fn().mockResolvedValue(undefined)}
-        onUnplanHandoff={vi.fn().mockResolvedValue(undefined)}
-        readOnly={false}
-        sessionTests={sessionTestRecords}
-        {...props}
-      />,
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <TestGapsView
+          cases={plannedCases}
+          gaps={[]}
+          handoffs={handoffRecords}
+          loadDecisions={loadDecisions}
+          loadTargets={loadTargets}
+          onClose={vi.fn().mockResolvedValue(undefined)}
+          onCreate={vi.fn().mockResolvedValue(undefined)}
+          onPlanCase={vi.fn().mockResolvedValue(undefined)}
+          onPlanHandoff={vi.fn().mockResolvedValue(undefined)}
+          onUnplanCase={vi.fn().mockResolvedValue(undefined)}
+          onUnplanHandoff={vi.fn().mockResolvedValue(undefined)}
+          readOnly={false}
+          sessionTests={sessionTestRecords}
+          {...props}
+        />
+      </QueryClientProvider>,
     );
   });
 }
@@ -196,7 +215,7 @@ async function submit(formLabel: string) {
     form.dispatchEvent(
       new Event("submit", { bubbles: true, cancelable: true }),
     );
-    await Promise.resolve();
+    await settle();
   });
 }
 
@@ -223,7 +242,7 @@ test("files a Gap with the typed text and the chosen support relation", async ()
   const onCreate = vi.fn().mockResolvedValue(undefined);
   mount({ onCreate });
   await act(async () => {
-    await Promise.resolve();
+    await settle();
   });
 
   setValue("test-gap-new-title", "Mobile coupon stacking untested");
@@ -239,7 +258,7 @@ test("files a Gap with the typed text and the chosen support relation", async ()
     [...document.querySelectorAll("button")]
       .find((item) => item.textContent === "Add support relation")
       ?.click();
-    await Promise.resolve();
+    await settle();
   });
   await submit("File Test Gap");
 
@@ -354,7 +373,7 @@ function press(label: string) {
     [...document.querySelectorAll("button")]
       .find((item) => item.textContent === label)
       ?.click();
-    await Promise.resolve();
+    await settle();
   });
 }
 
@@ -441,7 +460,7 @@ test("removes a link with an accessible name and shows a refusal", async () => {
   ) as HTMLButtonElement;
   await act(async () => {
     remove.click();
-    await Promise.resolve();
+    await settle();
   });
 
   expect(onUnplanHandoff).toHaveBeenCalledWith(expect.anything(), "h1");
@@ -500,7 +519,7 @@ async function openClose() {
         'button[aria-label="Close Mobile coupon stacking untested"]',
       ) as HTMLButtonElement
     ).click();
-    await Promise.resolve();
+    await settle();
   });
 }
 
@@ -540,7 +559,7 @@ test("Not needed asks for a rationale and an optional Decision and selects no Se
 
   chooseOutcome("Not needed");
   await act(async () => {
-    await Promise.resolve();
+    await settle();
   });
 
   expect(document.body.textContent).not.toContain(

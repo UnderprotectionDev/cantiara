@@ -10,13 +10,14 @@ import {
   type RelationKind,
 } from "@cantiara/api/relations";
 import { Button } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
-import { Label } from "@cantiara/ui/components/label";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { type FormEvent, useState } from "react";
+import { useState } from "react";
+import { cardName } from "../../lib/project-wall-narrative-labels";
+import CreateGroupForm from "../forms/create-group-form";
+import DrawLinkForm from "../forms/draw-link-form";
 import type { ProjectWallSceneWall } from "./project-wall-scene";
 
 /** Wall narrative actions: none of them edits a source record. `onX`
@@ -43,89 +44,6 @@ export interface ProjectWallNarrativeActions {
   }) => Promise<ProjectWallRelationPreview | undefined>;
   onToggleGroup: (groupId: string, collapsed: boolean) => Promise<unknown>;
   onUnbindLink: (linkId: string) => Promise<boolean>;
-}
-
-function cardName(card: ProjectWallCardView | undefined) {
-  return card?.source.title ?? card?.source.recordId ?? "Unavailable record";
-}
-
-function cardOptionLabel(card: ProjectWallCardView) {
-  return `${card.sourceType} · ${cardName(card)}`;
-}
-
-function DrawLinkForm({
-  cards,
-  onDrawLink,
-}: {
-  cards: ProjectWallCardView[];
-  onDrawLink: ProjectWallNarrativeActions["onDrawLink"];
-}) {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [label, setLabel] = useState("");
-  const ready = from !== "" && to !== "" && from !== to && label.trim() !== "";
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!ready) {
-      return;
-    }
-    if (
-      await onDrawLink({ fromCardId: from, label: label.trim(), toCardId: to })
-    ) {
-      // Only a persisted link clears the label; endpoints stay selected.
-      setLabel("");
-    }
-  }
-  return (
-    <form
-      aria-label="Add Visual link"
-      className="flex flex-wrap items-end gap-2"
-      onSubmit={submit}
-    >
-      <div className="space-y-1">
-        <Label htmlFor="project-wall-link-from">From</Label>
-        <NativeSelect
-          id="project-wall-link-from"
-          onChange={(event) => setFrom(event.target.value)}
-          value={from}
-        >
-          <NativeSelectOption value="">Select a card</NativeSelectOption>
-          {cards.map((card) => (
-            <NativeSelectOption key={card.id} value={card.id}>
-              {cardOptionLabel(card)}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="project-wall-link-to">To</Label>
-        <NativeSelect
-          id="project-wall-link-to"
-          onChange={(event) => setTo(event.target.value)}
-          value={to}
-        >
-          <NativeSelectOption value="">Select a card</NativeSelectOption>
-          {cards.map((card) => (
-            <NativeSelectOption key={card.id} value={card.id}>
-              {cardOptionLabel(card)}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="project-wall-link-label">Label</Label>
-        <Input
-          id="project-wall-link-label"
-          maxLength={120}
-          onChange={(event) => setLabel(event.target.value)}
-          value={label}
-        />
-      </div>
-      <Button disabled={!ready} type="submit" variant="outline">
-        Add Visual link
-      </Button>
-    </form>
-  );
 }
 
 function RelationPreviewPanel({
@@ -264,37 +182,9 @@ function GroupsPanel({
   /** The wall the account sees; its group collapse is this account's view. */
   wall: ProjectWallSceneWall;
 }) {
-  const [title, setTitle] = useState("");
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const name = title.trim();
-    if (!name) {
-      return;
-    }
-    if (await actions.onCreateGroup(name)) {
-      // Only a persisted group clears the draft; a failed write keeps it.
-      setTitle("");
-    }
-  }
   return (
     <div className="space-y-2">
-      <form
-        aria-label="Create Group"
-        className="flex flex-wrap items-end gap-2"
-        onSubmit={submit}
-      >
-        <div className="space-y-1">
-          <Label htmlFor="project-wall-group-title">Group name</Label>
-          <Input
-            id="project-wall-group-title"
-            onChange={(event) => setTitle(event.target.value)}
-            value={title}
-          />
-        </div>
-        <Button type="submit" variant="outline">
-          Create Group
-        </Button>
-      </form>
+      <CreateGroupForm onCreateGroup={actions.onCreateGroup} />
       {wall.groups.length > 0 ? (
         <ul aria-label="Groups" className="flex flex-wrap gap-2 text-sm">
           {wall.groups.map((group) => {

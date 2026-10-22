@@ -6,8 +6,6 @@ import {
 } from "@cantiara/api/moodboard-snapshot";
 import {
   cropPixelRect,
-  cropToInsets,
-  insetsToCrop,
   isDefaultVisualView,
   presentationSequence,
   rotateQuarterTurn,
@@ -19,16 +17,13 @@ import {
   type MoodboardVisual,
 } from "@cantiara/api/moodboards";
 import { Button } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
-import { Label } from "@cantiara/ui/components/label";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useEffect, useRef, useState } from "react";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
+import VisualCropForm from "../forms/visual-crop-form";
 
 type MoodboardsApi = ReturnType<typeof useMoodboards>;
-
-const BASIS_POINTS_PER_PERCENT = 100;
-const INSET_EDGES = ["top", "right", "bottom", "left"] as const;
 
 /**
  * Draws one external-link visual the way this Moodboard view presents it
@@ -113,23 +108,10 @@ export function VisualViewTools({
   moodboard: Moodboard;
 }) {
   const [cropOpen, setCropOpen] = useState(false);
-  const [insets, setInsets] = useState(() => cropToInsets(item.view.crop));
-  const [invalid, setInvalid] = useState(false);
   const idPrefix = `moodboard-crop-${item.id}`;
 
   function save(view: VisualView) {
     api.setVisualView.mutate({ itemId: item.id, moodboard, view });
-  }
-
-  function applyCrop() {
-    const crop = insetsToCrop(insets);
-    if (crop === "invalid") {
-      setInvalid(true);
-      return;
-    }
-    setInvalid(false);
-    save({ crop, rotation: item.view.rotation });
-    setCropOpen(false);
   }
 
   return (
@@ -167,43 +149,15 @@ export function VisualViewTools({
           </span>
         )}
       </div>
-      {cropOpen ? (
-        <fieldset className="grid grid-cols-4 gap-2">
-          <legend className="text-sm">
-            {MOODBOARD_UI_LABELS.crop} (percent cut from each edge)
-          </legend>
-          {INSET_EDGES.map((edge) => (
-            <div className="space-y-1" key={edge}>
-              <Label className="capitalize" htmlFor={`${idPrefix}-${edge}`}>
-                {edge}
-              </Label>
-              <Input
-                id={`${idPrefix}-${edge}`}
-                max={99}
-                min={0}
-                onChange={(event) =>
-                  setInsets((current) => ({
-                    ...current,
-                    [edge]: Math.round(
-                      Number(event.target.value) * BASIS_POINTS_PER_PERCENT,
-                    ),
-                  }))
-                }
-                type="number"
-                value={insets[edge] / BASIS_POINTS_PER_PERCENT}
-              />
-            </div>
-          ))}
-          <div className="col-span-4 flex items-center gap-2">
-            <Button onClick={applyCrop} type="button">
-              Apply
-            </Button>
-            {invalid ? (
-              <span role="alert">Crop must leave part of the image.</span>
-            ) : null}
-          </div>
-        </fieldset>
-      ) : null}
+      <VisualCropForm
+        idPrefix={idPrefix}
+        onApply={(view) => {
+          save(view);
+          setCropOpen(false);
+        }}
+        open={cropOpen}
+        view={item.view}
+      />
     </div>
   );
 }
@@ -437,11 +391,15 @@ export function SnapshotPanel({
           Items in this {MOODBOARD_SNAPSHOT_LABELS.snapshot}
         </legend>
         {moodboard.items.map((item) => (
-          <label className="flex items-center gap-2" key={item.id}>
-            <input
+          <label
+            className="flex items-center gap-2"
+            htmlFor={`moodboard-snapshot-item-${item.id}`}
+            key={item.id}
+          >
+            <Checkbox
               checked={selected.includes(item.id)}
-              onChange={() => toggle(item.id)}
-              type="checkbox"
+              id={`moodboard-snapshot-item-${item.id}`}
+              onCheckedChange={() => toggle(item.id)}
             />
             {item.kind === "Visual"
               ? (item.caption ?? `Visual ${item.position + 1}`)

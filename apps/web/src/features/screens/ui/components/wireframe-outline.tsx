@@ -5,7 +5,8 @@ import {
   type WireframeBlock,
 } from "@cantiara/api/wireframe-document";
 import { Button } from "@cantiara/ui/components/button";
-import { type MouseEvent, useSyncExternalStore } from "react";
+import { useSelector } from "@tanstack/react-store";
+import type { MouseEvent } from "react";
 import type { WireframeEditor } from "../../engine/editor";
 import {
   ALIGN_LABELS,
@@ -162,16 +163,8 @@ export function WireframeOutline({
   readOnly,
   viewport,
 }: WireframeOutlineProps) {
-  const state = useSyncExternalStore(
-    editor.subscribe,
-    editor.getState,
-    editor.getState,
-  );
-  const view = useSyncExternalStore(
-    viewport.subscribe,
-    viewport.getState,
-    viewport.getState,
-  );
+  const state = useSelector(editor.store);
+  const view = useSelector(viewport.store);
   const [selectedId] = state.selection;
   const single = state.selection.length === 1;
 

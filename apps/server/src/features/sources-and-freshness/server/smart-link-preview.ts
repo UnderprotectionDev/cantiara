@@ -6,6 +6,12 @@ import {
 } from "@cantiara/api/smart-link-preview";
 import { Parser } from "htmlparser2";
 import ipaddr from "ipaddr.js";
+import { z } from "zod";
+
+const youTubeOEmbedSchema = z.object({
+  thumbnail_url: z.string().catch(""),
+  title: z.string().refine((title) => title.trim().length > 0),
+});
 
 export interface PreviewTransport {
   request: (
@@ -257,23 +263,16 @@ async function youtubePreview(
     ) {
       throw new Error("Unsupported provider response");
     }
-    const info: unknown = JSON.parse(
-      new TextDecoder("utf-8", { fatal: true }).decode(response.body),
+    const info = youTubeOEmbedSchema.safeParse(
+      JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(response.body),
+      ),
     );
-    if (
-      !info ||
-      typeof info !== "object" ||
-      !("title" in info) ||
-      typeof info.title !== "string" ||
-      !info.title.trim()
-    ) {
+    if (!info.success) {
       throw new Error("Unavailable video");
     }
-    const title = info.title.trim().slice(0, 255);
-    const imageUrl =
-      "thumbnail_url" in info && typeof info.thumbnail_url === "string"
-        ? info.thumbnail_url
-        : "";
+    const title = info.data.title.trim().slice(0, 255);
+    const imageUrl = info.data.thumbnail_url;
     const image = await safePreviewImage(imageUrl, network, signal, budget);
     return {
       ...fallback,

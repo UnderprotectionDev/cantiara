@@ -12,7 +12,7 @@ import ProjectSmartCollectionsSurface, {
 } from "../project-smart-collections-surface";
 
 // Favorites has its own membership seam; this suite exercises subscriptions.
-vi.mock("@/features/favorites/ui/components/favorite-control", () => ({
+vi.mock("@/components/favorite-control", () => ({
   default: () => null,
 }));
 
@@ -86,6 +86,14 @@ function inputWithId(markup: string, id: string) {
   return markup.match(new RegExp(`<input\\b(?=[^>]*\\bid="${id}")[^>]*>`))?.[0];
 }
 
+function checkboxWithDescription(markup: string, id: string) {
+  return markup.match(
+    new RegExp(
+      `<span\\b(?=[^>]*\\brole="checkbox")(?=[^>]*\\baria-describedby="${id}")[^>]*>`,
+    ),
+  )?.[0];
+}
+
 function subscriptionMutationConfig():
   | {
       mutationFn: (input: {
@@ -103,8 +111,8 @@ function subscriptionMutationConfig():
         }) => Promise<unknown>;
       },
   );
-  // The create-form mutation ignores its input; the subscription mutation takes one.
-  return configs.find((config) => config.mutationFn.length === 1);
+  // The create form registers its mutation first; the view card's subscription mutation is last.
+  return configs.at(-1);
 }
 
 describe("Smart Collection subscription controls", () => {
@@ -138,9 +146,12 @@ describe("Smart Collection subscription controls", () => {
 
     expect(markup).toContain("Subscribe");
     expect(markup).toContain("Notify on leave");
-    expect(notifyOnLeave).toContain(
-      'aria-describedby="smart-collection-notify-on-leave-view-1-description"',
-    );
+    expect(
+      checkboxWithDescription(
+        markup,
+        "smart-collection-notify-on-leave-view-1-description",
+      ),
+    ).toBeDefined();
     expect(notifyOnLeave).toContain('disabled=""');
     expect(markup).toContain("Turn on Subscribe first.");
   });

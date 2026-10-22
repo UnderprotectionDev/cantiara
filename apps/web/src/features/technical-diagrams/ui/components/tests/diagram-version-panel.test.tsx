@@ -185,7 +185,7 @@ describe("Sequence lifeline bind with a Diagram Version", () => {
     const form = container.querySelector('form[aria-label="Add participant"]');
     const select = [...(form?.querySelectorAll("select") ?? [])].find(
       (item) =>
-        item.previousElementSibling?.textContent ===
+        item.parentElement?.previousElementSibling?.textContent ===
         "Bind to Architecture node",
     );
     expect(select?.textContent).toContain(

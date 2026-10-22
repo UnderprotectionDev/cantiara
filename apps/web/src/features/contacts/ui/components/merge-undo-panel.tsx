@@ -6,6 +6,10 @@ import type {
   UndoMergeInput,
   UndoMergeResult,
 } from "@cantiara/api/contacts";
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from "@cantiara/ui/components/radio-group";
 import { useState } from "react";
 
 /**
@@ -117,17 +121,27 @@ export default function MergeUndoPanel({
             Now {conflict.currentValue ?? "empty"}; before the merge{" "}
             {conflict.previousValue ?? "empty"}.
           </p>
-          {RESOLUTIONS.map((option) => (
-            <label className="flex items-center gap-2" key={option}>
-              <input
-                checked={resolution === option}
-                name="display-name-resolution"
-                onChange={() => setResolution(option)}
-                type="radio"
-              />
-              {option}
-            </label>
-          ))}
+          <RadioGroup
+            name="display-name-resolution"
+            onValueChange={(value) =>
+              setResolution(RESOLUTIONS.find((item) => item === value) ?? null)
+            }
+            value={resolution ?? ""}
+          >
+            {RESOLUTIONS.map((option, index) => (
+              <label
+                className="flex items-center gap-2"
+                htmlFor={`display-name-resolution-${index}`}
+                key={option}
+              >
+                <RadioGroupItem
+                  id={`display-name-resolution-${index}`}
+                  value={option}
+                />
+                {option}
+              </label>
+            ))}
+          </RadioGroup>
         </fieldset>
       ) : null}
       <div className="flex gap-3">

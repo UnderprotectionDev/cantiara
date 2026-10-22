@@ -16,6 +16,7 @@ import {
   type UniversalSearchResult,
 } from "@cantiara/api/record-discovery";
 import { Button } from "@cantiara/ui/components/button";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ import {
   type ChangeEvent,
   type ReactNode,
   useCallback,
+  useId,
   useMemo,
   useState,
 } from "react";
@@ -214,11 +216,12 @@ function ArchivedFilter({
   onChange,
 }: {
   checked: boolean;
-  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onChange: (checked: boolean) => void;
 }) {
+  const id = useId();
   return (
-    <Label>
-      <input checked={checked} onChange={onChange} type="checkbox" />
+    <Label htmlFor={id}>
+      <Checkbox checked={checked} id={id} onCheckedChange={onChange} />
       Archived
     </Label>
   );
@@ -275,7 +278,7 @@ function SearchPanel({
 }: {
   archived: boolean;
   failed: boolean;
-  onChangeArchived: (event: ChangeEvent<HTMLInputElement>) => void;
+  onChangeArchived: (checked: boolean) => void;
   onChangeQuery: (event: ChangeEvent<HTMLInputElement>) => void;
   onOpenSource: () => void;
   pending: boolean;
@@ -402,7 +405,7 @@ function IndexPanel({
   folder: string;
   folders: string[];
   index: RecordDiscoveryIndex;
-  onChangeArchived: (event: ChangeEvent<HTMLInputElement>) => void;
+  onChangeArchived: (checked: boolean) => void;
   onChangeFolder: (event: ChangeEvent<HTMLSelectElement>) => void;
   onChangeScope: (event: ChangeEvent<HTMLSelectElement>) => void;
   onChangeType: (event: ChangeEvent<HTMLSelectElement>) => void;
@@ -473,8 +476,8 @@ function DiscoverySurface({
       setScope(parseDiscoveryScope(event.target.value)),
     [],
   );
-  const changeArchived = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    setArchived(event.target.checked);
+  const changeArchived = useCallback((checked: boolean) => {
+    setArchived(checked);
   }, []);
   let content: ReactNode;
   if (view === "Search") {
@@ -545,7 +548,7 @@ function RecordSearchSurface({
   accountId: string;
   archived: boolean;
   currentProjectId?: string;
-  onChangeArchived: (event: ChangeEvent<HTMLInputElement>) => void;
+  onChangeArchived: (checked: boolean) => void;
   onChangeQuery: (event: ChangeEvent<HTMLInputElement>) => void;
   onOpenSource: () => void;
   query: string;
@@ -592,7 +595,7 @@ function RecordIndexSurface({
   archived: boolean;
   currentProjectId?: string;
   index: RecordDiscoveryIndex;
-  onChangeArchived: (event: ChangeEvent<HTMLInputElement>) => void;
+  onChangeArchived: (checked: boolean) => void;
   onChangeScope: (event: ChangeEvent<HTMLSelectElement>) => void;
   onOpenSource: () => void;
   scope: RecordDiscoveryScope;

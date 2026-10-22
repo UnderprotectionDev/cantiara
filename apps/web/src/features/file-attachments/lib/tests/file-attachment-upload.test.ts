@@ -157,4 +157,36 @@ describe("File Attachment upload", () => {
     ).rejects.toMatchObject({ name: "AbortError" });
     expect(finalize).not.toHaveBeenCalled();
   });
+  test("sends an empty file and an unknown type to staging unchanged", async () => {
+    const request = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const form = init?.body as FormData;
+      expect((form.get("file") as File).size).toBe(0);
+      expect(form.get("declaredMimeType")).toBe("application/octet-stream");
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            fileName: "empty",
+            mode: "new",
+            status: "Uploading",
+            uploadId: "upload-2",
+          }),
+          { headers: { "content-type": "application/json" }, status: 200 },
+        ),
+      );
+    });
+    const finalize = vi.fn(
+      async (_input: FileAttachmentFinalizeInput) => receipt,
+    );
+
+    await uploadFileAttachment(new File([], "empty"), projectScope, {
+      finalize,
+      request,
+      serverURL: "http://localhost:3000",
+    });
+
+    expect(request).toHaveBeenCalledOnce();
+    expect(finalize).toHaveBeenCalledWith(
+      expect.objectContaining({ uploadId: "upload-2" }),
+    );
+  });
 });

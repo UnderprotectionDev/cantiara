@@ -4,6 +4,7 @@ import type {
   PlannedTestCaseRecord,
   PlannedTestCaseVersionRecord,
 } from "@cantiara/api/planned-tests";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
@@ -72,20 +73,32 @@ afterEach(() => {
 
 const loadTargets = () => Promise.resolve([]);
 
+async function settle() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function mount(props: Partial<Parameters<typeof PlannedTestsView>[0]> = {}) {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
   act(() => {
     root?.render(
-      <PlannedTestsView
-        cases={[]}
-        loadTargets={loadTargets}
-        onCreate={vi.fn().mockResolvedValue(undefined)}
-        onCreateVersion={vi.fn().mockResolvedValue(undefined)}
-        readOnly={false}
-        {...props}
-      />,
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <PlannedTestsView
+          cases={[]}
+          loadTargets={loadTargets}
+          onCreate={vi.fn().mockResolvedValue(undefined)}
+          onCreateVersion={vi.fn().mockResolvedValue(undefined)}
+          readOnly={false}
+          {...props}
+        />
+      </QueryClientProvider>,
     );
   });
 }
@@ -116,7 +129,7 @@ async function submit(formLabel: string) {
     form.dispatchEvent(
       new Event("submit", { bubbles: true, cancelable: true }),
     );
-    await Promise.resolve();
+    await settle();
   });
 }
 
@@ -229,7 +242,7 @@ test("New version opens a prefilled form, moves focus to Title and saves the cho
         "planned-test-c1-kind-Editorial change",
       ) as HTMLInputElement
     ).click();
-    await Promise.resolve();
+    await settle();
   });
   await submit("New version of Checkout with a saved card");
 

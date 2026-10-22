@@ -11,6 +11,7 @@ import type {
   WireframeBlock,
   WireframeDocument,
 } from "@cantiara/api/wireframe-document";
+import { createStore } from "@tanstack/react-store";
 
 export const KEYBOARD_PAN_STEP = 80;
 export const KEYBOARD_ZOOM_FACTOR = 1.25;
@@ -22,21 +23,17 @@ export const KEYBOARD_ZOOM_FACTOR = 1.25;
  * undo step, and a geometry write never touches this state.
  */
 export function createViewportSession(initial: WireframeViewport) {
-  let state = initial;
-  const listeners = new Set<() => void>();
+  const store = createStore<WireframeViewport>(initial);
 
   function set(next: WireframeViewport) {
-    state = next;
-    for (const listener of listeners) {
-      listener();
-    }
+    store.setState(() => next);
     return next;
   }
 
   return {
     /** `Fit View`: the neutral view; view-local collapse is kept. */
     fitView(canvas: WireframeDocument["canvas"]) {
-      return set(neutralViewport(canvas, state.collapsedGroups));
+      return set(neutralViewport(canvas, store.state.collapsedGroups));
     },
     fitContent(
       blocks: readonly WireframeBlock[],
@@ -44,12 +41,12 @@ export function createViewportSession(initial: WireframeViewport) {
       pane: { height: number; width: number },
     ) {
       return set(
-        fitContentViewport(blocks, canvas, pane, state.collapsedGroups),
+        fitContentViewport(blocks, canvas, pane, store.state.collapsedGroups),
       );
     },
-    getState: () => state,
+    getState: () => store.state,
     pan(dx: number, dy: number) {
-      return set(panViewport(state, dx, dy));
+      return set(panViewport(store.state, dx, dy));
     },
     /** Applies a saved value on open; meaningless positions fit the content. */
     restore(
@@ -61,17 +58,16 @@ export function createViewportSession(initial: WireframeViewport) {
       return set(restoreViewport(saved, blocks, canvas, pane));
     },
     set,
+    store,
     subscribe(listener: () => void) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
+      const subscription = store.subscribe(listener);
+      return () => subscription.unsubscribe();
     },
     toggleGroup(group: string) {
-      return set(toggleCollapsedGroup(state, group));
+      return set(toggleCollapsedGroup(store.state, group));
     },
     zoom(factor: number) {
-      return set(zoomViewport(state, factor));
+      return set(zoomViewport(store.state, factor));
     },
   };
 }

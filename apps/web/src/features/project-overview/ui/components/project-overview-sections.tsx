@@ -8,6 +8,7 @@ import type {
 import type { ProjectArea } from "@cantiara/api/project-shell";
 import { useLinkProps } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
+import { AppLink } from "@/components/app-link";
 
 import {
   formatAccountDate,
@@ -132,13 +133,13 @@ export function OverviewModule({
       <header className="flex items-baseline justify-between gap-3 border-b pb-2">
         <h3 className="font-medium text-base" id={`${moduleId}-heading`}>
           {module.sourceHref ? (
-            <a
+            <AppLink
               aria-label={`${OPEN_SOURCE_RECORD_LABEL}: ${module.name}`}
               className="underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               href={module.sourceHref}
             >
               {module.name}
-            </a>
+            </AppLink>
           ) : (
             module.name
           )}
@@ -184,13 +185,13 @@ function ModuleSourceCount({
 
   if (module.sourceHref) {
     return (
-      <a
+      <AppLink
         aria-label={`${OPEN_SOURCE_RECORD_LABEL}: ${module.name} (${countLabel})`}
         className="text-muted-foreground text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         href={module.sourceHref}
       >
         {countLabel}
-      </a>
+      </AppLink>
     );
   }
 
@@ -247,14 +248,14 @@ function SourceRecord({
           ) : null}
         </div>
         {record.href ? (
-          <a
+          <AppLink
             className="inline-flex shrink-0 items-center gap-1 text-primary text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             href={record.href}
           >
             {OPEN_SOURCE_RECORD_LABEL}
             <ArrowUpRight aria-hidden="true" className="size-3" />
             <span className="sr-only">{record.title}</span>
-          </a>
+          </AppLink>
         ) : null}
       </div>
       <span className="sr-only">{moduleName}</span>

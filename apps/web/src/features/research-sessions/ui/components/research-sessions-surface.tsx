@@ -8,8 +8,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
+import type { ResearchBindingActions } from "../forms/research-note-binding-form";
 import { ResearchSessionsView } from "../views/research-sessions-view";
-import type { ResearchBindingActions } from "./research-note-binding";
 
 export default function ResearchSessionsSurface({
   projectId,

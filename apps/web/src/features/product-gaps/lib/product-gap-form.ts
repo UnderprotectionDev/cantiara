@@ -11,6 +11,7 @@ import {
   type ToolEscapeReason,
   type ToolEscapeRestoreMethod,
 } from "@cantiara/api/product-gaps";
+import { format } from "date-fns";
 import { z } from "zod";
 
 /** A related record as the form holds it: the label is display only and never sent. */
@@ -43,8 +44,7 @@ export interface GapFormValues {
 
 /** `YYYY-MM-DDTHH:mm` of `date` in local time, the `datetime-local` format. */
 export function toLocalDateTime(date: Date) {
-  const shifted = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return shifted.toISOString().slice(0, 16);
+  return format(date, "yyyy-MM-dd'T'HH:mm");
 }
 
 export function emptyGapForm(now: Date = new Date()): GapFormValues {

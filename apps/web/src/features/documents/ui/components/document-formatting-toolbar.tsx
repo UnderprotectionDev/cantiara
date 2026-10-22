@@ -1,17 +1,10 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Toolbar commands use the current Tiptap selection.
 import { Button } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@cantiara/ui/components/popover";
 import { Separator } from "@cantiara/ui/components/separator";
-import { useForm } from "@tanstack/react-form";
 import { type useEditor, useEditorState } from "@tiptap/react";
 import {
   Bold,
@@ -19,7 +12,6 @@ import {
   Code2,
   Columns3,
   Italic,
-  Link2,
   List,
   ListOrdered,
   type LucideIcon,
@@ -27,33 +19,16 @@ import {
   Quote,
   Redo2,
   Rows3,
-  Sigma,
   Strikethrough,
   Table2,
   Trash2,
   Undo2,
-  Unlink2,
   Workflow,
 } from "lucide-react";
-import { useRef, useState } from "react";
-import { z } from "zod";
+import { DocumentFormulaPopover } from "../forms/document-formula-form";
+import { DocumentLinkPopover } from "../forms/document-link-form";
 
 type Editor = NonNullable<ReturnType<typeof useEditor>>;
-const allowedLinkPattern = /^(https?:\/\/|mailto:)/i;
-const linkSchema = z
-  .string()
-  .trim()
-  .refine((value) => {
-    if (!allowedLinkPattern.test(value)) {
-      return false;
-    }
-    try {
-      const url = new URL(value);
-      return url.protocol === "mailto:" ? !!url.pathname : !!url.hostname;
-    } catch {
-      return false;
-    }
-  }, "Use an http, https, or mailto URL.");
 
 function ToolButton({
   label,
@@ -85,57 +60,11 @@ function ToolButton({
   );
 }
 
-function FieldErrors({
-  errors,
-}: {
-  errors: readonly ({ message: string } | undefined)[];
-}) {
-  return errors
-    .filter((error) => error !== undefined)
-    .map((error) => (
-      <p key={error.message} role="alert">
-        {error.message}
-      </p>
-    ));
-}
-
 export default function DocumentFormattingToolbar({
   editor,
 }: {
   editor: Editor;
 }) {
-  const [linkOpen, setLinkOpen] = useState(false);
-  const linkSelection = useRef<Editor["state"]["selection"] | null>(null);
-  const [formulaOpen, setFormulaOpen] = useState(false);
-  const linkForm = useForm({
-    defaultValues: { url: "" },
-    onSubmit: ({ value }) => {
-      const chain = editor.chain().focus();
-      if (linkSelection.current) {
-        const selection = linkSelection.current;
-        chain.command(({ tr }) => {
-          tr.setSelection(selection);
-          return true;
-        });
-      }
-      chain.extendMarkRange("link").setLink({ href: value.url.trim() }).run();
-      linkSelection.current = null;
-      setLinkOpen(false);
-    },
-  });
-  const formulaForm = useForm({
-    defaultValues: { latex: "", placement: "inline" },
-    onSubmit: ({ value }) => {
-      const latex = value.latex.trim();
-      if (value.placement === "block") {
-        editor.chain().focus().insertBlockMath({ latex }).run();
-      } else {
-        editor.chain().focus().insertInlineMath({ latex }).run();
-      }
-      setFormulaOpen(false);
-      formulaForm.reset();
-    },
-  });
   const state = useEditorState({
     editor,
     selector: ({ editor: current }) => ({
@@ -224,75 +153,7 @@ export default function DocumentFormattingToolbar({
             label="Inline code"
             onClick={() => editor.chain().focus().toggleCode().run()}
           />
-          <Popover onOpenChange={setLinkOpen} open={linkOpen}>
-            <PopoverTrigger
-              aria-label="Link"
-              aria-pressed={state.link}
-              className={`inline-flex size-10 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring ${state.link ? "bg-accent text-accent-foreground" : ""}`}
-              onClick={() => {
-                linkForm.reset({
-                  url: editor.getAttributes("link").href ?? "",
-                });
-              }}
-              onMouseDown={() => {
-                linkSelection.current = editor.state.selection;
-              }}
-              title="Link"
-              type="button"
-            >
-              <Link2 aria-hidden="true" className="size-4" />
-            </PopoverTrigger>
-            <PopoverContent align="start" aria-label="Edit link">
-              <form
-                className="space-y-2"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  linkForm.handleSubmit().catch(() => undefined);
-                }}
-              >
-                <label className="font-medium" htmlFor="document-link-url">
-                  URL
-                </label>
-                <linkForm.Field
-                  name="url"
-                  validators={{ onSubmit: linkSchema }}
-                >
-                  {(field) => (
-                    <>
-                      <Input
-                        id="document-link-url"
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        placeholder="https://example.com"
-                        value={field.state.value}
-                      />
-                      <FieldErrors errors={field.state.meta.errors} />
-                    </>
-                  )}
-                </linkForm.Field>
-                <div className="flex justify-end gap-2">
-                  {state.link ? (
-                    <Button
-                      onClick={() => {
-                        editor.chain().focus().unsetLink().run();
-                        setLinkOpen(false);
-                      }}
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Unlink2 aria-hidden="true" /> Remove link
-                    </Button>
-                  ) : null}
-                  <Button size="sm" type="submit">
-                    Apply link
-                  </Button>
-                </div>
-              </form>
-            </PopoverContent>
-          </Popover>
+          <DocumentLinkPopover active={state.link} editor={editor} />
         </fieldset>
         <Separator className="mx-1 h-7 shrink-0" orientation="vertical" />
         <fieldset
@@ -377,82 +238,7 @@ export default function DocumentFormattingToolbar({
               editor.chain().focus().setCodeBlock({ language: "mermaid" }).run()
             }
           />
-          <Popover onOpenChange={setFormulaOpen} open={formulaOpen}>
-            <PopoverTrigger
-              aria-label="Insert formula"
-              className="inline-flex size-10 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring"
-              title="Insert formula"
-              type="button"
-            >
-              <Sigma aria-hidden="true" className="size-4" />
-            </PopoverTrigger>
-            <PopoverContent align="start" aria-label="Formula">
-              <form
-                className="space-y-2"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  formulaForm.handleSubmit().catch(() => undefined);
-                }}
-              >
-                <formulaForm.Field
-                  name="latex"
-                  validators={{
-                    onSubmit: z.string().trim().min(1, "LaTeX is required."),
-                  }}
-                >
-                  {(field) => (
-                    <div className="space-y-1">
-                      <label
-                        className="font-medium"
-                        htmlFor="document-formula-latex"
-                      >
-                        LaTeX
-                      </label>
-                      <Input
-                        id="document-formula-latex"
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        placeholder="x^2"
-                        value={field.state.value}
-                      />
-                      <FieldErrors errors={field.state.meta.errors} />
-                    </div>
-                  )}
-                </formulaForm.Field>
-                <formulaForm.Field name="placement">
-                  {(field) => (
-                    <div className="space-y-1">
-                      <label
-                        className="font-medium"
-                        htmlFor="document-formula-placement"
-                      >
-                        Placement
-                      </label>
-                      <NativeSelect
-                        id="document-formula-placement"
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        value={field.state.value}
-                      >
-                        <NativeSelectOption value="inline">
-                          Inline
-                        </NativeSelectOption>
-                        <NativeSelectOption value="block">
-                          Block
-                        </NativeSelectOption>
-                      </NativeSelect>
-                    </div>
-                  )}
-                </formulaForm.Field>
-                <Button className="self-end" size="sm" type="submit">
-                  Insert formula
-                </Button>
-              </form>
-            </PopoverContent>
-          </Popover>
+          <DocumentFormulaPopover editor={editor} />
           <ToolButton
             icon={Minus}
             label="Horizontal rule"

@@ -9,6 +9,12 @@ import {
   recordTablePasteInputSchema,
   recordTableTypes,
 } from "@cantiara/api/record-discovery";
+import { Input } from "@cantiara/ui/components/input";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
+import { Textarea } from "@cantiara/ui/components/textarea";
 import {
   type ColumnDef,
   flexRender,
@@ -26,6 +32,11 @@ import {
   useRef,
   useState,
 } from "react";
+
+import RecordTablePasteCorrectionForm, {
+  recordTablePasteCorrectionFormId,
+} from "../forms/record-table-paste-correction-form";
+import RecordTablePasteForm from "../forms/record-table-paste-form";
 
 const fieldLabels = {
   answer: "Answer",
@@ -367,106 +378,45 @@ function ColumnMapping({
   return (
     <label className="flex flex-wrap items-center gap-2" htmlFor={id}>
       <span>{header}</span>
-      <select
+      <NativeSelect
         aria-label={`Map column ${header}`}
-        className="rounded border bg-background px-2 py-1"
         id={id}
         onChange={handleChange}
         value={mapping}
       >
-        <option value={skipColumnMapping}>Skip column</option>
-        <option value={recordIdMapping}>Record ID</option>
+        <NativeSelectOption value={skipColumnMapping}>
+          Skip column
+        </NativeSelectOption>
+        <NativeSelectOption value={recordIdMapping}>
+          Record ID
+        </NativeSelectOption>
         {(recordTableFieldsByType[recordType] as readonly string[]).map(
           (field) => (
-            <option key={field} value={field}>
+            <NativeSelectOption key={field} value={field}>
               {fieldLabels[field as RecordTableField]}
-            </option>
+            </NativeSelectOption>
           ),
         )}
-      </select>
-    </label>
-  );
-}
-
-interface PasteCorrectionFieldProps {
-  correctionDrafts: Record<string, string>;
-  currentValue: string;
-  field: string;
-  onChange: (key: string, value: string) => void;
-  recordType: RecordTableType;
-  rowIndex: number;
-}
-
-function PasteCorrectionField({
-  correctionDrafts,
-  currentValue,
-  field,
-  onChange,
-  recordType,
-  rowIndex,
-}: PasteCorrectionFieldProps) {
-  const label = fieldLabels[field as RecordTableField];
-  const key = `${rowIndex}:${field}`;
-  const value = correctionDrafts[key] ?? currentValue;
-  const choices = fieldOptions(recordType, field);
-  const handleChange = useCallback(
-    (event: ChangeEvent<HTMLSelectElement | HTMLInputElement>) =>
-      onChange(key, event.target.value),
-    [key, onChange],
-  );
-  return (
-    <label
-      className="flex flex-wrap items-center gap-2"
-      htmlFor={`record-table-correction-${rowIndex}-${field}`}
-    >
-      <span>{label}</span>
-      {choices ? (
-        <select
-          aria-label={`Correct ${label} in row ${rowIndex + 1}`}
-          className="rounded border bg-background px-2 py-1"
-          id={`record-table-correction-${rowIndex}-${field}`}
-          onChange={handleChange}
-          value={value}
-        >
-          <option value="">Select a value</option>
-          {choices.map((choice) => (
-            <option key={choice} value={choice}>
-              {choice}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <input
-          aria-label={`Correct ${label} in row ${rowIndex + 1}`}
-          className="min-w-40 rounded border bg-background px-2 py-1"
-          id={`record-table-correction-${rowIndex}-${field}`}
-          onChange={handleChange}
-          value={value}
-        />
-      )}
+      </NativeSelect>
     </label>
   );
 }
 
 interface PasteReviewItemProps {
-  correctionDrafts: Record<string, string>;
-  onCorrectionDraftChange: (key: string, value: string) => void;
-  onCorrectRow: (rowIndex: number) => void;
+  onCorrectRow: (rowIndex: number, values: Record<string, string>) => void;
   onToggleRow: (rowIndex: number, included: boolean) => void;
   recordType: RecordTableType;
   row: PasteRowReview;
 }
 
 function PasteReviewItem({
-  correctionDrafts,
-  onCorrectionDraftChange,
   onCorrectRow,
   onToggleRow,
   recordType,
   row,
 }: PasteReviewItemProps) {
   const handleCorrect = useCallback(
-    () => onCorrectRow(row.index),
+    (values: Record<string, string>) => onCorrectRow(row.index, values),
     [onCorrectRow, row.index],
   );
   const handleToggle = useCallback(
@@ -482,24 +432,21 @@ function PasteReviewItem({
         Row {row.index + 1} · {row.kind === "create" ? "Create" : "Update"}
         {row.error ? <span role="alert"> · {row.error}</span> : null}
       </p>
-      <div className="space-y-2">
-        {Object.entries(row.fields).map(([field, value]) => (
-          <PasteCorrectionField
-            correctionDrafts={correctionDrafts}
-            currentValue={displayValue(value)}
-            field={field}
-            key={field}
-            onChange={onCorrectionDraftChange}
-            recordType={recordType}
-            rowIndex={row.index}
-          />
-        ))}
-      </div>
+      <RecordTablePasteCorrectionForm
+        fields={Object.entries(row.fields).map(([field, value]) => ({
+          choices: fieldOptions(recordType, field),
+          currentValue: displayValue(value),
+          field,
+          label: fieldLabels[field as RecordTableField],
+        }))}
+        onCorrect={handleCorrect}
+        rowIndex={row.index}
+      />
       <div className="flex flex-wrap gap-2">
         <button
           className="rounded border px-2 py-1"
-          onClick={handleCorrect}
-          type="button"
+          form={recordTablePasteCorrectionFormId(row.index)}
+          type="submit"
         >
           Correct row
         </button>
@@ -589,7 +536,7 @@ function EditableCell({
   const label = `Edit ${fieldLabels[field]} for ${title}`;
   const commonProps = {
     "aria-label": label,
-    className: "min-w-32 rounded border bg-background px-2 py-1",
+    className: "min-w-32",
     disabled: !editable,
     onBlur: handleBlur,
     onChange: handleValueChange,
@@ -598,7 +545,7 @@ function EditableCell({
   let control: ReactNode;
   if (choices) {
     control = (
-      <select
+      <NativeSelect
         aria-label={label}
         className={commonProps.className}
         disabled={!(editable && hasCurrentChoice)}
@@ -606,21 +553,21 @@ function EditableCell({
         value={choices.includes(value) ? value : currentChoice}
       >
         {hasCurrentChoice ? null : (
-          <option disabled value={currentChoice}>
+          <NativeSelectOption disabled value={currentChoice}>
             {currentChoice}
-          </option>
+          </NativeSelectOption>
         )}
         {choices.map((choice) => (
-          <option key={choice} value={choice}>
+          <NativeSelectOption key={choice} value={choice}>
             {choice}
-          </option>
+          </NativeSelectOption>
         ))}
-      </select>
+      </NativeSelect>
     );
   } else if (multiLineRecordTableFields.has(field)) {
-    control = <textarea {...commonProps} rows={1} />;
+    control = <Textarea {...commonProps} rows={1} />;
   } else {
-    control = <input {...commonProps} type={inputTypeForField(field)} />;
+    control = <Input {...commonProps} type={inputTypeForField(field)} />;
   }
 
   return (
@@ -701,9 +648,8 @@ function RecordTableGrid({
     <div className="space-y-3">
       <label className="block space-y-1" htmlFor="record-table-filter">
         <span>Filter rows</span>
-        <input
+        <Input
           aria-label="Filter rows"
-          className="w-full rounded border bg-background px-3 py-2"
           id="record-table-filter"
           onChange={handleFilterChange}
           type="search"
@@ -771,7 +717,7 @@ export function RecordTableView({
   records,
 }: RecordTableViewProps) {
   const pasteIdempotencyKeys = useRef(new Map<string, string>());
-  const [pasteText, setPasteText] = useState("");
+  const [pasteFormKey, setPasteFormKey] = useState(0);
   const [headers, setHeaders] = useState<string[]>([]);
   const [columnIds, setColumnIds] = useState<string[]>([]);
   const [rawRows, setRawRows] = useState<string[][]>([]);
@@ -779,9 +725,6 @@ export function RecordTableView({
   const [mappings, setMappings] = useState<string[]>([]);
   const [createRecordIds, setCreateRecordIds] = useState<string[]>([]);
   const [corrections, setCorrections] = useState<Record<string, string>>({});
-  const [correctionDrafts, setCorrectionDrafts] = useState<
-    Record<string, string>
-  >({});
   const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
   const [pasteError, setPasteError] = useState("");
   const [pasteMessage, setPasteMessage] = useState("");
@@ -817,42 +760,44 @@ export function RecordTableView({
       (row) => !row.included || (row.candidate !== null && !row.error),
     );
 
-  const reviewPaste = useCallback(() => {
-    const parsed = parseTsv(pasteText);
-    setHeaders(parsed.headers);
-    setRawRows(parsed.rows);
-    setColumnIds(parsed.headers.map(() => crypto.randomUUID()));
-    setRowIds(parsed.rows.map(() => crypto.randomUUID()));
-    setMappings(
-      parsed.headers.map((header) => suggestedMapping(header, recordType)),
-    );
-    setCreateRecordIds(
-      parsed.rows.map(() => (recordType === "Work" ? "" : crypto.randomUUID())),
-    );
-    setCorrections({});
-    setCorrectionDrafts({});
-    setExcludedRows(new Set());
-    setPasteError(
-      parsed.headers.length && parsed.rows.length
-        ? ""
-        : "Paste a header row and at least one data row.",
-    );
-    setPasteMessage("");
-  }, [pasteText, recordType]);
+  const reviewPaste = useCallback(
+    (pasteText: string) => {
+      const parsed = parseTsv(pasteText);
+      setHeaders(parsed.headers);
+      setRawRows(parsed.rows);
+      setColumnIds(parsed.headers.map(() => crypto.randomUUID()));
+      setRowIds(parsed.rows.map(() => crypto.randomUUID()));
+      setMappings(
+        parsed.headers.map((header) => suggestedMapping(header, recordType)),
+      );
+      setCreateRecordIds(
+        parsed.rows.map(() =>
+          recordType === "Work" ? "" : crypto.randomUUID(),
+        ),
+      );
+      setCorrections({});
+      setExcludedRows(new Set());
+      setPasteError(
+        parsed.headers.length && parsed.rows.length
+          ? ""
+          : "Paste a header row and at least one data row.",
+      );
+      setPasteMessage("");
+    },
+    [recordType],
+  );
 
   const correctRow = useCallback(
-    (index: number) => {
+    (index: number, values: Record<string, string>) => {
       setCorrections((previous) => {
         const next = { ...previous };
-        for (const [key, value] of Object.entries(correctionDrafts)) {
-          if (key.startsWith(`${index}:`)) {
-            next[key] = value;
-          }
+        for (const [field, value] of Object.entries(values)) {
+          next[`${index}:${field}`] = value;
         }
         return next;
       });
     },
-    [correctionDrafts],
+    [],
   );
 
   const handleMappingChange = useCallback(
@@ -862,13 +807,6 @@ export function RecordTableView({
           index === columnIndex ? value : mapping,
         ),
       );
-    },
-    [],
-  );
-
-  const handleCorrectionDraftChange = useCallback(
-    (key: string, value: string) => {
-      setCorrectionDrafts((previous) => ({ ...previous, [key]: value }));
     },
     [],
   );
@@ -912,7 +850,7 @@ export function RecordTableView({
     try {
       await onApplyPaste({ ...parsed.data, clientIdempotencyKey });
       pasteIdempotencyKeys.current.delete(fingerprint);
-      setPasteText("");
+      setPasteFormKey((key) => key + 1);
       setHeaders([]);
       setColumnIds([]);
       setRawRows([]);
@@ -943,46 +881,38 @@ export function RecordTableView({
     [onProjectChange],
   );
 
-  const handlePasteTextChange = useCallback(
-    (event: ChangeEvent<HTMLTextAreaElement>) =>
-      setPasteText(event.target.value),
-    [],
-  );
-
   return (
     <section aria-label="Table" className="space-y-4">
       <h3 className="font-medium">Table</h3>
       <div className="flex flex-wrap items-end gap-3">
         <label className="block space-y-1" htmlFor="record-table-type">
           <span>Type</span>
-          <select
-            className="rounded border bg-background px-3 py-2"
+          <NativeSelect
             id="record-table-type"
             onChange={handleTypeChange}
             value={recordType}
           >
             {recordTableTypes.map((type) => (
-              <option key={type} value={type}>
+              <NativeSelectOption key={type} value={type}>
                 {type}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="block space-y-1" htmlFor="record-table-project">
           <span>Project</span>
-          <select
-            className="rounded border bg-background px-3 py-2"
+          <NativeSelect
             id="record-table-project"
             onChange={handleProjectChange}
             value={projectId}
           >
-            <option value="">All Projects</option>
+            <NativeSelectOption value="">All Projects</NativeSelectOption>
             {projects.map((project) => (
-              <option key={project.id} value={project.id}>
+              <NativeSelectOption key={project.id} value={project.id}>
                 {project.name}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
       {failed ? <p role="alert">Table is unavailable.</p> : null}
@@ -997,24 +927,7 @@ export function RecordTableView({
       <details className="rounded border p-3">
         <summary className="cursor-pointer font-medium">Paste rows</summary>
         <div className="mt-3 space-y-3">
-          <label className="block space-y-1" htmlFor="record-table-paste">
-            <span>Paste rows</span>
-            <textarea
-              aria-label="Paste rows"
-              className="min-h-28 w-full rounded border bg-background px-3 py-2 font-mono text-sm"
-              id="record-table-paste"
-              onChange={handlePasteTextChange}
-              placeholder="Title&#9;Decision&#10;Launch timing&#9;Ship in June"
-              value={pasteText}
-            />
-          </label>
-          <button
-            className="rounded border px-3 py-2"
-            onClick={reviewPaste}
-            type="button"
-          >
-            Preview paste
-          </button>
+          <RecordTablePasteForm key={pasteFormKey} onReview={reviewPaste} />
           {headers.length ? (
             <div className="space-y-2">
               <h4 className="font-medium">Column mapping</h4>
@@ -1041,9 +954,7 @@ export function RecordTableView({
               <ul className="space-y-3">
                 {rows.map((row) => (
                   <PasteReviewItem
-                    correctionDrafts={correctionDrafts}
                     key={row.id}
-                    onCorrectionDraftChange={handleCorrectionDraftChange}
                     onCorrectRow={correctRow}
                     onToggleRow={toggleRow}
                     recordType={recordType}

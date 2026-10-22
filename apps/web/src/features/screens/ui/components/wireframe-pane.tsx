@@ -10,6 +10,7 @@ import {
   type WireframeComponentKind,
 } from "@cantiara/api/wireframe-document";
 import { Button } from "@cantiara/ui/components/button";
+import { useSelector } from "@tanstack/react-store";
 import {
   BarChart3,
   CreditCard,
@@ -28,7 +29,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import {
   type CanvasKeyCommand,
@@ -37,10 +37,10 @@ import {
 import type { WireframeEditor } from "../../engine/editor";
 import type { OutlineSourceRecord } from "../../engine/outline";
 import { createViewportSession } from "../../engine/viewport-session";
+import { LiveCardPicker } from "../forms/place-live-card-form";
 import { CanvasTextOverlay } from "./canvas-text-overlay";
 import type { ConvertAndBindActions } from "./convert-and-bind-panel";
 import type { LinkedBlockActions } from "./linked-block-controls";
-import { LiveCardPicker } from "./live-card-picker";
 import { WireframeOutline } from "./wireframe-outline";
 import type { ViewportGesture } from "./wireframe-stage";
 
@@ -120,11 +120,7 @@ export function WireframePane({
   readOnly = false,
   viewport: personal,
 }: WireframePaneProps) {
-  const state = useSyncExternalStore(
-    editor.subscribe,
-    editor.getState,
-    editor.getState,
-  );
+  const state = useSelector(editor.store);
   const { measured, ref, size } = usePaneSize();
   const [session] = useState(() =>
     createViewportSession(

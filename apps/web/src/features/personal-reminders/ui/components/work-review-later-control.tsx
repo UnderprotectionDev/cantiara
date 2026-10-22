@@ -1,5 +1,5 @@
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
-import PersonalReminderControl from "./personal-reminder-control";
+import PersonalReminderControl from "@/components/personal-reminder-control";
 
 export default function WorkReviewLaterControl({
   compact = false,

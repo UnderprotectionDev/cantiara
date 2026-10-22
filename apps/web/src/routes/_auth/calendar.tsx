@@ -15,6 +15,7 @@ import {
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { addDays, addMonths, addWeeks, format, parseISO } from "date-fns";
 import { useState } from "react";
+import { DatePicker } from "@/components/date-picker";
 import { currentDateInTimeZone } from "@/features/account-preferences/lib/account-preferences-format";
 import UnifiedCalendar, {
   CALENDAR_DATE_KINDS,
@@ -384,14 +385,13 @@ function CalendarViewControls({
           ))}
         </div>
       </fieldset>
-      <label className="grid gap-1 text-sm">
+      <label className="grid gap-1 text-sm" htmlFor="calendar-selected-day">
         Selected day
-        <input
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          onChange={(event) =>
-            updateSearch({ calendarDay: event.target.value })
-          }
-          type="date"
+        <DatePicker
+          ariaLabel="Selected day"
+          id="calendar-selected-day"
+          onChange={(calendarDay) => updateSearch({ calendarDay })}
+          required
           value={selectedDate}
         />
       </label>

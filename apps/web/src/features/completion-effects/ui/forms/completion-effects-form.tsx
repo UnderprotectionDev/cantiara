@@ -118,7 +118,13 @@ export default function CompletionEffectsForm({
   const form = useForm({
     defaultValues: valuesFromSnapshot(snapshot),
     onSubmit: async ({ value }) => {
-      const preferences = completionEffectsPreferencesSchema.parse(value);
+      const parsed = completionEffectsPreferencesSchema.safeParse(value);
+      if (!parsed.success) {
+        setHasSaved(false);
+        setSaveError(getSaveErrorMessage(parsed.error));
+        return;
+      }
+      const preferences = parsed.data;
       const serialized = JSON.stringify(preferences);
       const baseRevision = formBaseRevision.current;
       const attempt = pendingSave.current;

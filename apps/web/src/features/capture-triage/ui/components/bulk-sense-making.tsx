@@ -6,13 +6,12 @@ import type {
   CaptureInboxItem,
 } from "@cantiara/api/capture-triage";
 import { Button } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -27,6 +26,7 @@ import {
   captureCountLabel,
   type UndoPreviewState,
 } from "../../lib/capture-inbox";
+import { AddBulkClusterForm } from "../forms/add-bulk-cluster-form";
 import { CaptureInboxItemActions } from "./capture-inbox-item-actions";
 
 export default function BulkSenseMakingView({
@@ -48,7 +48,6 @@ export default function BulkSenseMakingView({
   const shell = useClientShell();
   const connection = useClientShellConnection();
   const [layout, setLayout] = useState(view);
-  const [newClusterName, setNewClusterName] = useState("");
 
   useEffect(() => setLayout(view), [view]);
 
@@ -92,12 +91,7 @@ export default function BulkSenseMakingView({
     saveLayout.mutate(next);
   }
 
-  function addCluster(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const name = newClusterName.trim();
-    if (!name) {
-      return;
-    }
+  function addCluster(name: string) {
     const position =
       Math.max(-1, ...layout.clusters.map((cluster) => cluster.position)) + 1;
     persist({
@@ -107,7 +101,6 @@ export default function BulkSenseMakingView({
       ],
       placements: layout.placements,
     });
-    setNewClusterName("");
   }
 
   function placeItem(itemId: string, clusterId: string | null) {
@@ -170,24 +163,10 @@ export default function BulkSenseMakingView({
         ) : null}
       </header>
 
-      <form className="flex flex-wrap items-end gap-2" onSubmit={addCluster}>
-        <label className="grid gap-1 text-sm" htmlFor="bulk-cluster-name">
-          New cluster name
-          <Input
-            id="bulk-cluster-name"
-            onChange={(event) => setNewClusterName(event.target.value)}
-            placeholder="Name a cluster"
-            value={newClusterName}
-          />
-        </label>
-        <Button
-          disabled={!isOnline || saveLayout.isPending || !newClusterName.trim()}
-          type="submit"
-          variant="outline"
-        >
-          Add cluster
-        </Button>
-      </form>
+      <AddBulkClusterForm
+        disabled={!isOnline || saveLayout.isPending}
+        onAdd={addCluster}
+      />
 
       <div className="grid items-start gap-4 overflow-x-auto pb-2 md:auto-cols-[minmax(18rem,1fr)] md:grid-flow-col">
         {columns.map((column) => (

@@ -9,6 +9,15 @@ import ProjectWallCanvas, {
   type ProjectWallCanvasProps,
 } from "../project-wall-canvas";
 
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({
+    href: target,
+    ...anchorProps
+  }: { href: string } & Record<string, unknown>) => (
+    <a {...anchorProps} href={target} />
+  ),
+}));
+
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;

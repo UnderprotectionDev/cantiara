@@ -4,6 +4,7 @@ import {
 } from "@cantiara/api/account-preferences";
 import { decisionChain } from "@cantiara/api/decision-chain";
 import type { DecisionSupersessionGraph } from "@cantiara/api/decision-supersession";
+import { AppLink } from "@/components/app-link";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 
 export function decisionHref(projectId: string, id: string) {
@@ -47,23 +48,23 @@ export function DecisionChainView({
             Current Decision: {chain.current?.title ?? "No Valid Decision."}
           </p>
           {chain.current ? (
-            <a
+            <AppLink
               className="inline-flex min-h-10 items-center underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
               href={decisionHref(projectId, chain.current.id)}
             >
               Open current decision
-            </a>
+            </AppLink>
           ) : null}
           {directSuccessorRelation && successor ? (
             <div className="space-y-1 text-sm">
               <p>
                 Superseded by{" "}
-                <a
+                <AppLink
                   className="underline underline-offset-4"
                   href={decisionHref(projectId, successor.id)}
                 >
                   {successor.title}
-                </a>
+                </AppLink>
               </p>
               <time dateTime={directSuccessorRelation.occurredAt}>
                 {formatAccountDateTime(
@@ -92,13 +93,13 @@ export function DecisionChainView({
               key={record.id}
             >
               <div className="flex flex-wrap items-center gap-x-3">
-                <a
+                <AppLink
                   aria-current={record.id === selectedId ? "page" : undefined}
                   className="min-w-0 break-words underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
                   href={decisionHref(projectId, record.id)}
                 >
                   {record.title}
-                </a>
+                </AppLink>
                 <span className="text-muted-foreground text-sm">
                   {record.life}
                 </span>

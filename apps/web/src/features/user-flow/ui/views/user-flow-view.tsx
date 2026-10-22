@@ -1,46 +1,39 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Forms close over the selected User Flow and their own draft fields.
-import {
-  type CardRecordOption,
-  type ScreenOption,
-  type ScreenReferenceView,
-  USER_FLOW_NODE_KINDS,
-  type UserFlowBindView,
-  type UserFlowCardKind,
-  type UserFlowConvertPlan,
-  type UserFlowConvertTarget,
-  type UserFlowNodeKind,
-  type UserFlowNodeView,
-  type UserFlowRebindPlan,
-  type UserFlowView as UserFlowRecordView,
-  type UserFlowSummary,
-  type UserFlowTemplateView,
-  type UserFlowWorkType,
+
+import type {
+  CardRecordOption,
+  ScreenOption,
+  ScreenReferenceView,
+  UserFlowBindView,
+  UserFlowCardKind,
+  UserFlowConvertPlan,
+  UserFlowConvertTarget,
+  UserFlowNodeView,
+  UserFlowRebindPlan,
+  UserFlowView as UserFlowRecordView,
+  UserFlowSummary,
+  UserFlowTemplateView,
+  UserFlowWorkType,
 } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
-import { Label } from "@cantiara/ui/components/label";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@cantiara/ui/components/native-select";
-import { Textarea } from "@cantiara/ui/components/textarea";
-import { type FormEvent, type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
+import { AppLink } from "@/components/app-link";
+import type { PlaceNodeDraft } from "../../lib/place-node-draft";
 import {
   ConvertAndBindDialog,
   type ConvertAndBindIdentity,
 } from "../components/convert-and-bind-dialog";
 import { RebindDialog } from "../components/rebind-dialog";
+import { BindList, LiveCardList } from "../components/user-flow-records";
+import { CreateFromTemplateForm } from "../forms/create-from-template-form";
+import { CreateUserFlowForm } from "../forms/create-user-flow-form";
+import { PlaceCardForm } from "../forms/place-card-form";
+import { PlaceNodeForm } from "../forms/place-node-form";
 import {
-  CreateFromTemplateForm,
   type PromoteChoice,
   PromoteToScreenForm,
-  SaveTemplateForm,
-} from "../components/user-flow-promote-templates";
-import {
-  BindList,
-  LiveCardList,
-  PlaceCardForm,
-} from "../components/user-flow-records";
+} from "../forms/promote-to-screen-form";
+import { SaveTemplateForm } from "../forms/save-template-form";
 
 /** Spec 49 #373 actions of the outline; the surface owns every durable read and write. */
 export interface UserFlowDetailTools {
@@ -64,11 +57,7 @@ export interface UserFlowDetailTools {
   onSaveTemplate: (name: string, nodeIds: string[]) => Promise<unknown>;
 }
 
-export interface PlaceNodeDraft {
-  kind: UserFlowNodeKind;
-  screenId: string | null;
-  text: string;
-}
+export type { PlaceNodeDraft } from "../../lib/place-node-draft";
 
 /**
  * Common broken-reference presentation of a node's live Screen reference. A
@@ -105,9 +94,9 @@ export function ScreenReference({
         </p>
       ) : null}
       {reference.openPath && (broken === null || broken.canOpenSourceRecord) ? (
-        <a className="text-primary underline" href={reference.openPath}>
+        <AppLink className="text-primary underline" href={reference.openPath}>
           Open Source Record
-        </a>
+        </AppLink>
       ) : null}
     </div>
   );
@@ -132,93 +121,6 @@ function NodeOutlineItem({
       {node.screen ? <ScreenReference reference={node.screen} /> : null}
       {actions}
     </li>
-  );
-}
-
-function PlaceNodeForm({
-  disabled,
-  onPlaceNode,
-  screens,
-}: {
-  disabled: boolean;
-  onPlaceNode: (draft: PlaceNodeDraft) => Promise<unknown>;
-  screens: ScreenOption[];
-}) {
-  const [kind, setKind] = useState<UserFlowNodeKind>("Action");
-  const [screenId, setScreenId] = useState("");
-  const [text, setText] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const needsScreen = kind === "Screen";
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (needsScreen && !screenId) {
-      setError("Choose a Screen for a Screen node.");
-      return;
-    }
-    try {
-      await onPlaceNode({
-        kind,
-        screenId: needsScreen ? screenId : null,
-        text,
-      });
-      setText("");
-      setError(null);
-    } catch (failure) {
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Node could not be placed.",
-      );
-    }
-  }
-
-  return (
-    <form className="space-y-3" onSubmit={submit}>
-      <div className="space-y-1">
-        <Label htmlFor="user-flow-node-kind">Node type</Label>
-        <NativeSelect
-          id="user-flow-node-kind"
-          onChange={(event) => setKind(event.target.value as UserFlowNodeKind)}
-          value={kind}
-        >
-          {USER_FLOW_NODE_KINDS.map((option) => (
-            <NativeSelectOption key={option} value={option}>
-              {option}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </div>
-      {needsScreen ? (
-        <div className="space-y-1">
-          <Label htmlFor="user-flow-node-screen">Screen</Label>
-          <NativeSelect
-            id="user-flow-node-screen"
-            onChange={(event) => setScreenId(event.target.value)}
-            value={screenId}
-          >
-            <NativeSelectOption value="">Select a Screen</NativeSelectOption>
-            {screens.map((screen) => (
-              <NativeSelectOption key={screen.id} value={screen.id}>
-                {screen.title}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
-      ) : null}
-      <div className="space-y-1">
-        <Label htmlFor="user-flow-node-text">Node text</Label>
-        <Textarea
-          id="user-flow-node-text"
-          onChange={(event) => setText(event.target.value)}
-          value={text}
-        />
-      </div>
-      {error ? <p role="alert">{error}</p> : null}
-      <Button disabled={disabled} type="submit">
-        Place node
-      </Button>
-    </form>
   );
 }
 
@@ -364,24 +266,6 @@ export function UserFlowListView({
   selectedId: string | null;
   templates?: UserFlowTemplateView[];
 }) {
-  const [title, setTitle] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    try {
-      await onCreate(title);
-      setTitle("");
-      setError(null);
-    } catch (failure) {
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "User Flow could not be created.",
-      );
-    }
-  }
-
   return (
     <section aria-label="User Flow" className="space-y-4">
       <h2 className="font-medium text-xl">User Flow</h2>
@@ -403,18 +287,7 @@ export function UserFlowListView({
           ))}
         </ul>
       )}
-      <form className="space-y-2" onSubmit={submit}>
-        <Label htmlFor="user-flow-title">Title</Label>
-        <Input
-          id="user-flow-title"
-          onChange={(event) => setTitle(event.target.value)}
-          value={title}
-        />
-        {error ? <p role="alert">{error}</p> : null}
-        <Button disabled={readOnly || title.trim() === ""} type="submit">
-          Create User Flow
-        </Button>
-      </form>
+      <CreateUserFlowForm onCreate={onCreate} readOnly={readOnly} />
       {onCreateFromTemplate ? (
         <CreateFromTemplateForm
           onCreate={onCreateFromTemplate}

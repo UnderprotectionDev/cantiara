@@ -36,6 +36,7 @@ const appElement = rootElement;
 
 async function startApplication() {
   await initializeTauriAuth({
+    onAuthenticated: () => router.navigate({ to: "/dashboard" }),
     onGitHubIdentityConfirmation: deliverTauriGitHubIdentityGrant,
   }).catch(() => undefined);
   if (!appElement.innerHTML) {

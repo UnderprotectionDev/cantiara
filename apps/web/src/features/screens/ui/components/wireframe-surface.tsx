@@ -2,8 +2,10 @@
 import type { WireframeViewport } from "@cantiara/api/screen-viewport";
 import type { ScreenWireframe } from "@cantiara/api/screens";
 import { Button } from "@cantiara/ui/components/button";
+import { LiteDebouncer } from "@tanstack/pacer-lite";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   documentRecordHash,
   projectSourceRecordHash,
@@ -56,19 +58,14 @@ function LoadedWireframe({
   });
   // One session per Screen (the caller keys by Screen id); saves never rebuild it.
   const [editor] = useState(() => createWireframeEditor(wireframe.document));
+  const router = useRouter();
   const saved = useRef(wireframe.document);
 
   // Each completed transaction schedules one write. The write goes straight
   // into the Wireframe cache entry: no Screen list or viewport refetch.
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const unsubscribe = editor.subscribe(() => {
-      const { document } = editor.getState();
-      if (document === saved.current) {
-        return;
-      }
-      clearTimeout(timer);
-      timer = setTimeout(async () => {
+    const debouncer = new LiteDebouncer(
+      async (document: ScreenWireframe["document"]) => {
         try {
           const next = await runOnlineOnlyWrite(() =>
             client.saveScreenWireframe({ document, projectId, screenId }),
@@ -78,10 +75,18 @@ function LoadedWireframe({
         } catch {
           // The next completed gesture schedules another write.
         }
-      }, SAVE_DELAY_MS);
+      },
+      { wait: SAVE_DELAY_MS },
+    );
+    const unsubscribe = editor.subscribe(() => {
+      const { document } = editor.getState();
+      if (document === saved.current) {
+        return;
+      }
+      debouncer.maybeExecute(document);
     });
     return () => {
-      clearTimeout(timer);
+      debouncer.cancel();
       unsubscribe();
     };
   }, [editor, options.queryKey, projectId, queryClient, screenId]);
@@ -92,39 +97,26 @@ function LoadedWireframe({
   const viewportOptions = orpc.screenViewport.queryOptions({
     input: { projectId, screenId },
   });
-  const viewportTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
+  const viewportDebouncer = useMemo(
+    () =>
+      new LiteDebouncer(
+        async (viewport: WireframeViewport) => {
+          try {
+            await client.saveScreenViewport({ projectId, screenId, viewport });
+          } catch {
+            // Navigation is best effort; the next move schedules another write.
+          }
+        },
+        { wait: VIEWPORT_SAVE_DELAY_MS },
+      ),
+    [projectId, screenId],
   );
-  const pendingViewport = useRef<WireframeViewport | undefined>(undefined);
 
-  const flushViewport = useCallback(async () => {
-    clearTimeout(viewportTimer.current);
-    const viewport = pendingViewport.current;
-    pendingViewport.current = undefined;
-    if (!viewport) {
-      return;
-    }
-    try {
-      await client.saveScreenViewport({ projectId, screenId, viewport });
-    } catch {
-      // Navigation is best effort; the next move schedules another write.
-    }
-  }, [projectId, screenId]);
-
-  useEffect(
-    () => () => {
-      flushViewport().catch(() => undefined);
-    },
-    [flushViewport],
-  );
+  useEffect(() => () => viewportDebouncer.flush(), [viewportDebouncer]);
 
   function changeViewport(viewport: WireframeViewport) {
     queryClient.setQueryData(viewportOptions.queryKey, { viewport });
-    pendingViewport.current = viewport;
-    clearTimeout(viewportTimer.current);
-    viewportTimer.current = setTimeout(() => {
-      flushViewport().catch(() => undefined);
-    }, VIEWPORT_SAVE_DELAY_MS);
+    viewportDebouncer.maybeExecute(viewport);
   }
 
   const linked: LinkedBlockActions = {
@@ -201,7 +193,7 @@ function LoadedWireframe({
       liveCards={wireframe.liveCards}
       liveText={wireframe.liveText}
       onOpenSource={(source) => {
-        window.location.assign(sourceRecordHref(projectId, source));
+        router.history.push(sourceRecordHref(projectId, source));
       }}
       onSaveVersion={saveVersion}
       readOnly={readOnly}

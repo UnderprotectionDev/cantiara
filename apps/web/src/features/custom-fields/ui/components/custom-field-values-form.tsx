@@ -39,7 +39,7 @@ import {
   type CustomFieldDraftValues,
   useCustomFields,
   useCustomFieldValues,
-} from "@/features/custom-fields/hooks/use-custom-fields";
+} from "@/lib/use-custom-fields";
 
 function valueInputId(
   definition: CustomFieldDefinition,

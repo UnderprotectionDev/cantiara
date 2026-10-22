@@ -172,6 +172,7 @@ test("offers the English result labels and no review action", () => {
     (button) => button.textContent,
   );
   expect(buttons).toEqual([
+    "Select a date",
     "Add Session Test",
     "Record Test Session",
     "Import Test Session file",

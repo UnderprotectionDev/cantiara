@@ -8,13 +8,13 @@ import { lazy, Suspense, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import type { EditorDocument } from "../../lib/flow-editor";
+import type { PromoteChoice } from "../forms/promote-to-screen-form";
 import {
   type PlaceNodeDraft,
   UserFlowDetail,
   type UserFlowDetailTools,
   UserFlowListView,
 } from "../views/user-flow-view";
-import type { PromoteChoice } from "./user-flow-promote-templates";
 
 const UserFlowCanvas = lazy(() => import("./user-flow-canvas"));
 

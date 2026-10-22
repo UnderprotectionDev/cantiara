@@ -1,7 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the filter and the selected Gap.
 import {
   PRODUCT_GAP_STATUSES,
-  type ProductGapLinkTarget,
   type ProductGapRecord,
   TOOL_ESCAPE_LABEL,
   TOOL_ESCAPE_REASONS,
@@ -10,15 +9,25 @@ import {
 import { Alert } from "@cantiara/ui/components/alert";
 import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
-import { NativeSelect } from "@cantiara/ui/components/native-select";
-import { useEffect, useState } from "react";
-import { errorText, type GapFilterValues } from "../../lib/product-gap-form";
-import type { LoadProductGapTargets } from "./product-gap-links-field";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { orpc } from "@/utils/orpc";
+import { useProductGapLinkTargets } from "../../hooks/use-product-gap-link-targets";
+import {
+  errorText,
+  type GapFilterValues,
+  toListFilter,
+} from "../../lib/product-gap-form";
 import {
   type CloseEscape,
-  ToolEscapeCloseEvidence,
   ToolEscapeCloseForm,
-} from "./tool-escape-close";
+} from "../forms/tool-escape-close-form";
+import type { LoadProductGapTargets } from "./product-gap-links-field";
+import { ToolEscapeCloseEvidence } from "./tool-escape-close";
 
 export type LoadEscapes = (
   gap: ProductGapRecord,
@@ -40,20 +49,10 @@ export function GapFilterBar({
   onChange: (filter: GapFilterValues) => void;
   tools: string[];
 }) {
-  const [projects, setProjects] = useState<ProductGapLinkTarget[]>([]);
-  useEffect(() => {
-    let current = true;
-    loadTargets("Project")
-      .then((loaded) => {
-        if (current) {
-          setProjects(loaded);
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      current = false;
-    };
-  }, [loadTargets]);
+  const { data: projects = [] } = useProductGapLinkTargets(
+    loadTargets,
+    "Project",
+  );
   const set = (patch: Partial<GapFilterValues>) =>
     onChange({ ...filter, ...patch });
   return (
@@ -71,11 +70,11 @@ export function GapFilterBar({
           onChange={(event) => set({ tool: event.target.value })}
           value={filter.tool}
         >
-          <option value="">Any tool</option>
+          <NativeSelectOption value="">Any tool</NativeSelectOption>
           {tools.map((tool) => (
-            <option key={tool} value={tool}>
+            <NativeSelectOption key={tool} value={tool}>
               {tool}
-            </option>
+            </NativeSelectOption>
           ))}
         </NativeSelect>
       </Field>
@@ -88,11 +87,11 @@ export function GapFilterBar({
           onChange={(event) => set({ reason: event.target.value })}
           value={filter.reason}
         >
-          <option value="">Any reason</option>
+          <NativeSelectOption value="">Any reason</NativeSelectOption>
           {TOOL_ESCAPE_REASONS.map((reason) => (
-            <option key={reason} value={reason}>
+            <NativeSelectOption key={reason} value={reason}>
               {reason}
-            </option>
+            </NativeSelectOption>
           ))}
         </NativeSelect>
       </Field>
@@ -105,11 +104,11 @@ export function GapFilterBar({
           onChange={(event) => set({ projectId: event.target.value })}
           value={filter.projectId}
         >
-          <option value="">Any Project</option>
+          <NativeSelectOption value="">Any Project</NativeSelectOption>
           {projects.map((project) => (
-            <option key={project.targetId} value={project.targetId}>
+            <NativeSelectOption key={project.targetId} value={project.targetId}>
               {project.label}
-            </option>
+            </NativeSelectOption>
           ))}
         </NativeSelect>
       </Field>
@@ -122,11 +121,11 @@ export function GapFilterBar({
           onChange={(event) => set({ status: event.target.value })}
           value={filter.status}
         >
-          <option value="">Any status</option>
+          <NativeSelectOption value="">Any status</NativeSelectOption>
           {PRODUCT_GAP_STATUSES.map((status) => (
-            <option key={status} value={status}>
+            <NativeSelectOption key={status} value={status}>
               {status}
-            </option>
+            </NativeSelectOption>
           ))}
         </NativeSelect>
       </Field>
@@ -153,16 +152,25 @@ export function ToolEscapesPanel({
   onCloseEscape?: CloseEscape;
   record: ProductGapRecord;
 }) {
-  const [events, setEvents] = useState<ToolEscapeRecord[] | null>(null);
-  const [error, setError] = useState<string>();
+  const [opened, setOpened] = useState(false);
+  const escapes = useQuery({
+    ...orpc.productGapEscapes.queryOptions({
+      input: { ...toListFilter(filter), gapId: record.id },
+    }),
+    enabled: opened,
+    queryFn: () => loadEscapes(record, filter),
+  });
+  const events = opened ? (escapes.data ?? null) : null;
+  const error = escapes.isError
+    ? errorText(escapes.error, `${TOOL_ESCAPE_LABEL}s could not be loaded.`)
+    : undefined;
 
   async function open() {
-    setError(undefined);
-    try {
-      setEvents(await loadEscapes(record, filter));
-    } catch (caught) {
-      setError(errorText(caught, `${TOOL_ESCAPE_LABEL}s could not be loaded.`));
+    if (opened) {
+      await escapes.refetch();
+      return;
     }
+    setOpened(true);
   }
 
   const label = `${record.escapeCount} ${TOOL_ESCAPE_LABEL}${record.escapeCount === 1 ? "" : "s"}`;

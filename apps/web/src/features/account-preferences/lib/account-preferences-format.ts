@@ -1,4 +1,7 @@
-import type { AccountPreferences } from "@cantiara/api/account-preferences";
+import {
+  type AccountPreferences,
+  DEFAULT_ACCOUNT_PREFERENCES,
+} from "@cantiara/api/account-preferences";
 import { addDays } from "date-fns";
 
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -92,6 +95,42 @@ export function formatAccountDateTime(
     timeZone: preferences.timeZone,
   }).format(date);
   return `${formatAccountDate(date, preferences)} ${time}`;
+}
+
+/**
+ * Formats a stored instant with the account preferences; the default
+ * preferences stand in while they load, and an unparsable value falls back to
+ * the browser default.
+ */
+export function accountDateTimeFormatter(
+  preferences: AccountPreferences | undefined,
+): (value: Date | string) => string {
+  return (value) => {
+    try {
+      return formatAccountDateTime(
+        value,
+        preferences ?? DEFAULT_ACCOUNT_PREFERENCES,
+      );
+    } catch {
+      return new Date(value).toLocaleString();
+    }
+  };
+}
+
+/** The date-only counterpart of `accountDateTimeFormatter`. */
+export function accountDateFormatter(
+  preferences: AccountPreferences | undefined,
+): (value: Date | string) => string {
+  return (value) => {
+    try {
+      return formatAccountDate(
+        value,
+        preferences ?? DEFAULT_ACCOUNT_PREFERENCES,
+      );
+    } catch {
+      return new Date(value).toLocaleDateString();
+    }
+  };
 }
 
 export function formatAccountNumber(

@@ -92,6 +92,8 @@ export function createServerEnv(
       NODE_ENV: z
         .enum(["development", "production", "test"])
         .default("development"),
+      PORT: z.coerce.number().int().positive().optional(),
+      NEON_LOCAL_PROXY: z.string().min(1).optional(),
       BETTER_AUTH_SECRET: z.string().min(32),
       BETTER_AUTH_URL: z.url(),
       CORS_ORIGIN: z.url(),

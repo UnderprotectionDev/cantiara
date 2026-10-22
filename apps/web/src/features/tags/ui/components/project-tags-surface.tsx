@@ -1,40 +1,30 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Tag controls close over their current record and selected tag.
-import {
-  type ApplyTagInput,
-  createTagInputSchema,
-  type RemoveTagInput,
-  type TagRecord,
-  type TagSuggestion,
+import type {
+  ApplyTagInput,
+  RemoveTagInput,
+  TagRecord,
+  TagSuggestion,
 } from "@cantiara/api/tags";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  type Dispatch,
-  type FormEvent,
-  type SetStateAction,
-  useState,
-} from "react";
-
+import { type Dispatch, type SetStateAction, useState } from "react";
 import { useTags } from "@/features/tags/hooks/use-tags";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import { CreateTagForm } from "../forms/create-tag-form";
+import {
+  TagRenameControl,
+  type TagRenameRequest,
+} from "../forms/tag-rename-form";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
-}
-
-interface TagRenameRequest {
-  baseRevision: number;
-  name: string;
-  tagId: string;
 }
 
 interface TagRenameCommand extends TagRenameRequest {
@@ -71,7 +61,6 @@ export default function ProjectTagsSurface({
   projectId: string;
 }) {
   const [filterTagId, setFilterTagId] = useState("");
-  const [newTagName, setNewTagName] = useState("");
   const [selectedTagByRecord, setSelectedTagByRecord] = useState<
     Record<string, string>
   >({});
@@ -93,7 +82,6 @@ export default function ProjectTagsSurface({
     },
     onSuccess: async () => {
       setFormError(null);
-      setNewTagName("");
       await invalidateTagQueries(queryClient);
     },
   });
@@ -163,17 +151,6 @@ export default function ProjectTagsSurface({
     },
   });
 
-  function handleCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const parsed = createTagInputSchema.safeParse({ name: newTagName });
-    if (!parsed.success) {
-      setFormError(parsed.error.issues[0]?.message ?? "Check the tag name.");
-      return;
-    }
-    setFormError(null);
-    create.mutate(parsed.data.name);
-  }
-
   return (
     <section aria-labelledby="tags-heading" className="space-y-8" id="tags">
       <header className="surface-header max-w-3xl">
@@ -190,31 +167,12 @@ export default function ProjectTagsSurface({
         </p>
       </header>
 
-      <form
-        aria-label="Create tag"
-        className="grid gap-3 border-border/70 border-b pb-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
-        noValidate
-        onSubmit={handleCreate}
-      >
-        <div className="space-y-2">
-          <Label htmlFor="tag-name">Name</Label>
-          <Input
-            disabled={create.isPending}
-            id="tag-name"
-            onChange={(event) => setNewTagName(event.target.value)}
-            placeholder="e.g. roadmap/next"
-            value={newTagName}
-          />
-        </div>
-        <Button disabled={create.isPending} type="submit">
-          Create tag
-        </Button>
-        {formError ? (
-          <p className="text-destructive text-sm" role="alert">
-            {formError}
-          </p>
-        ) : null}
-      </form>
+      <CreateTagForm
+        error={formError}
+        onCreate={(name) => create.mutateAsync(name)}
+        onValidationError={setFormError}
+        pending={create.isPending}
+      />
 
       {actionError ? (
         <p className="text-destructive text-sm" role="alert">
@@ -330,119 +288,6 @@ function TagPicker({
         </p>
       ) : null}
     </section>
-  );
-}
-
-function TagRenameControl({
-  onRename,
-  onValidationError,
-  pending,
-  tags,
-  tagsError,
-  tagsPending,
-}: {
-  onRename: (input: TagRenameRequest) => void;
-  onValidationError: (message: string | null) => void;
-  pending: boolean;
-  tags: readonly TagSuggestion[];
-  tagsError: boolean;
-  tagsPending: boolean;
-}) {
-  const form = useForm({
-    defaultValues: {
-      name: "",
-      tagId: "",
-    },
-    onSubmit: ({ value }) => {
-      const selectedTag = tags.find(({ tag }) => tag.id === value.tagId)?.tag;
-      const parsed = createTagInputSchema.safeParse({ name: value.name });
-      if (!parsed.success) {
-        onValidationError(
-          parsed.error.issues[0]?.message ?? "Check the tag name.",
-        );
-        return;
-      }
-      if (!selectedTag) {
-        onValidationError("Tag is unavailable.");
-        return;
-      }
-      onValidationError(null);
-      onRename({
-        baseRevision: selectedTag.revision,
-        name: parsed.data.name,
-        tagId: selectedTag.id,
-      });
-    },
-  });
-
-  if (tagsPending || tagsError || tags.length === 0) {
-    return null;
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
-  }
-
-  return (
-    <form
-      aria-label="Rename Tag"
-      className="space-y-3 border-border/70 border-t pt-4"
-      noValidate
-      onSubmit={handleSubmit}
-    >
-      <h3 className="font-medium text-base">Rename Tag</h3>
-      <form.Field name="tagId">
-        {(field) => (
-          <div className="space-y-2">
-            <Label htmlFor="rename-tag-select">Tag</Label>
-            <NativeSelect
-              aria-label="Tag to rename"
-              disabled={pending}
-              id="rename-tag-select"
-              name={field.name}
-              onChange={(event) => field.handleChange(event.target.value)}
-              value={field.state.value}
-            >
-              <NativeSelectOption value="">Select a tag</NativeSelectOption>
-              {tags.map(({ tag }) => (
-                <NativeSelectOption key={tag.id} value={tag.id}>
-                  {tag.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-        )}
-      </form.Field>
-      <form.Field name="name">
-        {(field) => (
-          <div className="space-y-2">
-            <Label htmlFor="rename-tag-name">New name</Label>
-            <Input
-              disabled={pending}
-              id="rename-tag-name"
-              name={field.name}
-              onChange={(event) => field.handleChange(event.target.value)}
-              placeholder="e.g. launch/next"
-              value={field.state.value}
-            />
-          </div>
-        )}
-      </form.Field>
-      <form.Subscribe
-        selector={(state) => [state.values.name, state.values.tagId] as const}
-      >
-        {([name, selectedTagId]) => (
-          <Button
-            disabled={pending || !selectedTagId || name.trim().length === 0}
-            type="submit"
-          >
-            Rename Tag
-          </Button>
-        )}
-      </form.Subscribe>
-    </form>
   );
 }
 

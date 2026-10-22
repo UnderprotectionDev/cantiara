@@ -1,18 +1,12 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Forms close over their own draft fields and the displayed bind.
+
 import type {
-  CardRecordOption,
   RecordReferenceView,
   UserFlowBindView,
-  UserFlowCardKind,
   UserFlowCardView,
 } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
-import { Label } from "@cantiara/ui/components/label";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@cantiara/ui/components/native-select";
-import { type FormEvent, useState } from "react";
+import { AppLink } from "@/components/app-link";
 
 /**
  * Common broken-reference presentation of a live record. A broken target shows
@@ -48,9 +42,9 @@ export function RecordReference({
         ) : null}
       </p>
       {reference.openPath && (broken === null || broken.canOpenSourceRecord) ? (
-        <a className="text-primary underline" href={reference.openPath}>
+        <AppLink className="text-primary underline" href={reference.openPath}>
           Open Source Record
-        </a>
+        </AppLink>
       ) : null}
     </div>
   );
@@ -91,61 +85,6 @@ export function LiveCardList({
         </li>
       ))}
     </ul>
-  );
-}
-
-export function PlaceCardForm({
-  disabled,
-  onPlace,
-  options,
-}: {
-  disabled: boolean;
-  onPlace: (kind: UserFlowCardKind, recordId: string) => Promise<unknown>;
-  options: CardRecordOption[];
-}) {
-  const [selected, setSelected] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const option = options.find(({ id }) => id === selected);
-    if (!option) {
-      return;
-    }
-    try {
-      await onPlace(option.kind, option.id);
-      setSelected("");
-      setError(null);
-    } catch (failure) {
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "The card could not be placed.",
-      );
-    }
-  }
-  return (
-    <form className="space-y-2" onSubmit={submit}>
-      <Label htmlFor="user-flow-card-record">Record</Label>
-      <NativeSelect
-        id="user-flow-card-record"
-        onChange={(event) => setSelected(event.target.value)}
-        value={selected}
-      >
-        <NativeSelectOption value="">
-          Select a Work, Decision or Risk
-        </NativeSelectOption>
-        {options.map((option) => (
-          <NativeSelectOption key={option.id} value={option.id}>
-            {option.kind} · {option.title}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
-      {error ? <p role="alert">{error}</p> : null}
-      <Button disabled={disabled || selected === ""} type="submit">
-        Place live card
-      </Button>
-    </form>
   );
 }
 

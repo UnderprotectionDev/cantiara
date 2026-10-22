@@ -8,8 +8,9 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
-import { type FeedbackDraft, FeedbackView } from "../views/feedback-view";
-import type { SaveEvidence } from "./evidence-quality-panel";
+import type { FeedbackDraft } from "../forms/create-feedback-form";
+import type { SaveEvidence } from "../forms/evidence-quality-form";
+import { FeedbackView } from "../views/feedback-view";
 
 export default function FeedbackSurface({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();

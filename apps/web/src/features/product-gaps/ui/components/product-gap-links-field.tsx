@@ -14,7 +14,8 @@ import {
   FieldSet,
 } from "@cantiara/ui/components/field";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
+import { useProductGapLinkTargets } from "../../hooks/use-product-gap-link-targets";
 import type { LinkDraft } from "../../lib/product-gap-form";
 
 export type LoadProductGapTargets = (
@@ -43,34 +44,25 @@ export function ProductGapLinksField({
   const statusId = useId();
   const [targetType, setTargetType] =
     useState<ProductGapLinkTargetType>("Project");
-  const [targets, setTargets] = useState<ProductGapLinkTarget[] | null>(null);
+  const targetsQuery = useProductGapLinkTargets(loadTargets, targetType);
+  const targets = targetsQuery.data;
   const [targetId, setTargetId] = useState("");
   const [message, setMessage] = useState("");
 
   const selected = targets?.find((target) => target.targetId === targetId);
 
-  const chooseType = useCallback(
-    async (next: ProductGapLinkTargetType) => {
-      setTargetType(next);
-      setTargets(null);
-      setTargetId("");
-      setMessage("");
-      try {
-        const loaded = await loadTargets(next);
-        setTargets(loaded);
-        if (loaded.length === 0) {
-          setMessage(`This Workspace has no ${next} to relate yet.`);
-        }
-      } catch {
-        setMessage(`${next} records could not be loaded.`);
-      }
-    },
-    [loadTargets],
-  );
+  function chooseType(next: ProductGapLinkTargetType) {
+    setTargetType(next);
+    setTargetId("");
+    setMessage("");
+  }
 
-  useEffect(() => {
-    chooseType("Project").catch(() => undefined);
-  }, [chooseType]);
+  let loadMessage = "";
+  if (targetsQuery.isError) {
+    loadMessage = `${targetType} records could not be loaded.`;
+  } else if (targets?.length === 0) {
+    loadMessage = `This Workspace has no ${targetType} to relate yet.`;
+  }
 
   function add() {
     if (!selected) {
@@ -145,9 +137,7 @@ export function ProductGapLinksField({
             <NativeSelect
               id={`${idPrefix}-link-type`}
               onChange={(event) =>
-                chooseType(
-                  event.target.value as ProductGapLinkTargetType,
-                ).catch(() => undefined)
+                chooseType(event.target.value as ProductGapLinkTargetType)
               }
               value={targetType}
             >
@@ -195,7 +185,7 @@ export function ProductGapLinksField({
         id={statusId}
         role="status"
       >
-        {message}
+        {message || loadMessage}
       </p>
     </FieldSet>
   );

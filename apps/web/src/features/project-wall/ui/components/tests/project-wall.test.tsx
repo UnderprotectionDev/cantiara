@@ -17,6 +17,12 @@ import { ProjectWallCard } from "../project-wall-card";
 import { ProjectWallNarrativePanel } from "../project-wall-narrative";
 import type { ProjectWallSceneWall } from "../project-wall-scene";
 
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
+
 (
   globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -241,7 +247,7 @@ describe("Project Wall layout", () => {
     expect(html).not.toMatch(NESTED_OR_WORKSPACE);
   });
 
-  test("adding a card sends only the source id and type", () => {
+  test("adding a card sends only the source id and type", async () => {
     const handlers = actions();
     host = document.createElement("div");
     document.body.append(host);
@@ -274,10 +280,11 @@ describe("Project Wall layout", () => {
     const form = host.querySelector<HTMLFormElement>(
       'form[aria-label="Place live card"]',
     );
-    act(() => {
+    await act(async () => {
       form?.dispatchEvent(
         new Event("submit", { bubbles: true, cancelable: true }),
       );
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(handlers.onAddCard).toHaveBeenCalledWith({
       sourceId: "d1",

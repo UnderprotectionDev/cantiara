@@ -1,19 +1,24 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Contact controls act on the selected Contact and Company.
 
-import {
-  type Company,
-  type Contact,
-  createCompanyInputSchema,
-  createContactInputSchema,
-  type DuplicateCandidate,
-  updateContactInputSchema,
+import type {
+  Company,
+  Contact,
+  DuplicateCandidate,
+  ParsedCreateCompanyInput,
+  ParsedCreateContactInput,
+  ParsedUpdateContactInput,
 } from "@cantiara/api/contacts";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { useState } from "react";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import { contactLabel, NO_COMPANY } from "../../lib/contact-label";
 import MergePreviewPanel, {
   mergeContactsRequest,
 } from "../components/merge-preview-panel";
@@ -21,12 +26,12 @@ import MergeUndoPanel, {
   undoMergeRequest,
   undoResultNotice,
 } from "../components/merge-undo-panel";
-
-const NO_COMPANY = "";
-
-function contactLabel(contact: Pick<Contact, "displayName" | "emails">) {
-  return contact.displayName ?? contact.emails[0] ?? "Unnamed Contact";
-}
+import {
+  ContactUpdateForm,
+  CreateCompanyForm,
+  CreateContactForm,
+  MergeStarterForm,
+} from "../forms/contact-form";
 
 /** Null once the preview is unavailable: the message under the panel says so. */
 export function undoFailureMessage(previewUnavailable: boolean) {
@@ -134,73 +139,34 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     onSuccess: refresh,
   });
 
-  async function submitContactUpdate(
-    contact: Contact,
-    event: FormEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const displayName = String(data.get("displayName") ?? "").trim();
-    const email = String(data.get("email") ?? "").trim();
-    const parsed = updateContactInputSchema.safeParse({
-      contactId: contact.id,
-      displayName: displayName || null,
-      ...(email ? { email } : {}),
-      expectedRevision: contact.revision,
-    });
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Contact is invalid.");
-      return;
-    }
+  async function submitContactUpdate(input: ParsedUpdateContactInput) {
     setError(null);
     try {
-      await updateContact.mutateAsync(parsed.data);
+      await updateContact.mutateAsync(input);
     } catch {
       setError("Contact could not be saved.");
     }
   }
 
-  async function submitContact(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    const displayName = String(data.get("displayName") ?? "").trim();
-    const email = String(data.get("email") ?? "").trim();
-    const companyId = String(data.get("companyId") ?? NO_COMPANY);
-    const parsed = createContactInputSchema.safeParse({
-      ...(companyId ? { companyId } : {}),
-      ...(displayName ? { displayName } : {}),
-      ...(email ? { email } : {}),
-    });
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Contact is invalid.");
-      return;
-    }
+  async function submitContactCreate(input: ParsedCreateContactInput) {
     setError(null);
     try {
-      await createContact.mutateAsync(parsed.data);
-      form.reset();
+      await createContact.mutateAsync(input);
+      return true;
     } catch {
       setError("Contact could not be created.");
+      return false;
     }
   }
 
-  async function submitCompany(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const parsed = createCompanyInputSchema.safeParse({
-      name: String(new FormData(form).get("name") ?? ""),
-    });
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Company is invalid.");
-      return;
-    }
+  async function submitCompanyCreate(input: ParsedCreateCompanyInput) {
     setError(null);
     try {
-      await createCompany.mutateAsync(parsed.data);
-      form.reset();
+      await createCompany.mutateAsync(input);
+      return true;
     } catch {
       setError("Company could not be created.");
+      return false;
     }
   }
 
@@ -236,64 +202,18 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
       <div className="grid gap-8 md:grid-cols-2">
         <section aria-label="Create Contact" className="space-y-4">
           <h2 className="font-semibold text-xl">Create Contact</h2>
-          <form className="flex flex-col gap-4" onSubmit={submitContact}>
-            <label className="flex flex-col gap-1 text-sm">
-              Display name
-              <input
-                className="rounded-md border bg-background px-3 py-2"
-                maxLength={255}
-                name="displayName"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Email
-              <input
-                className="rounded-md border bg-background px-3 py-2"
-                name="email"
-                type="email"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Company
-              <select
-                className="rounded-md border bg-background px-3 py-2"
-                defaultValue={NO_COMPANY}
-                name="companyId"
-              >
-                <option value={NO_COMPANY}>None</option>
-                {companies.data?.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              className="w-fit rounded-md bg-primary px-3 py-2 text-primary-foreground text-sm"
-              type="submit"
-            >
-              Create Contact
-            </button>
-          </form>
+          <CreateContactForm
+            companies={companies.data}
+            onCreate={submitContactCreate}
+            onInvalid={setError}
+          />
         </section>
         <section aria-label="Create Company" className="space-y-4">
           <h2 className="font-semibold text-xl">Create Company</h2>
-          <form className="flex flex-col gap-4" onSubmit={submitCompany}>
-            <label className="flex flex-col gap-1 text-sm">
-              Company name
-              <input
-                className="rounded-md border bg-background px-3 py-2"
-                maxLength={255}
-                name="name"
-              />
-            </label>
-            <button
-              className="w-fit rounded-md bg-primary px-3 py-2 text-primary-foreground text-sm"
-              type="submit"
-            >
-              Create Company
-            </button>
-          </form>
+          <CreateCompanyForm
+            onCreate={submitCompanyCreate}
+            onInvalid={setError}
+          />
         </section>
       </div>
       <div className="grid gap-8 md:grid-cols-2">
@@ -403,6 +323,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
           companies={companies.data ?? []}
           contact={selected}
           onCompanyChange={changeCompany}
+          onInvalid={setError}
           onUpdate={submitContactUpdate}
         />
       ) : null}
@@ -455,7 +376,7 @@ function DuplicateCandidates({
               })}
             </ul>
             {candidate.strength === "strong" ? (
-              <MergeStarter
+              <MergeStarterForm
                 byId={byId}
                 candidate={candidate}
                 onMerge={onMerge}
@@ -465,49 +386,6 @@ function DuplicateCandidates({
         ))}
       </ul>
     </section>
-  );
-}
-
-function MergeStarter({
-  byId,
-  candidate,
-  onMerge,
-}: {
-  byId: Map<string, Contact>;
-  candidate: DuplicateCandidate;
-  onMerge: (survivorId: string, retiredId: string) => void;
-}) {
-  const [survivorId, setSurvivorId] = useState(candidate.contactIds[0] ?? "");
-  const retiredId =
-    candidate.contactIds.find((id) => id !== survivorId) ?? survivorId;
-
-  return (
-    <div className="mt-2 flex flex-wrap items-center gap-3">
-      <label className="flex items-center gap-2">
-        Surviving Contact
-        <select
-          className="rounded-md border bg-background px-2 py-1"
-          onChange={(event) => setSurvivorId(event.target.value)}
-          value={survivorId}
-        >
-          {candidate.contactIds.map((id) => {
-            const contact = byId.get(id);
-            return contact ? (
-              <option key={id} value={id}>
-                {contactLabel(contact)}
-              </option>
-            ) : null;
-          })}
-        </select>
-      </label>
-      <button
-        className="rounded-md border px-3 py-1"
-        onClick={() => onMerge(survivorId, retiredId)}
-        type="button"
-      >
-        Merge Contacts
-      </button>
-    </div>
   );
 }
 
@@ -526,15 +404,14 @@ function ContactProfile({
   companies,
   contact,
   onCompanyChange,
+  onInvalid,
   onUpdate,
 }: {
   companies: Company[];
   contact: Contact;
   onCompanyChange: (contact: Contact, companyId: string) => Promise<void>;
-  onUpdate: (
-    contact: Contact,
-    event: FormEvent<HTMLFormElement>,
-  ) => Promise<void>;
+  onInvalid: (message: string) => void;
+  onUpdate: (input: ParsedUpdateContactInput) => Promise<void>;
 }) {
   const past = contact.companyHistory.filter((entry) => entry.endedAt);
 
@@ -544,36 +421,12 @@ function ContactProfile({
       className="space-y-4 border-t pt-6"
     >
       <h2 className="font-semibold text-xl">{contactLabel(contact)}</h2>
-      <form
-        className="flex flex-col gap-4 sm:flex-row sm:items-end"
+      <ContactUpdateForm
+        contact={contact}
         key={`${contact.id}-${contact.revision}`}
-        onSubmit={(event) => onUpdate(contact, event)}
-      >
-        <label className="flex flex-col gap-1 text-sm">
-          Display name
-          <input
-            className="rounded-md border bg-background px-3 py-2"
-            defaultValue={contact.displayName ?? ""}
-            maxLength={255}
-            name="displayName"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Email
-          <input
-            className="rounded-md border bg-background px-3 py-2"
-            name="email"
-            placeholder="Add an email"
-            type="email"
-          />
-        </label>
-        <button
-          className="w-fit rounded-md bg-primary px-3 py-2 text-primary-foreground text-sm"
-          type="submit"
-        >
-          Save Contact
-        </button>
-      </form>
+        onInvalid={onInvalid}
+        onUpdate={onUpdate}
+      />
       <dl className="grid gap-2 text-sm sm:grid-cols-[10rem_1fr]">
         <dt className="text-muted-foreground">Display name</dt>
         <dd>{contact.displayName ?? "None"}</dd>
@@ -583,19 +436,18 @@ function ContactProfile({
         </dd>
         <dt className="text-muted-foreground">Belongs to Company</dt>
         <dd className="flex flex-wrap items-center gap-3">
-          <select
+          <NativeSelect
             aria-label="Belongs to Company"
-            className="rounded-md border bg-background px-3 py-1"
             onChange={(event) => onCompanyChange(contact, event.target.value)}
             value={contact.company?.id ?? NO_COMPANY}
           >
-            <option value={NO_COMPANY}>None</option>
+            <NativeSelectOption value={NO_COMPANY}>None</NativeSelectOption>
             {companies.map((company) => (
-              <option key={company.id} value={company.id}>
+              <NativeSelectOption key={company.id} value={company.id}>
                 {company.name}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         </dd>
         {past.length > 0 ? (
           <>

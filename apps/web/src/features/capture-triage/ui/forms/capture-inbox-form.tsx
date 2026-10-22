@@ -1,6 +1,7 @@
 import {
   CAPTURE_TEMPLATE_FIELD_LABELS,
   CAPTURE_TEMPLATES,
+  captureInputSchema,
 } from "@cantiara/api/capture-triage";
 import { Button } from "@cantiara/ui/components/button";
 import {
@@ -126,7 +127,15 @@ export default function CaptureInboxForm({
     onSubmit: async ({ value }) => {
       const key = pendingCaptureKey.current ?? crypto.randomUUID();
       pendingCaptureKey.current = key;
-      await createCapture.mutateAsync(captureInput(value, key));
+      const input = captureInput(value, key);
+      const parsed = captureInputSchema.safeParse(input);
+      if (!parsed.success) {
+        setActionMessage(
+          parsed.error.issues[0]?.message ?? "Capture could not be saved.",
+        );
+        return;
+      }
+      await createCapture.mutateAsync(input);
       if (captureFormValuesEqual(value, form.state.values)) {
         form.reset();
         onSaved?.();
@@ -157,8 +166,17 @@ export default function CaptureInboxForm({
     const { values } = form.state;
     const key = pendingBugKey.current ?? crypto.randomUUID();
     pendingBugKey.current = key;
+    const input = captureInput(values, key);
+    const parsed = captureInputSchema.safeParse(input);
+    if (!parsed.success) {
+      setActionMessage(
+        parsed.error.issues[0]?.message ??
+          "Work could not be created from this Capture.",
+      );
+      return;
+    }
     createBug
-      .mutateAsync(captureInput(values, key))
+      .mutateAsync(input)
       .then(() => {
         if (captureFormValuesEqual(values, form.state.values)) {
           form.reset();

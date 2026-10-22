@@ -8,8 +8,9 @@ import type {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useState } from "react";
+import { AppLink } from "@/components/app-link";
+import { AddChecklistItemForm } from "../forms/add-checklist-item-form";
 import { resolveChecklistDrafts } from "./work-checklist-items";
 
 export default function WorkChecklist({
@@ -54,29 +55,6 @@ export default function WorkChecklist({
     } catch {
       return false;
     }
-  }
-
-  const addItemForm = useForm({
-    defaultValues: { newItem: "" },
-    onSubmit: async ({ value }) => {
-      const text = value.newItem.trim();
-      if (!text) {
-        return;
-      }
-      const saved = await saveChecklist([
-        ...resolvedChecklist,
-        { completed: false, id: crypto.randomUUID(), text },
-      ]);
-      if (saved) {
-        addItemForm.reset();
-      }
-    },
-  });
-
-  function handleAddItemSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    addItemForm.handleSubmit().catch(() => undefined);
   }
 
   async function toggleItem(itemId: string, completed: boolean) {
@@ -169,12 +147,12 @@ export default function WorkChecklist({
                 {item.convertedWork ? (
                   <p className="flex min-w-48 flex-1 items-center gap-2 text-sm">
                     <span className="text-muted-foreground">Work:</span>
-                    <a
+                    <AppLink
                       className="font-medium text-primary underline-offset-4 hover:underline"
                       href={`#work-${encodeURIComponent(item.convertedWork.id)}`}
                     >
                       {item.convertedWork.key} — {item.convertedWork.title}
-                    </a>
+                    </AppLink>
                   </p>
                 ) : (
                   <>
@@ -330,44 +308,11 @@ export default function WorkChecklist({
           })}
         </ol>
       )}
-      <form
-        className="flex flex-wrap items-end gap-2 border-border/70 border-t pt-3"
-        onSubmit={handleAddItemSubmit}
-      >
-        <addItemForm.Field name="newItem">
-          {(field) => (
-            <>
-              <label
-                className="min-w-48 flex-1 text-muted-foreground text-xs"
-                htmlFor={`new-checklist-item-${workKey}`}
-              >
-                Item
-                <Input
-                  aria-label={`New item for ${workKey}`}
-                  className="mt-1"
-                  disabled={disabled || conversionItemId !== null}
-                  id={`new-checklist-item-${workKey}`}
-                  maxLength={1000}
-                  name={field.name}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  value={field.state.value}
-                />
-              </label>
-              <Button
-                disabled={
-                  disabled ||
-                  conversionItemId !== null ||
-                  !field.state.value.trim()
-                }
-                size="sm"
-                type="submit"
-              >
-                Add item
-              </Button>
-            </>
-          )}
-        </addItemForm.Field>
-      </form>
+      <AddChecklistItemForm
+        disabled={disabled || conversionItemId !== null}
+        onAdd={(item) => saveChecklist([...resolvedChecklist, item])}
+        workKey={workKey}
+      />
     </section>
   );
 }

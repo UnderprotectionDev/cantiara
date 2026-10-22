@@ -20,8 +20,8 @@ import {
   useMemo,
   useState,
 } from "react";
+import { getWorkStatusLabel } from "@/components/work-status-form";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
-import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { orpc } from "@/utils/orpc";
 import { buildKanbanCardSummary } from "../../lib/kanban-card-summary";
 import { KanbanWorkDetails, KanbanWorkSummary } from "./kanban-work-summary";

@@ -1,4 +1,10 @@
+import {
+  WEB_CAPTURE_BROWSERS,
+  type WebCaptureBrowser,
+  type WebCaptureKind,
+} from "@cantiara/api/web-capture";
 import { browser } from "wxt/browser";
+import { z } from "zod";
 
 export const WEB_CAPTURE_SERVER_URL =
   import.meta.env.VITE_SERVER_URL ?? "http://localhost:3000";
@@ -10,28 +16,26 @@ const BROWSER_FIREFOX_PATTERN = /Firefox\//;
 const HTTP_URL_PATTERN = /^https?:\/\//;
 const SERVER_URL_TRAILING_SLASH_PATTERN = /\/$/;
 
-export type WebCaptureBrowser = "Arc" | "Brave" | "Chrome" | "Edge" | "Firefox";
+const webCaptureBrowserSchema = z.enum(WEB_CAPTURE_BROWSERS);
 
-export type WebCaptureKind =
-  | "selected-image"
-  | "selected-text"
-  | "screenshot"
-  | "url";
+const webCaptureLinkSchema = z.object({
+  browser: webCaptureBrowserSchema,
+  createdAt: z.string(),
+  device: z.string(),
+  id: z.string(),
+  lastUse: z.string().nullable(),
+});
 
-export interface WebCaptureLink {
-  browser: WebCaptureBrowser;
-  createdAt: string;
-  device: string;
-  id: string;
-  lastUse: string | null;
-}
+export type WebCaptureLink = z.infer<typeof webCaptureLinkSchema>;
 
-export interface WebCaptureTarget {
-  id: string;
-  label: "Project Capture Inbox" | "Workspace Capture Inbox";
-  name: string;
-  projectId: string | null;
-}
+const webCaptureTargetSchema = z.object({
+  id: z.string(),
+  label: z.enum(["Project Capture Inbox", "Workspace Capture Inbox"]),
+  name: z.string(),
+  projectId: z.string().nullable(),
+});
+
+export type WebCaptureTarget = z.infer<typeof webCaptureTargetSchema>;
 
 export interface WebCaptureDraft {
   clientIdempotencyKey: string;
@@ -42,22 +46,31 @@ export interface WebCaptureDraft {
   originUrl: string;
 }
 
-interface StoredWebCaptureLink {
-  browser: WebCaptureBrowser;
-  device: string;
-  id: string;
-  lastSuccessfulSave: string | null;
-  token: string;
-}
+const storedWebCaptureLinkSchema = z.object({
+  browser: webCaptureBrowserSchema,
+  device: z.string(),
+  id: z.string(),
+  lastSuccessfulSave: z.string().nullable(),
+  token: z.string(),
+});
 
-interface WebCapturePairResponse {
-  link: WebCaptureLink;
-  token: string;
-}
+export type StoredWebCaptureLink = z.infer<typeof storedWebCaptureLinkSchema>;
 
-interface WebCaptureTargetsResponse {
-  targets: WebCaptureTarget[];
-}
+const webCapturePairResponseSchema = z.object({
+  link: webCaptureLinkSchema,
+  token: z.string(),
+});
+
+const webCaptureTargetsResponseSchema = z.object({
+  targets: z.array(webCaptureTargetSchema),
+});
+
+const webCaptureSendResponseSchema = z.object({ sent: z.literal(true) });
+
+const webCaptureErrorPayloadSchema = z.object({
+  code: z.string().optional(),
+  message: z.string().optional(),
+});
 
 export class WebCaptureApiError extends Error {
   readonly code: string;
@@ -77,11 +90,12 @@ function endpoint(path: string) {
   return `${WEB_CAPTURE_SERVER_URL.replace(SERVER_URL_TRAILING_SLASH_PATTERN, "")}${path}`;
 }
 
-async function request<T>(
+async function request<T extends z.ZodType>(
   path: string,
+  schema: T,
   init: RequestInit = {},
   token?: string,
-): Promise<T> {
+): Promise<z.output<T>> {
   const headers = new Headers(init.headers);
   headers.set("content-type", "application/json");
   if (token) {
@@ -91,22 +105,30 @@ async function request<T>(
     ...init,
     headers,
   });
-  const payload = (await response.json().catch(() => null)) as
-    | (T & { code?: string; message?: string })
-    | null;
+  const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
+    const failure = webCaptureErrorPayloadSchema.safeParse(payload);
     throw new WebCaptureApiError(
-      payload?.code ?? "WEB_CAPTURE_UNAVAILABLE",
+      (failure.success && failure.data.code) || "WEB_CAPTURE_UNAVAILABLE",
       response.status,
-      payload?.message,
+      failure.success ? failure.data.message : undefined,
     );
   }
-  return payload as T;
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) {
+    throw new WebCaptureApiError(
+      "WEB_CAPTURE_UNAVAILABLE",
+      response.status,
+      "Web Capture returned an unexpected response.",
+    );
+  }
+  return parsed.data;
 }
 
 export async function getStoredWebCaptureLink() {
   const result = await browser.storage.local.get(STORAGE_KEY);
-  return (result[STORAGE_KEY] as StoredWebCaptureLink | undefined) ?? null;
+  const parsed = storedWebCaptureLinkSchema.safeParse(result[STORAGE_KEY]);
+  return parsed.success ? parsed.data : null;
 }
 
 export async function clearStoredWebCaptureLink() {
@@ -118,8 +140,9 @@ export async function pairWebCapture(input: {
   code: string;
   device: string;
 }) {
-  const response = await request<WebCapturePairResponse>(
+  const response = await request(
     "/api/web-capture/pair",
+    webCapturePairResponseSchema,
     { body: JSON.stringify(input), method: "POST" },
   );
   const stored: StoredWebCaptureLink = {
@@ -139,8 +162,9 @@ export async function listWebCaptureTargets(token: string, search: string) {
     query.set("search", search.trim());
   }
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  const response = await request<WebCaptureTargetsResponse>(
+  const response = await request(
     `/api/web-capture/inboxes${suffix}`,
+    webCaptureTargetsResponseSchema,
     { method: "GET" },
     token,
   );
@@ -152,8 +176,9 @@ export async function sendWebCapture(
   draft: WebCaptureDraft,
   projectId: string | null,
 ) {
-  const response = await request<{ sent: true }>(
+  const response = await request(
     "/api/web-capture/send",
+    webCaptureSendResponseSchema,
     {
       body: JSON.stringify({
         clientIdempotencyKey: draft.clientIdempotencyKey,

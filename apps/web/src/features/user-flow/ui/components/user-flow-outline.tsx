@@ -1,20 +1,16 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Row handlers close over the node they act on.
-import {
-  type ScreenOption,
-  type ScreenReferenceView,
-  USER_FLOW_NODE_KINDS,
-  type UserFlowNodeKind,
+import type {
+  ScreenOption,
+  ScreenReferenceView,
 } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
-import { Label } from "@cantiara/ui/components/label";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { type FormEvent, useState } from "react";
+import { useState } from "react";
 
 import {
-  addNode,
   assignSelectionToSection,
   connectNodes,
   disconnectLink,
@@ -25,6 +21,7 @@ import {
   select,
 } from "../../lib/flow-editor";
 import { buildOutline, type OutlineRow } from "../../lib/flow-outline";
+import { CreateNodeForm } from "../forms/create-outline-node-form";
 import { ScreenReference } from "../views/user-flow-view";
 
 interface OutlineProps {
@@ -39,79 +36,6 @@ interface OutlineProps {
 
 function describe(node: EditorNode) {
   return `${node.kind}${node.text ? `: ${node.text.slice(0, 60)}` : ""}`;
-}
-
-function CreateNodeForm({
-  createId,
-  onChange,
-  screenOptions,
-}: Pick<OutlineProps, "createId" | "onChange" | "screenOptions">) {
-  const [kind, setKind] = useState<UserFlowNodeKind>("Action");
-  const [screenId, setScreenId] = useState("");
-  const [text, setText] = useState("");
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (kind === "Screen" && !screenId) {
-      return;
-    }
-    onChange((state) =>
-      addNode(state, { id: createId(), kind, screenId, text }),
-    );
-    setText("");
-  }
-
-  return (
-    <form
-      aria-label="Add a node to the outline"
-      className="flex flex-wrap items-end gap-2"
-      onSubmit={submit}
-    >
-      <div className="space-y-1">
-        <Label htmlFor="user-flow-outline-kind">Outline node type</Label>
-        <NativeSelect
-          id="user-flow-outline-kind"
-          onChange={(event) => setKind(event.target.value as UserFlowNodeKind)}
-          value={kind}
-        >
-          {USER_FLOW_NODE_KINDS.map((option) => (
-            <NativeSelectOption key={option} value={option}>
-              {option}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </div>
-      {kind === "Screen" ? (
-        <div className="space-y-1">
-          <Label htmlFor="user-flow-outline-screen">Outline Screen</Label>
-          <NativeSelect
-            id="user-flow-outline-screen"
-            onChange={(event) => setScreenId(event.target.value)}
-            value={screenId}
-          >
-            <NativeSelectOption value="">Select a Screen</NativeSelectOption>
-            {screenOptions.map((option) => (
-              <NativeSelectOption key={option.id} value={option.id}>
-                {option.title}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
-      ) : null}
-      <div className="space-y-1">
-        <Label htmlFor="user-flow-outline-text">Outline node text</Label>
-        <input
-          className="h-8 rounded-md border bg-background px-2 text-sm"
-          id="user-flow-outline-text"
-          onChange={(event) => setText(event.target.value)}
-          value={text}
-        />
-      </div>
-      <Button size="sm" type="submit">
-        Add to outline
-      </Button>
-    </form>
-  );
 }
 
 function Inspector({ node, state }: { node: EditorNode; state: EditorState }) {

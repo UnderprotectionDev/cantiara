@@ -2,7 +2,6 @@
 import type {
   RoadmapBlocker,
   RoadmapBlockerSource,
-  RoadmapHorizon,
   RoadmapOriginLink,
   RoadmapView,
 } from "@cantiara/api/roadmap-horizon";
@@ -12,17 +11,15 @@ import {
 } from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, projectWorksQueryPrefix } from "@/utils/orpc";
 import { projectRoadmapWorks } from "../../lib/roadmap-projection";
 import { useRoadmapSession } from "../../store/roadmap-session";
+import { HorizonForm } from "../forms/horizon-form";
+import ResearchDirection from "../forms/research-direction-form";
 import LiveRoadmapCanvas from "./live-roadmap-canvas";
-import ResearchDirection from "./research-direction";
 import RoadmapPlacementEditor from "./roadmap-placement";
 
 const HORIZONS = ["Now", "Next", "Later"] as const;
@@ -64,62 +61,6 @@ function roadmapMarkColor(value: string): string {
   return (
     MARK_COLORS[Math.max(0, values.indexOf(value)) % MARK_COLORS.length] ??
     "bg-chart-1/20"
-  );
-}
-
-function HorizonControl({ work }: { work: WorkProfile }) {
-  const queryClient = useQueryClient();
-  const [horizon, setHorizon] = useState<RoadmapHorizon | "">(
-    work.roadmapHorizon ?? "",
-  );
-  const mutation = useMutation({
-    mutationFn: () =>
-      runOnlineOnlyWrite(() =>
-        client.updateWorkHorizon({
-          baseRevision: work.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          horizon: horizon || null,
-          workId: work.id,
-        }),
-      ),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
-  });
-  return (
-    <div className="flex flex-wrap items-end gap-2">
-      <label className="grid gap-1 text-xs" htmlFor={`horizon-${work.id}`}>
-        Horizon
-        <select
-          className="min-h-10 rounded-md border bg-background px-2 text-sm"
-          id={`horizon-${work.id}`}
-          onChange={(event) =>
-            setHorizon(event.target.value as RoadmapHorizon | "")
-          }
-          value={horizon}
-        >
-          <option value="">No horizon</option>
-          {HORIZONS.map((value) => (
-            <option key={value} value={value}>
-              {value}
-            </option>
-          ))}
-        </select>
-      </label>
-      <Button
-        disabled={mutation.isPending || (work.roadmapHorizon ?? "") === horizon}
-        onClick={() => mutation.mutate()}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        Place on horizon
-      </Button>
-      {mutation.isError ? (
-        <p className="text-destructive text-xs" role="alert">
-          Horizon could not be saved. Reload and try again.
-        </p>
-      ) : null}
-    </div>
   );
 }
 
@@ -333,7 +274,7 @@ function RoadmapWorkItem({
             </>
           )}
           {presentationMode || candidate ? null : (
-            <HorizonControl
+            <HorizonForm
               key={`${work.id}-${work.roadmapHorizon ?? ""}`}
               work={work}
             />

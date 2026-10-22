@@ -5,6 +5,7 @@ import {
   type UniversalSearchResult,
 } from "@cantiara/api/record-discovery";
 import { Badge } from "@cantiara/ui/components/badge";
+import { AppLink } from "@/components/app-link";
 import {
   documentRecordHash,
   projectSourceRecordHash,
@@ -154,14 +155,14 @@ function UniversalSearchResultItem({
       {index === "Search" ? (
         <SearchMatchDetails query={query} result={result} />
       ) : null}
-      <a
+      <AppLink
         aria-label={index === "Search" ? `Open ${result.title}` : undefined}
         className="text-primary underline"
         href={resultHref(result)}
         onClick={onOpenSource}
       >
         Open source record
-      </a>
+      </AppLink>
     </li>
   );
 }

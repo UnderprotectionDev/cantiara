@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Card controls close over the displayed card id.
+
 import {
   PROJECT_WALL_DENSITIES,
   PROJECT_WALL_HIGHLIGHTS,
@@ -15,6 +16,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { AppLink } from "@/components/app-link";
 
 /**
  * Limited accessible highlight palette. Each highlight pairs a border colour
@@ -116,9 +118,9 @@ function ProjectWallPreview({
           </li>
         ))}
       </ul>
-      <a className="text-primary underline" href={preview.openAllPath}>
+      <AppLink className="text-primary underline" href={preview.openAllPath}>
         {PROJECT_WALL_PRESENTATION_LABELS.openAllInSource}
-      </a>
+      </AppLink>
     </section>
   );
 }
@@ -218,12 +220,12 @@ export function ProjectWallCard({
         </p>
       ) : null}
       {canOpen ? (
-        <a
+        <AppLink
           className="text-primary text-xs underline"
           href={source.openPath ?? ""}
         >
           Open Source Record
-        </a>
+        </AppLink>
       ) : null}
       {actions ? (
         <div className="nodrag nopan flex flex-wrap items-center gap-1">

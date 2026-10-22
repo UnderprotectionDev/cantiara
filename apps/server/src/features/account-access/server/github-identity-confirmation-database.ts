@@ -1,3 +1,4 @@
+import type { ConfirmGitHubIdentityOperationId } from "@cantiara/api/context";
 import type { Database } from "@cantiara/db";
 import {
   account,
@@ -6,6 +7,7 @@ import {
   verification,
 } from "@cantiara/db/schema/auth";
 import { and, eq, gt, sql } from "drizzle-orm";
+import { z } from "zod";
 
 import {
   createGitHubIdentityConfirmation,
@@ -29,71 +31,54 @@ const CONFIRMATION_RATE_LIMIT_MAX = 5;
 const CONFIRMATION_RATE_LIMIT_WINDOW_MS = 60_000;
 const BASE64_URL_VALUE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+const operationIdSchema = z.custom<ConfirmGitHubIdentityOperationId>(
+  isConfirmGitHubIdentityOperationId,
+);
+
+const stateSchema = z.object({
+  accountId: z.string().min(1),
+  clientPlatform: z.enum(["web", "tauri"]).optional(),
+  codeVerifier: z.string().regex(BASE64_URL_VALUE_PATTERN),
+  operationId: operationIdSchema,
+  sessionId: z.string().min(1),
+});
+
+const handoffSchema = z.object({
+  accountId: z.string().min(1),
+  grant: z.string().regex(BASE64_URL_VALUE_PATTERN),
+  grantIdentifier: z.string().min(1),
+  operationId: operationIdSchema,
+  sessionId: z.string().min(1),
+});
+
+function parseStoredJson<Schema extends z.ZodType>(
+  schema: Schema,
+  value: string,
+): z.output<Schema> | null {
+  try {
+    const parsed = schema.safeParse(JSON.parse(value));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
 }
 
 function parseState(value: string): GitHubIdentityConfirmationState | null {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (
-      !isRecord(parsed) ||
-      typeof parsed.accountId !== "string" ||
-      parsed.accountId.length === 0 ||
-      typeof parsed.codeVerifier !== "string" ||
-      !BASE64_URL_VALUE_PATTERN.test(parsed.codeVerifier) ||
-      typeof parsed.operationId !== "string" ||
-      !isConfirmGitHubIdentityOperationId(parsed.operationId) ||
-      typeof parsed.sessionId !== "string" ||
-      parsed.sessionId.length === 0 ||
-      (parsed.clientPlatform !== undefined &&
-        parsed.clientPlatform !== "web" &&
-        parsed.clientPlatform !== "tauri")
-    ) {
-      return null;
-    }
-
-    return {
-      accountId: parsed.accountId,
-      codeVerifier: parsed.codeVerifier,
-      clientPlatform: parsed.clientPlatform === "tauri" ? "tauri" : "web",
-      operationId: parsed.operationId,
-      sessionId: parsed.sessionId,
-    };
-  } catch {
+  const parsed = parseStoredJson(stateSchema, value);
+  if (!parsed) {
     return null;
   }
+  return {
+    accountId: parsed.accountId,
+    codeVerifier: parsed.codeVerifier,
+    clientPlatform: parsed.clientPlatform === "tauri" ? "tauri" : "web",
+    operationId: parsed.operationId,
+    sessionId: parsed.sessionId,
+  };
 }
 
 function parseHandoff(value: string): GitHubIdentityConfirmationHandoff | null {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (
-      !isRecord(parsed) ||
-      typeof parsed.accountId !== "string" ||
-      parsed.accountId.length === 0 ||
-      typeof parsed.grant !== "string" ||
-      !BASE64_URL_VALUE_PATTERN.test(parsed.grant) ||
-      typeof parsed.grantIdentifier !== "string" ||
-      parsed.grantIdentifier.length === 0 ||
-      typeof parsed.operationId !== "string" ||
-      !isConfirmGitHubIdentityOperationId(parsed.operationId) ||
-      typeof parsed.sessionId !== "string" ||
-      parsed.sessionId.length === 0
-    ) {
-      return null;
-    }
-
-    return {
-      accountId: parsed.accountId,
-      grant: parsed.grant,
-      grantIdentifier: parsed.grantIdentifier,
-      operationId: parsed.operationId,
-      sessionId: parsed.sessionId,
-    };
-  } catch {
-    return null;
-  }
+  return parseStoredJson(handoffSchema, value);
 }
 
 function grantValue(grant: GitHubIdentityConfirmationGrant) {

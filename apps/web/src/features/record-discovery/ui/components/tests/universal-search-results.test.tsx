@@ -3,8 +3,14 @@ import {
   universalSearchRecordTypes,
 } from "@cantiara/api/record-discovery";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import UniversalSearchResults from "../universal-search-results";
+
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
 
 const result: UniversalSearchResult = {
   archived: false,

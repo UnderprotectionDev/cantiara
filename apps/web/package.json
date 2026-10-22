@@ -51,6 +51,7 @@
     "@tiptap/markdown": "^3.31.3",
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
+    "@uppy/core": "^6.3.0",
     "@vidstack/react": "1.15.6",
     "@xyflow/react": "^12.12.0",
     "better-auth": "catalog:",
@@ -66,6 +67,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-konva": "^19.0.10",
+    "react-pdf": "^11.0.0",
     "roughjs": "^4.6.6",
     "sonner": "catalog:",
     "zod": "catalog:"

@@ -1,32 +1,18 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Capture cards own handlers that close over their current layout and item state.
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
-import {
-  CAPTURE_BIND_RELATIONS,
-  CAPTURE_CONVERSION_TARGETS,
-  type CaptureAttachPreview,
-  type CaptureBindRelation,
-  type CaptureConversionPreview,
-  type CaptureConversionTarget,
-  type CaptureInboxItem,
-  type CaptureSuggestion,
-  type CaptureSuggestions,
-  type CaptureUndoMergePreview,
+import type {
+  CaptureAttachPreview,
+  CaptureAttachPreviewInput,
+  CaptureConversionPreview,
+  CaptureConvertPreviewInput,
+  CaptureInboxItem,
+  CaptureSuggestion,
+  CaptureSuggestions,
+  CaptureUndoMergePreview,
 } from "@cantiara/api/capture-triage";
-import type { ProjectProfile } from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  type ChangeEvent,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
@@ -39,12 +25,19 @@ import {
   client,
   projectsQueryOptions,
 } from "@/utils/orpc";
-
 import {
   itemOriginLabel,
   triageErrorMessage,
   type UndoPreviewState,
 } from "../../lib/capture-inbox";
+import {
+  CaptureAttachmentSetupForm,
+  type CaptureAttachmentSetupValues,
+} from "../forms/capture-attachment-setup-form";
+import {
+  CaptureConversionSetupForm,
+  type CaptureConversionSetupValues,
+} from "../forms/capture-conversion-setup-form";
 
 type Preview = CaptureAttachPreview | CaptureConversionPreview;
 type ActionMode = "attach" | "convert" | "suggestions" | null;
@@ -380,159 +373,12 @@ export function CaptureUndoPreviewPanel({
   );
 }
 
-interface CaptureConversionSetupProps {
-  isOnline: boolean;
-  onCancel: () => void;
-  onPreview: () => void;
-  onProjectChange: (event: ChangeEvent<HTMLSelectElement>) => void;
-  onRecordTypeChange: (event: ChangeEvent<HTMLSelectElement>) => void;
-  previewPending: boolean;
-  projectId: string;
-  projects:
-    | readonly Pick<ProjectProfile, "id" | "name" | "shortCode">[]
-    | undefined;
-  recordType: CaptureConversionTarget | "";
-  sourceProjectId: string | null;
-}
-
 function captureConversionProjectId(projectId: string | null) {
   return projectId ?? "";
 }
 
-function optionalProjectId(projectId: string) {
-  return projectId.trim() || undefined;
-}
-
 function captureConversionClientIdempotencyKey(current: string | null) {
   return current ?? crypto.randomUUID();
-}
-
-function CaptureConversionSetup({
-  isOnline,
-  onCancel,
-  onPreview,
-  onProjectChange,
-  onRecordTypeChange,
-  projectId,
-  projects,
-  previewPending,
-  recordType,
-  sourceProjectId,
-}: CaptureConversionSetupProps) {
-  const availableProjects = projects ?? [];
-  const requiresProject =
-    recordType === "Work" && !sourceProjectId && !projectId.trim();
-
-  return (
-    <section className="space-y-3 border border-border/70 bg-muted/15 p-4">
-      <h3 className="font-semibold text-sm">Choose conversion target</h3>
-      <NativeSelect
-        aria-label="Conversion target"
-        onChange={onRecordTypeChange}
-        value={recordType}
-      >
-        <NativeSelectOption value="">Choose a target</NativeSelectOption>
-        {CAPTURE_CONVERSION_TARGETS.map((target) => (
-          <NativeSelectOption key={target} value={target}>
-            {target}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
-      {sourceProjectId ? null : (
-        <NativeSelect
-          aria-label="Project"
-          disabled={availableProjects.length === 0}
-          onChange={onProjectChange}
-          value={projectId}
-        >
-          <NativeSelectOption value="">
-            Workspace Capture Inbox
-          </NativeSelectOption>
-          {availableProjects.map((project) => (
-            <NativeSelectOption key={project.id} value={project.id}>
-              {project.name} ({project.shortCode})
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      )}
-      {requiresProject ? (
-        <p className="text-destructive text-xs">
-          Work conversion requires a Project.
-        </p>
-      ) : null}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          disabled={
-            !(isOnline && recordType) || requiresProject || previewPending
-          }
-          onClick={onPreview}
-          type="button"
-        >
-          Preview
-        </Button>
-        <Button onClick={onCancel} type="button" variant="outline">
-          Cancel
-        </Button>
-      </div>
-    </section>
-  );
-}
-
-interface CaptureAttachmentSetupProps {
-  isOnline: boolean;
-  onCancel: () => void;
-  onPreview: () => void;
-  onRelationChange: (event: ChangeEvent<HTMLSelectElement>) => void;
-  onTargetIdChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  previewPending: boolean;
-  relation: CaptureBindRelation;
-  targetId: string;
-}
-
-function CaptureAttachmentSetup({
-  isOnline,
-  onCancel,
-  onPreview,
-  onRelationChange,
-  onTargetIdChange,
-  previewPending,
-  relation,
-  targetId,
-}: CaptureAttachmentSetupProps) {
-  return (
-    <section className="space-y-3 border border-border/70 bg-muted/15 p-4">
-      <h3 className="font-semibold text-sm">Choose existing record</h3>
-      <Input
-        aria-label="Target record ID"
-        onChange={onTargetIdChange}
-        placeholder="Target record ID"
-        value={targetId}
-      />
-      <NativeSelect
-        aria-label="Relation"
-        onChange={onRelationChange}
-        value={relation}
-      >
-        {CAPTURE_BIND_RELATIONS.map((option) => (
-          <NativeSelectOption key={option} value={option}>
-            {option}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          disabled={!(isOnline && targetId.trim()) || previewPending}
-          onClick={onPreview}
-          type="button"
-        >
-          Preview
-        </Button>
-        <Button onClick={onCancel} type="button" variant="outline">
-          Cancel
-        </Button>
-      </div>
-    </section>
-  );
 }
 
 export function CaptureInboxItemActions({
@@ -558,19 +404,24 @@ export function CaptureInboxItemActions({
   const [preview, setPreview] = useState<Preview | null>(null);
   const [suggestionData, setSuggestionData] =
     useState<CaptureSuggestions | null>(null);
-  const [recordType, setRecordType] = useState<CaptureConversionTarget | "">(
-    "",
-  );
-  const [relation, setRelation] = useState<CaptureBindRelation>("Origin");
-  const [targetId, setTargetId] = useState("");
-  const [conversionProjectId, setConversionProjectId] = useState(
-    captureConversionProjectId(item.projectId),
-  );
+  const [conversionValues, setConversionValues] =
+    useState<CaptureConversionSetupValues>({
+      projectId: captureConversionProjectId(item.projectId),
+      recordType: "",
+    });
+  const [attachmentValues, setAttachmentValues] =
+    useState<CaptureAttachmentSetupValues>({
+      relation: "Origin",
+      targetId: "",
+    });
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const conversionClientIdempotencyKey = useRef<string | null>(null);
 
   useEffect(() => {
-    setConversionProjectId(captureConversionProjectId(item.projectId));
+    setConversionValues((current) => ({
+      ...current,
+      projectId: captureConversionProjectId(item.projectId),
+    }));
     conversionClientIdempotencyKey.current = null;
   }, [item]);
 
@@ -591,18 +442,8 @@ export function CaptureInboxItemActions({
   );
 
   const previewConversion = useMutation({
-    mutationFn: () => {
-      if (!recordType) {
-        throw new Error("Choose a conversion target.");
-      }
-      return shell.runOnlineOnly(() =>
-        client.previewCaptureConversion({
-          itemId: item.id,
-          projectId: optionalProjectId(conversionProjectId),
-          recordType,
-        }),
-      );
-    },
+    mutationFn: (input: CaptureConvertPreviewInput) =>
+      shell.runOnlineOnly(() => client.previewCaptureConversion(input)),
     onError: () => setActionMessage(triageErrorMessage()),
     onSuccess: (nextPreview) => {
       setActionMessage(null);
@@ -630,14 +471,8 @@ export function CaptureInboxItemActions({
     },
   });
   const previewAttachment = useMutation({
-    mutationFn: () =>
-      shell.runOnlineOnly(() =>
-        client.previewCaptureAttachment({
-          itemId: item.id,
-          relation,
-          targetId: targetId.trim(),
-        }),
-      ),
+    mutationFn: (input: CaptureAttachPreviewInput) =>
+      shell.runOnlineOnly(() => client.previewCaptureAttachment(input)),
     onError: () => setActionMessage(triageErrorMessage()),
     onSuccess: (nextPreview) => {
       setActionMessage(null);
@@ -651,8 +486,8 @@ export function CaptureInboxItemActions({
           clientIdempotencyKey: crypto.randomUUID(),
           itemId: item.id,
           previewId,
-          relation,
-          targetId: targetId.trim(),
+          relation: attachmentValues.relation,
+          targetId: attachmentValues.targetId.trim(),
         }),
       ),
     onError: () => setActionMessage(triageErrorMessage()),
@@ -723,14 +558,17 @@ export function CaptureInboxItemActions({
 
   const useSuggestion = useCallback((suggestion: CaptureSuggestion) => {
     conversionClientIdempotencyKey.current = null;
-    setTargetId(suggestion.id);
+    setAttachmentValues((current) => ({ ...current, targetId: suggestion.id }));
     setMode("attach");
     setPreview(null);
   }, []);
 
   const openConvert = useCallback(() => {
     conversionClientIdempotencyKey.current = null;
-    setConversionProjectId(captureConversionProjectId(item.projectId));
+    setConversionValues((current) => ({
+      ...current,
+      projectId: captureConversionProjectId(item.projectId),
+    }));
     startMode("convert");
   }, [item.projectId, startMode]);
   const openAttach = useCallback(() => startMode("attach"), [startMode]);
@@ -742,35 +580,25 @@ export function CaptureInboxItemActions({
     () => suggestions.mutate(),
     [suggestions],
   );
-  const handleRecordTypeChange = useCallback(
-    (event: ChangeEvent<HTMLSelectElement>) => {
-      conversionClientIdempotencyKey.current = null;
-      setRecordType(event.target.value as CaptureConversionTarget);
-    },
-    [],
-  );
-  const handleProjectChange = useCallback(
-    (event: ChangeEvent<HTMLSelectElement>) => {
-      conversionClientIdempotencyKey.current = null;
-      setConversionProjectId(event.target.value);
-    },
-    [],
-  );
   const handlePreviewConversion = useCallback(
-    () => previewConversion.mutate(),
+    (input: CaptureConvertPreviewInput) => {
+      conversionClientIdempotencyKey.current = null;
+      setConversionValues({
+        projectId: input.projectId ?? "",
+        recordType: input.recordType,
+      });
+      previewConversion.mutate(input);
+    },
     [previewConversion],
   );
-  const handleTargetIdChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => setTargetId(event.target.value),
-    [],
-  );
-  const handleRelationChange = useCallback(
-    (event: ChangeEvent<HTMLSelectElement>) =>
-      setRelation(event.target.value as CaptureBindRelation),
-    [],
-  );
   const handlePreviewAttachment = useCallback(
-    () => previewAttachment.mutate(),
+    (input: CaptureAttachPreviewInput) => {
+      setAttachmentValues({
+        relation: input.relation,
+        targetId: input.targetId,
+      });
+      previewAttachment.mutate(input);
+    },
     [previewAttachment],
   );
   const confirmConversion = useCallback(() => {
@@ -804,29 +632,27 @@ export function CaptureInboxItemActions({
         </p>
       ) : null}
       {mode === "convert" && !conversionPreview ? (
-        <CaptureConversionFlow
-          closeMode={closeMode}
-          conversionProjectId={conversionProjectId}
-          handlePreviewConversion={handlePreviewConversion}
-          handleProjectChange={handleProjectChange}
-          handleRecordTypeChange={handleRecordTypeChange}
+        <CaptureConversionSetupForm
+          initialValues={conversionValues}
           isOnline={isOnline}
-          item={item}
-          previewConversion={previewConversion}
-          projects={projects}
-          recordType={recordType}
+          itemId={item.id}
+          key={`${item.id}:${conversionValues.projectId}:${conversionValues.recordType}`}
+          onCancel={closeMode}
+          onPreview={handlePreviewConversion}
+          previewPending={previewConversion.isPending}
+          projects={projects.data}
+          sourceProjectId={item.projectId}
         />
       ) : null}
       {mode === "attach" && !attachPreview ? (
-        <CaptureAttachmentSetup
+        <CaptureAttachmentSetupForm
+          initialValues={attachmentValues}
           isOnline={isOnline}
+          itemId={item.id}
+          key={`${item.id}:${attachmentValues.relation}:${attachmentValues.targetId}`}
           onCancel={closeMode}
           onPreview={handlePreviewAttachment}
-          onRelationChange={handleRelationChange}
-          onTargetIdChange={handleTargetIdChange}
           previewPending={previewAttachment.isPending}
-          relation={relation}
-          targetId={targetId}
         />
       ) : null}
       {conversionPreview ? (
@@ -855,53 +681,6 @@ export function CaptureInboxItemActions({
         />
       ) : null}
     </div>
-  );
-}
-
-function CaptureConversionFlow({
-  isOnline,
-  closeMode,
-  handlePreviewConversion,
-  handleProjectChange,
-  handleRecordTypeChange,
-  previewConversion,
-  conversionProjectId,
-  projects,
-  recordType,
-  item,
-}: {
-  isOnline: boolean;
-  closeMode: () => void;
-  handlePreviewConversion: () => void;
-  handleProjectChange: (event: ChangeEvent<HTMLSelectElement>) => void;
-  handleRecordTypeChange: (event: ChangeEvent<HTMLSelectElement>) => void;
-  previewConversion: import("@tanstack/react-query").UseMutationResult<
-    CaptureConversionPreview,
-    Error,
-    void,
-    unknown
-  >;
-  conversionProjectId: string;
-  projects: import("@tanstack/react-query").UseQueryResult<
-    ProjectProfile[],
-    Error
-  >;
-  recordType: "" | "Work" | "Document";
-  item: CaptureInboxItem;
-}) {
-  return (
-    <CaptureConversionSetup
-      isOnline={isOnline}
-      onCancel={closeMode}
-      onPreview={handlePreviewConversion}
-      onProjectChange={handleProjectChange}
-      onRecordTypeChange={handleRecordTypeChange}
-      previewPending={previewConversion.isPending}
-      projectId={conversionProjectId}
-      projects={projects.data}
-      recordType={recordType}
-      sourceProjectId={item.projectId}
-    />
   );
 }
 

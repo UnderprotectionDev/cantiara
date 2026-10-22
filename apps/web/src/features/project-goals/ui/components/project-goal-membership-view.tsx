@@ -4,20 +4,15 @@ import type {
   ProjectGoalRelation,
   ProjectGoalSource,
 } from "@cantiara/api/project-goals";
-import { isAllowedRelationEndpoints } from "@cantiara/api/relations";
 import { Button } from "@cantiara/ui/components/button";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import {
+  type GoalRelationChange,
+  selectionKey,
+} from "../../lib/goal-relation-selection";
+import { ProjectGoalRelationForm } from "../forms/project-goal-relation-form";
 
-export interface GoalRelationChange {
-  attached: boolean;
-  baseRevision: number;
-  kind: "Related" | "Contributes to Goal";
-  source: ProjectGoalSource;
-}
-function selectionKey(source: ProjectGoalSource) {
-  return JSON.stringify([source.recordType, source.recordId]);
-}
 function SourceLink({
   source,
   projectId,
@@ -50,13 +45,10 @@ export function ProjectGoalMembershipView({
   projectId: string;
   onSetRelation: (change: GoalRelationChange) => Promise<unknown>;
 }) {
-  const [selection, setSelection] = useState("");
-  const [kind, setKind] = useState<GoalRelationChange["kind"]>(
-    "Contributes to Goal",
-  );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
+  const [settledChanges, setSettledChanges] = useState(0);
   async function change(input: GoalRelationChange) {
     setPending(true);
     setError(undefined);
@@ -64,7 +56,7 @@ export function ProjectGoalMembershipView({
     try {
       await onSetRelation(input);
       setMessage(input.attached ? "Relation added." : "Relation removed.");
-      setSelection("");
+      setSettledChanges((count) => count + 1);
     } catch {
       setError(
         "Relation could not be saved. Reload to check for changes before trying again.",
@@ -72,34 +64,6 @@ export function ProjectGoalMembershipView({
     } finally {
       setPending(false);
     }
-  }
-  const candidates = detail.candidates.filter(
-    (source) =>
-      isAllowedRelationEndpoints(kind, source.recordType, "Project Goal") &&
-      !detail.relations.some(
-        (row) =>
-          row.attached &&
-          row.kind === kind &&
-          selectionKey(row.source) === selectionKey(source),
-      ),
-  );
-  const chosen = candidates.find(
-    (source) => selectionKey(source) === selection,
-  );
-  function add() {
-    if (!chosen) {
-      return;
-    }
-    const previous = detail.relations.find(
-      (row) =>
-        row.kind === kind && selectionKey(row.source) === selectionKey(chosen),
-    );
-    change({
-      source: chosen,
-      kind,
-      attached: true,
-      baseRevision: previous?.revision ?? 0,
-    }).catch(() => undefined);
   }
   function remove(relation: ProjectGoalRelation) {
     change({
@@ -109,8 +73,6 @@ export function ProjectGoalMembershipView({
       baseRevision: relation.revision,
     }).catch(() => undefined);
   }
-  const addLabel =
-    kind === "Contributes to Goal" ? "Add contribution" : "Add relation";
   return (
     <div className="space-y-6">
       {error ? <p role="alert">{error}</p> : null}
@@ -163,47 +125,12 @@ export function ProjectGoalMembershipView({
           <p>No contributors yet.</p>
         )}
         {detail.readOnly ? null : (
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="grid gap-2 text-sm">
-              Relation
-              <select
-                aria-label="Relation"
-                className="min-h-11 rounded-md border bg-background p-2"
-                disabled={pending}
-                onChange={(event) => {
-                  setKind(event.target.value as GoalRelationChange["kind"]);
-                  setSelection("");
-                }}
-                value={kind}
-              >
-                <option>Contributes to Goal</option>
-                <option>Related</option>
-              </select>
-            </label>
-            <label className="grid min-w-0 flex-1 gap-2 text-sm">
-              Record
-              <select
-                aria-label="Record"
-                className="min-h-11 w-full rounded-md border bg-background p-2"
-                disabled={pending}
-                onChange={(event) => setSelection(event.target.value)}
-                value={selection}
-              >
-                <option value="">Select record</option>
-                {candidates.map((source) => (
-                  <option
-                    key={selectionKey(source)}
-                    value={selectionKey(source)}
-                  >
-                    {source.title} · {source.workType ?? source.recordType}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button disabled={pending || !chosen} onClick={add} type="button">
-              {pending ? "Saving…" : <span>{addLabel}</span>}
-            </Button>
-          </div>
+          <ProjectGoalRelationForm
+            detail={detail}
+            onAdd={change}
+            pending={pending}
+            settledChanges={settledChanges}
+          />
         )}
       </section>
       <section

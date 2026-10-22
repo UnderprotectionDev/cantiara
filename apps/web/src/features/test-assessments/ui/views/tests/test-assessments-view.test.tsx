@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import type { TestAssessmentRecord } from "@cantiara/api/test-assessments";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
@@ -34,6 +35,12 @@ afterEach(() => {
   host?.remove();
 });
 
+async function settle() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 async function mount(
   props: Partial<Parameters<typeof TestAssessmentsView>[0]> = {},
 ) {
@@ -42,17 +49,26 @@ async function mount(
   root = createRoot(host);
   await act(() => {
     root?.render(
-      <TestAssessmentsView
-        assessments={[saved]}
-        loadContextTargets={vi
-          .fn()
-          .mockResolvedValue([
-            { id: "r1", kind: "Project Release", label: "v1.2" },
-          ])}
-        onRecord={vi.fn().mockResolvedValue(undefined)}
-        {...props}
-      />,
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <TestAssessmentsView
+          assessments={[saved]}
+          loadContextTargets={vi
+            .fn()
+            .mockResolvedValue([
+              { id: "r1", kind: "Project Release", label: "v1.2" },
+            ])}
+          onRecord={vi.fn().mockResolvedValue(undefined)}
+          {...props}
+        />
+      </QueryClientProvider>,
     );
+  });
+  await act(async () => {
+    await settle();
   });
 }
 
@@ -87,6 +103,19 @@ test("lists the saved snapshot with its decision, ids and no score", async () =>
   expect(text).toContain("s1, s2");
   expect(text).not.toContain("New test context after this assessment");
   expect(host?.querySelector("li")?.textContent ?? "").not.toMatch(SCORE_WORDS);
+});
+
+test("shows the assessment time with the account Date format and Time zone", async () => {
+  await mount({
+    preferences: {
+      appearance: "Dark",
+      dateFormat: "yyyy-MM-dd",
+      firstDayOfWeek: "Monday",
+      locale: "en-GB",
+      timeZone: "Europe/Istanbul",
+    },
+  });
+  expect(host?.textContent).toContain("Assessed 2026-10-01 12:00 by founder");
 });
 
 test("shows the new-context notice with exact sources and keeps the decision", async () => {
@@ -128,7 +157,7 @@ test("shows an alert with a retry action when the context list fails to load", a
     (
       host?.querySelector('form button[type="button"]') as HTMLButtonElement
     )?.click();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await settle();
   });
   expect(load).toHaveBeenCalledTimes(2);
   expect(host?.querySelector('p[role="alert"]')).toBeNull();

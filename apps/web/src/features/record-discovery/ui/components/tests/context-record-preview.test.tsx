@@ -15,6 +15,12 @@ import {
   sourceRecordPreviewHref,
 } from "../context-record-preview";
 
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
+
 const noop = () => undefined;
 
 vi.mock("@cantiara/ui/components/sheet", async () => {

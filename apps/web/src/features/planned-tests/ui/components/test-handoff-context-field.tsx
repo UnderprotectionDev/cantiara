@@ -8,7 +8,8 @@ import {
 } from "@cantiara/api/planned-tests";
 import { Button } from "@cantiara/ui/components/button";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useId, useState } from "react";
 import {
   type ContextRefDraft,
   describeContextRef,
@@ -39,9 +40,12 @@ export function TestHandoffContextField({
 }) {
   const statusId = useId();
   const [kind, setKind] = useState<TestHandoffContextKind>("Work");
-  const [targets, setTargets] = useState<TestHandoffContextCandidate[] | null>(
-    null,
-  );
+  const targetsQuery = useQuery({
+    gcTime: 0,
+    queryFn: () => loadTargets(kind),
+    queryKey: ["test-handoff-context-targets", kind],
+  });
+  const targets = targetsQuery.data;
   const [targetId, setTargetId] = useState("");
   const [sectionId, setSectionId] = useState("");
   const [wireframeVersion, setWireframeVersion] = useState("");
@@ -49,30 +53,20 @@ export function TestHandoffContextField({
 
   const selected = targets?.find((target) => target.targetId === targetId);
 
-  const chooseKind = useCallback(
-    async (next: TestHandoffContextKind) => {
-      setKind(next);
-      setTargets(null);
-      setTargetId("");
-      setSectionId("");
-      setWireframeVersion("");
-      setMessage("");
-      try {
-        const loaded = await loadTargets(next);
-        setTargets(loaded);
-        if (loaded.length === 0) {
-          setMessage(`This Project has no ${next} to add yet.`);
-        }
-      } catch {
-        setMessage(`${next} records could not be loaded.`);
-      }
-    },
-    [loadTargets],
-  );
+  function chooseKind(next: TestHandoffContextKind) {
+    setKind(next);
+    setTargetId("");
+    setSectionId("");
+    setWireframeVersion("");
+    setMessage("");
+  }
 
-  useEffect(() => {
-    chooseKind("Work").catch(() => undefined);
-  }, [chooseKind]);
+  let loadMessage = "";
+  if (targetsQuery.isError) {
+    loadMessage = `${kind} records could not be loaded.`;
+  } else if (targets?.length === 0) {
+    loadMessage = `This Project has no ${kind} to add yet.`;
+  }
 
   function add() {
     if (!selected) {
@@ -166,9 +160,7 @@ export function TestHandoffContextField({
             <NativeSelect
               id={`${idPrefix}-context-kind`}
               onChange={(event) =>
-                chooseKind(event.target.value as TestHandoffContextKind).catch(
-                  () => undefined,
-                )
+                chooseKind(event.target.value as TestHandoffContextKind)
               }
               value={kind}
             >
@@ -255,7 +247,7 @@ export function TestHandoffContextField({
         className="text-muted-foreground text-sm"
         id={statusId}
       >
-        {message}
+        {message || loadMessage}
       </p>
     </fieldset>
   );

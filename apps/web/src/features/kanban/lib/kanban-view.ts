@@ -1,5 +1,6 @@
 import type { ProjectWorkSort } from "@cantiara/api/project-shell";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
+import { differenceInMinutes } from "date-fns";
 
 function compareNullableDates(
   left: string | null,
@@ -76,7 +77,7 @@ export function filterDefaultKanbanWorks(
 export function formatTimeInStatus(statusChangedAt: string, now = Date.now()) {
   const elapsedMinutes = Math.max(
     0,
-    Math.floor((now - new Date(statusChangedAt).getTime()) / 60_000),
+    differenceInMinutes(now, new Date(statusChangedAt)),
   );
   const days = Math.floor(elapsedMinutes / 1440);
   const hours = Math.floor((elapsedMinutes % 1440) / 60);

@@ -1,11 +1,13 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Merge controls close over their current Work and preview state.
 
-import type {
-  WorkMergeField,
-  WorkMergePreview,
-  WorkMergeResolution,
-  WorkMergeResult,
-  WorkProfile,
+import {
+  mergeWorkInputSchema,
+  type WorkMergeField,
+  type WorkMergePreview,
+  type WorkMergeResolution,
+  type WorkMergeResult,
+  type WorkProfile,
+  workMergePreviewInputSchema,
 } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import {
@@ -65,16 +67,17 @@ export default function WorkMergeForm({
       survivingWorkId: candidates[0]?.id ?? "",
     },
     onSubmit: async ({ value }) => {
-      if (!value.survivingWorkId) {
+      const previewInput = workMergePreviewInputSchema.safeParse({
+        duplicateWorkId: work.id,
+        survivingWorkId: value.survivingWorkId,
+      });
+      if (!previewInput.success) {
         return;
       }
       setError(null);
       try {
         if (!preview) {
-          const nextPreview = await client.workMergePreview({
-            duplicateWorkId: work.id,
-            survivingWorkId: value.survivingWorkId,
-          });
+          const nextPreview = await client.workMergePreview(previewInput.data);
           setPreview(nextPreview);
           form.setFieldValue("fieldResolutions", {});
           return;
@@ -88,16 +91,21 @@ export default function WorkMergeForm({
           return;
         }
 
+        const mergeInput = mergeWorkInputSchema.safeParse({
+          baseRevision: preview.survivingWork.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          duplicateRevision: preview.duplicateWork.revision,
+          duplicateWorkId: preview.duplicateWork.id,
+          fieldResolutions: value.fieldResolutions,
+          previewId: preview.previewId,
+          survivingWorkId: preview.survivingWork.id,
+        });
+        if (!mergeInput.success) {
+          setError(mergeErrorMessage(null));
+          return;
+        }
         const result = await runOnlineOnlyWrite(() =>
-          client.mergeWork({
-            baseRevision: preview.survivingWork.revision,
-            clientIdempotencyKey: crypto.randomUUID(),
-            duplicateRevision: preview.duplicateWork.revision,
-            duplicateWorkId: preview.duplicateWork.id,
-            fieldResolutions: value.fieldResolutions,
-            previewId: preview.previewId,
-            survivingWorkId: preview.survivingWork.id,
-          }),
+          client.mergeWork(mergeInput.data),
         );
         await Promise.all([
           queryClient.invalidateQueries({

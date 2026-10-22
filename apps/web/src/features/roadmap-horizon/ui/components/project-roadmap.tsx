@@ -6,12 +6,16 @@ import type {
 } from "@cantiara/api/roadmap-horizon";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
 import { useQuery } from "@tanstack/react-query";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { orpc } from "@/utils/orpc";
+import RoadmapViewEditor from "../forms/roadmap-view-form";
 import ProjectMilestones from "./project-milestones";
 import { RoadmapResults } from "./roadmap-results";
-import RoadmapViewEditor from "./roadmap-view-editor";
 
 type ViewSelection = "direction" | "all" | string;
 
@@ -371,20 +375,22 @@ function RoadmapPresentation({
       </header>
       <label className="grid max-w-sm gap-1 text-sm" htmlFor="roadmap-view">
         Named view
-        <select
-          className="min-h-11 rounded-md border bg-background px-3"
+        <NativeSelect
+          className="w-full"
           id="roadmap-view"
           onChange={(event) => setSelection(event.target.value)}
           value={selection}
         >
-          <option value="direction">Product direction</option>
-          <option value="all">All Work types</option>
+          <NativeSelectOption value="direction">
+            Product direction
+          </NativeSelectOption>
+          <NativeSelectOption value="all">All Work types</NativeSelectOption>
           {views.map((saved) => (
-            <option key={saved.id} value={saved.id}>
+            <NativeSelectOption key={saved.id} value={saved.id}>
               {saved.name}
-            </option>
+            </NativeSelectOption>
           ))}
-        </select>
+        </NativeSelect>
       </label>
     </>
   );

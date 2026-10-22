@@ -2,9 +2,15 @@
 
 import type { UserFlowView } from "@cantiara/api/user-flow";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 import { UserFlowDetail, UserFlowListView } from "../user-flow-view";
+
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
 
 const placedAt = "2026-10-01T09:00:00.000Z";
 const FOREIGN_SURFACES = /Lifeline|Moodboard|Project Wall|Technical Sequence/;

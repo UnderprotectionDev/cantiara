@@ -7,8 +7,9 @@ import {
   resolvedBlocks,
   type WireframeBlock,
 } from "@cantiara/api/wireframe-document";
+import { useSelector } from "@tanstack/react-store";
 import type Konva from "konva";
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
 import {
   Circle,
   Group,
@@ -208,11 +209,7 @@ export default function WireframeStage({
 }: WireframeStageProps) {
   const state = editor.getState();
   const selected = new Set(state.selection);
-  const view = useSyncExternalStore(
-    viewport.subscribe,
-    viewport.getState,
-    viewport.getState,
-  );
+  const view = useSelector(viewport.store);
   const blocks = useMemo(
     () => resolvedBlocks(state.document),
     [state.document],

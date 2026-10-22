@@ -21,8 +21,8 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { usePersonalProjectWallView } from "../../hooks/use-personal-project-wall-view";
+import { AddCardForm } from "../forms/place-project-wall-card-form";
 import {
-  AddCardForm,
   type ProjectWallActions,
   ProjectWallLayout,
 } from "../views/project-wall-view";

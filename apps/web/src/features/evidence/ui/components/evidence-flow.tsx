@@ -3,7 +3,12 @@ import {
   type EvidenceFlowRow,
   type EvidenceFlowSourceType,
 } from "@cantiara/api/document-evidence";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
 import type { ChangeEvent } from "react";
+import { AppLink } from "@/components/app-link";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 
 /** Derived list of explicit `Kanıtı` relations; a plain ordered list, never a visual-only timeline. */
@@ -26,16 +31,23 @@ export default function EvidenceFlow({
   return (
     <section aria-label="Evidence Flow" className="space-y-2">
       <h4 className="font-medium">Evidence Flow</h4>
-      <label className="flex items-center gap-2">
+      <label
+        className="flex items-center gap-2"
+        htmlFor="evidence-flow-source-type"
+      >
         <span>Source type</span>
-        <select onChange={changeSourceType} value={sourceType ?? ""}>
-          <option value="">All</option>
+        <NativeSelect
+          id="evidence-flow-source-type"
+          onChange={changeSourceType}
+          value={sourceType ?? ""}
+        >
+          <NativeSelectOption value="">All</NativeSelectOption>
           {EVIDENCE_FLOW_SOURCE_TYPES.map((type) => (
-            <option key={type} value={type}>
+            <NativeSelectOption key={type} value={type}>
               {type}
-            </option>
+            </NativeSelectOption>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       {rows === undefined ? (
         <p role="status">Loading Evidence Flow…</p>
@@ -95,7 +107,7 @@ function EvidenceFlowItem({ row }: { row: EvidenceFlowRow }) {
         </p>
       ) : null}
       {row.source.brokenReason ? <p>{row.source.brokenReason}</p> : null}
-      {openHref ? <a href={openHref}>Open source record</a> : null}
+      {openHref ? <AppLink href={openHref}>Open source record</AppLink> : null}
     </li>
   );
 }

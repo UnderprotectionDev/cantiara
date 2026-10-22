@@ -3,6 +3,7 @@ import {
   TAURI_CONFIRM_GITHUB_IDENTITY_CALLBACK_URL,
 } from "@cantiara/api/context";
 import type { Client } from "@tauri-apps/plugin-stronghold";
+import { z } from "zod";
 
 import { env } from "@/env";
 
@@ -15,6 +16,10 @@ const STRONGHOLD_VAULT_FILE = "account-access.hold";
 const BASE64_URL_VALUE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const BASE64_URL_PADDING_PATTERN = /[=]+$/;
 const TRAILING_SLASH_PATTERN = /\/$/;
+const sessionExchangeResponseSchema = z.object({ token: z.string().min(1) });
+const handoffExchangeResponseSchema = z.object({
+  grant: z.string().regex(BASE64_URL_VALUE_PATTERN),
+});
 
 export interface TauriBearerTokenStore {
   clearCodeVerifier: () => Promise<void>;
@@ -285,18 +290,12 @@ export async function exchangeTauriAuthCode(
     throw new Error("Tauri session exchange failed");
   }
 
-  const body: unknown = await response.json();
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    !("token" in body) ||
-    typeof body.token !== "string" ||
-    body.token.length === 0
-  ) {
+  const body = sessionExchangeResponseSchema.safeParse(await response.json());
+  if (!body.success) {
     throw new Error("Tauri session exchange failed");
   }
 
-  await dependencies.tokenStore.write(body.token);
+  await dependencies.tokenStore.write(body.data.token);
   await dependencies.tokenStore.clearCodeVerifier();
 }
 
@@ -332,17 +331,11 @@ export async function exchangeTauriGitHubIdentityHandoff(
     throw new Error("Tauri GitHub identity handoff exchange failed");
   }
 
-  const body: unknown = await response.json();
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    !("grant" in body) ||
-    typeof body.grant !== "string" ||
-    !BASE64_URL_VALUE_PATTERN.test(body.grant)
-  ) {
+  const body = handoffExchangeResponseSchema.safeParse(await response.json());
+  if (!body.success) {
     throw new Error("Tauri GitHub identity handoff exchange failed");
   }
-  return body.grant;
+  return body.data.grant;
 }
 
 export async function openTauriGitHubSignIn() {
@@ -363,6 +356,7 @@ export async function openTauriGitHubSignIn() {
 }
 
 export interface InitializeTauriAuthOptions {
+  onAuthenticated?: () => void | Promise<void>;
   onGitHubIdentityConfirmation?: (grant: string) => void | Promise<void>;
 }
 
@@ -414,7 +408,7 @@ export async function initializeTauriAuth(
       return;
     }
     if (await handleTauriAuthCallback(url)) {
-      window.location.assign("/dashboard");
+      await options.onAuthenticated?.();
       return;
     }
     if (

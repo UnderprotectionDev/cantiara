@@ -1,8 +1,8 @@
 import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
+import { getWorkStatusLabel } from "@/components/work-status-form";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
-import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { KanbanCardSummary } from "./kanban-board";
 import { KanbanWorkDetails, KanbanWorkSummary } from "./kanban-work-summary";
 

@@ -1,10 +1,13 @@
 import type { ProjectSourceRecord } from "@cantiara/api/project-source-records";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test } from "vitest";
-import {
-  DecisionEditor,
-  ProjectDecisionsView,
-} from "../project-decisions-view";
+import { expect, test, vi } from "vitest";
+import { ProjectDecisionsView } from "../project-decisions-view";
+
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
 
 const decision = {
   createdAt: "2026-10-07T10:00:00.000Z",
@@ -18,7 +21,6 @@ const decision = {
   rationale: "Keep scope small.",
   life: "Valid",
 } satisfies Extract<ProjectSourceRecord, { sourceType: "Decision" }>;
-const noop = () => undefined;
 const save = async () => undefined;
 
 test("Decisions offers creation and an explicit withdrawal only for Valid Decisions", () => {
@@ -71,18 +73,6 @@ test("Decisions keeps withdrawn rationale and its date visible separately", () =
   expect(html).toContain("Constraint removed.");
   expect(html).toContain('dateTime="2026-10-07T11:00:00.000Z"');
   expect(html).not.toContain(">Withdraw</button>");
-});
-
-test("Decision creation uses labelled title, decision text and optional rationale", () => {
-  const html = renderToStaticMarkup(
-    <DecisionEditor onCancel={noop} onSave={save} />,
-  );
-  expect(html).toContain('id="decision-title"');
-  expect(html).toContain("Decision text");
-  expect(html).toContain("Rationale");
-  expect(html).toContain(">Save</button>");
-  expect(html).toContain(">Cancel</button>");
-  expect(html).not.toContain("Superseded");
 });
 
 test("Superseded detail opens the final Valid Decision and keeps its historical text read-only", () => {

@@ -7,12 +7,18 @@ import type {
 import { toggleCollapsedGroup } from "@cantiara/api/project-wall-viewport";
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
   ProjectWallOutline,
   type ProjectWallOutlineProps,
 } from "../project-wall-outline";
 import type { ProjectWallSceneWall } from "../project-wall-scene";
+
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -238,12 +244,12 @@ describe("canvas yapılandırılmış outline: tasks without a pointer", () => {
     expect(titles()).toEqual(["Record 1", "Record 2", "Record 0"]);
   });
 
-  test("groups the selection, assigns a card to a group and collapses it", () => {
+  test("groups the selection, assigns a card to a group and collapses it", async () => {
     mount(wallOf(3));
     click("Select: Record 0");
     click("Select: Record 1");
     setField(field("Group name"), "Onboarding");
-    act(() => buttonByText("Group selection").click());
+    await act(async () => buttonByText("Group selection").click());
     expect(latest.wall.groups.map(({ title }) => title)).toEqual([
       "Onboarding",
     ]);
@@ -270,13 +276,13 @@ describe("canvas yapılandırılmış outline: tasks without a pointer", () => {
     ).not.toBeNull();
   });
 
-  test("binds a Visual link from the inspector and unbinds it", () => {
+  test("binds a Visual link from the inspector and unbinds it", async () => {
     mount(wallOf(3));
     click("Inspect: Record 0");
     expect(container.textContent).toContain("From: Record 0");
     setField(field("To"), "card-2");
     setField(field("Label"), "leads to");
-    act(() => buttonByText("Bind").click());
+    await act(async () => buttonByText("Bind").click());
     expect(latest.wall.links).toEqual([
       {
         fromCardId: "card-0",

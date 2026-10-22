@@ -1,58 +1,33 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work-owned handoff controls close over their Work, form, and package state.
 
-import type {
-  CancelExternalExecutionHandoffInput,
-  ConfirmExternalExecutionHandoffReconcileInput,
-  ExternalExecutionHandoff,
-  ExternalExecutionHandoffHistoryEvent,
-  ExternalExecutionHandoffReconcilePreview,
-  ExternalExecutionHandoffRelatedWork,
-  PreviewExternalExecutionHandoffReconcileInput,
-  RecordExternalExecutionHandoffReturnInput,
-} from "@cantiara/api/external-handoffs";
 import {
-  cancelExternalExecutionHandoffInputSchema,
-  externalExecutionHandoffInputSchema,
-  externalExecutionHandoffResultInputSchema,
+  type ConfirmExternalExecutionHandoffReconcileInput,
+  type ExternalExecutionHandoff,
+  type ExternalExecutionHandoffHistoryEvent,
+  type ExternalExecutionHandoffReconcilePreview,
+  type ExternalExecutionHandoffRelatedWork,
   isTerminalExternalExecutionHandoffStatus,
+  type PreviewExternalExecutionHandoffReconcileInput,
+  type RecordExternalExecutionHandoffReturnInput,
 } from "@cantiara/api/external-handoffs";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
-import {
-  Field,
-  FieldDescription,
-  FieldLabel,
-} from "@cantiara/ui/components/field";
+import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useExternalExecutionHandoffs } from "@/features/external-handoffs/hooks/use-external-handoffs";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { writeTextToClipboard } from "@/lib/clipboard";
-
-interface HandoffDraft {
-  constraints: string;
-  executor: string;
-  expectedOutput: string;
-  githubContextText: string;
-  includeWork: boolean;
-  purpose: string;
-}
-
-const EMPTY_DRAFT: HandoffDraft = {
-  constraints: "",
-  executor: "",
-  expectedOutput: "",
-  githubContextText: "",
-  includeWork: true,
-  purpose: "",
-};
+import { errorMessage } from "../../lib/error-message";
+import { CancelHandoffForm } from "../forms/cancel-handoff-form";
+import { HandoffReturnForm } from "../forms/handoff-return-form";
+import { StartHandoffForm } from "../forms/start-handoff-form";
 
 const HISTORY_EVENT_LABELS: Record<
   ExternalExecutionHandoffHistoryEvent["eventType"],
@@ -89,97 +64,6 @@ function HandoffHistory({
       </ul>
     </section>
   );
-}
-
-function CancelHandoffForm({
-  handoffId,
-  onCancel,
-  pending,
-}: {
-  handoffId: string;
-  onCancel: (input: CancelExternalExecutionHandoffInput) => Promise<unknown>;
-  pending: boolean;
-}) {
-  const [error, setError] = useState<string | null>(null);
-  const retryInput = useRef<{
-    clientEventId: string;
-    reason: string;
-  } | null>(null);
-  const form = useForm({
-    defaultValues: { reason: "" },
-    onSubmit: async ({ value }) => {
-      setError(null);
-      const reason = value.reason.trim();
-      const clientEventId =
-        retryInput.current?.reason === reason
-          ? retryInput.current.clientEventId
-          : crypto.randomUUID();
-      const parsed = cancelExternalExecutionHandoffInputSchema.safeParse({
-        clientEventId,
-        handoffId,
-        reason: value.reason,
-      });
-      if (!parsed.success) {
-        setError(
-          parsed.error.issues[0]?.message ?? "Check the cancellation reason.",
-        );
-        return;
-      }
-      retryInput.current = { clientEventId, reason: parsed.data.reason };
-      try {
-        await onCancel(parsed.data);
-        retryInput.current = null;
-        form.reset();
-      } catch (cancelError) {
-        setError(errorMessage(cancelError));
-      }
-    },
-  });
-
-  return (
-    <form
-      aria-label="Cancel Handoff"
-      className="space-y-2 rounded-sm border border-border/70 bg-card/45 p-3"
-      onSubmit={async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        await form.handleSubmit();
-      }}
-    >
-      <form.Field name="reason">
-        {(field) => (
-          <Field>
-            <FieldLabel htmlFor={`handoff-cancel-reason-${handoffId}`}>
-              Reason
-            </FieldLabel>
-            <Textarea
-              disabled={pending}
-              id={`handoff-cancel-reason-${handoffId}`}
-              onChange={(event) => field.handleChange(event.target.value)}
-              required
-              rows={2}
-              value={field.state.value}
-            />
-          </Field>
-        )}
-      </form.Field>
-      {error ? (
-        <p className="text-destructive text-xs" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <Button disabled={pending} size="sm" type="submit" variant="outline">
-        Cancel Handoff
-      </Button>
-    </form>
-  );
-}
-
-function lines(value: string) {
-  return value
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
 }
 
 function ReturnList({
@@ -241,159 +125,6 @@ function HandoffResult({ handoff }: { handoff: ExternalExecutionHandoff }) {
         {handoff.result.returnedAt}
       </time>
     </section>
-  );
-}
-
-function HandoffReturnForm({
-  disabled,
-  handoffId,
-  onRecordReturn,
-}: {
-  disabled: boolean;
-  handoffId: string;
-  onRecordReturn: (
-    input: RecordExternalExecutionHandoffReturnInput,
-  ) => Promise<unknown>;
-}) {
-  const [error, setError] = useState<string | null>(null);
-  const id = `handoff-return-${handoffId}`;
-  const form = useForm({
-    defaultValues: {
-      changedAssumptions: "",
-      executorSummary: "",
-      externalLinks: "",
-      openQuestions: "",
-      producedEvidence: "",
-    },
-    onSubmit: async ({ value }) => {
-      setError(null);
-      const parsed = externalExecutionHandoffResultInputSchema.safeParse({
-        changedAssumptions: lines(value.changedAssumptions),
-        executorSummary: value.executorSummary,
-        externalLinks: lines(value.externalLinks),
-        openQuestions: lines(value.openQuestions),
-        producedEvidence: lines(value.producedEvidence),
-      });
-      if (!parsed.success) {
-        setError(
-          parsed.error.issues[0]?.message ?? "Check the return details.",
-        );
-        return;
-      }
-      try {
-        await onRecordReturn({
-          ...parsed.data,
-          clientEventId: crypto.randomUUID(),
-          handoffId,
-        });
-      } catch (submitError) {
-        setError(errorMessage(submitError));
-      }
-    },
-  });
-
-  return (
-    <form
-      aria-label="Record return"
-      className="space-y-3 rounded-md border border-border/70 bg-card/45 p-3"
-      onSubmit={async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        await form.handleSubmit();
-      }}
-    >
-      <div className="grid gap-3 sm:grid-cols-2">
-        <form.Field name="executorSummary">
-          {(field) => (
-            <Field>
-              <FieldLabel htmlFor={`${id}-summary`}>
-                Executor summary
-              </FieldLabel>
-              <Textarea
-                disabled={disabled}
-                id={`${id}-summary`}
-                onChange={(event) => field.handleChange(event.target.value)}
-                required
-                rows={3}
-                value={field.state.value}
-              />
-            </Field>
-          )}
-        </form.Field>
-        <form.Field name="changedAssumptions">
-          {(field) => (
-            <Field>
-              <FieldLabel htmlFor={`${id}-assumptions`}>
-                Changed assumptions
-              </FieldLabel>
-              <Textarea
-                disabled={disabled}
-                id={`${id}-assumptions`}
-                onChange={(event) => field.handleChange(event.target.value)}
-                rows={3}
-                value={field.state.value}
-              />
-            </Field>
-          )}
-        </form.Field>
-        <form.Field name="producedEvidence">
-          {(field) => (
-            <Field>
-              <FieldLabel htmlFor={`${id}-evidence`}>
-                Produced evidence
-              </FieldLabel>
-              <Textarea
-                disabled={disabled}
-                id={`${id}-evidence`}
-                onChange={(event) => field.handleChange(event.target.value)}
-                rows={3}
-                value={field.state.value}
-              />
-            </Field>
-          )}
-        </form.Field>
-        <form.Field name="externalLinks">
-          {(field) => (
-            <Field>
-              <FieldLabel htmlFor={`${id}-links`}>
-                Permitted external links
-              </FieldLabel>
-              <Textarea
-                disabled={disabled}
-                id={`${id}-links`}
-                onChange={(event) => field.handleChange(event.target.value)}
-                rows={3}
-                value={field.state.value}
-              />
-            </Field>
-          )}
-        </form.Field>
-        <form.Field name="openQuestions">
-          {(field) => (
-            <Field className="sm:col-span-2">
-              <FieldLabel htmlFor={`${id}-questions`}>
-                Open questions
-              </FieldLabel>
-              <Textarea
-                disabled={disabled}
-                id={`${id}-questions`}
-                onChange={(event) => field.handleChange(event.target.value)}
-                rows={3}
-                value={field.state.value}
-              />
-            </Field>
-          )}
-        </form.Field>
-      </div>
-      {error ? (
-        <p className="text-destructive text-xs" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <Button disabled={disabled} size="sm" type="submit">
-        Record return
-      </Button>
-    </form>
   );
 }
 
@@ -894,19 +625,6 @@ function HandoffStatusControls({
   }
 }
 
-function githubIdentifiers(value: string) {
-  return value
-    .split("\n")
-    .map((identifier) => identifier.trim())
-    .filter(Boolean);
-}
-
-function errorMessage(error: unknown) {
-  return error instanceof Error && error.message
-    ? error.message
-    : "This handoff could not be written.";
-}
-
 export default function ExternalExecutionHandoffPanel({
   defaultExpanded = false,
   work,
@@ -931,33 +649,6 @@ export default function ExternalExecutionHandoffPanel({
     relatedWorks,
     start,
   } = useExternalExecutionHandoffs(work, expanded);
-  const form = useHandoffDraftForm(async (value) => {
-    setFormError(null);
-    setWriteError(null);
-    setCopyError(null);
-    const parsed = externalExecutionHandoffInputSchema.safeParse({
-      constraints: value.constraints,
-      executor: value.executor,
-      expectedOutput: value.expectedOutput,
-      githubContext: githubIdentifiers(value.githubContextText),
-      includeWork: value.includeWork,
-      purpose: value.purpose,
-      workId: work.id,
-    });
-    if (!parsed.success) {
-      setFormError(
-        parsed.error.issues[0]?.message ?? "Check the handoff details.",
-      );
-      return;
-    }
-    try {
-      const { workId: _workId, ...input } = parsed.data;
-      await start.mutateAsync(input);
-      form.reset();
-    } catch (error) {
-      setWriteError(errorMessage(error));
-    }
-  });
   const pending =
     start.isPending ||
     cancel.isPending ||
@@ -1135,8 +826,15 @@ export default function ExternalExecutionHandoffPanel({
           ) : null}
 
           <StartHandoffForm
-            form={form}
             formError={formError}
+            onClearErrors={() => {
+              setFormError(null);
+              setWriteError(null);
+              setCopyError(null);
+            }}
+            onFormError={setFormError}
+            onStart={(input) => start.mutateAsync(input)}
+            onWriteError={setWriteError}
             pending={pending}
             work={work}
             writeError={writeError}
@@ -1145,170 +843,4 @@ export default function ExternalExecutionHandoffPanel({
       ) : null}
     </section>
   );
-}
-
-function StartHandoffForm({
-  work,
-  form,
-  pending,
-  formError,
-  writeError,
-}: {
-  work: WorkProfile;
-  form: ReturnType<typeof useHandoffDraftForm>;
-  pending: boolean;
-  formError: string | null;
-  writeError: string | null;
-}) {
-  return (
-    <form
-      aria-label="Start Handoff"
-      className="space-y-4 rounded-md border border-border/70 bg-card/45 p-3"
-      hidden={work.archivedAt !== null}
-      onSubmit={async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        await form.handleSubmit();
-      }}
-    >
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h5 className="font-medium text-sm">Start Handoff</h5>
-        <p className="font-mono text-[11px] text-muted-foreground">
-          {work.key} · current revision {work.revision}
-        </p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <form.Field name="purpose">
-          {(field) => (
-            <Field>
-              <FieldLabel htmlFor={`handoff-purpose-${work.id}`}>
-                Purpose
-              </FieldLabel>
-              <Textarea
-                disabled={pending}
-                id={`handoff-purpose-${work.id}`}
-                onChange={(event) => field.handleChange(event.target.value)}
-                rows={2}
-                value={field.state.value}
-              />
-            </Field>
-          )}
-        </form.Field>
-        <form.Field name="executor">
-          {(field) => (
-            <Field>
-              <FieldLabel htmlFor={`handoff-executor-${work.id}`}>
-                Executor
-              </FieldLabel>
-              <Input
-                disabled={pending}
-                id={`handoff-executor-${work.id}`}
-                onChange={(event) => field.handleChange(event.target.value)}
-                value={field.state.value}
-              />
-            </Field>
-          )}
-        </form.Field>
-        <form.Field name="expectedOutput">
-          {(field) => (
-            <Field>
-              <FieldLabel htmlFor={`handoff-output-${work.id}`}>
-                Expected output
-              </FieldLabel>
-              <Textarea
-                disabled={pending}
-                id={`handoff-output-${work.id}`}
-                onChange={(event) => field.handleChange(event.target.value)}
-                rows={2}
-                value={field.state.value}
-              />
-            </Field>
-          )}
-        </form.Field>
-        <form.Field name="constraints">
-          {(field) => (
-            <Field>
-              <FieldLabel htmlFor={`handoff-constraints-${work.id}`}>
-                Constraints
-              </FieldLabel>
-              <Textarea
-                disabled={pending}
-                id={`handoff-constraints-${work.id}`}
-                onChange={(event) => field.handleChange(event.target.value)}
-                rows={2}
-                value={field.state.value}
-              />
-            </Field>
-          )}
-        </form.Field>
-      </div>
-      <fieldset className="space-y-3 rounded-sm border border-border/70 p-3">
-        <legend className="px-1 font-medium text-xs">Selected versions</legend>
-        <form.Field name="includeWork">
-          {(field) => (
-            <label
-              className="flex items-center gap-2 text-xs"
-              htmlFor={`handoff-include-work-${work.id}`}
-            >
-              <Checkbox
-                checked={field.state.value}
-                disabled={pending}
-                id={`handoff-include-work-${work.id}`}
-                onCheckedChange={(checked) =>
-                  field.handleChange(checked === true)
-                }
-              />
-              Include this Work · revision {work.revision}
-            </label>
-          )}
-        </form.Field>
-        <form.Field name="githubContextText">
-          {(field) => (
-            <Field>
-              <FieldLabel htmlFor={`handoff-github-${work.id}`}>
-                GitHub context
-              </FieldLabel>
-              <Textarea
-                disabled={pending}
-                id={`handoff-github-${work.id}`}
-                onChange={(event) => field.handleChange(event.target.value)}
-                placeholder="One permitted GitHub repository, issue, pull request, or commit URL per line"
-                rows={2}
-                value={field.state.value}
-              />
-              <FieldDescription>
-                Add only GitHub URLs you already have permission to see. No
-                repository is copied.
-              </FieldDescription>
-            </Field>
-          )}
-        </form.Field>
-      </fieldset>
-      {formError ? (
-        <p className="text-destructive text-xs" role="alert">
-          {formError}
-        </p>
-      ) : null}
-      {writeError ? (
-        <p className="text-destructive text-xs" role="alert">
-          {writeError}
-        </p>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button disabled={pending} size="sm" type="submit">
-          Start Handoff
-        </Button>
-        <p className="text-muted-foreground text-xs">
-          Cantiara saves the package; it does not start an external tool.
-        </p>
-      </div>
-    </form>
-  );
-}
-
-function useHandoffDraftForm(onSubmit: (draft: HandoffDraft) => Promise<void>) {
-  return useForm({
-    defaultValues: EMPTY_DRAFT,
-    onSubmit: ({ value }) => onSubmit(value),
-  });
 }

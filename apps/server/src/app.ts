@@ -15,6 +15,7 @@ import type { ContactsAccess } from "@cantiara/api/contacts";
 import {
   type AccountPreferencesCompatibilityAccess,
   CONFIRM_GITHUB_IDENTITY_HANDOFF_EXCHANGE_PATH,
+  CONFIRM_GITHUB_IDENTITY_OPERATION_IDS,
   TAURI_CONFIRM_GITHUB_IDENTITY_CALLBACK_URL,
 } from "@cantiara/api/context";
 import type {
@@ -130,7 +131,7 @@ import { type EvlogVariables, evlog } from "evlog/hono";
 import type { Context as HonoContext } from "hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { ZodError } from "zod";
+import { ZodError, z } from "zod";
 import {
   type AccountAccessAuth,
   createContext,
@@ -145,7 +146,6 @@ import {
   CONFIRM_GITHUB_IDENTITY_FAILURE_CODE,
   CONFIRM_GITHUB_IDENTITY_START_PATH,
   type GitHubIdentityConfirmation,
-  isConfirmGitHubIdentityOperationId,
 } from "./features/account-access/server/github-identity-confirmation";
 import type { AccountSessionAccessRuntime } from "./features/account-access/server/session-access";
 import { sanitizeProductSessionResponse } from "./features/account-access/server/session-response";
@@ -325,6 +325,17 @@ async function createTauriSignInStartResponse(
   return new Response(null, { headers, status: 302 });
 }
 
+const tauriCodeExchangeInputSchema = z.object({
+  code: z.string().min(1).max(512),
+  codeVerifier: z.string().refine(isTauriAuthCodeVerifier),
+});
+const confirmGitHubIdentityStartInputSchema = z.object({
+  operationId: z.enum(CONFIRM_GITHUB_IDENTITY_OPERATION_IDS),
+});
+const confirmGitHubIdentityHandoffInputSchema = z.object({
+  code: z.string().min(1).max(512),
+});
+
 async function exchangeTauriCode(
   request: Request,
   tauriSessionAccess: TauriSessionAccess | undefined,
@@ -336,24 +347,11 @@ async function exchangeTauriCode(
     return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
   }
 
-  const code =
-    typeof body === "object" && body !== null && "code" in body
-      ? body.code
-      : undefined;
-  if (typeof code !== "string" || code.length === 0 || code.length > 512) {
+  const input = tauriCodeExchangeInputSchema.safeParse(body);
+  if (!input.success) {
     return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
   }
-
-  const codeVerifier =
-    typeof body === "object" && body !== null && "codeVerifier" in body
-      ? body.codeVerifier
-      : undefined;
-  if (
-    typeof codeVerifier !== "string" ||
-    !isTauriAuthCodeVerifier(codeVerifier)
-  ) {
-    return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
-  }
+  const { code, codeVerifier } = input.data;
 
   const session = await tauriSessionAccess?.exchangeCode(code, codeVerifier);
   if (!session) {
@@ -519,13 +517,11 @@ async function startConfirmGitHubIdentity(
     return confirmGitHubIdentityFailure();
   }
 
-  const operationId =
-    typeof body === "object" && body !== null && "operationId" in body
-      ? body.operationId
-      : undefined;
-  if (!isConfirmGitHubIdentityOperationId(operationId)) {
+  const startInput = confirmGitHubIdentityStartInputSchema.safeParse(body);
+  if (!startInput.success) {
     return confirmGitHubIdentityFailure();
   }
+  const { operationId } = startInput.data;
 
   let principal: Awaited<ReturnType<typeof authorizedPrincipal>>;
   try {
@@ -574,13 +570,11 @@ async function exchangeConfirmGitHubIdentityHandoff(
     return confirmGitHubIdentityFailure();
   }
 
-  const code =
-    typeof body === "object" && body !== null && "code" in body
-      ? body.code
-      : undefined;
-  if (typeof code !== "string" || code.length === 0 || code.length > 512) {
+  const handoffInput = confirmGitHubIdentityHandoffInputSchema.safeParse(body);
+  if (!handoffInput.success) {
     return confirmGitHubIdentityFailure();
   }
+  const { code } = handoffInput.data;
 
   let principal: Awaited<ReturnType<typeof authorizedPrincipal>>;
   try {

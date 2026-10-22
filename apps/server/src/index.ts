@@ -63,10 +63,10 @@ import {
   specChangeReviewMutationContracts,
   startBacklogReappearSignalWorker,
   startFileAttachmentPreviewWorker,
+  startMaintenanceWorker,
   startPersonalReminderWorker,
   startSmartCollectionSubscriptionSignalWorker,
   sweepExpiredFileAttachmentUploads,
-  sweepExpiredPriorityMetrics,
   sweepExpiredResearchSessionBindingPreviews,
   tagMutationContracts,
   tags,
@@ -101,21 +101,7 @@ await Promise.all([
 ]);
 await sweepExpiredFileAttachmentUploads();
 await sweepExpiredResearchSessionBindingPreviews();
-setInterval(() => {
-  sweepExpiredResearchSessionBindingPreviews().catch(() => undefined);
-}, 15 * 60_000);
-setInterval(
-  () => {
-    sweepExpiredFileAttachmentUploads().catch(() => undefined);
-  },
-  60 * 60 * 1000,
-);
-setInterval(
-  () => {
-    sweepExpiredPriorityMetrics().catch(() => undefined);
-  },
-  60 * 60 * 1000,
-);
+await startMaintenanceWorker();
 
 const app = createApp({
   documentEvidence: createDatabaseDocumentEvidence(getDb()),
@@ -213,5 +199,5 @@ const app = createApp({
 serve({
   fetch: app.fetch,
   maxRequestBodySize: FILE_ATTACHMENT_UPLOAD_BODY_LIMIT,
-  port: Number(process.env.PORT ?? 3000),
+  port: env.PORT ?? 3000,
 });
