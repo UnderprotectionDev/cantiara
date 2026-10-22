@@ -10,6 +10,12 @@ import {
   parseGitHubKeyRing,
 } from "./github-credential-envelope";
 import { createDatabaseGitHubIntegration } from "./github-integration-database";
+import {
+  createGitHubWebhookInbox,
+  type GitHubWebhookInbox,
+} from "./github-webhook-inbox";
+import { createDatabaseInboxStore } from "./github-webhook-inbox-database";
+import { logOperatorAlarm } from "./github-webhook-worker";
 
 export interface GitHubAppConfiguration {
   appId?: number;
@@ -37,7 +43,8 @@ export function createConfiguredGitHubIntegration(
           currentVersion: 1,
           keys: new Map([[1, randomBytes(32)]]),
         };
-  return createDatabaseGitHubIntegration({
+  const secrets = createGitHubSecrets(ring);
+  const integration = createDatabaseGitHubIntegration({
     database,
     gateway:
       configured && appId && appSlug && privateKey
@@ -46,6 +53,22 @@ export function createConfiguredGitHubIntegration(
             transport: createOctokitTransport({ appId, privateKey }),
           })
         : null,
-    secrets: createGitHubSecrets(ring),
+    secrets,
   });
+  return {
+    integration,
+    /** The durable webhook inbox over the same envelope keys and integration. */
+    webhookInbox: (inboxOptions: {
+      bootstrapSecret?: string;
+      enqueue: (deliveryId: string) => Promise<void>;
+    }): GitHubWebhookInbox =>
+      createGitHubWebhookInbox({
+        alarm: logOperatorAlarm,
+        bootstrapSecret: inboxOptions.bootstrapSecret,
+        enqueue: inboxOptions.enqueue,
+        integration,
+        secrets,
+        store: createDatabaseInboxStore(database),
+      }),
+  };
 }

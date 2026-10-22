@@ -24,6 +24,7 @@ interface DoubleIssue {
 }
 
 interface DoubleRepository {
+  forbidden?: boolean;
   id: number;
   issues: DoubleIssue[];
   name: string;
@@ -50,10 +51,21 @@ export function createGitHubAppDouble(
   const tokens = new Map<string, { expiresAt: Date; installationId: number }>();
   const requests: { auth: GitHubCall["auth"]["kind"]; route: string }[] = [];
   let tokenCounter = 0;
+  let rateLimitedUntil: Date | null = null;
+  let issueReadsFailing = false;
+  const sinceFilters: (string | undefined)[] = [];
 
   const installationOfToken = (call: GitHubCall) => {
     if (call.auth.kind !== "installation") {
       throw new GitHubRequestError(401);
+    }
+    if (rateLimitedUntil && rateLimitedUntil > clock.current) {
+      throw new GitHubRequestError(
+        429,
+        Math.ceil(
+          (rateLimitedUntil.getTime() - clock.current.getTime()) / 1000,
+        ),
+      );
     }
     const issued = tokens.get(call.auth.token);
     if (!issued || issued.expiresAt <= clock.current) {
@@ -71,6 +83,9 @@ export function createGitHubAppDouble(
     if (!repository) {
       throw new GitHubRequestError(404);
     }
+    if (repository.forbidden) {
+      throw new GitHubRequestError(403);
+    }
     return repository;
   };
 
@@ -84,6 +99,7 @@ export function createGitHubAppDouble(
   });
 
   const transport: GitHubTransport = {
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: The double answers each allow-listed route in one switch.
     request(call) {
       requests.push({ auth: call.auth.kind, route: call.route });
       const { params } = call;
@@ -120,9 +136,9 @@ export function createGitHubAppDouble(
         case "GET /installation/repositories": {
           const installation = installationOfToken(call);
           return Promise.resolve({
-            repositories: [...installation.repositories.values()].map(
-              rawRepository,
-            ),
+            repositories: [...installation.repositories.values()]
+              .filter((repository) => !repository.forbidden)
+              .map(rawRepository),
           });
         }
         case "GET /repositories/{repository_id}": {
@@ -143,7 +159,34 @@ export function createGitHubAppDouble(
           if (!repository) {
             throw new GitHubRequestError(404);
           }
-          return Promise.resolve(repository.issues);
+          if (issueReadsFailing) {
+            throw new GitHubRequestError(500);
+          }
+          const since = params.since ? String(params.since) : undefined;
+          sinceFilters.push(since);
+          const perPage = Number(params.per_page ?? 30);
+          const page = Number(params.page ?? 1);
+          const matching = repository.issues
+            .filter((issue) => !since || issue.updated_at >= since)
+            .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+          return Promise.resolve(
+            matching.slice((page - 1) * perPage, page * perPage),
+          );
+        }
+        case "GET /repos/{owner}/{repo}/issues/{issue_number}": {
+          const installation = installationOfToken(call);
+          const repository = [...installation.repositories.values()].find(
+            (candidate) =>
+              candidate.owner === params.owner &&
+              candidate.name === params.repo,
+          );
+          const issue = repository?.issues.find(
+            (candidate) => candidate.number === Number(params.issue_number),
+          );
+          if (!issue) {
+            throw new GitHubRequestError(404);
+          }
+          return Promise.resolve(issue);
         }
         case "GET /repos/{owner}/{repo}/git/commits/{commit_sha}": {
           installationOfToken(call);
@@ -211,6 +254,46 @@ export function createGitHubAppDouble(
         ),
         uninstalled: false,
       });
+    },
+    /** The Repository is still there but the App may no longer read it (403). */
+    forbidRepository(installationId: number, repositoryId: number) {
+      const repository = installations
+        .get(installationId)
+        ?.repositories.get(repositoryId);
+      if (repository) {
+        repository.forbidden = true;
+      }
+    },
+    /** GitHub answers every installation read with 429 and `Retry-After` until `until`. */
+    rateLimitUntil(until: Date | null) {
+      rateLimitedUntil = until;
+    },
+    /** GitHub answers every issue-list read with a server error. */
+    failIssueReads(failing: boolean) {
+      issueReadsFailing = failing;
+    },
+    /** The `since` filter of each issue-list request, in order. */
+    sinceFilters,
+    updateIssue(
+      installationId: number,
+      repositoryId: number,
+      number: number,
+      change: { closed?: boolean; title?: string; updatedAt: string },
+    ) {
+      const issue = installations
+        .get(installationId)
+        ?.repositories.get(repositoryId)
+        ?.issues.find((candidate) => candidate.number === number);
+      if (!issue) {
+        throw new Error("Unknown double issue");
+      }
+      issue.updated_at = change.updatedAt;
+      if (change.title !== undefined) {
+        issue.title = change.title;
+      }
+      if (change.closed !== undefined) {
+        issue.state = change.closed ? "closed" : "open";
+      }
     },
     removeRepositoryAccess(installationId: number, repositoryId: number) {
       installations.get(installationId)?.repositories.delete(repositoryId);

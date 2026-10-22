@@ -4,25 +4,30 @@ import type {
   GitHubExternalRecord,
   GitHubIntegrationStore,
   GitHubIntegrationTransaction,
+  GitHubRecordWriteOutcome,
   GitHubStopReason,
   GitHubStoredInstallation,
   GitHubStoredLink,
+  GitHubStoredRecord,
   GitHubTriageState,
 } from "@cantiara/api/github-integration";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import {
   githubExternalRecord,
+  githubExternalRecordTombstone,
   githubInstallation,
   githubInstallationCredential,
+  githubLinkHistory,
   githubRepositoryLink,
   githubRepositoryLinkName,
 } from "@cantiara/db/schema/github-integration";
 import { project } from "@cantiara/db/schema/project";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 
 import type { GitHubSecrets } from "./github-credential-envelope";
 import { createGitHubIntegration } from "./github-integration";
+import { decideRecordWrite } from "./github-record-ordering";
 
 type Executor = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -69,28 +74,50 @@ function toLink(
     htmlUrl: row.htmlUrl,
     id: row.id,
     installationRowId: row.installationRowId,
+    lastError: row.lastError,
+    lastErrorAt: row.lastErrorAt ? iso(row.lastErrorAt) : null,
+    lastSuccessAt: row.lastSuccessAt ? iso(row.lastSuccessAt) : null,
     linkedAt: iso(row.linkedAt),
     name: row.name,
     owner: row.owner,
+    pausedAt: row.pausedAt ? iso(row.pausedAt) : null,
     projectId: row.projectId,
+    rateLimitedUntil: row.rateLimitedUntil ? iso(row.rateLimitedUntil) : null,
     repositoryId: row.repositoryId,
     stopReason: row.stopReason as GitHubStopReason | null,
+    syncCursor: row.syncCursor ? iso(row.syncCursor) : null,
     triage: row.triageState as GitHubTriageState,
   };
 }
 
 function toRecord(
   row: typeof githubExternalRecord.$inferSelect,
-): GitHubExternalRecord {
+): GitHubStoredRecord {
+  let lifecycle: GitHubExternalRecord["lifecycle"] = "Active";
+  if (row.trashedAt) {
+    lifecycle = "Trash";
+  } else if (row.archivedAt) {
+    lifecycle = "Archived";
+  }
   return {
+    appliedFrom: row.appliedFrom as GitHubStoredRecord["appliedFrom"],
     githubId: row.githubId,
     htmlUrl: row.htmlUrl,
     id: row.id,
     kind: row.kind as GitHubExternalRecord["kind"],
     labels: row.labels,
+    lifecycle,
     linkId: row.linkId,
     milestone: row.milestone,
+    needsReconcile: row.needsReconcile,
     number: row.number,
+    origin:
+      row.originRecordId && row.originDeletedAt
+        ? {
+            deletedAt: iso(row.originDeletedAt),
+            recordId: row.originRecordId,
+          }
+        : null,
     projectId: row.projectId,
     sourceState: row.sourceState as GitHubExternalRecord["sourceState"],
     sourceUpdatedAt: iso(row.sourceUpdatedAt),
@@ -132,12 +159,18 @@ function transactionFor(
         htmlUrl: row.htmlUrl,
         id: row.id,
         installationRowId: row.installationRowId,
+        lastError: row.lastError,
+        lastErrorAt: optionalDate(row.lastErrorAt),
+        lastSuccessAt: optionalDate(row.lastSuccessAt),
         linkedAt: new Date(row.linkedAt),
         name: row.name,
         owner: row.owner,
+        pausedAt: optionalDate(row.pausedAt),
         projectId: row.projectId,
+        rateLimitedUntil: optionalDate(row.rateLimitedUntil),
         repositoryId: row.repositoryId,
         stopReason: row.stopReason,
+        syncCursor: optionalDate(row.syncCursor),
         triageState: row.triage,
       });
     },
@@ -276,6 +309,7 @@ function transactionFor(
         })
         .where(eq(githubInstallation.id, id));
     },
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: One locked read decides the ordering outcome and writes it in the same transaction.
     updateLink: async (id, patch) => {
       await executor
         .update(githubRepositoryLink)
@@ -287,6 +321,24 @@ function transactionFor(
           ...(patch.installationRowId === undefined
             ? {}
             : { installationRowId: patch.installationRowId }),
+          ...(patch.lastError === undefined
+            ? {}
+            : { lastError: patch.lastError }),
+          ...(patch.lastErrorAt === undefined
+            ? {}
+            : { lastErrorAt: optionalDate(patch.lastErrorAt) }),
+          ...(patch.lastSuccessAt === undefined
+            ? {}
+            : { lastSuccessAt: optionalDate(patch.lastSuccessAt) }),
+          ...(patch.pausedAt === undefined
+            ? {}
+            : { pausedAt: optionalDate(patch.pausedAt) }),
+          ...(patch.rateLimitedUntil === undefined
+            ? {}
+            : { rateLimitedUntil: optionalDate(patch.rateLimitedUntil) }),
+          ...(patch.syncCursor === undefined
+            ? {}
+            : { syncCursor: optionalDate(patch.syncCursor) }),
           ...(patch.name === undefined ? {} : { name: patch.name }),
           ...(patch.owner === undefined ? {} : { owner: patch.owner }),
           ...(patch.stopReason === undefined
@@ -296,37 +348,218 @@ function transactionFor(
         })
         .where(eq(githubRepositoryLink.id, id));
     },
-    upsertExternalRecords: async (writes) => {
+    upsertExternalRecords: async (writes, options) => {
+      const outcomes: GitHubRecordWriteOutcome[] = [];
       for (const write of writes) {
+        const { snapshot } = write;
+        const [row] = await executor
+          .select()
+          .from(githubExternalRecord)
+          .where(
+            and(
+              eq(githubExternalRecord.linkId, write.linkId),
+              eq(githubExternalRecord.kind, snapshot.kind),
+              eq(githubExternalRecord.githubId, snapshot.githubId),
+            ),
+          )
+          .for("update");
+        const existing = row ? toRecord(row) : null;
+        const [tombstone] = existing
+          ? []
+          : await executor
+              .select({ recordId: githubExternalRecordTombstone.recordId })
+              .from(githubExternalRecordTombstone)
+              .where(
+                and(
+                  eq(githubExternalRecordTombstone.linkId, write.linkId),
+                  eq(githubExternalRecordTombstone.kind, snapshot.kind),
+                  eq(githubExternalRecordTombstone.githubId, snapshot.githubId),
+                ),
+              );
+        const decision = decideRecordWrite({
+          existing,
+          options,
+          snapshot,
+          tombstoned: Boolean(tombstone),
+        });
         const values = {
-          githubId: write.snapshot.githubId,
-          htmlUrl: write.snapshot.htmlUrl,
-          kind: write.snapshot.kind,
-          labels: write.snapshot.labels,
-          milestone: write.snapshot.milestone,
-          number: write.snapshot.number,
-          sourceState: write.snapshot.sourceState,
-          sourceUpdatedAt: new Date(write.snapshot.sourceUpdatedAt),
-          title: write.snapshot.title,
+          appliedFrom: options.origin,
+          githubId: snapshot.githubId,
+          htmlUrl: snapshot.htmlUrl,
+          kind: snapshot.kind,
+          labels: snapshot.labels,
+          milestone: snapshot.milestone,
+          needsReconcile: false,
+          number: snapshot.number,
+          sourceState: snapshot.sourceState,
+          sourceUpdatedAt: new Date(snapshot.sourceUpdatedAt),
+          title: snapshot.title,
         };
-        await executor
-          .insert(githubExternalRecord)
-          .values({
+        const outcome: GitHubRecordWriteOutcome = {
+          conflict: decision.conflict,
+          githubId: snapshot.githubId,
+          kind: snapshot.kind,
+          recordId: existing?.id ?? null,
+          replaced: null,
+          result: decision.result,
+        };
+        if (decision.action === "insert") {
+          await executor.insert(githubExternalRecord).values({
             id: write.id,
             linkId: write.linkId,
             projectId: write.projectId,
             ...values,
-          })
-          .onConflictDoUpdate({
-            set: values,
-            setWhere: sql`${githubExternalRecord.sourceUpdatedAt} <= excluded.source_updated_at`,
-            target: [
-              githubExternalRecord.linkId,
-              githubExternalRecord.kind,
-              githubExternalRecord.githubId,
-            ],
           });
+          outcome.recordId = write.id;
+        } else if (decision.action === "update" && existing) {
+          if (existing.needsReconcile) {
+            outcome.replaced = {
+              sourceState: existing.sourceState,
+              title: existing.title,
+            };
+          }
+          await executor
+            .update(githubExternalRecord)
+            .set(values)
+            .where(eq(githubExternalRecord.id, existing.id));
+        }
+        outcomes.push(outcome);
       }
+      return outcomes;
+    },
+    appendHistory: async (linkId, entry) => {
+      await executor.insert(githubLinkHistory).values({
+        at: new Date(entry.at),
+        detail: entry.detail,
+        id: crypto.randomUUID(),
+        kind: entry.kind,
+        linkId,
+      });
+    },
+    deleteCredential: async (installationRowId) => {
+      await executor
+        .delete(githubInstallationCredential)
+        .where(
+          eq(githubInstallationCredential.installationRowId, installationRowId),
+        );
+    },
+    deleteRecordWithTombstone: async (recordId, at) => {
+      const [row] = await executor
+        .select()
+        .from(githubExternalRecord)
+        .where(eq(githubExternalRecord.id, recordId));
+      if (!row) {
+        return;
+      }
+      await executor
+        .insert(githubExternalRecordTombstone)
+        .values({
+          deletedAt: new Date(at),
+          githubId: row.githubId,
+          kind: row.kind,
+          linkId: row.linkId,
+          number: row.number,
+          recordId: row.id,
+        })
+        .onConflictDoNothing();
+      await executor
+        .delete(githubExternalRecord)
+        .where(eq(githubExternalRecord.id, recordId));
+    },
+    history: async (linkId) =>
+      (
+        await executor
+          .select()
+          .from(githubLinkHistory)
+          .where(eq(githubLinkHistory.linkId, linkId))
+          .orderBy(asc(githubLinkHistory.at))
+      ).map((row) => ({
+        at: iso(row.at),
+        detail: row.detail,
+        kind: row.kind,
+      })),
+    recordById: async (recordId) => {
+      const [row] = await executor
+        .select()
+        .from(githubExternalRecord)
+        .where(
+          and(
+            eq(githubExternalRecord.projectId, projectId),
+            eq(githubExternalRecord.id, recordId),
+          ),
+        );
+      return row ? toRecord(row) : null;
+    },
+    reincludeRecord: async (write) => {
+      await executor
+        .delete(githubExternalRecordTombstone)
+        .where(
+          and(
+            eq(githubExternalRecordTombstone.linkId, write.linkId),
+            eq(githubExternalRecordTombstone.kind, write.snapshot.kind),
+            eq(githubExternalRecordTombstone.githubId, write.snapshot.githubId),
+          ),
+        );
+      const [row] = await executor
+        .insert(githubExternalRecord)
+        .values({
+          githubId: write.snapshot.githubId,
+          htmlUrl: write.snapshot.htmlUrl,
+          id: write.id,
+          kind: write.snapshot.kind,
+          labels: write.snapshot.labels,
+          linkId: write.linkId,
+          milestone: write.snapshot.milestone,
+          number: write.snapshot.number,
+          originDeletedAt: write.origin
+            ? new Date(write.origin.deletedAt)
+            : null,
+          originRecordId: write.origin?.recordId ?? null,
+          projectId: write.projectId,
+          sourceState: write.snapshot.sourceState,
+          sourceUpdatedAt: new Date(write.snapshot.sourceUpdatedAt),
+          title: write.snapshot.title,
+        })
+        .returning();
+      if (!row) {
+        throw new Error("Re-included record was not stored");
+      }
+      return toRecord(row);
+    },
+    setRecordLifecycle: async (recordId, patch) => {
+      await executor
+        .update(githubExternalRecord)
+        .set({
+          ...(patch.archivedAt === undefined
+            ? {}
+            : { archivedAt: optionalDate(patch.archivedAt) }),
+          ...(patch.needsReconcile === undefined
+            ? {}
+            : { needsReconcile: patch.needsReconcile }),
+          ...(patch.trashedAt === undefined
+            ? {}
+            : { trashedAt: optionalDate(patch.trashedAt) }),
+        })
+        .where(eq(githubExternalRecord.id, recordId));
+    },
+    tombstone: async (linkId, kind, githubId) => {
+      const [row] = await executor
+        .select()
+        .from(githubExternalRecordTombstone)
+        .where(
+          and(
+            eq(githubExternalRecordTombstone.linkId, linkId),
+            eq(githubExternalRecordTombstone.kind, kind),
+            eq(githubExternalRecordTombstone.githubId, githubId),
+          ),
+        );
+      return row
+        ? {
+            deletedAt: iso(row.deletedAt),
+            number: row.number,
+            recordId: row.recordId,
+          }
+        : null;
     },
   };
 }
@@ -352,6 +585,31 @@ export function createDatabaseGitHubIntegrationStore(
       });
     },
 
+    async linkScopes() {
+      return await database
+        .select({
+          linkId: githubRepositoryLink.id,
+          projectId: githubRepositoryLink.projectId,
+        })
+        .from(githubRepositoryLink);
+    },
+
+    runForProject(projectId, work) {
+      return database.transaction(async (executor) => {
+        const [owned] = await executor
+          .select({ archivedAt: project.archivedAt, id: project.id })
+          .from(project)
+          .where(eq(project.id, projectId))
+          .for("update");
+        if (!owned) {
+          return null;
+        }
+        return await work(
+          transactionFor(executor, owned.id, owned.archivedAt !== null),
+        );
+      });
+    },
+
     async runForInstallation(installationId, work) {
       const projectIds = [
         ...new Set(
@@ -365,7 +623,15 @@ export function createDatabaseGitHubIntegrationStore(
       ];
       for (const scope of projectIds) {
         await database.transaction(async (executor) => {
-          await work(transactionFor(executor, scope, false), scope);
+          const [owned] = await executor
+            .select({ archivedAt: project.archivedAt })
+            .from(project)
+            .where(eq(project.id, scope))
+            .for("update");
+          await work(
+            transactionFor(executor, scope, Boolean(owned?.archivedAt)),
+            scope,
+          );
         });
       }
     },

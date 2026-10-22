@@ -188,12 +188,14 @@ import {
   gitHubInstallStartInputSchema,
   gitHubInstallStartOutputSchema,
   gitHubLinkInputSchema,
+  gitHubLinkPreviewSchema,
   gitHubLinkRepositoryInputSchema,
   gitHubOverviewSchema,
   gitHubProjectInputSchema,
   gitHubRepositoryLinkSchema,
   gitHubSearchRecordsInputSchema,
   gitHubSearchRecordsOutputSchema,
+  gitHubSyncNowOutputSchema,
   gitHubTriagePreviewSchema,
 } from "../github-integration";
 import { protectedProcedure, publicProcedure } from "../index";
@@ -6877,6 +6879,39 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runGitHubIntegrationOperation(() =>
         requireGitHubIntegration(context).disconnect(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  syncGitHubNow: protectedProcedure
+    .input(gitHubLinkInputSchema)
+    .output(gitHubSyncNowOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).syncNow(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewGitHubReconnect: protectedProcedure
+    .input(gitHubLinkInputSchema)
+    .output(gitHubLinkPreviewSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).previewReconnect(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewGitHubDisconnect: protectedProcedure
+    .input(gitHubLinkInputSchema)
+    .output(gitHubLinkPreviewSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).previewDisconnect(
           context.session.user.id,
           input,
         ),

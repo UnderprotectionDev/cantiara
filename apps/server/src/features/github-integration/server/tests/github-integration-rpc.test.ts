@@ -105,11 +105,14 @@ describe("GitHub Integration RPC seam", () => {
       "gitHubAppRepositories",
       "gitHubTriagePreview",
       "linkGitHubRepository",
+      "previewGitHubDisconnect",
+      "previewGitHubReconnect",
       "projectGitHubOverview",
       "reconnectGitHubRepository",
       "searchGitHubRecords",
       "skipGitHubTriage",
       "startGitHubAppInstall",
+      "syncGitHubNow",
     ]);
   });
 });

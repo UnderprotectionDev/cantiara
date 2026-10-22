@@ -24,14 +24,30 @@ export interface GitHubCall {
 }
 
 export class GitHubRequestError extends Error {
+  /** Seconds GitHub asked us to wait (`Retry-After` or the rate-limit reset). */
+  readonly retryAfterSeconds: number | undefined;
   readonly status: number;
 
-  constructor(status: number) {
+  constructor(status: number, retryAfterSeconds?: number) {
     super(`GitHub responded with ${status}.`);
     this.name = "GitHubRequestError";
+    this.retryAfterSeconds = retryAfterSeconds;
     this.status = status;
   }
 }
+
+/** GitHub rate-limited the read: the integration waits instead of polling. */
+export class GitHubRateLimitedError extends Error {
+  readonly retryAfterSeconds: number;
+
+  constructor(retryAfterSeconds: number) {
+    super(`GitHub rate limit: retry after ${retryAfterSeconds}s.`);
+    this.name = "GitHubRateLimitedError";
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+const DEFAULT_RETRY_AFTER_SECONDS = 60;
 
 export interface GitHubTransport {
   request: (call: GitHubCall) => Promise<unknown>;
@@ -41,14 +57,28 @@ export function createAllowListedTransport(
   transport: GitHubTransport,
 ): GitHubTransport {
   return {
-    request(call) {
+    async request(call) {
       assertGitHubRequestAllowed(call.route);
-      return transport.request(call);
+      try {
+        return await transport.request(call);
+      } catch (error) {
+        if (
+          error instanceof GitHubRequestError &&
+          (error.status === 429 ||
+            (error.status === 403 && error.retryAfterSeconds !== undefined))
+        ) {
+          // biome-ignore lint/style/useErrorCause: The transport error is reduced to the wait GitHub asked for.
+          throw new GitHubRateLimitedError(
+            error.retryAfterSeconds ?? DEFAULT_RETRY_AFTER_SECONDS,
+          );
+        }
+        throw error;
+      }
     },
   };
 }
 
-interface RawRepository {
+export interface RawRepository {
   full_name?: string;
   html_url?: string;
   id: number;
@@ -57,7 +87,7 @@ interface RawRepository {
   private?: boolean;
 }
 
-interface RawIssue {
+export interface RawIssue {
   html_url: string;
   id: number;
   labels?: (string | { name?: string })[];
@@ -70,7 +100,7 @@ interface RawIssue {
   updated_at: string;
 }
 
-function toRepository(raw: RawRepository): GitHubRepository {
+export function toRepository(raw: RawRepository): GitHubRepository {
   const owner = raw.owner?.login ?? raw.full_name?.split("/")[0] ?? "";
   return {
     fullName: raw.full_name ?? `${owner}/${raw.name}`,
@@ -82,7 +112,7 @@ function toRepository(raw: RawRepository): GitHubRepository {
   };
 }
 
-function toSnapshot(raw: RawIssue): GitHubIssueSnapshot {
+export function toSnapshot(raw: RawIssue): GitHubIssueSnapshot {
   const isPullRequest = Boolean(raw.pull_request);
   const merged = Boolean(raw.pull_request?.merged_at ?? raw.merged_at);
   let sourceState: GitHubIssueSnapshot["sourceState"] = "open";
@@ -118,8 +148,9 @@ async function orNotFound<T>(read: () => Promise<T>): Promise<T | null> {
   }
 }
 
-/** Issues listed for one triage pass: a single newest-first page, never a full crawl. */
+/** Newest-first pages of at most 100; a read stops after `MAX_PAGES` and the next one continues. */
 const TRIAGE_PAGE_SIZE = 100;
+const MAX_PAGES = 10;
 
 export function createGitHubAppGateway(options: {
   appSlug: string;
@@ -176,20 +207,67 @@ export function createGitHubAppGateway(options: {
       return (raw.repositories ?? []).map(toRepository);
     },
 
-    async listIssues(token, repository) {
-      const raw = (await transport.request({
-        auth: asInstallation(token),
-        params: {
-          direction: "desc",
-          owner: repository.owner,
-          per_page: TRIAGE_PAGE_SIZE,
-          repo: repository.name,
-          sort: "updated",
-          state: "all",
-        },
-        route: "GET /repos/{owner}/{repo}/issues",
-      })) as RawIssue[];
-      return raw.map(toSnapshot);
+    async getIssue(token, repository, number) {
+      const raw = await orNotFound(
+        () =>
+          transport.request({
+            auth: asInstallation(token),
+            params: {
+              issue_number: number,
+              owner: repository.owner,
+              repo: repository.name,
+            },
+            route: "GET /repos/{owner}/{repo}/issues/{issue_number}",
+          }) as Promise<RawIssue>,
+      );
+      return raw ? toSnapshot(raw) : null;
+    },
+
+    async listIssues(token, repository, readOptions) {
+      const snapshots: GitHubIssueSnapshot[] = [];
+      for (let page = 1; page <= MAX_PAGES; page += 1) {
+        // biome-ignore lint/performance/noAwaitInLoops: Pages are read in order; a short page ends the loop.
+        const raw = (await transport.request({
+          auth: asInstallation(token),
+          params: {
+            direction: "desc",
+            owner: repository.owner,
+            page,
+            per_page: TRIAGE_PAGE_SIZE,
+            repo: repository.name,
+            sort: "updated",
+            state: "all",
+            ...(readOptions?.since ? { since: readOptions.since } : {}),
+          },
+          route: "GET /repos/{owner}/{repo}/issues",
+        })) as RawIssue[];
+        snapshots.push(...raw.map(toSnapshot));
+        if (raw.length < TRIAGE_PAGE_SIZE) {
+          break;
+        }
+      }
+      return snapshots;
+    },
+
+    async probeRepository(token, repositoryId) {
+      try {
+        const raw = (await transport.request({
+          auth: asInstallation(token),
+          params: { repository_id: repositoryId },
+          route: "GET /repositories/{repository_id}",
+        })) as RawRepository;
+        return { repository: toRepository(raw), status: "ok" as const };
+      } catch (error) {
+        if (error instanceof GitHubRequestError) {
+          if (error.status === 404) {
+            return { status: "not-found" as const };
+          }
+          if (error.status === 401 || error.status === 403) {
+            return { status: "forbidden" as const };
+          }
+        }
+        throw error;
+      }
     },
 
     async mintInstallationToken(installationId) {

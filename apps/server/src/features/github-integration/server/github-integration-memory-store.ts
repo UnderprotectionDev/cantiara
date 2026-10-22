@@ -1,11 +1,15 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Each Project's installation effect is applied in its own rollback scope.
+import { createHmac } from "node:crypto";
+
 import type {
-  GitHubExternalRecord,
   GitHubIntegrationStore,
   GitHubIntegrationTransaction,
+  GitHubLinkHistoryEntry,
+  GitHubRecordWriteOutcome,
   GitHubStoredCredential,
   GitHubStoredInstallation,
   GitHubStoredLink,
+  GitHubStoredRecord,
 } from "@cantiara/api/github-integration";
 
 import { createGitHubAppDouble, type DoubleClock } from "./github-app-double";
@@ -15,19 +19,40 @@ import {
   parseGitHubKeyRing,
 } from "./github-credential-envelope";
 import { createGitHubIntegration } from "./github-integration";
+import { decideRecordWrite } from "./github-record-ordering";
+import {
+  createGitHubWebhookInbox,
+  type OperatorAlarm,
+} from "./github-webhook-inbox";
+import { createMemoryInboxStore } from "./github-webhook-inbox-memory-store";
 
 export const accountId = "account-1";
 export const otherAccountId = "account-2";
 export const projectId = "project-1";
 export const archivedProjectId = "project-archived";
 export const otherProjectId = "project-2";
+export const WEBHOOK_SECRET = "whsec_test_secret_0123456789";
+
+interface MemoryTombstone {
+  deletedAt: string;
+  githubId: number;
+  kind: GitHubStoredRecord["kind"];
+  linkId: string;
+  number: number;
+  recordId: string;
+}
 
 interface MemoryState {
+  archivedProjects: Set<string>;
+  archivedRecords: Set<string>;
   credentials: Map<string, GitHubStoredCredential>;
   history: Map<string, { name: string; observedAt: string; owner: string }[]>;
   installations: GitHubStoredInstallation[];
+  linkHistory: Map<string, GitHubLinkHistoryEntry[]>;
   links: GitHubStoredLink[];
-  records: (GitHubExternalRecord & { id: string })[];
+  records: GitHubStoredRecord[];
+  tombstones: MemoryTombstone[];
+  trashedRecords: Set<string>;
 }
 
 const OWNERS: Record<string, string> = {
@@ -38,11 +63,16 @@ const OWNERS: Record<string, string> = {
 
 function emptyState(): MemoryState {
   return {
+    archivedProjects: new Set([archivedProjectId]),
+    archivedRecords: new Set(),
+    trashedRecords: new Set(),
     credentials: new Map(),
     history: new Map(),
     installations: [],
+    linkHistory: new Map(),
     links: [],
     records: [],
+    tombstones: [],
   };
 }
 
@@ -112,12 +142,118 @@ function createMemoryStore(state: {
         ]);
         return Promise.resolve();
       },
+      appendHistory: (linkId, entry) => {
+        state.current.linkHistory.set(linkId, [
+          ...(state.current.linkHistory.get(linkId) ?? []),
+          entry,
+        ]);
+        return Promise.resolve();
+      },
+      deleteCredential: (installationRowId) => {
+        state.current.credentials.delete(installationRowId);
+        return Promise.resolve();
+      },
+      deleteRecordWithTombstone: (recordId, at) => {
+        const record = state.current.records.find((row) => row.id === recordId);
+        if (record) {
+          state.current.tombstones.push({
+            deletedAt: at,
+            githubId: record.githubId,
+            kind: record.kind,
+            linkId: record.linkId,
+            number: record.number,
+            recordId: record.id,
+          });
+          state.current.records = state.current.records.filter(
+            (row) => row.id !== recordId,
+          );
+        }
+        return Promise.resolve();
+      },
+      history: (linkId) =>
+        Promise.resolve([...(state.current.linkHistory.get(linkId) ?? [])]),
+      recordById: (recordId) =>
+        Promise.resolve(
+          inProject(state.current.records).find((row) => row.id === recordId) ??
+            null,
+        ),
       records: (linkId) =>
         Promise.resolve(
           inProject(state.current.records).filter(
             (row) => linkId === undefined || row.linkId === linkId,
           ),
         ),
+      reincludeRecord: (write) => {
+        state.current.tombstones = state.current.tombstones.filter(
+          (row) =>
+            !(
+              row.linkId === write.linkId &&
+              row.kind === write.snapshot.kind &&
+              row.githubId === write.snapshot.githubId
+            ),
+        );
+        const record: GitHubStoredRecord = {
+          ...write.snapshot,
+          appliedFrom: "reconcile",
+          id: write.id,
+          lifecycle: "Active",
+          linkId: write.linkId,
+          needsReconcile: false,
+          origin: write.origin ?? null,
+          projectId: write.projectId,
+        };
+        state.current.records.push(record);
+        return Promise.resolve({ ...record });
+      },
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Mirrors the PostgreSQL ordering decision for the in-memory harness.
+      setRecordLifecycle: (recordId, patch) => {
+        const row = state.current.records.find((item) => item.id === recordId);
+        if (row) {
+          if (patch.needsReconcile !== undefined) {
+            row.needsReconcile = patch.needsReconcile;
+          }
+          const { archivedRecords, trashedRecords } = state.current;
+          if (patch.archivedAt !== undefined) {
+            if (patch.archivedAt) {
+              archivedRecords.add(recordId);
+            } else {
+              archivedRecords.delete(recordId);
+            }
+          }
+          if (patch.trashedAt !== undefined) {
+            if (patch.trashedAt) {
+              trashedRecords.add(recordId);
+            } else {
+              trashedRecords.delete(recordId);
+            }
+          }
+          if (trashedRecords.has(recordId)) {
+            row.lifecycle = "Trash";
+          } else {
+            row.lifecycle = archivedRecords.has(recordId)
+              ? "Archived"
+              : "Active";
+          }
+        }
+        return Promise.resolve();
+      },
+      tombstone: (linkId, kind, githubId) => {
+        const found = state.current.tombstones.find(
+          (row) =>
+            row.linkId === linkId &&
+            row.kind === kind &&
+            row.githubId === githubId,
+        );
+        return Promise.resolve(
+          found
+            ? {
+                deletedAt: found.deletedAt,
+                number: found.number,
+                recordId: found.recordId,
+              }
+            : null,
+        );
+      },
       saveCredential: (installationRowId, credential) => {
         state.current.credentials.set(installationRowId, credential);
         return Promise.resolve();
@@ -136,30 +272,63 @@ function createMemoryStore(state: {
         }
         return Promise.resolve();
       },
-      upsertExternalRecords: (writes) => {
+      upsertExternalRecords: (writes, options) => {
+        const outcomes: GitHubRecordWriteOutcome[] = [];
         for (const { id, linkId, projectId: owner, snapshot } of writes) {
-          const existing = state.current.records.find(
+          const existing =
+            state.current.records.find(
+              (row) =>
+                row.linkId === linkId &&
+                row.kind === snapshot.kind &&
+                row.githubId === snapshot.githubId,
+            ) ?? null;
+          const tombstoned = state.current.tombstones.some(
             (row) =>
               row.linkId === linkId &&
               row.kind === snapshot.kind &&
               row.githubId === snapshot.githubId,
           );
-          if (existing && existing.sourceUpdatedAt > snapshot.sourceUpdatedAt) {
-            continue;
-          }
-          const next = {
-            ...snapshot,
-            id: existing?.id ?? id,
-            linkId,
-            projectId: owner,
+          const decision = decideRecordWrite({
+            existing,
+            options,
+            snapshot,
+            tombstoned,
+          });
+          const outcome: GitHubRecordWriteOutcome = {
+            conflict: decision.conflict,
+            githubId: snapshot.githubId,
+            kind: snapshot.kind,
+            recordId: existing?.id ?? null,
+            replaced: null,
+            result: decision.result,
           };
-          if (existing) {
-            Object.assign(existing, next);
-          } else {
-            state.current.records.push(next);
+          if (decision.action === "insert") {
+            state.current.records.push({
+              ...snapshot,
+              appliedFrom: options.origin,
+              id,
+              lifecycle: "Active",
+              linkId,
+              needsReconcile: false,
+              origin: null,
+              projectId: owner,
+            });
+            outcome.recordId = id;
+          } else if (decision.action === "update" && existing) {
+            if (existing.needsReconcile) {
+              outcome.replaced = {
+                sourceState: existing.sourceState,
+                title: existing.title,
+              };
+            }
+            Object.assign(existing, snapshot, {
+              appliedFrom: options.origin,
+              needsReconcile: false,
+            });
           }
+          outcomes.push(outcome);
         }
-        return Promise.resolve();
+        return Promise.resolve(outcomes);
       },
     };
   };
@@ -175,13 +344,36 @@ function createMemoryStore(state: {
   };
 
   return {
+    linkScopes: () =>
+      Promise.resolve(
+        state.current.links.map(({ id, projectId: owner }) => ({
+          linkId: id,
+          projectId: owner,
+        })),
+      ),
     run: (account, scopeProjectId, _mode, work) => {
       if (OWNERS[scopeProjectId] !== account) {
         return Promise.resolve(null);
       }
       return rollbackOnFailure(() =>
         work(
-          transactionFor(scopeProjectId, scopeProjectId === archivedProjectId),
+          transactionFor(
+            scopeProjectId,
+            state.current.archivedProjects.has(scopeProjectId),
+          ),
+        ),
+      );
+    },
+    runForProject: (scopeProjectId, work) => {
+      if (!(scopeProjectId in OWNERS)) {
+        return Promise.resolve(null);
+      }
+      return rollbackOnFailure(() =>
+        work(
+          transactionFor(
+            scopeProjectId,
+            state.current.archivedProjects.has(scopeProjectId),
+          ),
         ),
       );
     },
@@ -195,7 +387,10 @@ function createMemoryStore(state: {
       ];
       for (const scope of projectIds) {
         await rollbackOnFailure(() =>
-          work(transactionFor(scope, false), scope),
+          work(
+            transactionFor(scope, state.current.archivedProjects.has(scope)),
+            scope,
+          ),
         );
       }
     },
@@ -240,9 +435,33 @@ export function createMemoryHarness(options: { configured?: boolean } = {}) {
     secrets,
     store: createMemoryStore(state),
   });
+  const inboxMemory = createMemoryInboxStore();
+  const alarms: OperatorAlarm[] = [];
+  const enqueued: string[] = [];
+  const inbox = createGitHubWebhookInbox({
+    alarm: (alarm) => alarms.push(alarm),
+    bootstrapSecret: WEBHOOK_SECRET,
+    enqueue: (deliveryId) => {
+      enqueued.push(deliveryId);
+      return Promise.resolve();
+    },
+    integration: github,
+    now: () => clock.current,
+    secrets,
+    store: inboxMemory.store,
+  });
   return {
     account: createAccountAccessFixture(),
+    alarms,
     app,
+    archiveProject: (id: string) => state.current.archivedProjects.add(id),
+    enqueued,
+    inbox,
+    inboxRows: inboxMemory,
+    /** `sha256=<hex>` of the exact raw body, as GitHub signs it. */
+    sign: (body: string, secret = WEBHOOK_SECRET) =>
+      `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`,
+    unarchiveProject: (id: string) => state.current.archivedProjects.delete(id),
     clock,
     github,
     secrets,

@@ -32,6 +32,10 @@ export default function GitHubIntegrationSurface({
       loadRepositories: async (installationId) =>
         (await client.gitHubAppRepositories({ installationId, projectId }))
           .repositories,
+      loadPreview: (action, linkId) =>
+        action === "Disconnect"
+          ? client.previewGitHubDisconnect({ linkId, projectId })
+          : client.previewGitHubReconnect({ linkId, projectId }),
       loadTriage: (linkId) => client.gitHubTriagePreview({ linkId, projectId }),
       onDisconnect: (linkId) =>
         write(() => client.disconnectGitHubRepository({ linkId, projectId })),
@@ -43,6 +47,8 @@ export default function GitHubIntegrationSurface({
         (await client.searchGitHubRecords({ projectId, query })).records,
       onSkipTriage: (linkId) =>
         write(() => client.skipGitHubTriage({ linkId, projectId })),
+      onSyncNow: (linkId) =>
+        write(() => client.syncGitHubNow({ linkId, projectId })),
       onStartInstall: async () => {
         const { installUrl } = await runOnlineOnlyWrite(() =>
           client.startGitHubAppInstall({ projectId }),
