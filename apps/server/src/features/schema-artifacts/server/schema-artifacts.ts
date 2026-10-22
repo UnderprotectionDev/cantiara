@@ -152,6 +152,11 @@ export function createSchemaArtifacts(
         );
       }
       const upSql = input.editedUpSql ?? draft.upSql;
+      if (upSql === "") {
+        throw new SchemaArtifactError(
+          "The two Diagram Versions have no schema difference.",
+        );
+      }
       if (upSql !== draft.upSql && checkUpEdit(upSql).length > 0) {
         throw new SchemaArtifactError(
           "The edited Up text leaves the operation catalog.",

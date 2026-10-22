@@ -7,9 +7,12 @@ import { ViolationList } from "./violation-list";
 
 /** PostgreSQL DDL of one exact Data Model Diagram Version. */
 export function DdlPreview({ versionId }: { versionId: string }) {
-  const preview = useQuery(
-    orpc.schemaDdlPreview.queryOptions({ input: { versionId } }),
-  );
+  const preview = useQuery({
+    ...orpc.schemaDdlPreview.queryOptions({ input: { versionId } }),
+    // One disposable database run per version; refetch only when it changes.
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
+  });
   const { data } = preview;
   if (preview.isPending) {
     return <p>Validating PostgreSQL DDL…</p>;

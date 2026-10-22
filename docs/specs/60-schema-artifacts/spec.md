@@ -46,6 +46,7 @@ Kurucu pinlenmiş Veri Modeli Diyagramı Sürümünden tam PostgreSQL DDL önizl
 - **What a good test is.** Schema Artifacts public interface: invariant failures block DDL, disposable apply then destroy, destructive preview, Down present/absent, digest byte sensitivity, supersede pointer, no appliedness field, no credential API. PostgreSQL adversarial goldens from PRD 16. Presentation-only edit does not change hash.
 - **Seam (one).** Schema Artifacts. Playwright: **PostgreSQL DDL ve Migration Artefaktı önizleme/export'u**.
 - **Bound tests.** DDL, invariants, extension matrix, hash: `packages/api/src/schema-ddl.test.ts`; disposable apply then destroy, credential and apply surface absent: server `schema-artifacts.test.ts` and `neon-disposable-database.test.ts`; Schema Change Draft catalog, phases, destructive preview, forbidden SQL: `schema-change-draft.test.ts`, `schema-up-edit.test.ts`; Safe Down, digest, supersede, no appliedness, export manifest: `schema-migration-artifact.test.ts` and server `migration-artifact.test.ts`.
+- **Playwright journey.** `PostgreSQL DDL ve Migration Artefaktı önizleme/export'u` is the UI side of this one seam and lands as a separate acceptance task; the bound tests above are this change's repository-side seam suite and do not mint the journey file.
 - **Required counterparts.** Live migrate absent; invented Down absent; modeling commands absent (59); Drizzle Kit migrations are the product's own schema story, not this user artifact.
 
 ## Out of Scope

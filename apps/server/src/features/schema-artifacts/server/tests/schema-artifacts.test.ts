@@ -90,6 +90,7 @@ describe("PostgreSQL DDL preview", () => {
     }
     expect(preview.validation).toMatchObject({
       disposableDestroyed: true,
+      extensions: [],
       label: "Statically Validated",
       ok: true,
       postgresMajor: 17,
@@ -226,6 +227,11 @@ describe("Schema Change Draft preview", () => {
       target: { number: 2 },
       upSql: "ALTER TABLE accounts ADD COLUMN note text;\n",
     });
+    const validation = preview?.status === "Ready" ? preview.validation : null;
+    if (!validation?.ok) {
+      throw new Error("the draft should validate without extensions");
+    }
+    expect(validation.extensions).toEqual([]);
     expect(events).toEqual([
       "create:17:pg_trgm",
       "apply:CREATE TABLE accounts (",

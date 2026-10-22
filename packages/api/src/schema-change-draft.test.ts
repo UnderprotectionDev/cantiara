@@ -203,6 +203,12 @@ describe("Schema Change Draft", () => {
       "ALTER TABLE users ALTER COLUMN name TYPE text;\n",
     );
     expect(widened.operations[0]?.operation).toBe("Widen column type");
+    expect(widened.warnings).toContainEqual(
+      expect.objectContaining({
+        code: "reverse-data",
+        path: "tables.users.columns.name",
+      }),
+    );
     const narrowed = buildSchemaChangeDraft(wide, base());
     expect(narrowed.operations[0]?.operation).toBe("Narrow column type");
     expect(narrowed.operations[0]?.class).toBe("Potentially destructive");

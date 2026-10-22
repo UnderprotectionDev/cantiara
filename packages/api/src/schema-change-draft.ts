@@ -291,9 +291,12 @@ function columnTypeOperation(
   const fromSql = renderColumnType(source, was.type);
   const toSql = renderColumnType(target, now.type);
   if (isWidening(from, to)) {
-    return operation("Widen column type", path, [
-      { inverse: alter(fromSql), phase: 7, sql: alter(toSql), sub: 0 },
-    ]);
+    return operation(
+      "Widen column type",
+      path,
+      [{ inverse: alter(fromSql), phase: 7, sql: alter(toSql), sub: 0 }],
+      [reverseData(path)],
+    );
   }
   const narrowing =
     isWidening(to, from) ||

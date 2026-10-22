@@ -187,6 +187,17 @@ describe("Migration Artifact", () => {
     ).rejects.toThrow("leaves the operation catalog");
   });
 
+  test("an empty edited Up cannot become an artifact", async () => {
+    const { access, rows } = setup([
+      version("v1", 1, [idColumn]),
+      version("v2", 2, add),
+    ]);
+    await expect(
+      access.confirmArtifact("a", confirm(KEY_A, { editedUpSql: "" })),
+    ).rejects.toThrow("The two Diagram Versions have no schema difference.");
+    expect(rows).toHaveLength(0);
+  });
+
   test("does not mint without a passing disposable validation", async () => {
     const failing: DisposableDatabasePort = {
       run: () => Promise.reject(new Error("syntax error")),

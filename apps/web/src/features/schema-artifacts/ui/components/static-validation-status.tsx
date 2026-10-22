@@ -13,7 +13,11 @@ export function StaticValidationStatus({
     return (
       <p role="status">
         <strong>{validation.label}</strong>
-        {` · PostgreSQL ${validation.postgresMajor} · ${validation.extensions.join(", ")} · disposable database destroyed`}
+        {` · PostgreSQL ${validation.postgresMajor} · ${
+          validation.extensions.length > 0
+            ? validation.extensions.join(", ")
+            : "no required extension"
+        } · disposable database destroyed`}
         <span className="block text-muted-foreground text-sm">
           The product never runs this SQL on your, staging or production
           database.

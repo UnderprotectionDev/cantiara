@@ -27,6 +27,30 @@ export const STATIC_VALIDATION_CHECKS = [
   "Disposable parse and apply",
 ] as const;
 
+/** Operator classes of the closed matrix that can appear in the offered SQL. */
+const MATRIX_OPS: [RegExp, string][] = [
+  [/\b(?:gin|gist)_trgm_ops\b/, "pg_trgm"],
+];
+
+/**
+ * Extensions the offered SQL itself needs: the disposable run still installs
+ * the whole closed matrix so any allowed usage is provable, while the result
+ * reports only what the scripts actually reference.
+ */
+export function extensionsRequiredByScripts(
+  scripts: readonly string[],
+): string[] {
+  const extensions = new Set<string>();
+  for (const script of scripts) {
+    for (const [pattern, extension] of MATRIX_OPS) {
+      if (pattern.test(script)) {
+        extensions.add(extension);
+      }
+    }
+  }
+  return [...extensions].sort((a, b) => a.localeCompare(b));
+}
+
 export type StaticValidation =
   | {
       checks: readonly string[];
@@ -48,7 +72,8 @@ export type StaticValidation =
  * `Statically Validated` is minted only here: invariants already passed, then
  * every script applied in order to a new disposable database that is gone
  * afterwards. A failed apply, an unprovable destroy or a missing port blocks
- * the label.
+ * the label. `extensions` reports what the offered scripts themselves need;
+ * it is not the closed matrix the disposable run installs.
  */
 export async function validateStatically(
   port: DisposableDatabasePort | undefined,
@@ -104,7 +129,7 @@ export async function validateStatically(
   return {
     checks: STATIC_VALIDATION_CHECKS,
     disposableDestroyed: true,
-    extensions: ALLOWED_EXTENSIONS,
+    extensions: extensionsRequiredByScripts(scripts),
     label: SCHEMA_ARTIFACT_LABELS.validated,
     ok: true,
     postgresMajor: POSTGRES_MAJOR,

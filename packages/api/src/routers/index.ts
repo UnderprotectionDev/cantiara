@@ -5384,7 +5384,7 @@ export const appRouter = {
         return artifact;
       } catch (error) {
         if (error instanceof SchemaArtifactError) {
-          throw new ORPCError("CONFLICT", { cause: error });
+          throw new ORPCError("BAD_REQUEST", { cause: error });
         }
         throw error;
       }

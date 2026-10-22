@@ -133,11 +133,14 @@ export function ChangeDraft({
     },
   });
   const [edited, setEdited] = useState<string | null>(null);
-  const preview = useQuery(
-    orpc.schemaChangePreview.queryOptions({
+  const preview = useQuery({
+    ...orpc.schemaChangePreview.queryOptions({
       input: { editedUpSql: edited, sourceVersionId, targetVersionId },
     }),
-  );
+    // One disposable database run per draft; refetch only when the input changes.
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
+  });
   const { data } = preview;
   if (preview.isPending) {
     return <p>Building the Schema Change Draft…</p>;
