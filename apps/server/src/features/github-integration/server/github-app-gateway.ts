@@ -88,6 +88,8 @@ export interface RawRepository {
 }
 
 export interface RawIssue {
+  body?: string | null;
+  head?: { ref?: string | null } | null;
   html_url: string;
   id: number;
   labels?: (string | { name?: string })[];
@@ -126,6 +128,8 @@ export function toSnapshot(raw: RawIssue): GitHubIssueSnapshot {
     labels: (raw.labels ?? [])
       .map((label) => (typeof label === "string" ? label : (label.name ?? "")))
       .filter(Boolean),
+    // Read for Work key matching only; the integration drops it before any write.
+    matchText: { body: raw.body ?? null, headBranch: raw.head?.ref ?? null },
     milestone: raw.milestone?.title ?? null,
     number: raw.number,
     sourceState,

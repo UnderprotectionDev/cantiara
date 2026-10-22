@@ -316,18 +316,25 @@ describe("GitHub Integration: first triage never writes Work", () => {
     ).toHaveLength(1);
   });
 
-  test("the seam has no operation that creates Work", () => {
+  test("the seam has no Work status or close operation, and triage creates no Work", () => {
     const { github } = seeded();
-    // No operation writes Work, GitHub or a login; the record lifecycle is local.
+    // No operation writes a Work status, GitHub or a login; the record
+    // lifecycle is local. `createWorkAndLink` is the one previewed Work draft
+    // of ticket 03 and the first triage never calls it.
     expect(Object.keys(github).sort()).toEqual([
       "applyWebhookEvent",
       "archiveRecord",
+      "attentionSignals",
       "availableRepositories",
       "completeInstall",
+      "createWorkAndLink",
       "deleteRecordPermanently",
       "disconnect",
+      "dismissSignal",
       "linkRepository",
+      "linkWork",
       "overview",
+      "previewCreateWork",
       "previewDisconnect",
       "previewReconnect",
       "reconcileDue",
@@ -341,6 +348,8 @@ describe("GitHub Integration: first triage never writes Work", () => {
       "syncNow",
       "trashRecord",
       "triagePreview",
+      "unlinkWork",
+      "workLinks",
     ]);
   });
 });

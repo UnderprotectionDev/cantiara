@@ -12,6 +12,8 @@ import {
  */
 
 interface DoubleIssue {
+  body?: string | null;
+  head?: { ref: string } | null;
   html_url: string;
   id: number;
   labels: { name: string }[];
@@ -206,7 +208,9 @@ export function createGitHubAppDouble(
       installationId: number,
       repositoryId: number,
       issue: {
+        body?: string;
         closed?: boolean;
+        headBranch?: string;
         id: number;
         labels?: string[];
         milestone?: string;
@@ -223,6 +227,10 @@ export function createGitHubAppDouble(
         throw new Error("Unknown double repository");
       }
       repository.issues.push({
+        ...(issue.body === undefined ? {} : { body: issue.body }),
+        ...(issue.headBranch === undefined
+          ? {}
+          : { head: { ref: issue.headBranch } }),
         html_url: `https://github.com/${repository.owner}/${repository.name}/issues/${issue.number}`,
         id: issue.id,
         labels: (issue.labels ?? []).map((name) => ({ name })),

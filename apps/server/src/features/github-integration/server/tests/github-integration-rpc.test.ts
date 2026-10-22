@@ -95,24 +95,33 @@ describe("GitHub Integration RPC seam", () => {
     ).rejects.toMatchObject({ data: { code: "GITHUB_INSTALL_STATE_INVALID" } });
   });
 
-  test("exposes no login, session, Work or GitHub write procedure", () => {
+  test("exposes no login, session, Work status or GitHub write procedure", () => {
     const names = Object.keys(appRouter).filter((name) =>
       GITHUB_PROCEDURE.test(name),
     );
     expect(names.sort()).toEqual([
       "completeGitHubAppInstall",
+      // Ticket 03: the only Work-side writes are a link row and the one
+      // previewed `Create work and link`; no Work status or close procedure.
+      "createGitHubWorkAndLink",
       "disconnectGitHubRepository",
+      "dismissGitHubAttentionSignal",
       "gitHubAppRepositories",
       "gitHubTriagePreview",
       "linkGitHubRepository",
+      "linkGitHubWork",
+      "previewGitHubCreateWork",
       "previewGitHubDisconnect",
       "previewGitHubReconnect",
+      "projectGitHubAttentionSignals",
       "projectGitHubOverview",
+      "projectGitHubWorkLinks",
       "reconnectGitHubRepository",
       "searchGitHubRecords",
       "skipGitHubTriage",
       "startGitHubAppInstall",
       "syncGitHubNow",
+      "unlinkGitHubWork",
     ]);
   });
 });

@@ -288,3 +288,136 @@ export const githubWebhookSecret = pgTable("github_webhook_secret", {
   retiredAt: timestamp("retired_at"),
   wrappedDataKey: text("wrapped_data_key").notNull(),
 });
+
+/**
+ * Work-GitHub link (spec 61, ticket 03). One row joins one Work to one GitHub
+ * dış kaydı (Issue or Pull request) or to a commit or branch of a linked
+ * Repository. It is a pointer with a role: no column here is a Work status, a
+ * close, a blocker, an Evidence pin or a usage embed, and `work_id` is a plain
+ * id (a merged Work keeps resolving through its retired identity). The role
+ * catalog is closed and `Required for completion` exists only on a Pull
+ * request. A removed automatic link stays as a mark so it is not made again.
+ */
+export const githubWorkLink = pgTable(
+  "project_github_work_link",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    createdByAccountId: text("created_by_account_id"),
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(),
+    matchedKey: text("matched_key"),
+    origin: text("origin").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    recordId: text("record_id").references(() => githubExternalRecord.id, {
+      onDelete: "cascade",
+    }),
+    removedAt: timestamp("removed_at"),
+    repositoryLinkId: text("repository_link_id")
+      .notNull()
+      .references(() => githubRepositoryLink.id, { onDelete: "cascade" }),
+    role: text("role").notNull(),
+    /** Record id, or `<repository link>:<kind>:<value>` for a commit or branch. */
+    targetKey: text("target_key").notNull(),
+    /** Commit sha or branch name; null for an Issue or Pull request. */
+    value: text("value"),
+    workId: text("work_id").notNull(),
+  },
+  (table) => [
+    uniqueIndex("project_github_work_link_work_target_idx").on(
+      table.workId,
+      table.targetKey,
+    ),
+    index("project_github_work_link_project_idx").on(table.projectId),
+    index("project_github_work_link_record_idx").on(table.recordId),
+    check(
+      "project_github_work_link_role_check",
+      sql`${table.role} in ('Required for completion', 'Contextual')`,
+    ),
+    check(
+      "project_github_work_link_kind_check",
+      sql`${table.kind} in ('Issue', 'Pull request', 'Commit', 'Branch')`,
+    ),
+    check(
+      "project_github_work_link_origin_check",
+      sql`${table.origin} in ('Manual', 'Key match', 'Create work and link')`,
+    ),
+    check(
+      "project_github_work_link_required_pr_check",
+      sql`${table.role} = 'Contextual' or ${table.kind} = 'Pull request'`,
+    ),
+    check(
+      "project_github_work_link_target_check",
+      sql`(${table.kind} in ('Issue', 'Pull request') and ${table.recordId} is not null and ${table.value} is null) or (${table.kind} in ('Commit', 'Branch') and ${table.recordId} is null and ${table.value} is not null)`,
+    ),
+  ],
+);
+
+/**
+ * A key the record text carried that did not become a link: missing, repeated
+ * or other-Project. It only suggests; accepting one is a manual link. Keys
+ * only, never the text they were found in.
+ */
+export const githubWorkLinkSuggestion = pgTable(
+  "project_github_work_link_suggestion",
+  {
+    closingIntent: boolean("closing_intent").default(false).notNull(),
+    id: text("id").primaryKey(),
+    key: text("key").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    recordId: text("record_id")
+      .notNull()
+      .references(() => githubExternalRecord.id, { onDelete: "cascade" }),
+    workId: text("work_id"),
+  },
+  (table) => [
+    index("project_github_work_link_suggestion_record_idx").on(table.recordId),
+    check(
+      "project_github_work_link_suggestion_reason_check",
+      sql`${table.reason} in ('Multiple Work keys', 'No Work with this key', 'Key belongs to another Project')`,
+    ),
+  ],
+);
+
+/**
+ * Attention signals the Unified Notification Center reads (it is not built
+ * here). Only the two registered ids exist. The id is derived from the sources
+ * (`unlinked-open-pr:<record>` or `work-pr-status-conflict:<work>:<record>`),
+ * so a source pair cannot open a signal twice, and the signal lives on the
+ * existing GitHub dış kaydı: no Unlinked-PR identity or Work type. `closed_at`
+ * is the condition ending; `dismissed_at` is the founder's dismissal and holds.
+ */
+export const githubAttentionSignal = pgTable(
+  "project_github_attention_signal",
+  {
+    closedAt: timestamp("closed_at"),
+    dismissedAt: timestamp("dismissed_at"),
+    occurredAt: timestamp("occurred_at").notNull(),
+    ownerAccountId: text("owner_account_id").notNull(),
+    presentation: text("presentation").default("Action Required").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    recordId: text("record_id")
+      .notNull()
+      .references(() => githubExternalRecord.id, { onDelete: "cascade" }),
+    signalId: text("signal_id").primaryKey(),
+    signalType: text("signal_type").notNull(),
+    workId: text("work_id"),
+  },
+  (table) => [
+    index("project_github_attention_signal_project_idx").on(table.projectId),
+    check(
+      "project_github_attention_signal_type_check",
+      sql`${table.signalType} in ('unlinked-open-pr', 'work-pr-status-conflict')`,
+    ),
+    check(
+      "project_github_attention_signal_presentation_check",
+      sql`${table.presentation} = 'Action Required'`,
+    ),
+  ],
+);

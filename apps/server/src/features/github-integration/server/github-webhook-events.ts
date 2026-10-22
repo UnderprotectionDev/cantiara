@@ -16,6 +16,11 @@ import {
  */
 
 const issueLikeSchema = z.object({
+  body: z.string().nullable().optional(),
+  head: z
+    .object({ ref: z.string().nullable().optional() })
+    .nullable()
+    .optional(),
   html_url: z.string(),
   id: z.number(),
   labels: z

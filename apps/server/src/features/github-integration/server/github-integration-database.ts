@@ -11,9 +11,17 @@ import type {
   GitHubStoredRecord,
   GitHubTriageState,
 } from "@cantiara/api/github-integration";
+import type {
+  GitHubStoredSignal,
+  GitHubStoredSuggestion,
+  GitHubStoredWorkLink,
+  GitHubWorkRef,
+  GitHubWorkType,
+} from "@cantiara/api/github-work-links";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import {
+  githubAttentionSignal,
   githubExternalRecord,
   githubExternalRecordTombstone,
   githubInstallation,
@@ -21,9 +29,15 @@ import {
   githubLinkHistory,
   githubRepositoryLink,
   githubRepositoryLinkName,
+  githubWorkLink,
+  githubWorkLinkSuggestion,
 } from "@cantiara/db/schema/github-integration";
-import { project } from "@cantiara/db/schema/project";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { project, projectShortCode } from "@cantiara/db/schema/project";
+import {
+  workRetiredIdentity,
+  work as workTable,
+} from "@cantiara/db/schema/work";
+import { and, asc, desc, eq, ne } from "drizzle-orm";
 
 import type { GitHubSecrets } from "./github-credential-envelope";
 import { createGitHubIntegration } from "./github-integration";
@@ -128,12 +142,294 @@ function toRecord(
 const optionalDate = (value: string | null | undefined) =>
   value ? new Date(value) : null;
 
+/**
+ * The Work owner's insert, injected by the server wiring so this feature never
+ * imports another feature's server code. It runs in the unit of work that
+ * already holds the Project row lock, allocates the Project key like every
+ * other Work creation, and returns the new key.
+ */
+export type GitHubWorkCreation = (
+  executor: Executor,
+  owner: typeof project.$inferSelect,
+  input: {
+    description: string;
+    originRecordId: string;
+    title: string;
+    type: GitHubWorkType;
+    workId: string;
+  },
+) => Promise<string>;
+
+export interface GitHubDatabaseStoreOptions {
+  createWork?: GitHubWorkCreation;
+}
+
+function toWorkLink(
+  row: typeof githubWorkLink.$inferSelect,
+): GitHubStoredWorkLink {
+  return {
+    createdAt: iso(row.createdAt),
+    createdByAccountId: row.createdByAccountId,
+    id: row.id,
+    kind: row.kind as GitHubStoredWorkLink["kind"],
+    matchedKey: row.matchedKey,
+    origin: row.origin as GitHubStoredWorkLink["origin"],
+    projectId: row.projectId,
+    recordId: row.recordId,
+    removedAt: row.removedAt ? iso(row.removedAt) : null,
+    repositoryLinkId: row.repositoryLinkId,
+    role: row.role as GitHubStoredWorkLink["role"],
+    targetKey: row.targetKey,
+    value: row.value,
+    workId: row.workId,
+  };
+}
+
+function toSignal(
+  row: typeof githubAttentionSignal.$inferSelect,
+): GitHubStoredSignal {
+  return {
+    closedAt: row.closedAt ? iso(row.closedAt) : null,
+    dismissedAt: row.dismissedAt ? iso(row.dismissedAt) : null,
+    occurredAt: iso(row.occurredAt),
+    ownerAccountId: row.ownerAccountId,
+    projectId: row.projectId,
+    recordId: row.recordId,
+    signalId: row.signalId,
+    signalType: row.signalType as GitHubStoredSignal["signalType"],
+    workId: row.workId,
+  };
+}
+
+function toWorkRef(
+  row: typeof workTable.$inferSelect,
+  retired: (typeof workRetiredIdentity.$inferSelect)[],
+): GitHubWorkRef {
+  const merged = retired.filter((item) => item.survivingWorkId === row.id);
+  return {
+    closureResult: row.closureResult as GitHubWorkRef["closureResult"],
+    id: row.id,
+    key: row.key,
+    previousKeys: merged.map((item) => item.key),
+    retiredIds: merged.map((item) => item.id),
+    status: row.status as GitHubWorkRef["status"],
+    title: row.title,
+    trashed: row.trashedAt !== null,
+  };
+}
+
 function transactionFor(
   executor: Executor,
   projectId: string,
   readOnly: boolean,
+  storeOptions: GitHubDatabaseStoreOptions = {},
 ): GitHubIntegrationTransaction {
+  const projectRow = async () => {
+    const [owned] = await executor
+      .select()
+      .from(project)
+      .where(eq(project.id, projectId));
+    return owned ?? null;
+  };
   return {
+    createWork: async (input) => {
+      const owner = await projectRow();
+      if (!(owner && storeOptions.createWork)) {
+        throw new Error("Work creation is not available.");
+      }
+      const workId = crypto.randomUUID();
+      const key = await storeOptions.createWork(executor, owner, {
+        ...input,
+        workId,
+      });
+      return {
+        closureResult: null,
+        id: workId,
+        key,
+        previousKeys: [],
+        retiredIds: [],
+        status: "Not Started",
+        title: input.title,
+        trashed: false,
+      };
+    },
+    deleteWorkLink: async (id) => {
+      await executor.delete(githubWorkLink).where(eq(githubWorkLink.id, id));
+    },
+    insertSignal: async (signal) => {
+      await executor
+        .insert(githubAttentionSignal)
+        .values({
+          closedAt: optionalDate(signal.closedAt),
+          dismissedAt: optionalDate(signal.dismissedAt),
+          occurredAt: new Date(signal.occurredAt),
+          ownerAccountId: signal.ownerAccountId,
+          projectId: signal.projectId,
+          recordId: signal.recordId,
+          signalId: signal.signalId,
+          signalType: signal.signalType,
+          workId: signal.workId,
+        })
+        .onConflictDoNothing();
+    },
+    insertWorkLink: async (row) => {
+      await executor.insert(githubWorkLink).values({
+        createdAt: new Date(row.createdAt),
+        createdByAccountId: row.createdByAccountId,
+        id: row.id,
+        kind: row.kind,
+        matchedKey: row.matchedKey,
+        origin: row.origin,
+        projectId: row.projectId,
+        recordId: row.recordId,
+        removedAt: optionalDate(row.removedAt),
+        repositoryLinkId: row.repositoryLinkId,
+        role: row.role,
+        targetKey: row.targetKey,
+        value: row.value,
+        workId: row.workId,
+      });
+    },
+    keyScope: async () => {
+      const owner = await projectRow();
+      const [works, retired, reservations, others] = await Promise.all([
+        executor
+          .select()
+          .from(workTable)
+          .where(eq(workTable.projectId, projectId)),
+        executor
+          .select()
+          .from(workRetiredIdentity)
+          .where(eq(workRetiredIdentity.projectId, projectId)),
+        owner
+          ? executor
+              .select()
+              .from(projectShortCode)
+              .where(eq(projectShortCode.workspaceId, owner.workspaceId))
+          : [],
+        owner
+          ? executor
+              .select({ shortCode: project.shortCode })
+              .from(project)
+              .where(
+                and(
+                  eq(project.workspaceId, owner.workspaceId),
+                  ne(project.id, projectId),
+                ),
+              )
+          : [],
+      ]);
+      const own = new Set<string>(owner ? [owner.shortCode] : []);
+      const other = new Set<string>(others.map((row) => row.shortCode));
+      for (const reservation of reservations) {
+        if (reservation.projectId === projectId) {
+          own.add(reservation.shortCode);
+        } else {
+          other.add(reservation.shortCode);
+        }
+      }
+      for (const code of own) {
+        other.delete(code);
+      }
+      return {
+        otherShortCodes: [...other],
+        ownShortCodes: [...own],
+        works: works.map((row) => toWorkRef(row, retired)),
+      };
+    },
+    ownerAccountId: async () => {
+      const [owned] = await executor
+        .select({ ownerAccountId: workspace.ownerAccountId })
+        .from(project)
+        .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+        .where(eq(project.id, projectId));
+      if (!owned) {
+        throw new Error("Project owner not found.");
+      }
+      return owned.ownerAccountId;
+    },
+    replaceSuggestions: async (
+      recordId,
+      suggestions: GitHubStoredSuggestion[],
+    ) => {
+      await executor
+        .delete(githubWorkLinkSuggestion)
+        .where(eq(githubWorkLinkSuggestion.recordId, recordId));
+      if (suggestions.length > 0) {
+        await executor.insert(githubWorkLinkSuggestion).values(
+          suggestions.map((suggestion) => ({
+            closingIntent: suggestion.closingIntent,
+            id: suggestion.id,
+            key: suggestion.key,
+            projectId: suggestion.projectId,
+            reason: suggestion.reason,
+            recordId: suggestion.recordId,
+            workId: suggestion.workId,
+          })),
+        );
+      }
+    },
+    signals: async () =>
+      (
+        await executor
+          .select()
+          .from(githubAttentionSignal)
+          .where(eq(githubAttentionSignal.projectId, projectId))
+      ).map(toSignal),
+    suggestions: async () =>
+      (
+        await executor
+          .select()
+          .from(githubWorkLinkSuggestion)
+          .where(eq(githubWorkLinkSuggestion.projectId, projectId))
+      ).map((row) => ({
+        closingIntent: row.closingIntent,
+        id: row.id,
+        key: row.key,
+        projectId: row.projectId,
+        reason: row.reason as GitHubStoredSuggestion["reason"],
+        recordId: row.recordId,
+        workId: row.workId,
+      })),
+    updateSignal: async (signalId, patch) => {
+      await executor
+        .update(githubAttentionSignal)
+        .set({
+          ...(patch.closedAt === undefined
+            ? {}
+            : { closedAt: optionalDate(patch.closedAt) }),
+          ...(patch.dismissedAt === undefined
+            ? {}
+            : { dismissedAt: optionalDate(patch.dismissedAt) }),
+          ...(patch.occurredAt === undefined
+            ? {}
+            : { occurredAt: new Date(patch.occurredAt) }),
+        })
+        .where(eq(githubAttentionSignal.signalId, signalId));
+    },
+    updateWorkLink: async (id, patch) => {
+      await executor
+        .update(githubWorkLink)
+        .set({
+          ...(patch.matchedKey === undefined
+            ? {}
+            : { matchedKey: patch.matchedKey }),
+          ...(patch.origin === undefined ? {} : { origin: patch.origin }),
+          ...(patch.removedAt === undefined
+            ? {}
+            : { removedAt: optionalDate(patch.removedAt) }),
+          ...(patch.role === undefined ? {} : { role: patch.role }),
+        })
+        .where(eq(githubWorkLink.id, id));
+    },
+    workLinks: async () =>
+      (
+        await executor
+          .select()
+          .from(githubWorkLink)
+          .where(eq(githubWorkLink.projectId, projectId))
+          .orderBy(asc(githubWorkLink.createdAt))
+      ).map(toWorkLink),
     claimsOfInstallation: async (installationId) =>
       await executor
         .select({
@@ -566,6 +862,7 @@ function transactionFor(
 
 export function createDatabaseGitHubIntegrationStore(
   database: Database,
+  storeOptions: GitHubDatabaseStoreOptions = {},
 ): GitHubIntegrationStore {
   return {
     run(accountId, projectId, mode, work) {
@@ -580,7 +877,12 @@ export function createDatabaseGitHubIntegrationStore(
           return null;
         }
         return await work(
-          transactionFor(executor, owned.id, owned.archivedAt !== null),
+          transactionFor(
+            executor,
+            owned.id,
+            owned.archivedAt !== null,
+            storeOptions,
+          ),
         );
       });
     },
@@ -605,7 +907,12 @@ export function createDatabaseGitHubIntegrationStore(
           return null;
         }
         return await work(
-          transactionFor(executor, owned.id, owned.archivedAt !== null),
+          transactionFor(
+            executor,
+            owned.id,
+            owned.archivedAt !== null,
+            storeOptions,
+          ),
         );
       });
     },
@@ -629,7 +936,12 @@ export function createDatabaseGitHubIntegrationStore(
             .where(eq(project.id, scope))
             .for("update");
           await work(
-            transactionFor(executor, scope, Boolean(owned?.archivedAt)),
+            transactionFor(
+              executor,
+              scope,
+              Boolean(owned?.archivedAt),
+              storeOptions,
+            ),
             scope,
           );
         });
@@ -639,6 +951,7 @@ export function createDatabaseGitHubIntegrationStore(
 }
 
 export function createDatabaseGitHubIntegration(options: {
+  createWork?: GitHubWorkCreation;
   gateway: GitHubAppGateway | null;
   secrets: GitHubSecrets;
   database: Database;
@@ -646,6 +959,8 @@ export function createDatabaseGitHubIntegration(options: {
   return createGitHubIntegration({
     gateway: options.gateway,
     secrets: options.secrets,
-    store: createDatabaseGitHubIntegrationStore(options.database),
+    store: createDatabaseGitHubIntegrationStore(options.database, {
+      createWork: options.createWork,
+    }),
   });
 }

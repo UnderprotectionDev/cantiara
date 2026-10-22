@@ -11,6 +11,12 @@ import type {
   GitHubStoredLink,
   GitHubStoredRecord,
 } from "@cantiara/api/github-integration";
+import type {
+  GitHubStoredSignal,
+  GitHubStoredSuggestion,
+  GitHubStoredWorkLink,
+  GitHubWorkRef,
+} from "@cantiara/api/github-work-links";
 
 import { createGitHubAppDouble, type DoubleClock } from "./github-app-double";
 import { createGitHubAppGateway } from "./github-app-gateway";
@@ -42,6 +48,8 @@ interface MemoryTombstone {
   recordId: string;
 }
 
+type MemoryWork = GitHubWorkRef & { description: string; projectId: string };
+
 interface MemoryState {
   archivedProjects: Set<string>;
   archivedRecords: Set<string>;
@@ -51,9 +59,20 @@ interface MemoryState {
   linkHistory: Map<string, GitHubLinkHistoryEntry[]>;
   links: GitHubStoredLink[];
   records: GitHubStoredRecord[];
+  signals: GitHubStoredSignal[];
+  suggestions: GitHubStoredSuggestion[];
   tombstones: MemoryTombstone[];
   trashedRecords: Set<string>;
+  workLinks: GitHubStoredWorkLink[];
+  works: MemoryWork[];
 }
+
+/** Short code each fixture Project owns: the Work key prefix. */
+const SHORT_CODES: Record<string, string> = {
+  [archivedProjectId]: "ARC",
+  [otherProjectId]: "OTH",
+  [projectId]: "CAN",
+};
 
 const OWNERS: Record<string, string> = {
   [archivedProjectId]: accountId,
@@ -72,7 +91,11 @@ function emptyState(): MemoryState {
     linkHistory: new Map(),
     links: [],
     records: [],
+    signals: [],
+    suggestions: [],
     tombstones: [],
+    workLinks: [],
+    works: [],
   };
 }
 
@@ -167,11 +190,103 @@ function createMemoryStore(state: {
           state.current.records = state.current.records.filter(
             (row) => row.id !== recordId,
           );
+          // The links, suggestions and signals of the record go with it.
+          const { current } = state;
+          current.workLinks = current.workLinks.filter(
+            (row) => row.recordId !== recordId,
+          );
+          current.suggestions = current.suggestions.filter(
+            (row) => row.recordId !== recordId,
+          );
+          current.signals = current.signals.filter(
+            (row) => row.recordId !== recordId,
+          );
         }
+        return Promise.resolve();
+      },
+      createWork: (input) => {
+        const count = inProject(state.current.works).length + 1;
+        const work: MemoryWork = {
+          closureResult: null,
+          description: input.description,
+          id: `work-${scopeProjectId}-${count}`,
+          key: `${SHORT_CODES[scopeProjectId]}-${count}`,
+          previousKeys: [],
+          projectId: scopeProjectId,
+          retiredIds: [],
+          status: "Not Started",
+          title: input.title,
+          trashed: false,
+        };
+        state.current.works.push(work);
+        return Promise.resolve({ ...work });
+      },
+      deleteWorkLink: (id) => {
+        state.current.workLinks = state.current.workLinks.filter(
+          (row) => row.id !== id,
+        );
         return Promise.resolve();
       },
       history: (linkId) =>
         Promise.resolve([...(state.current.linkHistory.get(linkId) ?? [])]),
+      insertSignal: (signal) => {
+        if (
+          !state.current.signals.some((row) => row.signalId === signal.signalId)
+        ) {
+          state.current.signals.push({ ...signal });
+        }
+        return Promise.resolve();
+      },
+      insertWorkLink: (row) => {
+        state.current.workLinks.push({ ...row });
+        return Promise.resolve();
+      },
+      keyScope: () =>
+        Promise.resolve({
+          otherShortCodes: Object.entries(SHORT_CODES)
+            .filter(([id]) => id !== scopeProjectId)
+            .map(([, code]) => code),
+          ownShortCodes: [SHORT_CODES[scopeProjectId] ?? ""],
+          works: inProject(state.current.works).map((work) => ({ ...work })),
+        }),
+      ownerAccountId: () => Promise.resolve(OWNERS[scopeProjectId] ?? ""),
+      replaceSuggestions: (recordId, suggestions) => {
+        state.current.suggestions = [
+          ...state.current.suggestions.filter(
+            (row) => row.recordId !== recordId,
+          ),
+          ...suggestions,
+        ];
+        return Promise.resolve();
+      },
+      signals: () =>
+        Promise.resolve(
+          inProject(state.current.signals).map((row) => ({ ...row })),
+        ),
+      suggestions: () =>
+        Promise.resolve(
+          inProject(state.current.suggestions).map((row) => ({ ...row })),
+        ),
+      updateSignal: (signalId, patch) => {
+        const row = state.current.signals.find(
+          (item) => item.signalId === signalId,
+        );
+        if (row) {
+          Object.assign(row, patch);
+        }
+        return Promise.resolve();
+      },
+      updateWorkLink: (id, patch) => {
+        const row = state.current.workLinks.find((item) => item.id === id);
+        if (row) {
+          Object.assign(row, patch);
+        }
+        return Promise.resolve();
+      },
+      workLinks: () =>
+        Promise.resolve(
+          inProject(state.current.workLinks).map((row) => ({ ...row })),
+        ),
       recordById: (recordId) =>
         Promise.resolve(
           inProject(state.current.records).find((row) => row.id === recordId) ??
@@ -462,6 +577,42 @@ export function createMemoryHarness(options: { configured?: boolean } = {}) {
     sign: (body: string, secret = WEBHOOK_SECRET) =>
       `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`,
     unarchiveProject: (id: string) => state.current.archivedProjects.delete(id),
+    /** The Work owner as a fixture: seeding and changing Work is not this seam's write. */
+    work: {
+      add(
+        project: string,
+        work: Partial<MemoryWork> & { key: string; title: string },
+      ) {
+        const row: MemoryWork = {
+          closureResult: null,
+          description: "",
+          id: `work-${work.key}`,
+          previousKeys: [],
+          projectId: project,
+          retiredIds: [],
+          status: "Not Started",
+          trashed: false,
+          ...work,
+        };
+        state.current.works.push(row);
+        return row;
+      },
+      complete(workId: string) {
+        const row = state.current.works.find((item) => item.id === workId);
+        if (row) {
+          row.status = "Closed";
+          row.closureResult = "Completed";
+        }
+      },
+      trash(workId: string) {
+        const row = state.current.works.find((item) => item.id === workId);
+        if (row) {
+          row.trashed = true;
+        }
+      },
+      /** A deep copy of every Work row, to assert a link never changed one. */
+      snapshot: () => structuredClone(state.current.works),
+    },
     clock,
     github,
     secrets,

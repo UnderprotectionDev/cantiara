@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import type {
+  GitHubWorkLinkAccess,
+  GitHubWorkLinkTransaction,
+} from "./github-work-links";
+
 /**
  * GitHub Integration seam (spec 61, ticket 01: Repository link via GitHub App).
  *
@@ -287,12 +292,23 @@ export type GitHubStoredRecord = GitHubExternalRecord & {
   appliedFrom: "reconcile" | "webhook";
 };
 
-/** What a gateway reports about one Issue or Pull request; no body, diff or payload. */
+/**
+ * Text read only to find Work keys while a record is applied (branch name,
+ * description). It is never stored: the allow-list has no body or free text.
+ */
+export interface GitHubKeyMatchText {
+  body: string | null;
+  headBranch: string | null;
+}
+
+/** What a gateway reports about one Issue or Pull request; no body, diff or payload is kept. */
 export interface GitHubIssueSnapshot {
   githubId: number;
   htmlUrl: string;
   kind: (typeof GITHUB_RECORD_KINDS)[number];
   labels: string[];
+  /** Transient; the integration reads it for key matching and drops it before any write. */
+  matchText?: GitHubKeyMatchText;
   milestone: string | null;
   number: number;
   sourceState: (typeof GITHUB_RECORD_STATES)[number];
@@ -671,7 +687,8 @@ export interface GitHubStoredCredential {
   sealed: SealedSecret;
 }
 
-export interface GitHubIntegrationTransaction {
+export interface GitHubIntegrationTransaction
+  extends GitHubWorkLinkTransaction {
   appendHistory: (
     linkId: string,
     entry: GitHubLinkHistoryEntry,
@@ -801,7 +818,7 @@ export interface GitHubIntegrationStore {
   ) => Promise<T | null>;
 }
 
-export interface GitHubIntegrationAccess {
+export interface GitHubIntegrationAccess extends GitHubWorkLinkAccess {
   /**
    * Applies one verified webhook event (already in the durable inbox). Returns
    * a short result stored with the delivery; throws so the worker retries.

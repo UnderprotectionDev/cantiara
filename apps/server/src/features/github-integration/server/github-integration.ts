@@ -11,8 +11,10 @@ import {
   type GitHubIntegrationAccess,
   type GitHubIntegrationStore,
   type GitHubIntegrationTransaction,
+  type GitHubIssueSnapshot,
   type GitHubLinkPreview,
   type GitHubOverview,
+  type GitHubRecordWriteOutcome,
   type GitHubRepository,
   type GitHubRepositoryLink,
   type GitHubStoredInstallation,
@@ -37,6 +39,12 @@ import {
   GitHubRequestError,
 } from "./github-app-gateway";
 import type { GitHubSecrets } from "./github-credential-envelope";
+import {
+  applyKeyMatches,
+  createGitHubWorkLinks,
+  refreshAttentionSignals,
+  storableSnapshot,
+} from "./github-work-links";
 
 class GitHubIntegrationError extends Error {
   readonly code: string;
@@ -463,11 +471,12 @@ export function createGitHubIntegration(
             id: newId(),
             linkId: link.id,
             projectId: link.projectId,
-            snapshot,
+            snapshot: storableSnapshot(snapshot),
           }),
         ),
         { explicit: syncOptions.explicit, origin: "reconcile" },
       );
+      await applyIngested(transaction, outcomes, snapshots);
       for (const outcome of outcomes) {
         if (outcome.result === "applied") {
           report.applied += 1;
@@ -640,6 +649,30 @@ export function createGitHubIntegration(
     return record;
   }
 
+  /**
+   * After records were applied: match Work keys on what changed and recompute
+   * the two attention signals. Only this seam's own rows are written.
+   */
+  async function applyIngested(
+    transaction: GitHubIntegrationTransaction,
+    outcomes: GitHubRecordWriteOutcome[],
+    snapshots: GitHubIssueSnapshot[],
+  ) {
+    const entries: { recordId: string; snapshot: GitHubIssueSnapshot }[] = [];
+    for (const outcome of outcomes) {
+      const snapshot = snapshots.find(
+        (candidate) =>
+          candidate.kind === outcome.kind &&
+          candidate.githubId === outcome.githubId,
+      );
+      if (outcome.result === "applied" && outcome.recordId && snapshot) {
+        entries.push({ recordId: outcome.recordId, snapshot });
+      }
+    }
+    await applyKeyMatches(transaction, entries, { newId, now });
+    await refreshAttentionSignals(transaction, now());
+  }
+
   async function lifecycleChange(
     accountId: string,
     rawInput: unknown,
@@ -651,6 +684,7 @@ export function createGitHubIntegration(
     const input = gitHubRecordInputSchema.parse(rawInput);
     return await inScope(accountId, input.projectId, "write", async (tx) => {
       await change(tx, await recordOf(tx, input.recordId));
+      await refreshAttentionSignals(tx, now());
       return toExternalRecord(await recordOf(tx, input.recordId));
     });
   }
@@ -692,7 +726,36 @@ export function createGitHubIntegration(
     });
   }
 
-  return {
+  /** The exact commit through the allow-listed Git database endpoint; no tree, no patch. */
+  async function resolveCommit(
+    transaction: GitHubIntegrationTransaction,
+    link: GitHubStoredLink,
+    sha: string,
+  ) {
+    const gateway = requireGateway();
+    const installation = (await transaction.installations()).find(
+      ({ id }) => id === link.installationRowId,
+    );
+    if (!installation || installation.removedAt) {
+      throw new GitHubInstallationRemovedError();
+    }
+    const token = await usableToken(transaction, installation);
+    if (!token) {
+      throw new GitHubInstallationRemovedError();
+    }
+    const commit = await gateway.resolveCommit(token, link, sha);
+    return commit?.sha ?? null;
+  }
+
+  const workLinks = createGitHubWorkLinks({
+    newId,
+    now,
+    resolveCommit,
+    scope: inScope,
+    store,
+  });
+
+  const base: Omit<GitHubIntegrationAccess, keyof typeof workLinks> = {
     async applyWebhookEvent(event: GitHubWebhookEvent) {
       if (event.kind === "installation-removed") {
         await store.runForInstallation(event.installationId, (tx) =>
@@ -739,18 +802,19 @@ export function createGitHubIntegration(
           await observeIdentity(tx, link, event.repository);
           results.push("renamed");
         } else {
-          const [outcome] = await tx.upsertExternalRecords(
+          const outcomes = await tx.upsertExternalRecords(
             [
               {
                 id: newId(),
                 linkId: link.id,
                 projectId: link.projectId,
-                snapshot: event.snapshot,
+                snapshot: storableSnapshot(event.snapshot),
               },
             ],
             { explicit: false, origin: "webhook" },
           );
-          results.push(outcome?.result ?? "ignored");
+          await applyIngested(tx, outcomes, [event.snapshot]);
+          results.push(outcomes[0]?.result ?? "ignored");
         }
       });
       return results.length > 0 ? results.join(", ") : "no link";
@@ -1207,4 +1271,6 @@ export function createGitHubIntegration(
       });
     },
   };
+
+  return { ...base, ...workLinks };
 }
