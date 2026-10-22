@@ -28,7 +28,8 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "check": "bun run check:ultracite",
+    "check": "bun run check:ultracite && bun run check:conventions",
+    "check:conventions": "bun scripts/check-conventions.ts",
     "check:ultracite": "bunx --bun ultracite check",
     "check-types": "turbo run check-types && tsc --project scripts/tsconfig.json",
     "db:check": "bun run --cwd packages/db db:check",
