@@ -19,7 +19,7 @@ Bir sorumluluğun sahibi bu belgede yoksa, birden fazla yoruma açıksa veya se�
 | PostgreSQL | Ana ilişkisel veritabanı; ticari para hesaplarında `numeric` ve kanonik decimal string oracle'ı |
 | Neon | Yönetilen PostgreSQL; ortak geliştirmede açık `DATABASE_URL` ve ayrı `SECURITY_EVENT_DATABASE_URL` hedefleri kullanılır. Ürünün SQL doğrulaması üretimle aynı pinlenmiş major/extension matrisi kullanan disposable test veritabanlarında yapılır; her DDL doğrulamasından sonra bu veritabanları atılır. Bu doğrulama ürünün [statik SQL doğrulaması](prd/11-technical-diagrams-and-schema-artifacts.md#veri-modeli-semalari) çalışma zamanı içindir; repository'nin kendi otomatik testlerinin veritabanı değildir |
 | Drizzle ORM + Drizzle Kit | ORM ve veri erişimi; ilk domain modelinden itibaren Drizzle Kit ile üretilen sürümlü SQL migration'ları kullanılır ve `drizzle-kit push` yalnız yerel deneme veritabanında kalır. Kabul manifestindeki `schemaVersion`, migration dizinindeki son migration adı ile dizinin içerik hash'idir |
-| oRPC | Tip güvenli API katmanı |
+| oRPC | Tip güvenli API katmanı; web feature kodu API'yi ham `fetch` ile çağırmaz, `@/utils/orpc` istemcisini (okuma için TanStack Query ile) kullanır |
 | Better Auth | Web, masaüstü ve uzantı kullanıcı kimliği, GitHub login OAuth'u ve ürün oturumları; repository yetkisi taşımaz |
 | Turborepo | Monorepo yönetimi |
 
@@ -75,7 +75,7 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: başk
 | TanStack Query | Sunucu verisi ve önbellek |
 | TanStack Store | Bileşenler arasında paylaşılan istemci, inspector, toolbar ve Wireframe editör oturumu durumu |
 | TanStack Form | Form state'i ve submission yaşam döngüsü; bağlayıcıdır: gönderilen her form `useForm` ile yazılır ve form state'i ham `useState` ile tutulmaz. Doğrulama `onSubmit` içinde Zod `safeParse` ile yapılır; `packages/api` input şeması varsa o, yoksa feature `lib/` form şeması kullanılır (örnek `apps/web/src/features/project-shell/ui/forms/project-create-form.tsx`). Kontroller `@cantiara/ui` bileşenleridir: metin, `file` ve `color` için `Input`, çok satır için `Textarea`, seçim için `NativeSelect` veya `Select`, onay için `Checkbox`, tekli seçim için `RadioGroup`. Kural muafiyetsizdir; en yakın örnek bu satırla çelişirse satır kazanır |
-| Browser Clipboard API | Secure-context metin kopyalama; `apps/web/src/lib/clipboard.ts` üzerinden çalışır ve arka planda clipboard izlemez |
+| Browser Clipboard API | Secure-context metin kopyalama; `apps/web/src/lib/clipboard.ts` üzerinden çalışır ve arka planda clipboard izlemez; başka dosya `navigator.clipboard` kullanmaz |
 | Zod | Şema/form doğrulama ile sürümlü `WireframeDocument` doğrulaması ve migration sınırları |
 | TanStack Pacer | Yoğun etkileşim kontrolü |
 | TanStack Table | Veri tabloları |
@@ -135,7 +135,7 @@ Return to Work calls the canvas owner's public viewport API through `packages/ap
 | GitHub App | Yalnız repository installation, repository seçimi, read-only yetki ve eşitleme; kullanıcı login'i veya ürün oturumu taşımaz |
 | Octokit | GitHub API ve webhook entegrasyonu |
 | Scalar | API dokümantasyonu |
-| T3 Env | Ortam değişkeni doğrulama |
+| T3 Env | Ortam değişkeni doğrulama; sunucuda `process.env` yalnız `apps/server/src/env.ts` içinde okunur |
 | MCP TypeScript SDK v1 | MCP sunucusu |
 
 ## Platform, deployment ve gözlemlenebilirlik
@@ -159,7 +159,7 @@ Return to Work calls the canvas owner's public viewport API through `packages/ap
 | Fumadocs + Fumadocs MDX | `Next.js: Fumadocs MDX` şablonunu kullanan dokümantasyon sitesi ve repository içi MDX içerik kaynağı |
 | GitHub Releases | Masaüstü sürüm dağıtımı ve imzalı macOS package acceptance candidate ile ham kanıt arşivi için kalıcı release sınırı |
 | Better Stack | Log, metrik, trace, uptime, heartbeat, hata izleme ve alarm |
-| Evlog | Yapılandırılmış loglama |
+| Evlog | Yapılandırılmış loglama; sunucu kodu `console` kullanmaz |
 
 ### Dokümantasyon mimari sınırı
 
@@ -187,6 +187,7 @@ Return to Work calls the canvas owner's public viewport API through `packages/ap
 | Ultracite | Biome kalite preset'i |
 | React Doctor | React kodunda doğruluk, performans, erişilebilirlik ve mimari sorunları için tavsiye niteliğinde kalite taraması; yerelde Bun üzerinden, CI'da GitHub Actions ile çalışır ve mevcut kalite/test kontrollerinin yerine geçmez |
 | Lefthook | Git hook yönetimi |
+| Konvansiyon denetimi (Bun + TypeScript derleyici API'si) | `structure.md` ve bu belgeden her çalışmada okunan mekanik kuralların bir değişiklikte yeni ihlal eklemesini durdurur: `scripts/check-conventions.ts` (`bun run check:conventions`); Lefthook pre-commit, `bun run check` ve Code quality CI'da çalışır. Biome lint'in yerine geçmez; Biome eklentileri kuralı belgeden okuyamadığı ve değişikliği base sürümüyle karşılaştıramadığı için seçildi. Yeni dependency eklemez |
 | Vitest | Unit ve integration testleri |
 | happy-dom | Vitest içindeki UI etkileşim testlerinde browser DOM API'lerini taklit etmek; gerçek tarayıcı E2E davranışı Playwright'ta kalır |
 | Playwright | E2E test ve PDF üretimi |
@@ -203,6 +204,12 @@ Return to Work calls the canvas owner's public viewport API through `packages/ap
 Bun indirme önbelleği `~/.bun/install/cache` işletim sistemi, mimari, Bun sürümü ve `bun.lock` ile anahtarlanır; frozen kurulum her koşuda çalışır. Vitest dönüşüm önbelleği `--fsModuleCache` ile açılır ve kurulumdan sonra `node_modules/.vitest-cache` içine geri yüklenir; test izolasyonu ve her koşuda gerçek test yürütmesi korunur. Anahtar job/shard, işletim sistemi, mimari, lockfile, Vite/Vitest/TypeScript yapılandırmaları ve commit içerir; aynı yapılandırma öneki önceki commit’in dönüşümlerini geri getirebilir. Vitest değişen kaynakları içerik hash’iyle yeniden dönüştürür. Turbo `.turbo` önbelleği yalnız tip denetimi job’ında kullanılır; çıktıları ve environment hash’leri `turbo.json` sözleşmesini izler. Test sonuçları ve browser binary’leri bu önbelleklere alınmaz. Haricî dosya veya environment’a göre dönüşüm üreten yeni Vite plugin’i eklendiğinde Vitest cache-key sözleşmesi ayrıca değerlendirilmelidir.
 
 Bu altyapı sözleşmesinin seam'i workflow'un suite dağıtımı ve çalıştırılabilir gate shell'idir; owning ürün spec'i `none`. `scripts/ci-workflow.test.ts` suite komutlarını, shard kapsamını, DB worker izolasyonunu, performans modlarının Playwright discovery üzerinden tekil seçimini, cache sırasını, testlerin cache hit ile atlanmamasını ve `Integration gate`'in beş bağımlılığını ve başarı/başarısızlık/atlama/iptal sonuçlarını doğrular. Shard değişikliğinde Vitest/Playwright test discovery envanterlerinin birleşiminin eski kapsamla aynı olduğu ve shard'ların çakışmadığı ayrıca doğrulanır. Ürün seam testleri kendi spec'lerinin Testing Decisions kararlarında kalır.
+
+### Konvansiyon denetimi — Testing Decisions
+
+Owning ürün spec'i ve glossary terimi `none`; sözleşmenin sahibi `structure.md` › Enforcement ile bu belgedir. Denetim kuralı kopyalamaz: `scripts/convention-rules.ts` `structure.md` ağacını, Rules, Approved exceptions bölümlerini ve bu belgenin TanStack Form satırı, teknoloji tabloları ve Bilinçli olarak eklenmeyenler listesini okur; okuyamadığı bölümü adıyla bildirip başarısız olur. Her değişen dosya aynı kurallarla base sürümüne karşı denetlenir; mevcut sapma geçer, değişikliğin eklediği ihlal durur. Dependency kuralı yalnız eklenen paketi denetler: Bilinçli olarak eklenmeyenler'deki paket durur, parantezli istisnası olan yalnız incelemeye düşer, sahibi bu belgede olmayan paket kullanıcı onayı ve kayıt ister (teknoloji satırı veya backtick'li paket adı).
+
+Seam `scripts/check-conventions.test.ts`'dir: CLI geçici bir Git deposunda gerçek `structure.md` ve bu belgeyle `--staged` çalışır. Input başına `useState` tutan form, `ui/` altında JSX'siz dosya, ham kontrol, yasak çapraz feature import'u, reddedilmiş ve sahipsiz dependency ile ham `fetch`, `navigator.clipboard`, `process.env` ve `console` kullanımı yakalanır; ilgili cümle teknoloji satırından silinince kural da uygulanmaz; uyumlu TanStack Form, kabul edilmiş istisna klasörü, aynı değişiklikte gerekçesiyle eklenen istisna ve dokunulan legacy sapma geçer; gerekçesiz istisna ve okunamayan belge başarısız olur; belgeden bir kural kaldırıldığında denetim de onu uygulamaz. Gerçek belgelerin okunabilirliği aynı dosyada doğrulanır.
 
 ## Bilinçli olarak eklenmeyenler
 

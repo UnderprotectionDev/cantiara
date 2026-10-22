@@ -10,10 +10,10 @@ Per-feature file ownership, migrations and seam tests are recorded in [`docs/sou
 
 ```text
 apps/web/src/features/capture-triage/
-  ui/views/        what a route renders: <name>-view.tsx
-  ui/components/   everything else the UI renders, with same-name .css
-  ui/forms/        TanStack Form: <name>-form.tsx
-  hooks/           use-<name>.ts
+  ui/views/        JSX a route renders: <name>-view.tsx
+  ui/components/   other JSX the UI renders, with same-name .css
+  ui/forms/        JSX of a TanStack Form: <name>-form.tsx
+  hooks/           no JSX: use-<name>.ts
   lib/             no JSX: labels, mappers, Zod input and form schemas
   store/           feature-owned client state
   <folder>/tests/  <file>.test.ts(x) of that folder, flat; imports the code from ../
@@ -46,7 +46,7 @@ Generated, never edited: `apps/web/src/routeTree.gen.ts`, `apps/web/src/env.ts`.
 ## Rules
 
 - **Feature:** a product capability whose UI, server, contract and schema change together. A table, route, migration, SDK, cron entry, toggle, filter state or future idea is not a feature by itself. A collection name is plural (`favorites`), a lifecycle takes its process name (`capture-triage`); a CRUD verb, `core`, `domain`, `management`, `resources`, `workspace` and `metadata` are not names. Add a new term to the glossary in the same change.
-- **Web folders:** `ui/` holds only `views/`, `components/`, `forms/`; nothing sits directly in `ui/` or the feature root. Web tests live in a `tests/` folder inside the folder of the code they test. No `index.ts` barrels. Another folder needs a stated reason and an entry under Approved exceptions.
+- **Web folders:** `ui/` holds only `views/`, `components/`, `forms/`; nothing sits directly in `ui/` or the feature root. A `ui/` file renders JSX; a helper without JSX goes to `lib/` or `hooks/`. Web tests live in a `tests/` folder inside the folder of the code they test. No `index.ts` barrels. Another folder needs a stated reason and an entry under Approved exceptions.
 - **Promotion:** a component starts in its feature; a second consuming feature moves it to `apps/web/src/components/`, and dropping its product terms moves it to `packages/ui`. Server, contract or schema code two features need goes to the owning package.
 - **Imports:** a feature does not import another feature's `ui/`, `hooks/`, `store/` or `server/`. Allowed: another feature's pure `lib/` helper, and the shell features `web-macos-client` (Client Shell) and `project-shell` except their `ui/views/`. The web app never imports server source; it uses `@cantiara/api` through its oRPC client.
 - **Server:** HTTP and RPC entries are thin adapters; behavior lives in the feature's `server/` and depends on ports, not adapters.
@@ -66,7 +66,19 @@ Seams come from the owning spec's Testing Decisions; this says only where the fi
 
 ## Approved exceptions
 
+Each entry is a backticked `<feature>/<folder>/` followed by its reason in parentheses; an entry without a reason fails the check.
+
 - `screens/engine/` (canvas engine without React), `screens/output/` (screen export).
+
+## Enforcement
+
+`bun run check:conventions` (`scripts/check-conventions.ts`) reads this file and [`docs/tech-stack.md`](docs/tech-stack.md) on every run and fails a change that adds a violation. Lefthook runs it on staged files before a commit, `bun run check` runs it against `origin/main`, and the Code quality CI job runs it against the pull request base, so it applies to every agent and editor. It compares each changed file with its base version: an existing deviation passes, a new one in the same file fails. Never bypass it with `--no-verify`.
+
+- **Fails:** a file outside the tree's folders or Approved exceptions, a tree name pattern, a `ui/` file without JSX or a `lib/`/`hooks/` file with it, a test outside its `tests/` folder, an `index.ts` barrel, an import that breaks **Imports**, a listed non-name as a feature folder, and these `docs/tech-stack.md` rules: TanStack Form and control use, dependencies, raw `fetch` in web features (oRPC), `navigator.clipboard` outside its owner file, `process.env` outside `apps/server/src/env.ts` (T3 Env) and `console` in server code (Evlog). Each stack rule applies only while its sentence stays in the technology's row.
+- **Reported for review, not failed:** a new feature folder (is it a feature, is its term in `CONTEXT.md`?), an added Approved exception, a documented rule that a change removes from this file or `docs/tech-stack.md`, and a dependency that `docs/tech-stack.md` excludes except in a stated case.
+- **Judgment, not checked:** whether a capability is a feature, a responsibility the stack does not cover, hand-built equivalents of stack responsibilities not listed above (for example a `setTimeout` debounce instead of TanStack Pacer, `toLocaleDateString` instead of date-fns, shared `useState` instead of TanStack Store, a hand-rolled drag instead of dnd-kit), a form without `<form>`, Zod `safeParse` in `onSubmit`, thin routes and server adapters, and moving touched Known deviations.
+
+An exception exists only as an entry under Approved exceptions; there is no inline suppression. Keep the tree lines, the Approved exceptions bullets and the **Imports** rule in their current shape; when the check cannot read them it fails and names the section.
 
 ## Known deviations
 
