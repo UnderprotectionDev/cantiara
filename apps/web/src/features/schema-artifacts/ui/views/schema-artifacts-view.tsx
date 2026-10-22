@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { orpc } from "@/utils/orpc";
 
+import { ChangeDraft } from "../components/change-draft";
 import { DdlPreview } from "../components/ddl-preview";
 
 function DataModelArtifacts({ diagram }: { diagram: TechnicalDiagramSource }) {
@@ -14,6 +15,8 @@ function DataModelArtifacts({ diagram }: { diagram: TechnicalDiagramSource }) {
     }),
   );
   const [versionId, setVersionId] = useState<string | null>(null);
+  const [sourceId, setSourceId] = useState<string | null>(null);
+  const [targetId, setTargetId] = useState<string | null>(null);
   return (
     <article className="space-y-3 rounded-lg border p-4">
       <h3 className="font-medium">{diagram.title}</h3>
@@ -41,6 +44,44 @@ function DataModelArtifacts({ diagram }: { diagram: TechnicalDiagramSource }) {
         ))}
       </ol>
       {versionId ? <DdlPreview versionId={versionId} /> : null}
+      <section
+        aria-label="Choose versions for a Schema Change Draft"
+        className="space-y-2"
+      >
+        <h4 className="font-medium">Schema Change Draft</h4>
+        <p className="text-muted-foreground text-sm">
+          Pick a source and a target Diagram Version of this diagram.
+        </p>
+        {(versions.data ?? []).map((version) => (
+          <div className="flex flex-wrap gap-2" key={version.id}>
+            <Button
+              aria-pressed={sourceId === version.id}
+              onClick={() => setSourceId(version.id)}
+              size="sm"
+              type="button"
+              variant={sourceId === version.id ? "default" : "outline"}
+            >
+              {`Use ${version.name} (version ${version.number}) as source`}
+            </Button>
+            <Button
+              aria-pressed={targetId === version.id}
+              onClick={() => setTargetId(version.id)}
+              size="sm"
+              type="button"
+              variant={targetId === version.id ? "default" : "outline"}
+            >
+              {`Use ${version.name} (version ${version.number}) as target`}
+            </Button>
+          </div>
+        ))}
+        {sourceId && targetId && sourceId !== targetId ? (
+          <ChangeDraft
+            key={`${sourceId}:${targetId}`}
+            sourceVersionId={sourceId}
+            targetVersionId={targetId}
+          />
+        ) : null}
+      </section>
     </article>
   );
 }

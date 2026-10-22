@@ -66,16 +66,22 @@ function recordingPort(options: { fail?: boolean; destroyed?: boolean } = {}) {
   return { events, port };
 }
 
-const access = (port: DisposableDatabasePort | undefined, model = version()) =>
+const ddlAccess = (
+  port: DisposableDatabasePort | undefined,
+  model = version(),
+) =>
   createSchemaArtifacts({
     validator: port,
     versions: { getVersion: () => Promise.resolve(model) },
   });
 
+const APPLY_SURFACE =
+  /apply|run|execute|connect|credential|migrate|applied|introspect/i;
+
 describe("PostgreSQL DDL preview", () => {
   test("is Statically Validated only after a new disposable database applied it and was destroyed", async () => {
     const { events, port } = recordingPort();
-    const preview = await access(port).previewDdl("a", {
+    const preview = await ddlAccess(port).previewDdl("a", {
       versionId: "version-1",
     });
     expect(preview?.status).toBe("Ready");
@@ -102,10 +108,9 @@ describe("PostgreSQL DDL preview", () => {
   });
 
   test("never labels or exports SQL when the disposable apply fails", async () => {
-    const preview = await access(recordingPort({ fail: true }).port).previewDdl(
-      "a",
-      { versionId: "version-1" },
-    );
+    const preview = await ddlAccess(
+      recordingPort({ fail: true }).port,
+    ).previewDdl("a", { versionId: "version-1" });
     expect(preview).toMatchObject({
       export: null,
       status: "Ready",
@@ -116,7 +121,7 @@ describe("PostgreSQL DDL preview", () => {
   test("is not validated when the database cannot be proven destroyed or is not configured", async () => {
     const previews = await Promise.all(
       [recordingPort({ destroyed: false }).port, undefined].map((port) =>
-        access(port).previewDdl("a", { versionId: "version-1" }),
+        ddlAccess(port).previewDdl("a", { versionId: "version-1" }),
       ),
     );
     for (const preview of previews) {
@@ -142,7 +147,7 @@ describe("PostgreSQL DDL preview", () => {
         ],
       },
     } as Partial<TechnicalDiagramVersion>);
-    const preview = await access(port, broken).previewDdl("a", {
+    const preview = await ddlAccess(port, broken).previewDdl("a", {
       versionId: "version-1",
     });
     expect(preview).toMatchObject({
@@ -159,10 +164,140 @@ describe("PostgreSQL DDL preview", () => {
       type: "Technical Architecture",
     } as Partial<TechnicalDiagramVersion>);
     expect(
-      await access(undefined, other).previewDdl("a", {
+      await ddlAccess(undefined, other).previewDdl("a", {
         versionId: "version-1",
       }),
     ).toBeNull();
-    expect(Object.keys(access(undefined))).toEqual(["previewDdl"]);
+    expect(
+      Object.keys(ddlAccess(undefined)).filter((name) =>
+        APPLY_SURFACE.test(name),
+      ),
+    ).toEqual([]);
+  });
+});
+
+const tableModel = (columns: ReturnType<typeof column>[]) =>
+  ({
+    relations: [],
+    tables: [{ columns, id: "t", indexes: [], name: "accounts" }],
+  }) as TechnicalDiagramVersion["model"];
+
+const pair = (
+  sourceColumns: ReturnType<typeof column>[],
+  targetColumns: ReturnType<typeof column>[],
+) => {
+  const versions = {
+    "version-1": version({ model: tableModel(sourceColumns) }),
+    "version-2": version({
+      id: "version-2",
+      model: tableModel(targetColumns),
+      name: "Next",
+      number: 2,
+    }),
+  } as Record<string, TechnicalDiagramVersion>;
+  return (port: DisposableDatabasePort | undefined) =>
+    createSchemaArtifacts({
+      validator: port,
+      versions: {
+        getVersion: (_account, id) => Promise.resolve(versions[id] ?? null),
+      },
+    });
+};
+
+const idColumn = column("c", "id", { primaryKey: true });
+const input = (editedUpSql: string | null = null) => ({
+  editedUpSql,
+  sourceVersionId: "version-1",
+  targetVersionId: "version-2",
+});
+
+describe("Schema Change Draft preview", () => {
+  test("validates source DDL then Up in one disposable database and pins both versions", async () => {
+    const { events, port } = recordingPort();
+    const preview = await pair(
+      [idColumn],
+      [idColumn, column("n", "note", { nullable: true, type: "text" })],
+    )(port).previewChange("a", input());
+    expect(preview).toMatchObject({
+      confirmable: true,
+      requiresDestructiveConfirmation: false,
+      source: { number: 1 },
+      status: "Ready",
+      target: { number: 2 },
+      upSql: "ALTER TABLE accounts ADD COLUMN note text;\n",
+    });
+    expect(events).toEqual([
+      "create:17:pg_trgm",
+      "apply:CREATE TABLE accounts (",
+      "apply:ALTER TABLE accounts ADD COLUMN note text;",
+      "destroy",
+    ]);
+  });
+
+  test("keeps destructive operations visible and demands extra confirmation", async () => {
+    const preview = await pair(
+      [idColumn, column("n", "legacy", { type: "text" })],
+      [idColumn],
+    )(recordingPort().port).previewChange("a", input());
+    expect(preview).toMatchObject({
+      destructiveOperationIds: ["Drop column:tables.accounts.columns.legacy"],
+      requiresDestructiveConfirmation: true,
+    });
+  });
+
+  test("shows the edit apart from the generator output and re-validates it", async () => {
+    const { events, port } = recordingPort();
+    const edited = "ALTER TABLE accounts ADD COLUMN note varchar(10);\n";
+    const preview = await pair(
+      [idColumn],
+      [idColumn, column("n", "note", { nullable: true, type: "text" })],
+    )(port).previewChange("a", input(edited));
+    expect(preview).toMatchObject({
+      confirmable: true,
+      edit: { diff: { changed: true }, issues: [] },
+      generatedUpSql: "ALTER TABLE accounts ADD COLUMN note text;\n",
+      upSql: edited,
+    });
+    expect(events).toContain(
+      "apply:ALTER TABLE accounts ADD COLUMN note varchar(10);",
+    );
+  });
+
+  test("rejects data SQL in an edit before anything reaches the database", async () => {
+    const { events, port } = recordingPort();
+    const preview = await pair(
+      [idColumn],
+      [idColumn, column("n", "note", { nullable: true, type: "text" })],
+    )(port).previewChange("a", input("UPDATE accounts SET id = 1;"));
+    expect(preview).toMatchObject({
+      confirmable: false,
+      confirmBlockedBy: "The edited Up text leaves the operation catalog.",
+      validation: null,
+    });
+    expect(events).toEqual([]);
+  });
+
+  test("an inexpressible difference blocks by named element with no SQL", async () => {
+    const preview = await pair(
+      [idColumn],
+      [column("c", "id", { primaryKey: true, type: "text" })],
+    )(recordingPort().port).previewChange("a", input());
+    expect(preview).toMatchObject({
+      blockers: [
+        {
+          operation: "Free type conversion",
+          path: "tables.accounts.columns.id",
+        },
+      ],
+      status: "Blocked",
+    });
+    expect(preview && "upSql" in preview).toBe(false);
+  });
+
+  test("needs two different versions of one diagram", async () => {
+    const drafts = pair([idColumn], [idColumn])(undefined);
+    await expect(
+      drafts.previewChange("a", { ...input(), targetVersionId: "version-1" }),
+    ).rejects.toThrow("two different Diagram Versions");
   });
 });

@@ -1,7 +1,13 @@
 import { z } from "zod";
+import type {
+  OperationClass,
+  SchemaBlocker,
+  SchemaOperationName,
+} from "./schema-change-draft";
 import type { SchemaWarning } from "./schema-ddl";
 import type { SchemaViolation } from "./schema-invariants";
 import type { StaticValidation } from "./schema-static-validation";
+import type { UpEditDiff, UpEditIssue } from "./schema-up-edit";
 
 /** The exact Data Model `Diagram Version` an artifact is built from. */
 export interface SchemaVersionReference {
@@ -84,7 +90,69 @@ export function exportManifestValidation(
     : { label: "Not validated" };
 }
 
+export class SchemaArtifactError extends Error {}
+
+export const schemaChangePreviewInputSchema = z
+  .object({
+    /** The user's hand-edited Up text; null keeps the generator output. */
+    editedUpSql: z.string().max(500_000).nullable().default(null),
+    sourceVersionId: z.string().min(1),
+    targetVersionId: z.string().min(1),
+  })
+  .strict();
+export type SchemaChangePreviewInput = z.infer<
+  typeof schemaChangePreviewInputSchema
+>;
+
+export interface SchemaVersionPin extends SchemaVersionReference {
+  modelHash: string;
+}
+
+export interface SchemaOperationView {
+  class: OperationClass;
+  id: string;
+  operation: SchemaOperationName;
+  path: string;
+  sql: string[];
+  warnings: SchemaWarning[];
+}
+
+export type SchemaChangePreview =
+  | {
+      /** An invariant failed or the catalog cannot express the difference. */
+      blockers: SchemaBlocker[];
+      source: SchemaVersionReference;
+      status: "Blocked";
+      target: SchemaVersionReference;
+      violations: SchemaViolation[];
+    }
+  | {
+      /** True when every check passed and the user may confirm. */
+      confirmable: boolean;
+      /** Why the draft cannot be confirmed yet, in plain words. */
+      confirmBlockedBy: string | null;
+      destructiveOperationIds: string[];
+      /** Generator output and the user's edit stay apart. */
+      edit: { diff: UpEditDiff; issues: UpEditIssue[] };
+      generatedUpSql: string;
+      generatorVersion: string;
+      operations: SchemaOperationView[];
+      /** Extra confirmation is required before the artifact can be minted. */
+      requiresDestructiveConfirmation: boolean;
+      source: SchemaVersionPin;
+      status: "Ready";
+      target: SchemaVersionPin;
+      upSql: string;
+      /** Null while the edited text itself is rejected. */
+      validation: StaticValidation | null;
+      warnings: SchemaWarning[];
+    };
+
 export interface SchemaArtifactsAccess {
+  previewChange: (
+    accountId: string,
+    input: SchemaChangePreviewInput,
+  ) => Promise<SchemaChangePreview | null>;
   /** `null` when the version is missing or is not a Data Model version. */
   previewDdl: (
     accountId: string,
