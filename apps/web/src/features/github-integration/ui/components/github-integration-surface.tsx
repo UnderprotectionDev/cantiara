@@ -10,6 +10,7 @@ import {
   GitHubIntegrationView,
 } from "../views/github-integration-view";
 import { GitHubChecksPanel } from "./github-checks-panel";
+import { GitHubPrContextCards } from "./github-pr-context-card";
 import {
   type GitHubWorkLinkActions,
   GitHubWorkLinksPanel,
@@ -50,6 +51,10 @@ export default function GitHubIntegrationSurface({
   const workLinks = useQuery({ ...linksOptions, enabled: overview.isSuccess });
   const checks = useQuery({
     ...orpc.projectGitHubChecks.queryOptions({ input: { projectId } }),
+    enabled: overview.isSuccess,
+  });
+  const prContext = useQuery({
+    ...orpc.projectGitHubPrContext.queryOptions({ input: { projectId } }),
     enabled: overview.isSuccess,
   });
   const recordsOptions = orpc.searchGitHubRecords.queryOptions({
@@ -141,6 +146,9 @@ export default function GitHubIntegrationSurface({
   return (
     <div className="space-y-6">
       <GitHubIntegrationView actions={actions} overview={overview.data} />
+      {prContext.data && overview.data.links.length > 0 ? (
+        <GitHubPrContextCards data={prContext.data} projectId={projectId} />
+      ) : null}
       {checks.data && overview.data.links.length > 0 ? (
         <GitHubChecksPanel data={checks.data} />
       ) : null}

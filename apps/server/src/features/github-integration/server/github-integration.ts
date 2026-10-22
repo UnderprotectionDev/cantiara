@@ -33,6 +33,10 @@ import {
   gitHubSearchRecordsInputSchema,
   groupTriageCandidates,
 } from "@cantiara/api/github-integration";
+import {
+  deriveReviewerStates,
+  type GitHubReviewer,
+} from "@cantiara/api/github-pr-context";
 
 import {
   GitHubRateLimitedError,
@@ -45,6 +49,7 @@ import {
   observePullHead,
 } from "./github-checks";
 import type { GitHubSecrets } from "./github-credential-envelope";
+import { createGitHubPrContext, reviewerKey } from "./github-pr-context";
 import {
   applyKeyMatches,
   createGitHubWorkLinks,
@@ -780,9 +785,93 @@ export function createGitHubIntegration(
 
   const checkSummary = createGitHubChecks({ scope: inScope, store });
 
+  /**
+   * A usable token for reading reviewers. A stored token is reused; only an
+   * expired one is rotated (the one credential write), and any failure means
+   * GitHub supplies no reviewer data for this card, never a failed read.
+   */
+  async function reviewerToken(
+    accountId: string,
+    projectId: string,
+    linkId: string,
+  ) {
+    const open = async (
+      tx: GitHubIntegrationTransaction,
+      mode: "read" | "write",
+    ) => {
+      const link = await tx.linkById(linkId);
+      if (!link || link.disconnectedAt || link.stopReason) {
+        return null;
+      }
+      const installation = (await tx.installations()).find(
+        ({ id }) => id === link.installationRowId,
+      );
+      if (!installation || installation.removedAt) {
+        return null;
+      }
+      const stored = await tx.loadCredential(installation.id);
+      if (
+        stored &&
+        Date.parse(stored.expiresAt) - now().getTime() > TOKEN_REFRESH_MARGIN_MS
+      ) {
+        return { link, token: secrets.open(stored.sealed, installation.id) };
+      }
+      if (mode === "read") {
+        return;
+      }
+      const token = await usableToken(tx, installation);
+      return token ? { link, token } : null;
+    };
+    try {
+      const fromRead = await inScope(accountId, projectId, "read", (tx) =>
+        open(tx, "read"),
+      );
+      if (fromRead !== undefined) {
+        return fromRead;
+      }
+      return await inScope(accountId, projectId, "write", (tx) =>
+        open(tx, "write"),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  const prContext = createGitHubPrContext({
+    reviewers: async (accountId, projectId, targets) => {
+      const reviewers = new Map<string, GitHubReviewer[]>();
+      const { gateway } = options;
+      if (!gateway) {
+        return reviewers;
+      }
+      for (const target of targets) {
+        try {
+          const opened = await reviewerToken(
+            accountId,
+            projectId,
+            target.linkId,
+          );
+          if (!opened) {
+            continue;
+          }
+          const read = await gateway.listPullRequestReviewers(
+            opened.token,
+            opened.link,
+            target.number,
+          );
+          reviewers.set(reviewerKey(target), deriveReviewerStates(read));
+        } catch {
+          // GitHub supplied nothing (rate limit, outage): the card shows no reviewers.
+        }
+      }
+      return reviewers;
+    },
+    scope: inScope,
+  });
+
   const base: Omit<
     GitHubIntegrationAccess,
-    keyof typeof workLinks | keyof typeof checkSummary
+    keyof typeof workLinks | keyof typeof checkSummary | keyof typeof prContext
   > = {
     async applyWebhookEvent(event: GitHubWebhookEvent) {
       if (event.kind === "installation-removed") {
@@ -1304,5 +1393,5 @@ export function createGitHubIntegration(
     },
   };
 
-  return { ...base, ...workLinks, ...checkSummary };
+  return { ...base, ...workLinks, ...checkSummary, ...prContext };
 }

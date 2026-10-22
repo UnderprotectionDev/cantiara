@@ -117,6 +117,8 @@ describe("GitHub Integration RPC seam", () => {
       // Ticket 04: the read-only PR check summary; no run, re-run or log procedure.
       "projectGitHubChecks",
       "projectGitHubOverview",
+      // Ticket 05: the read-only PR Context Card; no review, approve, merge or close-Work procedure.
+      "projectGitHubPrContext",
       "projectGitHubWorkLinks",
       "reconnectGitHubRepository",
       "searchGitHubRecords",

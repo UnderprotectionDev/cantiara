@@ -17,6 +17,10 @@ import type {
   GitHubTriageState,
 } from "@cantiara/api/github-integration";
 import type {
+  GitHubPrContextRecordFact,
+  GitHubPrContextWorkFacts,
+} from "@cantiara/api/github-pr-context";
+import type {
   GitHubStoredSignal,
   GitHubStoredSuggestion,
   GitHubStoredWorkLink,
@@ -25,6 +29,8 @@ import type {
 } from "@cantiara/api/github-work-links";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
+import { decision as decisionTable } from "@cantiara/db/schema/decision";
+import { feedback, feedbackWorkOrigin } from "@cantiara/db/schema/feedback";
 import {
   githubAttentionSignal,
   githubExternalRecord,
@@ -40,11 +46,14 @@ import {
   githubWorkLinkSuggestion,
 } from "@cantiara/db/schema/github-integration";
 import { project, projectShortCode } from "@cantiara/db/schema/project";
+import { projectRelease } from "@cantiara/db/schema/project-release";
+import { workRelation } from "@cantiara/db/schema/relation";
+import { risk } from "@cantiara/db/schema/risk";
 import {
   workRetiredIdentity,
   work as workTable,
 } from "@cantiara/db/schema/work";
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import type { GitHubSecrets } from "./github-credential-envelope";
 import { createGitHubIntegration } from "./github-integration";
@@ -281,6 +290,168 @@ function transactionFor(
           requirement: row.requirement as GitHubStoredCheck["requirement"],
         }),
       ),
+    prContextFacts: async (workIds) => {
+      if (workIds.length === 0) {
+        return [];
+      }
+      const [works, relations, origins] = await Promise.all([
+        executor
+          .select({
+            expectedOutcome: workTable.expectedOutcome,
+            id: workTable.id,
+            problemOpportunity: workTable.problemOpportunity,
+          })
+          .from(workTable)
+          .where(
+            and(
+              eq(workTable.projectId, projectId),
+              inArray(workTable.id, workIds),
+            ),
+          ),
+        executor
+          .select({
+            recordId: workRelation.targetRecordId,
+            recordType: workRelation.targetRecordType,
+            workId: workRelation.sourceWorkId,
+          })
+          .from(workRelation)
+          .where(
+            and(
+              inArray(workRelation.sourceWorkId, workIds),
+              eq(workRelation.sourceRecordType, "Work"),
+              eq(workRelation.targetProjectId, projectId),
+              inArray(workRelation.targetRecordType, [
+                "Decision",
+                "Risk",
+                "Feedback",
+                "Project Release",
+              ]),
+              isNull(workRelation.deletedAt),
+              isNull(workRelation.brokenReason),
+            ),
+          ),
+        executor
+          .select({
+            recordId: feedbackWorkOrigin.feedbackId,
+            workId: feedbackWorkOrigin.workId,
+          })
+          .from(feedbackWorkOrigin)
+          .where(inArray(feedbackWorkOrigin.workId, workIds)),
+      ]);
+      const pairs = [
+        ...relations.map((row) => ({
+          ...row,
+          recordType: row.recordType as GitHubPrContextRecordFact["recordType"],
+        })),
+        ...origins.map((row) => ({
+          ...row,
+          recordType: "Feedback" as const,
+        })),
+      ];
+      const idsOf = (type: GitHubPrContextRecordFact["recordType"]) => [
+        ...new Set(
+          pairs
+            .filter((pair) => pair.recordType === type)
+            .map((p) => p.recordId),
+        ),
+      ];
+      const [decisions, risks, feedbacks, releases] = await Promise.all([
+        idsOf("Decision").length === 0
+          ? []
+          : executor
+              .select({
+                id: decisionTable.id,
+                state: decisionTable.life,
+                title: decisionTable.title,
+              })
+              .from(decisionTable)
+              .where(
+                and(
+                  eq(decisionTable.projectId, projectId),
+                  inArray(decisionTable.id, idsOf("Decision")),
+                ),
+              ),
+        idsOf("Risk").length === 0
+          ? []
+          : executor
+              .select({ id: risk.id, state: risk.life, title: risk.title })
+              .from(risk)
+              .where(
+                and(
+                  eq(risk.projectId, projectId),
+                  inArray(risk.id, idsOf("Risk")),
+                ),
+              ),
+        idsOf("Feedback").length === 0
+          ? []
+          : executor
+              .select({
+                id: feedback.id,
+                state: feedback.status,
+                title: feedback.title,
+              })
+              .from(feedback)
+              .where(
+                and(
+                  eq(feedback.projectId, projectId),
+                  inArray(feedback.id, idsOf("Feedback")),
+                ),
+              ),
+        idsOf("Project Release").length === 0
+          ? []
+          : executor
+              .select({
+                id: projectRelease.id,
+                state: projectRelease.status,
+                title: projectRelease.name,
+              })
+              .from(projectRelease)
+              .where(
+                and(
+                  eq(projectRelease.projectId, projectId),
+                  inArray(projectRelease.id, idsOf("Project Release")),
+                ),
+              ),
+      ]);
+      const owners = new Map<string, { state: string; title: string }>();
+      for (const [type, rows] of [
+        ["Decision", decisions],
+        ["Risk", risks],
+        ["Feedback", feedbacks],
+        ["Project Release", releases],
+      ] as const) {
+        for (const row of rows) {
+          // An archived Feedback is out of the card; the owner keeps it.
+          if (type !== "Feedback" || row.state !== "Archived") {
+            owners.set(`${type}:${row.id}`, row);
+          }
+        }
+      }
+      return works.map((row): GitHubPrContextWorkFacts => {
+        const seen = new Set<string>();
+        const records: GitHubPrContextRecordFact[] = [];
+        for (const pair of pairs) {
+          const owner = owners.get(`${pair.recordType}:${pair.recordId}`);
+          const key = `${pair.recordType}:${pair.recordId}`;
+          if (pair.workId !== row.id || !owner || seen.has(key)) {
+            continue;
+          }
+          seen.add(key);
+          records.push({
+            recordId: pair.recordId,
+            recordType: pair.recordType,
+            state: owner.state,
+            title: owner.title,
+          });
+        }
+        return {
+          expectedOutcome: row.expectedOutcome,
+          problemOpportunity: row.problemOpportunity,
+          records,
+          workId: row.id,
+        };
+      });
+    },
     pruneSupersededChecks: async (recordId, headSha) => {
       await executor
         .delete(githubPullRequestCheck)

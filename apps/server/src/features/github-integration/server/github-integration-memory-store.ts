@@ -14,6 +14,7 @@ import type {
   GitHubStoredLink,
   GitHubStoredRecord,
 } from "@cantiara/api/github-integration";
+import type { GitHubPrContextWorkFacts } from "@cantiara/api/github-pr-context";
 import type {
   GitHubStoredSignal,
   GitHubStoredSuggestion,
@@ -57,6 +58,7 @@ interface MemoryState {
   archivedProjects: Set<string>;
   archivedRecords: Set<string>;
   checks: GitHubStoredCheck[];
+  contextFacts: GitHubPrContextWorkFacts[];
   credentials: Map<string, GitHubStoredCredential>;
   history: Map<string, { name: string; observedAt: string; owner: string }[]>;
   installations: GitHubStoredInstallation[];
@@ -90,6 +92,7 @@ function emptyState(): MemoryState {
     archivedProjects: new Set([archivedProjectId]),
     archivedRecords: new Set(),
     checks: [],
+    contextFacts: [],
     pullHeads: [],
     trashedRecords: new Set(),
     credentials: new Map(),
@@ -220,6 +223,12 @@ function createMemoryStore(state: {
       checks: () =>
         Promise.resolve(
           inProject(state.current.checks).map((row) => ({ ...row })),
+        ),
+      prContextFacts: (workIds) =>
+        Promise.resolve(
+          state.current.contextFacts
+            .filter((fact) => workIds.includes(fact.workId))
+            .map((fact) => structuredClone(fact)),
         ),
       pruneSupersededChecks: (recordId, headSha) => {
         state.current.checks = state.current.checks.filter(
@@ -662,6 +671,24 @@ export function createMemoryHarness(options: { configured?: boolean } = {}) {
         if (row) {
           row.trashed = true;
         }
+      },
+      /** The owner records (text, Karar, Risk, Feedback, Release) a Work relates to. */
+      setContext(
+        workId: string,
+        facts: Partial<Omit<GitHubPrContextWorkFacts, "workId">>,
+      ) {
+        state.current.contextFacts = [
+          ...state.current.contextFacts.filter(
+            (item) => item.workId !== workId,
+          ),
+          {
+            expectedOutcome: null,
+            problemOpportunity: null,
+            records: [],
+            ...facts,
+            workId,
+          },
+        ];
       },
       /** A deep copy of every Work row, to assert a link never changed one. */
       snapshot: () => structuredClone(state.current.works),

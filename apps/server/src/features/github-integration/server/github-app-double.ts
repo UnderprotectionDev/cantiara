@@ -50,6 +50,18 @@ interface DoubleRepository {
   owner: string;
   private: boolean;
   pulls: DoublePullRequest[];
+  reviewers: Map<
+    number,
+    {
+      requested: { login?: string; slug?: string }[];
+      reviews: {
+        html_url: string;
+        state: string;
+        submitted_at: string;
+        user: { login: string };
+      }[];
+    }
+  >;
 }
 
 interface DoubleInstallation {
@@ -73,6 +85,7 @@ export function createGitHubAppDouble(
   let tokenCounter = 0;
   let rateLimitedUntil: Date | null = null;
   let issueReadsFailing = false;
+  let reviewerReadsFailing = false;
   const sinceFilters: (string | undefined)[] = [];
 
   const installationOfToken = (call: GitHubCall) => {
@@ -230,6 +243,25 @@ export function createGitHubAppDouble(
             })),
           );
         }
+        case "GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews": {
+          const repository = repositoryOf(call);
+          if (reviewerReadsFailing) {
+            throw new GitHubRequestError(500);
+          }
+          return Promise.resolve(
+            repository.reviewers.get(Number(params.pull_number))?.reviews ?? [],
+          );
+        }
+        case "GET /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers": {
+          const repository = repositoryOf(call);
+          const requested =
+            repository.reviewers.get(Number(params.pull_number))?.requested ??
+            [];
+          return Promise.resolve({
+            teams: requested.filter((item) => item.slug),
+            users: requested.filter((item) => item.login),
+          });
+        }
         case "GET /repos/{owner}/{repo}/commits/{ref}/check-runs": {
           const repository = repositoryOf(call);
           return Promise.resolve({
@@ -318,6 +350,7 @@ export function createGitHubAppDouble(
               issues: [],
               private: repository.private ?? false,
               pulls: [],
+              reviewers: new Map(),
             },
           ]),
         ),
@@ -367,6 +400,40 @@ export function createGitHubAppDouble(
           statuses: pull.statuses ?? [],
         },
       ];
+    },
+    /** What GitHub reports about the reviewers of one Pull request. */
+    setPullRequestReviewers(
+      installationId: number,
+      repositoryId: number,
+      number: number,
+      reviewers: {
+        requested?: string[];
+        reviews?: {
+          login: string;
+          state: string;
+          submittedAt?: string;
+        }[];
+      },
+    ) {
+      const repository = installations
+        .get(installationId)
+        ?.repositories.get(repositoryId);
+      if (!repository) {
+        throw new Error("Unknown double repository");
+      }
+      repository.reviewers.set(number, {
+        requested: (reviewers.requested ?? []).map((login) => ({ login })),
+        reviews: (reviewers.reviews ?? []).map((review, index) => ({
+          html_url: `https://github.com/${repository.owner}/${repository.name}/pull/${number}#pullrequestreview-${index + 1}`,
+          state: review.state,
+          submitted_at: review.submittedAt ?? clock.current.toISOString(),
+          user: { login: review.login },
+        })),
+      });
+    },
+    /** GitHub answers every reviewer read with a server error. */
+    failReviewerReads(failing: boolean) {
+      reviewerReadsFailing = failing;
     },
     /** The Repository is still there but the App may no longer read it (403). */
     forbidRepository(installationId: number, repositoryId: number) {

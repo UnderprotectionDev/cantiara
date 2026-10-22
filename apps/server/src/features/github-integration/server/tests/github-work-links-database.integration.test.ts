@@ -162,7 +162,10 @@ describeDatabase("GitHub Integration Work links PostgreSQL seam", () => {
       title: "Nobody links this",
     });
     const repository = await connect(github);
-    const before = await requireDatabase().select().from(work);
+    const before = await requireDatabase()
+      .select()
+      .from(work)
+      .where(eq(work.projectId, projectId));
 
     const { links } = await github.workLinks(accountId, { projectId });
     expect(
@@ -183,20 +186,33 @@ describeDatabase("GitHub Integration Work links PostgreSQL seam", () => {
         .from(githubAttentionSignal)
         .where(eq(githubAttentionSignal.projectId, projectId)),
     ).toHaveLength(1);
-    expect(await requireDatabase().select().from(work)).toEqual(before);
+    expect(
+      await requireDatabase()
+        .select()
+        .from(work)
+        .where(eq(work.projectId, projectId)),
+    ).toEqual(before);
 
     // Completed Work + open PR: a neutral signal, no Work write.
     await requireDatabase()
       .update(work)
       .set({ closureResult: "Completed", status: "Closed" })
       .where(eq(work.id, workId));
-    const afterComplete = await requireDatabase().select().from(work);
+    const afterComplete = await requireDatabase()
+      .select()
+      .from(work)
+      .where(eq(work.projectId, projectId));
     const conflict = await github.attentionSignals(accountId, { projectId });
     expect(conflict.map((signal) => signal.signalType).sort()).toEqual([
       "unlinked-open-pr",
       "work-pr-status-conflict",
     ]);
-    expect(await requireDatabase().select().from(work)).toEqual(afterComplete);
+    expect(
+      await requireDatabase()
+        .select()
+        .from(work)
+        .where(eq(work.projectId, projectId)),
+    ).toEqual(afterComplete);
   });
 
   test("a retired Work key matches the surviving Work and a second key only suggests", async () => {
