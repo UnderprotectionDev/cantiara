@@ -32,6 +32,7 @@ export const WORK_AUTOMATION_TRIGGER_KINDS = [
   "work-created",
   "work-status-changed",
   "recurring-schedule",
+  "required-prs-merged",
 ] as const;
 
 const workCreatedTriggerSchema = z
@@ -52,10 +53,16 @@ const recurringScheduleTriggerSchema = z
   })
   .strict();
 
+/** Prepared trigger: only the prepared PR-merge rule may use it. */
+const requiredPrsMergedTriggerSchema = z
+  .object({ kind: z.literal("required-prs-merged") })
+  .strict();
+
 export const workAutomationTriggerSchema = z.discriminatedUnion("kind", [
   workCreatedTriggerSchema,
   workStatusChangedTriggerSchema,
   recurringScheduleTriggerSchema,
+  requiredPrsMergedTriggerSchema,
 ]);
 
 export type WorkAutomationTrigger = z.infer<typeof workAutomationTriggerSchema>;
@@ -85,6 +92,7 @@ export const workAutomationActionSchema = z.discriminatedUnion("kind", [
       type: workTypeSchema,
     })
     .strict(),
+  z.object({ kind: z.literal("complete-work") }).strict(),
 ]);
 
 export type WorkAutomationAction = z.infer<typeof workAutomationActionSchema>;
@@ -116,7 +124,53 @@ export const workAutomationDefinitionSchema = z
         path: ["conditions"],
       });
     }
+    const completes = definition.actions.some(
+      (action) => action.kind === "complete-work",
+    );
+    const isPrMerge = definition.trigger.kind === "required-prs-merged";
+    if (completes !== isPrMerge) {
+      context.addIssue({
+        code: "custom",
+        message: `Only the prepared rule "${WORK_AUTOMATION_UI_LABELS.requiredPrMerge}" completes Work.`,
+        path: ["actions"],
+      });
+    }
+    if (
+      isPrMerge &&
+      (definition.actions.length !== 1 || definition.conditions.length > 0)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "The prepared PR-merge rule has one fixed action and no conditions.",
+        path: ["actions"],
+      });
+    }
   });
+
+export const WORK_AUTOMATION_REQUIRED_PR_MERGE_DEFINITION: z.infer<
+  typeof workAutomationDefinitionSchema
+> = {
+  actions: [{ kind: "complete-work" }],
+  conditions: [],
+  trigger: { kind: "required-prs-merged" },
+};
+
+function validatePreparedRuleName(
+  input: { definition: { trigger: { kind: string } }; name: string },
+  context: z.RefinementCtx,
+) {
+  if (
+    input.definition.trigger.kind === "required-prs-merged" &&
+    input.name !== WORK_AUTOMATION_UI_LABELS.requiredPrMerge
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: `The prepared PR-merge rule is named "${WORK_AUTOMATION_UI_LABELS.requiredPrMerge}".`,
+      path: ["name"],
+    });
+  }
+}
 
 export type WorkAutomationDefinition = z.infer<
   typeof workAutomationDefinitionSchema
@@ -163,7 +217,8 @@ export const createWorkAutomationRuleInputSchema = z
     name: workAutomationRuleNameSchema,
     projectId: identifierSchema,
   })
-  .strict();
+  .strict()
+  .superRefine(validatePreparedRuleName);
 
 export type CreateWorkAutomationRuleInput = z.infer<
   typeof createWorkAutomationRuleInputSchema
@@ -172,14 +227,16 @@ export type CreateWorkAutomationRuleInput = z.infer<
 export const createWorkAutomationRuleMutationInputSchema =
   humanMutationEnvelopeSchema
     .extend(createWorkAutomationRuleInputSchema.shape)
-    .strict();
+    .strict()
+    .superRefine(validatePreparedRuleName);
 
 export const updateWorkAutomationRuleInputSchema = z
   .object({
     definition: workAutomationDefinitionSchema,
     name: workAutomationRuleNameSchema,
   })
-  .strict();
+  .strict()
+  .superRefine(validatePreparedRuleName);
 
 export type UpdateWorkAutomationRuleInput = z.infer<
   typeof updateWorkAutomationRuleInputSchema
@@ -189,7 +246,12 @@ export const updateWorkAutomationRuleMutationInputSchema =
   humanMutationEnvelopeSchema
     .extend({ ruleId: identifierSchema })
     .extend(updateWorkAutomationRuleInputSchema.shape)
-    .strict();
+    .strict()
+    .superRefine(validatePreparedRuleName);
+
+export const createRequiredPrMergeRuleInputSchema = humanMutationEnvelopeSchema
+  .extend({ projectId: identifierSchema })
+  .strict();
 
 export const setWorkAutomationRuleEnabledInputSchema =
   humanMutationEnvelopeSchema
@@ -320,6 +382,11 @@ export interface WorkAutomationDryRunResult {
   written: false;
 }
 
+export interface WorkAutomationSuggestion {
+  label: typeof WORK_AUTOMATION_UI_LABELS.markAsCompleted;
+  workId: string;
+}
+
 export type WorkAutomationUndoResult =
   | { status: "undone" }
   | { fields: string[]; status: "conflict" }
@@ -357,6 +424,17 @@ export const workAutomationEventSchema = z.discriminatedUnion("kind", [
       ruleId: identifierSchema,
     })
     .strict(),
+  z
+    .object({
+      id: identifierSchema,
+      kind: z.literal("pull-request-merged"),
+      occurredAt: timestampSchema,
+      origin: z.literal("system"),
+      projectId: identifierSchema,
+      pullRequestId: identifierSchema,
+      workId: identifierSchema,
+    })
+    .strict(),
 ]);
 
 export type WorkAutomationEvent = z.infer<typeof workAutomationEventSchema>;
@@ -369,6 +447,10 @@ export interface WorkAutomationAccess {
   create: (
     accountId: string,
     input: CreateWorkAutomationRuleInput,
+  ) => Promise<WorkAutomationRule>;
+  createRequiredPrMergeRule: (
+    accountId: string,
+    projectId: string,
   ) => Promise<WorkAutomationRule>;
   dryRun: (
     accountId: string,

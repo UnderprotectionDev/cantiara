@@ -1,6 +1,10 @@
 import {
   type CreateWorkAutomationRuleInput,
+  createWorkAutomationRuleInputSchema,
   type UpdateWorkAutomationRuleInput,
+  updateWorkAutomationRuleInputSchema,
+  WORK_AUTOMATION_REQUIRED_PR_MERGE_DEFINITION,
+  WORK_AUTOMATION_UI_LABELS,
   type WorkAutomationAccess,
   type WorkAutomationChange,
   type WorkAutomationReceipt,
@@ -77,6 +81,12 @@ export interface DatabaseWorkAutomationOptions {
   /** Mints one independent Work through the Work lifecycle; idempotent by key. */
   createWork?: (input: WorkAutomationWorkCreation) => Promise<void>;
   now?: () => Date;
+  /**
+   * Read-only `Required for completion` PR merge facts from GitHub Integration
+   * (spec 61). Until that seam ships the default reports none, so the prepared
+   * PR-merge rule never matches.
+   */
+  requiredPullRequests?: WorkAutomationFacts["requiredPullRequests"];
 }
 
 function isUniqueViolation(error: unknown) {
@@ -125,6 +135,8 @@ function toReceipt(row: typeof workAutomationApplication.$inferSelect) {
 }
 
 interface PreviousWorkValue {
+  closureReason?: string | null;
+  closureResult?: string | null;
   status: string;
   statusChangedAt: string;
 }
@@ -183,6 +195,9 @@ async function applyStatusChange(
   await transaction
     .update(work)
     .set({
+      ...("closureResult" in change.value
+        ? { closureReason: null, closureResult: change.value.closureResult }
+        : {}),
       revision: row.revision + 1,
       status: change.value.status,
       statusChangedAt:
@@ -191,6 +206,8 @@ async function applyStatusChange(
     })
     .where(eq(work.id, row.id));
   return {
+    closureReason: row.closureReason,
+    closureResult: row.closureResult,
     status: row.status,
     statusChangedAt: row.statusChangedAt.toISOString(),
   };
@@ -337,6 +354,8 @@ function createWriter(
               transaction
                 .update(work)
                 .set({
+                  closureReason: restore.value.closureReason ?? null,
+                  closureResult: restore.value.closureResult ?? null,
                   revision: restore.revision + 1,
                   status: restore.value.status,
                   statusChangedAt: new Date(restore.value.statusChangedAt),
@@ -378,7 +397,10 @@ function createWriter(
   };
 }
 
-function createFacts(database: Database): WorkAutomationFacts {
+function createFacts(
+  database: Database,
+  pullRequestFacts: WorkAutomationFacts["requiredPullRequests"],
+): WorkAutomationFacts {
   const columns = {
     id: work.id,
     projectId: work.projectId,
@@ -393,6 +415,7 @@ function createFacts(database: Database): WorkAutomationFacts {
         .where(and(eq(work.projectId, projectId), isNull(work.trashedAt)))
         .orderBy(asc(work.number));
     },
+    requiredPullRequests: pullRequestFacts,
     async work(workId) {
       const [row] = await database
         .select(columns)
@@ -465,7 +488,10 @@ export function createDatabaseWorkAutomation(
   const now = options.now ?? (() => new Date());
   const reader = createRuleReader(database);
   const engine = createWorkAutomation({
-    facts: createFacts(database),
+    facts: createFacts(
+      database,
+      options.requiredPullRequests ?? (() => Promise.resolve([])),
+    ),
     now,
     rules: reader,
     signals: createSignalSink(database),
@@ -553,7 +579,8 @@ export function createDatabaseWorkAutomation(
   }
 
   const access: WorkAutomationAccess = {
-    async create(accountId, input: CreateWorkAutomationRuleInput) {
+    async create(accountId, rawInput: CreateWorkAutomationRuleInput) {
+      const input = createWorkAutomationRuleInputSchema.parse(rawInput);
       if (!(await ownedProject(accountId, input.projectId))) {
         throw new WorkAutomationProjectNotFoundError(input.projectId);
       }
@@ -591,6 +618,14 @@ export function createDatabaseWorkAutomation(
         }
         throw error;
       }
+    },
+
+    createRequiredPrMergeRule(accountId, projectId) {
+      return access.create(accountId, {
+        definition: WORK_AUTOMATION_REQUIRED_PR_MERGE_DEFINITION,
+        name: WORK_AUTOMATION_UI_LABELS.requiredPrMerge,
+        projectId,
+      });
     },
 
     async dryRun(accountId, ruleId) {
@@ -684,8 +719,9 @@ export function createDatabaseWorkAutomation(
       accountId,
       ruleId,
       baseRevision,
-      input: UpdateWorkAutomationRuleInput,
+      rawInput: UpdateWorkAutomationRuleInput,
     ) {
+      const input = updateWorkAutomationRuleInputSchema.parse(rawInput);
       return await changeRule(accountId, ruleId, baseRevision, (current) => {
         const nextVersion = current.version + 1;
         return {

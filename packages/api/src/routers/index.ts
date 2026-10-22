@@ -622,6 +622,7 @@ import {
 import type { WebCaptureAccess } from "../web-capture";
 import { WireframeDocumentError } from "../wireframe-document";
 import {
+  createRequiredPrMergeRuleInputSchema,
   createWorkAutomationRuleMutationInputSchema,
   restoreWorkAutomationRuleVersionInputSchema,
   setWorkAutomationRuleEnabledInputSchema,
@@ -6726,6 +6727,18 @@ export const appRouter = {
         return await requireWorkAutomation(context).create(
           context.session.user.id,
           payload,
+        );
+      } catch (error) {
+        rethrowWorkAutomationError(error);
+      }
+    }),
+  createWorkAutomationRequiredPrMergeRule: protectedProcedure
+    .input(createRequiredPrMergeRuleInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkAutomation(context).createRequiredPrMergeRule(
+          context.session.user.id,
+          input.projectId,
         );
       } catch (error) {
         rethrowWorkAutomationError(error);

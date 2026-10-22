@@ -1,17 +1,19 @@
-import type {
-  WorkAutomationAction,
-  WorkAutomationChange,
-  WorkAutomationCondition,
-  WorkAutomationReceipt,
-  WorkAutomationRule,
-  WorkAutomationSignal,
-  WorkAutomationTrigger,
-  WorkAutomationUndoResult,
+import {
+  WORK_AUTOMATION_UI_LABELS,
+  type WorkAutomationAction,
+  type WorkAutomationChange,
+  type WorkAutomationCondition,
+  type WorkAutomationReceipt,
+  type WorkAutomationRule,
+  type WorkAutomationSignal,
+  type WorkAutomationTrigger,
+  type WorkAutomationUndoResult,
 } from "@cantiara/api/work-automation";
 
 import type {
   WorkAutomationApplyInput,
   WorkAutomationFacts,
+  WorkAutomationRequiredPullRequest,
   WorkAutomationRuleReader,
   WorkAutomationWorkSnapshot,
   WorkAutomationWriter,
@@ -47,9 +49,16 @@ export function createRule(
   };
 }
 
-export function createFacts(works: WorkAutomationWorkSnapshot[]) {
+export function createFacts(
+  works: WorkAutomationWorkSnapshot[],
+  requiredPullRequests: Record<
+    string,
+    WorkAutomationRequiredPullRequest[]
+  > = {},
+) {
   const facts: WorkAutomationFacts = {
     listWorks: async () => works,
+    requiredPullRequests: async (workId) => requiredPullRequests[workId] ?? [],
     work: async (workId) => works.find(({ id }) => id === workId) ?? null,
   };
   return facts;
@@ -94,6 +103,7 @@ export function createMemoryWriter(
   const byKey = new Map<string, StoredReceipt>();
   const byId = new Map<string, StoredReceipt>();
   const created: Array<{ title: string; type: string }> = [];
+  const closures = new Map<string, string>();
   let applyCalls = 0;
   let sequence = 0;
 
@@ -124,6 +134,9 @@ export function createMemoryWriter(
         if (target) {
           before.set(change.workId, target.status);
           target.status = change.value.status;
+          if ("closureResult" in change.value) {
+            closures.set(change.workId, change.value.closureResult);
+          }
           after.set(change.workId, change.value.status);
         }
       }
@@ -172,6 +185,7 @@ export function createMemoryWriter(
 
   return {
     applyCalls: () => applyCalls,
+    closures,
     created,
     writer,
   };
@@ -191,4 +205,16 @@ export function setStatus(
       entry.status = status;
     }
   }
+}
+
+export function createPrMergeRule(
+  overrides: Partial<WorkAutomationRule> = {},
+): WorkAutomationRule {
+  return createRule({
+    actions: [{ kind: "complete-work" }],
+    id: "pr-merge",
+    name: WORK_AUTOMATION_UI_LABELS.requiredPrMerge,
+    trigger: { kind: "required-prs-merged" },
+    ...overrides,
+  });
 }

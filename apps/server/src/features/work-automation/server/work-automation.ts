@@ -16,6 +16,8 @@ import {
   type WorkAutomationRule,
   type WorkAutomationRuleAttribution,
   type WorkAutomationSignal,
+  type WorkAutomationSuggestion,
+  type WorkAutomationTrigger,
   type WorkAutomationUndoResult,
   workAutomationEventSchema,
 } from "@cantiara/api/work-automation";
@@ -27,15 +29,24 @@ export interface WorkAutomationWorkSnapshot {
   type: string;
 }
 
+export interface WorkAutomationRequiredPullRequest {
+  id: string;
+  merged: boolean;
+}
+
 export interface WorkAutomationFacts {
   listWorks: (projectId: string) => Promise<WorkAutomationWorkSnapshot[]>;
+  /** Read-only merge facts for the Work's `Required for completion` PRs (spec 61). */
+  requiredPullRequests: (
+    workId: string,
+  ) => Promise<WorkAutomationRequiredPullRequest[]>;
   work: (workId: string) => Promise<WorkAutomationWorkSnapshot | null>;
 }
 
 export interface WorkAutomationRuleReader {
   activeRules: (
     projectId: string,
-    triggerKind: WorkAutomationEvent["kind"],
+    triggerKind: WorkAutomationTrigger["kind"],
   ) => Promise<WorkAutomationRule[]>;
   find: (ruleId: string) => Promise<WorkAutomationRule | null>;
 }
@@ -75,6 +86,7 @@ export interface WorkAutomationToast {
 export type WorkAutomationRunResult =
   | { reason: "automation-origin" | "unsupported-event"; status: "ignored" }
   | { status: "no-match" }
+  | { status: "suggested"; suggestion: WorkAutomationSuggestion }
   | {
       conflicts: WorkAutomationConflict[];
       failures: WorkAutomationSignal[];
@@ -116,6 +128,14 @@ function valueKey(value: WorkAutomationFieldValue) {
   return canonicalizeMutationPayload(value as MutationPayload);
 }
 
+function triggerKindFor(
+  event: WorkAutomationEvent,
+): WorkAutomationTrigger["kind"] {
+  return event.kind === "pull-request-merged"
+    ? "required-prs-merged"
+    : event.kind;
+}
+
 function conditionHolds(
   condition: WorkAutomationCondition,
   work: WorkAutomationWorkSnapshot,
@@ -155,7 +175,10 @@ function proposalsFor(
     change: {
       field: "status",
       kind: "set-work-field",
-      value: { status: action.status },
+      value:
+        action.kind === "complete-work"
+          ? { closureResult: "Completed", status: "Closed" }
+          : { status: action.status },
       workId: work.id,
     },
   };
@@ -308,17 +331,40 @@ export function createWorkAutomation(options: WorkAutomationOptions) {
   }
 
   async function matchingRules(event: WorkAutomationEvent) {
-    const rules = await options.rules.activeRules(event.projectId, event.kind);
+    const triggerKind = triggerKindFor(event);
+    const rules = await options.rules.activeRules(event.projectId, triggerKind);
     return rules.filter(
       (rule) =>
         rule.enabled &&
         rule.trashedAt === null &&
         rule.projectId === event.projectId &&
-        rule.definition.trigger.kind === event.kind &&
+        rule.definition.trigger.kind === triggerKind &&
         (event.kind !== "work-status-changed" ||
           (rule.definition.trigger.kind === "work-status-changed" &&
             rule.definition.trigger.to === event.to)) &&
         (event.kind !== "recurring-schedule" || rule.id === event.ruleId),
+    );
+  }
+
+  /**
+   * The prepared PR-merge condition: the Work is open, has at least one
+   * `Required for completion` PR, every such PR is merged, and (for a live
+   * event) the PR that just merged is one of them. Contextual merges never match.
+   */
+  async function requiredPrMergeHolds(
+    work: WorkAutomationWorkSnapshot,
+    mergedPullRequestId: string | null,
+  ) {
+    if (work.status === "Closed") {
+      return false;
+    }
+    const required = await options.facts.requiredPullRequests(work.id);
+    if (required.length === 0 || !required.every(({ merged }) => merged)) {
+      return false;
+    }
+    return (
+      mergedPullRequestId === null ||
+      required.some(({ id }) => id === mergedPullRequestId)
     );
   }
 
@@ -333,7 +379,28 @@ export function createWorkAutomation(options: WorkAutomationOptions) {
         throw new StepFailure("trigger", "The triggering Work is gone.");
       }
     }
+    if (rule.definition.trigger.kind === "required-prs-merged") {
+      const pullRequestId =
+        event.kind === "pull-request-merged" ? event.pullRequestId : null;
+      if (!(work && (await requiredPrMergeHolds(work, pullRequestId)))) {
+        return [];
+      }
+    }
     return evaluateRule(rule, event.id, work);
+  }
+
+  /** Rule off: the same condition only surfaces `Mark as Completed`. */
+  async function suggestionFor(
+    event: WorkAutomationEvent,
+  ): Promise<WorkAutomationSuggestion | null> {
+    if (event.kind !== "pull-request-merged") {
+      return null;
+    }
+    const work = await options.facts.work(event.workId);
+    if (!(work && (await requiredPrMergeHolds(work, event.pullRequestId)))) {
+      return null;
+    }
+    return { label: "Mark as Completed", workId: work.id };
   }
 
   async function collect(
@@ -438,7 +505,10 @@ export function createWorkAutomation(options: WorkAutomationOptions) {
     );
 
     if (!(receipt || conflicts.length || failures.length)) {
-      return { status: "no-match" };
+      const suggestion = rules.length === 0 ? await suggestionFor(event) : null;
+      return suggestion
+        ? { status: "suggested", suggestion }
+        : { status: "no-match" };
     }
     return {
       conflicts,
@@ -447,6 +517,23 @@ export function createWorkAutomation(options: WorkAutomationOptions) {
       status: runStatus(receipt, conflicts),
       toast: receipt ? toastFor(receipt) : null,
     };
+  }
+
+  async function dryRunMatches(
+    rule: WorkAutomationRule,
+    work: WorkAutomationWorkSnapshot,
+  ) {
+    const { trigger } = rule.definition;
+    if (trigger.kind === "work-status-changed" && work.status !== trigger.to) {
+      return [];
+    }
+    if (
+      trigger.kind === "required-prs-merged" &&
+      !(await requiredPrMergeHolds(work, null))
+    ) {
+      return [];
+    }
+    return mergeChanges(evaluateRule(rule, "dry-run", work));
   }
 
   async function dryRun(
@@ -465,14 +552,13 @@ export function createWorkAutomation(options: WorkAutomationOptions) {
       });
     } else {
       const works = await options.facts.listWorks(rule.projectId);
-      for (const work of works) {
-        if (
-          trigger.kind === "work-status-changed" &&
-          work.status !== trigger.to
-        ) {
-          continue;
-        }
-        const changes = mergeChanges(evaluateRule(rule, "dry-run", work));
+      const candidates = await Promise.all(
+        works.map(async (work) => ({
+          matches: await dryRunMatches(rule, work),
+          work,
+        })),
+      );
+      for (const { matches: changes, work } of candidates) {
         if (changes.length > 0) {
           matches.push({ changes, workId: work.id });
         }

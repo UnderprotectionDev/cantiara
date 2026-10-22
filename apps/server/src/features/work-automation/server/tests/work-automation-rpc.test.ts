@@ -110,4 +110,29 @@ describe("Work Automation RPC", () => {
       }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
+
+  test("creates the prepared PR-merge rule through its own procedure", async () => {
+    const createRequiredPrMergeRule = vi.fn(async () => ({
+      ...rule,
+      definition: {
+        actions: [{ kind: "complete-work" as const }],
+        conditions: [],
+        trigger: { kind: "required-prs-merged" as const },
+      },
+      name: "When required PRs merge, mark Work Completed",
+    }));
+    const client = createClient({ createRequiredPrMergeRule });
+
+    const created = await client.createWorkAutomationRequiredPrMergeRule({
+      baseRevision: 0,
+      clientIdempotencyKey: "key-5",
+      projectId: "project-1",
+    });
+
+    expect(created.enabled).toBe(false);
+    expect(createRequiredPrMergeRule).toHaveBeenCalledWith(
+      "account-1",
+      "project-1",
+    );
+  });
 });

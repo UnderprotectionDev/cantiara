@@ -234,4 +234,61 @@ describeDatabase("Work Automation PostgreSQL integration", () => {
       .where(eq(workAutomationApplication.projectId, projectId));
     expect(applications).toHaveLength(0);
   });
+
+  test("the prepared PR-merge rule closes Work as Completed and undo restores it", async () => {
+    const db = requireDatabase();
+    const { access, engine } = createDatabaseWorkAutomation(db, {
+      requiredPullRequests: () =>
+        Promise.resolve([{ id: "pr-1", merged: true }]),
+    });
+    const rule = await access.createRequiredPrMergeRule(accountId, projectId);
+    expect(rule).toMatchObject({
+      enabled: false,
+      name: "When required PRs merge, mark Work Completed",
+    });
+    const event = {
+      id: "merge-1",
+      kind: "pull-request-merged" as const,
+      occurredAt: "2026-10-22T09:00:00.000Z",
+      origin: "system" as const,
+      projectId,
+      pullRequestId: "pr-1",
+      workId,
+    };
+
+    expect(await engine.handleEvent(event)).toEqual({
+      status: "suggested",
+      suggestion: { label: "Mark as Completed", workId },
+    });
+    const [untouched] = await db.select().from(work).where(eq(work.id, workId));
+    expect(untouched).toMatchObject({
+      closureResult: null,
+      status: "Not Started",
+    });
+
+    await access.setEnabled(accountId, {
+      baseRevision: rule.revision,
+      enabled: true,
+      ruleId: rule.id,
+    });
+    const result = await engine.handleEvent({ ...event, id: "merge-2" });
+    expect(result.status).toBe("applied");
+    if (result.status !== "applied") {
+      return;
+    }
+    const [closed] = await db.select().from(work).where(eq(work.id, workId));
+    expect(closed).toMatchObject({
+      closureResult: "Completed",
+      status: "Closed",
+    });
+
+    expect(await access.undo(accountId, result.receipt?.id ?? "")).toEqual({
+      status: "undone",
+    });
+    const [reopened] = await db.select().from(work).where(eq(work.id, workId));
+    expect(reopened).toMatchObject({
+      closureResult: null,
+      status: "Not Started",
+    });
+  });
 });
