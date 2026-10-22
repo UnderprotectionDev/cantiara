@@ -3,10 +3,15 @@ import type {
   FileAttachmentPreview,
 } from "@cantiara/api/file-attachments";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import { fileAttachmentAssetURL } from "../../../lib/file-attachment-assets";
 import { FileAttachmentPreviewView } from "../file-attachment-preview";
+
+// The lazy PDF chunk pulls browser-only pdf.js; the viewer has its own tests.
+vi.mock("../file-attachment-pdf", () => ({
+  FileAttachmentPdfPreview: () => null,
+}));
 
 const attachment: FileAttachment = {
   createdAt: "2026-09-21T10:00:00.000Z",
@@ -151,7 +156,7 @@ describe("File Attachment preview surface", () => {
     expect(textMarkup).not.toContain("<script>safe text</script>");
   });
 
-  test("shows paged PDF canvases and keeps a failed preview downloadable", () => {
+  test("loads the PDF viewer lazily and keeps a failed preview downloadable", () => {
     const pdfMarkup = renderPreview(
       {
         attachmentId: attachment.id,
@@ -200,8 +205,7 @@ describe("File Attachment preview surface", () => {
       },
     );
 
-    expect(pdfMarkup).toContain("PDF page 1 of 2");
-    expect(pdfMarkup).toContain("PDF page 2 of 2");
+    expect(pdfMarkup).toContain("Loading PDF preview");
     expect(unavailableMarkup).toContain("Unavailable");
     expect(unavailableMarkup).not.toContain("Retry preview");
     expect(unavailableMarkup).toContain("Download");

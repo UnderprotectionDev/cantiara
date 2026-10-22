@@ -1,6 +1,11 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the chosen Screen versions.
 import type { ScreenRecord } from "@cantiara/api/screens";
 import { Button } from "@cantiara/ui/components/button";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
 import { useState } from "react";
 
 export const EXPORT_FORMATS = ["PNG", "SVG", "PDF", "HTML"] as const;
@@ -68,16 +73,19 @@ export function ScreensOutputPanel({
       <ul className="space-y-1 text-sm">
         {candidates.map((screen) => (
           <li className="flex flex-wrap items-center gap-2" key={screen.id}>
-            <label className="flex items-center gap-2">
-              <input
+            <label
+              className="flex items-center gap-2"
+              htmlFor={`screens-output-${screen.id}`}
+            >
+              <Checkbox
                 checked={picked[screen.id] !== undefined}
-                onChange={(event) => toggle(screen, event.target.checked)}
-                type="checkbox"
+                id={`screens-output-${screen.id}`}
+                onCheckedChange={(checked) => toggle(screen, checked)}
               />
               {screen.title}
             </label>
             {picked[screen.id] === undefined ? null : (
-              <select
+              <NativeSelect
                 aria-label={`Wireframe version of ${screen.title}`}
                 onChange={(event) =>
                   setPicked((previous) => ({
@@ -88,11 +96,11 @@ export function ScreensOutputPanel({
                 value={picked[screen.id]}
               >
                 {screen.wireframeVersions.map(({ version }) => (
-                  <option key={version} value={version}>
+                  <NativeSelectOption key={version} value={version}>
                     v{version}
-                  </option>
+                  </NativeSelectOption>
                 ))}
-              </select>
+              </NativeSelect>
             )}
           </li>
         ))}

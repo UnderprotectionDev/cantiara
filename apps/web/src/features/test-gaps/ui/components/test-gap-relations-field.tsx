@@ -8,7 +8,8 @@ import {
 } from "@cantiara/api/test-gaps";
 import { Button } from "@cantiara/ui/components/button";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useId, useState } from "react";
 import type { RelationDraft } from "../../lib/test-gap-form";
 
 export type LoadGapRelationTargets = (
@@ -42,38 +43,31 @@ export function TestGapRelationsField({
   const statusId = useId();
   const [targetType, setTargetType] =
     useState<TestGapRelationTargetType>("Feature");
-  const [targets, setTargets] = useState<TestGapRelationTarget[] | null>(null);
+  const targetsQuery = useQuery({
+    gcTime: 0,
+    queryFn: () => loadTargets(targetType),
+    queryKey: ["test-gap-relation-targets", targetType],
+  });
+  const targets = targetsQuery.data;
   const [targetId, setTargetId] = useState("");
   const [sectionId, setSectionId] = useState("");
   const [message, setMessage] = useState("");
 
   const selected = targets?.find((target) => target.targetId === targetId);
 
-  const chooseType = useCallback(
-    async (next: TestGapRelationTargetType) => {
-      setTargetType(next);
-      setTargets(null);
-      setTargetId("");
-      setSectionId("");
-      setMessage("");
-      try {
-        const loaded = await loadTargets(next);
-        setTargets(loaded);
-        if (loaded.length === 0) {
-          setMessage(
-            `This Project has no ${TARGET_TYPE_LABEL[next]} to relate yet.`,
-          );
-        }
-      } catch {
-        setMessage(`${TARGET_TYPE_LABEL[next]} records could not be loaded.`);
-      }
-    },
-    [loadTargets],
-  );
+  function chooseType(next: TestGapRelationTargetType) {
+    setTargetType(next);
+    setTargetId("");
+    setSectionId("");
+    setMessage("");
+  }
 
-  useEffect(() => {
-    chooseType("Feature").catch(() => undefined);
-  }, [chooseType]);
+  let loadMessage = "";
+  if (targetsQuery.isError) {
+    loadMessage = `${TARGET_TYPE_LABEL[targetType]} records could not be loaded.`;
+  } else if (targets?.length === 0) {
+    loadMessage = `This Project has no ${TARGET_TYPE_LABEL[targetType]} to relate yet.`;
+  }
 
   function add() {
     if (!selected) {
@@ -160,9 +154,7 @@ export function TestGapRelationsField({
             <NativeSelect
               id={`${idPrefix}-relation-type`}
               onChange={(event) =>
-                chooseType(
-                  event.target.value as TestGapRelationTargetType,
-                ).catch(() => undefined)
+                chooseType(event.target.value as TestGapRelationTargetType)
               }
               value={targetType}
             >
@@ -232,7 +224,7 @@ export function TestGapRelationsField({
         id={statusId}
         role="status"
       >
-        {message}
+        {message || loadMessage}
       </p>
     </fieldset>
   );

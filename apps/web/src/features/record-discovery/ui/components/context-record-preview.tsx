@@ -18,6 +18,7 @@ import {
   useContext,
   useState,
 } from "react";
+import { AppLink } from "@/components/app-link";
 import {
   documentRecordHash,
   projectSourceRecordHash,
@@ -222,12 +223,12 @@ export function ContextRecordPreviewPanel({
           </Suspense>
         </div>
         <SheetFooter className="border-t">
-          <a
+          <AppLink
             className="inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring"
             href={sourceRecordPreviewHref(record)}
           >
             Open full page
-          </a>
+          </AppLink>
         </SheetFooter>
       </SheetContent>
     </Sheet>

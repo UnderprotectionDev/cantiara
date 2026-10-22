@@ -7,17 +7,23 @@ import type {
   UserFlowView,
 } from "@cantiara/api/user-flow";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 import { ConvertAndBindPreview } from "../../components/convert-and-bind-dialog";
 import { RebindPreview } from "../../components/rebind-dialog";
-import { CreateFromTemplateForm } from "../../components/user-flow-promote-templates";
 import { BindList, LiveCardList } from "../../components/user-flow-records";
+import { CreateFromTemplateForm } from "../../forms/create-from-template-form";
 import {
   UserFlowDetail,
   type UserFlowDetailTools,
   UserFlowListView,
 } from "../user-flow-view";
+
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
 
 const placedAt = "2026-10-01T09:00:00.000Z";
 const noop = async () => undefined;

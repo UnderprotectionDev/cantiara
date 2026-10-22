@@ -1,7 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the form fields.
 import {
   PRODUCT_GAP_LINK_TARGET_TYPES,
-  type ProductGapLinkTarget,
   type ProductGapLinkTargetType,
   TOOL_ESCAPE_LABEL,
   TOOL_ESCAPE_REASONS,
@@ -18,7 +17,9 @@ import {
 import { Input } from "@cantiara/ui/components/input";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { DateTimePicker } from "@/components/date-picker";
+import { useProductGapLinkTargets } from "../../hooks/use-product-gap-link-targets";
 import type { EscapeFormValues } from "../../lib/product-gap-form";
 import type { LoadProductGapTargets } from "./product-gap-links-field";
 
@@ -42,28 +43,10 @@ export function ToolEscapeFields({
 }) {
   const [sourceType, setSourceType] =
     useState<ProductGapLinkTargetType>("Project");
-  const [targets, setTargets] = useState<ProductGapLinkTarget[]>([]);
-  const [loadError, setLoadError] = useState(false);
-
-  useEffect(() => {
-    let current = true;
-    setTargets([]);
-    setLoadError(false);
-    loadTargets(sourceType)
-      .then((loaded) => {
-        if (current) {
-          setTargets(loaded);
-        }
-      })
-      .catch(() => {
-        if (current) {
-          setLoadError(true);
-        }
-      });
-    return () => {
-      current = false;
-    };
-  }, [loadTargets, sourceType]);
+  const { data: targets = [], isError: loadError } = useProductGapLinkTargets(
+    loadTargets,
+    sourceType,
+  );
 
   function toggle(reason: ToolEscapeReason, checked: boolean) {
     onChange({
@@ -82,14 +65,12 @@ export function ToolEscapeFields({
       <div className="grid gap-3 sm:grid-cols-2">
         <Field className="gap-1 text-sm">
           <FieldLabel htmlFor={`${idPrefix}-occurred`}>Occurred at</FieldLabel>
-          <Input
+          <DateTimePicker
+            ariaLabel="Occurred at"
             disabled={disabled}
             id={`${idPrefix}-occurred`}
-            onChange={(event) =>
-              onChange({ ...value, occurredAt: event.target.value })
-            }
+            onChange={(occurredAt) => onChange({ ...value, occurredAt })}
             required
-            type="datetime-local"
             value={value.occurredAt}
           />
         </Field>

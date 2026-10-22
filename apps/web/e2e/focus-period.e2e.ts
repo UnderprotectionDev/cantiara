@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { pickDate } from "./date-picker-helpers";
 
 const FOCUS_PERIOD_WORK_NAME = /Prepare Focus Period release/;
 const ABANDON_WORK_NAME = /Retire Focus Period draft/;
@@ -74,15 +75,15 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   await page.goto("/focus-periods");
   await expect(page.getByText("No Focus Period yet.")).toBeVisible();
   await page.getByLabel("Purpose").fill("Ship the release");
-  await page.getByLabel("Start date").fill("2099-01-01");
-  await page.getByLabel("End date").fill("2099-01-06");
+  await pickDate(page, page.getByLabel("Start date"), "2099-01-01");
+  await pickDate(page, page.getByLabel("End date"), "2099-01-06");
   await page.getByRole("button", { name: "Create Focus Period" }).click();
   await expect(page.getByText("Focus Period must be 1–8 weeks.")).toBeVisible();
 
   const start = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
   const end = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
-  await page.getByLabel("Start date").fill(start);
-  await page.getByLabel("End date").fill(end);
+  await pickDate(page, page.getByLabel("Start date"), start);
+  await pickDate(page, page.getByLabel("End date"), end);
   await page.getByRole("button", { name: "Create Focus Period" }).click();
   const detail = page.getByRole("region", { name: "Ship the release" });
   await expect(detail).toContainText("Active");
@@ -106,8 +107,8 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   await detail.getByRole("button", { name: "Add Work" }).click();
   await expect(detail).toContainText("Review Focus Period release");
   await page.getByLabel("Purpose").fill("Later window");
-  await page.getByLabel("Start date").fill(start);
-  await page.getByLabel("End date").fill(end);
+  await pickDate(page, page.getByLabel("Start date"), start);
+  await pickDate(page, page.getByLabel("End date"), end);
   await page.getByRole("button", { name: "Create Focus Period" }).click();
   const laterWindow = page.getByRole("region", { name: "Later window" });
   await expect(laterWindow).toContainText("Active");

@@ -4,7 +4,7 @@
 import type { ScreenReferenceView } from "@cantiara/api/user-flow";
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import {
   createEditor,
@@ -13,6 +13,12 @@ import {
 } from "../../../lib/flow-editor";
 import { toggleCollapsed } from "../../../lib/flow-outline";
 import { UserFlowOutline } from "../user-flow-outline";
+
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -103,21 +109,22 @@ function byId(id: string) {
     HTMLSelectElement;
 }
 
-function submitCreate() {
-  act(() => {
+async function submitCreate() {
+  await act(async () => {
     (
       container.querySelector('button[type="submit"]') as HTMLButtonElement
     ).click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
 
-function createNode(kind: string, text: string, screenId?: string) {
+async function createNode(kind: string, text: string, screenId?: string) {
   setField(byId("user-flow-outline-kind"), kind);
   if (screenId) {
     setField(byId("user-flow-outline-screen"), screenId);
   }
   setField(byId("user-flow-outline-text"), text);
-  submitCreate();
+  await submitCreate();
 }
 
 function buttonByText(text: string) {
@@ -143,14 +150,14 @@ afterEach(() => {
 });
 
 describe("canvas yapılandırılmış outline", () => {
-  test("a keyboard and screen reader journey completes every canvas task without a pointer", () => {
+  test("a keyboard and screen reader journey completes every canvas task without a pointer", async () => {
     mount();
     expect(container.textContent).toContain("The outline is empty");
 
     // create
-    createNode("Action", "Open the app");
-    createNode("Decision", "Has account?");
-    createNode("Screen", "Pays", SCREEN_ID);
+    await createNode("Action", "Open the app");
+    await createNode("Decision", "Has account?");
+    await createNode("Screen", "Pays", SCREEN_ID);
     expect(latest.document.nodes.map(({ kind }) => kind)).toEqual([
       "Action",
       "Decision",
@@ -297,7 +304,7 @@ describe("canvas yapılandırılmış outline", () => {
     );
   });
 
-  test("a full scene refuses another node instead of overflowing it", () => {
+  test("a full scene refuses another node instead of overflowing it", async () => {
     const nodes = Array.from({ length: 500 }, (_, index) => ({
       id: `n${index}`,
       kind: "Action" as const,
@@ -307,7 +314,7 @@ describe("canvas yapılandırılmış outline", () => {
       text: `n${index}`,
     }));
     mount({ links: [], nodes });
-    createNode("Action", "overflow");
+    await createNode("Action", "overflow");
     expect(latest.document.nodes).toHaveLength(500);
   });
 });

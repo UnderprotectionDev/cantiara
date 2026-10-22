@@ -1,13 +1,11 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to one candidate and its note draft.
-import {
-  SPEC_CANDIDATE_NOTE_MAX_LENGTH,
-  SPEC_REVIEW_STATES,
-  type SpecChangeReviewCandidate,
-  type SpecReviewState,
+import type {
+  SpecChangeReviewCandidate,
+  SpecReviewState,
 } from "@cantiara/api/spec-change-review-candidates";
 import { Button } from "@cantiara/ui/components/button";
-import { Textarea } from "@cantiara/ui/components/textarea";
-import { useId, useState } from "react";
+import { useState } from "react";
+import SpecCandidateReviewForm from "../forms/spec-candidate-review-form";
 import {
   type ConfirmFollowUp,
   type PreviewFollowUp,
@@ -49,11 +47,8 @@ function CandidateRow({
   onMark?: MarkCandidate;
   onPreviewFollowUp?: PreviewFollowUp;
 }) {
-  const [note, setNote] = useState(candidate.review.note ?? "");
   const [followUpOpen, setFollowUpOpen] = useState(false);
-  const noteId = useId();
   const name = candidateName(candidate);
-  const saved = candidate.review.state;
   return (
     <li className="space-y-2 rounded-lg border border-border p-4">
       <h5 className="font-medium">{name}</h5>
@@ -67,37 +62,11 @@ function CandidateRow({
           .map(({ detail, kind }) => (detail ? `${kind} (${detail})` : kind))
           .join(", ")}
       </p>
-      <fieldset className="flex flex-wrap gap-2">
-        <legend className="sr-only">Review status of {name}</legend>
-        {SPEC_REVIEW_STATES.map((state) => (
-          <Button
-            aria-pressed={saved === state}
-            disabled={!onMark}
-            key={state}
-            onClick={() => onMark?.(candidate, state, note.trim() || null)}
-            type="button"
-            variant={saved === state ? "default" : "outline"}
-          >
-            {state}
-          </Button>
-        ))}
-      </fieldset>
-      <p>Status: {saved}</p>
-      <label htmlFor={noteId}>Note for {name}</label>
-      <Textarea
-        id={noteId}
-        maxLength={SPEC_CANDIDATE_NOTE_MAX_LENGTH}
-        onChange={(event) => setNote(event.target.value)}
-        value={note}
+      <SpecCandidateReviewForm
+        candidate={candidate}
+        name={name}
+        onMark={onMark}
       />
-      <Button
-        disabled={!onMark || note.trim() === (candidate.review.note ?? "")}
-        onClick={() => onMark?.(candidate, saved, note.trim() || null)}
-        type="button"
-        variant="outline"
-      >
-        Save note
-      </Button>
       {candidate.followUp ? (
         <p>
           Follow-up Work:{" "}

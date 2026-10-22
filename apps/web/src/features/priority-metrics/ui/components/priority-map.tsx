@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each map card closes over its Work and selected criteria.
+
 import {
   PRIORITY_METRIC_RANKS,
   type PriorityMetricProjectValues,
@@ -17,6 +18,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { AppLink } from "@/components/app-link";
 import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { priorityMetricItemsForWork } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import PriorityMetricValuesForm from "@/features/priority-metrics/ui/components/priority-metric-values-form";
@@ -373,13 +375,13 @@ function PriorityMapWork({
   return (
     <article className="space-y-2 rounded-md border border-border/70 bg-card p-2.5">
       <div className="flex items-start justify-between gap-2">
-        <a
+        <AppLink
           className="min-w-0 font-medium text-sm underline-offset-4 hover:underline"
           href={workRecordHref(projectId, work.id)}
         >
           <span className="text-muted-foreground">{work.key}</span> —{" "}
           {work.title}
-        </a>
+        </AppLink>
         <div className="flex shrink-0 items-center gap-1">
           <WorkReviewLaterControl compact work={work} />
           <WorkNotNowControl compact work={work} />

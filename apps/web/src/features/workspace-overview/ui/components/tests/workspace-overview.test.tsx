@@ -2,9 +2,15 @@ import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { WorkspaceOverviewModel } from "@cantiara/api/workspace-overview";
 import { workspaceOverviewSavedListDefinitionSchema } from "@cantiara/api/workspace-overview";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import WorkspaceOverviewView from "../workspace-overview";
+
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
 
 const model: WorkspaceOverviewModel = {
   availableLiveBlocks: [

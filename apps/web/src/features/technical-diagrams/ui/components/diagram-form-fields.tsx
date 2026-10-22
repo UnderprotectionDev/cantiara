@@ -1,7 +1,12 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each small form binds its own field state.
 import { Button } from "@cantiara/ui/components/button";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
 import type { FormEvent, ReactNode } from "react";
 import { useId } from "react";
 
@@ -31,7 +36,7 @@ export function SelectField({
   return (
     <div className="flex flex-col gap-1">
       <Label htmlFor={id}>{label}</Label>
-      <select
+      <NativeSelect
         id={id}
         onChange={(event) => {
           field.handleChange(event.target.value);
@@ -45,12 +50,12 @@ export function SelectField({
               ? { label: option, value: option }
               : option;
           return (
-            <option key={item.value} value={item.value}>
+            <NativeSelectOption key={item.value} value={item.value}>
               {item.label}
-            </option>
+            </NativeSelectOption>
           );
         })}
-      </select>
+      </NativeSelect>
     </div>
   );
 }
@@ -82,12 +87,13 @@ export function CheckField({
   field: FieldLike<boolean>;
   label: string;
 }) {
+  const id = useId();
   return (
-    <label className="inline-flex items-center gap-1">
-      <input
+    <label className="inline-flex items-center gap-1" htmlFor={id}>
+      <Checkbox
         checked={field.state.value}
-        onChange={(event) => field.handleChange(event.target.checked)}
-        type="checkbox"
+        id={id}
+        onCheckedChange={(checked) => field.handleChange(checked)}
       />
       {label}
     </label>

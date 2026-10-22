@@ -1,8 +1,10 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Field render props close over the current recreate form state.
-import type {
-  WorkProfile,
-  WorkRecreateField,
-  WorkRecreatePreview,
+import {
+  recreateWorkInputSchema,
+  type WorkProfile,
+  type WorkRecreateField,
+  type WorkRecreatePreview,
+  workRecreatePreviewInputSchema,
 } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
@@ -74,10 +76,17 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
       try {
         setError(null);
         if (!preview) {
-          const nextPreview = await client.workRecreatePreview({
+          const previewInput = workRecreatePreviewInputSchema.safeParse({
             sourceWorkId: work.id,
             targetProjectId: value.targetProjectId,
           });
+          if (!previewInput.success) {
+            setError(recreateErrorMessage(null));
+            return;
+          }
+          const nextPreview = await client.workRecreatePreview(
+            previewInput.data,
+          );
           setPreview(nextPreview);
           pendingRecreate.current = null;
           form.setFieldValue(
@@ -101,16 +110,21 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
             ? pending.clientIdempotencyKey
             : crypto.randomUUID();
         pendingRecreate.current = { clientIdempotencyKey, selection };
+        const recreateInput = recreateWorkInputSchema.safeParse({
+          baseRevision: 0,
+          clientIdempotencyKey,
+          previewId: preview.previewId,
+          selectedFields: value.selectedFields,
+          selectedRelationIds: value.selectedRelationIds,
+          sourceWorkId: work.id,
+          targetProjectId: preview.targetProject.id,
+        });
+        if (!recreateInput.success) {
+          setError(recreateErrorMessage(null));
+          return;
+        }
         const recreatedWork = await runOnlineOnlyWrite(() =>
-          client.recreateWork({
-            baseRevision: 0,
-            clientIdempotencyKey,
-            previewId: preview.previewId,
-            selectedFields: value.selectedFields,
-            selectedRelationIds: value.selectedRelationIds,
-            sourceWorkId: work.id,
-            targetProjectId: preview.targetProject.id,
-          }),
+          client.recreateWork(recreateInput.data),
         );
         pendingRecreate.current = null;
         setRecreatedKey(recreatedWork.key);

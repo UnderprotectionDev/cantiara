@@ -33,6 +33,7 @@ import {
   endOfMonth,
   endOfWeek,
   format,
+  getDay,
   parseISO,
   startOfMonth,
   startOfWeek,
@@ -556,7 +557,7 @@ function calendarMonthLeadingDayCount(
     return 0;
   }
   return (
-    (parseISO(firstVisibleDay).getDay() -
+    (getDay(parseISO(firstVisibleDay)) -
       (firstDayOfWeek === "Sunday" ? 0 : 1) +
       7) %
     7

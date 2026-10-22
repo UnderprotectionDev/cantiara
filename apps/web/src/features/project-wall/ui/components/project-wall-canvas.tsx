@@ -12,6 +12,7 @@ import {
   resolveProjectWallViewport,
 } from "@cantiara/api/project-wall-viewport";
 import { Button } from "@cantiara/ui/components/button";
+import { LiteDebouncer } from "@tanstack/pacer-lite";
 import {
   applyNodeChanges,
   type Edge,
@@ -187,42 +188,28 @@ function Canvas({
   }, []);
 
   // --- Personal viewport -------------------------------------------------------
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastViewport = useRef<Pick<
-    ProjectWallViewport,
-    "center" | "zoom"
-  > | null>(null);
   const onViewportChangeRef = useRef(onViewportChange);
   onViewportChangeRef.current = onViewportChange;
-  const reportViewport = useCallback(
-    (instance: Pick<ReactFlowInstance, "getViewport">) => {
-      const next = viewportFromTransform(instance.getViewport(), frame());
-      lastViewport.current = next;
-      if (saveTimer.current) {
-        clearTimeout(saveTimer.current);
-      }
-      saveTimer.current = setTimeout(
-        () => onViewportChangeRef.current(next),
-        VIEWPORT_SAVE_DELAY,
-      );
-    },
-    [frame],
-  );
-  useEffect(
-    () => () => {
-      // Leaving the wall within the debounce window still reports the last
-      // computed viewport: a cleared timer must not drop the personal view.
-      if (saveTimer.current) {
-        clearTimeout(saveTimer.current);
-        saveTimer.current = null;
-        const last = lastViewport.current;
-        if (last) {
-          onViewportChangeRef.current(last);
-        }
-      }
-    },
+  // Leaving the wall within the debounce window still reports the last
+  // computed viewport: flushing must not drop the personal view.
+  const viewportDebouncer = useMemo(
+    () =>
+      new LiteDebouncer(
+        (next: Pick<ProjectWallViewport, "center" | "zoom">) =>
+          onViewportChangeRef.current(next),
+        { wait: VIEWPORT_SAVE_DELAY },
+      ),
     [],
   );
+  const reportViewport = useCallback(
+    (instance: Pick<ReactFlowInstance, "getViewport">) => {
+      viewportDebouncer.maybeExecute(
+        viewportFromTransform(instance.getViewport(), frame()),
+      );
+    },
+    [frame, viewportDebouncer],
+  );
+  useEffect(() => () => viewportDebouncer.flush(), [viewportDebouncer]);
 
   // The opening decision is made once, from the viewport loaded with the wall.
   const opened = useRef<boolean>(false);
@@ -400,38 +387,53 @@ function Canvas({
   const onMoveRef = useRef(onMove);
   onMoveRef.current = onMove;
   const queued = useRef(new Map<string, ProjectWallPosition>());
-  const queueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commitQueuedRef = useRef<() => void>(() => undefined);
+  const queueDebouncer = useMemo(
+    () =>
+      new LiteDebouncer(() => commitQueuedRef.current(), {
+        wait: QUEUED_MOVE_DELAY,
+      }),
+    [],
+  );
 
-  const commit = useCallback((moves: PositionMove[]) => {
-    if (moves.length === 0) {
-      return;
-    }
-    // Any write supersedes the coalesced keyboard nudges.
-    queued.current.clear();
-    if (queueTimer.current) {
-      clearTimeout(queueTimer.current);
-      queueTimer.current = null;
-    }
-    const attempt = Promise.resolve(onMoveRef.current(moves));
-    attempt
-      .then((succeeded) => {
-        if (succeeded !== false) {
-          // Success is confirmed by the reloaded wall carrying the committed
-          // positions; the overlay drop matches it position by position.
-          return;
-        }
-        // A failed save keeps the saved positions: drop this move's overlay.
-        const reverted = new Set(moves.map(({ cardId }) => cardId));
-        setOptimistic((current) => {
-          const next = new Map(current);
-          for (const id of reverted) {
-            next.delete(id);
+  const commit = useCallback(
+    (moves: PositionMove[]) => {
+      if (moves.length === 0) {
+        return;
+      }
+      // Any write supersedes the coalesced keyboard nudges.
+      queued.current.clear();
+      queueDebouncer.cancel();
+      const attempt = Promise.resolve(onMoveRef.current(moves));
+      attempt
+        .then((succeeded) => {
+          if (succeeded !== false) {
+            // Success is confirmed by the reloaded wall carrying the committed
+            // positions; the overlay drop matches it position by position.
+            return;
           }
-          return next;
-        });
-      })
-      .catch(() => undefined);
-  }, []);
+          // A failed save keeps the saved positions: drop this move's overlay.
+          const reverted = new Set(moves.map(({ cardId }) => cardId));
+          setOptimistic((current) => {
+            const next = new Map(current);
+            for (const id of reverted) {
+              next.delete(id);
+            }
+            return next;
+          });
+        })
+        .catch(() => undefined);
+    },
+    [queueDebouncer],
+  );
+  commitQueuedRef.current = () => {
+    const pending = [...queued.current].map(([cardId, position]) => ({
+      cardId,
+      position,
+    }));
+    queued.current.clear();
+    commit(pending);
+  };
 
   // Immediate send: drags, align, distribute and layout application.
   const applyMoves = useCallback(
@@ -468,20 +470,9 @@ function Canvas({
       for (const move of moves) {
         queued.current.set(move.cardId, move.position);
       }
-      if (queueTimer.current) {
-        clearTimeout(queueTimer.current);
-      }
-      queueTimer.current = setTimeout(() => {
-        queueTimer.current = null;
-        const pending = [...queued.current].map(([cardId, position]) => ({
-          cardId,
-          position,
-        }));
-        queued.current.clear();
-        commit(pending);
-      }, QUEUED_MOVE_DELAY);
+      queueDebouncer.maybeExecute();
     },
-    [commit],
+    [queueDebouncer],
   );
 
   // A manual drag supersedes any shown `Preview Auto-layout` proposal.
@@ -493,10 +484,7 @@ function Canvas({
   useEffect(
     () => () => {
       // A wall left inside the coalescing window still commits its queued moves.
-      if (queueTimer.current) {
-        clearTimeout(queueTimer.current);
-        queueTimer.current = null;
-      }
+      queueDebouncer.cancel();
       const pending = [...queued.current].map(([cardId, position]) => ({
         cardId,
         position,
@@ -504,7 +492,7 @@ function Canvas({
       queued.current.clear();
       Promise.resolve(onMoveRef.current(pending)).catch(() => undefined);
     },
-    [],
+    [queueDebouncer],
   );
 
   const onNodeDragStop = useCallback(

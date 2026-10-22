@@ -21,6 +21,7 @@ import { githubLightTheme } from "@tanstack/highlight/themes/github-light";
 import type { MarkdownExtension } from "@tanstack/markdown";
 import { Markdown } from "@tanstack/markdown/react";
 import katex from "katex";
+import { AppLink } from "@/components/app-link";
 import "katex/dist/katex.min.css";
 import mermaid from "mermaid";
 import {
@@ -282,9 +283,9 @@ function SourceRecordPreviewLink({
     );
   }
   return href ? (
-    <a className={className} href={href}>
+    <AppLink className={className} href={href}>
       {children}
-    </a>
+    </AppLink>
   ) : (
     <span>{children}</span>
   );
@@ -647,12 +648,12 @@ function LiveOtherCard({
           onOpenSourceRecord={onOpenSourceRecord}
           source={source}
         />
-        <a
+        <AppLink
           className="underline"
           href={`/projects/${source.projectId}#smart-collection-view-${encodeURIComponent(source.id)}`}
         >
           Open source record
-        </a>
+        </AppLink>
       </section>
     );
   }
@@ -706,12 +707,12 @@ function LiveOtherCard({
           })}
         </ul>
       ) : null}
-      <a
+      <AppLink
         className="underline"
         href={`/projects/${diagram.projectId}#technical-diagram-${encodeURIComponent(diagram.id)}`}
       >
         Open source record
-      </a>
+      </AppLink>
     </section>
   );
 }

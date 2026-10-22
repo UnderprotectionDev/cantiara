@@ -3,8 +3,14 @@
 import type { TestSummary } from "@cantiara/api/test-review-summary";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { summaryRecordHref, TestSummaryView } from "../test-summary-view";
+
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

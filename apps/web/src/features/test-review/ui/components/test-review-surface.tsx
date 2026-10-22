@@ -19,6 +19,7 @@ export default function TestReviewSurface({
   const queryClient = useQueryClient();
   const options = orpc.projectTestReview.queryOptions({ input: { projectId } });
   const review = useQuery(options);
+  const preferences = useQuery(orpc.accountPreferences.queryOptions());
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: options.queryKey });
   if (review.isPending) {
@@ -141,6 +142,7 @@ export default function TestReviewSurface({
     <TestReviewView
       actions={actions}
       events={review.data.events}
+      preferences={preferences.data}
       readOnly={review.data.readOnly}
       resultEvents={review.data.resultEvents}
       sessions={review.data.sessions}

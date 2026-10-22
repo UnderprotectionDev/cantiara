@@ -50,24 +50,31 @@ test("Presentation Mode exposes no edit controls and reports a broken target", (
     );
   });
 
-  const labels = [...container.querySelectorAll("button")].map(
+  const labels = [...document.body.querySelectorAll("button")].map(
     (button) => button.textContent,
   );
   expect(labels).toEqual(["Exit Presentation Mode", "Button"]);
   for (const editor of ["Undo", "Redo", "Save Version", "Input", "Card"]) {
     expect(labels).not.toContain(editor);
   }
-  expect(container.querySelector("textarea, input")).toBeNull();
+  expect(document.body.querySelector("textarea, input")).toBeNull();
 
   act(() => {
-    container
+    document.body
       .querySelector('[data-block-id="go"]')
       ?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
   });
-  expect(container.querySelector('[role="status"]')?.textContent).toContain(
+  expect(document.body.querySelector('[role="status"]')?.textContent).toContain(
     "Unresolved: missing",
   );
-  expect(container.textContent).toContain("Home - Wireframe v1");
+  expect(document.body.textContent).toContain("Home - Wireframe v1");
+
+  act(() => {
+    document.dispatchEvent(
+      new window.KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+    );
+  });
+  expect(onExit).toHaveBeenCalledTimes(1);
 
   act(() => root.unmount());
 });

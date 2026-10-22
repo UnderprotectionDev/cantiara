@@ -138,9 +138,9 @@ async function mount(
 }
 
 function byLabel(label: string) {
-  const found = [...document.querySelectorAll("button, input")].find(
-    (element) => element.getAttribute("aria-label") === label,
-  );
+  const found = [
+    ...document.querySelectorAll("button, input, [role=checkbox]"),
+  ].find((element) => element.getAttribute("aria-label") === label);
   if (!found) {
     throw new Error(`No control ${label}`);
   }

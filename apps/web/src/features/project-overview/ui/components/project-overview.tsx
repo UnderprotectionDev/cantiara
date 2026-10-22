@@ -4,8 +4,8 @@ import {
   type ProjectOverviewSources,
 } from "@cantiara/api/project-overview";
 import type { ProjectProfile } from "@cantiara/api/project-shell";
-import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
-import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
+import FavoriteControl from "@/components/favorite-control";
+import PersonalReminderControl from "@/components/personal-reminder-control";
 
 import {
   DEFAULT_OVERVIEW_FORMATTING_PREFERENCES,

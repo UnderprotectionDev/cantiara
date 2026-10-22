@@ -6,12 +6,14 @@ import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { DatePicker } from "@/components/date-picker";
 import {
   projectSourceRecordHash,
   workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
+import DailyFocusAddForm from "../forms/daily-focus-add-form";
 
 export default function DailyFocusView({
   accountId,
@@ -240,7 +242,6 @@ function DailyFocusDayView({
   const dailyFocus = useQuery(
     orpc.dailyFocusDay.queryOptions({ input: { focusDate } }),
   );
-  const [workId, setWorkId] = useState("");
   const [rejectedCandidateIdsByDay, setRejectedCandidateIdsByDay] = useState<
     Record<string, string[]>
   >({});
@@ -256,7 +257,6 @@ function DailyFocusDayView({
         client.addToDailyFocus({ focusDate, workId: selectedWorkId }),
       ),
     onSuccess: async () => {
-      setWorkId("");
       await queryClient.invalidateQueries({
         queryKey: orpc.dailyFocusDay.queryOptions({ input: { focusDate } })
           .queryKey,
@@ -288,15 +288,12 @@ function DailyFocusDayView({
             htmlFor="daily-focus-day"
           >
             <span className="font-medium">Selected day</span>
-            <input
-              className="h-11 rounded-md border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            <DatePicker
+              ariaLabel="Selected day"
+              className="h-11 min-w-44 justify-between font-normal"
               id="daily-focus-day"
-              onChange={(event) => {
-                if (event.target.value) {
-                  onSelectDay(event.target.value);
-                }
-              }}
-              type="date"
+              onChange={onSelectDay}
+              required
               value={focusDate}
             />
           </label>
@@ -504,35 +501,12 @@ function DailyFocusDayView({
         <h2 className="font-semibold text-lg" id="daily-focus-add-heading">
           Add to Daily Focus
         </h2>
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label
-            className="flex min-w-0 flex-1 flex-col gap-2 text-sm"
-            htmlFor="daily-focus-work"
-          >
-            <span className="font-medium">Work</span>
-            <select
-              className="h-11 w-full rounded-md border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              id="daily-focus-work"
-              onChange={(event) => setWorkId(event.target.value)}
-              value={workId}
-            >
-              <option value="">Select Work</option>
-              {dailyFocus.data?.available.map((work) => (
-                <option key={work.id} value={work.id}>
-                  {work.projectName} · {work.key} · {work.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button
-            className="min-h-11"
-            disabled={!workId || add.isPending}
-            onClick={() => add.mutate(workId)}
-            type="button"
-          >
-            Add to Daily Focus
-          </Button>
-        </div>
+        <DailyFocusAddForm
+          available={dailyFocus.data?.available ?? []}
+          focusDate={focusDate}
+          onAdd={add.mutateAsync}
+          pending={add.isPending}
+        />
         {add.isError || remove.isError ? (
           <p className="mt-3 text-destructive text-sm" role="alert">
             Daily Focus could not be updated. Try again.

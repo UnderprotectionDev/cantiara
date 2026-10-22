@@ -1,17 +1,19 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Actions bind the selected question and editing mode.
+
 import type { DocumentEvidenceSelection } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { AppLink } from "@/components/app-link";
 import { projectSourceRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import {
-  OpenQuestionDetail,
   type OpenQuestionDraft,
   OpenQuestionEditor,
   type OpenQuestionRecord,
-} from "../views/open-question-view";
+} from "../forms/open-question-editor-form";
+import { OpenQuestionDetail } from "../views/open-question-view";
 
 export default function OpenQuestionsSurface({
   projectId,
@@ -154,12 +156,12 @@ export default function OpenQuestionsSurface({
         <ul className="space-y-2">
           {questions.map((item) => (
             <li key={item.id}>
-              <a
+              <AppLink
                 className="underline"
                 href={`/projects/${encodeURIComponent(projectId)}#${projectSourceRecordHash("Open Question", item.id)}`}
               >
                 {item.title}
-              </a>
+              </AppLink>
               <span className="ml-3 text-muted-foreground">{item.life}</span>
             </li>
           ))}

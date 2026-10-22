@@ -4,8 +4,8 @@ import type {
   ProjectSourceType,
 } from "@cantiara/api/project-source-records";
 import { useQuery } from "@tanstack/react-query";
-import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
-import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
+import FavoriteControl from "@/components/favorite-control";
+import PersonalReminderControl from "@/components/personal-reminder-control";
 import TestSummarySurface from "@/features/test-review/ui/components/test-summary-surface";
 import { orpc } from "@/utils/orpc";
 

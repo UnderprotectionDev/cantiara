@@ -6,10 +6,13 @@ import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import ValidationRecordsSurface from "../../components/validation-records-surface";
-import {
-  ValidationRecordEditor,
-  ValidationRecordsView,
-} from "../validation-records-view";
+import { ValidationRecordsView } from "../validation-records-view";
+
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -51,7 +54,6 @@ const record = {
   createdAt: "2026-10-10T10:00:00.000Z",
   updatedAt: "2026-10-10T10:00:00.000Z",
 };
-const cancel = () => undefined;
 const save = async () => undefined;
 test("Validation Records exposes method, result and keyboard-addressable context without a status outcome gate", () => {
   const html = renderToStaticMarkup(
@@ -71,17 +73,7 @@ test("Validation Records exposes method, result and keyboard-addressable context
   expect(html).not.toContain("Publish");
   expect(html).not.toContain("Survey");
 });
-test("Validation Record editor labels its fields and archived Projects hide writes", () => {
-  const editor = renderToStaticMarkup(
-    <ValidationRecordEditor
-      counterparts={[]}
-      onCancel={cancel}
-      onSave={save}
-    />,
-  );
-  expect(editor).toContain('for="validation-method"');
-  expect(editor).toContain('for="validation-result"');
-  expect(editor).toContain("Related");
+test("Archived Projects hide Validation Record writes", () => {
   const archived = renderToStaticMarkup(
     <ValidationRecordsView
       counterparts={[]}

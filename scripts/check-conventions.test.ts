@@ -293,6 +293,10 @@ export function NoteTitleForm({ save }: { save: (title: string) => void }) {
     );
     write("apps/server/src/env.ts", "export const port = process.env.PORT;\n");
     write(
+      "apps/server/src/smart-link-egress-env.ts",
+      "export const port = process.env.PORT;\n",
+    );
+    write(
       `${feature}/hooks/use-note-sync.ts`,
       'import { client } from "@/utils/orpc";\nexport const useNoteSync = () => client;\n',
     );

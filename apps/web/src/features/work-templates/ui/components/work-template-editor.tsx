@@ -1,104 +1,20 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work Template controls close over the selected definition and draft field.
 import type { CustomFieldDefinition } from "@cantiara/api/custom-fields";
-import { WORK_TYPE_OPTIONS, type WorkType } from "@cantiara/api/work-lifecycle";
 import {
-  createWorkTemplateInputSchema,
+  type ParsedCreateWorkTemplateInput,
   resolveWorkTemplateDates,
   type WorkTemplate,
-  type WorkTemplateCustomFieldValue,
-  workTemplateRelativeDatesSchema,
 } from "@cantiara/api/work-templates";
 import { Button } from "@cantiara/ui/components/button";
-import { Checkbox } from "@cantiara/ui/components/checkbox";
-import {
-  Field,
-  FieldDescription,
-  FieldLabel,
-} from "@cantiara/ui/components/field";
-import { Input } from "@cantiara/ui/components/input";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@cantiara/ui/components/native-select";
-import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
 import { format } from "date-fns";
 import { useMemo, useState } from "react";
-
-import { useCustomFields } from "@/features/custom-fields/hooks/use-custom-fields";
 import { useWorkTemplates } from "@/features/work-templates/hooks/use-work-templates";
-
-interface WorkTemplateDraft {
-  checklistText: string;
-  customFieldDefaults: Record<string, WorkTemplateCustomFieldValue>;
-  descriptionSkeleton: string;
-  name: string;
-  plannedStartOffset: string;
-  targetOffset: string;
-  type: WorkType;
-}
-
-const EMPTY_DRAFT: WorkTemplateDraft = {
-  checklistText: "",
-  customFieldDefaults: {},
-  descriptionSkeleton: "",
-  name: "",
-  plannedStartOffset: "",
-  targetOffset: "",
-  type: "Task",
-};
+import { useCustomFields } from "@/lib/use-custom-fields";
+import { InstantiateWorkTemplateForm } from "../forms/instantiate-work-template-form";
+import { WorkTemplateForm } from "../forms/work-template-form";
 
 function browserCalendarDate() {
   return format(new Date(), "yyyy-MM-dd");
-}
-
-function initialValue(
-  definition: CustomFieldDefinition,
-): WorkTemplateCustomFieldValue {
-  switch (definition.type) {
-    case "Boolean":
-      return { boolean: false, kind: "boolean" };
-    case "Number":
-      return { kind: "number", number: 0 };
-    case "Single select":
-      return { kind: "option", option: definition.options[0] ?? "" };
-    case "Multi select":
-      return { kind: "options", options: definition.options.slice(0, 1) };
-    default:
-      return { kind: "text", text: "" };
-  }
-}
-
-function offset(value: string) {
-  if (value.trim() === "") {
-    return;
-  }
-  return { offsetDays: Number(value) };
-}
-
-function draftFromTemplate(template: WorkTemplate): WorkTemplateDraft {
-  return {
-    checklistText: template.checklist.map((item) => item.text).join("\n"),
-    customFieldDefaults: Object.fromEntries(
-      template.customFieldDefaults.map((item) => [
-        item.definitionId,
-        item.value,
-      ]),
-    ),
-    descriptionSkeleton: template.descriptionSkeleton ?? "",
-    name: template.name,
-    plannedStartOffset:
-      template.relativeDates.plannedStart?.offsetDays.toString() ?? "",
-    targetOffset: template.relativeDates.target?.offsetDays.toString() ?? "",
-    type: template.type,
-  };
-}
-
-function relativeDatesFromDraft(draft: WorkTemplateDraft) {
-  return {
-    plannedStart: offset(draft.plannedStartOffset),
-    target: offset(draft.targetOffset),
-  };
 }
 
 function customFieldLabel(
@@ -111,71 +27,11 @@ function customFieldLabel(
   );
 }
 
-export function liveCustomFieldDefaults(
-  defaults: Record<string, WorkTemplateCustomFieldValue>,
-  definitions: readonly CustomFieldDefinition[],
-) {
-  const live = new Set(definitions.map((definition) => definition.id));
-  return Object.entries(defaults)
-    .filter(([definitionId]) => live.has(definitionId))
-    .map(([definitionId, value]) => ({ definitionId, value }));
-}
-
 function datePreview(template: WorkTemplate, createDate: string) {
   return resolveWorkTemplateDates({
     createDate,
     relativeDates: template.relativeDates,
   });
-}
-
-function DraftDatePreview({
-  createDate,
-  plannedStartOffset,
-  targetOffset,
-}: {
-  createDate: string;
-  plannedStartOffset: string;
-  targetOffset: string;
-}) {
-  if (!(plannedStartOffset.trim() || targetOffset.trim())) {
-    return null;
-  }
-  const relativeDates = workTemplateRelativeDatesSchema.safeParse({
-    plannedStart: offset(plannedStartOffset),
-    target: offset(targetOffset),
-  });
-  if (!relativeDates.success) {
-    return (
-      <p className="text-destructive text-xs sm:col-span-2" role="alert">
-        Relative dates need whole days between -3650 and 3650.
-      </p>
-    );
-  }
-  const preview = resolveWorkTemplateDates({
-    createDate,
-    relativeDates: relativeDates.data,
-  });
-  return (
-    <dl
-      aria-label="Resolved dates preview"
-      className="grid gap-3 border-border/70 border-t pt-3 text-xs sm:col-span-2 sm:grid-cols-3"
-    >
-      <div>
-        <dt className="text-muted-foreground">Creation day</dt>
-        <dd className="mt-1 font-medium">{createDate}</dd>
-      </div>
-      <div>
-        <dt className="text-muted-foreground">Planned start</dt>
-        <dd className="mt-1 font-medium">
-          {preview.plannedStartDate ?? "Not set"}
-        </dd>
-      </div>
-      <div>
-        <dt className="text-muted-foreground">Target</dt>
-        <dd className="mt-1 font-medium">{preview.targetDate ?? "Not set"}</dd>
-      </div>
-    </dl>
-  );
 }
 
 export default function WorkTemplateEditor({
@@ -191,7 +47,6 @@ export default function WorkTemplateEditor({
   const customFields = useCustomFields(projectId);
   const [editing, setEditing] = useState<WorkTemplate | null>(null);
   const [instantiating, setInstantiating] = useState<WorkTemplate | null>(null);
-  const [instantiationTitle, setInstantiationTitle] = useState("");
   const [createdWorkKey, setCreatedWorkKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const definitions = useMemo(
@@ -210,56 +65,26 @@ export default function WorkTemplateEditor({
     templates.instantiate.isPending ||
     templates.update.isPending ||
     templates.moveToTrash.isPending;
-  const defaultValues = useMemo(
-    () => (editing ? draftFromTemplate(editing) : EMPTY_DRAFT),
-    [editing],
-  );
-  const form = useWorkTemplateForm(defaultValues, submitDraft);
+  const [formVersion, setFormVersion] = useState(0);
 
   function resetDraft() {
-    form.reset(EMPTY_DRAFT);
+    setFormVersion((version) => version + 1);
     setEditing(null);
     setError(null);
   }
 
-  async function submitDraft(draft: WorkTemplateDraft) {
-    // Defaults for definitions that are no longer live (trashed, unbound from
-    // Work, or Date typed) cannot be removed from the form, so drop them here
-    // instead of making every save fail server-side. While the Custom field
-    // list is unavailable the payload passes through for server validation.
-    const customFieldDefaults = customFields.query.data
-      ? liveCustomFieldDefaults(draft.customFieldDefaults, definitions)
-      : Object.entries(draft.customFieldDefaults).map(
-          ([definitionId, value]) => ({ definitionId, value }),
-        );
-    const parsed = createWorkTemplateInputSchema.safeParse({
-      checklist: draft.checklistText
-        .split("\n")
-        .map((text) => text.trim())
-        .filter(Boolean)
-        .map((text) => ({ id: crypto.randomUUID(), text })),
-      customFieldDefaults,
-      descriptionSkeleton: draft.descriptionSkeleton || null,
-      name: draft.name,
-      projectId,
-      relativeDates: relativeDatesFromDraft(draft),
-      type: draft.type,
-    });
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Check the Work Template.");
-      return;
-    }
+  async function saveTemplate(input: ParsedCreateWorkTemplateInput) {
     setError(null);
     try {
       if (editing) {
-        const { projectId: _projectId, ...input } = parsed.data;
+        const { projectId: _projectId, ...rest } = input;
         await templates.update.mutateAsync({
-          ...input,
+          ...rest,
           baseRevision: editing.revision,
           templateId: editing.id,
         });
       } else {
-        await templates.create.mutateAsync(parsed.data);
+        await templates.create.mutateAsync(input);
       }
       resetDraft();
     } catch (mutationError) {
@@ -273,18 +98,17 @@ export default function WorkTemplateEditor({
 
   const list = templates.query.data ?? [];
 
-  async function instantiateTemplate(template: WorkTemplate) {
+  async function instantiateTemplate(template: WorkTemplate, title: string) {
     setError(null);
     try {
       const work = await templates.instantiate.mutateAsync({
         baseRevision: template.revision,
         createDate: previewDate,
         templateId: template.id,
-        title: instantiationTitle,
+        title,
       });
       setCreatedWorkKey(work.key);
       setInstantiating(null);
-      setInstantiationTitle("");
     } catch (mutationError) {
       setError(
         mutationError instanceof Error
@@ -342,7 +166,6 @@ export default function WorkTemplateEditor({
                       disabled={pending}
                       onClick={() => {
                         setInstantiating(template);
-                        setInstantiationTitle("");
                         setCreatedWorkKey(null);
                         setError(null);
                       }}
@@ -355,7 +178,7 @@ export default function WorkTemplateEditor({
                       disabled={pending}
                       onClick={() => {
                         setEditing(template);
-                        form.reset(draftFromTemplate(template));
+                        setFormVersion((version) => version + 1);
                         setError(null);
                       }}
                       size="xs"
@@ -421,47 +244,16 @@ export default function WorkTemplateEditor({
                   </dl>
                 ) : null}
                 {instantiating?.id === template.id ? (
-                  <form
-                    aria-label={`Create Work from ${template.name}`}
-                    className="mt-4 flex flex-wrap items-end gap-2 border-border/70 border-t pt-4"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      instantiateTemplate(template).catch(() => undefined);
+                  <InstantiateWorkTemplateForm
+                    disabled={pending}
+                    onCancel={() => {
+                      setInstantiating(null);
+                      setError(null);
                     }}
-                  >
-                    <Field className="min-w-64 flex-1">
-                      <FieldLabel
-                        htmlFor={`work-template-title-${template.id}`}
-                      >
-                        Title
-                      </FieldLabel>
-                      <Input
-                        disabled={pending}
-                        id={`work-template-title-${template.id}`}
-                        onChange={(event) =>
-                          setInstantiationTitle(event.target.value)
-                        }
-                        required
-                        value={instantiationTitle}
-                      />
-                    </Field>
-                    <Button disabled={pending} size="sm" type="submit">
-                      Create from template
-                    </Button>
-                    <Button
-                      disabled={pending}
-                      onClick={() => {
-                        setInstantiating(null);
-                        setInstantiationTitle("");
-                        setError(null);
-                      }}
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      Cancel
-                    </Button>
-                  </form>
+                    onCreate={(title) => instantiateTemplate(template, title)}
+                    onValidationError={setError}
+                    template={template}
+                  />
                 ) : null}
               </li>
             );
@@ -470,355 +262,18 @@ export default function WorkTemplateEditor({
       )}
 
       <WorkTemplateForm
+        customFieldsLoaded={Boolean(customFields.query.data)}
         definitions={definitions}
         editing={editing}
         error={error}
-        form={form}
+        key={`${editing?.id ?? "new"}:${formVersion}`}
+        onCancel={resetDraft}
+        onSave={saveTemplate}
+        onValidationError={setError}
         pending={pending}
         previewDate={previewDate}
-        resetDraft={resetDraft}
+        projectId={projectId}
       />
     </div>
   );
-}
-
-function CustomFieldDefaultControl({
-  definition,
-  disabled,
-  onChange,
-  value,
-}: {
-  definition: CustomFieldDefinition;
-  disabled: boolean;
-  onChange: (value: WorkTemplateCustomFieldValue | undefined) => void;
-  value?: WorkTemplateCustomFieldValue;
-}) {
-  const selected = value !== undefined;
-  const checkboxId = `work-template-field-${definition.id}`;
-  return (
-    <div className="grid gap-3 rounded-md border border-border/70 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,1fr)] sm:items-center">
-      <label className="flex items-center gap-2 text-sm" htmlFor={checkboxId}>
-        <Checkbox
-          checked={selected}
-          disabled={disabled}
-          id={checkboxId}
-          onCheckedChange={(checked) =>
-            onChange(checked === true ? initialValue(definition) : undefined)
-          }
-        />
-        {definition.name}
-      </label>
-      {selected && value ? (
-        <CustomFieldDefaultValue
-          definition={definition}
-          disabled={disabled}
-          onChange={onChange}
-          value={value}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function CustomFieldDefaultValue({
-  definition,
-  disabled,
-  onChange,
-  value,
-}: {
-  definition: CustomFieldDefinition;
-  disabled: boolean;
-  onChange: (value: WorkTemplateCustomFieldValue) => void;
-  value: WorkTemplateCustomFieldValue;
-}) {
-  if (value.kind === "boolean") {
-    const booleanId = `work-template-field-${definition.id}-boolean`;
-    return (
-      <label className="flex items-center gap-2 text-sm" htmlFor={booleanId}>
-        <Checkbox
-          checked={value.boolean}
-          disabled={disabled}
-          id={booleanId}
-          onCheckedChange={(checked) =>
-            onChange({ boolean: checked === true, kind: "boolean" })
-          }
-        />
-        Enabled
-      </label>
-    );
-  }
-  if (value.kind === "option") {
-    return (
-      <NativeSelect
-        aria-label={`${definition.name} default`}
-        disabled={disabled}
-        onChange={(event) =>
-          onChange({ kind: "option", option: event.target.value })
-        }
-        value={value.option}
-      >
-        {definition.options.map((option) => (
-          <NativeSelectOption key={option} value={option}>
-            {option}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
-    );
-  }
-  if (value.kind === "options") {
-    return (
-      <div className="flex flex-wrap gap-3">
-        {definition.options.map((option, index) => {
-          const optionId = `work-template-field-${definition.id}-option-${index}`;
-          return (
-            <label
-              className="flex items-center gap-2 text-xs"
-              htmlFor={optionId}
-              key={option}
-            >
-              <Checkbox
-                checked={value.options.includes(option)}
-                disabled={disabled}
-                id={optionId}
-                onCheckedChange={(checked) => {
-                  const options = checked
-                    ? [...value.options, option]
-                    : value.options.filter((item) => item !== option);
-                  if (options.length > 0) {
-                    onChange({ kind: "options", options });
-                  }
-                }}
-              />
-              {option}
-            </label>
-          );
-        })}
-      </div>
-    );
-  }
-  return (
-    <Input
-      aria-label={`${definition.name} default`}
-      disabled={disabled}
-      onChange={(event) =>
-        onChange(
-          value.kind === "number"
-            ? { kind: "number", number: Number(event.target.value) }
-            : { kind: "text", text: event.target.value },
-        )
-      }
-      type={value.kind === "number" ? "number" : "text"}
-      value={value.kind === "number" ? value.number : value.text}
-    />
-  );
-}
-
-function WorkTemplateForm({
-  editing,
-  form,
-  resetDraft,
-  pending,
-  definitions,
-  previewDate,
-  error,
-}: {
-  editing: WorkTemplate | null;
-  form: ReturnType<typeof useWorkTemplateForm>;
-  resetDraft: () => void;
-  pending: boolean;
-  definitions: CustomFieldDefinition[];
-  previewDate: string;
-  error: string | null;
-}) {
-  return (
-    <form
-      aria-label={editing ? "Edit Work Template" : "Add Work Template"}
-      className="space-y-5 border-border/70 border-t pt-5"
-      noValidate
-      onSubmit={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
-      }}
-    >
-      <div className="flex items-center justify-between gap-4">
-        <h5 className="font-medium text-sm">
-          {editing ? "Edit Work Template" : "Add Work Template"}
-        </h5>
-        {editing ? (
-          <Button onClick={resetDraft} size="xs" type="button" variant="ghost">
-            Cancel
-          </Button>
-        ) : null}
-      </div>
-      <div className="grid gap-5 sm:grid-cols-2">
-        <form.Field name="name">
-          {(field) => (
-            <Field>
-              <FieldLabel htmlFor="work-template-name">Name</FieldLabel>
-              <Input
-                disabled={pending}
-                id="work-template-name"
-                onChange={(event) => field.handleChange(event.target.value)}
-                value={field.state.value}
-              />
-            </Field>
-          )}
-        </form.Field>
-        <form.Field name="type">
-          {(field) => (
-            <Field>
-              <FieldLabel htmlFor="work-template-type">Type</FieldLabel>
-              <NativeSelect
-                disabled={pending}
-                id="work-template-type"
-                onChange={(event) =>
-                  field.handleChange(event.target.value as WorkType)
-                }
-                value={field.state.value}
-              >
-                {WORK_TYPE_OPTIONS.map((type) => (
-                  <NativeSelectOption key={type} value={type}>
-                    {type}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </Field>
-          )}
-        </form.Field>
-      </div>
-      <form.Field name="descriptionSkeleton">
-        {(field) => (
-          <Field>
-            <FieldLabel htmlFor="work-template-description">
-              Description skeleton
-            </FieldLabel>
-            <Textarea
-              disabled={pending}
-              id="work-template-description"
-              onChange={(event) => field.handleChange(event.target.value)}
-              rows={5}
-              value={field.state.value}
-            />
-            <FieldDescription>
-              Use ordinary Work text. Placeholder syntax is not supported.
-            </FieldDescription>
-          </Field>
-        )}
-      </form.Field>
-      <form.Field name="checklistText">
-        {(field) => (
-          <Field>
-            <FieldLabel htmlFor="work-template-checklist">Checklist</FieldLabel>
-            <Textarea
-              disabled={pending}
-              id="work-template-checklist"
-              onChange={(event) => field.handleChange(event.target.value)}
-              placeholder="One item per line"
-              rows={4}
-              value={field.state.value}
-            />
-          </Field>
-        )}
-      </form.Field>
-      <fieldset className="space-y-3">
-        <legend className="font-medium text-sm">Selected field defaults</legend>
-        <form.Field name="customFieldDefaults">
-          {(field) =>
-            definitions.length === 0 ? (
-              <p className="text-muted-foreground text-xs">
-                Add a non-date Custom field for Work to set a default here.
-              </p>
-            ) : (
-              definitions.map((definition) => (
-                <CustomFieldDefaultControl
-                  definition={definition}
-                  disabled={pending}
-                  key={definition.id}
-                  onChange={(value) => {
-                    const next = { ...field.state.value };
-                    if (value) {
-                      next[definition.id] = value;
-                    } else {
-                      delete next[definition.id];
-                    }
-                    field.handleChange(next);
-                  }}
-                  value={field.state.value[definition.id]}
-                />
-              ))
-            )
-          }
-        </form.Field>
-      </fieldset>
-      <fieldset className="grid gap-4 rounded-md border border-border/70 p-4 sm:grid-cols-2">
-        <legend className="px-1 font-medium text-sm">Relative dates</legend>
-        <form.Field name="plannedStartOffset">
-          {(field) => (
-            <Field>
-              <FieldLabel htmlFor="work-template-planned-start-offset">
-                Planned start days from creation
-              </FieldLabel>
-              <Input
-                disabled={pending}
-                id="work-template-planned-start-offset"
-                max={3650}
-                min={-3650}
-                onChange={(event) => field.handleChange(event.target.value)}
-                type="number"
-                value={field.state.value}
-              />
-            </Field>
-          )}
-        </form.Field>
-        <form.Field name="targetOffset">
-          {(field) => (
-            <Field>
-              <FieldLabel htmlFor="work-template-target-offset">
-                Target days from creation
-              </FieldLabel>
-              <Input
-                disabled={pending}
-                id="work-template-target-offset"
-                max={3650}
-                min={-3650}
-                onChange={(event) => field.handleChange(event.target.value)}
-                type="number"
-                value={field.state.value}
-              />
-            </Field>
-          )}
-        </form.Field>
-        <form.Subscribe
-          selector={(state) => ({
-            plannedStartOffset: state.values.plannedStartOffset,
-            targetOffset: state.values.targetOffset,
-          })}
-        >
-          {(values) => (
-            <DraftDatePreview
-              createDate={previewDate}
-              plannedStartOffset={values.plannedStartOffset}
-              targetOffset={values.targetOffset}
-            />
-          )}
-        </form.Subscribe>
-      </fieldset>
-      {error ? (
-        <p className="text-destructive text-sm" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <Button disabled={pending} type="submit">
-        {editing ? "Save changes" : "Add Work Template"}
-      </Button>
-    </form>
-  );
-}
-
-function useWorkTemplateForm(
-  defaultValues: WorkTemplateDraft,
-  onSubmit: (draft: WorkTemplateDraft) => Promise<void>,
-) {
-  return useForm({ defaultValues, onSubmit: ({ value }) => onSubmit(value) });
 }

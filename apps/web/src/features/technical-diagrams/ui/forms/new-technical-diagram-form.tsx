@@ -1,12 +1,18 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each form binds its own field state.
-import { externalSourceUrlSchema } from "@cantiara/api/technical-diagram-authority";
+import {
+  type CreateTechnicalDiagramInput,
+  createTechnicalDiagramInputSchema,
+} from "@cantiara/api/technical-diagram-authority";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { z } from "zod";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client } from "@/utils/orpc";
@@ -24,58 +30,29 @@ const TYPES: DiagramType[] = [
 ];
 const MODES: CreateMode[] = ["Product-authored Model", "External Source Link"];
 
-const newDiagramSchema = z
-  .object({
-    mode: z.enum(MODES),
-    revision: z.string(),
-    title: z.string().trim().min(1),
-    tool: z.string(),
-    type: z.enum(TYPES),
-    url: z.string(),
-  })
-  .refine(
-    (value) =>
-      value.mode !== "External Source Link" ||
-      (externalSourceUrlSchema.safeParse(value.url).success &&
-        value.tool.trim().length > 0),
-  );
-type NewDiagramValues = z.infer<typeof newDiagramSchema>;
+interface NewDiagramValues {
+  mode: CreateMode;
+  revision: string;
+  title: string;
+  tool: string;
+  type: DiagramType;
+  url: string;
+}
+
+function pickOption<T extends string>(
+  options: readonly T[],
+  value: string,
+): T | undefined {
+  return options.find((option) => option === value);
+}
 
 export function NewTechnicalDiagramForm({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const pendingKey = useRef<string | null>(null);
   const create = useMutation({
-    mutationFn: ({
-      mode,
-      revision,
-      title,
-      tool,
-      type,
-      url,
-    }: NewDiagramValues) => {
-      pendingKey.current ??= crypto.randomUUID();
-      const base = {
-        clientIdempotencyKey: pendingKey.current,
-        projectId,
-        title,
-        type,
-      };
-      return runOnlineOnlyWrite(() =>
-        mode === "External Source Link"
-          ? client.createTechnicalDiagram({
-              ...base,
-              authorityMode: mode,
-              externalSource: {
-                lastCheckedAt: new Date().toISOString(),
-                revision: revision.trim() || null,
-                tool,
-                url,
-              },
-            })
-          : client.createTechnicalDiagram({ ...base, authorityMode: mode }),
-      );
-    },
+    mutationFn: (input: CreateTechnicalDiagramInput) =>
+      runOnlineOnlyWrite(() => client.createTechnicalDiagram(input)),
     onError: (failure) =>
       setError(
         failure instanceof Error
@@ -104,12 +81,35 @@ export function NewTechnicalDiagramForm({ projectId }: { projectId: string }) {
       },
     },
     onSubmit: async ({ value, formApi }) => {
+      pendingKey.current ??= crypto.randomUUID();
+      const base = {
+        clientIdempotencyKey: pendingKey.current,
+        projectId,
+        title: value.title,
+        type: value.type,
+      };
+      const parsed = createTechnicalDiagramInputSchema.safeParse(
+        value.mode === "External Source Link"
+          ? {
+              ...base,
+              authorityMode: value.mode,
+              externalSource: {
+                lastCheckedAt: new Date().toISOString(),
+                revision: value.revision.trim() || null,
+                tool: value.tool,
+                url: value.url,
+              },
+            }
+          : { ...base, authorityMode: value.mode },
+      );
+      if (!parsed.success) {
+        return;
+      }
       await create
-        .mutateAsync(value)
+        .mutateAsync(parsed.data)
         .then(() => formApi.setFieldValue("title", ""))
         .catch(() => undefined);
     },
-    validators: { onChange: newDiagramSchema },
   });
   return (
     <form
@@ -117,6 +117,7 @@ export function NewTechnicalDiagramForm({ projectId }: { projectId: string }) {
       className="space-y-2 rounded-lg border p-4"
       onSubmit={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         form.handleSubmit().catch(() => undefined);
       }}
     >
@@ -138,19 +139,24 @@ export function NewTechnicalDiagramForm({ projectId }: { projectId: string }) {
         {(field) => (
           <>
             <Label htmlFor="new-diagram-type">Type</Label>
-            <select
+            <NativeSelect
+              className="w-full"
               id="new-diagram-type"
-              onChange={(event) =>
-                field.handleChange(event.target.value as DiagramType)
-              }
+              name={field.name}
+              onChange={(event) => {
+                const next = pickOption(TYPES, event.target.value);
+                if (next) {
+                  field.handleChange(next);
+                }
+              }}
               value={field.state.value}
             >
               {TYPES.map((option) => (
-                <option key={option} value={option}>
+                <NativeSelectOption key={option} value={option}>
                   {option}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
+            </NativeSelect>
           </>
         )}
       </form.Field>
@@ -158,19 +164,24 @@ export function NewTechnicalDiagramForm({ projectId }: { projectId: string }) {
         {(field) => (
           <>
             <Label htmlFor="new-diagram-mode">Diagram Authority Mode</Label>
-            <select
+            <NativeSelect
+              className="w-full"
               id="new-diagram-mode"
-              onChange={(event) =>
-                field.handleChange(event.target.value as CreateMode)
-              }
+              name={field.name}
+              onChange={(event) => {
+                const next = pickOption(MODES, event.target.value);
+                if (next) {
+                  field.handleChange(next);
+                }
+              }}
               value={field.state.value}
             >
               {MODES.map((option) => (
-                <option key={option} value={option}>
+                <NativeSelectOption key={option} value={option}>
                   {option}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
+            </NativeSelect>
           </>
         )}
       </form.Field>

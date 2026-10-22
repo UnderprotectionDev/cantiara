@@ -7,7 +7,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, test, vi } from "vitest";
 import { orpc } from "@/utils/orpc";
 import OpenQuestionsSurface from "../../components/open-questions-surface";
-import { OpenQuestionDetail, OpenQuestionEditor } from "../open-question-view";
+import { OpenQuestionDetail } from "../open-question-view";
+
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -103,76 +109,6 @@ test("Uncertainty Records keeps historical answer and exact evidence visible whe
   expect(html).toContain("Version 1");
   expect(html).not.toContain("<button");
 });
-test("Uncertainty Records answer form requires an answer and offers optional rationale and evidence", () => {
-  const html = renderToStaticMarkup(
-    <OpenQuestionEditor
-      documents={[]}
-      onCancel={noop}
-      onSave={save}
-      record={record}
-    />,
-  );
-  expect(html).toContain("Answer");
-  expect(html).toContain("Rationale (optional)");
-  expect(html).toContain("Evidence (optional)");
-  expect(html).toContain("Cancel");
-});
-
-test("Open Question errors retain entered answer and rationale", async () => {
-  host = document.createElement("div");
-  document.body.append(host);
-  mountedRoot = createRoot(host);
-  const onSave = vi.fn(() => Promise.reject(new Error("Save failed")));
-
-  await act(() => {
-    mountedRoot?.render(
-      <OpenQuestionEditor
-        documents={[]}
-        onCancel={noop}
-        onSave={onSave}
-        record={{ ...record, answer: "", life: "Open", rationale: "" }}
-      />,
-    );
-  });
-
-  const answer = host.querySelector<HTMLTextAreaElement>("#question-answer");
-  const rationale = host.querySelector<HTMLTextAreaElement>(
-    "#question-rationale",
-  );
-  const saveButton = host.querySelector<HTMLButtonElement>(
-    'button[type="submit"]',
-  );
-  if (!answer) {
-    throw new Error("Open Question answer form did not render.");
-  }
-  if (!rationale) {
-    throw new Error("Open Question rationale field did not render.");
-  }
-  if (!saveButton) {
-    throw new Error("Open Question Save button did not render.");
-  }
-
-  await act(() => {
-    setTextareaValue(answer, "Every other week");
-    setTextareaValue(rationale, "The pilot showed a stable cadence.");
-    saveButton.click();
-  });
-
-  expect(onSave).toHaveBeenCalledTimes(1);
-  expect(onSave).toHaveBeenCalledWith(
-    expect.objectContaining({
-      answer: "Every other week",
-      rationale: "The pilot showed a stable cadence.",
-    }),
-    expect.objectContaining({ id: record.id }),
-  );
-  expect(host.querySelector('[role="alert"]')?.textContent).toContain(
-    "Your text is kept here.",
-  );
-  expect(answer.value).toBe("Every other week");
-  expect(rationale.value).toBe("The pilot showed a stable cadence.");
-});
-
 test.each(["Create", "Answered"] as const)(
   "Open Question keeps the %s draft when a background records refresh fails",
   async (mode) => {

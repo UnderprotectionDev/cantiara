@@ -4,21 +4,9 @@ import type { RelationPreview, RelationView } from "@cantiara/api/relations";
 import type { Milestone } from "@cantiara/api/roadmap-horizon";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
-import { Calendar } from "@cantiara/ui/components/calendar";
-import { Field, FieldLabel } from "@cantiara/ui/components/field";
-import { Input } from "@cantiara/ui/components/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@cantiara/ui/components/popover";
-import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { format, parseISO } from "date-fns";
-import { CalendarDays } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import {
@@ -27,26 +15,13 @@ import {
   orpc,
   projectWorksQueryPrefix,
 } from "@/utils/orpc";
-
-interface MilestoneDraft {
-  description: string;
-  targetDate: string;
-  title: string;
-}
-
-const EMPTY_DRAFT: MilestoneDraft = {
-  description: "",
-  targetDate: "",
-  title: "",
-};
-
-function milestoneDraft(milestone: Milestone): MilestoneDraft {
-  return {
-    description: milestone.description ?? "",
-    targetDate: milestone.targetDate ?? "",
-    title: milestone.title,
-  };
-}
+import {
+  EMPTY_DRAFT,
+  type MilestoneDraft,
+  MilestoneEditor,
+  milestoneDraft,
+} from "../forms/milestone-form";
+import { MilestoneWorkPicker } from "../forms/milestone-work-form";
 
 function invalidateMilestones(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -62,197 +37,6 @@ function invalidateMilestones(
   ]);
 }
 
-function MilestoneTargetDatePicker({
-  disabled,
-  id,
-  onChange,
-  value,
-}: {
-  disabled: boolean;
-  id: string;
-  onChange: (value: string) => void;
-  value: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const selectedDate = value ? parseISO(value) : undefined;
-  const validSelectedDate =
-    selectedDate && !Number.isNaN(selectedDate.getTime())
-      ? selectedDate
-      : undefined;
-
-  return (
-    <Popover onOpenChange={setOpen} open={open}>
-      <PopoverTrigger
-        render={
-          <Button
-            aria-label="Target date"
-            className="w-full justify-between font-normal"
-            disabled={disabled}
-            id={id}
-            type="button"
-            variant="outline"
-          />
-        }
-      >
-        {value || "Choose a calendar date."}
-        <CalendarDays aria-hidden="true" />
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto min-w-72">
-        <Calendar
-          defaultMonth={validSelectedDate}
-          mode="single"
-          onSelect={(date) => {
-            onChange(date ? format(date, "yyyy-MM-dd") : "");
-            setOpen(false);
-          }}
-          selected={validSelectedDate}
-        />
-        {value ? (
-          <Button
-            className="w-full"
-            disabled={disabled}
-            onClick={() => {
-              onChange("");
-              setOpen(false);
-            }}
-            size="xs"
-            type="button"
-            variant="ghost"
-          >
-            Clear date
-          </Button>
-        ) : null}
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function MilestoneEditor({
-  className,
-  error,
-  initialValues,
-  onCancel,
-  onSave,
-  prefix,
-  submitLabel,
-}: {
-  className: string;
-  error: boolean;
-  initialValues: MilestoneDraft;
-  onCancel?: () => void;
-  onSave: (draft: MilestoneDraft) => Promise<unknown>;
-  prefix: string;
-  submitLabel: string;
-}) {
-  const form = useForm({
-    defaultValues: initialValues,
-    onSubmit: async ({ value }) => {
-      await onSave({
-        ...value,
-        description: value.description.trim(),
-      });
-      form.reset(initialValues);
-    },
-  });
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
-  }
-
-  return (
-    <form className={className} onSubmit={handleSubmit}>
-      <form.Subscribe selector={(state) => state.isSubmitting}>
-        {(isSubmitting) => (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <form.Field name="title">
-              {(field) => (
-                <label
-                  className="grid gap-1 text-sm"
-                  htmlFor={`${prefix}-title`}
-                >
-                  Title
-                  <Input
-                    disabled={isSubmitting}
-                    id={`${prefix}-title`}
-                    maxLength={255}
-                    name={field.name}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    required
-                    value={field.state.value}
-                  />
-                </label>
-              )}
-            </form.Field>
-            <form.Field name="targetDate">
-              {(field) => (
-                <Field>
-                  <FieldLabel htmlFor={`${prefix}-target-date`}>
-                    Target date
-                  </FieldLabel>
-                  <MilestoneTargetDatePicker
-                    disabled={isSubmitting}
-                    id={`${prefix}-target-date`}
-                    onChange={field.handleChange}
-                    value={field.state.value}
-                  />
-                </Field>
-              )}
-            </form.Field>
-            <form.Field name="description">
-              {(field) => (
-                <label
-                  className="grid gap-1 text-sm sm:col-span-2"
-                  htmlFor={`${prefix}-description`}
-                >
-                  Description
-                  <Textarea
-                    disabled={isSubmitting}
-                    id={`${prefix}-description`}
-                    maxLength={20_000}
-                    name={field.name}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    value={field.state.value}
-                  />
-                </label>
-              )}
-            </form.Field>
-          </div>
-        )}
-      </form.Subscribe>
-      <div className="flex gap-2">
-        <form.Subscribe selector={(state) => state.isSubmitting}>
-          {(isSubmitting) => (
-            <Button disabled={isSubmitting} type="submit">
-              {submitLabel}
-            </Button>
-          )}
-        </form.Subscribe>
-        {onCancel ? (
-          <form.Subscribe selector={(state) => state.isSubmitting}>
-            {(isSubmitting) => (
-              <Button
-                disabled={isSubmitting}
-                onClick={onCancel}
-                type="button"
-                variant="outline"
-              >
-                Cancel
-              </Button>
-            )}
-          </form.Subscribe>
-        ) : null}
-      </div>
-      {error ? (
-        <p className="text-destructive text-sm" role="alert">
-          This action could not be completed.
-        </p>
-      ) : null}
-    </form>
-  );
-}
-
 function MilestoneCard({
   milestone,
   projectId,
@@ -264,7 +48,6 @@ function MilestoneCard({
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
-  const [selectedWorkId, setSelectedWorkId] = useState(works[0]?.id ?? "");
   const [preview, setPreview] = useState<RelationPreview | null>(null);
   const [relationIdempotencyKey, setRelationIdempotencyKey] = useState<
     string | null
@@ -311,10 +94,10 @@ function MilestoneCard({
     },
   });
   const relationPreviewMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (workId: string) =>
       client.relationPreview({
         kind: "Contributes to Milestone",
-        source: { recordId: selectedWorkId, recordType: "Work" },
+        source: { recordId: workId, recordType: "Work" },
         target: { recordId: milestone.id, recordType: "Milestone" },
       }),
     onSuccess: (nextPreview) => {
@@ -355,7 +138,10 @@ function MilestoneCard({
         }),
         queryClient.invalidateQueries({
           queryKey: orpc.relations.queryOptions({
-            input: { recordId: selectedWorkId, recordType: "Work" },
+            input: {
+              recordId: preview?.source.recordId ?? "",
+              recordType: "Work",
+            },
           }).queryKey,
         }),
       ]);
@@ -446,10 +232,8 @@ function MilestoneCard({
         relationCreateMutation={relationCreateMutation}
         relationPreviewMutation={relationPreviewMutation}
         relationsQuery={relationsQuery}
-        selectedWorkId={selectedWorkId}
         setPreview={setPreview}
         setRelationIdempotencyKey={setRelationIdempotencyKey}
-        setSelectedWorkId={setSelectedWorkId}
         works={works}
       />
     </article>
@@ -535,10 +319,8 @@ function MilestoneWorkRelations({
   works,
   relationPreviewMutation,
   relationCreateMutation,
-  setSelectedWorkId,
   setPreview,
   setRelationIdempotencyKey,
-  selectedWorkId,
   preview,
 }: {
   projectId: string;
@@ -552,7 +334,7 @@ function MilestoneWorkRelations({
   relationPreviewMutation: import("@tanstack/react-query").UseMutationResult<
     RelationPreview,
     Error,
-    void,
+    string,
     unknown
   >;
   relationCreateMutation: import("@tanstack/react-query").UseMutationResult<
@@ -561,16 +343,12 @@ function MilestoneWorkRelations({
     void,
     unknown
   >;
-  setSelectedWorkId: import("react").Dispatch<
-    import("react").SetStateAction<string>
-  >;
   setPreview: import("react").Dispatch<
     import("react").SetStateAction<RelationPreview | null>
   >;
   setRelationIdempotencyKey: import("react").Dispatch<
     import("react").SetStateAction<string | null>
   >;
-  selectedWorkId: string;
   preview: RelationPreview | null;
 }) {
   return (
@@ -603,47 +381,19 @@ function MilestoneWorkRelations({
         </Link>
       ))}
       {works.length ? (
-        <div className="flex flex-wrap items-end gap-2">
-          <label
-            className="grid gap-1 text-xs"
-            htmlFor={`milestone-work-${milestone.id}`}
-          >
-            Work
-            <select
-              className="min-h-10 rounded-md border bg-background px-2 text-sm"
-              disabled={
-                relationPreviewMutation.isPending ||
-                relationCreateMutation.isPending
-              }
-              id={`milestone-work-${milestone.id}`}
-              onChange={(event) => {
-                setSelectedWorkId(event.target.value);
-                setPreview(null);
-                setRelationIdempotencyKey(null);
-              }}
-              value={selectedWorkId}
-            >
-              {works.map((work) => (
-                <option key={work.id} value={work.id}>
-                  {work.key} · {work.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button
-            disabled={
-              !selectedWorkId ||
-              relationPreviewMutation.isPending ||
-              relationCreateMutation.isPending
-            }
-            onClick={() => relationPreviewMutation.mutate()}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            Preview relation
-          </Button>
-        </div>
+        <MilestoneWorkPicker
+          disabled={
+            relationPreviewMutation.isPending ||
+            relationCreateMutation.isPending
+          }
+          milestoneId={milestone.id}
+          onPreview={(workId) => relationPreviewMutation.mutate(workId)}
+          onSelect={() => {
+            setPreview(null);
+            setRelationIdempotencyKey(null);
+          }}
+          works={works}
+        />
       ) : (
         <p className="text-muted-foreground text-sm">No Work yet.</p>
       )}

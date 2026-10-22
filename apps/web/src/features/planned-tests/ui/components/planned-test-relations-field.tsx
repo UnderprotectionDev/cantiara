@@ -7,7 +7,8 @@ import {
 } from "@cantiara/api/planned-tests";
 import { Button } from "@cantiara/ui/components/button";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useId, useState } from "react";
 import type { RelationDraft } from "../../lib/planned-test-form";
 
 export type LoadRelationTargets = (
@@ -33,38 +34,31 @@ export function PlannedTestRelationsField({
   const statusId = useId();
   const [targetType, setTargetType] =
     useState<PlannedTestRelationTargetType>("Work");
-  const [targets, setTargets] = useState<PlannedTestRelationTarget[] | null>(
-    null,
-  );
+  const targetsQuery = useQuery({
+    gcTime: 0,
+    queryFn: () => loadTargets(targetType),
+    queryKey: ["planned-test-relation-targets", targetType],
+  });
+  const targets = targetsQuery.data;
   const [targetId, setTargetId] = useState("");
   const [sectionId, setSectionId] = useState("");
   const [message, setMessage] = useState("");
 
   const selected = targets?.find((target) => target.targetId === targetId);
 
-  const chooseType = useCallback(
-    async (next: PlannedTestRelationTargetType) => {
-      setTargetType(next);
-      setTargets(null);
-      setTargetId("");
-      setSectionId("");
-      setMessage("");
-      try {
-        const loaded = await loadTargets(next);
-        setTargets(loaded);
-        if (loaded.length === 0) {
-          setMessage(`This Project has no ${next} to relate yet.`);
-        }
-      } catch {
-        setMessage(`${next} records could not be loaded.`);
-      }
-    },
-    [loadTargets],
-  );
+  function chooseType(next: PlannedTestRelationTargetType) {
+    setTargetType(next);
+    setTargetId("");
+    setSectionId("");
+    setMessage("");
+  }
 
-  useEffect(() => {
-    chooseType("Work").catch(() => undefined);
-  }, [chooseType]);
+  let loadMessage = "";
+  if (targetsQuery.isError) {
+    loadMessage = `${targetType} records could not be loaded.`;
+  } else if (targets?.length === 0) {
+    loadMessage = `This Project has no ${targetType} to relate yet.`;
+  }
 
   function add() {
     if (!selected) {
@@ -148,9 +142,7 @@ export function PlannedTestRelationsField({
             <NativeSelect
               id={`${idPrefix}-relation-type`}
               onChange={(event) =>
-                chooseType(
-                  event.target.value as PlannedTestRelationTargetType,
-                ).catch(() => undefined)
+                chooseType(event.target.value as PlannedTestRelationTargetType)
               }
               value={targetType}
             >
@@ -220,7 +212,7 @@ export function PlannedTestRelationsField({
         id={statusId}
         role="status"
       >
-        {message}
+        {message || loadMessage}
       </p>
     </fieldset>
   );

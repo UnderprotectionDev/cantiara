@@ -7,12 +7,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
-import ProjectGoalMembership from "./project-goal-membership";
 import {
   type ProjectGoalDraft,
   ProjectGoalSaveConflictError,
-  ProjectGoalsView,
-} from "./project-goals-view";
+} from "../forms/project-goal-form";
+import ProjectGoalMembership from "./project-goal-membership";
+import { ProjectGoalsView } from "./project-goals-view";
 
 export default function ProjectGoalsSurface({
   projectId,

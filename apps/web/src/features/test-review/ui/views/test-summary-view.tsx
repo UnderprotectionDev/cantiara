@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Rows toggle their own record list.
+
 import {
   resultLabel,
   technicalContextUnknown,
@@ -15,6 +16,7 @@ import {
   type TestSummarySection,
 } from "@cantiara/api/test-review-summary";
 import { useId, useState } from "react";
+import { AppLink } from "@/components/app-link";
 import {
   projectSourceRecordHash,
   testGapRecordHash,
@@ -70,12 +72,12 @@ function Provenance({
       )}
       <dt>Source session</dt>
       <dd>
-        <a
+        <AppLink
           className="underline underline-offset-2"
           href={`/projects/${encodeURIComponent(projectId)}#${testsAreaRecordHash("Test Session", provenance.sessionId)}`}
         >
           Open Test Session
-        </a>
+        </AppLink>
       </dd>
       <dt>Executor</dt>
       <dd>{provenance.executorName}</dd>
@@ -102,12 +104,12 @@ function RecordRow({
 }) {
   return (
     <li className="py-1.5">
-      <a
+      <AppLink
         className="font-medium underline underline-offset-2"
         href={summaryRecordHref(projectId, record)}
       >
         {record.label || record.id}
-      </a>{" "}
+      </AppLink>{" "}
       <span className="text-muted-foreground text-xs">
         {record.kind}
         {record.detail ? ` · ${record.detail}` : ""}

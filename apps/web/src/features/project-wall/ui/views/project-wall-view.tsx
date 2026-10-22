@@ -7,14 +7,7 @@ import type {
   ProjectWallView,
 } from "@cantiara/api/project-wall";
 import { Button } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
-import { Label } from "@cantiara/ui/components/label";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@cantiara/ui/components/native-select";
-import { type FormEvent, type ReactNode, useState } from "react";
-
+import { type ReactNode, useState } from "react";
 import { focusProjectWallGroup } from "../../lib/project-wall-group-focus";
 import {
   type ProjectWallNarrativeActions,
@@ -27,6 +20,9 @@ import {
   ProjectWallSnapshotPanel,
 } from "../components/project-wall-presentation";
 import type { ProjectWallSceneWall } from "../components/project-wall-scene";
+import { CreateWallForm } from "../forms/create-project-wall-form";
+import { AddCardForm } from "../forms/place-project-wall-card-form";
+import { RenameWallForm } from "../forms/rename-project-wall-form";
 
 export interface ProjectWallActions
   extends ProjectWallNarrativeActions,
@@ -41,153 +37,6 @@ export interface ProjectWallActions
   onDelete: (wallId: string) => Promise<boolean>;
   onRename: (wallId: string, title: string) => Promise<boolean>;
   onSelect: (wallId: string) => void;
-}
-
-function optionKey(
-  option: Pick<ProjectWallSourceOption, "diagramViewId" | "id" | "sourceType">,
-) {
-  return `${option.sourceType}:${option.id}${option.diagramViewId ? `:${option.diagramViewId}` : ""}`;
-}
-
-function CreateWallForm({
-  onCreate,
-}: {
-  onCreate: ProjectWallActions["onCreate"];
-}) {
-  const [title, setTitle] = useState("");
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const name = title.trim();
-    if (!name) {
-      return;
-    }
-    if (await onCreate(name)) {
-      // Only a persisted wall clears the draft; a failed write keeps it.
-      setTitle("");
-    }
-  }
-  return (
-    <form
-      aria-label="Create Project Wall"
-      className="flex flex-wrap items-end gap-2"
-      onSubmit={submit}
-    >
-      <div className="space-y-1">
-        <Label htmlFor="project-wall-title">Project Wall name</Label>
-        <Input
-          id="project-wall-title"
-          onChange={(event) => setTitle(event.target.value)}
-          value={title}
-        />
-      </div>
-      <Button type="submit">Create Project Wall</Button>
-    </form>
-  );
-}
-
-function RenameWallForm({
-  onRename,
-  wall,
-}: {
-  onRename: ProjectWallActions["onRename"];
-  wall: ProjectWallView;
-}) {
-  const [title, setTitle] = useState(wall.title);
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const name = title.trim();
-    if (name && name !== wall.title) {
-      // A rename remounts this form with the saved title once it persists.
-      await onRename(wall.id, name);
-    }
-  }
-  return (
-    <form
-      aria-label="Rename Project Wall"
-      className="flex flex-wrap items-end gap-2"
-      onSubmit={submit}
-    >
-      <div className="space-y-1">
-        <Label htmlFor="project-wall-rename">Rename</Label>
-        <Input
-          id="project-wall-rename"
-          onChange={(event) => setTitle(event.target.value)}
-          value={title}
-        />
-      </div>
-      <Button type="submit" variant="outline">
-        Rename
-      </Button>
-    </form>
-  );
-}
-
-/** Picks an existing master record; the wall stores only its id and type. */
-export function AddCardForm({
-  onAddCard,
-  options,
-  placed,
-}: {
-  onAddCard: ProjectWallActions["onAddCard"];
-  options: ProjectWallSourceOption[];
-  /** Records already on this wall: one live card per record per wall. */
-  placed: ReadonlySet<string>;
-}) {
-  // One live card per record per wall, whichever Diagram View it selects.
-  const available = options.filter(
-    (option) => !placed.has(`${option.sourceType}:${option.id}`),
-  );
-  const [selected, setSelected] = useState("");
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const option = available.find(
-      (candidate) => optionKey(candidate) === selected,
-    );
-    if (!option) {
-      return;
-    }
-    if (
-      await onAddCard({
-        ...(option.diagramViewId
-          ? { diagramViewId: option.diagramViewId }
-          : {}),
-        sourceId: option.id,
-        sourceType: option.sourceType,
-      })
-    ) {
-      // Only a persisted card drops the selection; a failed write keeps it.
-      setSelected("");
-    }
-  }
-  return (
-    <form
-      aria-label="Place live card"
-      className="flex flex-wrap items-end gap-2"
-      onSubmit={submit}
-    >
-      <div className="space-y-1">
-        <Label htmlFor="project-wall-source">Source record</Label>
-        <NativeSelect
-          id="project-wall-source"
-          onChange={(event) => setSelected(event.target.value)}
-          value={selected}
-        >
-          <NativeSelectOption value="">Select a record</NativeSelectOption>
-          {available.map((option) => (
-            <NativeSelectOption
-              key={optionKey(option)}
-              value={optionKey(option)}
-            >
-              {option.sourceType} · {option.title}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </div>
-      <Button disabled={!selected} type="submit">
-        Place live card
-      </Button>
-    </form>
-  );
 }
 
 function renderCanvas(

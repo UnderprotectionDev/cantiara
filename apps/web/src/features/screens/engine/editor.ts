@@ -10,6 +10,7 @@ import {
   type WireframeDocument,
   type WireframeLiveCardRecordType,
 } from "@cantiara/api/wireframe-document";
+import { createStore } from "@tanstack/react-store";
 import { createGeometryIndex, type GeometryIndex } from "./geometry";
 
 export interface WireframeEditorState {
@@ -30,51 +31,54 @@ export function createWireframeEditor(
   options: { createId?: () => string } = {},
 ) {
   const createId = options.createId ?? (() => crypto.randomUUID());
-  let state: WireframeEditorState = {
+  const store = createStore<WireframeEditorState>({
     canRedo: false,
     canUndo: false,
     document: initial,
     selection: [],
-  };
+  });
   let undoStack: WireframeDocument[] = [];
   let redoStack: WireframeDocument[] = [];
   let index: GeometryIndex | null = null;
-  const listeners = new Set<() => void>();
 
-  function publish(document: WireframeDocument, selection = state.selection) {
+  function publish(
+    document: WireframeDocument,
+    selection = store.state.selection,
+  ) {
     const known = new Set(document.blocks.map(({ id }) => id));
-    state = {
+    index = null;
+    store.setState(() => ({
       canRedo: redoStack.length > 0,
       canUndo: undoStack.length > 0,
       document,
       selection: selection.filter((id) => known.has(id)),
-    };
-    index = null;
-    for (const listener of listeners) {
-      listener();
-    }
+    }));
   }
 
   return {
     /** One completed gesture is one transaction; nothing changes if it fails. */
     dispatch(commands: readonly WireframeCommand[]): WireframeDocument {
-      const next = applyWireframeTransaction(state.document, commands);
-      undoStack = [...undoStack, state.document];
+      const next = applyWireframeTransaction(store.state.document, commands);
+      undoStack = [...undoStack, store.state.document];
       redoStack = [];
       publish(next);
       return next;
     },
 
     geometry(): GeometryIndex {
-      index ??= createGeometryIndex(state.document.blocks);
+      index ??= createGeometryIndex(store.state.document.blocks);
       return index;
     },
 
-    getState: () => state,
+    getState: () => store.state,
+
+    store,
 
     /** Moves a block once the drag ends, snapped to canonical neighbours. */
     commitMove(blockId: string, to: { x: number; y: number }) {
-      const block = state.document.blocks.find(({ id }) => id === blockId);
+      const block = store.state.document.blocks.find(
+        ({ id }) => id === blockId,
+      );
       if (!block) {
         return;
       }
@@ -92,17 +96,21 @@ export function createWireframeEditor(
 
     /** Aligns the selection to one edge or axis as one transaction. */
     alignSelection(edge: WireframeAlignEdge) {
-      if (state.selection.length < 2) {
+      if (store.state.selection.length < 2) {
         return;
       }
-      this.dispatch([{ blockIds: state.selection, edge, type: "alignBlocks" }]);
+      this.dispatch([
+        { blockIds: store.state.selection, edge, type: "alignBlocks" },
+      ]);
     },
 
     /** Moves the selection by a keyboard step as one transaction. */
     moveSelection(dx: number, dy: number) {
-      const commands = state.selection.flatMap(
+      const commands = store.state.selection.flatMap(
         (blockId): WireframeCommand[] => {
-          const block = state.document.blocks.find(({ id }) => id === blockId);
+          const block = store.state.document.blocks.find(
+            ({ id }) => id === blockId,
+          );
           return block
             ? [{ blockId, type: "moveBlock", x: block.x + dx, y: block.y + dy }]
             : [];
@@ -115,9 +123,11 @@ export function createWireframeEditor(
 
     /** Reorders a block in paint order; `-1` is earlier (behind), `1` later. */
     reorder(blockId: string, delta: number) {
-      const from = state.document.blocks.findIndex(({ id }) => id === blockId);
+      const from = store.state.document.blocks.findIndex(
+        ({ id }) => id === blockId,
+      );
       const to = from + delta;
-      if (from < 0 || to < 0 || to >= state.document.blocks.length) {
+      if (from < 0 || to < 0 || to >= store.state.document.blocks.length) {
         return;
       }
       this.dispatch([{ blockId, toIndex: to, type: "reorderBlock" }]);
@@ -130,22 +140,24 @@ export function createWireframeEditor(
 
     /** Selects the next or previous block in outline order, wrapping. */
     selectStep(delta: number) {
-      const { blocks } = state.document;
+      const { blocks } = store.state.document;
       if (blocks.length === 0) {
         return;
       }
-      const current = blocks.findIndex(({ id }) => id === state.selection[0]);
+      const current = blocks.findIndex(
+        ({ id }) => id === store.state.selection[0],
+      );
       const entry = delta > 0 ? 0 : blocks.length - 1;
       const next =
         current < 0 ? entry : (current + delta + blocks.length) % blocks.length;
-      publish(state.document, [blocks[next]?.id ?? ""]);
+      publish(store.state.document, [blocks[next]?.id ?? ""]);
     },
 
     /** Places a new block of a closed kind at a point and selects it. */
     placeBlock(kind: WireframeBlockKind, at: { x: number; y: number }) {
       const block = createWireframeBlock(kind, createId(), at);
       this.dispatch([{ block, type: "addBlock" }]);
-      publish(state.document, [block.id]);
+      publish(store.state.document, [block.id]);
       return block;
     },
 
@@ -156,7 +168,7 @@ export function createWireframeEditor(
     ) {
       const block = createLiveCardBlock(createId(), at, record);
       this.dispatch([{ block, type: "addBlock" }]);
-      publish(state.document, [block.id]);
+      publish(store.state.document, [block.id]);
       return block;
     },
 
@@ -166,7 +178,7 @@ export function createWireframeEditor(
         return;
       }
       redoStack = redoStack.slice(0, -1);
-      undoStack = [...undoStack, state.document];
+      undoStack = [...undoStack, store.state.document];
       publish(next);
     },
 
@@ -178,14 +190,12 @@ export function createWireframeEditor(
     },
 
     select(ids: readonly string[]) {
-      publish(state.document, ids);
+      publish(store.state.document, ids);
     },
 
     subscribe(listener: () => void) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
+      const subscription = store.subscribe(listener);
+      return () => subscription.unsubscribe();
     },
 
     undo() {
@@ -194,7 +204,7 @@ export function createWireframeEditor(
         return;
       }
       undoStack = undoStack.slice(0, -1);
-      redoStack = [...redoStack, state.document];
+      redoStack = [...redoStack, store.state.document];
       publish(previous);
     },
   };

@@ -2,8 +2,9 @@ import {
   EMPTY_PERSONAL_VIEW,
   type PersonalMoodboardView,
 } from "@cantiara/api/moodboard-viewport";
+import { LiteDebouncer } from "@tanstack/pacer-lite";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { client, orpc } from "@/utils/orpc";
 
@@ -25,34 +26,25 @@ export function usePersonalMoodboardView(moodboardId: string) {
       client.saveMoodboardPersonalView({ moodboardId, view }),
     onSuccess: (saved) => queryClient.setQueryData(options.queryKey, saved),
   });
-  const pending = useRef<PersonalMoodboardView | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { mutate } = save;
-
-  const flush = useCallback(() => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-    if (pending.current) {
-      mutate(pending.current);
-      pending.current = null;
-    }
-  }, [mutate]);
-
+  const mutateRef = useRef(mutate);
+  mutateRef.current = mutate;
+  // The last view wins; leaving the canvas flushes it instead of dropping it.
+  const debouncer = useMemo(
+    () =>
+      new LiteDebouncer(
+        (view: PersonalMoodboardView) => mutateRef.current(view),
+        { wait: SAVE_DELAY_MS },
+      ),
+    [],
+  );
   const schedule = useCallback(
-    (view: PersonalMoodboardView) => {
-      pending.current = view;
-      if (timer.current) {
-        clearTimeout(timer.current);
-      }
-      timer.current = setTimeout(flush, SAVE_DELAY_MS);
-    },
-    [flush],
+    (view: PersonalMoodboardView) => debouncer.maybeExecute(view),
+    [debouncer],
   );
 
   // Leaving the canvas keeps the last position.
-  useEffect(() => flush, [flush]);
+  useEffect(() => () => debouncer.flush(), [debouncer]);
 
   return {
     isReady: query.isSuccess || query.isError,

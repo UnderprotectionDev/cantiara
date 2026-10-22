@@ -8,15 +8,10 @@ import {
 } from "@cantiara/api/work-context";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@cantiara/ui/components/native-select";
 import type { UseQueryResult } from "@tanstack/react-query";
-import { useQueries } from "@tanstack/react-query";
-import type { FormEvent } from "react";
-import { useMemo, useState } from "react";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { accountDateFormatter } from "@/features/account-preferences/lib/account-preferences-format";
 import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
@@ -24,6 +19,10 @@ import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { orpc } from "@/utils/orpc";
 import { usePrioritizationSessions } from "../../hooks/use-prioritization-sessions";
 import { moveWorkInOrder, workPosition } from "../../lib/session-order";
+import PrioritizationSessionAddWorkForm from "../forms/prioritization-session-add-work-form";
+import PrioritizationSessionCreateForm, {
+  type CreateSessionMutation,
+} from "../forms/prioritization-session-create-form";
 
 export default function PrioritizationSurface({
   projectId,
@@ -41,8 +40,6 @@ export default function PrioritizationSurface({
     updateBacklogOrder,
     updateSessionOrder,
   } = usePrioritizationSessions(projectId);
-  const [sessionName, setSessionName] = useState("");
-  const [selectedWorkIds, setSelectedWorkIds] = useState<string[]>([]);
   const priorityValues = usePriorityMetricProjectValues(projectId).query;
 
   const activeWorks = useMemo(
@@ -104,25 +101,6 @@ export default function PrioritizationSurface({
   const loading = queries.some((query) => query.isPending);
   const saveError = mutations.find((mutation) => mutation.isError)?.error;
 
-  function createPrioritizationSession(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const selected = new Set(selectedWorkIds);
-    createSession.mutate(
-      {
-        name: sessionName,
-        workIds: activeWorks
-          .filter((work) => selected.has(work.id))
-          .map((work) => work.id),
-      },
-      {
-        onSuccess: () => {
-          setSessionName("");
-          setSelectedWorkIds([]);
-        },
-      },
-    );
-  }
-
   function moveBacklogWork(workId: string, offset: -1 | 1) {
     const next = moveWorkInOrder(orderedBacklogIds, workId, offset);
     if (next.some((id, index) => id !== orderedBacklogIds[index])) {
@@ -174,14 +152,11 @@ export default function PrioritizationSurface({
             activeWorks={activeWorks}
             busy={busy}
             closeSession={closeSession}
-            createPrioritizationSession={createPrioritizationSession}
+            createSession={createSession}
             orderedBacklogIds={orderedBacklogIds}
             priorityValues={priorityValues}
+            projectId={projectId}
             restoreSession={restoreSession}
-            selectedWorkIds={selectedWorkIds}
-            sessionName={sessionName}
-            setSelectedWorkIds={setSelectedWorkIds}
-            setSessionName={setSessionName}
             trashedSessions={trashedSessions}
             trashSession={trashSession}
             updateSessionOrder={updateSessionOrder}
@@ -315,6 +290,7 @@ function BacklogOrderSection({
 function PrioritizationSessionCard({
   backlogOrder,
   busy,
+  formatDate,
   onAddWork,
   onClose,
   onRemoveWork,
@@ -328,6 +304,7 @@ function PrioritizationSessionCard({
 }: {
   backlogOrder: readonly string[];
   busy: boolean;
+  formatDate: (value: string | null) => string;
   onAddWork: (workId: string) => void;
   onClose: () => void;
   onRemoveWork: (workId: string) => void;
@@ -339,7 +316,6 @@ function PrioritizationSessionCard({
   worksById: ReadonlyMap<string, WorkProfile>;
   workContextById: ReadonlyMap<string, UseQueryResult<WorkContextProjection>>;
 }) {
-  const [workToAdd, setWorkToAdd] = useState("");
   const isClosed = session.closedAt !== null;
   const included = new Set(session.workIds);
   const addableWorks = works.filter((work) => !included.has(work.id));
@@ -387,39 +363,12 @@ function PrioritizationSessionCard({
       </header>
 
       {isClosed ? null : (
-        <div className="flex flex-wrap items-end gap-2 border-border/70 border-t pt-3">
-          <label
-            className="grid min-w-52 gap-1 text-xs"
-            htmlFor={`add-work-${session.id}`}
-          >
-            <span>Work to add</span>
-            <NativeSelect
-              id={`add-work-${session.id}`}
-              onChange={(event) => setWorkToAdd(event.currentTarget.value)}
-              size="sm"
-              value={workToAdd}
-            >
-              <NativeSelectOption value="">Select Work</NativeSelectOption>
-              {addableWorks.map((work) => (
-                <NativeSelectOption key={work.id} value={work.id}>
-                  {work.key} {work.title}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </label>
-          <Button
-            disabled={busy || !workToAdd}
-            onClick={() => {
-              onAddWork(workToAdd);
-              setWorkToAdd("");
-            }}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            Add Work
-          </Button>
-        </div>
+        <PrioritizationSessionAddWorkForm
+          addableWorks={addableWorks}
+          busy={busy}
+          onAddWork={onAddWork}
+          sessionId={session.id}
+        />
       )}
 
       {session.workIds.length === 0 ? (
@@ -589,14 +538,6 @@ function PrioritizationSessionWork({
   );
 }
 
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  dateStyle: "medium",
-});
-
-function formatDate(value: string | null) {
-  return value ? dateFormatter.format(new Date(value)) : "Not set";
-}
-
 function PrioritizationWorkContext({
   work,
   metricValues,
@@ -674,12 +615,9 @@ function PrioritizationWorkContext({
 
 function PrioritizationSessionCollection({
   activeSessions,
-  createPrioritizationSession,
-  setSessionName,
-  sessionName,
+  createSession,
+  projectId,
   activeWorks,
-  selectedWorkIds,
-  setSelectedWorkIds,
   busy,
   orderedBacklogIds,
   updateSessionOrder,
@@ -692,16 +630,9 @@ function PrioritizationSessionCollection({
   restoreSession,
 }: {
   activeSessions: PrioritizationSession[];
-  createPrioritizationSession: (event: FormEvent<HTMLFormElement>) => void;
-  setSessionName: import("react").Dispatch<
-    import("react").SetStateAction<string>
-  >;
-  sessionName: string;
+  createSession: CreateSessionMutation;
+  projectId: string;
   activeWorks: WorkProfile[];
-  selectedWorkIds: string[];
-  setSelectedWorkIds: import("react").Dispatch<
-    import("react").SetStateAction<string[]>
-  >;
   busy: boolean;
   orderedBacklogIds: string[];
   updateSessionOrder: import("@tanstack/react-query").UseMutationResult<
@@ -736,6 +667,10 @@ function PrioritizationSessionCollection({
     unknown
   >;
 }) {
+  const preferences = useQuery(orpc.accountPreferences.queryOptions());
+  const formatAccountDate = accountDateFormatter(preferences.data);
+  const formatDate = (value: string | null) =>
+    value ? formatAccountDate(value) : "Not set";
   return (
     <section
       aria-labelledby="prioritization-sessions-heading"
@@ -756,59 +691,12 @@ function PrioritizationSessionCollection({
         </span>
       </div>
 
-      <form
-        className="space-y-3 rounded-lg border border-border/70 bg-card/40 p-4"
-        onSubmit={createPrioritizationSession}
-      >
-        <label className="block space-y-1.5 text-sm" htmlFor="session-name">
-          <span>Session name</span>
-          <Input
-            id="session-name"
-            maxLength={200}
-            onChange={(event) => setSessionName(event.currentTarget.value)}
-            placeholder="For example, Q4 launch review"
-            required
-            value={sessionName}
-          />
-        </label>
-        <fieldset className="space-y-2">
-          <legend className="font-medium text-sm">Work scope</legend>
-          {activeWorks.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              No active Work is available to select.
-            </p>
-          ) : (
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {activeWorks.map((work) => (
-                <li key={work.id}>
-                  <label className="flex items-start gap-2 rounded-md border border-border/60 px-3 py-2 text-sm">
-                    <input
-                      checked={selectedWorkIds.includes(work.id)}
-                      className="mt-0.5 accent-primary"
-                      onChange={(event) => {
-                        const isSelected = event.currentTarget.checked;
-                        setSelectedWorkIds((current) =>
-                          isSelected
-                            ? [...current, work.id]
-                            : current.filter((id) => id !== work.id),
-                        );
-                      }}
-                      type="checkbox"
-                    />
-                    <span>
-                      <span className="text-muted-foreground">{work.key}</span>{" "}
-                      {work.title}
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          )}
-        </fieldset>
-        <Button disabled={busy || !sessionName.trim()} type="submit">
-          Create Prioritization Session
-        </Button>
-      </form>
+      <PrioritizationSessionCreateForm
+        activeWorks={activeWorks}
+        busy={busy}
+        createSession={createSession}
+        projectId={projectId}
+      />
 
       {activeSessions.length === 0 ? (
         <p className="rounded-md border border-border/70 border-dashed px-4 py-5 text-muted-foreground text-sm">
@@ -820,6 +708,7 @@ function PrioritizationSessionCollection({
             <PrioritizationSessionCard
               backlogOrder={orderedBacklogIds}
               busy={busy}
+              formatDate={formatDate}
               key={session.id}
               onAddWork={(workId) =>
                 updateSessionOrder.mutate({

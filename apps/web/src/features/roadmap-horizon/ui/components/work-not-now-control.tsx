@@ -4,7 +4,6 @@ import type { WorkContextSource } from "@cantiara/api/work-context";
 import { buildWorkContextModel } from "@cantiara/api/work-context";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import {
-  recordWorkNotNowInputSchema,
   WORK_NOT_NOW_GROUND_RECORD_TYPES,
   type WorkNotNowReviewLaterHandling,
   type WorkNotNowTrail,
@@ -19,14 +18,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
-import { Field, FieldLabel } from "@cantiara/ui/components/field";
-import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { AppLink } from "@/components/app-link";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import {
+  type NotNowDraft,
+  NotNowEntryForm,
+  type NotNowPreview,
+} from "../forms/not-now-entry-form";
+import { NotNowReconsideration } from "../forms/not-now-reconsideration-form";
+import { reviewLaterHandlingPreview } from "./not-now-review-later-field";
 
 type Mode = "details" | "form" | "preview";
 
@@ -63,12 +67,12 @@ function GroundList({
         return (
           <li key={`${ground.relationId}-${ground.recordId}`}>
             {source?.openPath ? (
-              <a
+              <AppLink
                 className="underline-offset-4 hover:underline"
                 href={source.openPath}
               >
                 {ground.recordType}: {ground.title}
-              </a>
+              </AppLink>
             ) : (
               <span>
                 {ground.recordType}: {ground.title}
@@ -129,15 +133,6 @@ function TrailHistory({
     </section>
   );
 }
-
-interface NotNowDraft {
-  condition: string;
-  groundRelationIds: string[];
-  reason: string;
-  reviewLaterHandling: WorkNotNowReviewLaterHandling;
-}
-
-type NotNowPreview = ReturnType<typeof recordWorkNotNowInputSchema.parse>;
 
 export function NotNowHistoryPanel({
   activeFromWork,
@@ -213,226 +208,6 @@ export function NotNowHistoryPanel({
         workId={workId}
       />
     </div>
-  );
-}
-
-export function NotNowEntryForm({
-  baseRevision,
-  connection,
-  draft,
-  error,
-  hasActiveTrail,
-  hasHistory,
-  groundOptions,
-  workContextError,
-  workContextPending,
-  onError,
-  onShowHistory,
-  onPreview,
-  onDraftChange,
-  pending,
-  workId,
-}: {
-  baseRevision: number;
-  connection: string;
-  draft: NotNowDraft;
-  error: string | null;
-  hasActiveTrail: boolean;
-  hasHistory: boolean;
-  groundOptions: readonly WorkContextSource[];
-  workContextError: boolean;
-  workContextPending: boolean;
-  onError: (error: string | null) => void;
-  onShowHistory: () => void;
-  onPreview: (preview: NotNowPreview) => void;
-  onDraftChange: (update: (draft: NotNowDraft) => NotNowDraft) => void;
-  pending: boolean;
-  workId: string;
-}) {
-  const form = useForm({
-    defaultValues: { condition: draft.condition, reason: draft.reason },
-    onSubmit: ({ value }) => {
-      const parsed = recordWorkNotNowInputSchema.safeParse({
-        baseRevision,
-        clientIdempotencyKey: "preview",
-        condition: value.condition,
-        groundRelationIds: draft.groundRelationIds,
-        reason: value.reason,
-        reviewLaterHandling: draft.reviewLaterHandling,
-        workId,
-      });
-      if (!parsed.success) {
-        onError(
-          parsed.error.issues[0]?.message ?? "Check the Not now details.",
-        );
-        return;
-      }
-      onError(null);
-      onPreview(parsed.data);
-    },
-  });
-
-  return (
-    <form
-      className="space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        return form.handleSubmit();
-      }}
-    >
-      <form.Field name="reason">
-        {(field) => (
-          <Field>
-            <FieldLabel htmlFor={`not-now-reason-${workId}`}>Reason</FieldLabel>
-            <Textarea
-              disabled={pending}
-              id={`not-now-reason-${workId}`}
-              maxLength={500}
-              onChange={(event) => {
-                const { value } = event.target;
-                field.handleChange(value);
-                onDraftChange((current) => ({ ...current, reason: value }));
-              }}
-              required
-              rows={3}
-              value={field.state.value}
-            />
-          </Field>
-        )}
-      </form.Field>
-      <form.Field name="condition">
-        {(field) => (
-          <Field>
-            <FieldLabel htmlFor={`not-now-condition-${workId}`}>
-              Re-evaluation condition
-            </FieldLabel>
-            <Textarea
-              disabled={pending}
-              id={`not-now-condition-${workId}`}
-              maxLength={2000}
-              onChange={(event) => {
-                const { value } = event.target;
-                field.handleChange(value);
-                onDraftChange((current) => ({ ...current, condition: value }));
-              }}
-              rows={2}
-              value={field.state.value}
-            />
-          </Field>
-        )}
-      </form.Field>
-      <SupportingRecordsField
-        draft={draft}
-        groundOptions={groundOptions}
-        onDraftChange={onDraftChange}
-        pending={pending}
-        workContextError={workContextError}
-        workContextPending={workContextPending}
-      />
-      {hasActiveTrail ? (
-        <ReviewLaterHandlingField
-          name={`not-now-review-later-handling-${workId}`}
-          onChange={(reviewLaterHandling) =>
-            onDraftChange((current) => ({
-              ...current,
-              reviewLaterHandling,
-            }))
-          }
-          pending={pending}
-          value={draft.reviewLaterHandling}
-        />
-      ) : null}
-      {error ? (
-        <p className="text-destructive text-xs" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <DialogFooter>
-        {hasHistory ? (
-          <Button
-            disabled={pending}
-            onClick={onShowHistory}
-            type="button"
-            variant="outline"
-          >
-            History
-          </Button>
-        ) : null}
-        <Button disabled={pending || connection === "offline"} type="submit">
-          Preview
-        </Button>
-      </DialogFooter>
-    </form>
-  );
-}
-
-function SupportingRecordsField({
-  draft,
-  groundOptions,
-  onDraftChange,
-  pending,
-  workContextError,
-  workContextPending,
-}: {
-  draft: NotNowDraft;
-  groundOptions: readonly WorkContextSource[];
-  onDraftChange: (update: (draft: NotNowDraft) => NotNowDraft) => void;
-  pending: boolean;
-  workContextError: boolean;
-  workContextPending: boolean;
-}) {
-  return (
-    <fieldset className="space-y-2" disabled={pending}>
-      <legend className="font-medium text-xs">Supporting records</legend>
-      {workContextPending ? (
-        <p className="text-muted-foreground text-xs" role="status">
-          Loading supporting records…
-        </p>
-      ) : null}
-      {workContextError ? (
-        <p className="text-destructive text-xs" role="alert">
-          Supporting records could not be loaded.
-        </p>
-      ) : null}
-      {!(workContextPending || workContextError) &&
-      groundOptions.length === 0 ? (
-        <p className="text-muted-foreground text-xs">
-          No supporting records are linked to this Work.
-        </p>
-      ) : null}
-      {groundOptions.map((source) => {
-        const { relationId } = source;
-        if (relationId === null) {
-          return null;
-        }
-        return (
-          <label
-            className="flex items-start gap-2 rounded-md border border-border/70 px-3 py-2 text-xs"
-            key={relationId}
-          >
-            <input
-              checked={draft.groundRelationIds.includes(relationId)}
-              onChange={(event) => {
-                const { checked } = event.currentTarget;
-                onDraftChange((current) => ({
-                  ...current,
-                  groundRelationIds: checked
-                    ? [...current.groundRelationIds, relationId]
-                    : current.groundRelationIds.filter(
-                        (id) => id !== relationId,
-                      ),
-                }));
-              }}
-              type="checkbox"
-            />
-            <span>
-              {source.recordType}: {source.title ?? source.label}
-            </span>
-          </label>
-        );
-      })}
-    </fieldset>
   );
 }
 
@@ -520,61 +295,6 @@ function NotNowPreviewPanel({
         </Button>
       </DialogFooter>
     </div>
-  );
-}
-
-function reviewLaterHandlingPreview(handling: WorkNotNowReviewLaterHandling) {
-  return handling === "Keep Review later"
-    ? "Planned Review Later reminders will stay scheduled."
-    : "Planned Review Later reminders for this Work will be cancelled.";
-}
-
-function ReviewLaterHandlingField({
-  name,
-  onChange,
-  pending,
-  value,
-}: {
-  name: string;
-  onChange: (handling: WorkNotNowReviewLaterHandling) => void;
-  pending: boolean;
-  value: WorkNotNowReviewLaterHandling;
-}) {
-  return (
-    <fieldset className="space-y-2" disabled={pending}>
-      <legend className="font-medium text-xs">Review Later reminders</legend>
-      {(
-        [
-          [
-            "Keep Review later",
-            "Leave planned Review Later reminders scheduled.",
-          ],
-          [
-            "Remove Review later",
-            "Cancel planned Review Later reminders for this Work.",
-          ],
-        ] as const
-      ).map(([handling, description]) => (
-        <label
-          className="flex items-start gap-2 rounded-md border border-border/70 px-3 py-2 text-xs"
-          key={handling}
-        >
-          <input
-            checked={value === handling}
-            name={name}
-            onChange={() => onChange(handling)}
-            type="radio"
-          />
-          <span>
-            <span className="block font-medium">{handling}</span>
-            <span className="text-muted-foreground">{description}</span>
-          </span>
-        </label>
-      ))}
-      <p aria-live="polite" className="text-muted-foreground text-xs">
-        Preview: {reviewLaterHandlingPreview(value)}
-      </p>
-    </fieldset>
   );
 }
 
@@ -869,64 +589,4 @@ export default function WorkNotNowControl({
       ) : null}
     </>
   );
-}
-
-function NotNowReconsideration({
-  archived,
-  currentTrail,
-  canStart,
-  workId,
-  onReviewLaterHandlingChange,
-  reconsiderPending,
-  historyPending,
-  reviewLaterHandling,
-  connection,
-  onReconsider,
-  onStartNew,
-}: {
-  archived: boolean;
-  currentTrail: WorkNotNowTrail | null;
-  canStart: boolean;
-  workId: string;
-  onReviewLaterHandlingChange: (
-    handling: WorkNotNowReviewLaterHandling,
-  ) => void;
-  reconsiderPending: boolean;
-  historyPending: boolean;
-  reviewLaterHandling: "Keep Review later" | "Remove Review later";
-  connection: string;
-  onReconsider: () => void;
-  onStartNew: () => void;
-}) {
-  return !archived && (currentTrail || canStart) ? (
-    <div className="space-y-3 border-t pt-3">
-      {currentTrail ? (
-        <ReviewLaterHandlingField
-          name={`not-now-review-later-handling-${workId}`}
-          onChange={onReviewLaterHandlingChange}
-          pending={reconsiderPending || historyPending}
-          value={reviewLaterHandling}
-        />
-      ) : null}
-      <div className="flex flex-wrap gap-2">
-        {currentTrail ? (
-          <Button
-            disabled={
-              reconsiderPending || historyPending || connection === "offline"
-            }
-            onClick={onReconsider}
-            type="button"
-            variant="outline"
-          >
-            Reconsidering
-          </Button>
-        ) : null}
-        {canStart ? (
-          <Button onClick={onStartNew} type="button">
-            Not now
-          </Button>
-        ) : null}
-      </div>
-    </div>
-  ) : null;
 }

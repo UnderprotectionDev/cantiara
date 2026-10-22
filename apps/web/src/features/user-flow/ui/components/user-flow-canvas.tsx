@@ -10,12 +10,14 @@ import {
   type UserFlowViewport,
 } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Label } from "@cantiara/ui/components/label";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
+import { LiteDebouncer } from "@tanstack/pacer-lite";
 import {
   applyNodeChanges,
   type Edge,
@@ -226,19 +228,16 @@ function Editor({
   );
   const collapsedRef = useRef(collapsed);
   collapsedRef.current = collapsed;
-  const pendingViewport = useRef<UserFlowViewport | null>(null);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const flushViewport = useCallback(() => {
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
-    if (pendingViewport.current) {
-      onViewportChange?.(pendingViewport.current);
-      pendingViewport.current = null;
-    }
-  }, [onViewportChange]);
+  const onViewportChangeRef = useRef(onViewportChange);
+  onViewportChangeRef.current = onViewportChange;
+  const viewportDebouncer = useMemo(
+    () =>
+      new LiteDebouncer(
+        (viewport: UserFlowViewport) => onViewportChangeRef.current?.(viewport),
+        { wait: VIEWPORT_SAVE_DELAY },
+      ),
+    [],
+  );
 
   // Personal working position: center, zoom and view-local collapse only.
   const rememberViewport = useCallback(
@@ -249,23 +248,19 @@ function Editor({
       const frame = frameRef.current;
       const width = frame?.clientWidth || FALLBACK_FRAME.width;
       const height = frame?.clientHeight || FALLBACK_FRAME.height;
-      pendingViewport.current = {
+      viewportDebouncer.maybeExecute({
         center: {
           x: (width / 2 - viewport.x) / viewport.zoom,
           y: (height / 2 - viewport.y) / viewport.zoom,
         },
         collapsed: nextCollapsed ?? collapsedRef.current,
         zoom: viewport.zoom,
-      };
-      if (saveTimer.current) {
-        clearTimeout(saveTimer.current);
-      }
-      saveTimer.current = setTimeout(flushViewport, VIEWPORT_SAVE_DELAY);
+      });
     },
-    [flushViewport],
+    [viewportDebouncer],
   );
 
-  useEffect(() => flushViewport, [flushViewport]);
+  useEffect(() => () => viewportDebouncer.flush(), [viewportDebouncer]);
   const [editor, setEditor] = useState<EditorState>(() =>
     createEditor(toEditorDocument(flow)),
   );
@@ -722,11 +717,14 @@ function Editor({
         >
           Snap Selection to Grid
         </Button>
-        <label className="flex items-center gap-1 text-sm">
-          <input
+        <label
+          className="flex items-center gap-1 text-sm"
+          htmlFor="user-flow-snap"
+        >
+          <Checkbox
             checked={snap}
-            onChange={(event) => setSnap(event.target.checked)}
-            type="checkbox"
+            id="user-flow-snap"
+            onCheckedChange={(checked) => setSnap(checked === true)}
           />
           Snap to grid
         </label>

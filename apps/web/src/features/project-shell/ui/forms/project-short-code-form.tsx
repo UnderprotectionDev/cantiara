@@ -1,14 +1,10 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Form field render props require closures over current field handlers.
 import type { ProjectProfile } from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
+import { useForm } from "@tanstack/react-form";
 import { Check, LockKeyhole, Pencil, Save } from "lucide-react";
-import {
-  type ChangeEvent,
-  type FormEvent,
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 
 import { useProjectShortCode } from "../../hooks/use-project-short-code";
 
@@ -17,38 +13,39 @@ export default function ProjectShortCodeForm({
 }: {
   project: ProjectProfile;
 }) {
-  const [shortCode, setShortCode] = useState(project.shortCode);
   const [isEditing, setIsEditing] = useState(false);
   const { clearError, error, isPending, saveShortCode } =
     useProjectShortCode(project);
 
-  useEffect(() => {
-    setShortCode(project.shortCode);
-  }, [project.shortCode]);
+  const form = useForm({
+    defaultValues: { shortCode: project.shortCode },
+    onSubmit: async ({ value }) => {
+      const nextShortCode = value.shortCode.trim();
+      if (!nextShortCode || nextShortCode === project.shortCode) {
+        return;
+      }
+      if (await saveShortCode(nextShortCode)) {
+        setIsEditing(false);
+      }
+    },
+  });
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    form.setFieldValue("shortCode", project.shortCode);
+  }, [form, project.shortCode]);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextShortCode = shortCode.trim();
-    if (!nextShortCode || nextShortCode === project.shortCode) {
-      return;
-    }
-    if (await saveShortCode(nextShortCode)) {
-      setIsEditing(false);
-    }
+    event.stopPropagation();
+    form.handleSubmit().catch(() => undefined);
   }
 
   function cancelEditing() {
-    setShortCode(project.shortCode);
+    form.setFieldValue("shortCode", project.shortCode);
     setIsEditing(false);
     clearError();
   }
 
-  const handleShortCodeChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      setShortCode(event.target.value);
-    },
-    [],
-  );
   const handleStartEditing = useCallback(() => {
     clearError();
     setIsEditing(true);
@@ -102,36 +99,45 @@ export default function ProjectShortCodeForm({
       >
         Short code
       </label>
-      <Input
-        aria-label="Short code"
-        disabled={isPending}
-        id={`short-code-${project.id}`}
-        onChange={handleShortCodeChange}
-        value={shortCode}
-      />
+      <form.Field name="shortCode">
+        {(field) => (
+          <Input
+            aria-label="Short code"
+            disabled={isPending}
+            id={`short-code-${project.id}`}
+            name={field.name}
+            onChange={(event) => field.handleChange(event.target.value)}
+            value={field.state.value}
+          />
+        )}
+      </form.Field>
       {error ? (
         <p className="text-destructive text-xs" role="alert">
           {error}
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button
-          className="min-h-11"
-          disabled={
-            isPending ||
-            !shortCode.trim() ||
-            shortCode.trim() === project.shortCode
-          }
-          size="sm"
-          type="submit"
-        >
-          {isPending ? (
-            <Save aria-hidden="true" />
-          ) : (
-            <Check aria-hidden="true" />
+        <form.Subscribe selector={(state) => state.values.shortCode}>
+          {(shortCode) => (
+            <Button
+              className="min-h-11"
+              disabled={
+                isPending ||
+                !shortCode.trim() ||
+                shortCode.trim() === project.shortCode
+              }
+              size="sm"
+              type="submit"
+            >
+              {isPending ? (
+                <Save aria-hidden="true" />
+              ) : (
+                <Check aria-hidden="true" />
+              )}
+              Save Short code
+            </Button>
           )}
-          Save Short code
-        </Button>
+        </form.Subscribe>
         <Button
           className="min-h-11"
           disabled={isPending}

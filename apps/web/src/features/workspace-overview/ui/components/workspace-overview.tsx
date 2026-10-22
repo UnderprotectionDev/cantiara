@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Overview controls close over current module and source state.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type {
@@ -30,6 +31,7 @@ import {
 import { cn } from "@cantiara/ui/lib/utils";
 import { ChevronDown, ChevronUp, Eye, EyeOff, Plus, X } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
+import { AppLink } from "@/components/app-link";
 
 import {
   formatAccountDate,
@@ -92,23 +94,23 @@ function sourceRecordList(
           key={record.id}
         >
           <div className="min-w-0 flex-1">
-            <a
+            <AppLink
               className="font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
               href={record.href}
             >
               {record.title}
-            </a>
+            </AppLink>
             <p className="mt-1 text-muted-foreground text-xs">
               {sourceMeta(record, formattingPreferences)}
             </p>
           </div>
-          <a
+          <AppLink
             aria-label={`Open source record: ${record.title}`}
             className="shrink-0 self-start text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
             href={record.href}
           >
             Open source record
-          </a>
+          </AppLink>
         </li>
       ))}
     </ul>
@@ -133,18 +135,18 @@ function OverviewModuleSection({
       <header className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 id={`workspace-overview-module-${module.id}`}>
-            <a
+            <AppLink
               className="font-semibold text-base tracking-tight underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
               href={module.sourceHref}
             >
               {module.name}
-            </a>
+            </AppLink>
           </h3>
           <p className="mt-1 text-muted-foreground text-xs">
             Source-backed · {countLabel}
           </p>
         </div>
-        <a
+        <AppLink
           aria-label={`Open source record: ${module.name} (${countLabel})`}
           className={cn(
             buttonVariants({ size: "sm", variant: "outline" }),
@@ -153,7 +155,7 @@ function OverviewModuleSection({
           href={module.sourceHref}
         >
           {module.records.length}
-        </a>
+        </AppLink>
       </header>
       {sourceRecordList(
         module.records,
@@ -293,12 +295,12 @@ function LiveBlockCard({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <a
+          <AppLink
             className="font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
             href={block.href}
           >
             {block.title}
-          </a>
+          </AppLink>
           <p className="mt-1 text-muted-foreground text-xs">{block.type}</p>
         </div>
         <Button
@@ -311,13 +313,13 @@ function LiveBlockCard({
           <X aria-hidden="true" />
         </Button>
       </div>
-      <a
+      <AppLink
         aria-label={`Open source record: ${block.title}`}
         className="mt-3 inline-flex text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
         href={block.href}
       >
         Open source record
-      </a>
+      </AppLink>
     </article>
   );
 }

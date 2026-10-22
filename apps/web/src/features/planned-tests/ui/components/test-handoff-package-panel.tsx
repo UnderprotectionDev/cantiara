@@ -7,7 +7,9 @@ import {
   type TestHandoffRecord,
 } from "@cantiara/api/planned-tests";
 import { Button } from "@cantiara/ui/components/button";
-import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { writeTextToClipboard } from "@/lib/clipboard";
 import { errorText } from "../../lib/error-text";
 import { downloadPackageText } from "../../lib/test-handoff-form";
 
@@ -41,7 +43,7 @@ function PackageCopies({
   const base = `test-handoff-${handoff.id}-package-${record.packageVersion}`;
   async function copy(text: string, label: string) {
     try {
-      await navigator.clipboard.writeText(text);
+      await writeTextToClipboard(text);
       setMessage(`${label} copied.`);
     } catch {
       setMessage(`${label} could not be copied. Download it instead.`);
@@ -121,34 +123,29 @@ export function TestHandoffPackagePanel({
   onProduce: ProduceTestHandoffPackage;
   readOnly: boolean;
 }) {
-  const [packages, setPackages] = useState<TestHandoffPackageRecord[]>([]);
+  const queryClient = useQueryClient();
   const [preview, setPreview] = useState<TestHandoffPackagePreview>();
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
   const shareable = TEST_HANDOFF_PACKAGE_STATES.includes(handoff.state);
 
-  useEffect(() => {
-    if (handoff.packageVersion === 0) {
-      setPackages([]);
-      return;
-    }
-    let live = true;
-    loadPackages(handoff)
-      .then((loaded) => {
-        if (live) {
-          setPackages(loaded);
-        }
-      })
-      .catch(() => {
-        if (live) {
-          setError("Produced packages could not be loaded.");
-        }
-      });
-    return () => {
-      live = false;
-    };
-  }, [handoff, loadPackages]);
+  const packagesKey = [
+    "test-handoff-packages",
+    handoff.id,
+    handoff.packageVersion,
+  ] as const;
+  const packagesQuery = useQuery({
+    enabled: handoff.packageVersion !== 0,
+    queryFn: () => loadPackages(handoff),
+    queryKey: packagesKey,
+  });
+  const packages = packagesQuery.data ?? [];
+  const shownError =
+    error ||
+    (packagesQuery.isError
+      ? "Produced packages could not be loaded."
+      : undefined);
 
   async function showPreview() {
     setError(undefined);
@@ -173,7 +170,10 @@ export function TestHandoffPackagePanel({
     try {
       const produced = await onProduce(handoff, preview);
       setPreview(undefined);
-      setPackages((current) => [produced, ...current]);
+      queryClient.setQueryData<TestHandoffPackageRecord[]>(
+        packagesKey,
+        (current) => [produced, ...(current ?? [])],
+      );
       setMessage(`Package version ${produced.packageVersion} produced.`);
     } catch (caught) {
       setPreview(undefined);
@@ -189,9 +189,9 @@ export function TestHandoffPackagePanel({
       className="space-y-3 border-border/70 border-t pt-3"
     >
       <h5 className="font-medium text-sm">Package</h5>
-      {error ? (
+      {shownError ? (
         <p className="text-destructive text-sm" role="alert">
-          {error}
+          {shownError}
         </p>
       ) : null}
       {shareable ? null : (

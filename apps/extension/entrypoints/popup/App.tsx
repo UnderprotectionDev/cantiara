@@ -1,3 +1,16 @@
+import {
+  type WebCaptureBrowser,
+  type WebCaptureKind,
+  type WebCapturePairingInput,
+  webCapturePairingInputSchema,
+} from "@cantiara/api/web-capture";
+import { Input } from "@cantiara/ui/components/input";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
+import { useForm } from "@tanstack/react-form";
+import { format } from "date-fns";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -9,14 +22,16 @@ import {
   listWebCaptureTargets,
   pairWebCapture,
   readActiveTab,
+  type StoredWebCaptureLink,
   sendWebCapture,
   WebCaptureApiError,
-  type WebCaptureBrowser,
   type WebCaptureDraft,
-  type WebCaptureKind,
   type WebCaptureTarget,
 } from "../../src/features/capture-triage/web-capture";
 
+const PAIRING_INVALID_MESSAGE =
+  "This Pairing code is invalid, expired, or already used.";
+const DEFAULT_DEVICE = "Browser extension";
 const HTTP_URL_PATTERN = /^https?:\/\//;
 
 async function clearStoredWebCaptureLinkBestEffort() {
@@ -86,33 +101,20 @@ function draftFor(
   };
 }
 
-const savedAtFormatter = new Intl.DateTimeFormat(undefined, {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
 function formatSavedAt(value: string | null) {
   if (!value) {
     return "Not yet";
   }
-  return savedAtFormatter.format(new Date(value));
+  return format(new Date(value), "PP p");
 }
 
 export default function App() {
   const browser = useMemo(() => getWebCaptureBrowser(), []);
-  const [link, setLink] = useState<{
-    browser: WebCaptureBrowser;
-    device: string;
-    id: string;
-    lastSuccessfulSave: string | null;
-    token: string;
-  } | null>(null);
+  const [link, setLink] = useState<StoredWebCaptureLink | null>(null);
   const [draft, setDraft] = useState<WebCaptureDraft | null>(null);
   const [targets, setTargets] = useState<WebCaptureTarget[]>([]);
   const [targetId, setTargetId] = useState("workspace");
   const [targetSearch, setTargetSearch] = useState("");
-  const [pairingCode, setPairingCode] = useState("");
-  const [device, setDevice] = useState("Browser extension");
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [isPairing, setIsPairing] = useState(false);
@@ -198,29 +200,19 @@ export default function App() {
     }
   }, []);
 
-  async function handlePair(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!browser) {
-      setError("This browser cannot pair with Web Capture.");
-      return;
-    }
+  async function handlePair(input: WebCapturePairingInput) {
     setError(null);
     setStatus(null);
     setIsPairing(true);
     try {
-      const stored = await pairWebCapture({
-        browser,
-        code: pairingCode.trim(),
-        device: device.trim() || "Browser extension",
-      });
+      const stored = await pairWebCapture(input);
       setLink(stored);
-      setPairingCode("");
       setStatus("This browser is paired with Web Capture.");
     } catch (reason) {
       setError(
         reason instanceof WebCaptureApiError &&
           reason.code === "WEB_CAPTURE_PAIRING_INVALID"
-          ? "This Pairing code is invalid, expired, or already used."
+          ? PAIRING_INVALID_MESSAGE
           : "This browser could not be paired.",
       );
     } finally {
@@ -300,13 +292,13 @@ export default function App() {
 
       <WebCapturePairing
         browser={browser}
-        device={device}
-        handlePair={handlePair}
         isPairing={isPairing}
         link={link}
-        pairingCode={pairingCode}
-        setDevice={setDevice}
-        setPairingCode={setPairingCode}
+        onInvalid={() => {
+          setStatus(null);
+          setError(PAIRING_INVALID_MESSAGE);
+        }}
+        onPair={handlePair}
       />
 
       {draft ? (
@@ -332,23 +324,24 @@ export default function App() {
               <dd>
                 {link ? (
                   <>
-                    <input
+                    <Input
                       aria-label="Search Inbox"
                       onChange={(event) => setTargetSearch(event.target.value)}
                       placeholder="Search Inbox"
                       value={targetSearch}
                     />
-                    <select
+                    <NativeSelect
                       aria-label="Target Inbox"
+                      className="mt-[7px] w-full"
                       onChange={(event) => setTargetId(event.target.value)}
                       value={targetId}
                     >
                       {targets.map((target) => (
-                        <option key={target.id} value={target.id}>
+                        <NativeSelectOption key={target.id} value={target.id}>
                           {target.name} — {target.label}
-                        </option>
+                        </NativeSelectOption>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </>
                 ) : (
                   "Pair this browser to choose a Target Inbox."
@@ -389,30 +382,32 @@ export default function App() {
 function WebCapturePairing({
   link,
   browser,
-  handlePair,
-  setPairingCode,
-  pairingCode,
-  setDevice,
-  device,
   isPairing,
+  onInvalid,
+  onPair,
 }: {
-  link: {
-    browser: WebCaptureBrowser;
-    device: string;
-    id: string;
-    lastSuccessfulSave: string | null;
-    token: string;
-  } | null;
+  link: StoredWebCaptureLink | null;
   browser: WebCaptureBrowser | null;
-  handlePair: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
-  setPairingCode: import("react").Dispatch<
-    import("react").SetStateAction<string>
-  >;
-  pairingCode: string;
-  setDevice: import("react").Dispatch<import("react").SetStateAction<string>>;
-  device: string;
   isPairing: boolean;
+  onInvalid: () => void;
+  onPair: (input: WebCapturePairingInput) => Promise<void>;
 }) {
+  const form = useForm({
+    defaultValues: { device: DEFAULT_DEVICE, pairingCode: "" },
+    onSubmit: async ({ value }) => {
+      const parsed = webCapturePairingInputSchema.safeParse({
+        browser,
+        code: value.pairingCode,
+        device: value.device.trim() || DEFAULT_DEVICE,
+      });
+      if (!parsed.success) {
+        onInvalid();
+        return;
+      }
+      await onPair(parsed.data);
+    },
+  });
+
   return link ? null : (
     <section aria-labelledby="pair-heading" className="capture-section">
       <h2 id="pair-heading">Pair this browser</h2>
@@ -421,30 +416,55 @@ function WebCapturePairing({
         code expires in five minutes and can be used once.
       </p>
       {browser ? (
-        <form className="pair-form" onSubmit={handlePair}>
-          <label>
-            Pairing code
-            <input
-              autoComplete="one-time-code"
-              onChange={(event) => setPairingCode(event.target.value)}
-              placeholder="CANTIARA-AB12-CD34"
-              value={pairingCode}
-            />
-          </label>
-          <label>
-            Device
-            <input
-              maxLength={255}
-              onChange={(event) => setDevice(event.target.value)}
-              value={device}
-            />
-          </label>
-          <button
-            disabled={isPairing || pairingCode.trim().length === 0}
-            type="submit"
-          >
-            {isPairing ? "Pairing…" : "Pair"}
-          </button>
+        <form
+          className="pair-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            form.handleSubmit();
+          }}
+        >
+          <form.Field name="pairingCode">
+            {(field) => (
+              <label htmlFor="pairing-code">
+                Pairing code
+                <Input
+                  autoComplete="one-time-code"
+                  id="pairing-code"
+                  name={field.name}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  placeholder="CANTIARA-AB12-CD34"
+                  value={field.state.value}
+                />
+              </label>
+            )}
+          </form.Field>
+          <form.Field name="device">
+            {(field) => (
+              <label htmlFor="pairing-device">
+                Device
+                <Input
+                  id="pairing-device"
+                  maxLength={255}
+                  name={field.name}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  value={field.state.value}
+                />
+              </label>
+            )}
+          </form.Field>
+          <form.Subscribe selector={(state) => state.values.pairingCode}>
+            {(pairingCode) => (
+              <button
+                disabled={isPairing || pairingCode.trim().length === 0}
+                type="submit"
+              >
+                {isPairing ? "Pairing…" : "Pair"}
+              </button>
+            )}
+          </form.Subscribe>
         </form>
       ) : (
         <p className="warning">This browser cannot pair with Web Capture.</p>

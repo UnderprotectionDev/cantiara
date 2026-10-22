@@ -1,11 +1,13 @@
-import type { Document } from "@cantiara/api/documents";
 import type { AssumptionRecord } from "@cantiara/api/uncertainty-records";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test } from "vitest";
-import {
-  AssumptionEditor,
-  ProjectAssumptionsView,
-} from "../project-assumptions-view";
+import { expect, test, vi } from "vitest";
+import { ProjectAssumptionsView } from "../project-assumptions-view";
+
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
 
 const record: AssumptionRecord = {
   id: "a1",
@@ -19,7 +21,6 @@ const record: AssumptionRecord = {
   createdAt: "2026-10-09T10:00:00Z",
   updatedAt: "2026-10-09T10:00:00Z",
 };
-const noop = () => undefined;
 const save = async () => undefined;
 test("Uncertainty Records shows missing evidence without a transition gate or future review queue", () => {
   const html = renderToStaticMarkup(
@@ -64,56 +65,4 @@ test("Uncertainty Records preserves exact evidence on No longer applicable and h
   expect(html).toContain("Version 2");
   expect(html).not.toContain(">Create</button>");
   expect(html).not.toContain(">Edit</button>");
-});
-test("Assumption outcome accepts an optional rationale and exact Document evidence", () => {
-  const html = renderToStaticMarkup(
-    <AssumptionEditor
-      documents={[]}
-      life="Refuted"
-      onCancel={noop}
-      onSave={save}
-      record={record}
-    />,
-  );
-  expect(html).toContain("Rationale (optional)");
-  expect(html).toContain("Evidence (optional)");
-  expect(html).toContain(">Save</button>");
-  expect(html).toContain(">Cancel</button>");
-});
-
-test("Assumption outcome offers only Documents with nonempty supported text", () => {
-  const documents: Document[] = [
-    {
-      body: "   \n\t",
-      createdAt: "2026-10-09T10:00:00.000Z",
-      id: "empty-document",
-      projectId: "p1",
-      revision: 1,
-      title: "Whitespace only",
-      type: "Spec",
-      updatedAt: "2026-10-09T10:00:00.000Z",
-    },
-    {
-      body: "Supported evidence",
-      createdAt: "2026-10-09T10:00:00.000Z",
-      id: "evidence-document",
-      projectId: "p1",
-      revision: 2,
-      title: "Interview notes",
-      type: "Spec",
-      updatedAt: "2026-10-09T10:00:00.000Z",
-    },
-  ];
-  const html = renderToStaticMarkup(
-    <AssumptionEditor
-      documents={documents}
-      life="Confirmed"
-      onCancel={noop}
-      onSave={save}
-      record={record}
-    />,
-  );
-
-  expect(html).not.toContain("Whitespace only");
-  expect(html).toContain("Interview notes — Version 2");
 });

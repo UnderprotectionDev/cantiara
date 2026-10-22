@@ -9,7 +9,6 @@ import { createClientShell } from "@/features/web-macos-client/store/client-shel
 import { ClientShellProvider } from "@/features/web-macos-client/ui/components/client-shell";
 import {
   initialNotNowDialogMode,
-  NotNowEntryForm,
   NotNowHistoryPanel,
   default as WorkNotNowControl,
 } from "../work-not-now-control";
@@ -160,40 +159,6 @@ describe("Work Not now control", () => {
     expect(html).toContain("The problem needs more evidence.");
     expect(html).toContain("Not now");
     expect(html).not.toMatch(RECONSIDERING_BUTTON);
-  });
-
-  test("offers History from the entry form when a previous trail exists", () => {
-    const html = renderToStaticMarkup(
-      createElement(NotNowEntryForm, {
-        baseRevision: 2,
-        connection: "online",
-        draft: {
-          condition: "",
-          groundRelationIds: [],
-          reason: "",
-          reviewLaterHandling: "Remove Review later",
-        },
-        error: null,
-        hasActiveTrail: true,
-        hasHistory: true,
-        groundOptions: [],
-        onDraftChange: vi.fn(),
-        onError: vi.fn(),
-        onPreview: vi.fn(),
-        onShowHistory: vi.fn(),
-        pending: false,
-        workContextError: false,
-        workContextPending: false,
-        workId: "work-1",
-      }),
-    );
-
-    expect(html).toContain("History");
-    expect(html).toContain("Preview");
-    expect(html).toContain("Remove Review later");
-    expect(html).toContain(
-      "Preview: Planned Review Later reminders for this Work will be cancelled.",
-    );
   });
 
   test("keeps a history entry point on closed or archived Work", () => {

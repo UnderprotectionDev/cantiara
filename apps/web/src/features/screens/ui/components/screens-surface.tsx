@@ -6,8 +6,8 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import type { ScreenTemplateActions } from "../../lib/screen-template-actions";
 import { ScreensView } from "../views/screens-view";
-import type { ScreenTemplateActions } from "./screen-templates";
 import ScreensOutputSurface from "./screens-output-surface";
 import WireframeSurface from "./wireframe-surface";
 

@@ -1,10 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test } from "vitest";
-import {
-  ProjectRisksView,
-  RiskEditor,
-  type RiskRecord,
-} from "../project-risks-view";
+import { expect, test, vi } from "vitest";
+import type { RiskRecord } from "../../../lib/risk-form";
+import { ProjectRisksView } from "../project-risks-view";
+
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
 
 const record: RiskRecord = {
   id: "risk-1",
@@ -22,9 +25,6 @@ const record: RiskRecord = {
   updatedAt: "2026-10-09T10:00:00.000Z",
 };
 const save = async () => undefined;
-const cancel = () => undefined;
-const rationaleTextareaPattern = /<textarea[^>]*id="risk-rationale"[^>]*>/;
-const disabledAttributePattern = /\sdisabled(?:=""|=)/;
 
 test("Risks keeps Accepted visible with its rationale and offers explicit status changes without scores", () => {
   const html = renderToStaticMarkup(
@@ -56,54 +56,4 @@ test("Risks keeps Accepted visible with its rationale and offers explicit status
   expect(readOnly).not.toContain(">Create</button>");
   expect(readOnly).not.toContain(">Edit</button>");
   expect(readOnly).not.toContain(">Status</button>");
-});
-
-test("Risk creation labels founder text and status editor labels the complete status catalog and rationale", () => {
-  const html = renderToStaticMarkup(
-    <RiskEditor onCancel={cancel} onSave={save} />,
-  );
-  for (const label of [
-    "Title",
-    "Description",
-    "Impact",
-    "Probability",
-    "Response/mitigation",
-  ]) {
-    expect(html).toContain(label);
-  }
-  expect(html).not.toContain("risk-life");
-  const status = renderToStaticMarkup(
-    <RiskEditor
-      changingStatus
-      onCancel={cancel}
-      onSave={save}
-      record={record}
-    />,
-  );
-  for (const life of [
-    "Open",
-    "Mitigating",
-    "Occurred",
-    "Resolved",
-    "Accepted",
-  ]) {
-    expect(status).toContain(life);
-  }
-  expect(status).toContain('id="risk-rationale"');
-  expect(status).toContain("A known Risk remains recorded when accepted.");
-  const acceptedRationale = status.match(rationaleTextareaPattern)?.[0];
-  expect(acceptedRationale).toBeDefined();
-  expect(acceptedRationale).not.toMatch(disabledAttributePattern);
-
-  const openStatus = renderToStaticMarkup(
-    <RiskEditor
-      changingStatus
-      onCancel={cancel}
-      onSave={save}
-      record={{ ...record, life: "Open" }}
-    />,
-  );
-  const openRationale = openStatus.match(rationaleTextareaPattern)?.[0];
-  expect(openRationale).toBeDefined();
-  expect(openRationale).toMatch(disabledAttributePattern);
 });

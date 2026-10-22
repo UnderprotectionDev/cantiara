@@ -11,6 +11,12 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { DiagramCompositionPanel } from "../diagram-composition-panel";
 
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
+
 const version: TechnicalDiagramVersion = {
   authorityMode: "Product-authored Model",
   createdAt: "2026-10-20T08:00:00.000Z",

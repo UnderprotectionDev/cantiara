@@ -9,46 +9,16 @@ import type {
 } from "@cantiara/api/relations";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@cantiara/ui/components/native-select";
-import { Textarea } from "@cantiara/ui/components/textarea";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLinkProps } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { client, orpc } from "@/utils/orpc";
-
-const RELATION_SELECTION_OPTIONS = [
-  "Related",
-  "Origin",
-  "Blocks",
-  "Blocked by",
-] as const;
-type RelationSelectionKind = (typeof RELATION_SELECTION_OPTIONS)[number];
-
-function relationPreviewInput(
-  selection: RelationSelectionKind,
-  workId: string,
-  selectedWorkId: string,
-): RelationCreatePreviewInput {
-  const workIsTarget = selection === "Blocked by";
-  return {
-    kind: workIsTarget ? "Blocks" : selection,
-    source: {
-      recordId: workIsTarget ? selectedWorkId : workId,
-      recordType: "Work",
-    },
-    target: {
-      recordId: workIsTarget ? workId : selectedWorkId,
-      recordType: "Work",
-    },
-  };
-}
+import { CreateRelationForm } from "../forms/create-relation-form";
+import { ResolveBlockerForm } from "../forms/resolve-blocker-form";
 
 interface RemovedRelation {
   baseRevision: number;
@@ -73,9 +43,6 @@ export default function WorkRelations({
 }) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
-  const [relationKind, setRelationKind] =
-    useState<RelationSelectionKind>("Related");
-  const [targetWorkId, setTargetWorkId] = useState(candidates[0]?.id ?? "");
   const [preview, setPreview] = useState<RelationPreview | null>(null);
   const [createIdempotencyKey, setCreateIdempotencyKey] = useState<
     string | null
@@ -94,16 +61,7 @@ export default function WorkRelations({
     }),
   );
 
-  useEffect(() => {
-    if (
-      targetWorkId === "" ||
-      !candidates.some((candidate) => candidate.id === targetWorkId)
-    ) {
-      setTargetWorkId(candidates[0]?.id ?? "");
-    }
-  }, [candidates, targetWorkId]);
-
-  function invalidateRelations(targetId = targetWorkId) {
+  function invalidateRelations(targetId?: string) {
     return Promise.all([
       queryClient.invalidateQueries({
         queryKey: orpc.relations.queryOptions({
@@ -133,10 +91,8 @@ export default function WorkRelations({
   }
 
   const previewMutation = useMutation({
-    mutationFn: () =>
-      client.relationPreview(
-        relationPreviewInput(relationKind, work.id, targetWorkId),
-      ),
+    mutationFn: (input: RelationCreatePreviewInput) =>
+      client.relationPreview(input),
     onError: (mutationError) => {
       setError(mutationErrorMessage(mutationError, "Relation preview failed."));
     },
@@ -178,7 +134,13 @@ export default function WorkRelations({
       setError(null);
       setPreview(null);
       setCreateIdempotencyKey(null);
-      await invalidateRelations();
+      await invalidateRelations(
+        preview
+          ? [preview.source.recordId, preview.target.recordId].find(
+              (recordId) => recordId !== work.id,
+            )
+          : undefined,
+      );
     },
   });
 
@@ -304,13 +266,6 @@ export default function WorkRelations({
   const outgoing = relationItems.filter(
     (relation) => relation.direction === "outgoing",
   );
-  const canCreate =
-    connection !== "offline" &&
-    work.archivedAt === null &&
-    targetWorkId !== "" &&
-    !previewMutation.isPending &&
-    !createMutation.isPending;
-
   return (
     <section
       aria-label="Relations"
@@ -323,68 +278,28 @@ export default function WorkRelations({
           <summary className="cursor-pointer text-muted-foreground text-xs hover:text-foreground">
             Create Persistent Relation
           </summary>
-          <form
-            className="mt-3 grid gap-2 rounded-md border border-border/70 bg-muted/20 p-3"
-            onSubmit={(event) => {
-              event.preventDefault();
+          <CreateRelationForm
+            candidates={candidates}
+            disabled={
+              connection === "offline" ||
+              work.archivedAt !== null ||
+              previewMutation.isPending ||
+              createMutation.isPending
+            }
+            onEdit={() => {
+              setPreview(null);
+              setCreateIdempotencyKey(null);
+              setError(null);
+            }}
+            onPreview={(input) => {
               setError(null);
               setPreview(null);
               setCreateIdempotencyKey(null);
-              previewMutation.mutate();
+              previewMutation.mutate(input);
             }}
+            onPreviewInvalid={() => setError("Relation preview failed.")}
+            workId={work.id}
           >
-            <label
-              className="text-muted-foreground text-xs"
-              htmlFor={`relation-kind-${work.id}`}
-            >
-              Relation type
-            </label>
-            <NativeSelect
-              aria-label="Relation type"
-              disabled={!canCreate}
-              id={`relation-kind-${work.id}`}
-              onChange={(event) => {
-                setRelationKind(event.target.value as RelationSelectionKind);
-                setPreview(null);
-                setCreateIdempotencyKey(null);
-                setError(null);
-              }}
-              value={relationKind}
-            >
-              {RELATION_SELECTION_OPTIONS.map((kind) => (
-                <NativeSelectOption key={kind} value={kind}>
-                  {kind}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-            <label
-              className="text-muted-foreground text-xs"
-              htmlFor={`relation-target-${work.id}`}
-            >
-              Related Work
-            </label>
-            <NativeSelect
-              aria-label="Related Work"
-              disabled={!canCreate}
-              id={`relation-target-${work.id}`}
-              onChange={(event) => {
-                setTargetWorkId(event.target.value);
-                setPreview(null);
-                setCreateIdempotencyKey(null);
-                setError(null);
-              }}
-              value={targetWorkId}
-            >
-              <NativeSelectOption value="">Select a Work</NativeSelectOption>
-              {candidates.map((candidate) => (
-                <NativeSelectOption key={candidate.id} value={candidate.id}>
-                  {candidate.key} {candidate.title}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-            <Button disabled={!canCreate} size="xs" type="submit">
-              Preview relation
-            </Button>
             {preview ? (
               <div
                 aria-label="Relation preview"
@@ -419,7 +334,7 @@ export default function WorkRelations({
                 </div>
               </div>
             ) : null}
-          </form>
+          </CreateRelationForm>
         </details>
       </div>
       {error ? (
@@ -769,7 +684,6 @@ function BlockerActions({
   relation: RelationView;
 }) {
   const [isResolving, setIsResolving] = useState(false);
-  const [note, setNote] = useState("");
 
   if (relation.kind !== "Blocks") {
     return null;
@@ -804,48 +718,15 @@ function BlockerActions({
     );
   }
   return (
-    <form
-      className="flex w-full flex-col gap-2 sm:max-w-sm"
-      onSubmit={async (event) => {
-        event.preventDefault();
-        try {
-          await onResolve(note.trim() || undefined);
-          setIsResolving(false);
-          setNote("");
-        } catch {
-          // The parent mutation reports the failure in the section alert.
-        }
+    <ResolveBlockerForm
+      disabled={disabled}
+      onCancel={() => setIsResolving(false)}
+      onResolve={async (note) => {
+        await onResolve(note);
+        setIsResolving(false);
       }}
-    >
-      <label
-        className="text-muted-foreground"
-        htmlFor={`blocker-resolution-note-${relation.id}`}
-      >
-        Note
-      </label>
-      <Textarea
-        id={`blocker-resolution-note-${relation.id}`}
-        maxLength={1000}
-        onChange={(event) => setNote(event.target.value)}
-        value={note}
-      />
-      <div className="flex flex-wrap gap-2">
-        <Button disabled={disabled} size="xs" type="submit">
-          Confirm resolution
-        </Button>
-        <Button
-          onClick={() => {
-            setIsResolving(false);
-            setNote("");
-          }}
-          size="xs"
-          type="button"
-          variant="outline"
-        >
-          Cancel
-        </Button>
-      </div>
-    </form>
+      relationId={relation.id}
+    />
   );
 }
 

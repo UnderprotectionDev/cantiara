@@ -1,6 +1,13 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: The click control owns this player’s transient loading state.
 import { Button } from "@cantiara/ui/components/button";
 import { useEffect, useRef, useState } from "react";
+import { z } from "zod";
+
+const playerMessageSchema = z.object({
+  status: z.unknown(),
+  type: z.literal("cantiara-youtube-player"),
+  videoId: z.unknown(),
+});
 
 interface YouTubePlayer {
   cueVideoById: (id: string) => void;
@@ -114,22 +121,14 @@ export function YouTubePreviewPlayer({
         ) {
           return;
         }
-        const data: unknown = event.data;
-        if (
-          !data ||
-          typeof data !== "object" ||
-          !("type" in data) ||
-          data.type !== "cantiara-youtube-player" ||
-          !("videoId" in data) ||
-          data.videoId !== videoId ||
-          !("status" in data)
-        ) {
+        const message = playerMessageSchema.safeParse(event.data);
+        if (!message.success || message.data.videoId !== videoId) {
           return;
         }
-        if (data.status === "ready") {
+        if (message.data.status === "ready") {
           clearTimeout(timeout);
           setStatus("ready");
-        } else if (data.status === "error") {
+        } else if (message.data.status === "error") {
           fail();
         }
       }

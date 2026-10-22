@@ -6,7 +6,6 @@ import {
   type StarterConfiguration,
 } from "@cantiara/api/project-shell";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
-import { Calendar } from "@cantiara/ui/components/calendar";
 import {
   Field,
   FieldDescription,
@@ -18,21 +17,15 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverDescription,
-  PopoverTrigger,
-} from "@cantiara/ui/components/popover";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { format, parseISO } from "date-fns";
-import { ArrowLeft, CalendarDays, FolderPlus } from "lucide-react";
+import { ArrowLeft, FolderPlus } from "lucide-react";
 import { type ChangeEvent, type FormEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { DatePicker } from "@/components/date-picker";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, projectsQueryPrefix } from "@/utils/orpc";
 
@@ -324,9 +317,12 @@ export default function ProjectCreateForm() {
                 <FieldLabel htmlFor="project-target-date">
                   Target date
                 </FieldLabel>
-                <TargetDatePicker
+                <DatePicker
+                  ariaLabel="Target date"
+                  clearLabel="Clear target date"
                   id="project-target-date"
                   onChange={(value) => field.handleChange(value)}
+                  placeholder="Select a target date"
                   value={field.state.value}
                 />
               </Field>
@@ -381,69 +377,5 @@ export default function ProjectCreateForm() {
         </form.Subscribe>
       </div>
     </form>
-  );
-}
-
-function TargetDatePicker({
-  id,
-  onChange,
-  value,
-}: {
-  id: string;
-  onChange: (value: string) => void;
-  value: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const selectedDate = value ? parseISO(value) : undefined;
-  const validSelectedDate =
-    selectedDate && !Number.isNaN(selectedDate.getTime())
-      ? selectedDate
-      : undefined;
-
-  return (
-    <Popover onOpenChange={setOpen} open={open}>
-      <PopoverTrigger
-        render={
-          <Button
-            aria-label="Target date"
-            className="w-full justify-between font-normal"
-            id={id}
-            type="button"
-            variant="outline"
-          />
-        }
-      >
-        {value || "Select a target date"}
-        <CalendarDays aria-hidden="true" />
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto min-w-72">
-        <PopoverDescription>
-          Choose the date when you want to review this Project.
-        </PopoverDescription>
-        <Calendar
-          defaultMonth={validSelectedDate}
-          mode="single"
-          onSelect={(date) => {
-            onChange(date ? format(date, "yyyy-MM-dd") : "");
-            setOpen(false);
-          }}
-          selected={validSelectedDate}
-        />
-        {value ? (
-          <Button
-            className="w-full"
-            onClick={() => {
-              onChange("");
-              setOpen(false);
-            }}
-            size="xs"
-            type="button"
-            variant="ghost"
-          >
-            Clear target date
-          </Button>
-        ) : null}
-      </PopoverContent>
-    </Popover>
   );
 }

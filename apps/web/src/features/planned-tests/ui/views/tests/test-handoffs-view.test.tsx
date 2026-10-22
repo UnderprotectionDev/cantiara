@@ -9,6 +9,7 @@ import type {
   TestHandoffRecord,
 } from "@cantiara/api/planned-tests";
 import { TEST_HANDOFF_TRANSITIONS } from "@cantiara/api/planned-tests";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
@@ -164,27 +165,39 @@ afterEach(() => {
   host?.remove();
 });
 
+async function settle() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function mount(props: Partial<Parameters<typeof TestHandoffsView>[0]> = {}) {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
   act(() => {
     root?.render(
-      <TestHandoffsView
-        cases={[planned]}
-        handoffs={[handoff()]}
-        loadContextTargets={vi.fn().mockResolvedValue([])}
-        loadPackages={vi.fn().mockResolvedValue([])}
-        onCreate={vi.fn().mockResolvedValue(undefined)}
-        onLink={vi.fn().mockResolvedValue(undefined)}
-        onPreviewPackage={vi.fn().mockResolvedValue(previewOf())}
-        onProducePackage={vi.fn().mockResolvedValue(producedOf())}
-        onTransition={vi.fn().mockResolvedValue(undefined)}
-        onUpdate={vi.fn().mockResolvedValue(undefined)}
-        readOnly={false}
-        sessionTests={[arrived, waiting]}
-        {...props}
-      />,
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <TestHandoffsView
+          cases={[planned]}
+          handoffs={[handoff()]}
+          loadContextTargets={vi.fn().mockResolvedValue([])}
+          loadPackages={vi.fn().mockResolvedValue([])}
+          onCreate={vi.fn().mockResolvedValue(undefined)}
+          onLink={vi.fn().mockResolvedValue(undefined)}
+          onPreviewPackage={vi.fn().mockResolvedValue(previewOf())}
+          onProducePackage={vi.fn().mockResolvedValue(producedOf())}
+          onTransition={vi.fn().mockResolvedValue(undefined)}
+          onUpdate={vi.fn().mockResolvedValue(undefined)}
+          readOnly={false}
+          sessionTests={[arrived, waiting]}
+          {...props}
+        />
+      </QueryClientProvider>,
     );
   });
 }
@@ -236,7 +249,7 @@ async function submit(formLabel: string) {
     form.dispatchEvent(
       new Event("submit", { bubbles: true, cancelable: true }),
     );
-    await Promise.resolve();
+    await settle();
   });
 }
 
@@ -296,7 +309,7 @@ test("a linked Session Test shows a suggestion and the Handoff does not move by 
 
   await act(async () => {
     button("Mark as Result received").click();
-    await Promise.resolve();
+    await settle();
   });
   expect(onTransition).toHaveBeenCalledWith(shared, "Result received");
 });
@@ -309,7 +322,7 @@ test("shows a refused move without changing the displayed state", async () => {
 
   await act(async () => {
     button("Mark as Ready to share").click();
-    await Promise.resolve();
+    await settle();
   });
 
   expect(document.querySelector('[role="alert"]')?.textContent).toBe(
@@ -434,7 +447,7 @@ test("previews a closed-world package and produces it only on explicit confirm",
 
   await act(async () => {
     button("Preview package").click();
-    await Promise.resolve();
+    await settle();
   });
   expect(onProducePackage).not.toHaveBeenCalled();
   const text = document.body.textContent ?? "";
@@ -446,7 +459,7 @@ test("previews a closed-world package and produces it only on explicit confirm",
 
   await act(async () => {
     button("Produce package version 1").click();
-    await Promise.resolve();
+    await settle();
   });
   expect(onProducePackage).toHaveBeenCalledWith(
     expect.objectContaining({ id: "h1" }),
@@ -486,7 +499,7 @@ test("a blocked preview shows the reasons and no rendering or confirm", async ()
 
   await act(async () => {
     button("Preview package").click();
-    await Promise.resolve();
+    await settle();
   });
 
   expect(document.querySelector('[role="alert"]')?.textContent).toContain(
@@ -510,11 +523,11 @@ test("a refused produce is shown and nothing is claimed as produced", async () =
 
   await act(async () => {
     button("Preview package").click();
-    await Promise.resolve();
+    await settle();
   });
   await act(async () => {
     button("Produce package version 1").click();
-    await Promise.resolve();
+    await settle();
   });
 
   expect(document.querySelector('[role="alert"]')?.textContent).toBe(
@@ -529,7 +542,7 @@ test("lists already produced packages with copy and download controls", async ()
     loadPackages: vi.fn().mockResolvedValue([producedOf(2), producedOf(1)]),
   });
   await act(async () => {
-    await Promise.resolve();
+    await settle();
   });
 
   const text = document.body.textContent ?? "";
@@ -598,7 +611,7 @@ test("a Document context ref whose section is gone says so while the reference s
 test("removing one of two identical ad hoc items removes exactly that one", async () => {
   mount({ handoffs: [] });
   await act(async () => {
-    await Promise.resolve();
+    await settle();
   });
   act(() => {
     button("Add ad hoc item").click();
@@ -671,14 +684,14 @@ test("adds an exact Document revision and a Wireframe version as package context
   setValue("test-handoff-new-purpose", "Re-check.");
   setValue("test-handoff-new-context-kind", "Document");
   await act(async () => {
-    await Promise.resolve();
+    await settle();
   });
   setValue("test-handoff-new-context-target", "d1");
   setValue("test-handoff-new-context-section", "payment");
   act(() => button("Add context record").click());
   setValue("test-handoff-new-context-kind", "Wireframe");
   await act(async () => {
-    await Promise.resolve();
+    await settle();
   });
   setValue("test-handoff-new-context-target", "sc1");
   setValue("test-handoff-new-context-version", "2");

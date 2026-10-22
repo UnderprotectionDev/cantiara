@@ -126,6 +126,7 @@ import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-dra
 import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
 import { createDatabaseWorkTemplates } from "./features/work-templates/server/work-templates-database";
 import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/server/workspace-overview-database";
+import { createMaintenanceWorker } from "./maintenance-worker";
 
 const db = createDb(env);
 export const documents = createDatabaseDocuments(db);
@@ -161,7 +162,7 @@ const securityEventDb =
   env.SECURITY_EVENT_LOCAL === "true"
     ? await createLocalSecurityEventDb({
         DATABASE_URL: env.SECURITY_EVENT_DATABASE_URL,
-        proxyAddress: process.env.NEON_LOCAL_PROXY,
+        proxyAddress: env.NEON_LOCAL_PROXY,
       })
     : createSecurityEventDb({
         DATABASE_URL: env.SECURITY_EVENT_DATABASE_URL,
@@ -475,3 +476,26 @@ export const auth = createAuth(
 
 export const sweepExpiredResearchSessionBindingPreviews = () =>
   sweepExpiredResearchBindingPreviews(db);
+
+const maintenanceWorker = createMaintenanceWorker({
+  connectionString: env.DATABASE_URL,
+  sweeps: [
+    {
+      name: "research-binding-preview-sweep",
+      cron: "*/15 * * * *",
+      process: sweepExpiredResearchSessionBindingPreviews,
+    },
+    {
+      name: "file-attachment-upload-sweep",
+      cron: "0 * * * *",
+      process: sweepExpiredFileAttachmentUploads,
+    },
+    {
+      name: "priority-metric-trash-sweep",
+      cron: "0 * * * *",
+      process: () => sweepExpiredPriorityMetrics(),
+    },
+  ],
+});
+export const startMaintenanceWorker = maintenanceWorker.start;
+export const stopMaintenanceWorker = maintenanceWorker.stop;

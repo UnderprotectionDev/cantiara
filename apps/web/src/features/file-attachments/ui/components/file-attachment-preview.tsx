@@ -1,6 +1,5 @@
 import type {
   FileAttachment,
-  FileAttachmentLocation,
   FileAttachmentLocationBindInput,
   FileAttachmentLocationBindPreview,
   FileAttachmentLocationBindPreviewInput,
@@ -13,17 +12,25 @@ import {
   FILE_ATTACHMENT_UI_LABELS,
 } from "@cantiara/api/file-attachments";
 import { Button } from "@cantiara/ui/components/button";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
+import { Input } from "@cantiara/ui/components/input";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MediaPlayer,
   type MediaPlayerInstance,
   MediaProvider,
 } from "@vidstack/react";
-import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 import {
   type ChangeEvent,
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -34,7 +41,8 @@ import {
   fetchFileAttachmentAsset,
 } from "../../lib/file-attachment-assets";
 import { uploadFileAttachment } from "../../lib/file-attachment-upload";
-import { FileAttachmentMarkup, MarkupSurface } from "./file-attachment-markup";
+import { FileAttachmentMarkup } from "./file-attachment-markup";
+import type { FileAttachmentPdfPreviewProps } from "./file-attachment-pdf";
 
 type AssetStatus = "idle" | "loading" | "ready" | "error";
 export interface FileAttachmentPreviewViewProps {
@@ -374,12 +382,11 @@ function MediaPreview({
     },
     [],
   );
-  const handleLoopChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      setLoop(event.currentTarget.checked);
-    },
-    [],
-  );
+  const loopId = useId();
+  const speedId = useId();
+  const handleLoopChange = useCallback((checked: boolean) => {
+    setLoop(checked);
+  }, []);
   const handleFullscreen = useCallback(() => {
     mediaRef.current?.enterFullscreen().catch(() => undefined);
   }, []);
@@ -411,23 +418,27 @@ function MediaPreview({
         <MediaProvider />
       </MediaPlayer>
       <div className="flex flex-wrap items-center gap-3 text-xs">
-        <label className="flex items-center gap-2">
+        <label className="flex items-center gap-2" htmlFor={speedId}>
           <span>{FILE_ATTACHMENT_UI_LABELS.playbackSpeed}</span>
-          <select
+          <NativeSelect
             aria-label={FILE_ATTACHMENT_UI_LABELS.playbackSpeed}
-            className="rounded-md border bg-background px-2 py-1"
+            id={speedId}
             onChange={handleSpeedChange}
             value={speed}
           >
             {(playback?.speeds ?? [1]).map((value) => (
-              <option key={value} value={value}>
+              <NativeSelectOption key={value} value={value}>
                 {value}×
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         </label>
-        <label className="flex items-center gap-2">
-          <input checked={loop} onChange={handleLoopChange} type="checkbox" />
+        <label className="flex items-center gap-2" htmlFor={loopId}>
+          <Checkbox
+            checked={loop}
+            id={loopId}
+            onCheckedChange={handleLoopChange}
+          />
           {FILE_ATTACHMENT_UI_LABELS.loop}
         </label>
         {playback?.fullscreen ? (
@@ -445,158 +456,23 @@ function MediaPreview({
   );
 }
 
-function PdfPreview({
-  attachmentId,
-  assetURL,
-  location,
-  locationKind,
-  markings,
-  onCreateMarking,
-  onMarkingError,
-  onSelectLocation,
-  onRetry,
-  pageCount,
-  selectingLocation,
-  tool,
-  versionId,
-}: {
-  attachmentId: string;
-  assetURL: string;
-  location: FileAttachmentLocation | null;
-  locationKind: "point" | "region";
-  markings?: readonly FileAttachmentMarking[];
-  onCreateMarking?: (input: FileAttachmentMarkingInput) => void | Promise<void>;
-  onMarkingError?: () => void;
-  onSelectLocation: (location: FileAttachmentLocation) => void;
-  onRetry?: () => void;
-  pageCount: number;
-  selectingLocation: boolean;
-  tool: "pen" | "highlighter" | "arrow" | "rectangle";
-  versionId: string;
-}) {
-  const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
-  const setCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
-    const pageIndex = canvas?.dataset.pageIndex;
-    if (pageIndex !== undefined) {
-      canvasRefs.current[Number(pageIndex)] = canvas;
-    }
-  }, []);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">(
-    "loading",
-  );
+const LazyPdfPreview = lazy(() =>
+  import("./file-attachment-pdf").then((module) => ({
+    default: module.FileAttachmentPdfPreview,
+  })),
+);
 
-  useEffect(() => {
-    let cancelled = false;
-    let loadingTask: PDFDocumentLoadingTask | undefined;
-    let documentProxy: PDFDocumentProxy | undefined;
-
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: PDF page rendering keeps loading, cancellation, canvas setup, and cleanup in one effect seam.
-    async function renderPages() {
-      try {
-        const pdfjs = await import("pdfjs-dist");
-        pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/build/pdf.worker.min.mjs",
-          import.meta.url,
-        ).toString();
-        loadingTask = pdfjs.getDocument({ url: assetURL });
-        documentProxy = await loadingTask.promise;
-        if (cancelled) {
-          return;
-        }
-
-        const pagesToRender = Math.min(pageCount, documentProxy.numPages);
-        for (let pageNumber = 1; pageNumber <= pagesToRender; pageNumber += 1) {
-          const canvas = canvasRefs.current[pageNumber - 1];
-          if (!canvas) {
-            continue;
-          }
-          // biome-ignore lint/performance/noAwaitInLoops: PDF pages render sequentially to preserve canvas order.
-          const page = await documentProxy.getPage(pageNumber);
-          const viewport = page.getViewport({ scale: 1.2 });
-          const outputScale = window.devicePixelRatio || 1;
-          canvas.width = Math.floor(viewport.width * outputScale);
-          canvas.height = Math.floor(viewport.height * outputScale);
-          canvas.style.width = `${viewport.width}px`;
-          canvas.style.height = `${viewport.height}px`;
-          const context = canvas.getContext("2d");
-          if (!context) {
-            throw new Error("PDF canvas is unavailable.");
-          }
-          await page.render({
-            canvas,
-            canvasContext: context,
-            transform:
-              outputScale === 1
-                ? undefined
-                : [outputScale, 0, 0, outputScale, 0, 0],
-            viewport,
-          }).promise;
-        }
-        if (!cancelled) {
-          setStatus("ready");
-        }
-      } catch {
-        if (!cancelled) {
-          setStatus("error");
-        }
-      }
-    }
-
-    renderPages().catch(() => undefined);
-    return () => {
-      cancelled = true;
-      loadingTask?.destroy().catch(() => undefined);
-      documentProxy?.cleanup().catch(() => undefined);
-    };
-  }, [assetURL, pageCount]);
-
+function PdfPreview(props: FileAttachmentPdfPreviewProps) {
   return (
-    <section aria-label="PDF preview" className="space-y-3">
-      {status === "loading" ? (
+    <Suspense
+      fallback={
         <p className="text-muted-foreground text-sm" role="status">
           Loading PDF preview…
         </p>
-      ) : null}
-      {status === "error" ? (
-        <div className="space-y-3" role="alert">
-          <p className="text-destructive text-sm">
-            PDF preview is unavailable. Download the original file instead.
-          </p>
-          {onRetry ? (
-            <Button onClick={onRetry} size="sm" type="button" variant="outline">
-              {FILE_ATTACHMENT_UI_LABELS.retryPreview}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="grid justify-items-center gap-4">
-        {Array.from({ length: pageCount }, (_, index) => index + 1).map(
-          (pageNumber) => (
-            <MarkupSurface
-              attachmentId={attachmentId}
-              key={pageNumber}
-              location={location}
-              locationKind={locationKind}
-              markings={markings ?? []}
-              onCreateMarking={onCreateMarking}
-              onMarkingError={onMarkingError}
-              onSelectLocation={onSelectLocation}
-              page={pageNumber}
-              selectingLocation={selectingLocation}
-              tool={tool}
-              versionId={versionId}
-            >
-              <canvas
-                aria-label={`PDF page ${pageNumber} of ${pageCount}`}
-                className="max-w-full rounded-md border bg-white shadow-sm"
-                data-page-index={pageNumber - 1}
-                ref={setCanvasRef}
-              />
-            </MarkupSurface>
-          ),
-        )}
-      </div>
-    </section>
+      }
+    >
+      <LazyPdfPreview key={`${props.assetURL}:${props.pageCount}`} {...props} />
+    </Suspense>
   );
 }
 
@@ -677,6 +553,8 @@ export function FileAttachmentPreviewPanel({
       },
     }),
     enabled: open,
+    refetchInterval: (query) =>
+      query.state.data?.status === "processing" ? 1000 : false,
   });
   const preview = previewQuery.data;
   const markingsQuery = useQuery({
@@ -773,16 +651,6 @@ export function FileAttachmentPreviewPanel({
     },
     [undoMarkingMutation.mutateAsync],
   );
-
-  useEffect(() => {
-    if (!open || preview?.status !== "processing") {
-      return;
-    }
-    const timeoutId = window.setTimeout(() => {
-      previewQuery.refetch().catch(() => undefined);
-    }, 1000);
-    return () => window.clearTimeout(timeoutId);
-  }, [open, preview?.status, previewQuery.refetch]);
 
   if (!open) {
     return null;
@@ -992,7 +860,7 @@ function FileAttachmentUploadControl({ projectId }: { projectId: string }) {
   return (
     <div className="max-w-3xl rounded-lg border border-border/70 bg-card/50 p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <input
+        <Input
           accept={FILE_ATTACHMENT_ACCEPT}
           className="hidden"
           onChange={handleFileChange}

@@ -1,5 +1,6 @@
 import type { GitHubAvailabilityStatus } from "@cantiara/api/context";
 import { fetch as undiciFetch } from "undici";
+import { z } from "zod";
 
 const GITHUB_AUTHORIZATION_ENDPOINT =
   "https://github.com/login/oauth/authorize";
@@ -38,38 +39,28 @@ export interface GitHubIdentityConfirmationOAuthOptions {
   githubAvailability?: GitHubIdentityConfirmationOAuthAvailability;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+const accessTokenResponseSchema = z.object({
+  access_token: z.string().min(1),
+});
+
+const gitHubIdentityResponseSchema = z.object({
+  id: z.union([
+    z
+      .number()
+      .refine((id) => Number.isSafeInteger(id) && id >= 0)
+      .transform(String),
+    z.string().regex(GITHUB_IDENTITY_ID_PATTERN),
+  ]),
+});
 
 function parseAccessToken(value: unknown) {
-  if (!isRecord(value) || typeof value.access_token !== "string") {
-    return null;
-  }
-  return value.access_token.length > 0 ? value.access_token : null;
+  const parsed = accessTokenResponseSchema.safeParse(value);
+  return parsed.success ? parsed.data.access_token : null;
 }
 
 function parseGitHubIdentityId(value: unknown) {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  if (
-    typeof value.id === "number" &&
-    Number.isSafeInteger(value.id) &&
-    value.id >= 0
-  ) {
-    return String(value.id);
-  }
-
-  if (
-    typeof value.id === "string" &&
-    GITHUB_IDENTITY_ID_PATTERN.test(value.id)
-  ) {
-    return value.id;
-  }
-
-  return null;
+  const parsed = gitHubIdentityResponseSchema.safeParse(value);
+  return parsed.success ? parsed.data.id : null;
 }
 
 export function createGitHubIdentityConfirmationOAuth({
@@ -135,7 +126,7 @@ export function createGitHubIdentityConfirmationOAuth({
       return null;
     }
 
-    if (!isRecord(body) || "error" in body) {
+    if (typeof body === "object" && body !== null && "error" in body) {
       return null;
     }
 

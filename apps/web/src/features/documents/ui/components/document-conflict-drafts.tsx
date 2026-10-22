@@ -1,36 +1,22 @@
-import {
-  type Document,
-  type DocumentConflictDraft,
-  documentTypeSchema,
-} from "@cantiara/api/documents";
+// biome-ignore-all lint/performance/noJsxPropsBind: Conflict Draft controls bind to the draft being resolved.
+import type { Document, DocumentConflictDraft } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
-import { Input } from "@cantiara/ui/components/input";
-import { Label } from "@cantiara/ui/components/label";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { diffLines } from "diff";
-import {
-  type ChangeEvent,
-  type MouseEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import DocumentConflictIndependentForm from "../forms/document-conflict-independent-form";
+import DocumentConflictResultForm, {
+  type ConflictResultValues,
+} from "../forms/document-conflict-result-form";
 
 interface DraftComparison {
   body: string;
@@ -103,10 +89,10 @@ export default function DocumentConflictDrafts({
   const current = useQuery(currentOptions);
   const [comparison, setComparison] = useState<DraftComparison | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [independent, setIndependent] = useState<Pick<
-    Document,
-    "title" | "body" | "type"
-  > | null>(null);
+  const [independentSeed, setIndependentSeed] = useState<{
+    initial: ConflictResultValues;
+    result: ConflictResultValues;
+  } | null>(null);
   const request = useRef<{ fingerprint: string; key: string } | null>(null);
 
   const rejectedDraftId = rejected?.id ?? null;
@@ -127,19 +113,32 @@ export default function DocumentConflictDrafts({
   ]);
 
   const resolve = useMutation({
-    mutationFn: (action: "Apply parts" | "Create Document" | "Delete") =>
+    mutationFn: ({
+      action,
+      independent,
+      result,
+    }: {
+      action: "Apply parts" | "Create Document" | "Delete";
+      independent: ConflictResultValues | null;
+      result: ConflictResultValues;
+    }) =>
       runOnlineOnlyWrite(() => {
         if (!comparison) {
           throw new Error("Compare a Conflict Draft first.");
         }
-        const fingerprint = JSON.stringify({ action, comparison, independent });
+        const edited = { ...comparison, ...result };
+        const fingerprint = JSON.stringify({
+          action,
+          comparison: edited,
+          independent,
+        });
         if (request.current?.fingerprint !== fingerprint) {
           request.current = { fingerprint, key: crypto.randomUUID() };
         }
         return resolveComparedDraft(
           documentId,
           action,
-          comparison,
+          edited,
           independent,
           request.current.key,
         );
@@ -147,7 +146,7 @@ export default function DocumentConflictDrafts({
     onSuccess: async (document) => {
       request.current = null;
       setComparison(null);
-      setIndependent(null);
+      setIndependentSeed(null);
       setError(null);
       onResolved(document);
       await queryClient.invalidateQueries({ queryKey: draftOptions.queryKey });
@@ -211,59 +210,40 @@ export default function DocumentConflictDrafts({
       compare.mutate(draft);
     }
   }
-  function changeResultTitle(event: ChangeEvent<HTMLInputElement>) {
+  function applyParts(result: ConflictResultValues) {
+    resolve.mutate({ action: "Apply parts", independent: null, result });
+  }
+  function deleteDraft(result: ConflictResultValues) {
+    resolve.mutate({ action: "Delete", independent: null, result });
+  }
+  function openIndependent(result: ConflictResultValues) {
     if (comparison) {
-      setComparison({ ...comparison, title: event.target.value });
-    }
-  }
-  function changeResultType(event: ChangeEvent<HTMLSelectElement>) {
-    if (comparison) {
-      setComparison({
-        ...comparison,
-        type: documentTypeSchema.parse(event.target.value),
-      });
-    }
-  }
-  function changeResultBody(event: ChangeEvent<HTMLTextAreaElement>) {
-    if (comparison) {
-      setComparison({ ...comparison, body: event.target.value });
-    }
-  }
-  function applyParts() {
-    resolve.mutate("Apply parts");
-  }
-  function deleteDraft() {
-    resolve.mutate("Delete");
-  }
-  function openIndependent() {
-    if (comparison) {
-      setIndependent({
-        title: comparison.draft.title,
-        body: comparison.draft.body,
-        type: comparison.draft.type,
+      setIndependentSeed({
+        initial: {
+          title: comparison.draft.title,
+          body: comparison.draft.body,
+          type: comparison.draft.type,
+        },
+        result,
       });
     }
   }
   function closeIndependent() {
-    setIndependent(null);
+    setIndependentSeed(null);
   }
   function changeIndependentOpen(open: boolean) {
     if (!(open || resolve.isPending)) {
       closeIndependent();
     }
   }
-  function changeIndependentTitle(event: ChangeEvent<HTMLInputElement>) {
-    if (independent) {
-      setIndependent({ ...independent, title: event.target.value });
+  function createIndependent(independent: ConflictResultValues) {
+    if (independentSeed) {
+      resolve.mutate({
+        action: "Create Document",
+        independent,
+        result: independentSeed.result,
+      });
     }
-  }
-  function changeIndependentBody(event: ChangeEvent<HTMLTextAreaElement>) {
-    if (independent) {
-      setIndependent({ ...independent, body: event.target.value });
-    }
-  }
-  function createIndependent() {
-    resolve.mutate("Create Document");
   }
   const changes = comparison
     ? diffLines(comparison.current.body, comparison.draft.body)
@@ -354,54 +334,24 @@ export default function DocumentConflictDrafts({
               {changes}
             </pre>
           </section>
-          <fieldset
-            className="space-y-3"
+          <DocumentConflictResultForm
             disabled={disabled || resolve.isPending}
-          >
-            <Label htmlFor="conflict-result-title">Title</Label>
-            <Input
-              id="conflict-result-title"
-              onChange={changeResultTitle}
-              value={comparison.title}
-            />
-            <Label htmlFor="conflict-result-type">Type</Label>
-            <NativeSelect
-              id="conflict-result-type"
-              onChange={changeResultType}
-              value={comparison.type}
-            >
-              {documentTypeSchema.options.map((type) => (
-                <NativeSelectOption key={type} value={type}>
-                  {type}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-            <Label htmlFor="conflict-result-body">Markdown source</Label>
-            <textarea
-              className="min-h-40 w-full rounded-md border border-border bg-background p-3 font-mono text-sm"
-              id="conflict-result-body"
-              onChange={changeResultBody}
-              value={comparison.body}
-            />
-            <div className="flex flex-wrap gap-2">
-              <Button
-                disabled={!comparison.title.trim()}
-                onClick={applyParts}
-                type="button"
-              >
-                Apply parts
-              </Button>
-              <Button onClick={openIndependent} type="button" variant="outline">
-                Create Document
-              </Button>
-              <Button onClick={deleteDraft} type="button" variant="destructive">
-                Delete
-              </Button>
-            </div>
-          </fieldset>
+            initial={{
+              body: comparison.body,
+              title: comparison.title,
+              type: comparison.type,
+            }}
+            key={comparison.draft.id}
+            onApply={applyParts}
+            onCreateDocument={openIndependent}
+            onDelete={deleteDraft}
+          />
         </div>
       ) : null}
-      <Dialog onOpenChange={changeIndependentOpen} open={independent !== null}>
+      <Dialog
+        onOpenChange={changeIndependentOpen}
+        open={independentSeed !== null}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Document</DialogTitle>
@@ -410,42 +360,14 @@ export default function DocumentConflictDrafts({
               Document stays in the same scope with a Conflict Draft origin.
             </DialogDescription>
           </DialogHeader>
-          {independent ? (
-            <fieldset
-              className="space-y-3"
+          {independentSeed ? (
+            <DocumentConflictIndependentForm
               disabled={disabled || resolve.isPending}
-            >
-              <Label htmlFor="conflict-new-title">Title</Label>
-              <Input
-                id="conflict-new-title"
-                onChange={changeIndependentTitle}
-                value={independent.title}
-              />
-              <Label htmlFor="conflict-new-body">Markdown source</Label>
-              <textarea
-                className="min-h-40 w-full rounded-md border border-border bg-background p-3 font-mono text-sm"
-                id="conflict-new-body"
-                onChange={changeIndependentBody}
-                value={independent.body}
-              />
-              {error ? <p role="alert">{error}</p> : null}
-              <DialogFooter>
-                <Button
-                  onClick={closeIndependent}
-                  type="button"
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  disabled={!independent.title.trim()}
-                  onClick={createIndependent}
-                  type="button"
-                >
-                  Create Document
-                </Button>
-              </DialogFooter>
-            </fieldset>
+              error={error}
+              initial={independentSeed.initial}
+              onCancel={closeIndependent}
+              onSubmit={createIndependent}
+            />
           ) : null}
         </DialogContent>
       </Dialog>

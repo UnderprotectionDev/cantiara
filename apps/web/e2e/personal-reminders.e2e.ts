@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { pickDateTime } from "./date-picker-helpers";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 
@@ -49,7 +50,7 @@ test("persists and cancels a Project reminder", async ({
       .toISOString()
       .slice(0, 16);
   });
-  await dialog.getByLabel("When").fill(fireAt);
+  await pickDateTime(page, dialog, "When", fireAt);
 
   const createResponse = page.waitForResponse(
     (response) =>

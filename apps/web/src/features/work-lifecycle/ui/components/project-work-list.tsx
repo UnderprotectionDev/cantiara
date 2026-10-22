@@ -22,6 +22,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
 import { useSelector } from "@tanstack/react-store";
 import { useEffect, useRef, useState } from "react";
+import FavoriteControl from "@/components/favorite-control";
+import WorkStatusForm, {
+  type WorkStatusActionRequest,
+} from "@/components/work-status-form";
 import { useBulkWorkSelection } from "@/features/bulk-editing/hooks/use-bulk-work-selection";
 import BulkEditDialog, {
   WorkSelectionCheckbox,
@@ -29,11 +33,9 @@ import BulkEditDialog, {
 import useUserInitiatedWorkSuccess, {
   type UserInitiatedWorkCloseOutcome,
 } from "@/features/completion-effects/hooks/use-user-initiated-work-success";
-import { customFieldItemsForRecord } from "@/features/custom-fields/hooks/use-custom-fields";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
 import EvidenceFlowPanel from "@/features/evidence/ui/components/evidence-flow-panel";
 import ExternalExecutionHandoff from "@/features/external-handoffs/ui/components/external-execution-handoff";
-import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
 import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import {
   priorityMetricItemsForWork,
@@ -54,6 +56,7 @@ import WorkChecklistEditor from "@/features/work-checklists/ui/components/work-c
 import WorkContextCard from "@/features/work-context/ui/components/work-context-card";
 import WorkDuplicateAction from "@/features/work-templates/ui/components/work-duplicate-action";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
+import { customFieldItemsForRecord } from "@/lib/use-custom-fields";
 import {
   client,
   completionEffectsPreferencesQueryOptions,
@@ -63,9 +66,6 @@ import {
 } from "@/utils/orpc";
 import WorkMergeForm from "../forms/work-merge-form";
 import WorkRecreateForm from "../forms/work-recreate-form";
-import WorkStatusForm, {
-  type WorkStatusActionRequest,
-} from "../forms/work-status-form";
 
 export default function ProjectWorkList({
   accountId,

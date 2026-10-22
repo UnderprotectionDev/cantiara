@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: The browser must visit each Consent state in order.
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { expectDateTime, pickDateTime } from "./date-picker-helpers";
 
 test.use({ timezoneId: "UTC" });
 
@@ -37,9 +38,7 @@ test("Research Session consent context persists, preserves cancelled drafts, and
   await expect(sessions).toContainText(
     "Participant quotes, identifying personal notes, file attachments, sharing and publishing are closed.",
   );
-  await sessions
-    .getByLabel("Time (optional)", { exact: true })
-    .fill("2026-10-10T14:00");
+  await pickDateTime(page, sessions, "Time", "2026-10-10T14:00");
   await sessions
     .getByLabel("Duration (minutes, optional)", { exact: true })
     .fill("45");
@@ -94,9 +93,7 @@ test("Research Session consent context persists, preserves cancelled drafts, and
   await expect(
     sessions.getByLabel("Question guide (optional)", { exact: true }),
   ).toHaveValue("Which formats do you use?");
-  await expect(
-    sessions.getByLabel("Time (optional)", { exact: true }),
-  ).toHaveValue("2026-10-10T14:00");
+  await expectDateTime(sessions, "Time", "2026-10-10T14:00");
   await expect(
     sessions.getByLabel("Duration (minutes, optional)", { exact: true }),
   ).toHaveValue("45");
@@ -139,7 +136,7 @@ test("Research Session refuses skipped and repeated account-zone times and prese
     "Time uses your account time zone: America/New_York.",
   );
   for (const time of ["2026-03-08T02:30", "2026-11-01T01:30"]) {
-    await sessions.getByLabel("Time (optional)", { exact: true }).fill(time);
+    await pickDateTime(page, sessions, "Time", time);
     await sessions
       .getByRole("button", {
         name: time === "2026-03-08T02:30" ? "Save" : "Retry",
@@ -149,13 +146,9 @@ test("Research Session refuses skipped and repeated account-zone times and prese
     await expect(sessions.getByRole("alert")).toContainText(
       "Time is skipped or repeated",
     );
-    await expect(
-      sessions.getByLabel("Time (optional)", { exact: true }),
-    ).toHaveValue(time);
+    await expectDateTime(sessions, "Time", time);
   }
-  await sessions
-    .getByLabel("Time (optional)", { exact: true })
-    .fill("2026-11-01T03:30");
+  await pickDateTime(page, sessions, "Time", "2026-11-01T03:30");
   const savedResponse = page.waitForResponse("**/rpc/saveResearchSession");
   await sessions.getByRole("button", { name: "Retry", exact: true }).click();
   const saved = (await (await savedResponse).json()).json;
@@ -186,9 +179,7 @@ test("Research Session refuses skipped and repeated account-zone times and prese
   expect(exact.ok(), await exact.text()).toBe(true);
   await page.reload();
   await sessions.getByRole("button", { name: "Edit", exact: true }).click();
-  await expect(
-    sessions.getByLabel("Time (optional)", { exact: true }),
-  ).toHaveValue("2026-11-01T03:30");
+  await expectDateTime(sessions, "Time", "2026-11-01T03:30");
   await sessions
     .getByLabel("Purpose", { exact: true })
     .fill("Updated scheduling purpose");
@@ -450,7 +441,10 @@ test("typed Research Session notes remain distinct through save, edit, retry and
     notes.getByRole("button", { name: "Save", exact: true }),
   ).toBeDisabled();
   await notes
-    .getByLabel("Contains personal information", { exact: true })
+    .getByRole("checkbox", {
+      name: "Contains personal information",
+      exact: true,
+    })
     .uncheck();
   const audit = await new AxeBuilder({ page })
     .include('[aria-label="Research Sessions"]')

@@ -3,6 +3,7 @@ import { session, verification } from "@cantiara/db/schema/auth";
 import { securityEvent } from "@cantiara/db/schema/security-event";
 import type { SecurityEventDatabase } from "@cantiara/db/security-events";
 import { and, eq, gt } from "drizzle-orm";
+import { z } from "zod";
 
 import type { AccountSessionAccessRuntime } from "./session-access";
 import {
@@ -14,25 +15,15 @@ import {
   type TauriSessionAccess,
 } from "./tauri-session";
 
+const codeRecordSchema = z.object({
+  codeChallenge: z.string().refine(isTauriAuthCodeChallenge),
+  sessionId: z.string().min(1),
+});
+
 function parseCodeRecord(value: string): TauriAuthCodeRecord | null {
   try {
-    const parsed: unknown = JSON.parse(value);
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      !("codeChallenge" in parsed) ||
-      typeof parsed.codeChallenge !== "string" ||
-      !isTauriAuthCodeChallenge(parsed.codeChallenge) ||
-      !("sessionId" in parsed) ||
-      typeof parsed.sessionId !== "string" ||
-      parsed.sessionId.length === 0
-    ) {
-      return null;
-    }
-    return {
-      codeChallenge: parsed.codeChallenge,
-      sessionId: parsed.sessionId,
-    };
+    const parsed = codeRecordSchema.safeParse(JSON.parse(value));
+    return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }

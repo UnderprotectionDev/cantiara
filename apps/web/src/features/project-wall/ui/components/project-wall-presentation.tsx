@@ -8,6 +8,7 @@ import {
   projectWallPresentationSequence,
 } from "@cantiara/api/project-wall-presentation";
 import { Button } from "@cantiara/ui/components/button";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
   NativeSelect,
   NativeSelectOption,
@@ -271,11 +272,15 @@ export function ProjectWallSnapshotPanel({
             Cards in this {PROJECT_WALL_SNAPSHOT_LABELS.snapshot}
           </legend>
           {wall.cards.map((card) => (
-            <label className="flex items-center gap-2" key={card.id}>
-              <input
+            <label
+              className="flex items-center gap-2"
+              htmlFor={`snapshot-card-${card.id}`}
+              key={card.id}
+            >
+              <Checkbox
                 checked={selected.includes(card.id)}
-                onChange={() => toggle(card.id)}
-                type="checkbox"
+                id={`snapshot-card-${card.id}`}
+                onCheckedChange={() => toggle(card.id)}
               />
               {cardLabel(card)}
             </label>

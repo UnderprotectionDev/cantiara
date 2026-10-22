@@ -1,22 +1,12 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: This small form binds its local fields and submit action.
 
-import { documentTypeSchema } from "@cantiara/api/documents";
-import {
-  type CreateSmartCollectionInput,
-  type SetSmartCollectionSubscriptionInput,
-  SMART_COLLECTION_SOURCE_TYPES,
-  SMART_COLLECTION_STATUS_OPTIONS,
-  type SmartCollectionSourceType,
-  type SmartCollectionViewSource,
+import type {
+  SetSmartCollectionSubscriptionInput,
+  SmartCollectionViewSource,
 } from "@cantiara/api/smart-collections";
-import { WORK_TYPE_OPTIONS } from "@cantiara/api/work-lifecycle";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Label } from "@cantiara/ui/components/label";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@cantiara/ui/components/native-select";
 import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLinkProps } from "@tanstack/react-router";
@@ -28,7 +18,7 @@ import {
   useRef,
   useState,
 } from "react";
-import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
+import FavoriteControl from "@/components/favorite-control";
 import {
   OpenSourceRecordButton,
   type SourceRecordPreviewTarget,
@@ -50,6 +40,7 @@ import {
   type SmartCollectionMembershipPreviewRecord,
 } from "../../lib/smart-collection-membership-preview";
 import { newWorkLinkTarget } from "../../lib/smart-collection-work-prefill";
+import SmartCollectionCreateForm from "../forms/smart-collection-create-form";
 import { SmartCollectionInsights } from "./smart-collection-insights";
 
 const SMART_COLLECTION_DRAG_TYPE = "smart-collection-record";
@@ -94,54 +85,6 @@ function previewForDragEvent(
   return changes
     ? { changes, recordName: record.recordName, viewId: view.id }
     : null;
-}
-
-function buildCollectionConditions({
-  documentType,
-  sourceType,
-  status,
-  tag,
-  workType,
-}: {
-  documentType: string;
-  sourceType: SmartCollectionSourceType;
-  status: string;
-  tag: string;
-  workType: string;
-}): CreateSmartCollectionInput["conditions"] {
-  const conditions: CreateSmartCollectionInput["conditions"] = {};
-  if (sourceType === "Work") {
-    if (status) {
-      conditions.status = status as NonNullable<
-        CreateSmartCollectionInput["conditions"]["status"]
-      >;
-    }
-    if (workType) {
-      conditions.type = workType as NonNullable<
-        CreateSmartCollectionInput["conditions"]["type"]
-      >;
-    }
-    return conditions;
-  }
-
-  if (sourceType === "Document" || sourceType === "Wiki Document") {
-    if (documentType) {
-      conditions.documentType = documentType as NonNullable<
-        CreateSmartCollectionInput["conditions"]["documentType"]
-      >;
-    }
-    if (tag.trim()) {
-      conditions.tag = tag.trim();
-    }
-    return conditions;
-  }
-
-  if (status) {
-    conditions.status = status as NonNullable<
-      CreateSmartCollectionInput["conditions"]["status"]
-    >;
-  }
-  return conditions;
 }
 
 function MembershipReasons({ reasons }: { reasons: string[] }) {
@@ -394,18 +337,17 @@ function CollectionSubscriptionControls({
   return (
     <div className="space-y-2">
       <Label className="flex items-center gap-2 font-normal">
-        <input
+        <Checkbox
           checked={view.isSubscribed}
           disabled={subscription.isPending}
-          onChange={(event) =>
+          onCheckedChange={(checked) =>
             subscription.mutate(
               smartCollectionSubscriptionMutationInput(view, {
-                checked: event.currentTarget.checked,
+                checked,
                 kind: "subscribe",
               }),
             )
           }
-          type="checkbox"
         />
         Subscribe
       </Label>
@@ -413,22 +355,21 @@ function CollectionSubscriptionControls({
         className={`flex items-center gap-2 font-normal ${view.isSubscribed ? "" : "text-muted-foreground"}`}
         htmlFor={notifyOnLeaveId}
       >
-        <input
+        <Checkbox
           aria-describedby={
             view.isSubscribed ? undefined : `${notifyOnLeaveId}-description`
           }
           checked={view.notifyOnLeave}
           disabled={!view.isSubscribed || subscription.isPending}
           id={notifyOnLeaveId}
-          onChange={(event) =>
+          onCheckedChange={(checked) =>
             subscription.mutate(
               smartCollectionSubscriptionMutationInput(view, {
-                checked: event.currentTarget.checked,
+                checked,
                 kind: "notifyOnLeave",
               }),
             )
           }
-          type="checkbox"
         />
         Notify on leave
       </Label>
@@ -560,33 +501,20 @@ export default function ProjectSmartCollectionsSurface({
   projectId: string;
   selectedViewId?: string;
 }) {
-  const queryClient = useQueryClient();
-  const [name, setName] = useState("");
-  const [viewName, setViewName] = useState("Default");
-  const [sourceType, setSourceType] =
-    useState<SmartCollectionSourceType>("Work");
-  const [projectIds, setProjectIds] = useState<string[]>([projectId]);
-  const [status, setStatus] = useState("");
-  const [workType, setWorkType] = useState("");
-  const [documentType, setDocumentType] = useState("");
-  const [tag, setTag] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [membershipPreview, setMembershipPreview] =
     useState<SmartCollectionMembershipPreview | null>(null);
-  const pendingKey = useRef<string | null>(null);
+  const previousProjectId = useRef(projectId);
   const previousSelectedViewId = useRef(selectedViewId);
   const options = orpc.smartCollectionViews.queryOptions({
     input: { projectId },
   });
   const views = useQuery(options);
-  const projectsQuery = useQuery(orpc.projects.queryOptions());
-  const projects = projectsQuery.data ?? [];
-  const statusOptions = SMART_COLLECTION_STATUS_OPTIONS[sourceType] ?? [];
-  const isDocumentSource =
-    sourceType === "Document" || sourceType === "Wiki Document";
 
   useEffect(() => {
-    setProjectIds([projectId]);
+    if (previousProjectId.current === projectId) {
+      return;
+    }
+    previousProjectId.current = projectId;
     setMembershipPreview(null);
   }, [projectId]);
 
@@ -598,233 +526,16 @@ export default function ProjectSmartCollectionsSurface({
     setMembershipPreview(null);
   }, [selectedViewId]);
 
-  const create = useMutation({
-    mutationFn: () => {
-      pendingKey.current ??= crypto.randomUUID();
-      const conditions = buildCollectionConditions({
-        documentType,
-        sourceType,
-        status,
-        tag,
-        workType,
-      });
-      return runOnlineOnlyWrite(() =>
-        client.createSmartCollection({
-          clientIdempotencyKey: pendingKey.current as string,
-          projectId,
-          sourceType,
-          ...(sourceType === "Wiki Document" ? {} : { scope: { projectIds } }),
-          name,
-          viewName,
-          presentation: "List",
-          conditions,
-        }),
-      );
-    },
-    onSuccess: async () => {
-      pendingKey.current = null;
-      setName("");
-      setError(null);
-      await Promise.all(invalidateSmartCollectionMembership(queryClient));
-    },
-    onError: (failure) =>
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Smart Collection could not be saved.",
-      ),
-  });
   const visible = selectedViewId
     ? views.data?.filter(({ id }) => id === selectedViewId)
     : views.data;
   const viewsByDropId = new Map<string, SmartCollectionViewSource>(
     (visible ?? []).map((view) => [collectionViewDropId(view.id), view]),
   );
-  let sourceSpecificFilters: ReactNode = null;
-  if (sourceType === "Work") {
-    sourceSpecificFilters = (
-      <div className="space-y-1">
-        <Label htmlFor="collection-work-type">Work type</Label>
-        <NativeSelect
-          id="collection-work-type"
-          onChange={(event) => {
-            pendingKey.current = null;
-            setWorkType(event.target.value);
-          }}
-          value={workType}
-        >
-          <NativeSelectOption value="">None</NativeSelectOption>
-          {WORK_TYPE_OPTIONS.map((type) => (
-            <NativeSelectOption key={type} value={type}>
-              {type}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </div>
-    );
-  } else if (isDocumentSource) {
-    sourceSpecificFilters = (
-      <>
-        <div className="space-y-1">
-          <Label htmlFor="collection-document-type">Document type</Label>
-          <NativeSelect
-            id="collection-document-type"
-            onChange={(event) => {
-              pendingKey.current = null;
-              setDocumentType(event.target.value);
-            }}
-            value={documentType}
-          >
-            <NativeSelectOption value="">None</NativeSelectOption>
-            {documentTypeSchema.options.map((type) => (
-              <NativeSelectOption key={type} value={type}>
-                {type}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="collection-tag">Tag</Label>
-          <Input
-            id="collection-tag"
-            onChange={(event) => {
-              pendingKey.current = null;
-              setTag(event.target.value);
-            }}
-            value={tag}
-          />
-        </div>
-      </>
-    );
-  }
-  const scopeField =
-    sourceType === "Wiki Document" ? (
-      <p className="self-end text-muted-foreground text-sm">Workspace scope</p>
-    ) : (
-      <fieldset className="space-y-2 md:col-span-4">
-        <legend className="font-medium text-sm">Scope</legend>
-        {projectsQuery.isError ? (
-          <p className="text-muted-foreground text-sm">
-            Project scope is unavailable.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {projects.map((project) => {
-              const checked = projectIds.includes(project.id);
-              return (
-                <Label
-                  className="flex items-center gap-2 font-normal"
-                  key={project.id}
-                >
-                  <input
-                    checked={checked}
-                    disabled={
-                      project.id === projectId ||
-                      (checked && projectIds.length === 1)
-                    }
-                    onChange={(event) => {
-                      pendingKey.current = null;
-                      const nextChecked = event.currentTarget.checked;
-                      setProjectIds((current) =>
-                        nextChecked
-                          ? [...new Set([...current, project.id])]
-                          : current.filter((id) => id !== project.id),
-                      );
-                    }}
-                    type="checkbox"
-                    value={project.id}
-                  />
-                  {project.name}
-                </Label>
-              );
-            })}
-          </div>
-        )}
-      </fieldset>
-    );
-
   return (
     <section aria-label="Smart Collection" className="space-y-5">
       <h2 className="font-semibold text-2xl">Smart Collection</h2>
-      <form
-        className="grid gap-3 rounded-lg border p-4 md:grid-cols-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          create.mutate();
-        }}
-      >
-        <div className="space-y-1">
-          <Label htmlFor="collection-name">Name</Label>
-          <Input
-            id="collection-name"
-            onChange={(event) => {
-              pendingKey.current = null;
-              setName(event.target.value);
-            }}
-            required
-            value={name}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="collection-view-name">Named view</Label>
-          <Input
-            id="collection-view-name"
-            onChange={(event) => {
-              pendingKey.current = null;
-              setViewName(event.target.value);
-            }}
-            required
-            value={viewName}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="collection-source-type">Source type</Label>
-          <NativeSelect
-            id="collection-source-type"
-            onChange={(event) => {
-              pendingKey.current = null;
-              setSourceType(event.target.value as SmartCollectionSourceType);
-              setStatus("");
-              setWorkType("");
-              setDocumentType("");
-              setTag("");
-            }}
-            value={sourceType}
-          >
-            {SMART_COLLECTION_SOURCE_TYPES.map((type) => (
-              <NativeSelectOption key={type} value={type}>
-                {type}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
-        {statusOptions.length > 0 ? (
-          <div className="space-y-1">
-            <Label htmlFor="collection-status">Status</Label>
-            <NativeSelect
-              id="collection-status"
-              onChange={(event) => {
-                pendingKey.current = null;
-                setStatus(event.target.value);
-              }}
-              value={status}
-            >
-              <NativeSelectOption value="">None</NativeSelectOption>
-              {statusOptions.map((option) => (
-                <NativeSelectOption key={option} value={option}>
-                  {option}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-        ) : null}
-        {sourceSpecificFilters}
-        {scopeField}
-        <Button className="self-end" disabled={create.isPending} type="submit">
-          Save
-        </Button>
-      </form>
-      {error ? <p role="alert">{error}</p> : null}
+      <SmartCollectionCreateForm projectId={projectId} />
       {views.isError ? (
         <p role="alert">Smart Collection is unavailable.</p>
       ) : null}

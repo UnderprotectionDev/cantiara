@@ -18,7 +18,7 @@ import {
 } from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
-import type { RiskRecord } from "@/features/risks/ui/components/project-risks-view";
+import type { RiskRecord } from "@/features/risks/lib/risk-form";
 import { type client, orpc } from "@/utils/orpc";
 import ProjectOverviewView from "../project-overview";
 import ProjectOverviewSurface from "../project-overview-surface";

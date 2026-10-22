@@ -29,6 +29,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { getWorkStatusLabel } from "@/components/work-status-form";
 import { useCommandPalette } from "@/features/command-palette/ui/components/command-palette";
 import {
   SPEC_CHANGE_REVIEW_HASH,
@@ -37,7 +38,6 @@ import {
   workRelationsHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ReturnToWork from "@/features/return-to-work/ui/components/return-to-work";
-import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { orpc } from "@/utils/orpc";
 import {
   COPY_CONTEXT_AS_MARKDOWN_LABEL,

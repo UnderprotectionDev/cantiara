@@ -7,8 +7,8 @@ import {
   isValidationContextRecord,
   type ValidationDraft,
   type ValidationRecord,
-  ValidationRecordsView,
-} from "../views/validation-records-view";
+} from "../../lib/validation-record";
+import { ValidationRecordsView } from "../views/validation-records-view";
 
 export default function ValidationRecordsSurface({
   projectId,

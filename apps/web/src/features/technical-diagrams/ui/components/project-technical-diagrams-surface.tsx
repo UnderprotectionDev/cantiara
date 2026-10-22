@@ -5,10 +5,6 @@ import type {
 } from "@cantiara/api/technical-diagram-card";
 import { diagramGraph } from "@cantiara/api/technical-diagram-structure";
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
-import { Button } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
-import { Label } from "@cantiara/ui/components/label";
-import { useForm } from "@tanstack/react-form";
 import {
   useMutation,
   useQueries,
@@ -16,32 +12,23 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { z } from "zod";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { usePersonalTechnicalDiagramView } from "../../hooks/use-personal-technical-diagram-view";
+import type { ArchitectureBindOption } from "../../lib/technical-diagram-field-options";
+import { DiagramAuthorityConversion } from "../forms/diagram-authority-conversion-form";
+import { DiagramViewForm } from "../forms/diagram-view-form";
 import { NewTechnicalDiagramForm } from "../forms/new-technical-diagram-form";
+import type { RecordCardOption } from "../forms/place-record-form";
 import {
-  DiagramAuthorityConversion,
   DiagramOrigins,
   ExternalSourceLinkDetails,
 } from "./diagram-authority-controls";
-import {
-  DiagramCompositionPanel,
-  type RecordCardOption,
-} from "./diagram-composition-panel";
+import { DiagramCompositionPanel } from "./diagram-composition-panel";
 import { DiagramVersionPanel } from "./diagram-version-panel";
 import { TechnicalDiagramCanvas } from "./technical-diagram-canvas";
-import {
-  type ArchitectureBindOption,
-  TechnicalDiagramEditor,
-} from "./technical-diagram-editor";
+import { TechnicalDiagramEditor } from "./technical-diagram-editor";
 import { TechnicalDiagramOutline } from "./technical-diagram-outline";
-
-const diagramViewSchema = z.object({
-  name: z.string().trim().min(1),
-  selectedNodeIds: z.array(z.string()).min(1),
-});
 
 function DiagramCard({
   bindOptions,
@@ -55,7 +42,6 @@ function DiagramCard({
   const graph = diagramGraph(diagram.model);
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const pendingKey = useRef<string | null>(null);
   const options = orpc.technicalDiagramViews.queryOptions({
     input: { diagramId: diagram.id },
   });
@@ -232,57 +218,6 @@ function DiagramCard({
       ),
     onSuccess: invalidate,
   });
-  const create = useMutation({
-    mutationFn: ({
-      name,
-      selectedNodeIds,
-    }: {
-      name: string;
-      selectedNodeIds: string[];
-    }) => {
-      pendingKey.current ??= crypto.randomUUID();
-      return runOnlineOnlyWrite(() =>
-        client.createDiagramView({
-          clientIdempotencyKey: pendingKey.current as string,
-          diagramId: diagram.id,
-          name,
-          selectedNodeIds,
-        }),
-      );
-    },
-    onSuccess: async () => {
-      pendingKey.current = null;
-      setError(null);
-      // A new Diagram View can become the diagram's current view (a view named
-      // "Default"), so the diagram query is invalidated with the views list.
-      await invalidate();
-    },
-    onError: (failure) =>
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Diagram View could not be saved.",
-      ),
-  });
-  const form = useForm({
-    defaultValues: {
-      name: "",
-      selectedNodeIds: graph.nodes.map(({ id }) => id),
-    },
-    // Any edit starts a new save attempt, so it gets a fresh idempotency key.
-    listeners: {
-      onChange: () => {
-        pendingKey.current = null;
-      },
-    },
-    onSubmit: async ({ value, formApi }) => {
-      await create
-        .mutateAsync(value)
-        .then(() => formApi.setFieldValue("name", ""))
-        .catch(() => undefined);
-    },
-    validators: { onChange: diagramViewSchema },
-  });
   const versionNames = Object.fromEntries(
     (versions.data ?? []).map((version) => [version.id, version.name]),
   );
@@ -353,74 +288,13 @@ function DiagramCard({
         versions={versions.data ?? []}
       />
       <DiagramAuthorityConversion diagram={diagram} />
-      <section aria-label="Diagram View" className="space-y-2">
-        <h4 className="font-medium">Diagram View</h4>
-        {views.data?.map((view) => (
-          <p key={view.id}>
-            {view.name}: {view.selectedNodeIds.length} nodes
-          </p>
-        ))}
-        <form
-          className="space-y-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            form.handleSubmit().catch(() => undefined);
-          }}
-        >
-          <form.Field name="name">
-            {(field) => (
-              <>
-                <Label htmlFor={`diagram-view-name-${diagram.id}`}>Name</Label>
-                <Input
-                  id={`diagram-view-name-${diagram.id}`}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  required
-                  value={field.state.value}
-                />
-              </>
-            )}
-          </form.Field>
-          <form.Field name="selectedNodeIds">
-            {(field) => (
-              <fieldset
-                aria-label="Diagram View"
-                className="flex flex-wrap gap-3"
-              >
-                {graph.nodes.map((node) => (
-                  <label
-                    className="inline-flex items-center gap-1"
-                    key={node.id}
-                  >
-                    <input
-                      checked={field.state.value.includes(node.id)}
-                      onChange={(event) =>
-                        field.handleChange(
-                          event.target.checked
-                            ? [...field.state.value, node.id]
-                            : field.state.value.filter((id) => id !== node.id),
-                        )
-                      }
-                      type="checkbox"
-                    />
-                    {node.label}
-                  </label>
-                ))}
-              </fieldset>
-            )}
-          </form.Field>
-          <form.Subscribe selector={(state) => state.values.selectedNodeIds}>
-            {(selectedNodeIds) => (
-              <Button
-                disabled={create.isPending || selectedNodeIds.length === 0}
-                type="submit"
-              >
-                Save
-              </Button>
-            )}
-          </form.Subscribe>
-        </form>
-        {error ? <p role="alert">{error}</p> : null}
-      </section>
+      <DiagramViewForm
+        diagramId={diagram.id}
+        error={error}
+        nodes={graph.nodes}
+        onError={setError}
+        views={views.data ?? []}
+      />
     </article>
   );
 }

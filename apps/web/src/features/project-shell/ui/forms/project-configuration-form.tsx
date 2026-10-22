@@ -6,16 +6,20 @@ import {
   type ProjectArea,
   type ProjectShellConfiguration,
   type ProjectShellConfigurationChange,
+  projectShellConfigurationChangeSchema,
   type StarterConfiguration,
 } from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useCallback, useState } from "react";
-import CustomFieldEditor from "@/features/custom-fields/ui/components/custom-field-editor";
+import CustomFieldEditor from "@/components/custom-field-editor-form";
+import RecordActionEditor from "@/components/record-action-form";
 import PriorityMetricEditor from "@/features/priority-metrics/ui/components/priority-metric-editor";
 import { useProjectAreaEnable } from "@/features/project-shell/hooks/use-project-area-enable";
 import { useProjectConfiguration } from "@/features/project-shell/hooks/use-project-configuration";
@@ -32,9 +36,27 @@ import {
   ProjectAreaAvailability,
   projectAreaAvailabilityLabel,
 } from "@/features/project-shell/ui/components/project-area-availability";
-import RecordActionEditor from "@/features/record-actions/ui/components/record-action-editor";
 import WorkContextCardLayoutEditor from "@/features/work-context/ui/components/work-context-card-layout-editor";
 import WorkTemplateEditor from "@/features/work-templates/ui/components/work-template-editor";
+
+function submitConfigurationChange(
+  change: ProjectShellConfigurationChange,
+  onChange: (change: ProjectShellConfigurationChange) => void,
+) {
+  if (!projectShellConfigurationChangeSchema.safeParse(change).success) {
+    return false;
+  }
+  onChange(change);
+  return true;
+}
+
+function handleFormSubmit(form: { handleSubmit: () => Promise<void> }) {
+  return (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    form.handleSubmit().catch(() => undefined);
+  };
+}
 
 interface ProjectAreasNavigationPreview {
   defaultPinnedAreas: readonly ProjectArea[];
@@ -333,17 +355,20 @@ function ConfigurationHostContent({
     case "Backlog":
       return (
         <div className="mt-3 space-y-3">
-          <label className="flex items-center gap-3">
-            <input
+          <label
+            className="flex items-center gap-3"
+            htmlFor="notify-on-reappear-date"
+          >
+            <Checkbox
               checked={configuration.notifyOnReappearDate ?? false}
               disabled={disabled}
-              onChange={(event) =>
+              id="notify-on-reappear-date"
+              onCheckedChange={(checked) =>
                 onChange({
                   kind: "set-reappear-date-notification",
-                  enabled: event.target.checked,
+                  enabled: checked,
                 })
               }
-              type="checkbox"
             />
             Notify on Reappear date
           </label>
@@ -548,29 +573,21 @@ function StagesConfiguration({
   error: string | null;
   onChange: (change: ProjectShellConfigurationChange) => void;
 }) {
-  const [stageName, setStageName] = useState("");
-  const [draftNames, setDraftNames] = useState<Record<string, string>>({});
+  const addStageForm = useForm({
+    defaultValues: { name: "" },
+    onSubmit: ({ value, formApi }) => {
+      const name = value.name.trim();
+      if (
+        name &&
+        submitConfigurationChange({ kind: "add-stage", name }, onChange)
+      ) {
+        formApi.reset();
+      }
+    },
+  });
   const [pendingStageRemovalId, setPendingStageRemovalId] = useState<
     string | null
   >(null);
-
-  function addStage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const name = stageName.trim();
-    if (!name) {
-      return;
-    }
-    onChange({ kind: "add-stage", name });
-    setStageName("");
-  }
-
-  function renameStage(stageId: string, currentName: string) {
-    const name = (draftNames[stageId] ?? currentName).trim();
-    if (!name || name === currentName) {
-      return;
-    }
-    onChange({ kind: "rename-stage", name, stageId });
-  }
 
   function reorderStage(stageId: string, direction: -1 | 1) {
     const currentIndex = configuration.preparedStages.findIndex(
@@ -599,56 +616,44 @@ function StagesConfiguration({
         Stages are independent presentation metadata. Several stages can be
         Active at once, and removing one does not delete main records.
       </p>
-      <form className="flex flex-wrap items-end gap-2" onSubmit={addStage}>
-        <label className="grid gap-1 text-xs" htmlFor="new-project-stage">
-          Stage name
-          <Input
-            disabled={disabled}
-            id="new-project-stage"
-            onChange={(event) => setStageName(event.target.value)}
-            value={stageName}
-          />
-        </label>
-        <Button
-          disabled={disabled || !stageName.trim()}
-          size="xs"
-          type="submit"
-        >
-          Add stage
-        </Button>
+      <form
+        className="flex flex-wrap items-end gap-2"
+        noValidate
+        onSubmit={handleFormSubmit(addStageForm)}
+      >
+        <addStageForm.Field name="name">
+          {(field) => (
+            <label className="grid gap-1 text-xs" htmlFor="new-project-stage">
+              Stage name
+              <Input
+                disabled={disabled}
+                id="new-project-stage"
+                name={field.name}
+                onChange={(event) => field.handleChange(event.target.value)}
+                value={field.state.value}
+              />
+            </label>
+          )}
+        </addStageForm.Field>
+        <addStageForm.Subscribe selector={(state) => state.values.name}>
+          {(name) => (
+            <Button disabled={disabled || !name.trim()} size="xs" type="submit">
+              Add stage
+            </Button>
+          )}
+        </addStageForm.Subscribe>
       </form>
       <ConfigurationMutationError error={error} />
       <ul aria-label="Stages configuration" className="space-y-2">
         {configuration.preparedStages.map((stage, index) => (
           <li className="border bg-background p-3" key={stage.id}>
             <div className="flex flex-wrap items-end gap-2">
-              <label
-                className="grid min-w-44 flex-1 gap-1 text-xs"
-                htmlFor={`stage-name-${stage.id}`}
-              >
-                Stage name
-                <Input
-                  aria-label={`Stage name ${stage.name}`}
-                  disabled={disabled}
-                  id={`stage-name-${stage.id}`}
-                  onChange={(event) =>
-                    setDraftNames((current) => ({
-                      ...current,
-                      [stage.id]: event.target.value,
-                    }))
-                  }
-                  value={draftNames[stage.id] ?? stage.name}
-                />
-              </label>
-              <Button
+              <StageNameForm
                 disabled={disabled}
-                onClick={() => renameStage(stage.id, stage.name)}
-                size="xs"
-                type="button"
-                variant="outline"
-              >
-                Save
-              </Button>
+                key={`${stage.id}-${stage.name}`}
+                onChange={onChange}
+                stage={stage}
+              />
               <label
                 className="grid gap-1 text-xs"
                 htmlFor={`stage-status-${stage.id}`}
@@ -753,6 +758,56 @@ function StagesConfiguration({
   );
 }
 
+function StageNameForm({
+  disabled,
+  onChange,
+  stage,
+}: {
+  disabled: boolean;
+  onChange: (change: ProjectShellConfigurationChange) => void;
+  stage: { id: string; name: string };
+}) {
+  const form = useForm({
+    defaultValues: { name: stage.name },
+    onSubmit: ({ value }) => {
+      const name = value.name.trim();
+      if (!name || name === stage.name) {
+        return;
+      }
+      submitConfigurationChange(
+        { kind: "rename-stage", name, stageId: stage.id },
+        onChange,
+      );
+    },
+  });
+
+  return (
+    <form className="contents" noValidate onSubmit={handleFormSubmit(form)}>
+      <form.Field name="name">
+        {(field) => (
+          <label
+            className="grid min-w-44 flex-1 gap-1 text-xs"
+            htmlFor={`stage-name-${stage.id}`}
+          >
+            Stage name
+            <Input
+              aria-label={`Stage name ${stage.name}`}
+              disabled={disabled}
+              id={`stage-name-${stage.id}`}
+              name={field.name}
+              onChange={(event) => field.handleChange(event.target.value)}
+              value={field.state.value}
+            />
+          </label>
+        )}
+      </form.Field>
+      <Button disabled={disabled} size="xs" type="submit" variant="outline">
+        Save
+      </Button>
+    </form>
+  );
+}
+
 function WorkStatusesConfiguration({
   configuration,
   disabled,
@@ -764,15 +819,6 @@ function WorkStatusesConfiguration({
   error: string | null;
   onChange: (change: ProjectShellConfigurationChange) => void;
 }) {
-  const [draftLabels, setDraftLabels] = useState<Record<string, string>>({});
-  const [draftLimits, setDraftLimits] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      Object.entries(configuration.workStatusSoftWipLimits).map(
-        ([status, limit]) => [status, limit?.toString() ?? ""],
-      ),
-    ),
-  );
-
   return (
     <div className="mt-3 space-y-4">
       <p className="text-muted-foreground text-xs/relaxed">
@@ -787,97 +833,157 @@ function WorkStatusesConfiguration({
             key={status.semantic}
           >
             <span className="pb-2 font-medium text-xs">{status.semantic}</span>
-            <label
-              className="grid min-w-44 flex-1 gap-1 text-xs"
-              htmlFor={`work-status-label-${status.semantic}`}
-            >
-              Visible label
-              <Input
-                aria-label={`Work status label ${status.semantic}`}
-                disabled={disabled}
-                id={`work-status-label-${status.semantic}`}
-                onChange={(event) =>
-                  setDraftLabels((current) => ({
-                    ...current,
-                    [status.semantic]: event.target.value,
-                  }))
-                }
-                value={draftLabels[status.semantic] ?? status.label}
-              />
-            </label>
-            <Button
-              disabled={
-                disabled ||
-                !(draftLabels[status.semantic] ?? status.label).trim() ||
-                (draftLabels[status.semantic] ?? status.label).trim() ===
-                  status.label
-              }
-              onClick={() =>
-                onChange({
-                  kind: "rename-work-status",
-                  label: (draftLabels[status.semantic] ?? status.label).trim(),
-                  semantic: status.semantic,
-                })
-              }
-              size="xs"
-              type="button"
-              variant="outline"
-            >
-              Save
-            </Button>
-            <label
-              className="grid gap-1 text-xs"
-              htmlFor={`work-status-soft-wip-${status.semantic}`}
-            >
-              Soft WIP
-              <Input
-                aria-label={`Soft WIP ${status.semantic}`}
-                disabled={disabled}
-                id={`work-status-soft-wip-${status.semantic}`}
-                max={10_000}
-                min={1}
-                onChange={(event) =>
-                  setDraftLimits((current) => ({
-                    ...current,
-                    [status.semantic]: event.target.value,
-                  }))
-                }
-                type="number"
-                value={draftLimits[status.semantic] ?? ""}
-              />
-            </label>
-            <Button
-              disabled={
-                disabled ||
-                (draftLimits[status.semantic] !== "" &&
-                  (!Number.isInteger(Number(draftLimits[status.semantic])) ||
-                    Number(draftLimits[status.semantic]) < 1 ||
-                    Number(draftLimits[status.semantic]) > 10_000)) ||
-                (draftLimits[status.semantic] ?? "") ===
-                  (configuration.workStatusSoftWipLimits[
-                    status.semantic
-                  ]?.toString() ?? "")
-              }
-              onClick={() =>
-                onChange({
-                  kind: "set-work-status-soft-wip-limit",
-                  limit:
-                    draftLimits[status.semantic] === ""
-                      ? null
-                      : Number(draftLimits[status.semantic]),
-                  semantic: status.semantic,
-                })
-              }
-              size="xs"
-              type="button"
-              variant="outline"
-            >
-              Save Soft WIP
-            </Button>
+            <WorkStatusLabelForm
+              disabled={disabled}
+              key={`${status.semantic}-${status.label}`}
+              onChange={onChange}
+              status={status}
+            />
+            <WorkStatusSoftWipForm
+              configuration={configuration}
+              disabled={disabled}
+              onChange={onChange}
+              semantic={status.semantic}
+            />
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+type WorkStatusSemantic =
+  ProjectShellConfiguration["workStatusLabels"][number]["semantic"];
+
+function WorkStatusLabelForm({
+  disabled,
+  onChange,
+  status,
+}: {
+  disabled: boolean;
+  onChange: (change: ProjectShellConfigurationChange) => void;
+  status: { label: string; semantic: WorkStatusSemantic };
+}) {
+  const form = useForm({
+    defaultValues: { label: status.label },
+    onSubmit: ({ value }) => {
+      const label = value.label.trim();
+      if (!label || label === status.label) {
+        return;
+      }
+      submitConfigurationChange(
+        { kind: "rename-work-status", label, semantic: status.semantic },
+        onChange,
+      );
+    },
+  });
+
+  return (
+    <form className="contents" noValidate onSubmit={handleFormSubmit(form)}>
+      <form.Field name="label">
+        {(field) => (
+          <label
+            className="grid min-w-44 flex-1 gap-1 text-xs"
+            htmlFor={`work-status-label-${status.semantic}`}
+          >
+            Visible label
+            <Input
+              aria-label={`Work status label ${status.semantic}`}
+              disabled={disabled}
+              id={`work-status-label-${status.semantic}`}
+              name={field.name}
+              onChange={(event) => field.handleChange(event.target.value)}
+              value={field.state.value}
+            />
+          </label>
+        )}
+      </form.Field>
+      <form.Subscribe selector={(state) => state.values.label.trim()}>
+        {(label) => (
+          <Button
+            disabled={disabled || !label || label === status.label}
+            size="xs"
+            type="submit"
+            variant="outline"
+          >
+            Save
+          </Button>
+        )}
+      </form.Subscribe>
+    </form>
+  );
+}
+
+function WorkStatusSoftWipForm({
+  configuration,
+  disabled,
+  onChange,
+  semantic,
+}: {
+  configuration: ProjectShellConfiguration;
+  disabled: boolean;
+  onChange: (change: ProjectShellConfigurationChange) => void;
+  semantic: WorkStatusSemantic;
+}) {
+  const savedLimit =
+    configuration.workStatusSoftWipLimits[semantic]?.toString() ?? "";
+  const form = useForm({
+    defaultValues: { limit: savedLimit },
+    onSubmit: ({ value }) => {
+      submitConfigurationChange(
+        {
+          kind: "set-work-status-soft-wip-limit",
+          limit: value.limit === "" ? null : Number(value.limit),
+          semantic,
+        },
+        onChange,
+      );
+    },
+  });
+
+  return (
+    <form className="contents" noValidate onSubmit={handleFormSubmit(form)}>
+      <form.Field name="limit">
+        {(field) => (
+          <label
+            className="grid gap-1 text-xs"
+            htmlFor={`work-status-soft-wip-${semantic}`}
+          >
+            Soft WIP
+            <Input
+              aria-label={`Soft WIP ${semantic}`}
+              disabled={disabled}
+              id={`work-status-soft-wip-${semantic}`}
+              max={10_000}
+              min={1}
+              name={field.name}
+              onChange={(event) => field.handleChange(event.target.value)}
+              type="number"
+              value={field.state.value}
+            />
+          </label>
+        )}
+      </form.Field>
+      <form.Subscribe selector={(state) => state.values.limit}>
+        {(limit) => (
+          <Button
+            disabled={
+              disabled ||
+              (limit !== "" &&
+                (!Number.isInteger(Number(limit)) ||
+                  Number(limit) < 1 ||
+                  Number(limit) > 10_000)) ||
+              limit === savedLimit
+            }
+            size="xs"
+            type="submit"
+            variant="outline"
+          >
+            Save Soft WIP
+          </Button>
+        )}
+      </form.Subscribe>
+    </form>
   );
 }
 
@@ -892,14 +998,20 @@ function SavedViewsConfiguration({
   error: string | null;
   onChange: (change: ProjectShellConfigurationChange) => void;
 }) {
-  const [draftFocusThreshold, setDraftFocusThreshold] = useState(
-    () => configuration.workFocusThreshold?.toString() ?? "",
-  );
-  const focusThresholdIsValid =
-    draftFocusThreshold === "" ||
-    (Number.isInteger(Number(draftFocusThreshold)) &&
-      Number(draftFocusThreshold) >= 1 &&
-      Number(draftFocusThreshold) <= 10_000);
+  const focusThresholdForm = useForm({
+    defaultValues: {
+      threshold: configuration.workFocusThreshold?.toString() ?? "",
+    },
+    onSubmit: ({ value }) => {
+      submitConfigurationChange(
+        {
+          kind: "set-work-focus-threshold",
+          threshold: value.threshold === "" ? null : Number(value.threshold),
+        },
+        onChange,
+      );
+    },
+  });
 
   return (
     <div className="mt-3 space-y-4">
@@ -956,41 +1068,58 @@ function SavedViewsConfiguration({
             </NativeSelectOption>
           </NativeSelect>
         </label>
-        <label className="grid gap-1 text-xs" htmlFor="work-focus-threshold">
-          Focus threshold
-          <Input
-            aria-label="Focus threshold"
-            disabled={disabled}
-            id="work-focus-threshold"
-            max={10_000}
-            min={1}
-            onChange={(event) => setDraftFocusThreshold(event.target.value)}
-            type="number"
-            value={draftFocusThreshold}
-          />
-        </label>
-        <Button
-          disabled={
-            disabled ||
-            !focusThresholdIsValid ||
-            (draftFocusThreshold === ""
-              ? configuration.workFocusThreshold === null
-              : Number(draftFocusThreshold) ===
-                configuration.workFocusThreshold)
-          }
-          onClick={() =>
-            onChange({
-              kind: "set-work-focus-threshold",
-              threshold:
-                draftFocusThreshold === "" ? null : Number(draftFocusThreshold),
-            })
-          }
-          size="xs"
-          type="button"
-          variant="outline"
+        <form
+          className="contents"
+          noValidate
+          onSubmit={handleFormSubmit(focusThresholdForm)}
         >
-          Save Focus threshold
-        </Button>
+          <focusThresholdForm.Field name="threshold">
+            {(field) => (
+              <label
+                className="grid gap-1 text-xs"
+                htmlFor="work-focus-threshold"
+              >
+                Focus threshold
+                <Input
+                  aria-label="Focus threshold"
+                  disabled={disabled}
+                  id="work-focus-threshold"
+                  max={10_000}
+                  min={1}
+                  name={field.name}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  type="number"
+                  value={field.state.value}
+                />
+              </label>
+            )}
+          </focusThresholdForm.Field>
+          <focusThresholdForm.Subscribe
+            selector={(state) => state.values.threshold}
+          >
+            {(threshold) => (
+              <Button
+                disabled={
+                  disabled ||
+                  !(
+                    threshold === "" ||
+                    (Number.isInteger(Number(threshold)) &&
+                      Number(threshold) >= 1 &&
+                      Number(threshold) <= 10_000)
+                  ) ||
+                  (threshold === ""
+                    ? configuration.workFocusThreshold === null
+                    : Number(threshold) === configuration.workFocusThreshold)
+                }
+                size="xs"
+                type="submit"
+                variant="outline"
+              >
+                Save Focus threshold
+              </Button>
+            )}
+          </focusThresholdForm.Subscribe>
+        </form>
       </div>
       <StatusAgeThresholdConfiguration
         configuration={configuration}
@@ -1011,34 +1140,48 @@ function StatusAgeThresholdConfiguration({
   disabled: boolean;
   onChange: (change: ProjectShellConfigurationChange) => void;
 }) {
-  const [draft, setDraft] = useState(
-    () => configuration.statusAgeThresholdDays?.toString() ?? "",
-  );
-  const thresholdDays = draft === "" ? null : Number(draft);
-  const valid =
-    thresholdDays === null ||
-    (Number.isInteger(thresholdDays) &&
-      thresholdDays >= 1 &&
-      thresholdDays <= 10_000);
+  const form = useForm({
+    defaultValues: {
+      days: configuration.statusAgeThresholdDays?.toString() ?? "",
+    },
+    onSubmit: ({ value }) => {
+      submitConfigurationChange(
+        {
+          kind: "set-status-age-threshold",
+          thresholdDays: value.days === "" ? null : Number(value.days),
+        },
+        onChange,
+      );
+    },
+  });
   return (
-    <div className="space-y-2">
-      <label
-        className="grid max-w-sm gap-1 text-sm"
-        htmlFor="status-age-threshold"
-      >
-        Long in the same status
-        <Input
-          aria-describedby="status-age-threshold-description"
-          aria-invalid={!valid}
-          disabled={disabled}
-          id="status-age-threshold"
-          max={10_000}
-          min={1}
-          onChange={(event) => setDraft(event.target.value)}
-          type="number"
-          value={draft}
-        />
-      </label>
+    <form className="space-y-2" noValidate onSubmit={handleFormSubmit(form)}>
+      <form.Field name="days">
+        {(field) => (
+          <label
+            className="grid max-w-sm gap-1 text-sm"
+            htmlFor="status-age-threshold"
+          >
+            Long in the same status
+            <form.Subscribe selector={(state) => state.values.days}>
+              {(days) => (
+                <Input
+                  aria-describedby="status-age-threshold-description"
+                  aria-invalid={!isValidStatusAge(days)}
+                  disabled={disabled}
+                  id="status-age-threshold"
+                  max={10_000}
+                  min={1}
+                  name={field.name}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  type="number"
+                  value={field.state.value}
+                />
+              )}
+            </form.Subscribe>
+          </label>
+        )}
+      </form.Field>
       <p
         className="text-muted-foreground text-xs/relaxed"
         id="status-age-threshold-description"
@@ -1047,26 +1190,42 @@ function StatusAgeThresholdConfiguration({
         appear in Return to Work and a Smart Collection without changing Work or
         sending notifications.
       </p>
-      {valid ? null : (
-        <p className="text-destructive text-sm" role="alert">
-          Enter a whole number of days from 1 to 10000.
-        </p>
-      )}
-      <Button
-        disabled={
-          disabled ||
-          !valid ||
-          thresholdDays === (configuration.statusAgeThresholdDays ?? null)
-        }
-        onClick={() =>
-          onChange({ kind: "set-status-age-threshold", thresholdDays })
-        }
-        size="xs"
-        type="button"
-        variant="outline"
-      >
-        Save Long in the same status
-      </Button>
-    </div>
+      <form.Subscribe selector={(state) => state.values.days}>
+        {(days) => {
+          const valid = isValidStatusAge(days);
+          const thresholdDays = days === "" ? null : Number(days);
+          return (
+            <>
+              {valid ? null : (
+                <p className="text-destructive text-sm" role="alert">
+                  Enter a whole number of days from 1 to 10000.
+                </p>
+              )}
+              <Button
+                disabled={
+                  disabled ||
+                  !valid ||
+                  thresholdDays ===
+                    (configuration.statusAgeThresholdDays ?? null)
+                }
+                size="xs"
+                type="submit"
+                variant="outline"
+              >
+                Save Long in the same status
+              </Button>
+            </>
+          );
+        }}
+      </form.Subscribe>
+    </form>
   );
+}
+
+function isValidStatusAge(days: string) {
+  if (days === "") {
+    return true;
+  }
+  const value = Number(days);
+  return Number.isInteger(value) && value >= 1 && value <= 10_000;
 }

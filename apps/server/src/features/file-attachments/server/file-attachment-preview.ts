@@ -13,6 +13,7 @@ import { log } from "evlog";
 import Papa from "papaparse";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import sharp, { type Metadata } from "sharp";
+import { z } from "zod";
 
 const TIMEOUT_ERROR_PATTERN = /timeout/iu;
 
@@ -41,14 +42,20 @@ export type FileAttachmentPreviewFailureCode =
   | "cpu-limit"
   | "processing-failed";
 
-const FILE_ATTACHMENT_PREVIEW_FAILURE_CODES =
-  new Set<FileAttachmentPreviewFailureCode>([
+const fileAttachmentPreviewFailureMarkerSchema = z.object({
+  attempts: z
+    .number()
+    .refine((attempts) => Number.isSafeInteger(attempts) && attempts > 0),
+  code: z.enum([
     "decode-limit",
     "dimension-limit",
     "frame-limit",
     "cpu-limit",
     "processing-failed",
-  ]);
+  ]),
+  message: z.string(),
+  retryable: z.boolean(),
+});
 
 export class FileAttachmentPreviewError extends Error {
   readonly code: FileAttachmentPreviewFailureCode;
@@ -167,17 +174,6 @@ function playback() {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function isFileAttachmentPreviewFailureCode(
-  value: unknown,
-): value is FileAttachmentPreviewFailureCode {
-  return (
-    typeof value === "string" &&
-    FILE_ATTACHMENT_PREVIEW_FAILURE_CODES.has(
-      value as FileAttachmentPreviewFailureCode,
-    )
-  );
 }
 
 function toPreviewError(error: unknown) {
@@ -611,22 +607,13 @@ export function createFileAttachmentPreview({
     );
     if (await objectStore.has(failureMarkerKey)) {
       try {
-        const marker = JSON.parse(
-          new TextDecoder().decode(await objectStore.read(failureMarkerKey)),
-        ) as {
-          attempts?: number;
-          code?: FileAttachmentPreviewFailureCode;
-          message?: string;
-          retryable?: boolean;
-        };
-        if (
-          typeof marker.attempts === "number" &&
-          Number.isSafeInteger(marker.attempts) &&
-          marker.attempts > 0 &&
-          isFileAttachmentPreviewFailureCode(marker.code) &&
-          typeof marker.message === "string" &&
-          typeof marker.retryable === "boolean"
-        ) {
+        const parsedMarker = fileAttachmentPreviewFailureMarkerSchema.safeParse(
+          JSON.parse(
+            new TextDecoder().decode(await objectStore.read(failureMarkerKey)),
+          ),
+        );
+        if (parsedMarker.success) {
+          const marker = parsedMarker.data;
           return {
             failure: {
               attempts: marker.attempts,

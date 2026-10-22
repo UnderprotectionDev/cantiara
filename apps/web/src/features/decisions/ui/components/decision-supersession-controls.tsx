@@ -8,10 +8,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import { SupersessionSelectionForm } from "../forms/supersession-selection-form";
 import {
   DecisionSupersessionPreviewView,
   SupersessionRelationSummary,
-  SupersessionSelectionForm,
 } from "./decision-supersession-view";
 
 export default function DecisionSupersessionControls({

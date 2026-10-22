@@ -185,8 +185,10 @@ function button(label: string) {
 }
 
 async function click(element: Element) {
-  await act(() => {
+  await act(async () => {
     element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    // Form submission settles asynchronously.
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
 
@@ -270,7 +272,7 @@ test("attaching to an existing İş accepts the visible id or key", async () => 
   const actions = actionsMock();
   await mount(actions);
   // The second mode radio is "Attach results to an existing İş".
-  const [, attachRadio] = [...document.querySelectorAll('input[type="radio"]')];
+  const [, attachRadio] = [...document.querySelectorAll('[role="radio"]')];
   if (!attachRadio) {
     throw new Error("No attach mode radio");
   }

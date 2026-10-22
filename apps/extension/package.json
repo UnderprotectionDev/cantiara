@@ -5,10 +5,10 @@
   "description": "manifest.json description",
   "type": "module",
   "scripts": {
-    "build": "wxt build",
+    "build": "tsc -b ../../packages/api && wxt build",
     "build:firefox": "wxt build -b firefox",
-    "check-types": "tsc --noEmit",
-    "compile": "tsc --noEmit",
+    "check-types": "tsc -b ../../packages/api && tsc --noEmit",
+    "compile": "tsc -b ../../packages/api && tsc --noEmit",
     "dev": "wxt --port 5555",
     "dev:firefox": "wxt -b firefox",
     "postinstall": "wxt prepare",
@@ -16,13 +16,20 @@
     "zip:firefox": "wxt zip -b firefox"
   },
   "dependencies": {
+    "@cantiara/api": "workspace:*",
+    "@cantiara/ui": "workspace:*",
+    "@tanstack/react-form": "^1.33.5",
+    "date-fns": "^4.4.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "zod": "catalog:"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@wxt-dev/module-react": "^1.1.5",
+    "tailwindcss": "catalog:",
     "typescript": "^5.9.3",
     "web-ext": "^10.5.0",
     "wxt": "^0.21.3"

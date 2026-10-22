@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { pickDate } from "./date-picker-helpers";
 import { openWorkRecordFromKanbanList } from "./kanban-test-helpers";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
@@ -40,7 +41,7 @@ async function createWorkCustomField(
 }
 
 async function fillStartWorkRuntimeInputs(form: Locator) {
-  await form.getByLabel("Target date").fill("2026-10-01");
+  await pickDate(form.page(), form.getByLabel("Target date"), "2026-10-01");
   await form.getByLabel("Estimate").fill("5");
   await form.getByLabel("Readiness").selectOption("Ready");
   const relatedWorkSelect = form.getByLabel("Related Work");

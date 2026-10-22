@@ -1,9 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the session and item being reviewed.
 
-import {
-  TEST_REPORT_RESULT_LABELS,
-  TEST_REPORT_RESULTS,
-} from "@cantiara/api/test-report";
+import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import {
   TEST_REVIEW_BULK_LABEL,
   TEST_REVIEW_NEW_CONTEXT_LABEL,
@@ -22,23 +19,18 @@ import {
   technicalContextUnknown,
 } from "@cantiara/api/test-review-signals";
 import { Button } from "@cantiara/ui/components/button";
-import { Textarea } from "@cantiara/ui/components/textarea";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useState } from "react";
+import { accountDateTimeFormatter } from "@/features/account-preferences/lib/account-preferences-format";
+import type { TestResultEventDraft } from "../../lib/test-review-forms";
 import { errorText, usePanelFocus } from "../components/test-review-panel";
 import {
   type TestReviewSignalActions,
   type TestReviewSignalData,
   TestReviewSignals,
 } from "../components/test-review-signals";
-
-export interface TestResultEventDraft {
-  correctedResult: (typeof TEST_REPORT_RESULTS)[number] | null;
-  eventId: string | null;
-  kind: TestResultEventKind;
-  note: string;
-  reason: string;
-  sessionTestId: string | null;
-}
+import CloseSessionForm from "../forms/close-session-form";
+import TestResultEventForm from "../forms/test-result-event-form";
 
 export interface TestReviewActions {
   commitBulk: (
@@ -105,80 +97,6 @@ function StateButtons({
         </Button>
       ))}
     </fieldset>
-  );
-}
-
-function ClosePanel({
-  onCancel,
-  onConfirm,
-  pending,
-  preview,
-}: {
-  onCancel: () => void;
-  onConfirm: (reason: string) => void;
-  pending: boolean;
-  preview: TestReviewClosePreview;
-}) {
-  const [reason, setReason] = useState("");
-  const headingRef = usePanelFocus(true);
-  return (
-    <section
-      aria-labelledby="test-review-close-heading"
-      className="space-y-3 rounded-md border border-border p-3 text-sm"
-    >
-      <h5
-        className="font-medium outline-none"
-        id="test-review-close-heading"
-        ref={headingRef}
-        tabIndex={-1}
-      >
-        Close this Test Session
-      </h5>
-      {preview.remaining.length === 0 ? (
-        <p>Every Session Test has been reviewed or closed.</p>
-      ) : (
-        <>
-          <p>
-            These Session Tests stay exactly as they are. Closing is not blocked
-            by them.
-          </p>
-          <ul aria-label="Remaining Session Tests" className="list-disc pl-5">
-            {preview.remaining.map((record) => (
-              <li key={record.id}>{`${record.title}: ${record.state}`}</li>
-            ))}
-          </ul>
-        </>
-      )}
-      <div className="grid gap-2">
-        <label htmlFor="test-review-close-reason">
-          Close reason (optional)
-        </label>
-        <Textarea
-          disabled={pending}
-          id="test-review-close-reason"
-          onChange={(event) => setReason(event.target.value)}
-          rows={2}
-          value={reason}
-        />
-      </div>
-      <div className="flex gap-2">
-        <Button
-          disabled={pending}
-          onClick={() => onConfirm(reason)}
-          type="button"
-        >
-          Close Test Session
-        </Button>
-        <Button
-          disabled={pending}
-          onClick={onCancel}
-          type="button"
-          variant="outline"
-        >
-          Cancel
-        </Button>
-      </div>
-    </section>
   );
 }
 
@@ -288,12 +206,11 @@ function ItemRow({
   return (
     <li className="space-y-2 rounded-md border border-border/60 p-3">
       <div className="flex flex-wrap items-center gap-3">
-        <input
+        <Checkbox
           aria-label={`Select ${item.title}`}
           checked={checked}
           disabled={disabled}
-          onChange={onToggle}
-          type="checkbox"
+          onCheckedChange={onToggle}
         />
         <span className="font-medium">{item.title}</span>
         <span className="text-muted-foreground">
@@ -371,134 +288,14 @@ const EVENT_COPY: Record<TestResultEventKind, { done: string; title: string }> =
     },
   };
 
-function EventPanel({
-  eventId,
-  kind,
-  onCancel,
-  onConfirm,
-  pending,
-  sessionTestId,
-  title,
-}: {
-  eventId: string | null;
-  kind: TestResultEventKind;
-  onCancel: () => void;
-  onConfirm: (draft: TestResultEventDraft) => void;
-  pending: boolean;
-  sessionTestId: string | null;
-  title: string;
-}) {
-  const [reason, setReason] = useState("");
-  const [note, setNote] = useState("");
-  const [result, setResult] = useState<
-    (typeof TEST_REPORT_RESULTS)[number] | ""
-  >("");
-  const headingRef = usePanelFocus(true);
-  const needsResult = kind === "Correction" && sessionTestId !== null;
-  const needsNote = kind === "Correction" && sessionTestId === null;
-  const ready =
-    reason.trim() !== "" &&
-    (!needsResult || result !== "") &&
-    (!needsNote || note.trim() !== "");
-  return (
-    <section
-      aria-labelledby="test-review-event-heading"
-      className="space-y-3 rounded-md border border-border p-3 text-sm"
-    >
-      <h5
-        className="font-medium outline-none"
-        id="test-review-event-heading"
-        ref={headingRef}
-        tabIndex={-1}
-      >
-        {title}
-      </h5>
-      <p className="text-muted-foreground">
-        {kind === "Redaction"
-          ? "The value is replaced by a mark with time, reason and actor. It cannot be used as current evidence or export. This is not Trash."
-          : "This adds a new event. The original report is not edited or deleted."}
-      </p>
-      {needsResult ? (
-        <div className="grid gap-2">
-          <label htmlFor="test-review-event-result">Corrected result</label>
-          <select
-            className="h-9 rounded-md border border-border bg-background px-2"
-            disabled={pending}
-            id="test-review-event-result"
-            onChange={(event) =>
-              setResult(
-                event.target.value as (typeof TEST_REPORT_RESULTS)[number],
-              )
-            }
-            value={result}
-          >
-            <option value="">Choose a result</option>
-            {TEST_REPORT_RESULTS.map((value) => (
-              <option key={value} value={value}>
-                {TEST_REPORT_RESULT_LABELS[value]}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : null}
-      {kind === "Correction" ? (
-        <div className="grid gap-2">
-          <label htmlFor="test-review-event-note">
-            {needsNote ? "Corrected summary" : "Note (optional)"}
-          </label>
-          <Textarea
-            disabled={pending}
-            id="test-review-event-note"
-            onChange={(event) => setNote(event.target.value)}
-            rows={2}
-            value={note}
-          />
-        </div>
-      ) : null}
-      <div className="grid gap-2">
-        <label htmlFor="test-review-event-reason">Reason (required)</label>
-        <Textarea
-          disabled={pending}
-          id="test-review-event-reason"
-          onChange={(event) => setReason(event.target.value)}
-          rows={2}
-          value={reason}
-        />
-      </div>
-      <div className="flex gap-2">
-        <Button
-          disabled={pending || !ready}
-          onClick={() =>
-            onConfirm({
-              correctedResult: result === "" ? null : result,
-              eventId,
-              kind,
-              note,
-              reason,
-              sessionTestId,
-            })
-          }
-          type="button"
-        >
-          {`Record ${kind === "Redaction" ? "redaction" : kind}`}
-        </Button>
-        <Button
-          disabled={pending}
-          onClick={onCancel}
-          type="button"
-          variant="outline"
-        >
-          Cancel
-        </Button>
-      </div>
-    </section>
-  );
-}
-
-function eventLine(entry: TestResultEvent, session: TestReviewSession) {
+function eventLine(
+  entry: TestResultEvent,
+  session: TestReviewSession,
+  formatDateTime: (value: string) => string,
+) {
   const item = session.items.find(({ id }) => id === entry.sessionTestId);
   const target = item ? `Session Test ${item.title}` : "Test Session";
-  const when = new Date(entry.recordedAt).toLocaleString();
+  const when = formatDateTime(entry.recordedAt);
   if (entry.kind === "Redaction") {
     return `${when}: Redaction of ${entry.redactedField?.toLowerCase()} on ${target}. Value replaced. Reason: ${entry.reason ?? "none"}. Actor: ${entry.actorAccountId}`;
   }
@@ -517,13 +314,16 @@ function ResultChain({
   disabled,
   events,
   onRedact,
+  preferences,
   session,
 }: {
   disabled: boolean;
   events: TestResultEvent[];
   onRedact: (eventId: string) => void;
+  preferences?: AccountPreferences;
   session: TestReviewSession;
 }) {
+  const formatDateTime = accountDateTimeFormatter(preferences);
   if (events.length === 0) {
     return null;
   }
@@ -533,10 +333,10 @@ function ResultChain({
       <ul className="space-y-1">
         {events.map((entry) => (
           <li className="flex flex-wrap items-center gap-2" key={entry.id}>
-            <span>{eventLine(entry, session)}</span>
+            <span>{eventLine(entry, session, formatDateTime)}</span>
             {entry.kind !== "Redaction" && !entry.redacted ? (
               <Button
-                aria-label={`Redact content of ${entry.kind} ${new Date(entry.recordedAt).toLocaleString()}`}
+                aria-label={`Redact content of ${entry.kind} ${formatDateTime(entry.recordedAt)}`}
                 className="h-7 px-2 text-xs"
                 disabled={disabled}
                 onClick={() => onRedact(entry.id)}
@@ -565,11 +365,13 @@ type Panel =
 
 function SessionReview({
   actions,
+  preferences,
   readOnly,
   resultEvents,
   session,
 }: {
   actions: TestReviewActions;
+  preferences?: AccountPreferences;
   readOnly: boolean;
   resultEvents: TestResultEvent[];
   session: TestReviewSession;
@@ -771,6 +573,7 @@ function SessionReview({
             sessionTestId: null,
           })
         }
+        preferences={preferences}
         session={session}
       />
       <Button
@@ -788,7 +591,7 @@ function SessionReview({
         {TEST_REVIEW_BULK_LABEL}
       </Button>
       {panel?.kind === "event" ? (
-        <EventPanel
+        <TestResultEventForm
           eventId={panel.eventId}
           kind={panel.mode}
           onCancel={() => setPanel(null)}
@@ -804,7 +607,7 @@ function SessionReview({
         />
       ) : null}
       {panel?.kind === "close" ? (
-        <ClosePanel
+        <CloseSessionForm
           onCancel={() => setPanel(null)}
           onConfirm={(reason) =>
             run(
@@ -845,11 +648,14 @@ function SessionReview({
 
 function HistoryList({
   events,
+  preferences,
   sessions,
 }: {
   events: TestReviewEvent[];
+  preferences?: AccountPreferences;
   sessions: TestReviewSession[];
 }) {
+  const formatDateTime = accountDateTimeFormatter(preferences);
   if (events.length === 0) {
     return null;
   }
@@ -867,7 +673,7 @@ function HistoryList({
           );
           return (
             <li key={entry.id}>
-              {`${new Date(entry.recordedAt).toLocaleString()}: ${
+              {`${formatDateTime(entry.recordedAt)}: ${
                 item ? `Session Test ${item.title}` : "Test Session"
               }${session ? ` of ${sessionTitle(session)}` : ""} ${entry.fromState} to ${entry.toState}`}
               {entry.reason ? `. Reason: ${entry.reason}` : ""}
@@ -892,6 +698,7 @@ function HistoryList({
 export function TestReviewView({
   actions,
   events,
+  preferences,
   readOnly,
   resultEvents,
   sessions,
@@ -899,6 +706,7 @@ export function TestReviewView({
 }: {
   actions: TestReviewActions;
   events: TestReviewEvent[];
+  preferences?: AccountPreferences;
   readOnly: boolean;
   resultEvents: TestResultEvent[];
   sessions: TestReviewSession[];
@@ -927,6 +735,7 @@ export function TestReviewView({
             <SessionReview
               actions={actions}
               key={session.id}
+              preferences={preferences}
               readOnly={readOnly}
               resultEvents={resultEvents.filter(
                 (entry) => entry.sessionId === session.id,
@@ -940,11 +749,16 @@ export function TestReviewView({
         <TestReviewSignals
           actions={signals.actions}
           data={signals.data}
+          preferences={preferences}
           readOnly={readOnly}
           sessions={sessions}
         />
       ) : null}
-      <HistoryList events={events} sessions={sessions} />
+      <HistoryList
+        events={events}
+        preferences={preferences}
+        sessions={sessions}
+      />
     </section>
   );
 }

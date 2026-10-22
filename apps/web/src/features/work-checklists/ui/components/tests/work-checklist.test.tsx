@@ -4,6 +4,12 @@ import { describe, expect, test, vi } from "vitest";
 
 import WorkChecklist from "../work-checklist";
 
+vi.mock("@/components/app-link", () => ({
+  AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
+    <a {...props} href={href} />
+  ),
+}));
+
 describe("Work Checklists", () => {
   test("renders owned checklist item controls without Work lifecycle fields", () => {
     const html = renderToStaticMarkup(

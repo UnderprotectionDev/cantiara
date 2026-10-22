@@ -14,6 +14,10 @@ import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Calendar } from "@cantiara/ui/components/calendar";
 import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -628,54 +632,60 @@ function BacklogSortControls({
   return (
     <>
       {" "}
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex items-center gap-2 text-sm" htmlFor="backlog-sort">
         <span>Backlog sort</span>
-        <select
+        <NativeSelect
           aria-label="Backlog sort"
-          className="rounded-md border border-input bg-background px-3 py-2"
+          id="backlog-sort"
           onChange={(event) =>
             setPresentation(event.currentTarget.value as BacklogPresentation)
           }
           value={presentation}
         >
-          <option>Manual order</option>
-          <option>Priority</option>
-          <option>Date</option>
-          <option>Field</option>
-        </select>
+          <NativeSelectOption>Manual order</NativeSelectOption>
+          <NativeSelectOption>Priority</NativeSelectOption>
+          <NativeSelectOption>Date</NativeSelectOption>
+          <NativeSelectOption>Field</NativeSelectOption>
+        </NativeSelect>
       </label>
       {presentation === "Priority" ? (
-        <label className="flex items-center gap-2 text-sm">
+        <label
+          className="flex items-center gap-2 text-sm"
+          htmlFor="backlog-priority-criterion"
+        >
           <span>Priority criterion</span>
-          <select
+          <NativeSelect
             aria-label="Priority criterion"
-            className="rounded-md border border-input bg-background px-3 py-2"
+            id="backlog-priority-criterion"
             onChange={(event) => setPriorityMetricId(event.currentTarget.value)}
             value={priorityMetricId}
           >
-            <option value="">Priority criterion</option>
+            <NativeSelectOption value="">Priority criterion</NativeSelectOption>
             {enabledMetrics.map((metric) => (
-              <option key={metric.id} value={metric.id}>
+              <NativeSelectOption key={metric.id} value={metric.id}>
                 {metric.name}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       ) : null}
       {presentation === "Field" ? (
-        <label className="flex items-center gap-2 text-sm">
+        <label
+          className="flex items-center gap-2 text-sm"
+          htmlFor="backlog-sort-field"
+        >
           <span>Field to sort by</span>
-          <select
+          <NativeSelect
             aria-label="Field to sort by"
-            className="rounded-md border border-input bg-background px-3 py-2"
+            id="backlog-sort-field"
             onChange={(event) =>
               setField(event.currentTarget.value as BacklogSortField)
             }
             value={field}
           >
-            <option>Title</option>
-            <option>Status</option>
-          </select>
+            <NativeSelectOption>Title</NativeSelectOption>
+            <NativeSelectOption>Status</NativeSelectOption>
+          </NativeSelect>
         </label>
       ) : null}
     </>

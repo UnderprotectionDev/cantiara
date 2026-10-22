@@ -1,14 +1,12 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Bulk Editing controls operate on the selected Work snapshot.
 
 import type { WorkStatusLabel } from "@cantiara/api/project-shell";
-import {
-  WORK_CLOSURE_RESULT_OPTIONS,
-  WORK_STATUS_OPTIONS,
-  type WorkClosePreview,
-  type WorkClosureResult,
-  type WorkOpenStatus,
-  type WorkProfile,
-  type WorkStatus,
+import type {
+  WorkClosePreview,
+  WorkClosureResult,
+  WorkOpenStatus,
+  WorkProfile,
+  WorkStatus,
 } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
@@ -20,16 +18,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
-import { Field, FieldLabel } from "@cantiara/ui/components/field";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@cantiara/ui/components/native-select";
-import { Textarea } from "@cantiara/ui/components/textarea";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useSelector, useStore } from "@tanstack/react-store";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef, useState } from "react";
+import { getWorkStatusLabel } from "@/components/work-status-form";
 import type { UserInitiatedWorkCloseOutcome } from "@/features/completion-effects/hooks/use-user-initiated-work-success";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import {
@@ -38,7 +31,6 @@ import {
 } from "@/features/web-macos-client/lib/support-reference";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
-import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -46,6 +38,7 @@ import {
   projectWorksQueryPrefix,
 } from "@/utils/orpc";
 import type { BulkWorkSelection } from "../../hooks/use-bulk-work-selection";
+import type { BulkEditStatusFormInput } from "../../lib/bulk-edit-form";
 import {
   type BulkEditOperation,
   type BulkEditPreview,
@@ -63,6 +56,10 @@ import {
   updateBulkEditOperation,
   updateBulkEditResultAt,
 } from "../../store/bulk-edit-operation";
+import BulkEditStatusForm, {
+  BULK_EDIT_STATUS_FORM_DEFAULTS,
+  BULK_EDIT_STATUS_FORM_ID,
+} from "../forms/bulk-edit-status-form";
 
 const BULK_EDIT_CONCURRENCY = 4;
 const BULK_EDIT_WORKER_YIELD_INTERVAL = 16;
@@ -434,86 +431,6 @@ async function undoBulkEditResult(
   }
 }
 
-function BulkEditStatusFields({
-  closureReason,
-  closureResult,
-  disabled,
-  onClosureReasonChange,
-  onClosureResultChange,
-  onStatusChange,
-  status,
-  workStatusLabels,
-}: {
-  closureReason: string;
-  closureResult: WorkClosureResult;
-  disabled: boolean;
-  onClosureReasonChange: (reason: string) => void;
-  onClosureResultChange: (result: WorkClosureResult) => void;
-  onStatusChange: (status: WorkStatus | "") => void;
-  status: WorkStatus | "";
-  workStatusLabels: readonly WorkStatusLabel[];
-}) {
-  return (
-    <>
-      <Field>
-        <FieldLabel htmlFor="bulk-edit-status">Status</FieldLabel>
-        <NativeSelect
-          aria-label="Status"
-          disabled={disabled}
-          id="bulk-edit-status"
-          onChange={(event) =>
-            onStatusChange(event.target.value as WorkStatus | "")
-          }
-          value={status}
-        >
-          <NativeSelectOption value="">Select status</NativeSelectOption>
-          {WORK_STATUS_OPTIONS.map((workStatus) => (
-            <NativeSelectOption key={workStatus} value={workStatus}>
-              {getWorkStatusLabel(workStatus, workStatusLabels)}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </Field>
-
-      {status === "Closed" ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field>
-            <FieldLabel htmlFor="bulk-edit-closure-result">
-              Closure result
-            </FieldLabel>
-            <NativeSelect
-              aria-label="Closure result"
-              disabled={disabled}
-              id="bulk-edit-closure-result"
-              onChange={(event) =>
-                onClosureResultChange(event.target.value as WorkClosureResult)
-              }
-              value={closureResult}
-            >
-              {WORK_CLOSURE_RESULT_OPTIONS.map((result) => (
-                <NativeSelectOption key={result} value={result}>
-                  {result}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="bulk-edit-reason">Reason</FieldLabel>
-            <Textarea
-              aria-label="Reason"
-              disabled={disabled}
-              id="bulk-edit-reason"
-              maxLength={2000}
-              onChange={(event) => onClosureReasonChange(event.target.value)}
-              value={closureReason}
-            />
-          </Field>
-        </div>
-      ) : null}
-    </>
-  );
-}
-
 function BulkEditPreviewSection({
   changedRecords,
   preview,
@@ -777,10 +694,9 @@ export default function BulkEditDialog({
   const operation = operationState.operations
     .filter((candidate) => candidate.projectId === projectId)
     .at(-1);
-  const [targetStatus, setTargetStatus] = useState<WorkStatus | "">("");
-  const [closureResult, setClosureResult] =
-    useState<WorkClosureResult>("Completed");
-  const [closureReason, setClosureReason] = useState("");
+  const [formKey, setFormKey] = useState(0);
+  const [input, setInput] = useState(BULK_EDIT_STATUS_FORM_DEFAULTS);
+  const { closureReason, closureResult, targetStatus } = input;
   const [preview, setPreview] = useState<BulkEditPreview | null>(null);
   const [previewError, setPreviewError] =
     useState<SupportReferenceFailure | null>(null);
@@ -789,11 +705,6 @@ export default function BulkEditDialog({
     completed: number;
     total: number;
   } | null>(null);
-  const displayedTargetStatus = operation?.preview.targetStatus ?? targetStatus;
-  const displayedClosureResult =
-    operation?.preview.closureResult ?? closureResult;
-  const displayedClosureReason =
-    operation?.preview.closureReason ?? closureReason;
   const displayedPreview = operation?.preview ?? preview;
   const displayedProgress = operation
     ? {
@@ -827,9 +738,8 @@ export default function BulkEditDialog({
   );
 
   function resetForm() {
-    setTargetStatus("");
-    setClosureResult("Completed");
-    setClosureReason("");
+    setFormKey((key) => key + 1);
+    setInput(BULK_EDIT_STATUS_FORM_DEFAULTS);
     setPreview(null);
     setPreviewError(null);
     setProgress(null);
@@ -839,8 +749,8 @@ export default function BulkEditDialog({
     closeBulkEditDialog(nextOpen, operation, onOpenChange, resetForm);
   }
 
-  async function buildPreview() {
-    if (!targetStatus || selectedWorks.length === 0) {
+  async function buildPreview(values: BulkEditStatusFormInput) {
+    if (selectedWorks.length === 0) {
       return;
     }
     setPreviewError(null);
@@ -849,10 +759,10 @@ export default function BulkEditDialog({
     try {
       setPreview(
         await buildBulkEditPreview({
-          closureReason,
-          closureResult,
+          closureReason: values.closureReason,
+          closureResult: values.closureResult,
           selectedWorks,
-          targetStatus,
+          targetStatus: values.targetStatus,
         }),
       );
     } catch (error) {
@@ -893,18 +803,18 @@ export default function BulkEditDialog({
   }
 
   function changeStatus(status: WorkStatus | "") {
-    setTargetStatus(status);
+    setInput((previous) => ({ ...previous, targetStatus: status }));
     setPreviewError(null);
     setProgress(null);
   }
 
   function changeClosureResult(result: WorkClosureResult) {
-    setClosureResult(result);
+    setInput((previous) => ({ ...previous, closureResult: result }));
     setProgress(null);
   }
 
   function changeClosureReason(reason: string) {
-    setClosureReason(reason);
+    setInput((previous) => ({ ...previous, closureReason: reason }));
     setProgress(null);
   }
 
@@ -926,14 +836,14 @@ export default function BulkEditDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <BulkEditStatusFields
-          closureReason={displayedClosureReason}
-          closureResult={displayedClosureResult}
+        <BulkEditStatusForm
           disabled={operation !== undefined}
+          displayed={operation ? operation.preview : null}
+          key={formKey}
           onClosureReasonChange={changeClosureReason}
           onClosureResultChange={changeClosureResult}
+          onPreview={buildPreview}
           onStatusChange={changeStatus}
-          status={displayedTargetStatus}
           workStatusLabels={workStatusLabels}
         />
 
@@ -962,7 +872,6 @@ export default function BulkEditDialog({
 
         <BulkEditDialogActions
           apply={apply}
-          buildPreview={buildPreview}
           changedRecords={changedRecords}
           connection={connection}
           displayedPreview={displayedPreview}
@@ -984,7 +893,6 @@ function BulkEditDialogActions({
   connection,
   isPreviewing,
   targetStatus,
-  buildPreview,
   displayedPreview,
   previewMatchesCurrentInput,
   changedRecords,
@@ -996,7 +904,6 @@ function BulkEditDialogActions({
   connection: import("@/features/web-macos-client/store/client-shell").ClientConnectionState;
   isPreviewing: boolean;
   targetStatus: "" | "Not Started" | "In Progress" | "Blocked" | "Closed";
-  buildPreview: () => Promise<void>;
   displayedPreview: BulkEditPreview | null;
   previewMatchesCurrentInput: boolean;
   changedRecords: BulkEditRecordSnapshot[];
@@ -1020,8 +927,8 @@ function BulkEditDialogActions({
           operation !== undefined ||
           !targetStatus
         }
-        onClick={buildPreview}
-        type="button"
+        form={BULK_EDIT_STATUS_FORM_ID}
+        type="submit"
         variant="outline"
       >
         Preview

@@ -1,4 +1,5 @@
 import type { ConfirmGitHubIdentityOperationId } from "@cantiara/api/context";
+import { z } from "zod";
 
 import { client } from "@/utils/orpc";
 import { waitForTauriGitHubIdentityGrant } from "./github-identity-grant-events";
@@ -9,23 +10,21 @@ const GITHUB_IDENTITY_CONFIRMATION_MESSAGE_TYPE =
 const BASE64_URL_VALUE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1000;
 
+const callbackMessageSchema = z.object({
+  code: z.string().regex(BASE64_URL_VALUE_PATTERN),
+  type: z.literal(GITHUB_IDENTITY_CONFIRMATION_MESSAGE_TYPE),
+});
+
 export function githubIdentityCallbackCode(
   event: Pick<MessageEvent, "data" | "origin" | "source">,
   popup: WindowProxy,
   expectedOrigin: string,
 ) {
-  if (
-    event.origin !== expectedOrigin ||
-    event.source !== popup ||
-    typeof event.data !== "object" ||
-    event.data === null ||
-    event.data.type !== GITHUB_IDENTITY_CONFIRMATION_MESSAGE_TYPE ||
-    typeof event.data.code !== "string" ||
-    !BASE64_URL_VALUE_PATTERN.test(event.data.code)
-  ) {
+  if (event.origin !== expectedOrigin || event.source !== popup) {
     return null;
   }
-  return event.data.code;
+  const message = callbackMessageSchema.safeParse(event.data);
+  return message.success ? message.data.code : null;
 }
 
 function waitForPopupCode(popup: WindowProxy) {

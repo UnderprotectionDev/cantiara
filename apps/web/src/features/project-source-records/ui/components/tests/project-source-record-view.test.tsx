@@ -17,6 +17,9 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 vi.mock("@/utils/orpc", () => ({
   orpc: {
+    accountPreferences: {
+      queryOptions: () => ({ queryKey: ["accountPreferences"] }),
+    },
     personalReminders: {
       queryOptions: ({ input }: { input: unknown }) => {
         mocks.reminderInput(input);
@@ -59,7 +62,8 @@ describe("Project source record detail", () => {
   test("opens the selected typed source record with personal reminder actions", () => {
     mocks.useQuery
       .mockReturnValueOnce({ data: incident, isError: false })
-      .mockReturnValueOnce({ data: [], isError: false, isPending: false });
+      .mockReturnValueOnce({ data: [], isError: false, isPending: false })
+      .mockReturnValueOnce({ data: undefined, isError: false });
 
     const html = renderToStaticMarkup(
       <ProjectSourceRecordView
