@@ -576,6 +576,8 @@ export interface GitHubInstallationToken {
 
 export interface GitHubInstallationDescription {
   accountLogin: string;
+  /** When GitHub created the installation; `null` when the payload carries none. */
+  createdAt: string | null;
   installationId: number;
 }
 
@@ -760,6 +762,8 @@ export interface GitHubIntegrationTransaction
       projectId: string;
     }[]
   >;
+  /** The Active/Archived/Trash row count of one link (overview). */
+  countRecords: (linkId: string) => Promise<number>;
   deleteCredential: (installationRowId: string) => Promise<void>;
   /** Permanent delete: removes the record and leaves a content-free tombstone. */
   deleteRecordWithTombstone: (recordId: string, at: string) => Promise<void>;
@@ -778,6 +782,12 @@ export interface GitHubIntegrationTransaction
   loadCredential: (
     installationRowId: string,
   ) => Promise<GitHubStoredCredential | null>;
+  /**
+   * Serializes the claim of one GitHub installation id across Projects and
+   * accounts until the unit of work ends, so two accounts cannot complete the
+   * same installation concurrently.
+   */
+  lockInstallationClaim: (installationId: number) => Promise<void>;
   nameHistory: (
     linkId: string,
   ) => Promise<{ name: string; observedAt: string; owner: string }[]>;
@@ -791,11 +801,22 @@ export interface GitHubIntegrationTransaction
   pullHeads: () => Promise<GitHubStoredPullHead[]>;
   readOnly: boolean;
   recordById: (recordId: string) => Promise<GitHubStoredRecord | null>;
+  /**
+   * One record of this link by its stored kind and GitHub number (the Pull
+   * request identity translation: GitHub names a PR with two id sequences).
+   */
+  recordByNumber: (
+    linkId: string,
+    kind: GitHubExternalRecord["kind"],
+    number: number,
+  ) => Promise<GitHubStoredRecord | null>;
   recordNameHistory: (
     linkId: string,
     entry: { name: string; observedAt: string; owner: string },
   ) => Promise<void>;
   records: (linkId?: string) => Promise<GitHubStoredRecord[]>;
+  /** Records keyed by id within the unit of work (batched head observation). */
+  recordsByIds: (ids: string[]) => Promise<GitHubStoredRecord[]>;
   /** Explicit re-include: a new product identity carrying the deleted one as visible origin. */
   reincludeRecord: (
     write: GitHubExternalRecordWrite,
@@ -804,6 +825,14 @@ export interface GitHubIntegrationTransaction
     installationRowId: string,
     credential: GitHubStoredCredential,
   ) => Promise<void>;
+  /**
+   * Active records of the whole Project whose title, number, milestone or
+   * labels contain the needle, newest first (search never loads missed data).
+   */
+  searchActiveRecords: (
+    needle: string,
+    limit: number,
+  ) => Promise<GitHubStoredRecord[]>;
   setPullHead: (head: GitHubStoredPullHead) => Promise<void>;
   setRecordLifecycle: (
     recordId: string,

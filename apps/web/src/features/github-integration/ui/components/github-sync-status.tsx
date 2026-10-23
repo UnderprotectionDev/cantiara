@@ -1,11 +1,20 @@
+import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import {
   GITHUB_OUT_OF_DATE_LABEL,
   type GitHubSyncStatus,
 } from "@cantiara/api/github-integration";
 import { formatSyncTime } from "../../lib/github-sync-labels";
 
-function SyncTime({ iso }: { iso: string }) {
-  return <time dateTime={iso}>{formatSyncTime(iso)}</time>;
+function SyncTime({
+  formattingPreferences,
+  iso,
+}: {
+  formattingPreferences: AccountPreferences;
+  iso: string;
+}) {
+  return (
+    <time dateTime={iso}>{formatSyncTime(iso, formattingPreferences)}</time>
+  );
 }
 
 /**
@@ -13,7 +22,13 @@ function SyncTime({ iso }: { iso: string }) {
  * rate-limit wait and the Out of date mark. Nothing here reads as "working"
  * once a budget is exceeded.
  */
-export function GitHubSyncStatusPanel({ sync }: { sync: GitHubSyncStatus }) {
+export function GitHubSyncStatusPanel({
+  formattingPreferences,
+  sync,
+}: {
+  formattingPreferences: AccountPreferences;
+  sync: GitHubSyncStatus;
+}) {
   return (
     <div className="space-y-1">
       {sync.outOfDate ? (
@@ -29,7 +44,14 @@ export function GitHubSyncStatusPanel({ sync }: { sync: GitHubSyncStatus }) {
       ) : null}
       <p>
         <span className="text-muted-foreground">Last successful sync: </span>
-        {sync.lastSuccessAt ? <SyncTime iso={sync.lastSuccessAt} /> : "Never"}
+        {sync.lastSuccessAt ? (
+          <SyncTime
+            formattingPreferences={formattingPreferences}
+            iso={sync.lastSuccessAt}
+          />
+        ) : (
+          "Never"
+        )}
       </p>
       {sync.lastError ? (
         <p>
@@ -38,7 +60,10 @@ export function GitHubSyncStatusPanel({ sync }: { sync: GitHubSyncStatus }) {
           {sync.lastErrorAt ? (
             <>
               {" ("}
-              <SyncTime iso={sync.lastErrorAt} />
+              <SyncTime
+                formattingPreferences={formattingPreferences}
+                iso={sync.lastErrorAt}
+              />
               {")"}
             </>
           ) : null}
@@ -48,7 +73,10 @@ export function GitHubSyncStatusPanel({ sync }: { sync: GitHubSyncStatus }) {
         <p>
           <span className="text-muted-foreground">Rate limit: </span>
           {"GitHub asked us to wait until "}
-          <SyncTime iso={sync.rateLimitedUntil} />
+          <SyncTime
+            formattingPreferences={formattingPreferences}
+            iso={sync.rateLimitedUntil}
+          />
           {"."}
         </p>
       ) : null}

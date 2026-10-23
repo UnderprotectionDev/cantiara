@@ -155,4 +155,45 @@ describeDatabase("GitHub Integration PostgreSQL integration", () => {
       github.overview(otherAccountId, projectId),
     ).rejects.toMatchObject({ code: "GITHUB_PROJECT_NOT_FOUND" });
   });
+
+  test("two accounts completing the same installation cannot both claim it", async () => {
+    const { github } = setup();
+    const db = requireDatabase();
+    const otherProjectId = `project-other-${suffix}`;
+    await db.insert(workspace).values({
+      id: `workspace-other-${suffix}`,
+      ownerAccountId: otherAccountId,
+    });
+    await db.insert(project).values({
+      id: otherProjectId,
+      name: "GitHub",
+      shortCode: `GH-O${suffix.toUpperCase()}`,
+      starterConfiguration: "Blank Project",
+      workspaceId: `workspace-other-${suffix}`,
+    });
+    const attempts = await Promise.allSettled(
+      (
+        [
+          [accountId, projectId],
+          [otherAccountId, otherProjectId],
+        ] as const
+      ).map(async ([attempter, targetProject]) => {
+        const { installUrl } = await github.startInstall(attempter, {
+          projectId: targetProject,
+        });
+        return await github.completeInstall(attempter, {
+          installationId,
+          state: new URL(installUrl).searchParams.get("state") ?? "",
+        });
+      }),
+    );
+    expect(attempts.map((attempt) => attempt.status).sort()).toEqual([
+      "fulfilled",
+      "rejected",
+    ]);
+    const rejected = attempts.find((attempt) => attempt.status === "rejected");
+    expect(
+      rejected && "reason" in rejected ? (rejected.reason as Error) : null,
+    ).toMatchObject({ code: "GITHUB_INSTALLATION_CLAIMED" });
+  });
 });

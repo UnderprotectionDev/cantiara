@@ -902,6 +902,23 @@ describe("Attention signals", () => {
     ).toEqual([]);
   });
 
+  test("a stopped link (Access revoked, App uninstalled) raises no signal from its stale records", async () => {
+    const harness = seeded();
+    addPull(harness, { id: 6059, number: 98, title: "Still open, unlinked" });
+    await connect(harness);
+    expect(
+      await harness.github.attentionSignals(accountId, { projectId }),
+    ).toHaveLength(1);
+    // An uninstall stops every link of the installation with a stop reason
+    // recorded on the link row; App uninstall does not wait for the webhook.
+    await harness.github.recordInstallationRemoved(INSTALLATION);
+    expect(
+      await harness.github.attentionSignals(accountId, { projectId }),
+    ).toEqual([]);
+    // Its rows are untouched and its records stay historical.
+    expect(harness.stored().records.length).toBeGreaterThan(0);
+  });
+
   test("an open Pull request of a Paused link raises no unlinked-open-pr signal", () => {
     const input = {
       disconnectedLinkIds: new Set<string>(),

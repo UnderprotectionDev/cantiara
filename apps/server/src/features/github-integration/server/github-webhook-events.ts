@@ -26,6 +26,9 @@ const issueLikeSchema = z.object({
     .optional(),
   html_url: z.string(),
   id: z.number(),
+  // A Pull request payload names the same record through the Issues domain too:
+  // its tail is the issue id, not the pull request id.
+  issue_url: z.string().optional(),
   labels: z
     .array(z.union([z.string(), z.object({ name: z.string().optional() })]))
     .optional(),
@@ -60,6 +63,8 @@ const checkRunSchema = z.object({
   head_sha: z.string(),
   html_url: z.string().nullable().optional(),
   id: z.number(),
+  /** GitHub's own requiredness flag, when the payload carries one. */
+  is_required: z.boolean().nullable().optional(),
   name: z.string(),
   pull_requests: z.array(z.object({ number: z.number() })).optional(),
   status: z.string().nullable().optional(),

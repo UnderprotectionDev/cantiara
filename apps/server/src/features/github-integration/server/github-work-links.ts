@@ -189,7 +189,7 @@ export async function refreshAttentionSignals(
     failedChecks: failedChecksOnCurrentHead(pullHeads, storedChecks),
     disconnectedLinkIds: new Set(
       repositoryLinks
-        .filter((link) => link.disconnectedAt)
+        .filter((link) => link.disconnectedAt || link.stopReason)
         .map((link) => link.id),
     ),
     links: links.filter((link) => !link.removedAt),

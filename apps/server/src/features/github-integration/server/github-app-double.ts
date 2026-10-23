@@ -66,6 +66,7 @@ interface DoubleRepository {
 
 interface DoubleInstallation {
   accountLogin: string;
+  createdAt: string;
   repositories: Map<number, DoubleRepository>;
   uninstalled: boolean;
 }
@@ -86,6 +87,7 @@ export function createGitHubAppDouble(
   let rateLimitedUntil: Date | null = null;
   let issueReadsFailing = false;
   let reviewerReadsFailing = false;
+  let tokenMintsFailing = false;
   const sinceFilters: (string | undefined)[] = [];
 
   const installationOfToken = (call: GitHubCall) => {
@@ -159,10 +161,14 @@ export function createGitHubAppDouble(
           }
           return Promise.resolve({
             account: { login: installation.accountLogin },
+            created_at: installation.createdAt,
             id: Number(params.installation_id),
           });
         }
         case "POST /app/installations/{installation_id}/access_tokens": {
+          if (tokenMintsFailing) {
+            throw new GitHubRequestError(401);
+          }
           const id = Number(params.installation_id);
           const installation = installations.get(id);
           if (!installation || installation.uninstalled) {
@@ -181,9 +187,14 @@ export function createGitHubAppDouble(
         }
         case "GET /installation/repositories": {
           const installation = installationOfToken(call);
+          const all = [...installation.repositories.values()].filter(
+            (repository) => !repository.forbidden,
+          );
+          const perPage = Number(params.per_page ?? 100);
+          const page = Number(params.page ?? 1);
           return Promise.resolve({
-            repositories: [...installation.repositories.values()]
-              .filter((repository) => !repository.forbidden)
+            repositories: all
+              .slice((page - 1) * perPage, page * perPage)
               .map(rawRepository),
           });
         }
@@ -339,9 +350,12 @@ export function createGitHubAppDouble(
         owner: string;
         private?: boolean;
       }[],
+      /** When GitHub created the installation; defaults to now. */
+      createdAt?: string,
     ) {
       installations.set(installationId, {
         accountLogin,
+        createdAt: createdAt ?? clock.current.toISOString(),
         repositories: new Map(
           repositories.map((repository) => [
             repository.id,
@@ -451,6 +465,10 @@ export function createGitHubAppDouble(
     /** GitHub answers every issue-list read with a server error. */
     failIssueReads(failing: boolean) {
       issueReadsFailing = failing;
+    },
+    /** The App JWT cannot mint tokens for now (e.g. a clock-skew 401). */
+    failTokenMints(failing: boolean) {
+      tokenMintsFailing = failing;
     },
     /** The `since` filter of each issue-list request, in order. */
     sinceFilters,

@@ -550,6 +550,25 @@ describe("GitHub Integration: install safety", () => {
     ).rejects.toMatchObject({ code: "GITHUB_INSTALLATION_CLAIMED" });
   });
 
+  test("an installation created long before this install attempt cannot be claimed by its id", async () => {
+    const harness = seeded();
+    harness.app.install(
+      INSTALLATION,
+      "other-owner",
+      [{ id: REPOSITORY, name: "web", owner: "other-owner" }],
+      "2026-01-01T00:00:00.000Z",
+    );
+    const { installUrl } = await harness.github.startInstall(accountId, {
+      projectId,
+    });
+    await expect(
+      harness.github.completeInstall(accountId, {
+        installationId: INSTALLATION,
+        state: new URL(installUrl).searchParams.get("state") ?? "",
+      }),
+    ).rejects.toMatchObject({ code: "GITHUB_INSTALLATION_UNCLAIMABLE" });
+  });
+
   test("an installation GitHub does not know is refused", async () => {
     const harness = createMemoryHarness();
     const { installUrl } = await harness.github.startInstall(accountId, {
@@ -581,5 +600,66 @@ describe("GitHub Integration: install safety", () => {
     expect(
       (await harness.github.overview(accountId, archivedProjectId)).readOnly,
     ).toBe(true);
+  });
+
+  test("repositories beyond GitHub's first 100 answer on the next page", async () => {
+    const harness = createMemoryHarness();
+    harness.app.install(
+      901,
+      "big",
+      Array.from({ length: 105 }, (_, index) => ({
+        id: 1000 + index,
+        name: `repo-${index}`,
+        owner: "big",
+      })),
+    );
+    const { installUrl } = await harness.github.startInstall(accountId, {
+      projectId,
+    });
+    const installed = await harness.github.completeInstall(accountId, {
+      installationId: 901,
+      state: new URL(installUrl).searchParams.get("state") ?? "",
+    });
+    expect(installed.repositories).toHaveLength(105);
+  });
+});
+
+describe("GitHub Integration: sync resilience", () => {
+  test("a transient credential mint failure asks to retry instead of marking the App uninstalled", async () => {
+    const harness = seeded();
+    const link = await connect(harness);
+    // Advance past the minted token's lifetime so a reconcile has to mint again.
+    harness.app.failTokenMints(true);
+    harness.clock.current = new Date(
+      harness.clock.current.getTime() + 61 * 60_000,
+    );
+    const result = await harness.github.syncNow(accountId, {
+      linkId: link.id,
+      projectId,
+    });
+    expect(result.outcome).toBe("failed");
+    const [mid] = (await harness.github.overview(accountId, projectId)).links;
+    expect(mid).toMatchObject({
+      connection: "Connected",
+      stopReason: null,
+      sync: { lastError: expect.any(String) },
+    });
+    harness.app.failTokenMints(false);
+    harness.clock.current = new Date(harness.clock.current.getTime() + 60_000);
+    expect(
+      (
+        await harness.github.syncNow(accountId, {
+          linkId: link.id,
+          projectId,
+        })
+      ).outcome,
+    ).toBe("ran");
+    const [recovered] = (await harness.github.overview(accountId, projectId))
+      .links;
+    expect(recovered).toMatchObject({
+      connection: "Connected",
+      stopReason: null,
+      sync: { lastError: null },
+    });
   });
 });

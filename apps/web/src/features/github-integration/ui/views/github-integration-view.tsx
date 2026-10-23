@@ -1,5 +1,9 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the chosen link and the last action message.
 import {
+  type AccountPreferences,
+  DEFAULT_ACCOUNT_PREFERENCES,
+} from "@cantiara/api/account-preferences";
+import {
   GITHUB_APP_LABEL,
   GITHUB_AREA_LABEL,
   GITHUB_CONTENTS_REASON_LABEL,
@@ -19,7 +23,12 @@ import {
 } from "@cantiara/api/github-integration";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { errorText } from "../../lib/github-error-text";
 import { linkActionsFor, syncNowMessage } from "../../lib/github-sync-labels";
 import { GitHubLinkPreviewPanel } from "../components/github-link-preview";
@@ -166,10 +175,12 @@ function TriagePanel({
 
 function LinkItem({
   actions,
+  formattingPreferences,
   link,
   run,
 }: {
   actions: GitHubIntegrationActions;
+  formattingPreferences: AccountPreferences;
   link: GitHubRepositoryLink;
   run: <T>(
     done: string | ((result: T) => string),
@@ -179,6 +190,21 @@ function LinkItem({
   const nameId = `github-link-${link.id}`;
   const available = linkActionsFor(link.connection);
   const [pending, setPending] = useState<GitHubLinkPreview["action"]>();
+  const previewTriggerRef = useRef<HTMLButtonElement>(null);
+  const previousPendingRef = useRef<GitHubLinkPreview["action"]>(undefined);
+  useEffect(() => {
+    const previousPending = previousPendingRef.current;
+    previousPendingRef.current = pending;
+    if (previousPending !== undefined && pending === undefined) {
+      previewTriggerRef.current?.focus();
+    }
+  }, [pending]);
+  const openPreview =
+    (action: "Reconnect" | "Disconnect") =>
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      previewTriggerRef.current = event.currentTarget;
+      setPending(action);
+    };
   const preview = useQuery({
     enabled: pending !== undefined,
     gcTime: 0,
@@ -210,7 +236,10 @@ function LinkItem({
         {link.stopReason ? `, ${link.stopReason}` : ""}
         {link.pauseReason ? `, ${link.pauseReason}` : ""}
       </p>
-      <GitHubSyncStatusPanel sync={link.sync} />
+      <GitHubSyncStatusPanel
+        formattingPreferences={formattingPreferences}
+        sync={link.sync}
+      />
       {link.previousNames.length > 0 ? (
         <p className="text-muted-foreground">
           {`Formerly ${link.previousNames
@@ -247,7 +276,7 @@ function LinkItem({
           <Button
             aria-describedby={nameId}
             aria-expanded={pending === "Reconnect"}
-            onClick={() => setPending("Reconnect")}
+            onClick={openPreview("Reconnect")}
             type="button"
           >
             {GITHUB_RECONNECT_LABEL}
@@ -257,7 +286,7 @@ function LinkItem({
           <Button
             aria-describedby={nameId}
             aria-expanded={pending === "Disconnect"}
-            onClick={() => setPending("Disconnect")}
+            onClick={openPreview("Disconnect")}
             type="button"
             variant="outline"
           >
@@ -344,9 +373,11 @@ function RecordSearch({
  */
 export function GitHubIntegrationView({
   actions,
+  formattingPreferences = DEFAULT_ACCOUNT_PREFERENCES,
   overview,
 }: {
   actions: GitHubIntegrationActions;
+  formattingPreferences?: AccountPreferences;
   overview: GitHubOverview;
 }) {
   const [notice, setNotice] = useState<GitHubNoticeState>();
@@ -426,7 +457,13 @@ export function GitHubIntegrationView({
         ) : (
           <ul className="space-y-3">
             {links.map((link) => (
-              <LinkItem actions={actions} key={link.id} link={link} run={run} />
+              <LinkItem
+                actions={actions}
+                formattingPreferences={formattingPreferences}
+                key={link.id}
+                link={link}
+                run={run}
+              />
             ))}
           </ul>
         )}

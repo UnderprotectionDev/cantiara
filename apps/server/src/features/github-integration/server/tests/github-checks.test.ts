@@ -82,6 +82,7 @@ function checkRunPayload(options: {
   id: number;
   name: string;
   pullRequests?: number[];
+  required?: boolean;
   status?: string;
 }) {
   return {
@@ -96,6 +97,9 @@ function checkRunPayload(options: {
       pull_requests: (options.pullRequests ?? [7]).map((number) => ({
         number,
       })),
+      ...(options.required === undefined
+        ? {}
+        : { is_required: options.required }),
       status: options.status ?? "completed",
     },
     installation: { id: INSTALLATION },
@@ -175,6 +179,67 @@ describe("PR check summary: head SHA, provider + stable id, requiredness", () =>
     );
     expect(byId).toEqual({ "1": "Required", "2": "Unknown", "3": "Unknown" });
     expect([...GITHUB_CHECK_REQUIREMENTS]).toEqual(["Required", "Unknown"]);
+  });
+
+  test("a Required a payload stated survives the REST read of the same check", async () => {
+    const harness = seeded();
+    // The REST read carries no requiredness; the payload is the only statement.
+    harness.app.setPullRequestChecks(INSTALLATION, REPOSITORY, {
+      checkRuns: [{ conclusion: "success", id: 1, name: "build" }],
+      headSha: HEAD_A,
+      number: 7,
+    });
+    const link = await connect(harness);
+    expect(
+      (await summary(harness)).checks.map((check) => check.requirement),
+    ).toEqual(["Unknown"]);
+    await applyEvent(
+      harness,
+      "check_run",
+      checkRunPayload({
+        conclusion: "success",
+        headSha: HEAD_A,
+        id: 1,
+        name: "build",
+        required: true,
+      }),
+    );
+    expect(
+      (await summary(harness)).checks.map((check) => check.requirement),
+    ).toEqual(["Required"]);
+    await resync(harness, link.id);
+    expect(
+      (await summary(harness)).checks.map((check) => check.requirement),
+    ).toEqual(["Required"]);
+  });
+
+  test("the webhook Pull request payload resolves the record through the issue-domain identity", () => {
+    const [event] = toWebhookEvents("pull_request", {
+      action: "synchronize",
+      installation: { id: INSTALLATION },
+      pull_request: {
+        html_url: "https://github.com/acme/web/pull/7",
+        // GitHub's own pull request id, a different sequence from the issue id.
+        id: 7003,
+        issue_url: "https://api.github.com/repos/acme/web/issues/5003",
+        labels: [],
+        number: 7,
+        state: "open",
+        title: "Retry checkout",
+        updated_at: "2026-10-01T10:00:00.000Z",
+      },
+      repository: {
+        full_name: "acme/web",
+        html_url: "https://github.com/acme/web",
+        id: REPOSITORY,
+        name: "web",
+        owner: { login: "acme" },
+      },
+    });
+    if (event?.kind !== "record") {
+      throw new Error("Expected a record event");
+    }
+    expect(event.snapshot.githubId).toBe(5003);
   });
 });
 

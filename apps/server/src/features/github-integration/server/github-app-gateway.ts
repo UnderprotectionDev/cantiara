@@ -110,6 +110,18 @@ export interface RawIssue {
   updated_at: string;
 }
 
+const ISSUE_ID_TAIL = /(\d+)\/?$/;
+
+/** `https://api.github.com/repos/{owner}/{repo}/issues/{issue_id}` tail. */
+function issueDomainIdOf(raw: RawIssue) {
+  const issueUrl = (raw as { issue_url?: string | null }).issue_url;
+  if (!issueUrl) {
+    return null;
+  }
+  const id = Number(issueUrl.match(ISSUE_ID_TAIL)?.[1]);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 export function toRepository(raw: RawRepository): GitHubRepository {
   const owner = raw.owner?.login ?? raw.full_name?.split("/")[0] ?? "";
   return {
@@ -124,13 +136,20 @@ export function toRepository(raw: RawRepository): GitHubRepository {
 
 export function toSnapshot(raw: RawIssue): GitHubIssueSnapshot {
   const isPullRequest = Boolean(raw.pull_request);
+  // GitHub names a Pull request with two id sequences: the Issues endpoints
+  // answer with the issue id, the `pull_request` webhook payload has the pull
+  // request id. The issue domain (its `issue_url` tail) is the one identity
+  // both paths resolve to, so the two paths never build second records.
+  const pullIdentityId = isPullRequest
+    ? (issueDomainIdOf(raw) ?? raw.id)
+    : null;
   const merged = Boolean(raw.pull_request?.merged_at ?? raw.merged_at);
   let sourceState: GitHubIssueSnapshot["sourceState"] = "open";
   if (raw.state !== "open") {
     sourceState = merged ? "merged" : "closed";
   }
   return {
-    githubId: raw.id,
+    githubId: pullIdentityId ?? raw.id,
     headSha: isPullRequest ? (raw.head?.sha ?? null) : null,
     htmlUrl: raw.html_url,
     kind: isPullRequest ? "Pull request" : "Issue",
@@ -161,6 +180,18 @@ async function orNotFound<T>(read: () => Promise<T>): Promise<T | null> {
   }
 }
 
+/** `null` is meaningfully "GitHub no longer shows this"; anything else is an error. */
+async function orGone<T>(read: () => Promise<T>): Promise<T | null> {
+  try {
+    return await read();
+  } catch (error) {
+    if (error instanceof GitHubRequestError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 /** Newest-first pages of at most 100; a read stops after `MAX_PAGES` and the next one continues. */
 const TRIAGE_PAGE_SIZE = 100;
 const MAX_PAGES = 10;
@@ -180,21 +211,25 @@ export function createGitHubAppGateway(options: {
 
   return {
     async describeInstallation(installationId) {
-      const raw = await orNotFound(
+      const raw = await orGone(
         () =>
           transport.request({
             auth: app,
             params: { installation_id: installationId },
             route: "GET /app/installations/{installation_id}",
-          }) as Promise<{ account?: { login?: string } }>,
+          }) as Promise<{ account?: { login?: string }; created_at?: string }>,
       );
       return raw
-        ? { accountLogin: raw.account?.login ?? "", installationId }
+        ? {
+            accountLogin: raw.account?.login ?? "",
+            createdAt: raw.created_at ?? null,
+            installationId,
+          }
         : null;
     },
 
     async getRepository(token, repositoryId) {
-      const raw = await orNotFound(
+      const raw = await orGone(
         () =>
           transport.request({
             auth: asInstallation(token),
@@ -213,17 +248,8 @@ export function createGitHubAppGateway(options: {
       return url.toString();
     },
 
-    async listInstallationRepositories(token) {
-      const raw = (await transport.request({
-        auth: asInstallation(token),
-        params: { per_page: 100 },
-        route: "GET /installation/repositories",
-      })) as { repositories?: RawRepository[] };
-      return (raw.repositories ?? []).map(toRepository);
-    },
-
     async getIssue(token, repository, number) {
-      const raw = await orNotFound(
+      const raw = await orGone(
         () =>
           transport.request({
             auth: asInstallation(token),
@@ -262,6 +288,25 @@ export function createGitHubAppGateway(options: {
         }
       }
       return snapshots;
+    },
+
+    async listInstallationRepositories(token) {
+      const repositories: GitHubRepository[] = [];
+      // GitHub pages by 100; installations with more repositories need every page.
+      for (let page = 1; page <= MAX_PAGES; page += 1) {
+        // biome-ignore lint/performance/noAwaitInLoops: Pages are read in order; a short page ends the loop.
+        const raw = (await transport.request({
+          auth: asInstallation(token),
+          params: { page, per_page: TRIAGE_PAGE_SIZE },
+          route: "GET /installation/repositories",
+        })) as { repositories?: RawRepository[] };
+        const pageRepositories = (raw.repositories ?? []).map(toRepository);
+        repositories.push(...pageRepositories);
+        if (pageRepositories.length < TRIAGE_PAGE_SIZE) {
+          break;
+        }
+      }
+      return repositories;
     },
 
     async listPullRequestChecks(token, repository) {
@@ -393,16 +438,21 @@ export function createGitHubAppGateway(options: {
           if (error.status === 404) {
             return { status: "not-found" as const };
           }
-          if (error.status === 401 || error.status === 403) {
+          if (error.status === 403) {
             return { status: "forbidden" as const };
           }
+          // A 401 is a token problem (fresh tokens are minted just before);
+          // it must not read as "Access revoked". It surfaces as an error and
+          // the next reconcile retries.
         }
         throw error;
       }
     },
 
     async mintInstallationToken(installationId) {
-      const raw = await orNotFound(
+      // Only a 404 means "GitHub no longer knows this installation"; a 401 or
+      // a 403 rate limit must never read as an uninstall (it retried below).
+      const raw = await orGone(
         () =>
           transport.request({
             auth: app,
@@ -419,7 +469,7 @@ export function createGitHubAppGateway(options: {
     },
 
     async resolveCommit(token, repository, sha) {
-      const raw = await orNotFound(
+      const raw = await orGone(
         () =>
           transport.request({
             auth: asInstallation(token),

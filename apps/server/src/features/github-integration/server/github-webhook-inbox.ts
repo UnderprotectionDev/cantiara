@@ -127,6 +127,17 @@ const SIGNATURE_FORMAT = /^sha256=[0-9a-f]{64}$/i;
 const PENDING_GRACE_MS = 60_000;
 const ERROR_TEXT_LIMIT = 300;
 
+/** Best-effort delivery triage field: which installation the payload belongs to. */
+function installationIdOf(rawBody: string) {
+  try {
+    const id = (JSON.parse(rawBody) as { installation?: { id?: unknown } })
+      .installation?.id;
+    return typeof id === "number" && Number.isInteger(id) && id > 0 ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 export class GitHubWebhookSecretError extends Error {
   readonly code = "GITHUB_WEBHOOK_SECRET_TOO_SHORT" as const;
 
@@ -283,7 +294,7 @@ export function createGitHubWebhookInbox(options: GitHubWebhookInboxOptions) {
           attempts: 0,
           deliveryId: input.deliveryId,
           event: input.event,
-          installationId: null,
+          installationId: installationIdOf(input.rawBody),
           lastError: null,
           payloadHash: createHash("sha256").update(input.rawBody).digest("hex"),
           processedAt: null,

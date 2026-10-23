@@ -39,6 +39,21 @@ const FAILED_CONCLUSIONS = new Set([
 ]);
 const SKIPPED_CONCLUSIONS = new Set(["neutral", "skipped", "stale"]);
 
+/**
+ * `details_url` / `target_url` are set by repo members and CI apps, so they are
+ * never trusted as links: a non-HTTPS address is not rendered as one.
+ */
+function httpsUrlOnly(url: string | null | undefined) {
+  if (!url) {
+    return null;
+  }
+  try {
+    return new URL(url).protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 export function outcomeOfCheckRun(
   run: Pick<RawCheckRun, "conclusion" | "status">,
 ): GitHubCheckOutcome {
@@ -71,7 +86,7 @@ export function outcomeOfStatus(state: string): GitHubCheckOutcome {
 export function toObservedCheckRun(run: RawCheckRun): GitHubObservedCheck {
   return {
     checkId: String(run.id),
-    detailsUrl: run.html_url ?? run.details_url ?? null,
+    detailsUrl: httpsUrlOnly(run.html_url ?? run.details_url),
     name: run.name,
     outcome: outcomeOfCheckRun(run),
     provider: run.app?.slug || "unknown-app",
@@ -82,7 +97,7 @@ export function toObservedCheckRun(run: RawCheckRun): GitHubObservedCheck {
 export function toObservedStatus(status: RawCommitStatus): GitHubObservedCheck {
   return {
     checkId: status.context,
-    detailsUrl: status.target_url ?? null,
+    detailsUrl: httpsUrlOnly(status.target_url),
     name: status.context,
     outcome: outcomeOfStatus(status.state),
     provider: COMMIT_STATUS_PROVIDER,

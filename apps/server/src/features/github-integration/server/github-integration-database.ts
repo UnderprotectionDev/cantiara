@@ -53,7 +53,18 @@ import {
   workRetiredIdentity,
   work as workTable,
 } from "@cantiara/db/schema/work";
-import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import type { GitHubSecrets } from "./github-credential-envelope";
 import { createGitHubIntegration } from "./github-integration";
@@ -515,7 +526,11 @@ function transactionFor(
               name: row.name,
               observedAt: new Date(row.observedAt),
               outcome: row.outcome,
-              requirement: row.requirement,
+              // A REST read carries no requiredness; GitHub's own "required"
+              // statement survives until a payload says otherwise.
+              requirement: sql`case when excluded.requirement = 'Unknown'
+                    then ${githubPullRequestCheck.requirement}
+                    else excluded.requirement end`,
             },
             target: [
               githubPullRequestCheck.recordId,
@@ -711,6 +726,13 @@ function transactionFor(
         })
         .from(githubInstallation)
         .where(eq(githubInstallation.installationId, installationId)),
+    // A whole-Project lock free of the Project row: two accounts cannot claim
+    // one installation id at the same time (the row lock is per Project here).
+    lockInstallationClaim: async (installationId) => {
+      await executor.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`cantiara-github-installation-claim:${installationId}`}))`,
+      );
+    },
     insertInstallation: async (row) => {
       await executor.insert(githubInstallation).values({
         accountLogin: row.accountLogin,
@@ -852,6 +874,76 @@ function transactionFor(
           )
           .orderBy(desc(githubExternalRecord.sourceUpdatedAt))
       ).map(toRecord),
+    recordByNumber: async (linkId, kind, number) => {
+      const [row] = await executor
+        .select()
+        .from(githubExternalRecord)
+        .where(
+          and(
+            eq(githubExternalRecord.projectId, projectId),
+            eq(githubExternalRecord.linkId, linkId),
+            eq(githubExternalRecord.kind, kind),
+            eq(githubExternalRecord.number, number),
+          ),
+        );
+      return row ? toRecord(row) : null;
+    },
+    recordsByIds: async (ids) => {
+      if (ids.length === 0) {
+        return [];
+      }
+      return (
+        await executor
+          .select()
+          .from(githubExternalRecord)
+          .where(
+            and(
+              eq(githubExternalRecord.projectId, projectId),
+              inArray(githubExternalRecord.id, ids),
+            ),
+          )
+      ).map(toRecord);
+    },
+    countRecords: async (linkId) => {
+      const [row] = await executor
+        .select({ count: sql<number>`count(*)::int` })
+        .from(githubExternalRecord)
+        .where(
+          and(
+            eq(githubExternalRecord.projectId, projectId),
+            eq(githubExternalRecord.linkId, linkId),
+          ),
+        );
+      return row?.count ?? 0;
+    },
+    searchActiveRecords: async (needle, limit) => {
+      const pattern =
+        needle === "" ? null : `%${needle.replace(/[\\%_]/g, "\\$&")}%`;
+      return (
+        await executor
+          .select()
+          .from(githubExternalRecord)
+          .where(
+            and(
+              eq(githubExternalRecord.projectId, projectId),
+              isNull(githubExternalRecord.trashedAt),
+              isNull(githubExternalRecord.archivedAt),
+              ...(pattern
+                ? [
+                    or(
+                      ilike(githubExternalRecord.title, pattern),
+                      ilike(githubExternalRecord.milestone, pattern),
+                      sql`${githubExternalRecord.number}::text ILIKE ${pattern}`,
+                      sql`array_to_string(${githubExternalRecord.labels}, ' ') ILIKE ${pattern}`,
+                    ),
+                  ]
+                : []),
+            ),
+          )
+          .orderBy(desc(githubExternalRecord.sourceUpdatedAt))
+          .limit(limit)
+      ).map(toRecord);
+    },
     saveCredential: async (installationRowId, credential) => {
       const values = {
         ciphertext: credential.sealed.ciphertext,

@@ -1,9 +1,11 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the Project.
+import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouteContext } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import type { LinkWorkValues } from "../forms/link-work-form";
 import {
   type GitHubIntegrationActions,
@@ -41,6 +43,10 @@ export default function GitHubIntegrationSurface({
   projectId: string;
 }) {
   const queryClient = useQueryClient();
+  const { session } = useRouteContext({ from: "/_auth" });
+  const formattingPreferences =
+    useQuery(accountPreferencesQueryOptions(session.data.user.id)).data ??
+    DEFAULT_ACCOUNT_PREFERENCES;
   const options = orpc.projectGitHubOverview.queryOptions({
     input: { projectId },
   });
@@ -49,12 +55,15 @@ export default function GitHubIntegrationSurface({
     input: { projectId },
   });
   const workLinks = useQuery({ ...linksOptions, enabled: overview.isSuccess });
-  const checks = useQuery({
-    ...orpc.projectGitHubChecks.queryOptions({ input: { projectId } }),
-    enabled: overview.isSuccess,
+  const checksOptions = orpc.projectGitHubChecks.queryOptions({
+    input: { projectId },
   });
+  const prContextOptions = orpc.projectGitHubPrContext.queryOptions({
+    input: { projectId },
+  });
+  const checks = useQuery({ ...checksOptions, enabled: overview.isSuccess });
   const prContext = useQuery({
-    ...orpc.projectGitHubPrContext.queryOptions({ input: { projectId } }),
+    ...prContextOptions,
     enabled: overview.isSuccess,
   });
   const recordsOptions = orpc.searchGitHubRecords.queryOptions({
@@ -65,7 +74,10 @@ export default function GitHubIntegrationSurface({
     const write = async <T,>(action: () => Promise<T>) => {
       const result = await runOnlineOnlyWrite(action);
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: options.queryKey }),
+        queryClient.invalidateQueries({ queryKey: checksOptions.queryKey }),
         queryClient.invalidateQueries({ queryKey: linksOptions.queryKey }),
+        queryClient.invalidateQueries({ queryKey: prContextOptions.queryKey }),
         queryClient.invalidateQueries({ queryKey: recordsOptions.queryKey }),
       ]);
       return result;
@@ -91,13 +103,25 @@ export default function GitHubIntegrationSurface({
       onUnlink: (linkId) =>
         write(() => client.unlinkGitHubWork({ linkId, projectId })),
     };
-  }, [linksOptions.queryKey, projectId, queryClient, recordsOptions.queryKey]);
+  }, [
+    checksOptions.queryKey,
+    linksOptions.queryKey,
+    options.queryKey,
+    prContextOptions.queryKey,
+    projectId,
+    queryClient,
+    recordsOptions.queryKey,
+  ]);
   const actions = useMemo<GitHubIntegrationActions>(() => {
-    const refresh = () =>
-      queryClient.invalidateQueries({ queryKey: options.queryKey });
     const write = async <T,>(action: () => Promise<T>) => {
       const result = await runOnlineOnlyWrite(action);
-      await refresh();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: options.queryKey }),
+        queryClient.invalidateQueries({ queryKey: checksOptions.queryKey }),
+        queryClient.invalidateQueries({ queryKey: linksOptions.queryKey }),
+        queryClient.invalidateQueries({ queryKey: prContextOptions.queryKey }),
+        queryClient.invalidateQueries({ queryKey: recordsOptions.queryKey }),
+      ]);
       return result;
     };
     return {
@@ -128,7 +152,15 @@ export default function GitHubIntegrationSurface({
         window.location.assign(installUrl);
       },
     };
-  }, [options.queryKey, projectId, queryClient]);
+  }, [
+    checksOptions.queryKey,
+    linksOptions.queryKey,
+    options.queryKey,
+    prContextOptions.queryKey,
+    projectId,
+    queryClient,
+    recordsOptions.queryKey,
+  ]);
 
   if (overview.isPending) {
     return <p role="status">Loading GitHub…</p>;
@@ -145,7 +177,11 @@ export default function GitHubIntegrationSurface({
   }
   return (
     <div className="space-y-6">
-      <GitHubIntegrationView actions={actions} overview={overview.data} />
+      <GitHubIntegrationView
+        actions={actions}
+        formattingPreferences={formattingPreferences}
+        overview={overview.data}
+      />
       {prContext.data && overview.data.links.length > 0 ? (
         <GitHubPrContextCards data={prContext.data} projectId={projectId} />
       ) : null}

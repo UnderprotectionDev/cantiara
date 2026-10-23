@@ -124,11 +124,14 @@ export function LinkWorkForm({
               className="w-full"
               id="github-link-target"
               name={field.name}
-              onChange={(event) =>
+              onChange={(event) => {
                 field.handleChange(
                   event.target.value as "Branch" | "Commit" | "record",
-                )
-              }
+                );
+                if (event.target.value !== "record") {
+                  form.setFieldValue("role", GITHUB_ROLE_CONTEXTUAL_LABEL);
+                }
+              }}
               value={field.state.value}
             >
               <NativeSelectOption value="record">

@@ -98,7 +98,10 @@ export interface GitHubSecrets {
   seal: (plaintext: string, aad: string) => SealedSecret;
   /** Install `state`: signed, expiring, bound to one account and Project. */
   signState: (payload: InstallState, now: Date) => string;
-  verifyState: (state: string, now: Date) => InstallState | null;
+  verifyState: (
+    state: string,
+    now: Date,
+  ) => (InstallState & { expiresAt: number }) | null;
 }
 
 export function createGitHubSecrets(ring: GitHubKeyRing): GitHubSecrets {
@@ -182,7 +185,11 @@ export function createGitHubSecrets(ring: GitHubKeyRing): GitHubSecrets {
         ) {
           return null;
         }
-        return { accountId: parsed.a, projectId: parsed.p };
+        return {
+          accountId: parsed.a,
+          expiresAt: parsed.e,
+          projectId: parsed.p,
+        };
       } catch {
         return null;
       }

@@ -3406,6 +3406,10 @@ const GITHUB_INTEGRATION_FAILURES: Record<string, GitHubIntegrationFailure> = {
   GITHUB_INSTALLATION_CLAIMED: { message: null, status: "CONFLICT" },
   GITHUB_INSTALLATION_NOT_FOUND: { message: null, status: "NOT_FOUND" },
   GITHUB_INSTALLATION_REMOVED: { message: null, status: "PRECONDITION_FAILED" },
+  GITHUB_INSTALLATION_UNCLAIMABLE: {
+    message: null,
+    status: "PRECONDITION_FAILED",
+  },
   GITHUB_LINK_NOT_FOUND: { message: null, status: "NOT_FOUND" },
   GITHUB_PROJECT_NOT_FOUND: {
     message: "Project is unavailable.",
@@ -3420,6 +3424,10 @@ const GITHUB_INTEGRATION_FAILURES: Record<string, GitHubIntegrationFailure> = {
     status: "PRECONDITION_FAILED",
   },
   GITHUB_SIGNAL_NOT_FOUND: { message: null, status: "NOT_FOUND" },
+  GITHUB_UNAVAILABLE: {
+    message: null,
+    status: "PRECONDITION_FAILED",
+  },
   GITHUB_WORK_LINK_EXISTS: { message: null, status: "CONFLICT" },
   GITHUB_WORK_LINK_NOT_FOUND: { message: null, status: "NOT_FOUND" },
   GITHUB_WORK_LINK_ROLE_INVALID: { message: null, status: "BAD_REQUEST" },

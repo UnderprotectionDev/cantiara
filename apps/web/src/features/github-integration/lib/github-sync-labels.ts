@@ -1,9 +1,13 @@
+import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { GitHubConnection } from "@cantiara/api/github-integration";
-import { format } from "date-fns";
+import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 
 /** Date and time as the founder reads them; the ISO string stays in `dateTime`. */
-export function formatSyncTime(iso: string) {
-  return format(new Date(iso), "PP p");
+export function formatSyncTime(
+  iso: string,
+  formattingPreferences: AccountPreferences,
+) {
+  return formatAccountDateTime(iso, formattingPreferences);
 }
 
 /** Plain outcome sentence for a Sync now answer; nothing is ever "synced" silently. */

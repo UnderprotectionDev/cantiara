@@ -352,6 +352,51 @@ describe("GitHub Integration: connection life and stop reasons", () => {
   });
 });
 
+describe("GitHub Integration: one identity per Pull request", () => {
+  test("a pull_request webhook with GitHub's pull-request id updates the record the reconcile found, never a second one", async () => {
+    const harness = seeded();
+    await connect(harness);
+    const [pull] = (await records(harness)).filter(
+      (r) => r.kind === "Pull request",
+    );
+    if (!pull) {
+      throw new Error("no pull request");
+    }
+    // GitHub names a Pull request with two id sequences: the Issues list
+    // answered 5003, the webhook payload carries the pull request id 7003.
+    const body = JSON.stringify({
+      action: "synchronize",
+      installation: { id: INSTALLATION },
+      pull_request: {
+        html_url: "https://github.com/acme/web/pull/3",
+        id: 7003,
+        issue_url: "https://api.github.com/repos/acme/web/issues/5003",
+        labels: [],
+        number: 3,
+        state: "open",
+        title: "Fix checkout retry (rebased)",
+        updated_at: "2026-10-01T09:31:00.000Z",
+      },
+      repository: { id: REPOSITORY, name: "web", owner: { login: "acme" } },
+    });
+    await harness.inbox.receive({
+      deliveryId: "d-pr",
+      event: "pull_request",
+      rawBody: body,
+      signature: harness.sign(body),
+    });
+    expect(await harness.inbox.process("d-pr", { final: false })).toBe(
+      "applied",
+    );
+    const stored = harness.stored().records;
+    expect(stored).toHaveLength(2);
+    expect(stored.find((r) => r.id === pull.id)).toMatchObject({
+      githubId: 5003,
+      title: "Fix checkout retry (rebased)",
+    });
+  });
+});
+
 describe("GitHub Integration: GitHub dış kaydı life", () => {
   test("Archive keeps source updates flowing and closing it on GitHub does not archive it locally", async () => {
     const harness = seeded();

@@ -37,6 +37,9 @@ function statusOf(error: unknown) {
     : null;
 }
 
+/** A GitHub read or mint must never hold its unit of work indefinitely. */
+const REQUEST_TIMEOUT_MS = 60_000;
+
 /**
  * Octokit adapter of the GitHub transport port. It sends whatever the
  * allow-listed gateway hands it; the allow-list lives above this adapter, so
@@ -61,9 +64,15 @@ export function createOctokitTransport(options: {
         const response = await client.request(call.route, {
           ...call.params,
           headers: { "x-github-api-version": GITHUB_API_VERSION },
+          request: { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
         });
         return response.data;
       } catch (error) {
+        if (error instanceof Error && error.name === "TimeoutError") {
+          throw new Error("A GitHub request timed out.", {
+            cause: error,
+          });
+        }
         const status = statusOf(error);
         if (status === null) {
           throw error;

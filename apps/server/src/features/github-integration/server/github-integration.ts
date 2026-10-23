@@ -115,6 +115,26 @@ export class GitHubInstallationClaimedError extends GitHubIntegrationError {
   }
 }
 
+/** An installation created too long ago cannot prove it came through this flow. */
+export class GitHubInstallationUnclaimableError extends GitHubIntegrationError {
+  constructor() {
+    super(
+      "GITHUB_INSTALLATION_UNCLAIMABLE",
+      "This installation cannot be connected from here. Install the GitHub App for it again, starting from this Project.",
+    );
+  }
+}
+
+/** GitHub could not be read (rate limit, outage); the founder retries later. */
+export class GitHubUnavailableError extends GitHubIntegrationError {
+  constructor() {
+    super(
+      "GITHUB_UNAVAILABLE",
+      "GitHub could not be read right now. Try again in a moment.",
+    );
+  }
+}
+
 export class GitHubInstallationRemovedError extends GitHubIntegrationError {
   constructor() {
     super(
@@ -190,6 +210,12 @@ class Refusal {
 const LEADING_HASH = /^#/;
 const TOKEN_REFRESH_MARGIN_MS = 60_000;
 const SEARCH_LIMIT = 200;
+/**
+ * A brand-new claim may only connect an installation GitHub created around the
+ * install attempt (state TTL plus patience). Older installations of other
+ * accounts cannot be swept up by guessing installation ids.
+ */
+const INSTALL_CLAIM_GRACE_MS = 20 * 60 * 1000;
 /** An incremental read re-asks a little before the last cursor: GitHub timestamps can lag. */
 const SINCE_OVERLAP_MS = 5 * 60 * 1000;
 
@@ -216,10 +242,58 @@ function toExternalRecord(record: GitHubStoredRecord): GitHubExternalRecord {
   return external;
 }
 
+/**
+ * One Pull request is one GitHub dış kaydı whichever path applied it first.
+ * GitHub carries two id sequences for it (Issues endpoints answer with the
+ * issue id, the pull_request webhook payload has the pull request id); the
+ * stored number is the identity both paths share, so a snapshot reuses the
+ * stored record's githubId instead of building a second record.
+ */
+async function canonicalSnapshots(
+  transaction: GitHubIntegrationTransaction,
+  linkId: string,
+  snapshots: GitHubIssueSnapshot[],
+): Promise<GitHubIssueSnapshot[]> {
+  for (const snapshot of snapshots) {
+    if (snapshot.kind !== "Pull request") {
+      continue;
+    }
+    const stored = await transaction.recordByNumber(
+      linkId,
+      "Pull request",
+      snapshot.number,
+    );
+    if (stored && stored.githubId !== snapshot.githubId) {
+      snapshot.githubId = stored.githubId;
+    }
+  }
+  return snapshots;
+}
+
 function failureText(error: unknown) {
   return error instanceof GitHubRequestError
     ? error.message
     : "The sync failed unexpectedly. It will be retried.";
+}
+
+/**
+ * A founder-facing GitHub read (token mint, repository or issue lookup) that
+ * fails for transport reasons must answer as one readable refusal, never as an
+ * unclassified server error. Reconcile handles its own rate-limit wait.
+ */
+async function githubOrUnavailable<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    if (
+      error instanceof GitHubRateLimitedError ||
+      error instanceof GitHubRequestError
+    ) {
+      // biome-ignore lint/style/useErrorCause: The GitHub error text must not carry response details to the client.
+      throw new GitHubUnavailableError();
+    }
+    throw error;
+  }
 }
 
 export function createGitHubIntegration(
@@ -457,7 +531,7 @@ export function createGitHubIntegration(
       const since = link.syncCursor
         ? new Date(Date.parse(link.syncCursor) - SINCE_OVERLAP_MS).toISOString()
         : undefined;
-      const snapshots = await gateway.listIssues(token, probe.repository, {
+      const fetched = await gateway.listIssues(token, probe.repository, {
         since,
       });
       if (syncOptions.explicit) {
@@ -472,10 +546,11 @@ export function createGitHubIntegration(
             record.number,
           );
           if (missed) {
-            snapshots.push(missed);
+            fetched.push(missed);
           }
         }
       }
+      const snapshots = await canonicalSnapshots(transaction, link.id, fetched);
       const outcomes = await transaction.upsertExternalRecords(
         snapshots.map(
           (snapshot): GitHubExternalRecordWrite => ({
@@ -597,9 +672,9 @@ export function createGitHubIntegration(
     link: GitHubStoredLink,
     installation: GitHubStoredInstallation | undefined,
   ): Promise<GitHubRepositoryLink> {
-    const [history, records] = await Promise.all([
+    const [history, externalRecordCount] = await Promise.all([
       transaction.nameHistory(link.id),
-      transaction.records(link.id),
+      transaction.countRecords(link.id),
     ]);
     const connection = connectionOf(transaction, link);
     return {
@@ -608,7 +683,7 @@ export function createGitHubIntegration(
       pauseReason: connection === "Paused" ? "Project archived" : null,
       sync: syncStatusOf(link, connection),
       disconnectedAt: link.disconnectedAt,
-      externalRecordCount: records.length,
+      externalRecordCount,
       htmlUrl: link.htmlUrl,
       id: link.id,
       installationId: installation?.installationId ?? 0,
@@ -688,11 +763,17 @@ export function createGitHubIntegration(
         entries.push({ recordId: outcome.recordId, snapshot });
       }
     }
+    const headEntries = entries.filter(({ snapshot }) => snapshot.headSha);
+    const headRecords = new Map(
+      (
+        await transaction.recordsByIds(
+          headEntries.map(({ recordId }) => recordId),
+        )
+      ).map((record) => [record.id, record]),
+    );
     for (const { recordId, snapshot } of entries) {
       // A Pull request payload names its head SHA: results of an older SHA are superseded.
-      const record = snapshot.headSha
-        ? await transaction.recordById(recordId)
-        : null;
+      const record = snapshot.headSha ? headRecords.get(recordId) : undefined;
       if (record && snapshot.headSha) {
         await observePullHead(transaction, record, snapshot.headSha, now());
       }
@@ -771,7 +852,9 @@ export function createGitHubIntegration(
     if (!token) {
       throw new GitHubInstallationRemovedError();
     }
-    const commit = await gateway.resolveCommit(token, link, sha);
+    const commit = await githubOrUnavailable(() =>
+      gateway.resolveCommit(token, link, sha),
+    );
     return commit?.sha ?? null;
   }
 
@@ -923,18 +1006,21 @@ export function createGitHubIntegration(
           await refreshAttentionSignals(tx, now());
           results.push(matched > 0 ? "check applied" : "check ignored");
         } else {
+          const snapshots = await canonicalSnapshots(tx, link.id, [
+            event.snapshot,
+          ]);
           const outcomes = await tx.upsertExternalRecords(
-            [
-              {
+            snapshots.map(
+              (snapshot): GitHubExternalRecordWrite => ({
                 id: newId(),
                 linkId: link.id,
                 projectId: link.projectId,
-                snapshot: storableSnapshot(event.snapshot),
-              },
-            ],
+                snapshot: storableSnapshot(snapshot),
+              }),
+            ),
             { explicit: false, origin: "webhook" },
           );
-          await applyIngested(tx, outcomes, [event.snapshot]);
+          await applyIngested(tx, outcomes, snapshots);
           results.push(outcomes[0]?.result ?? "ignored");
         }
       });
@@ -1014,7 +1100,9 @@ export function createGitHubIntegration(
         }
         const token = await usableToken(tx, installation);
         const source = token
-          ? await requireGateway().getIssue(token, link, tombstone.number)
+          ? await githubOrUnavailable(() =>
+              requireGateway().getIssue(token, link, tombstone.number),
+            )
           : null;
         if (!source || source.githubId !== input.githubId) {
           return new Refusal(new GitHubReincludeUnavailableError());
@@ -1080,12 +1168,16 @@ export function createGitHubIntegration(
       const input = gitHubAvailableRepositoriesInputSchema.parse(rawInput);
       return await inScope(accountId, input.projectId, "write", async (tx) => {
         const installation = await activeInstallation(tx, input.installationId);
-        const token = await tokenOrRemoved(tx, installation);
+        const token = await githubOrUnavailable(() =>
+          tokenOrRemoved(tx, installation),
+        );
         if (token instanceof Refusal) {
           return token;
         }
         const [repositories, links] = await Promise.all([
-          requireGateway().listInstallationRepositories(token),
+          githubOrUnavailable(() =>
+            requireGateway().listInstallationRepositories(token),
+          ),
           tx.links(),
         ]);
         const linked = new Set(
@@ -1109,15 +1201,27 @@ export function createGitHubIntegration(
         throw new GitHubInstallStateInvalidError();
       }
       return await inScope(accountId, state.projectId, "write", async (tx) => {
+        // Claims of one GitHub installation id complete one at a time.
+        await tx.lockInstallationClaim(input.installationId);
         const claims = await tx.claimsOfInstallation(input.installationId);
         if (claims.some((claim) => claim.connectedByAccountId !== accountId)) {
           throw new GitHubInstallationClaimedError();
         }
-        const description = await requireGateway().describeInstallation(
-          input.installationId,
+        const description = await githubOrUnavailable(() =>
+          requireGateway().describeInstallation(input.installationId),
         );
         if (!description) {
           throw new GitHubInstallationNotFoundError();
+        }
+        if (
+          claims.length === 0 &&
+          (!description.createdAt ||
+            Date.parse(description.createdAt) <
+              state.expiresAt - INSTALL_CLAIM_GRACE_MS)
+        ) {
+          // An installation created long before this install attempt cannot
+          // be swept up by an installation id; a claim in the same flow can.
+          throw new GitHubInstallationUnclaimableError();
         }
         let installation = await tx.installationByGitHubId(
           input.installationId,
@@ -1137,7 +1241,9 @@ export function createGitHubIntegration(
           };
           await tx.insertInstallation(installation);
         }
-        const token = await rotateToken(tx, installation);
+        const token = await githubOrUnavailable(() =>
+          rotateToken(tx, installation),
+        );
         if (!token) {
           throw new GitHubInstallationNotFoundError();
         }
@@ -1149,8 +1255,9 @@ export function createGitHubIntegration(
             removedAt: null,
           },
           projectId: state.projectId,
-          repositories:
-            await requireGateway().listInstallationRepositories(token),
+          repositories: await githubOrUnavailable(() =>
+            requireGateway().listInstallationRepositories(token),
+          ),
         };
       });
     },
@@ -1188,12 +1295,15 @@ export function createGitHubIntegration(
       const input = gitHubLinkRepositoryInputSchema.parse(rawInput);
       return await inScope(accountId, input.projectId, "write", async (tx) => {
         const installation = await activeInstallation(tx, input.installationId);
-        const token = await tokenOrRemoved(tx, installation);
+        const token = await githubOrUnavailable(() =>
+          tokenOrRemoved(tx, installation),
+        );
         if (token instanceof Refusal) {
           return token;
         }
-        const repositories =
-          await requireGateway().listInstallationRepositories(token);
+        const repositories = await githubOrUnavailable(() =>
+          requireGateway().listInstallationRepositories(token),
+        );
         const repository = repositories.find(
           ({ repositoryId }) => repositoryId === input.repositoryId,
         );
@@ -1289,14 +1399,15 @@ export function createGitHubIntegration(
           return new Refusal(new GitHubInstallationRemovedError());
         }
         // Reconnect rotates the credential even when the old one is still valid.
-        const token = await rotateToken(tx, installation);
+        const token = await githubOrUnavailable(() =>
+          rotateToken(tx, installation),
+        );
         if (!token) {
           await markRemoved(tx, installation.installationId);
           return new Refusal(new GitHubInstallationRemovedError());
         }
-        const repository = await requireGateway().getRepository(
-          token,
-          link.repositoryId,
+        const repository = await githubOrUnavailable(() =>
+          requireGateway().getRepository(token, link.repositoryId),
         );
         if (!repository) {
           await tx.updateLink(link.id, { stopReason: "Repository not found" });
@@ -1334,23 +1445,14 @@ export function createGitHubIntegration(
     async searchRecords(accountId, rawInput) {
       const input = gitHubSearchRecordsInputSchema.parse(rawInput);
       return await inScope(accountId, input.projectId, "read", async (tx) => {
-        const needle = input.query.toLowerCase().replace(LEADING_HASH, "");
-        const matches = (record: GitHubExternalRecord) =>
-          needle === "" ||
-          [
-            record.title,
-            record.milestone ?? "",
-            String(record.number),
-            ...record.labels,
-          ].some((value) => value.toLowerCase().includes(needle));
+        // Archived records leave normal lists; Trash records are no search input.
         return {
-          // Archived records leave normal lists; Trash records are no search input.
-          records: (await tx.records())
-            .filter((record) => record.lifecycle === "Active")
-            .map(toExternalRecord)
-            .filter(matches)
-            .sort((a, b) => b.sourceUpdatedAt.localeCompare(a.sourceUpdatedAt))
-            .slice(0, SEARCH_LIMIT),
+          records: (
+            await tx.searchActiveRecords(
+              input.query.toLowerCase().replace(LEADING_HASH, ""),
+              SEARCH_LIMIT,
+            )
+          ).map(toExternalRecord),
         };
       });
     },

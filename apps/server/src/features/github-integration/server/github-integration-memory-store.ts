@@ -129,6 +129,9 @@ function createMemoryStore(state: {
               projectId: owner,
             })),
         ),
+      // The in-memory harness runs one initializeOperation at a time, so the
+      // claim lock is already serialized.
+      lockInstallationClaim: () => Promise.resolve(),
       installationByGitHubId: (installationId) =>
         Promise.resolve(
           inProject(state.current.installations).find(
@@ -251,6 +254,13 @@ function createMemoryStore(state: {
       },
       upsertChecks: (rows) => {
         for (const row of rows) {
+          const existing = state.current.checks.find(
+            (item) =>
+              item.recordId === row.recordId &&
+              item.headSha === row.headSha &&
+              item.provider === row.provider &&
+              item.checkId === row.checkId,
+          );
           state.current.checks = [
             ...state.current.checks.filter(
               (item) =>
@@ -261,7 +271,15 @@ function createMemoryStore(state: {
                   item.checkId === row.checkId
                 ),
             ),
-            { ...row },
+            {
+              ...row,
+              // Mirrors the PostgreSQL rule: a REST read without a
+              // requiredness never erases GitHub's own "required" statement.
+              requirement:
+                row.requirement === "Unknown" && existing
+                  ? existing.requirement
+                  : row.requirement,
+            },
           ];
         }
         return Promise.resolve();
@@ -354,6 +372,45 @@ function createMemoryStore(state: {
           inProject(state.current.records).find((row) => row.id === recordId) ??
             null,
         ),
+      recordByNumber: (linkId, kind, number) =>
+        Promise.resolve(
+          inProject(state.current.records).find(
+            (row) =>
+              row.linkId === linkId &&
+              row.kind === kind &&
+              row.number === number,
+          ) ?? null,
+        ),
+      recordsByIds: (ids) =>
+        Promise.resolve(
+          inProject(state.current.records).filter((row) =>
+            ids.includes(row.id),
+          ),
+        ),
+      countRecords: (linkId) =>
+        Promise.resolve(
+          inProject(state.current.records).filter(
+            (row) => row.linkId === linkId,
+          ).length,
+        ),
+      searchActiveRecords: (needle, limit) => {
+        const matches = (record: GitHubStoredRecord) =>
+          needle === "" ||
+          [
+            record.title,
+            record.milestone ?? "",
+            String(record.number),
+            ...record.labels,
+          ].some((value) => value.toLowerCase().includes(needle));
+        return Promise.resolve(
+          inProject(state.current.records)
+            .filter(
+              (record) => record.lifecycle === "Active" && matches(record),
+            )
+            .sort((a, b) => b.sourceUpdatedAt.localeCompare(a.sourceUpdatedAt))
+            .slice(0, limit),
+        );
+      },
       records: (linkId) =>
         Promise.resolve(
           inProject(state.current.records).filter(

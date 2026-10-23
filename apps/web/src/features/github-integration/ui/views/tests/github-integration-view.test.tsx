@@ -450,3 +450,19 @@ test("the Reconnect preview takes focus and can be cancelled from the keyboard",
   expect(host?.querySelector("h5")).toBeNull();
   expect(actions.onReconnect).not.toHaveBeenCalled();
 });
+
+test("cancelling the preview returns focus to the trigger button", async () => {
+  await mount(overviewOf([connected]));
+  const trigger = buttonNamed("Disconnect");
+  trigger.focus();
+  await act(async () => {
+    trigger.click();
+    await settle();
+  });
+  expect(document.activeElement).toBe(host?.querySelector("h5"));
+  await act(async () => {
+    buttonNamed("Cancel").click();
+    await settle();
+  });
+  expect(document.activeElement).toBe(buttonNamed("Disconnect"));
+});
