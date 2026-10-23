@@ -193,9 +193,10 @@ function projectTestsSurface(
 
 /** The route composes the GitHub area, so the shell never imports another feature's `ui/`. */
 function projectGitHubSurface(activeHash: string, githubArea?: ReactNode) {
-  return githubArea && ["github", "project-area-github"].includes(activeHash)
-    ? githubArea
-    : null;
+  return githubArea &&
+    ["github", "project-area-github"].includes(activeHash) ? (
+    <div id={activeHash}>{githubArea}</div>
+  ) : null;
 }
 
 function liveSourceRouteForHash(activeHash: string, projectId: string) {
