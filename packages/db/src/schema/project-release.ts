@@ -13,10 +13,20 @@ import { project } from "./project";
 export const projectRelease = pgTable(
   "project_release",
   {
+    /**
+     * Optional access/outcome hypothesis (Project Release Planning): five
+     * separate founder-written fields, never a publish gate or measurement.
+     * Length limits live in the API contract so the columns stay expand-only.
+     */
+    accessEvidence: text("access_evidence"),
+    audience: text("audience"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     description: text("description"),
     id: text("id").primaryKey(),
+    intendedOutcome: text("intended_outcome"),
     name: text("name").notNull(),
+    outcomeEvidence: text("outcome_evidence"),
+    primaryAccessPath: text("primary_access_path"),
     projectId: text("project_id")
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),

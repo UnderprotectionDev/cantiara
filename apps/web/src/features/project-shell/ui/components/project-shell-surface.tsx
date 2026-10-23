@@ -22,7 +22,14 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
-import { lazy, type ReactNode, Suspense, useEffect, useState } from "react";
+import {
+  type ComponentType,
+  lazy,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useState,
+} from "react";
 import type { WorkStatusActionRequest } from "@/components/work-status-form";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
 import ProjectDecisionsSurface from "@/features/decisions/ui/components/project-decisions-surface";
@@ -196,6 +203,31 @@ function projectGitHubSurface(activeHash: string, githubArea?: ReactNode) {
   return githubArea &&
     ["github", "project-area-github"].includes(activeHash) ? (
     <div id={activeHash}>{githubArea}</div>
+  ) : null;
+}
+
+/** The project `Releases` area component, injected by the route. */
+export type ProjectReleasesArea = ComponentType<{
+  formatting: AccountPreferences;
+  hash: string;
+  projectId: string;
+}>;
+
+function projectReleasesSurface(
+  activeHash: string,
+  formatting: AccountPreferences,
+  projectId: string,
+  ReleasesArea?: ProjectReleasesArea,
+) {
+  const isReleasesSurface =
+    ["releases", "project-area-releases"].includes(activeHash) ||
+    projectSourceRecordFromHash(activeHash)?.sourceType === "Project Release";
+  return ReleasesArea && isReleasesSurface ? (
+    <ReleasesArea
+      formatting={formatting}
+      hash={activeHash}
+      projectId={projectId}
+    />
   ) : null;
 }
 
@@ -378,6 +410,7 @@ function ProjectShellContent({
   githubArea,
   project,
   projectId,
+  releasesArea,
   scopeTreeQuery,
 }: {
   accountId?: string;
@@ -385,6 +418,7 @@ function ProjectShellContent({
   githubArea?: ReactNode;
   project: ProjectProfile;
   projectId: string;
+  releasesArea?: ProjectReleasesArea;
   scopeTreeQuery: UseQueryResult<ScopeTree>;
 }) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
@@ -518,6 +552,12 @@ function ProjectShellContent({
       activeHash,
       projectId,
       testGapRecordFromHash(activeHash),
+    ) ??
+    projectReleasesSurface(
+      activeHash,
+      accountFormattingPreferences,
+      projectId,
+      releasesArea,
     ) ??
     projectGitHubSurface(activeHash, githubArea) ??
     projectUncertaintySurface(

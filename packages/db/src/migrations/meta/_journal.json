@@ -1191,6 +1191,13 @@
       "when": 1792747414751,
       "tag": "0169_wealthy_celestials",
       "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1792755723381,
+      "tag": "0170_opposite_yellow_claw",
+      "breakpoints": true
     }
   ]
 }
