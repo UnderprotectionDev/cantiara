@@ -130,9 +130,17 @@ import { createDatabaseTestGaps } from "./features/test-gaps/server/test-gaps-da
 import { createDatabaseTestReports } from "./features/test-report/server/test-report-database";
 import { createDatabaseTestReview } from "./features/test-review/server/test-review-database";
 import { createDatabaseUserFlow } from "./features/user-flow/server/user-flow-database";
+import {
+  createDatabaseWorkAutomation,
+  type WorkAutomationWorkCreation,
+} from "./features/work-automation/server/work-automation-database";
+import { withWorkAutomationEvents } from "./features/work-automation/server/work-automation-events";
 import { createWorkContextAccess } from "./features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-drafts-database";
-import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
+import {
+  createDatabaseWorkLifecycle,
+  toWorkProfile,
+} from "./features/work-lifecycle/server/work-lifecycle-database";
 import { createDatabaseWorkTemplates } from "./features/work-templates/server/work-templates-database";
 import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/server/workspace-overview-database";
 import { createMaintenanceWorker } from "./maintenance-worker";
@@ -330,9 +338,28 @@ export const customFields = createDatabaseCustomFields(db);
 export const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(db);
 const customFieldValueWriter = createDatabaseCustomFieldFinalizationWriter();
-export const workLifecycle = createDatabaseWorkLifecycle(db, {
+const workLifecycleBase = createDatabaseWorkLifecycle(db, {
   customFieldValueWriter,
 });
+const workAutomationRuntime = createDatabaseWorkAutomation(db, {
+  createWork: async (transaction, creation: WorkAutomationWorkCreation) => {
+    await insertWorkWithKeyAllocation(transaction, creation.project, {
+      committedAt: creation.committedAt,
+      description: null,
+      idempotencyKey: creation.idempotencyKey,
+      payloadFingerprint: creation.payloadFingerprint,
+      title: creation.title,
+      type: creation.type,
+      workId: creation.workId,
+    });
+  },
+  workHistoryProfile: (record) => toWorkProfile(record),
+});
+export const workAutomation = workAutomationRuntime.access;
+export const workLifecycle = withWorkAutomationEvents(
+  workLifecycleBase,
+  workAutomationRuntime.engine,
+);
 export const returnToWork = createDatabaseReturnToWork(db, {
   projectMutations: projectShellMutationContracts,
   workLifecycle,

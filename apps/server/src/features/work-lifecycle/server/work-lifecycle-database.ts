@@ -62,7 +62,7 @@ import {
   WorkRecreatePreviewRequiredError,
 } from "./work-lifecycle";
 
-type WorkDatabaseRecord = typeof work.$inferSelect;
+export type WorkDatabaseRecord = typeof work.$inferSelect;
 type WorkKeyAllocationRecord = typeof workKeyAllocation.$inferSelect;
 type WorkRetiredIdentityRecord = typeof workRetiredIdentity.$inferSelect;
 
@@ -99,7 +99,7 @@ function originRecordValues(originPosition?: WorkOriginPosition) {
   };
 }
 
-function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
+export function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
   const originPosition =
     record.originOwnerRecordId && record.originComponentId
       ? workOriginPositionSchema.parse({

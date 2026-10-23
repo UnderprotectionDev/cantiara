@@ -82,6 +82,7 @@ import type { TestReportAcceptanceAccess } from "./test-report";
 import type { TestReviewAccess } from "./test-review";
 import type { UserFlowAccess } from "./user-flow";
 import type { WebCaptureAccess } from "./web-capture";
+import type { WorkAutomationAccess } from "./work-automation";
 import type { WorkContextAccess } from "./work-context";
 import type { WorkDraftsAccess } from "./work-drafts";
 import type { WorkLifecycleAccess } from "./work-lifecycle";
@@ -247,6 +248,7 @@ export interface Context {
   usageLinks?: UsageLinksAccess;
   userFlow?: UserFlowAccess;
   webCapture?: WebCaptureAccess;
+  workAutomation?: WorkAutomationAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
   workHandoffs?: ExternalExecutionHandoffsAccess;

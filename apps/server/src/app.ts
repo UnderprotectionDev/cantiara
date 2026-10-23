@@ -111,6 +111,7 @@ import {
   webCapturePairingInputSchema,
   webCaptureSendInputSchema,
 } from "@cantiara/api/web-capture";
+import type { WorkAutomationAccess } from "@cantiara/api/work-automation";
 import type { WorkContextAccess } from "@cantiara/api/work-context";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
@@ -258,6 +259,7 @@ export interface AppDependencies {
   usageLinks?: UsageLinksAccess;
   userFlow?: UserFlowAccess;
   webCapture?: WebCaptureAccess;
+  workAutomation?: WorkAutomationAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
   workHandoffs?: ExternalExecutionHandoffsAccess;
@@ -1270,6 +1272,7 @@ export function createApp(dependencies: AppDependencies) {
       prioritizationSessions: dependencies.prioritizationSessions,
       personalReminders: dependencies.personalReminders,
       recordActions: dependencies.recordActions,
+      workAutomation: dependencies.workAutomation,
       tagMutationContracts: dependencies.tagMutationContracts,
       tags: dependencies.tags,
       contacts: dependencies.contacts,
