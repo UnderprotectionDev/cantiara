@@ -359,6 +359,14 @@ import {
   updateProjectGoalInputSchema,
 } from "../project-goals";
 import {
+  ProjectReleasePlanningConflictError,
+  projectReleasePlanningInputSchema,
+  projectReleasePlanningProjectInputSchema,
+  setProjectReleaseAudienceInputSchema,
+  setProjectReleaseLinkInputSchema,
+  setProjectReleaseScopeInputSchema,
+} from "../project-release-planning";
+import {
   applyProjectShellConfigurationChange,
   createProjectInputSchema,
   createProjectMutationInputSchema,
@@ -4186,7 +4194,89 @@ function rethrowProjectGoalError(error: unknown, targetId: string): never {
   }
   throw error;
 }
+function requireProjectReleasePlanning(context: Context) {
+  if (!context.projectReleasePlanning) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectReleasePlanning;
+}
+async function projectReleasePlanningWrite<T>(
+  targetId: string,
+  write: () => Promise<T | null>,
+): Promise<T> {
+  try {
+    const result = await write();
+    if (!result) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return result;
+  } catch (error) {
+    if (error instanceof ProjectReleasePlanningConflictError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: "CONFLICT", targetId },
+        defined: true,
+        message: "Conflict",
+      });
+    }
+    throw error;
+  }
+}
 export const appRouter = {
+  projectReleases: protectedProcedure
+    .input(projectReleasePlanningProjectInputSchema)
+    .handler(async ({ context, input }) => {
+      const overview = await requireProjectReleasePlanning(context).overview(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!overview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return overview;
+    }),
+  projectReleasePlanning: protectedProcedure
+    .input(projectReleasePlanningInputSchema)
+    .handler(async ({ context, input }) => {
+      const detail = await requireProjectReleasePlanning(context).detail(
+        context.session.user.id,
+        input,
+      );
+      if (!detail) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return detail;
+    }),
+  setProjectReleaseScope: protectedProcedure
+    .input(setProjectReleaseScopeInputSchema)
+    .handler(({ context, input }) =>
+      projectReleasePlanningWrite(input.releaseId, () =>
+        requireProjectReleasePlanning(context).setScope(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setProjectReleaseLink: protectedProcedure
+    .input(setProjectReleaseLinkInputSchema)
+    .handler(({ context, input }) =>
+      projectReleasePlanningWrite(input.releaseId, () =>
+        requireProjectReleasePlanning(context).setLink(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setProjectReleaseAudience: protectedProcedure
+    .input(setProjectReleaseAudienceInputSchema)
+    .handler(({ context, input }) =>
+      projectReleasePlanningWrite(input.releaseId, () =>
+        requireProjectReleasePlanning(context).setAudience(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
   projectGoalDetail: protectedProcedure
     .input(projectGoalInputSchema)
     .handler(({ context, input }) => {

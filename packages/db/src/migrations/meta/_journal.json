@@ -1205,6 +1205,13 @@
       "when": 1792766193273,
       "tag": "0171_gigantic_lady_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1792766479426,
+      "tag": "0172_confused_klaw",
+      "breakpoints": true
     }
   ]
 }

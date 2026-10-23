@@ -133,9 +133,41 @@ export const milestoneRecordSchema = z
   })
   .strict();
 
+/**
+ * Optional access/outcome hypothesis of a Project Release (Project Release
+ * Planning). Five separate founder-written fields: none is a publish gate,
+ * a measurement or a campaign; empty is the normal state.
+ */
+export const PROJECT_RELEASE_HYPOTHESIS_FIELDS = [
+  { name: "audience", label: "Audience" },
+  { name: "primaryAccessPath", label: "Primary access path" },
+  { name: "accessEvidence", label: "Access evidence" },
+  { name: "intendedOutcome", label: "Intended outcome" },
+  { name: "outcomeEvidence", label: "Outcome evidence" },
+] as const;
+export type ProjectReleaseHypothesisField =
+  (typeof PROJECT_RELEASE_HYPOTHESIS_FIELDS)[number]["name"];
+const hypothesisText = optionalText.default(null);
+const projectReleaseHypothesisRecordFields = {
+  accessEvidence: hypothesisText,
+  audience: hypothesisText,
+  intendedOutcome: hypothesisText,
+  outcomeEvidence: hypothesisText,
+  primaryAccessPath: hypothesisText,
+};
+/** Update input: an omitted field keeps its current value. */
+const projectReleaseHypothesisInputFields = {
+  accessEvidence: optionalText.optional(),
+  audience: optionalText.optional(),
+  intendedOutcome: optionalText.optional(),
+  outcomeEvidence: optionalText.optional(),
+  primaryAccessPath: optionalText.optional(),
+};
+
 export const projectReleaseRecordSchema = z
   .object({
     ...sourceRecordIdentity,
+    ...projectReleaseHypothesisRecordFields,
     description: optionalText,
     name: text255,
     projectId: identifier,
@@ -383,6 +415,7 @@ export const updateProjectSourceRecordInputSchema = z.discriminatedUnion(
       .strict(),
     humanMutationEnvelopeSchema
       .extend({
+        ...projectReleaseHypothesisInputFields,
         description: optionalText,
         name: text255,
         projectId: identifier,

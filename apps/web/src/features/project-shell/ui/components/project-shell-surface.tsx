@@ -24,6 +24,7 @@ import {
 import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
 import {
   type ComponentProps,
+  type ComponentType,
   lazy,
   type ReactNode,
   Suspense,
@@ -203,6 +204,31 @@ function projectGitHubSurface(activeHash: string, githubArea?: ReactNode) {
   return githubArea &&
     ["github", "project-area-github"].includes(activeHash) ? (
     <div id={activeHash}>{githubArea}</div>
+  ) : null;
+}
+
+/** The project `Releases` area component, injected by the route. */
+export type ProjectReleasesArea = ComponentType<{
+  formatting: AccountPreferences;
+  hash: string;
+  projectId: string;
+}>;
+
+function projectReleasesSurface(
+  activeHash: string,
+  formatting: AccountPreferences,
+  projectId: string,
+  ReleasesArea?: ProjectReleasesArea,
+) {
+  const isReleasesSurface =
+    ["releases", "project-area-releases"].includes(activeHash) ||
+    projectSourceRecordFromHash(activeHash)?.sourceType === "Project Release";
+  return ReleasesArea && isReleasesSurface ? (
+    <ReleasesArea
+      formatting={formatting}
+      hash={activeHash}
+      projectId={projectId}
+    />
   ) : null;
 }
 
@@ -411,6 +437,7 @@ function ProjectShellContent({
   githubArea,
   project,
   projectId,
+  releasesArea,
   releaseEvidenceArea,
   scopeTreeQuery,
 }: {
@@ -419,6 +446,7 @@ function ProjectShellContent({
   githubArea?: ReactNode;
   project: ProjectProfile;
   projectId: string;
+  releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
   scopeTreeQuery: UseQueryResult<ScopeTree>;
 }) {
@@ -553,6 +581,12 @@ function ProjectShellContent({
       activeHash,
       projectId,
       testGapRecordFromHash(activeHash),
+    ) ??
+    projectReleasesSurface(
+      activeHash,
+      accountFormattingPreferences,
+      projectId,
+      releasesArea,
     ) ??
     projectGitHubSurface(activeHash, githubArea) ??
     projectUncertaintySurface(

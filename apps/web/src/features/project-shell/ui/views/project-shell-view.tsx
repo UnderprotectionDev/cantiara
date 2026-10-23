@@ -3,17 +3,21 @@ import type { ReactNode } from "react";
 import { useProjectShellData } from "@/features/project-shell/hooks/use-project-shell-data";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 
-import ProjectShellSurface from "../components/project-shell-surface";
+import ProjectShellSurface, {
+  type ProjectReleasesArea,
+} from "../components/project-shell-surface";
 
 export default function ProjectShellView({
   accountId,
   githubArea,
   projectId,
+  releasesArea,
   releaseEvidenceArea,
 }: {
   accountId?: string;
   githubArea?: ReactNode;
   projectId: string;
+  releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
 }) {
   const { accountPreferencesQuery, projectQuery, scopeTreeQuery } =
@@ -59,6 +63,7 @@ export default function ProjectShellView({
         project={projectQuery.data}
         projectId={projectId}
         releaseEvidenceArea={releaseEvidenceArea}
+        releasesArea={releasesArea}
         scopeTreeQuery={scopeTreeQuery}
       />
     </main>

@@ -1436,7 +1436,13 @@ _Avoid_: Ürün kabul kanıtı, canlı test özeti, otomatik readiness kararı
 
 **Proje Sürümü**:
 Kullanıcının yönettiği yazılım Projesinde kapsamı, hazırlığı ve yayımlanma durumunu taşıyan Sürüm ana kaydı; ürünün kendi kabul süreci değildir.
-_Avoid_: Ürün sürüm adayı, ürün release'i
+UI: `Project Release`; durumlar `Draft`, `Preparing`, `Published`, `Cancelled`.
+_Avoid_: Ürün sürüm adayı, ürün release'i, Kilometre Taşı, Odak Dönemi
+
+**Proje Sürümü planlaması**:
+Tam olarak bir Projeye ait Proje Sürümünde yayımlanacak İş kapsamını, aynı Projenin repository'lerinden tag, GitHub Release ve ortam bağlarını ve isteğe bağlı erişim/sonuç hipotezini açık kullanıcı eylemiyle yönetmek ([Proje Sürümü planlama](docs/prd/12-github-and-project-releases.md#proje-sürümü-planlama)). Durum yazmaz, kapsamı otomatik doldurmaz, skor veya yayın kapısı üretmez ve yerleşik hedef ya da gerçek yayın tarihi tutmaz; hipotez alanları birbirinden ayrıdır ve ölçüm yapmaz.
+UI: `Project Releases`, `Planning`, `Scope`, `Add Work to scope`, `Remove from scope`, `Audience`, `Primary access path`, `Access evidence`, `Intended outcome`, `Outcome evidence`, `Environment link`, `Create Project Release`.
+_Avoid_: Sürüm Kanıt Paketi, sprint planlaması, otomatik kapsam, yayın kapısı
 
 **Sürüm Kanıt Paketi**:
 Bir Proje Sürümünün kapsam, PR ve check, Karar, Risk, test, Test Açığı, kontrol listesi ve yayın farkını ana kaynaklarından türetip açan salt okunur değerlendirme yüzeyi; skor, hazır/hazır değil hükmü, yayın kapısı, sürüm notu veya kapanış özeti değildir ([Sürüm Kanıt Paketi](docs/prd/12-github-and-project-releases.md#sürüm-kanıt-paketi-ve-yayın-hazırlığı)). UI: `Release Evidence Pack`, `Open source record`.

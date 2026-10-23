@@ -345,6 +345,28 @@ export class MutationApplyFailedError extends Error {
   }
 }
 
+/**
+ * Classifies a Mutation Contract failure for a feature that receives the
+ * contract as a port and must not import this module's error classes.
+ */
+export function mutationFailureKind(
+  error: unknown,
+): "conflict" | "not-found" | null {
+  if (error instanceof MutationTargetNotFoundError) {
+    return "not-found";
+  }
+  if (
+    error instanceof MutationConflictError ||
+    error instanceof MutationStaleBaseRevisionError
+  ) {
+    return "conflict";
+  }
+  if (error instanceof MutationApplyFailedError) {
+    return mutationFailureKind(error.cause);
+  }
+  return null;
+}
+
 export class MutationOperationNotFoundError extends Error {
   readonly code = "OPERATION_NOT_FOUND" as const;
   readonly operationId: string;

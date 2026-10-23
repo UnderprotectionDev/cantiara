@@ -7,12 +7,14 @@ import type {
   MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
 import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
+import { projectReleaseTransitionAllowed } from "@cantiara/api/project-release-planning";
 import {
   assumptionRecordSchema,
   createProjectSourceRecordInputSchema,
   decisionRecordSchema,
   milestoneRecordSchema,
   openQuestionRecordSchema,
+  PROJECT_RELEASE_HYPOTHESIS_FIELDS,
   type ProjectSourceRecord,
   ProjectSourceRecordConflictError,
   type ProjectSourceRecordsAccess,
@@ -755,8 +757,13 @@ async function writeProjectReleaseRecord(
 ) {
   const { committedAt, expectedRevision, executor, record, targetId } = input;
   const values = {
+    accessEvidence: record.accessEvidence,
+    audience: record.audience,
     description: record.description,
+    intendedOutcome: record.intendedOutcome,
     name: record.name,
+    outcomeEvidence: record.outcomeEvidence,
+    primaryAccessPath: record.primaryAccessPath,
     projectId: record.projectId,
     revision: expectedRevision + 1,
     status: record.status,
@@ -1115,15 +1122,30 @@ function allowsTransition(
     return record.status === "Planned" && next.sourceType === "Milestone";
   }
   if (record.sourceType === "Project Release") {
+    // Project Release Planning status matrix: terminal results never reopen.
     return (
-      (record.status === "Draft" || record.status === "Preparing") &&
-      next.sourceType === "Project Release"
+      next.sourceType === "Project Release" &&
+      projectReleaseTransitionAllowed(record.status, next.status)
     );
   }
   if (record.sourceType === "Production Incident") {
     return next.sourceType === "Production Incident";
   }
   return false;
+}
+
+/** Hypothesis fields the update names; an omitted field keeps its value. */
+function projectReleaseHypothesisUpdate(
+  input: Extract<
+    z.infer<typeof updateProjectSourceRecordInputSchema>,
+    { sourceType: "Project Release" }
+  >,
+) {
+  return Object.fromEntries(
+    PROJECT_RELEASE_HYPOTHESIS_FIELDS.flatMap(({ name }) =>
+      input[name] === undefined ? [] : [[name, input[name]]],
+    ),
+  );
 }
 
 function assertRiskRationale(record: ProjectSourceRecord) {
@@ -1570,6 +1592,7 @@ export function createDatabaseProjectSourceRecords(
               case "Project Release":
                 record = projectReleaseRecordSchema.parse({
                   ...current,
+                  ...projectReleaseHypothesisUpdate(input),
                   description: input.description,
                   id: input.sourceId,
                   name: input.name,

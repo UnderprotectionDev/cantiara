@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
 
 import GitHubIntegrationSurface from "@/features/github-integration/ui/components/github-integration-surface";
+import ProjectReleasesView from "@/features/project-release-planning/ui/views/project-releases-view";
 import ProjectShellView from "@/features/project-shell/ui/views/project-shell-view";
 import ReleaseEvidencePackSurface from "@/features/release-evidence/ui/components/release-evidence-pack-surface";
 import { smartCollectionWorkPrefillFromSearch } from "@/features/smart-collections/lib/smart-collection-work-prefill";
@@ -44,6 +45,7 @@ function RouteComponent() {
       }
       projectId={projectId}
       releaseEvidenceArea={releaseEvidenceArea}
+      releasesArea={ProjectReleasesView}
     />
   );
 }
