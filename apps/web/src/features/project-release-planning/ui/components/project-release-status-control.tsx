@@ -2,6 +2,7 @@
 
 import {
   isTerminalProjectReleaseStatus,
+  PROJECT_RELEASE_TERMINAL_STATUSES,
   type ProjectReleaseRecord,
   type ProjectReleaseStatus,
   type ProjectReleaseStatusSuggestion,
@@ -20,9 +21,8 @@ import { Button } from "@cantiara/ui/components/button";
 import { useState } from "react";
 import { projectReleaseStatusChangeCopy } from "../../lib/project-release-planning-form";
 
-type TerminalStatus = "Published" | "Cancelled";
+type TerminalStatus = (typeof PROJECT_RELEASE_TERMINAL_STATUSES)[number];
 const FREE_STATUSES = ["Draft", "Preparing"] as const;
-const TERMINAL_STATUSES = ["Published", "Cancelled"] as const;
 
 /**
  * Sidebar status of 16.2 and the 16.4 Change Release Status dialog. `Draft`
@@ -92,7 +92,7 @@ export function ProjectReleaseStatusControl({
             ))}
           </fieldset>
           <div className="flex flex-wrap gap-2">
-            {TERMINAL_STATUSES.map((terminal) => (
+            {PROJECT_RELEASE_TERMINAL_STATUSES.map((terminal) => (
               <Button
                 disabled={saving}
                 key={terminal}
