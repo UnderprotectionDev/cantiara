@@ -802,7 +802,16 @@ export function createDatabaseProjectReleasePlanning(
 
     async setLink(accountId, rawInput) {
       const input = setProjectReleaseLinkInputSchema.parse(rawInput);
-      const { baseRevision, clientIdempotencyKey, id, ...payload } = input;
+      const { baseRevision, clientIdempotencyKey, ...payload } = input;
+      // The row id comes from the full payload, so an identical add reuses it.
+      const id = await stableId("release-link", [
+        input.projectId,
+        input.releaseId,
+        input.kind,
+        input.repositoryLinkId ?? "",
+        input.label,
+        input.url ?? "",
+      ]);
       const receipt = await commit(
         linkTarget(accountId, payload),
         {
@@ -1025,7 +1034,6 @@ export function createDatabaseProjectReleasePlanning(
                   and(
                     eq(projectReleaseLink.projectId, input.projectId),
                     eq(projectReleaseLink.releaseId, input.releaseId),
-                    isNull(projectReleaseLink.removedAt),
                   ),
                 )
                 .orderBy(
@@ -1080,7 +1088,7 @@ export function createDatabaseProjectReleasePlanning(
             ]),
           );
           const links: ProjectReleaseLink[] = linkRows.map((row) => ({
-            attached: true,
+            attached: row.removedAt === null,
             id: row.id,
             kind: row.kind as ProjectReleaseLinkKind,
             label: row.label,

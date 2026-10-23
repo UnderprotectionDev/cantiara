@@ -309,7 +309,6 @@ suite("Project Release Planning PostgreSQL seam", () => {
     const link = {
       ...envelope(),
       attached: true,
-      id: crypto.randomUUID(),
       kind: "Release" as const,
       label: "v1.1.0",
       projectId,
@@ -317,33 +316,62 @@ suite("Project Release Planning PostgreSQL seam", () => {
       repositoryLinkId: repositoryId,
       url: "https://github.com/acme/tidekit/releases/tag/v1.1.0",
     };
-    targets.push(link.id);
-    expect(await planning.setLink(accountId, link)).toMatchObject({
+    const added = await planning.setLink(accountId, link);
+    expect(added).toMatchObject({
       kind: "Release",
       repository: { name: "tidekit", owner: "acme" },
     });
-    const environment = {
+    if (!added) {
+      throw new Error("Release reference was not attached");
+    }
+    targets.push(added.id);
+    // An identical repeated add reuses the payload-derived row id.
+    const repeated = await planning.setLink(accountId, {
       ...link,
       ...envelope(),
-      id: crypto.randomUUID(),
+      baseRevision: added.revision,
+    });
+    expect(repeated).toMatchObject({
+      id: added.id,
+      revision: added.revision + 1,
+    });
+    const environment = {
+      ...envelope(),
+      attached: true,
       kind: "Environment link" as const,
       label: "Production",
+      projectId,
+      releaseId,
       repositoryLinkId: null,
       url: "https://tidekit.example",
     };
-    targets.push(environment.id);
-    expect(await planning.setLink(accountId, environment)).toMatchObject({
+    const addedEnvironment = await planning.setLink(accountId, environment);
+    expect(addedEnvironment).toMatchObject({
       kind: "Environment link",
       repository: null,
     });
+    if (!addedEnvironment) {
+      throw new Error("Environment reference was not attached");
+    }
+    targets.push(addedEnvironment.id);
     expect(
       await planning.setLink(accountId, {
-        ...link,
         ...envelope(),
-        id: crypto.randomUUID(),
+        attached: true,
+        kind: "Release",
+        label: "v1.1.0",
+        projectId,
+        releaseId,
         repositoryLinkId: otherRepositoryId,
+        url: "https://github.com/acme/tidekit/releases/tag/v1.1.0",
       }),
     ).toBeNull();
+    // The repeated add did not open a second row: the detail holds two rows.
+    const detail = await planning.detail(accountId, { projectId, releaseId });
+    expect(detail?.links.map((row) => [row.kind, row.label])).toEqual([
+      ["Release", "v1.1.0"],
+      ["Environment link", "Production"],
+    ]);
     const overview = await planning.overview(accountId, projectId);
     expect(overview?.releases[0]?.githubReferences).toBe(1);
     expect(await releaseRow()).toEqual(before);
@@ -399,7 +427,6 @@ suite("Project Release Planning PostgreSQL seam", () => {
     const githubRelease = {
       ...envelope(),
       attached: true,
-      id: crypto.randomUUID(),
       kind: "Release" as const,
       label: "v1.0.0",
       projectId,
@@ -407,13 +434,17 @@ suite("Project Release Planning PostgreSQL seam", () => {
       repositoryLinkId: repositoryId,
       url: "https://github.com/acme/tidekit/releases/tag/v1.0.0",
     };
-    targets.push(githubRelease.id);
-    await planning.setLink(accountId, githubRelease);
+    const attached = await planning.setLink(accountId, githubRelease);
+    expect(attached).toMatchObject({ kind: "Release" });
+    if (!attached) {
+      throw new Error("GitHub Release reference was not attached");
+    }
+    targets.push(attached.id);
     expect(await releaseRow()).toEqual(before);
     const detail = await planning.detail(accountId, { projectId, releaseId });
     expect(detail?.release.status).toBe("Preparing");
     expect(detail?.suggestion).toEqual({
-      linkId: githubRelease.id,
+      linkId: attached.id,
       reason: "GitHub Release v1.0.0 was published.",
       status: "Published",
     });
@@ -444,13 +475,10 @@ suite("Project Release Planning PostgreSQL seam", () => {
           baseRevision: 1,
         }),
       ).rejects.toBeInstanceOf(ProjectReleasePlanningConflictError);
-      const linkId = crypto.randomUUID();
-      targets.push(linkId);
       await expect(
         planning.setLink(accountId, {
           ...envelope(),
           attached: true,
-          id: linkId,
           kind: "Release",
           label: "v1.0.0",
           projectId,

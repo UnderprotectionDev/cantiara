@@ -41,7 +41,6 @@ const link = {
   attached: true,
   baseRevision: 0,
   clientIdempotencyKey: "link-add",
-  id: "link-1",
   kind: "Release" as const,
   label: "v1.1.0",
   projectId: "project-1",

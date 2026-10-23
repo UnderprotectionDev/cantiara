@@ -72,12 +72,13 @@ const linkUrl = z
 /**
  * Attach or remove a tag, GitHub Release or environment reference. Tag and
  * Release name one of the Project's linked repositories; an Environment link
- * needs its URL and may name a repository.
+ * needs its URL and may name a repository. The adapter derives the row id from
+ * the full payload, so an identical repeated add reuses its row instead of
+ * creating a duplicate reference.
  */
 export const setProjectReleaseLinkInputSchema = humanMutationEnvelopeSchema
   .extend({
     attached: z.boolean(),
-    id: identifier,
     kind: projectReleaseLinkKindSchema,
     label: z.string().trim().min(1).max(255),
     projectId: identifier,
@@ -182,6 +183,7 @@ export interface ProjectReleaseStatusSuggestion {
 export interface ProjectReleasePlanningDetail {
   audience: ProjectReleaseAudienceLink[];
   audienceCandidates: ProjectReleaseAudienceTarget[];
+  /** Reference rows of the release, removed rows included so a re-add re-attaches them. */
   links: ProjectReleaseLink[];
   readOnly: boolean;
   release: ProjectReleaseRecord;

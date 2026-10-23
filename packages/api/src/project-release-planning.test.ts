@@ -251,7 +251,6 @@ describe("Project Release Planning seam: scope and links", () => {
     const tag = {
       ...envelope,
       attached: true,
-      id: "link-1",
       kind: "Tag" as const,
       label: "v1.1.0",
       projectId: "project-1",
@@ -288,10 +287,11 @@ describe("Project Release Planning seam: scope and links", () => {
         url: "javascript:alert(1)",
       }).success,
     ).toBe(false);
-    // A reference never carries a status or a GitHub release time.
+    // A reference never carries a status, a GitHub release time or a client id.
     for (const extra of [
       { status: "Published" },
       { publishedAt: "2026-11-01T10:00:00.000Z" },
+      { id: "link-1" },
     ]) {
       expect(
         setProjectReleaseLinkInputSchema.safeParse({ ...tag, ...extra })

@@ -3,7 +3,7 @@
 import type { ProjectReleasePlanningDetail as Detail } from "@cantiara/api/project-release-planning";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { client, orpc } from "@/utils/orpc";
 import { useProjectReleaseCommand } from "../../hooks/use-project-release-command";
 import {
@@ -26,8 +26,6 @@ export function ProjectReleasePlanningSurface({
   const run = useProjectReleaseCommand();
   const [savedMessage, setSavedMessage] = useState<string>();
   const [errorMessage, setErrorMessage] = useState<string>();
-  // A retried reference keeps its id so it is attached once.
-  const pendingLink = useRef<{ fingerprint: string; id: string } | null>(null);
 
   if (detail.isPending) {
     return <p role="status">Loading source record…</p>;
@@ -97,30 +95,32 @@ export function ProjectReleasePlanningSurface({
     },
     onAddLink: (values) => {
       const command = { ...base, ...values, attached: true };
-      const fingerprint = JSON.stringify(command);
-      if (pendingLink.current?.fingerprint !== fingerprint) {
-        pendingLink.current = { fingerprint, id: crypto.randomUUID() };
+      // The identical reference is already attached; a repeated add is a no-op.
+      const previous = current.links.find(
+        (link) =>
+          link.kind === values.kind &&
+          link.label === values.label &&
+          (link.repository?.id ?? null) === values.repositoryLinkId &&
+          link.url === values.url,
+      );
+      if (previous?.attached) {
+        return done("Reference added.", Promise.resolve());
       }
-      const { id } = pendingLink.current;
       return done(
         "Reference added.",
         run(command, (clientIdempotencyKey) =>
           client.setProjectReleaseLink({
             ...command,
-            baseRevision: 0,
+            baseRevision: previous?.revision ?? 0,
             clientIdempotencyKey,
-            id,
           }),
         ),
-      ).then(() => {
-        pendingLink.current = null;
-      });
+      );
     },
     onRemoveLink: (link) => {
       const command = {
         ...base,
         attached: false,
-        id: link.id,
         kind: link.kind,
         label: link.label,
         repositoryLinkId: link.repository?.id ?? null,

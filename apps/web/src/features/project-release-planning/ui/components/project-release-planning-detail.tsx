@@ -143,7 +143,7 @@ export function ProjectReleasePlanningDetail({
           />
           <ReferencesSection
             actions={actions}
-            links={detail.links}
+            links={detail.links.filter((link) => link.attached)}
             readOnly={planningReadOnly}
             repositories={detail.repositories}
           />
