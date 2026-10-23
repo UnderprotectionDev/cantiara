@@ -74,6 +74,7 @@ import type {
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "@cantiara/api/relations";
+import type { ReleaseEvidenceAccess } from "@cantiara/api/release-evidence";
 import type { ResearchSessionsAccess } from "@cantiara/api/research-sessions";
 import type { ReturnToWorkAccess } from "@cantiara/api/return-to-work";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
@@ -160,6 +161,7 @@ export interface CreateContextOptions {
   recordActions?: RecordActionsAccess;
   recordTable?: RecordTableAccess;
   relations?: RelationsAccess;
+  releaseEvidence?: ReleaseEvidenceAccess;
   researchSessions?: ResearchSessionsAccess;
   returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
@@ -272,6 +274,7 @@ export async function createContext({
   specChangeReview,
   specChangeReviewMutationContracts,
   relations,
+  releaseEvidence,
   tagMutationContracts,
   trustedProxyIps,
   usageLinkMutationContracts,
@@ -369,6 +372,7 @@ export async function createContext({
     specChangeReview,
     specChangeReviewMutationContracts,
     relations,
+    releaseEvidence,
     auth: null,
     session,
     tagMutationContracts,

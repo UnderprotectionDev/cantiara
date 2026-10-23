@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useCallback } from "react";
 
 import GitHubIntegrationSurface from "@/features/github-integration/ui/components/github-integration-surface";
 import ProjectShellView from "@/features/project-shell/ui/views/project-shell-view";
+import ReleaseEvidencePackSurface from "@/features/release-evidence/ui/components/release-evidence-pack-surface";
 import { smartCollectionWorkPrefillFromSearch } from "@/features/smart-collections/lib/smart-collection-work-prefill";
 
 export const Route = createFileRoute("/_auth/projects/$projectId/")({
@@ -23,6 +25,16 @@ export const Route = createFileRoute("/_auth/projects/$projectId/")({
 function RouteComponent() {
   const { projectId } = Route.useParams();
   const { session } = Route.useRouteContext();
+  const releaseEvidenceArea = useCallback(
+    (releaseId: string) => (
+      <ReleaseEvidencePackSurface
+        key={releaseId}
+        projectId={projectId}
+        releaseId={releaseId}
+      />
+    ),
+    [projectId],
+  );
 
   return (
     <ProjectShellView
@@ -31,6 +43,7 @@ function RouteComponent() {
         <GitHubIntegrationSurface key={projectId} projectId={projectId} />
       }
       projectId={projectId}
+      releaseEvidenceArea={releaseEvidenceArea}
     />
   );
 }
