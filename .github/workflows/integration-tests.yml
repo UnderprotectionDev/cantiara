@@ -127,11 +127,19 @@ jobs:
             ${{ runner.os }}-${{ runner.arch }}-vitest-v1-server-${{ matrix.shard }}-${{ hashFiles('bun.lock', '**/vite.config.*', '**/vitest.config.*', '**/tsconfig*.json') }}-
       - name: Install server integration browsers
         run: |
-          # A slow apt mirror must not consume the whole job timeout; apt keeps
-          # already downloaded packages, so a retry resumes where it stopped.
+          # The Azure apt mirror served the WebKit dependencies at about one
+          # package per several minutes and consumed the whole job timeout, so
+          # use the primary Ubuntu archive. A timed out attempt leaves apt-get
+          # holding the dpkg lock; stop it before the next attempt.
+          echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/80-retries >/dev/null
+          echo 'http://archive.ubuntu.com/ubuntu/ priority:1' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
           for attempt in 1 2; do
             timeout 420 bunx playwright install --with-deps chromium webkit && exit 0
             echo "Playwright install attempt $attempt did not finish"
+            sudo pkill -x apt-get || true
+            sudo pkill -x dpkg || true
+            sleep 5
+            sudo dpkg --configure -a || true
           done
           exit 1
         working-directory: apps/server
