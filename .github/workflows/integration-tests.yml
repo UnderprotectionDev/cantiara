@@ -125,21 +125,8 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-vitest-v1-server-${{ matrix.shard }}-${{ hashFiles('bun.lock', '**/vite.config.*', '**/vitest.config.*', '**/tsconfig*.json') }}-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-vitest-v1-server-${{ matrix.shard }}-${{ hashFiles('bun.lock', '**/vite.config.*', '**/vitest.config.*', '**/tsconfig*.json') }}-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.63.0-chromium-webkit
       - name: Install server integration browsers
-        run: |
-          set -euo pipefail
-          for attempt in 1 2 3; do
-            if timeout 240 bunx playwright install --with-deps chromium webkit; then
-              exit 0
-            fi
-            echo "Playwright install attempt $attempt failed or timed out" >&2
-          done
-          exit 1
+        run: bunx playwright install --with-deps chromium webkit
         working-directory: apps/server
       - name: Prepare PostgreSQL boundaries
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE cantiara_security'
