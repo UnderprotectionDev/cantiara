@@ -181,11 +181,13 @@ export type ReleaseEvidencePackInput = z.infer<
   typeof releaseEvidencePackInputSchema
 >;
 
+export const releaseChecklistTextSchema = z.string().trim().min(1).max(500);
+
 export const addReleaseChecklistItemInputSchema = z
   .object({
     projectId: identifierSchema,
     releaseId: identifierSchema,
-    text: z.string().trim().min(1).max(500),
+    text: releaseChecklistTextSchema,
   })
   .strict();
 export type AddReleaseChecklistItemInput = z.infer<

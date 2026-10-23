@@ -2,14 +2,12 @@
 import {
   RELEASE_EVIDENCE_ADD_ITEM_LABEL,
   RELEASE_EVIDENCE_CHECKLIST_LABEL,
+  releaseChecklistTextSchema,
 } from "@cantiara/api/release-evidence";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
 import { useId, useState } from "react";
-import { z } from "zod";
-
-const checklistTextSchema = z.string().trim().min(1).max(500);
 
 export function AddChecklistItemForm({
   disabled,
@@ -24,13 +22,8 @@ export function AddChecklistItemForm({
     defaultValues: { text: "" },
     onSubmit: async ({ formApi, value }) => {
       setError(undefined);
-      const parsed = checklistTextSchema.safeParse(value.text);
-      if (!parsed.success) {
-        setError("Write the checklist item first.");
-        return;
-      }
       try {
-        await onAdd(parsed.data);
+        await onAdd(value.text.trim());
         formApi.reset();
       } catch (caught) {
         setError(
@@ -50,7 +43,15 @@ export function AddChecklistItemForm({
         form.handleSubmit().catch(() => undefined);
       }}
     >
-      <form.Field name="text">
+      <form.Field
+        name="text"
+        validators={{
+          onSubmit: ({ value }) =>
+            releaseChecklistTextSchema.safeParse(value).success
+              ? undefined
+              : "Write the checklist item first.",
+        }}
+      >
         {(field) => (
           <div className="grid gap-1 text-sm">
             <label className="font-medium" htmlFor={inputId}>
@@ -64,6 +65,9 @@ export function AddChecklistItemForm({
               onChange={(event) => field.handleChange(event.target.value)}
               value={field.state.value}
             />
+            {field.state.meta.errors.length > 0 ? (
+              <p role="alert">{field.state.meta.errors.join(" ")}</p>
+            ) : null}
           </div>
         )}
       </form.Field>

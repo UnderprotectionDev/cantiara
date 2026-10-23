@@ -1443,7 +1443,7 @@ Bir Proje Sürümünün kapsam, PR ve check, Karar, Risk, test, Test Açığı, 
 _Avoid_: Sürüm onayı, readiness skoru, yayın kapısı, Test özeti, PR Bağlam Kartı, Ürün sürüm adayı kanıtı
 
 **Sürüm kontrol listesi**:
-Kurucunun Sürüm Kanıt Paketinde yönettiği isteğe bağlı yayın maddeleri ve işaretleri; Proje Sürümü durumunu yazmaz, yayını kapılamaz veya otomatikleştirmez. UI: `Checklist`, `Add item`.
+Kurucunun Sürüm Kanıt Paketinde yönettiği isteğe bağlı yayın maddeleri ve işaretleri; Proje Sürümü durumunu yazmaz, yayını kapılamaz veya otomatikleştirmez. UI: `Checklist`, `Add item`, `Remove`, `Close signal`.
 _Avoid_: Yayın kapısı, ikinci yayın checklist'i, Hafif kontrol listesi
 
 **Sürüm iletişim iskeleti**:
