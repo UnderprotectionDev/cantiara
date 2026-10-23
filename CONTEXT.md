@@ -1017,6 +1017,10 @@ _Avoid_: Her migration için Down, database restore, güvenli deployment garanti
 Bir AI ajanının kesin taban Teknik Diyagram revizyonuna karşı önerdiği ve kullanıcı seçip onaylamadan kanonik kayda [yazılmayan değişiklik taslağı](docs/prd/18-future-directions.md#read-first-programatik-erişim-yönü).
 _Avoid_: Ajan yazması, scoped CRUD, otomatik diyagram güncellemesi
 
+**Schema Artifacts**:
+Kesin Veri Modeli Diyagramı Sürümlerinden PostgreSQL DDL taslağını, Şema Değişiklik Taslağını ve değişmez Migration Artefaktını üreten, ürün içinde hiçbir SQL çalıştırmayan [tek özellik sınırı](docs/specs/60-schema-artifacts/spec.md); modelleme Teknik Diyagramlarda kalır.
+_Avoid_: Canlı migrate, ORM migrate, şema modelleme kopyası
+
 **Statik olarak doğrulanmış SQL**:
 Ürünün [statik doğrulama kontrollerinden](docs/prd/11-technical-diagrams-and-schema-artifacts.md#veri-modeli-semalari) geçen fakat kullanıcının veritabanında çalıştırılmamış DDL ya da migration SQL'i; uygulanmış, production-ready veya runtime'da güvenli olduğu iddiasını taşımaz.
 _Avoid_: Çalıştırılmış SQL, uygulanmış migration, production-ready SQL

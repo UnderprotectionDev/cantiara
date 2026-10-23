@@ -88,6 +88,7 @@ import type { ResearchSessionsAccess } from "@cantiara/api/research-sessions";
 import type { ReturnToWorkAccess } from "@cantiara/api/return-to-work";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
 import { appRouter } from "@cantiara/api/routers/index";
+import type { SchemaArtifactsAccess } from "@cantiara/api/schema-artifacts";
 import type { ScreensAccess } from "@cantiara/api/screens";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
 import type { SmartLinkPreviewAccess } from "@cantiara/api/smart-link-preview";
@@ -226,6 +227,7 @@ export interface AppDependencies {
   researchSessions?: ResearchSessionsAccess;
   returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
+  schemaArtifacts?: SchemaArtifactsAccess;
   screens?: ScreensAccess;
   smartCollections?: SmartCollectionsAccess;
   smartLinkPreview?: SmartLinkPreviewAccess;
@@ -1217,6 +1219,7 @@ export function createApp(dependencies: AppDependencies) {
       moodboardPersonalViews: dependencies.moodboardPersonalViews,
       moodboardSnapshots: dependencies.moodboardSnapshots,
       moodboards: dependencies.moodboards,
+      schemaArtifacts: dependencies.schemaArtifacts,
       technicalDiagrams: dependencies.technicalDiagrams,
       projectWall: dependencies.projectWall,
       userFlow: dependencies.userFlow,

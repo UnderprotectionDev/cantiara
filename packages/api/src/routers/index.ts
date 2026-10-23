@@ -439,6 +439,16 @@ import {
   updateWorkHorizonInputSchema,
 } from "../roadmap-horizon";
 import {
+  SchemaArtifactError,
+  schemaChangePreviewInputSchema,
+  schemaDdlPreviewInputSchema,
+} from "../schema-artifacts";
+import {
+  confirmMigrationArtifactInputSchema,
+  migrationArtifactInputSchema,
+  migrationArtifactListInputSchema,
+} from "../schema-migration-artifact";
+import {
   confirmConvertAndBindInputSchema,
   confirmRebindInputSchema,
   createScreenFromTemplateInputSchema,
@@ -5340,6 +5350,91 @@ export const appRouter = {
         return output;
       } catch (error) {
         rethrowMoodboardSnapshotError(error);
+      }
+    }),
+  schemaDdlPreview: protectedProcedure
+    .input(schemaDdlPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.schemaArtifacts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const preview = await context.schemaArtifacts.previewDdl(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return preview;
+    }),
+  confirmMigrationArtifact: protectedProcedure
+    .input(confirmMigrationArtifactInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.schemaArtifacts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const artifact = await context.schemaArtifacts.confirmArtifact(
+          context.session.user.id,
+          input,
+        );
+        if (!artifact) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return artifact;
+      } catch (error) {
+        if (error instanceof SchemaArtifactError) {
+          throw new ORPCError("BAD_REQUEST", { cause: error });
+        }
+        throw error;
+      }
+    }),
+  migrationArtifacts: protectedProcedure
+    .input(migrationArtifactListInputSchema)
+    .handler(({ context, input }) => {
+      if (!context.schemaArtifacts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return context.schemaArtifacts.listArtifacts(
+        context.session.user.id,
+        input.diagramId,
+      );
+    }),
+  migrationArtifactExport: protectedProcedure
+    .input(migrationArtifactInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.schemaArtifacts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const exported = await context.schemaArtifacts.exportArtifact(
+        context.session.user.id,
+        input.artifactId,
+      );
+      if (!exported) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return exported;
+    }),
+  schemaChangePreview: protectedProcedure
+    .input(schemaChangePreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.schemaArtifacts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const preview = await context.schemaArtifacts.previewChange(
+          context.session.user.id,
+          input,
+        );
+        if (!preview) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return preview;
+      } catch (error) {
+        if (error instanceof SchemaArtifactError) {
+          throw new ORPCError("BAD_REQUEST", { cause: error });
+        }
+        throw error;
       }
     }),
   technicalDiagrams: protectedProcedure

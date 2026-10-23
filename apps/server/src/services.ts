@@ -3,6 +3,7 @@ import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effe
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
 import { createAuth } from "@cantiara/auth";
 import { createDb, type Database } from "@cantiara/db";
+import { connectDisposable } from "@cantiara/db/disposable-connection";
 import {
   createLocalSecurityEventDb,
   createSecurityEventDb,
@@ -101,6 +102,9 @@ import {
 } from "./features/research-sessions/server/research-sessions-database";
 import { createDatabaseReturnToWork } from "./features/return-to-work/server/return-to-work-database";
 import { createDatabaseRoadmapHorizon } from "./features/roadmap-horizon/server/roadmap-horizon-database";
+import { createNeonDisposableDatabase } from "./features/schema-artifacts/server/neon-disposable-database";
+import { createSchemaArtifacts } from "./features/schema-artifacts/server/schema-artifacts";
+import { createDatabaseMigrationArtifacts } from "./features/schema-artifacts/server/schema-artifacts-database";
 import { createDatabaseScreens } from "./features/screens/server/screens-database";
 import { createSmartCollectionSubscriptionSignalWorker } from "./features/smart-collections/server/smart-collection-subscription-signal-worker";
 import {
@@ -143,6 +147,23 @@ export const startSmartCollectionSubscriptionSignalWorker =
 export const stopSmartCollectionSubscriptionSignalWorker =
   smartCollectionSubscriptionSignalWorker.stop;
 export const technicalDiagrams = createDatabaseTechnicalDiagrams(db);
+export const schemaArtifacts = createSchemaArtifacts({
+  validator:
+    env.NEON_API_KEY &&
+    env.NEON_VALIDATION_PROJECT_ID &&
+    env.NEON_VALIDATION_BRANCH_ID
+      ? createNeonDisposableDatabase(
+          {
+            apiKey: env.NEON_API_KEY,
+            branchId: env.NEON_VALIDATION_BRANCH_ID,
+            projectId: env.NEON_VALIDATION_PROJECT_ID,
+          },
+          { connect: connectDisposable },
+        )
+      : undefined,
+  store: createDatabaseMigrationArtifacts(db),
+  versions: technicalDiagrams,
+});
 export const userFlow = createDatabaseUserFlow(db);
 export const moodboards = createDatabaseMoodboards(db);
 export const moodboardPersonalViews = createDatabaseMoodboardPersonalViews(db);
