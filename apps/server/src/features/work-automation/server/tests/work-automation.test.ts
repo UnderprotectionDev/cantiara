@@ -281,6 +281,7 @@ describe("Work Automation", () => {
         conditions: [{ kind: "work-status-is", status: "Blocked" }],
         enabled: false,
         id: "dry",
+        trigger: { kind: "work-status-changed", to: "Blocked" },
       }),
     ]);
 
@@ -293,6 +294,20 @@ describe("Work Automation", () => {
       value: { status: "In Progress" },
     });
     expect(memory.applyCalls()).toBe(0);
+    expect(statusOf(works, "work-2")).toBe("Blocked");
+  });
+
+  test("dry run of a create trigger previews no existing Work", async () => {
+    const { automation, memory, works } = setup([
+      createRule({ enabled: false, id: "dry" }),
+    ]);
+
+    const result = await automation.dryRun("dry");
+
+    expect(result?.written).toBe(false);
+    expect(result?.matches).toEqual([]);
+    expect(memory.applyCalls()).toBe(0);
+    expect(statusOf(works, "work-1")).toBe("Not Started");
     expect(statusOf(works, "work-2")).toBe("Blocked");
   });
 

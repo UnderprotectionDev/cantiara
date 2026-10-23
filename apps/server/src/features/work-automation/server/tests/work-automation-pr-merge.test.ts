@@ -264,6 +264,35 @@ describe("prepared PR-merge rule", () => {
 });
 
 describe("prepared rule definition", () => {
+  test("a recurring schedule rule only creates Work", () => {
+    const created = createWorkAutomationRuleInputSchema.safeParse({
+      definition: {
+        actions: [
+          { kind: "create-work", title: "Weekly review", type: "Task" },
+        ],
+        conditions: [],
+        trigger: { everyDays: 7, kind: "recurring-schedule" },
+      },
+      name: "Weekly review",
+      projectId: PROJECT_ID,
+    });
+    expect(created.success).toBe(true);
+
+    const mixed = createWorkAutomationRuleInputSchema.safeParse({
+      definition: {
+        actions: [
+          { kind: "create-work", title: "Weekly review", type: "Task" },
+          { kind: "set-work-status", status: "In Progress" },
+        ],
+        conditions: [],
+        trigger: { everyDays: 7, kind: "recurring-schedule" },
+      },
+      name: "Weekly review",
+      projectId: PROJECT_ID,
+    });
+    expect(mixed.success).toBe(false);
+  });
+
   test("only the prepared name and fixed definition may use the PR-merge trigger", () => {
     const valid = createWorkAutomationRuleInputSchema.safeParse({
       definition: WORK_AUTOMATION_REQUIRED_PR_MERGE_DEFINITION,

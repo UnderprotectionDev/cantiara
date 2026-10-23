@@ -524,6 +524,11 @@ export function createWorkAutomation(options: WorkAutomationOptions) {
     work: WorkAutomationWorkSnapshot,
   ) {
     const { trigger } = rule.definition;
+    if (trigger.kind === "work-created") {
+      // A create trigger acts on the Work the event will create, so there is
+      // no existing Work to preview this rule against.
+      return [];
+    }
     if (trigger.kind === "work-status-changed" && work.status !== trigger.to) {
       return [];
     }

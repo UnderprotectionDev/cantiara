@@ -123,6 +123,16 @@ export const workAutomationDefinitionSchema = z
         path: ["conditions"],
       });
     }
+    if (
+      isSchedule &&
+      definition.actions.some((action) => action.kind === "set-work-status")
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "A recurring schedule rule only creates Work.",
+        path: ["actions"],
+      });
+    }
     const completes = definition.actions.some(
       (action) => action.kind === "complete-work",
     );

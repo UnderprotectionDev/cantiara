@@ -1,4 +1,9 @@
 import {
+  fingerprintMutationPayload,
+  type MutationUndoMetadata,
+  mutationUndoMetadataSchema,
+} from "@cantiara/api/mutation-and-undo";
+import {
   type CreateWorkAutomationRuleInput,
   createWorkAutomationRuleInputSchema,
   type UpdateWorkAutomationRuleInput,
@@ -15,12 +20,9 @@ import {
   workAutomationChangeSchema,
   workAutomationDefinitionSchema,
 } from "@cantiara/api/work-automation";
-import type {
-  WorkLifecycleAccess,
-  WorkType,
-} from "@cantiara/api/work-lifecycle";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
+import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import {
@@ -39,6 +41,36 @@ import {
   type WorkAutomationSignalSink,
   type WorkAutomationWriter,
 } from "./work-automation";
+
+type WorkDatabaseRecord = typeof work.$inferSelect;
+
+/** The `mutation_history` payload shape the Work lifecycle writes. */
+interface WorkHistoryValue {
+  work: unknown;
+}
+
+/** The `mutation_history` undo value scope `work.status` carries. */
+function workStatusUndoMetadata(beforeStatus: string, afterStatus: string) {
+  return mutationUndoMetadataSchema.parse({
+    after: afterStatus,
+    before: beforeStatus,
+    kind: "atomic-transform",
+    scope: "work.status",
+  });
+}
+
+/** The snapshot fallback for unwired test doubles: the row JSON with instants. */
+function snapshotWorkRow(record: WorkDatabaseRecord) {
+  return {
+    ...record,
+    archivedAt: record.archivedAt?.toISOString() ?? null,
+    createdAt: record.createdAt.toISOString(),
+    nextConcreteStepUpdatedAt:
+      record.nextConcreteStepUpdatedAt?.toISOString() ?? null,
+    statusChangedAt: record.statusChangedAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+  };
+}
 
 export class WorkAutomationProjectNotFoundError extends Error {
   readonly code = "WORK_AUTOMATION_PROJECT_NOT_FOUND" as const;
@@ -71,15 +103,33 @@ export class WorkAutomationStaleRevisionError extends Error {
 }
 
 export interface WorkAutomationWorkCreation {
+  committedAt: Date;
   idempotencyKey: string;
-  projectId: string;
+  payloadFingerprint: string;
+  /** The owning Project row the caller holds locked FOR UPDATE. */
+  project: typeof project.$inferSelect;
   title: string;
   type: string;
+  workId: string;
 }
 
+/** Mints one independent Work inside the caller's transaction; idempotent by key. */
+export type WorkAutomationWorkCreator = (
+  transaction: Executor,
+  input: WorkAutomationWorkCreation,
+) => Promise<void>;
+
+/** Maps a Work row to the history value the Work lifecycle writes. */
+export type WorkAutomationProfileSnapshotter = (
+  record: WorkDatabaseRecord,
+) => unknown;
+
 export interface DatabaseWorkAutomationOptions {
-  /** Mints one independent Work through the Work lifecycle; idempotent by key. */
-  createWork?: (input: WorkAutomationWorkCreation) => Promise<void>;
+  /**
+   * The repeating-Work boundary, wired from the service wiring; a create-only
+   * rule without it fails closed (unavailable) instead of writing nothing.
+   */
+  createWork?: WorkAutomationWorkCreator;
   now?: () => Date;
   /**
    * Read-only `Required for completion` PR merge facts from GitHub Integration
@@ -87,6 +137,8 @@ export interface DatabaseWorkAutomationOptions {
    * PR-merge rule never matches.
    */
   requiredPullRequests?: WorkAutomationFacts["requiredPullRequests"];
+  /** Wired from the service wiring to reuse the Work lifecycle snapshot shape. */
+  workHistoryProfile?: WorkAutomationProfileSnapshotter;
 }
 
 function isUniqueViolation(error: unknown) {
@@ -135,6 +187,7 @@ function toReceipt(row: typeof workAutomationApplication.$inferSelect) {
 }
 
 interface PreviousWorkValue {
+  automationHistoryId?: string;
   closureReason?: string | null;
   closureResult?: string | null;
   status: string;
@@ -143,8 +196,10 @@ interface PreviousWorkValue {
 
 type Executor = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type StatusChange = Extract<WorkAutomationChange, { kind: "set-work-field" }>;
+type UndoPlan = Awaited<ReturnType<typeof planUndo>>;
 
 interface UndoRestore {
+  beforeWork: WorkDatabaseRecord;
   revision: number;
   value: PreviousWorkValue;
   workId: string;
@@ -168,11 +223,19 @@ async function findApplication(
   return row ?? null;
 }
 
+/**
+ * Applies one status change and writes the matching `mutation_history` row in
+ * the same transaction, so the Work's normal history explains the change with
+ * the `System automation` actor and points back to the automation application
+ * (`sourceId`) and the original trigger event (`deliveryId`).
+ */
 async function applyStatusChange(
   transaction: Executor,
+  applicationId: string,
   projectId: string,
   change: StatusChange,
   committedAt: Date,
+  profile: WorkAutomationProfileSnapshotter,
 ): Promise<PreviousWorkValue> {
   const [row] = await transaction
     .select()
@@ -205,7 +268,29 @@ async function applyStatusChange(
       updatedAt: committedAt,
     })
     .where(eq(work.id, row.id));
+  const [after] = await transaction
+    .select()
+    .from(work)
+    .where(eq(work.id, row.id))
+    .limit(1);
+  if (!after) {
+    throw new Error("The target Work could not be re-read.");
+  }
+  const beforeValue: WorkHistoryValue = { work: profile(row) };
+  const afterValue: WorkHistoryValue = { work: profile(after) };
+  const deliveryId = change.attributions[0]?.triggerEventId ?? "";
+  const historyId = await insertAutomationHistoryRow(transaction, {
+    applicationId,
+    committedAt,
+    deliveryId,
+    nextValue: afterValue,
+    previousValue: beforeValue,
+    revision: after.revision,
+    targetId: after.id,
+    undo: workStatusUndoMetadata(row.status, after.status),
+  });
   return {
+    automationHistoryId: historyId,
     closureReason: row.closureReason,
     closureResult: row.closureResult,
     status: row.status,
@@ -217,7 +302,11 @@ async function planUndo(
   transaction: Executor,
   change: StatusChange,
   before: PreviousWorkValue | undefined,
-): Promise<{ clobbered: string | null; restore: UndoRestore | null }> {
+): Promise<{
+  beforeWork: WorkDatabaseRecord | null;
+  clobbered: string | null;
+  restore: UndoRestore | null;
+}> {
   const [row] = await transaction
     .select()
     .from(work)
@@ -225,21 +314,148 @@ async function planUndo(
     .for("update")
     .limit(1);
   if (!(row && before)) {
-    return { clobbered: null, restore: null };
+    return { beforeWork: null, clobbered: null, restore: null };
   }
   if (row.status !== change.value.status) {
-    return { clobbered: `${change.workId}:status`, restore: null };
+    return {
+      beforeWork: row,
+      clobbered: `${change.workId}:status`,
+      restore: null,
+    };
   }
   if (
     "closureResult" in change.value &&
     row.closureResult !== change.value.closureResult
   ) {
-    return { clobbered: `${change.workId}:closureResult`, restore: null };
+    return {
+      beforeWork: row,
+      clobbered: `${change.workId}:closureResult`,
+      restore: null,
+    };
   }
   return {
+    beforeWork: row,
     clobbered: null,
-    restore: { revision: row.revision, value: before, workId: row.id },
+    restore: {
+      beforeWork: row,
+      revision: row.revision,
+      value: before,
+      workId: row.id,
+    },
   };
+}
+
+/**
+ * The `mutation_history` rows the automation writes explain the change on the
+ * Work's normal history (PRD 06): the `System automation` actor, the source
+ * (`sourceId`: the automation application) and the delivery (`deliveryId`: the
+ * original trigger event) let every history reader resolve the rule,
+ * definition version, trigger, conditions and action from the application row.
+ */
+async function insertAutomationHistoryRow(
+  transaction: Executor,
+  row: {
+    applicationId: string;
+    committedAt: Date;
+    deliveryId: string;
+    nextValue: WorkHistoryValue;
+    previousValue: WorkHistoryValue;
+    revision: number;
+    targetId: string;
+    undo?: MutationUndoMetadata;
+    undoOf?: string | null;
+  },
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await transaction.insert(mutationHistory).values({
+    actorId: "work-automation",
+    actorType: "System automation",
+    deliveryId: row.deliveryId,
+    id,
+    nextValue: row.nextValue,
+    occurredAt: row.committedAt,
+    ...(row.undo ? { undo: row.undo } : {}),
+    ...(row.undoOf ? { undoOf: row.undoOf } : {}),
+    originKind: "source",
+    payloadFingerprint: await fingerprintMutationPayload({
+      kind: "work-automation-history",
+      revision: row.revision,
+      targetId: row.targetId,
+      triggerEventId: row.deliveryId,
+    }),
+    previousValue: row.previousValue,
+    revision: row.revision,
+    sourceId: row.applicationId,
+    targetId: row.targetId,
+  });
+  return id;
+}
+
+/**
+ * Restores each unclobbered Work once the receipt undo commits. Only the
+ * fields the automation wrote are reverted; unrelated later edits are kept.
+ */
+async function restoreWorkStatuses(
+  transaction: Executor,
+  plans: UndoPlan[],
+  undoneAt: Date,
+) {
+  for (const { restore } of plans) {
+    if (!restore) {
+      continue;
+    }
+    // biome-ignore lint/performance/noAwaitInLoops: rows lock in receipt order inside one transaction.
+    await transaction
+      .update(work)
+      .set({
+        closureReason: restore.value.closureReason ?? null,
+        closureResult: restore.value.closureResult ?? null,
+        revision: restore.revision + 1,
+        status: restore.value.status,
+        statusChangedAt: new Date(restore.value.statusChangedAt),
+        updatedAt: undoneAt,
+      })
+      .where(eq(work.id, restore.workId));
+  }
+}
+
+async function writeUndoHistoryRows(
+  transaction: Executor,
+  applicationId: string,
+  statusChanges: StatusChange[],
+  plans: UndoPlan[],
+  undoneAt: Date,
+  profile: WorkAutomationProfileSnapshotter,
+) {
+  for (const [index, plan] of plans.entries()) {
+    if (!plan.restore) {
+      continue;
+    }
+    const change = statusChanges[index];
+    // biome-ignore lint/performance/noAwaitInLoops: rows read back in receipt order inside one transaction.
+    const [after] = await transaction
+      .select()
+      .from(work)
+      .where(eq(work.id, plan.restore.workId))
+      .limit(1);
+    if (!(change && after)) {
+      continue;
+    }
+    await insertAutomationHistoryRow(transaction, {
+      applicationId,
+      committedAt: undoneAt,
+      deliveryId: change.attributions[0]?.triggerEventId ?? "",
+      nextValue: { work: profile(after) },
+      previousValue: { work: profile(plan.restore.beforeWork) },
+      revision: after.revision,
+      targetId: after.id,
+      undo: workStatusUndoMetadata(
+        plan.restore.beforeWork.status,
+        after.status,
+      ),
+      undoOf: plan.restore.value.automationHistoryId ?? null,
+    });
+  }
 }
 
 function createWriter(
@@ -247,25 +463,70 @@ function createWriter(
   options: DatabaseWorkAutomationOptions,
 ): WorkAutomationWriter {
   const now = options.now ?? (() => new Date());
+  const profile: WorkAutomationProfileSnapshotter =
+    options.workHistoryProfile ?? snapshotWorkRow;
 
-  async function createIndependentWork(input: WorkAutomationApplyInput) {
-    let index = 0;
-    for (const change of input.changes) {
-      if (change.kind !== "create-work") {
-        continue;
-      }
-      if (!options.createWork) {
-        throw new Error("Create repeating Work is unavailable.");
-      }
-      // biome-ignore lint/performance/noAwaitInLoops: keep creation order stable; each call is idempotent by key.
-      await options.createWork({
-        idempotencyKey: `${input.idempotencyKey}:${index}`,
-        projectId: input.projectId,
-        title: change.title,
-        type: change.type,
-      });
-      index += 1;
+  /**
+   * Creates the repeating Work of one `create-work` change inside the same
+   * transaction as the application row: each Work is one independent record
+   * and the whole application is atomic, so a failed commit leaves neither.
+   * The schema keeps schedule actions create-only, so a batch never mixes
+   * creation with status changes.
+   */
+  async function createRepeatingWork(
+    transaction: Executor,
+    applicationId: string,
+    projection: WorkAutomationApplyInput,
+    change: Extract<WorkAutomationChange, { kind: "create-work" }>,
+    createIndex: number,
+    committedAt: Date,
+  ) {
+    const idempotencyKey = `${projection.idempotencyKey}:${createIndex}`;
+    const [projectRow] = await transaction
+      .select()
+      .from(project)
+      .where(eq(project.id, projection.projectId))
+      .for("update")
+      .limit(1);
+    if (!projectRow) {
+      throw new Error("The owning Project is unavailable.");
     }
+    if (projectRow.archivedAt) {
+      throw new Error("The Project is archived.");
+    }
+    if (!options.createWork) {
+      throw new Error("Create repeating Work is unavailable.");
+    }
+    const workId = crypto.randomUUID();
+    await options.createWork(transaction, {
+      committedAt,
+      idempotencyKey,
+      project: projectRow,
+      payloadFingerprint: await fingerprintMutationPayload({
+        change,
+        idempotencyKey,
+      }),
+      title: change.title,
+      type: change.type,
+      workId,
+    });
+    const [created] = await transaction
+      .select()
+      .from(work)
+      .where(eq(work.id, workId))
+      .limit(1);
+    if (!created) {
+      throw new Error("Repeating Work could not be read back.");
+    }
+    await insertAutomationHistoryRow(transaction, {
+      applicationId,
+      committedAt,
+      deliveryId: change.attributions[0]?.triggerEventId ?? "",
+      nextValue: { work: profile(created) },
+      previousValue: { work: null },
+      revision: created.revision,
+      targetId: workId,
+    });
   }
 
   async function commit(
@@ -299,16 +560,35 @@ function createWriter(
 
     const previous: Record<string, PreviousWorkValue> = {};
     const committedAt = now();
+    let createIndex = 0;
     for (const change of input.changes) {
-      if (change.kind === "set-work-field") {
-        // biome-ignore lint/performance/noAwaitInLoops: rows lock in order inside one atomic mutation.
-        previous[change.workId] = await applyStatusChange(
-          transaction,
-          input.projectId,
-          change,
-          committedAt,
-        );
+      if (change.kind !== "create-work") {
+        continue;
       }
+      // biome-ignore lint/performance/noAwaitInLoops: keep creation order stable; each Work is one independent record.
+      await createRepeatingWork(
+        transaction,
+        inserted.id,
+        input,
+        change,
+        createIndex,
+        committedAt,
+      );
+      createIndex += 1;
+    }
+    for (const change of input.changes) {
+      if (change.kind !== "set-work-field") {
+        continue;
+      }
+      // biome-ignore lint/performance/noAwaitInLoops: rows lock in order inside one atomic mutation.
+      previous[change.workId] = await applyStatusChange(
+        transaction,
+        inserted.id,
+        input.projectId,
+        change,
+        committedAt,
+        profile,
+      );
     }
     await transaction
       .update(workAutomationApplication)
@@ -337,6 +617,11 @@ function createWriter(
     if (application.undoneAt || statusChanges.length !== changes.length) {
       return { status: "not-undoable" };
     }
+    if (now().getTime() > application.undoUntil.getTime()) {
+      // The receipt itself only owns the 10-second toast window; later undo
+      // lives on each record's own history.
+      return { status: "not-undoable" };
+    }
     const previous = application.previousValues as Record<
       string,
       PreviousWorkValue
@@ -353,24 +638,14 @@ function createWriter(
       return { fields: clobbered, status: "conflict" };
     }
     const undoneAt = now();
-    await Promise.all(
-      plans.flatMap(({ restore }) =>
-        restore
-          ? [
-              transaction
-                .update(work)
-                .set({
-                  closureReason: restore.value.closureReason ?? null,
-                  closureResult: restore.value.closureResult ?? null,
-                  revision: restore.revision + 1,
-                  status: restore.value.status,
-                  statusChangedAt: new Date(restore.value.statusChangedAt),
-                  updatedAt: undoneAt,
-                })
-                .where(eq(work.id, restore.workId)),
-            ]
-          : [],
-      ),
+    await restoreWorkStatuses(transaction, plans, undoneAt);
+    await writeUndoHistoryRows(
+      transaction,
+      application.id,
+      statusChanges,
+      plans,
+      undoneAt,
+      profile,
     );
     await transaction
       .update(workAutomationApplication)
@@ -389,7 +664,6 @@ function createWriter(
       if (replayed) {
         return toReceipt(replayed);
       }
-      await createIndependentWork(input);
       return await database.transaction((transaction) =>
         commit(transaction, input),
       );
@@ -768,29 +1042,4 @@ export function createDatabaseWorkAutomation(
   };
 
   return { access, engine };
-}
-
-/** Creation port backed by the Work lifecycle, acting for the Project owner. */
-export function createWorkAutomationWorkCreation(
-  database: Database,
-  lifecycle: Pick<WorkLifecycleAccess, "create">,
-): NonNullable<DatabaseWorkAutomationOptions["createWork"]> {
-  return async ({ idempotencyKey, projectId, title, type }) => {
-    const [owner] = await database
-      .select({ accountId: workspace.ownerAccountId })
-      .from(project)
-      .innerJoin(workspace, eq(project.workspaceId, workspace.id))
-      .where(eq(project.id, projectId))
-      .limit(1);
-    if (!owner) {
-      throw new WorkAutomationProjectNotFoundError(projectId);
-    }
-    await lifecycle.create(owner.accountId, {
-      baseRevision: 0,
-      clientIdempotencyKey: idempotencyKey,
-      projectId,
-      title,
-      type: type as WorkType,
-    });
-  };
 }

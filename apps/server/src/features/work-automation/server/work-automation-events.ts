@@ -1,4 +1,7 @@
-import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
+import type {
+  WorkLifecycleAccess,
+  WorkProfile,
+} from "@cantiara/api/work-lifecycle";
 import { log } from "evlog";
 
 import type { WorkAutomation } from "./work-automation";
@@ -44,21 +47,66 @@ export function withWorkAutomationEvents<T extends WorkLifecycleAccess>(
     };
   }
 
+  async function createdEvent(profile: WorkProfile) {
+    await emit({
+      id: `created:${profile.id}`,
+      kind: "work-created",
+      occurredAt: now().toISOString(),
+      origin: "user",
+      projectId: profile.projectId,
+      workId: profile.id,
+    });
+  }
+
   const wrapped: T = {
     ...lifecycle,
     async create(accountId, input) {
       const created = await lifecycle.create(accountId, input);
-      await emit({
-        id: `created:${created.id}`,
-        kind: "work-created",
-        occurredAt: now().toISOString(),
-        origin: "user",
-        projectId: created.projectId,
-        workId: created.id,
-      });
+      await createdEvent(created);
       return created;
     },
+    // A status move through the fields editor is an original status change.
+    async updateFields(accountId, input) {
+      const before = await lifecycle.find(accountId, input.workId);
+      const updated = await lifecycle.updateFields(accountId, input);
+      if (before && updated.status !== before.status) {
+        await emit({
+          id: `status-fields:${input.clientIdempotencyKey}`,
+          kind: "work-status-changed",
+          occurredAt: now().toISOString(),
+          origin: "user",
+          projectId: updated.projectId,
+          to: updated.status,
+          workId: updated.id,
+        });
+      }
+      return updated;
+    },
+    async recreate(accountId, input) {
+      const created = await lifecycle.recreate(accountId, input);
+      await createdEvent(created);
+      return created;
+    },
+    async convertChecklistItem(accountId, input) {
+      const result = await lifecycle.convertChecklistItem(accountId, input);
+      await createdEvent(result.work);
+      return result;
+    },
   };
+  const batchCreate = lifecycle.createDocumentWorkBatch;
+  if (batchCreate) {
+    (wrapped as Record<string, unknown>).createDocumentWorkBatch = async (
+      accountId: string,
+      input: Parameters<typeof batchCreate>[1],
+    ) => {
+      const created = await batchCreate.call(lifecycle, accountId, input);
+      for (const profile of created) {
+        // biome-ignore lint/performance/noAwaitInLoops: one independent event per created Work, in order.
+        await createdEvent(profile);
+      }
+      return created;
+    };
+  }
   for (const command of [
     "close",
     "reopen",

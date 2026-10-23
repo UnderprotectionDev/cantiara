@@ -52,6 +52,7 @@ import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
 } from "./features/documents/server/documents-database";
+import { insertWorkWithKeyAllocation } from "./features/evidence/server/evidence-record-creation";
 import { createDatabaseExternalExecutionHandoffs } from "./features/external-handoffs/server/external-handoffs-database";
 import { createDatabaseFavorites } from "./features/favorites/server/favorites-database";
 import { createDatabaseFeedbackWithFeed } from "./features/feedback/server/feedback-feed-database";
@@ -123,12 +124,15 @@ import { createDatabaseTestReview } from "./features/test-review/server/test-rev
 import { createDatabaseUserFlow } from "./features/user-flow/server/user-flow-database";
 import {
   createDatabaseWorkAutomation,
-  createWorkAutomationWorkCreation,
+  type WorkAutomationWorkCreation,
 } from "./features/work-automation/server/work-automation-database";
 import { withWorkAutomationEvents } from "./features/work-automation/server/work-automation-events";
 import { createWorkContextAccess } from "./features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-drafts-database";
-import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
+import {
+  createDatabaseWorkLifecycle,
+  toWorkProfile,
+} from "./features/work-lifecycle/server/work-lifecycle-database";
 import { createDatabaseWorkTemplates } from "./features/work-templates/server/work-templates-database";
 import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/server/workspace-overview-database";
 import { createMaintenanceWorker } from "./maintenance-worker";
@@ -281,7 +285,18 @@ const workLifecycleBase = createDatabaseWorkLifecycle(db, {
   customFieldValueWriter,
 });
 const workAutomationRuntime = createDatabaseWorkAutomation(db, {
-  createWork: createWorkAutomationWorkCreation(db, workLifecycleBase),
+  createWork: async (transaction, creation: WorkAutomationWorkCreation) => {
+    await insertWorkWithKeyAllocation(transaction, creation.project, {
+      committedAt: creation.committedAt,
+      description: null,
+      idempotencyKey: creation.idempotencyKey,
+      payloadFingerprint: creation.payloadFingerprint,
+      title: creation.title,
+      type: creation.type,
+      workId: creation.workId,
+    });
+  },
+  workHistoryProfile: (record) => toWorkProfile(record),
 });
 export const workAutomation = workAutomationRuntime.access;
 export const workLifecycle = withWorkAutomationEvents(

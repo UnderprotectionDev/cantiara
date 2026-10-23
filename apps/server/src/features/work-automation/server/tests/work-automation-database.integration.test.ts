@@ -1,9 +1,10 @@
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
-import { work } from "@cantiara/db/schema/work";
+import { work, workKeyAllocation } from "@cantiara/db/schema/work";
 import { workAutomationApplication } from "@cantiara/db/schema/work-automation";
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import {
   afterAll,
   afterEach,
@@ -17,6 +18,7 @@ import {
   createDatabaseWorkAutomation,
   WorkAutomationRuleNameConflictError,
   WorkAutomationStaleRevisionError,
+  type WorkAutomationWorkCreator,
 } from "../work-automation-database";
 
 const databaseUrl =
@@ -37,6 +39,16 @@ describeDatabase("Work Automation PostgreSQL integration", () => {
       throw new Error("DATABASE_URL is required");
     }
     return database;
+  }
+
+  function historyStatus(
+    row: { previousValue: unknown; nextValue: unknown } | undefined,
+    key: "previousValue" | "nextValue",
+  ) {
+    return (
+      (row?.[key] as { work?: { status?: string } } | undefined)?.work
+        ?.status ?? null
+    );
   }
 
   beforeEach(async () => {
@@ -302,5 +314,270 @@ describeDatabase("Work Automation PostgreSQL integration", () => {
       closureResult: null,
       status: "Not Started",
     });
+  });
+
+  test("explains applied and undone changes on the Work's mutation history", async () => {
+    const db = requireDatabase();
+    const { access, engine } = createDatabaseWorkAutomation(db, {
+      now: () => new Date("2026-10-22T09:00:00.000Z"),
+    });
+    const rule = await access.create(accountId, {
+      definition,
+      name: "Start new Work",
+      projectId,
+    });
+    await access.setEnabled(accountId, {
+      baseRevision: 1,
+      enabled: true,
+      ruleId: rule.id,
+    });
+    const event = {
+      id: "event-1",
+      kind: "work-created" as const,
+      occurredAt: "2026-10-22T09:00:00.000Z",
+      origin: "user" as const,
+      projectId,
+      workId,
+    };
+    const applied = await engine.handleEvent(event);
+    expect(applied.status).toBe("applied");
+    if (applied.status !== "applied" || !applied.receipt) {
+      return;
+    }
+    const [application] = await db
+      .select()
+      .from(workAutomationApplication)
+      .where(eq(workAutomationApplication.projectId, projectId));
+    // mutation_history has no foreign key, so scope the assertions to the rows
+    // this application wrote; earlier tests in this file share the Work id.
+    const history = await db
+      .select()
+      .from(mutationHistory)
+      .where(
+        and(
+          eq(mutationHistory.targetId, workId),
+          eq(mutationHistory.sourceId, application?.id ?? ""),
+        ),
+      )
+      .orderBy(asc(mutationHistory.revision));
+    const [appliedRow] = history;
+    expect(appliedRow).toMatchObject({
+      actorId: "work-automation",
+      actorType: "System automation",
+      deliveryId: "event-1",
+      originKind: "source",
+      revision: 1,
+      sourceId: application?.id,
+      targetId: workId,
+    });
+    expect(historyStatus(appliedRow, "previousValue")).toBe("Not Started");
+    expect(historyStatus(appliedRow, "nextValue")).toBe("In Progress");
+    expect(appliedRow?.undo).toMatchObject({
+      kind: "atomic-transform",
+      scope: "work.status",
+    });
+
+    await db.update(work).set({ status: "Blocked" }).where(eq(work.id, workId));
+    expect(await access.undo(accountId, applied.receipt.id)).toEqual({
+      fields: [`${workId}:status`],
+      status: "conflict",
+    });
+    await db
+      .update(work)
+      .set({ status: "In Progress" })
+      .where(eq(work.id, workId));
+    expect(await access.undo(accountId, applied.receipt.id)).toEqual({
+      status: "undone",
+    });
+    const undoneRows = await db
+      .select()
+      .from(mutationHistory)
+      .where(
+        and(
+          eq(mutationHistory.targetId, workId),
+          eq(mutationHistory.sourceId, application?.id ?? ""),
+        ),
+      )
+      .orderBy(asc(mutationHistory.revision));
+    const [undoneRow] = undoneRows.slice(-1);
+    expect(undoneRows).toHaveLength(2);
+    expect(undoneRow).toMatchObject({
+      actorType: "System automation",
+      deliveryId: "event-1",
+      revision: 2,
+      sourceId: application?.id,
+      undoOf: appliedRow?.id,
+    });
+    expect(historyStatus(undoneRow, "previousValue")).toBe("In Progress");
+    expect(historyStatus(undoneRow, "nextValue")).toBe("Not Started");
+  });
+
+  test("the receipt undo stops once the 10-second window has passed", async () => {
+    const db = requireDatabase();
+    const { access, engine } = createDatabaseWorkAutomation(db);
+    const rule = await access.create(accountId, {
+      definition,
+      name: "Start new Work",
+      projectId,
+    });
+    await access.setEnabled(accountId, {
+      baseRevision: 1,
+      enabled: true,
+      ruleId: rule.id,
+    });
+    const applied = await engine.handleEvent({
+      id: "event-1",
+      kind: "work-created",
+      occurredAt: "2026-10-22T09:00:00.000Z",
+      origin: "user",
+      projectId,
+      workId,
+    });
+    expect(applied.status).toBe("applied");
+    if (applied.status !== "applied" || !applied.receipt) {
+      return;
+    }
+    await db
+      .update(workAutomationApplication)
+      .set({ undoUntil: new Date("2000-01-01T00:00:00.000Z") })
+      .where(eq(workAutomationApplication.projectId, projectId));
+    expect(await access.undo(accountId, applied.receipt.id)).toEqual({
+      status: "not-undoable",
+    });
+    const [stillApplied] = await db
+      .select()
+      .from(work)
+      .where(eq(work.id, workId));
+    expect(stillApplied).toMatchObject({ status: "In Progress" });
+  });
+
+  test("mints each repeating Work inside the mutation and never reuses a key", async () => {
+    const db = requireDatabase();
+    /** Test double of the shared key-allocation Work boundary (services wiring). */
+    const minted: WorkAutomationWorkCreator = async (transaction, input) => {
+      const number = input.project.workCount + 1;
+      const key = `${input.project.shortCode}-${number}`;
+      await transaction
+        .update(project)
+        .set({
+          revision: input.project.revision + 1,
+          updatedAt: input.committedAt,
+          workCount: number,
+        })
+        .where(eq(project.id, input.project.id));
+      await transaction.insert(workKeyAllocation).values({
+        clientIdempotencyKey: input.idempotencyKey,
+        id: crypto.randomUUID(),
+        key,
+        number,
+        payloadFingerprint: input.payloadFingerprint,
+        projectId: input.project.id,
+        reservedAt: input.committedAt,
+        shortCode: input.project.shortCode,
+        workId: input.workId,
+      });
+      await transaction.insert(work).values({
+        createdAt: input.committedAt,
+        id: input.workId,
+        key,
+        number,
+        projectId: input.project.id,
+        revision: 1,
+        status: "Not Started",
+        statusChangedAt: input.committedAt,
+        title: input.title,
+        type: input.type,
+        updatedAt: input.committedAt,
+      });
+    };
+    const { access, engine } = createDatabaseWorkAutomation(db, {
+      createWork: minted,
+    });
+    const rule = await access.create(accountId, {
+      definition: {
+        actions: [
+          { kind: "create-work", title: "Weekly review", type: "Task" },
+        ],
+        conditions: [],
+        trigger: { everyDays: 7, kind: "recurring-schedule" },
+      },
+      name: "Weekly review",
+      projectId,
+    });
+    await access.setEnabled(accountId, {
+      baseRevision: 1,
+      enabled: true,
+      ruleId: rule.id,
+    });
+    // The seeded Work sits at number 1; align the Project count before the rule runs.
+    await db
+      .update(project)
+      .set({ workCount: 1 })
+      .where(eq(project.id, projectId));
+    const tick = (id: string) => ({
+      id,
+      kind: "recurring-schedule" as const,
+      occurredAt: "2026-10-22T09:00:00.000Z",
+      origin: "system" as const,
+      projectId,
+      ruleId: rule.id,
+    });
+
+    expect(await engine.handleEvent(tick("tick-1"))).toEqual(
+      expect.objectContaining({ status: "applied" }),
+    );
+    const [projectRow] = await db
+      .select()
+      .from(project)
+      .where(eq(project.id, projectId));
+    const [created] = await db
+      .select()
+      .from(work)
+      .where(and(eq(work.projectId, projectId), eq(work.number, 2)));
+    expect(created).toMatchObject({
+      projectId,
+      revision: 1,
+      title: "Weekly review",
+      type: "Task",
+    });
+    expect(created?.key).toBe(`${projectRow?.shortCode}-2`);
+    expect(projectRow).toMatchObject({ workCount: 2 });
+    const [historyRow] = await db
+      .select()
+      .from(mutationHistory)
+      .where(eq(mutationHistory.targetId, created?.id ?? ""));
+    expect(historyRow).toMatchObject({
+      actorType: "System automation",
+      originKind: "source",
+      revision: 1,
+    });
+    expect(historyRow?.previousValue).toEqual({ work: null });
+    expect(
+      (historyRow?.nextValue as { work?: { title?: string } } | undefined)?.work
+        ?.title ?? null,
+    ).toBe("Weekly review");
+
+    const replay = await engine.handleEvent(tick("tick-1"));
+    expect(replay.status).toBe("applied");
+    expect(
+      await db.select().from(work).where(eq(work.projectId, projectId)),
+    ).toHaveLength(2);
+    expect(
+      await db
+        .select()
+        .from(workAutomationApplication)
+        .where(eq(workAutomationApplication.projectId, projectId)),
+    ).toHaveLength(1);
+
+    await engine.handleEvent(tick("tick-2"));
+    expect(
+      await db.select().from(work).where(eq(work.projectId, projectId)),
+    ).toHaveLength(3);
+    expect(
+      await db
+        .select({ workCount: project.workCount })
+        .from(project)
+        .where(eq(project.id, projectId)),
+    ).toEqual([{ workCount: 3 }]);
   });
 });
