@@ -1450,6 +1450,14 @@ _Avoid_: Kampanya sonucu, erişim skoru, otomatik analytics sonucu
 Bir Proje Sürümünden sonra hedeflenen davranış veya sonucun belirli bir değerlendirme turunda hangi ölçüde görüldüğüne dair kullanıcı tarafından kaydedilen sahipli değerlendirme; Erişim gözleminin yerine geçmez.
 _Avoid_: Sürüm başarısı, otomatik etki puanı, Erişim gözlemi
 
+**Sürüm notu**:
+Bir Proje Sürümünün kapsamındaki İşlere bağlanan, kullanıcının yazdığı ve yayın onayına kadar özel kalan Markdown anlatısı; onaylı yayın snapshot'ı sürekli changelog görünümüne girer, GitHub Release metni ikinci doğruluk kaynağı değildir ve Build in Public akışı veya Wiki yayını değildir ([Proje Sürümü iletişimi](docs/prd/12-github-and-project-releases.md#proje-sürümü-iletişimi)). UI: `Release notes`, `Changelog`, `Why was this done?`.
+_Avoid_: GitHub Release metni, kapsamsız pazarlama paragrafı, özel changelog kitlesi, ikinci etiket sistemi
+
+**Etki değerlendirme turu**:
+Yayımlanmış bir Proje Sürümünde kullanıcının açıkça başlattığı, tarihli ve sıralı değerlendirme; sıfır veya bir Erişim gözlemi ile sıfır veya bir Sonuç gözlemi taşır, sonraki tur öncekini yeniden yazmaz ve Özellik veya Proje Sürümü kapanışını engellemez ([Proje Sürümü iletişimi](docs/prd/12-github-and-project-releases.md#proje-sürümü-iletişimi)). UI: `Reassess impact`, `Close assessment`.
+_Avoid_: etki değerlendirme ana kaydı, scorecard, sabit kadans, Üretim Olayı, Manuel Proje Güncellemesi
+
 **Ürün sürüm adayı**:
 Bu ürünün PRD kabul koşullarına karşı doğrulanan kesin build'i; kullanıcının yönettiği bir Proje Sürümü değildir.
 _Avoid_: Proje Sürümü, kullanıcı Sürümü

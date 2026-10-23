@@ -74,6 +74,7 @@ import type {
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "@cantiara/api/relations";
+import type { ReleaseCommunicationAccess } from "@cantiara/api/release-communication";
 import type { ResearchSessionsAccess } from "@cantiara/api/research-sessions";
 import type { ReturnToWorkAccess } from "@cantiara/api/return-to-work";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
@@ -160,6 +161,7 @@ export interface CreateContextOptions {
   recordActions?: RecordActionsAccess;
   recordTable?: RecordTableAccess;
   relations?: RelationsAccess;
+  releaseCommunication?: ReleaseCommunicationAccess;
   researchSessions?: ResearchSessionsAccess;
   returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
@@ -256,6 +258,7 @@ export async function createContext({
   prioritizationSessions,
   personalReminders,
   recordActions,
+  releaseCommunication,
   workAutomation,
   workspaceOverview,
   tags,
@@ -353,6 +356,7 @@ export async function createContext({
     prioritizationSessions,
     personalReminders,
     recordActions,
+    releaseCommunication,
     workAutomation,
     workspaceOverview,
     tags,
