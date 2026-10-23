@@ -46,6 +46,7 @@ import {
   fileAttachmentStageInputSchema,
 } from "@cantiara/api/file-attachments";
 import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
+import type { GitHubIntegrationAccess } from "@cantiara/api/github-integration";
 import type { MoodboardSnapshotsAccess } from "@cantiara/api/moodboard-snapshot";
 import type { PersonalMoodboardViewsAccess } from "@cantiara/api/moodboard-viewport";
 import type {
@@ -157,6 +158,11 @@ import {
   type TauriSessionAccess,
 } from "./features/account-access/server/tauri-session";
 import { WebCaptureError } from "./features/capture-triage/server/web-capture";
+import type { GitHubWebhookInbox } from "./features/github-integration/server/github-webhook-inbox";
+import {
+  GITHUB_WEBHOOK_PATH,
+  handleGitHubWebhook,
+} from "./features/github-integration/server/github-webhook-route";
 import { youtubePlayerRoutes } from "./features/sources-and-freshness/server/youtube-player-page";
 import type { CreateSupportReferenceFailureOptions } from "./features/web-macos-client/server/support-reference";
 import {
@@ -197,6 +203,8 @@ export interface AppDependencies {
   feedback?: FeedbackAccess;
   fileAttachments?: FileAttachmentAccess;
   focusPeriod?: FocusPeriodAccess;
+  gitHubIntegration?: GitHubIntegrationAccess;
+  gitHubWebhookInbox?: GitHubWebhookInbox;
   githubAvailability: Pick<
     GitHubAvailability,
     "getStatus" | "requiresFreshConsent"
@@ -951,6 +959,10 @@ export function createApp(dependencies: AppDependencies) {
   );
   app.use("*", createCsrfProtectionMiddleware(allowedOrigins));
 
+  app.post(GITHUB_WEBHOOK_PATH, (c) =>
+    handleGitHubWebhook(c.req.raw, dependencies.gitHubWebhookInbox),
+  );
+
   app.get("/api/auth/tauri/start", (c) =>
     createTauriSignInStartResponse(c.req.raw, {
       auth: dependencies.auth,
@@ -1269,6 +1281,7 @@ export function createApp(dependencies: AppDependencies) {
       productGaps: dependencies.productGaps,
       testReports: dependencies.testReports,
       testAssessments: dependencies.testAssessments,
+      gitHubIntegration: dependencies.gitHubIntegration,
       specChangeReview: dependencies.specChangeReview,
       specChangeReviewMutationContracts:
         dependencies.specChangeReviewMutationContracts,

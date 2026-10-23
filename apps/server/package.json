@@ -30,6 +30,7 @@
     "htmlparser2": "10.1.0",
     "ipaddr.js": "^1.9.1",
     "mermaid": "^12.0.0",
+    "octokit": "^5.0.5",
     "papaparse": "5.5.3",
     "pdfjs-dist": "^6.3.289",
     "pg-boss": "^12.33.3",

@@ -1526,11 +1526,16 @@ _Avoid_: Invoice, fiyat paketi, banka uzlaştırma
 
 **GitHub bağlantısı**:
 Bir Projeyi GitHub'daki tek kararlı repository kimliğine bağlayan ve yeniden yetkilendirmelerde geçmişini koruyan [entegrasyon kaydı](docs/adr/0006-github-entegrasyon-guven-siniri.md); repository sahibi veya adı kimlik sayılmaz.
+UI: `GitHub App`, `Repository`, `Sync now`, `Out of date`, `Reconnect`, `Disconnect`; yaşam durumları yalnız `Connected` / `Paused` / `Disconnected`'tır (Yetki yok, Kaynak bulunamadı ve App kaldırma durum değil, `Disconnected` nedenidir; Proje Arşivi `Paused` nedenidir); özellik klasörü `github-integration` (GitHub Integration seam'i).
 _Avoid_: Repository adı eşleşmesi, kurulum takma adı
 
 **GitHub dış kaydı**:
 GitHub kaynak kimliğini ve son uzlaştırılmış kaynak durumunu salt okunur taşıyan, GitHub'daki kayıttan bağımsız yerel yaşam döngüsüne sahip [Proje ana kaydı](docs/prd/12-github-and-project-releases.md#github-geliştirme-kayıtları).
 _Avoid_: Canlı GitHub kaydı, GitHub senkron kopyası, bağlantının sahipli bileşeni
+
+**İş–GitHub bağlantı rolü**:
+Bir İşi GitHub dış kaydına (Issue, PR) veya bir commit ya da branch'e bağlayan ilişkinin kapalı katalogdaki rolü: `Tamamlanma için gerekli` ya da `Bağlamsal`. Rolü hazır kural (62) okur; bağ kurmak veya kaldırmak İş durumunu, kapanışını veya blokajını ve GitHub kaydını yazmaz, Kanıt bağı ya da kullanım gömüsü değildir ([PR ve İş bağlantısı](docs/prd/12-github-and-project-releases.md#github-geliştirme-kayıtları)). UI: `Required for completion`, `Contextual`, `Create work and link`.
+_Avoid_: Kanıt bağı, kullanım gömüsü, otomatik kapanış, ikinci İş durumu, Unlinked-PR kaydı
 
 **Akıllı bağlantı önizlemesi**:
 Kimlik doğrulaması istemeyen herkese açık bir HTTP(S) adresinden türetilen, ana kayıt veya tarihsel Kaynak snapshot'ı olmayan [geçici sunum](docs/prd/08-search-relations-and-evidence.md#akıllı-bağlantı-önizlemesi) (bu sözlükte daha önce `Dış URL önizlemesi` olarak geçiyordu).

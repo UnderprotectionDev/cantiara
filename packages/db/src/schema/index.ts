@@ -17,6 +17,7 @@ export * from "./favorites";
 export * from "./feedback";
 export * from "./file-attachments";
 export * from "./focus-period";
+export * from "./github-integration";
 export * from "./moodboard";
 export * from "./open-question";
 export * from "./personal-reminders";

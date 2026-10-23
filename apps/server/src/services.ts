@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
@@ -53,6 +55,7 @@ import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
 } from "./features/documents/server/documents-database";
+import { insertWorkWithKeyAllocation } from "./features/evidence/server/evidence-record-creation";
 import { createDatabaseExternalExecutionHandoffs } from "./features/external-handoffs/server/external-handoffs-database";
 import { createDatabaseFavorites } from "./features/favorites/server/favorites-database";
 import { createDatabaseFeedbackWithFeed } from "./features/feedback/server/feedback-feed-database";
@@ -63,6 +66,8 @@ import { createFileAttachments } from "./features/file-attachments/server/file-a
 import { createDatabaseFileAttachments } from "./features/file-attachments/server/file-attachments-database";
 import { createFileAttachmentObjectStore } from "./features/file-attachments/server/file-attachments-object-store";
 import { createDatabaseFocusPeriod } from "./features/focus-period/server/focus-period-database";
+import { createConfiguredGitHubIntegration } from "./features/github-integration/server/github-integration-configured";
+import { createGitHubWebhookWorker } from "./features/github-integration/server/github-webhook-worker";
 import { createDatabaseMoodboardPersonalViews } from "./features/moodboards/server/moodboard-personal-views-database";
 import { createDatabaseMoodboardSnapshots } from "./features/moodboards/server/moodboard-snapshots-database";
 import { createDatabaseMoodboards } from "./features/moodboards/server/moodboards-database";
@@ -283,6 +288,38 @@ export const testReview = createDatabaseTestReview(db);
 export const productGaps = createDatabaseProductGaps(db);
 export const testReports = createDatabaseTestReports(db);
 export const testAssessments = createDatabaseTestAssessments(db);
+const configuredGitHub = createConfiguredGitHubIntegration(db, {
+  appId: env.GITHUB_APP_ID,
+  appSlug: env.GITHUB_APP_SLUG,
+  // `Create work and link` uses the Work owner's Project-key allocation.
+  createWork: (executor, owner, input) =>
+    insertWorkWithKeyAllocation(executor, owner, {
+      committedAt: new Date(),
+      description: input.description === "" ? null : input.description,
+      idempotencyKey: `github-create-work:${input.workId}`,
+      originOwnerRecordId: input.originRecordId,
+      payloadFingerprint: createHash("sha256")
+        .update(input.workId)
+        .digest("hex"),
+      title: input.title,
+      type: input.type,
+      workId: input.workId,
+    }),
+  keyRing: env.GITHUB_APP_KEY_RING,
+  keyVersion: env.GITHUB_APP_KEY_VERSION,
+  privateKey: env.GITHUB_APP_PRIVATE_KEY,
+});
+export const gitHubIntegration = configuredGitHub.integration;
+export const gitHubWebhookInbox = configuredGitHub.webhookInbox({
+  bootstrapSecret: env.GITHUB_WEBHOOK_SECRET,
+  enqueue: (deliveryId) => gitHubWebhookWorker.enqueue(deliveryId),
+});
+const gitHubWebhookWorker = createGitHubWebhookWorker({
+  connectionString: env.DATABASE_URL,
+  inbox: gitHubWebhookInbox,
+});
+export const startGitHubWebhookWorker = gitHubWebhookWorker.start;
+export const stopGitHubWebhookWorker = gitHubWebhookWorker.stop;
 export const specChangeReview = createSpecChangeReview(
   createDatabaseSpecChangeReviewStore(db),
   documents,
@@ -510,6 +547,24 @@ const maintenanceWorker = createMaintenanceWorker({
       name: "file-attachment-upload-sweep",
       cron: "0 * * * *",
       process: sweepExpiredFileAttachmentUploads,
+    },
+    {
+      // Incremental read-only reconcile of every active GitHub link (<= 15 min).
+      name: "github-reconcile",
+      cron: "*/15 * * * *",
+      process: async () => {
+        await gitHubIntegration.reconcileDue();
+        await gitHubWebhookInbox.redrivePending();
+      },
+    },
+    {
+      // Payload and delivery retention plus the 90-day webhook secret alarm.
+      name: "github-webhook-retention",
+      cron: "17 * * * *",
+      process: async () => {
+        await gitHubWebhookInbox.sweepRetention();
+        await gitHubWebhookInbox.checkSecretAge();
+      },
     },
     {
       name: "priority-metric-trash-sweep",

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import GitHubIntegrationSurface from "@/features/github-integration/ui/components/github-integration-surface";
 import ProjectShellView from "@/features/project-shell/ui/views/project-shell-view";
 import { smartCollectionWorkPrefillFromSearch } from "@/features/smart-collections/lib/smart-collection-work-prefill";
 
@@ -24,6 +25,12 @@ function RouteComponent() {
   const { session } = Route.useRouteContext();
 
   return (
-    <ProjectShellView accountId={session.data?.user.id} projectId={projectId} />
+    <ProjectShellView
+      accountId={session.data?.user.id}
+      githubArea={
+        <GitHubIntegrationSurface key={projectId} projectId={projectId} />
+      }
+      projectId={projectId}
+    />
   );
 }
