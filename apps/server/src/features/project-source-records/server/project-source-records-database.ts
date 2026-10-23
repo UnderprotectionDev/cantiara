@@ -7,6 +7,7 @@ import type {
   MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
 import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
+import { projectReleaseTransitionAllowed } from "@cantiara/api/project-release-planning";
 import {
   assumptionRecordSchema,
   createProjectSourceRecordInputSchema,
@@ -1121,9 +1122,10 @@ function allowsTransition(
     return record.status === "Planned" && next.sourceType === "Milestone";
   }
   if (record.sourceType === "Project Release") {
+    // Project Release Planning status matrix: terminal results never reopen.
     return (
-      (record.status === "Draft" || record.status === "Preparing") &&
-      next.sourceType === "Project Release"
+      next.sourceType === "Project Release" &&
+      projectReleaseTransitionAllowed(record.status, next.status)
     );
   }
   if (record.sourceType === "Production Incident") {

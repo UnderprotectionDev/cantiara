@@ -7,8 +7,14 @@ import {
 import { describe, expect, test } from "vitest";
 import {
   groupProjectReleasesByStatus,
+  isTerminalProjectReleaseStatus,
+  type ProjectReleaseLink,
   projectReleaseScopeCounts,
   projectReleaseScopeGroup,
+  projectReleaseStatusChangeNeedsConfirmation,
+  projectReleaseStatusSuggestion,
+  projectReleaseStatusTargets,
+  projectReleaseTransitionAllowed,
   setProjectReleaseAudienceInputSchema,
   setProjectReleaseLinkInputSchema,
   setProjectReleaseScopeInputSchema,
@@ -373,5 +379,105 @@ describe("Project Release Planning seam: overview derivation", () => {
       ["Draft", 2],
       ["Published", 1],
     ]);
+  });
+});
+
+describe("Project Release Planning seam: explicit terminal results", () => {
+  const releaseLink = (
+    overrides: Partial<ProjectReleaseLink> = {},
+  ): ProjectReleaseLink => ({
+    attached: true,
+    id: "link-1",
+    kind: "Release",
+    label: "v1.0.0",
+    repository: { id: "repository-1", name: "tidekit", owner: "acme" },
+    revision: 1,
+    url: "https://github.com/acme/tidekit/releases/tag/v1.0.0",
+    ...overrides,
+  });
+
+  test("status matrix: Draft and Preparing switch freely, Published and Cancelled are terminal", () => {
+    expect(projectReleaseStatusTargets("Draft")).toEqual([
+      "Preparing",
+      "Published",
+      "Cancelled",
+    ]);
+    expect(projectReleaseStatusTargets("Preparing")).toEqual([
+      "Draft",
+      "Published",
+      "Cancelled",
+    ]);
+    expect(projectReleaseStatusTargets("Published")).toEqual([]);
+    expect(projectReleaseStatusTargets("Cancelled")).toEqual([]);
+    expect(projectReleaseTransitionAllowed("Draft", "Preparing")).toBe(true);
+    expect(projectReleaseTransitionAllowed("Preparing", "Draft")).toBe(true);
+    expect(projectReleaseTransitionAllowed("Draft", "Draft")).toBe(false);
+    // No silent revert and no reopen: a terminal result stays terminal.
+    for (const from of ["Published", "Cancelled"] as const) {
+      expect(isTerminalProjectReleaseStatus(from)).toBe(true);
+      for (const to of [
+        "Draft",
+        "Preparing",
+        "Published",
+        "Cancelled",
+      ] as const) {
+        expect(projectReleaseTransitionAllowed(from, to)).toBe(false);
+      }
+    }
+    expect(isTerminalProjectReleaseStatus("Preparing")).toBe(false);
+  });
+
+  test("only the terminal results ask for an explicit confirmation", () => {
+    expect(projectReleaseStatusChangeNeedsConfirmation("Draft")).toBe(false);
+    expect(projectReleaseStatusChangeNeedsConfirmation("Preparing")).toBe(
+      false,
+    );
+    expect(projectReleaseStatusChangeNeedsConfirmation("Published")).toBe(true);
+    expect(projectReleaseStatusChangeNeedsConfirmation("Cancelled")).toBe(true);
+  });
+
+  test("a linked GitHub Release only suggests Published; it never carries a status write", () => {
+    const suggestion = projectReleaseStatusSuggestion(
+      { ...release, status: "Preparing" },
+      [releaseLink()],
+    );
+    expect(suggestion).toEqual({
+      linkId: "link-1",
+      reason: "GitHub Release v1.0.0 was published.",
+      status: "Published",
+    });
+    // A suggestion is data only: no command, revision or idempotency key.
+    expect(Object.keys(suggestion ?? {}).sort()).toEqual([
+      "linkId",
+      "reason",
+      "status",
+    ]);
+  });
+
+  test("no suggestion without an attached GitHub Release or after a terminal result", () => {
+    expect(
+      projectReleaseStatusSuggestion(release, [
+        releaseLink({ kind: "Tag" }),
+        releaseLink({ id: "env", kind: "Environment link" }),
+        releaseLink({ attached: false, id: "removed" }),
+      ]),
+    ).toBeNull();
+    for (const status of ["Published", "Cancelled"] as const) {
+      expect(
+        projectReleaseStatusSuggestion({ ...release, status }, [releaseLink()]),
+      ).toBeNull();
+    }
+  });
+
+  test("names the most recently attached GitHub Release", () => {
+    expect(
+      projectReleaseStatusSuggestion(release, [
+        releaseLink({ id: "link-1", label: "v1.0.0" }),
+        releaseLink({ id: "link-2", label: "v1.0.1" }),
+      ]),
+    ).toMatchObject({
+      linkId: "link-2",
+      reason: "GitHub Release v1.0.1 was published.",
+    });
   });
 });

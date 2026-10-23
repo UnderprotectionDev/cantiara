@@ -7,6 +7,8 @@ import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
 
+const PROJECT_RELEASE_RPC = /ProjectRelease/i;
+
 function setup(authenticated = true) {
   const projectReleasePlanning: ProjectReleasePlanningAccess = {
     detail: vi.fn().mockResolvedValue({ release: { id: "release-1" } }),
@@ -92,6 +94,36 @@ describe("Project Release Planning RPC seam", () => {
       "founder",
       audience,
     );
+  });
+
+  test("exposes the GitHub Release suggestion read-only: no planning RPC writes a status", async () => {
+    const suggestion = {
+      linkId: "link-1",
+      reason: "GitHub Release v1.0.0 was published.",
+      status: "Published",
+    };
+    const { client, projectReleasePlanning } = setup();
+    vi.mocked(projectReleasePlanning.detail).mockResolvedValue({
+      release: { id: "release-1", status: "Preparing" },
+      suggestion,
+    } as never);
+    await expect(
+      client.projectReleasePlanning({
+        projectId: "project-1",
+        releaseId: "release-1",
+      }),
+    ).resolves.toMatchObject({ release: { status: "Preparing" }, suggestion });
+    expect(
+      Object.keys(appRouter)
+        .filter((name) => PROJECT_RELEASE_RPC.test(name))
+        .sort(),
+    ).toEqual([
+      "projectReleasePlanning",
+      "projectReleases",
+      "setProjectReleaseAudience",
+      "setProjectReleaseLink",
+      "setProjectReleaseScope",
+    ]);
   });
 
   test("blocks anonymous access before reaching Project Release Planning", async () => {

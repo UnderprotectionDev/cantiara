@@ -2,10 +2,12 @@
 
 import {
   type ProjectReleasePlanningDetail as Detail,
+  isTerminalProjectReleaseStatus,
   type ProjectReleaseAudienceLink,
   type ProjectReleaseAudienceTarget,
   type ProjectReleaseLink,
   type ProjectReleaseScopeMember,
+  type ProjectReleaseStatus,
   projectReleaseScopeCounts,
   projectReleaseScopeGroup,
 } from "@cantiara/api/project-release-planning";
@@ -26,11 +28,13 @@ import {
   type ProjectReleaseLinkValues,
 } from "../forms/project-release-link-form";
 import { ProjectReleaseScopeForm } from "../forms/project-release-scope-form";
+import { ProjectReleaseStatusControl } from "./project-release-status-control";
 
 export interface ProjectReleasePlanningActions {
   onAddAudience: (target: ProjectReleaseAudienceTarget) => Promise<unknown>;
   onAddLink: (values: ProjectReleaseLinkValues) => Promise<unknown>;
   onAddScope: (workId: string) => Promise<unknown>;
+  onChangeStatus: (status: ProjectReleaseStatus) => Promise<unknown>;
   onRemoveAudience: (link: ProjectReleaseAudienceLink) => Promise<unknown>;
   onRemoveLink: (link: ProjectReleaseLink) => Promise<unknown>;
   onRemoveScope: (member: ProjectReleaseScopeMember) => Promise<unknown>;
@@ -54,6 +58,9 @@ export function ProjectReleasePlanningDetail({
   const { release, readOnly } = detail;
   const attached = detail.scope.filter((member) => member.attached);
   const counts = projectReleaseScopeCounts(attached);
+  // Published and Cancelled freeze scope, references and audience links.
+  const terminal = isTerminalProjectReleaseStatus(release.status);
+  const planningReadOnly = readOnly || terminal;
   return (
     <section aria-label="Project Release" className="space-y-8">
       <header className="surface-header space-y-3">
@@ -106,7 +113,8 @@ export function ProjectReleasePlanningDetail({
             candidates={detail.scopeCandidates}
             counts={counts}
             projectId={projectId}
-            readOnly={readOnly}
+            readOnly={planningReadOnly}
+            terminalStatus={terminal ? release.status : null}
           />
           <HypothesisSection
             actions={actions}
@@ -120,16 +128,26 @@ export function ProjectReleasePlanningDetail({
                     link.target.id === candidate.id,
                 ),
             )}
+            linksReadOnly={planningReadOnly}
             readOnly={readOnly}
             release={release}
           />
         </div>
-        <ReferencesSection
-          actions={actions}
-          links={detail.links}
-          readOnly={readOnly}
-          repositories={detail.repositories}
-        />
+        <div className="space-y-8">
+          <ProjectReleaseStatusControl
+            onChangeStatus={actions.onChangeStatus}
+            openScope={counts.open}
+            readOnly={readOnly}
+            release={release}
+            suggestion={detail.suggestion}
+          />
+          <ReferencesSection
+            actions={actions}
+            links={detail.links}
+            readOnly={planningReadOnly}
+            repositories={detail.repositories}
+          />
+        </div>
       </div>
     </section>
   );
@@ -142,6 +160,7 @@ function ScopeSection({
   counts,
   projectId,
   readOnly,
+  terminalStatus,
 }: {
   actions: ProjectReleasePlanningActions;
   attached: ProjectReleaseScopeMember[];
@@ -149,6 +168,7 @@ function ScopeSection({
   counts: ReturnType<typeof projectReleaseScopeCounts>;
   projectId: string;
   readOnly: boolean;
+  terminalStatus: ProjectReleaseStatus | null;
 }) {
   return (
     <section aria-label="Scope" className="space-y-4">
@@ -158,6 +178,11 @@ function ScopeSection({
           {counts.completed} completed, {counts.open} open. Scope holds only the
           Work you add; it never changes a Work status.
         </p>
+        {terminalStatus ? (
+          <p className="text-muted-foreground text-sm">
+            {`This Project Release is ${terminalStatus}; its scope is read-only.`}
+          </p>
+        ) : null}
       </div>
       {attached.length ? null : (
         <p className="text-muted-foreground text-sm">No Work in scope yet.</p>
@@ -222,12 +247,15 @@ function HypothesisSection({
   actions,
   audience,
   audienceCandidates,
+  linksReadOnly,
   readOnly,
   release,
 }: {
   actions: ProjectReleasePlanningActions;
   audience: ProjectReleaseAudienceLink[];
   audienceCandidates: ProjectReleaseAudienceTarget[];
+  /** Audience links freeze with a terminal result; the text stays editable. */
+  linksReadOnly: boolean;
   readOnly: boolean;
   release: Detail["release"];
 }) {
@@ -270,7 +298,7 @@ function HypothesisSection({
                         <span>
                           {link.target.type}: {link.target.title}
                         </span>
-                        {readOnly ? null : (
+                        {linksReadOnly ? null : (
                           <Button
                             aria-label={`Remove ${link.target.title} from audience`}
                             onClick={() => {
@@ -303,10 +331,12 @@ function HypothesisSection({
           >
             Edit hypothesis
           </Button>
-          <ProjectReleaseAudienceForm
-            candidates={audienceCandidates}
-            onAdd={actions.onAddAudience}
-          />
+          {linksReadOnly ? null : (
+            <ProjectReleaseAudienceForm
+              candidates={audienceCandidates}
+              onAdd={actions.onAddAudience}
+            />
+          )}
         </div>
       )}
     </section>

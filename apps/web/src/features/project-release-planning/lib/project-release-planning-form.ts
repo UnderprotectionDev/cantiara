@@ -121,3 +121,33 @@ export const PROJECT_RELEASE_SCOPE_GROUPS = [
   { group: "Completed", label: "Completed" },
   { group: "Closed", label: "Closed" },
 ] as const;
+
+export interface ProjectReleaseStatusChangeCopy {
+  action: "Mark Published" | "Mark Cancelled";
+  description: string;
+  openScope: string | null;
+  title: string;
+}
+
+/**
+ * 16.4 Change Release Status: copy of the explicit terminal confirmation.
+ * Open scope is an information line on publish; it never blocks.
+ */
+export function projectReleaseStatusChangeCopy(
+  status: "Published" | "Cancelled",
+  openScope: number,
+): ProjectReleaseStatusChangeCopy {
+  let openScopeLine: string | null = null;
+  if (status === "Published" && openScope > 0) {
+    openScopeLine =
+      openScope === 1
+        ? "1 Work in scope is still open. Publishing does not change it."
+        : `${openScope} Work in scope are still open. Publishing does not change them.`;
+  }
+  return {
+    action: `Mark ${status}`,
+    description: `${status} is a final result. This Project Release cannot return to Draft or Preparing.`,
+    openScope: openScopeLine,
+    title: `Mark this Project Release ${status}?`,
+  };
+}
