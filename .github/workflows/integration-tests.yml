@@ -126,7 +126,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-vitest-v1-server-${{ matrix.shard }}-${{ hashFiles('bun.lock', '**/vite.config.*', '**/vitest.config.*', '**/tsconfig*.json') }}-
       - name: Install server integration browsers
-        run: bunx playwright install --with-deps chromium webkit
+        run: bash ../../scripts/ci-install-playwright.sh chromium webkit
         working-directory: apps/server
       - name: Prepare PostgreSQL boundaries
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE cantiara_security'
@@ -226,7 +226,7 @@ jobs:
       - name: Prepare PostgreSQL boundaries
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE cantiara_security'
       - name: Install integration browsers
-        run: bunx playwright install --with-deps chromium firefox
+        run: bash ../../scripts/ci-install-playwright.sh chromium firefox
         working-directory: apps/web
       - name: Run browser integration tests
         run: |
@@ -290,7 +290,7 @@ jobs:
       - name: Prepare PostgreSQL boundaries
         run: psql "$DATABASE_URL" -c 'CREATE DATABASE cantiara_security'
       - name: Install Chromium
-        run: bunx playwright install --with-deps --only-shell chromium
+        run: bash ../../scripts/ci-install-playwright.sh --only-shell chromium
         working-directory: apps/web
       - name: Measure Command Palette performance
         env:

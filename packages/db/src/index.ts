@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/neon-serverless";
 import "./local-postgres";
 
 import type { DatabaseConfig } from "./config";
+import { reportIdleClientError } from "./pool-error";
 import {
   account,
   accountPreferences,
@@ -204,6 +205,7 @@ const schema = {
 
 export function createDb(env: DatabaseConfig) {
   const pool = new Pool({ connectionString: env.DATABASE_URL });
+  pool.on("error", reportIdleClientError);
   return drizzle({ client: pool, schema });
 }
 
