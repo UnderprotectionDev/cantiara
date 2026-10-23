@@ -179,6 +179,46 @@ import {
   focusPeriodIdInputSchema,
   focusPeriodMembershipInputSchema,
 } from "../focus-period";
+import {
+  gitHubChecksInputSchema,
+  gitHubChecksOutputSchema,
+} from "../github-checks";
+import {
+  gitHubAvailableRepositoriesInputSchema,
+  gitHubAvailableRepositoriesOutputSchema,
+  gitHubDisconnectOutputSchema,
+  gitHubInstallCompleteInputSchema,
+  gitHubInstallCompleteOutputSchema,
+  gitHubInstallStartInputSchema,
+  gitHubInstallStartOutputSchema,
+  gitHubLinkInputSchema,
+  gitHubLinkPreviewSchema,
+  gitHubLinkRepositoryInputSchema,
+  gitHubOverviewSchema,
+  gitHubProjectInputSchema,
+  gitHubRepositoryLinkSchema,
+  gitHubSearchRecordsInputSchema,
+  gitHubSearchRecordsOutputSchema,
+  gitHubSyncNowOutputSchema,
+  gitHubTriagePreviewSchema,
+} from "../github-integration";
+import {
+  gitHubPrContextInputSchema,
+  gitHubPrContextOutputSchema,
+} from "../github-pr-context";
+import {
+  gitHubAttentionSignalSchema,
+  gitHubCreateWorkInputSchema,
+  gitHubCreateWorkOutputSchema,
+  gitHubCreateWorkPreviewInputSchema,
+  gitHubCreateWorkPreviewSchema,
+  gitHubDismissSignalInputSchema,
+  gitHubLinkWorkInputSchema,
+  gitHubUnlinkWorkInputSchema,
+  gitHubWorkLinkSchema,
+  gitHubWorkLinksInputSchema,
+  gitHubWorkLinksOutputSchema,
+} from "../github-work-links";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
   MoodboardSnapshotError,
@@ -1366,6 +1406,13 @@ function requireTestAssessments(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.testAssessments;
+}
+
+function requireGitHubIntegration(context: Context) {
+  if (!context.gitHubIntegration) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.gitHubIntegration;
 }
 
 function requirePlannedTests(context: Context) {
@@ -3405,6 +3452,75 @@ const TEST_ASSESSMENT_FAILURES: Record<string, PlannedTestFailure> = {
   },
   TEST_ASSESSMENT_SOURCE_UNAVAILABLE: { message: null, status: "BAD_REQUEST" },
 };
+
+interface GitHubIntegrationFailure {
+  message: string | null;
+  status: "BAD_REQUEST" | "CONFLICT" | "NOT_FOUND" | "PRECONDITION_FAILED";
+}
+
+const GITHUB_INTEGRATION_FAILURES: Record<string, GitHubIntegrationFailure> = {
+  GITHUB_APP_NOT_CONFIGURED: { message: null, status: "PRECONDITION_FAILED" },
+  GITHUB_INSTALL_STATE_INVALID: { message: null, status: "BAD_REQUEST" },
+  GITHUB_INSTALLATION_CLAIMED: { message: null, status: "CONFLICT" },
+  GITHUB_INSTALLATION_NOT_FOUND: { message: null, status: "NOT_FOUND" },
+  GITHUB_INSTALLATION_REMOVED: { message: null, status: "PRECONDITION_FAILED" },
+  GITHUB_INSTALLATION_UNCLAIMABLE: {
+    message: null,
+    status: "PRECONDITION_FAILED",
+  },
+  GITHUB_LINK_NOT_FOUND: { message: null, status: "NOT_FOUND" },
+  GITHUB_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  GITHUB_PROJECT_READ_ONLY: {
+    message: "Archived Projects are read-only.",
+    status: "BAD_REQUEST",
+  },
+  GITHUB_REPOSITORY_UNAVAILABLE: {
+    message: null,
+    status: "PRECONDITION_FAILED",
+  },
+  GITHUB_SIGNAL_NOT_FOUND: { message: null, status: "NOT_FOUND" },
+  GITHUB_UNAVAILABLE: {
+    message: null,
+    status: "PRECONDITION_FAILED",
+  },
+  GITHUB_WORK_LINK_EXISTS: { message: null, status: "CONFLICT" },
+  GITHUB_WORK_LINK_NOT_FOUND: { message: null, status: "NOT_FOUND" },
+  GITHUB_WORK_LINK_ROLE_INVALID: { message: null, status: "BAD_REQUEST" },
+  GITHUB_WORK_LINK_TARGET_UNAVAILABLE: {
+    message: null,
+    status: "PRECONDITION_FAILED",
+  },
+  GITHUB_WORK_NOT_FOUND: { message: null, status: "NOT_FOUND" },
+};
+
+async function runGitHubIntegrationOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(GITHUB_INTEGRATION_FAILURES, error.code)
+      ? GITHUB_INTEGRATION_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message:
+        failure.message ??
+        (error instanceof Error ? error.message : "Request refused."),
+    });
+  }
+}
 
 async function runTestAssessmentOperation<T>(
   operation: () => Promise<T>,
@@ -7045,6 +7161,246 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runFeedbackOperation(() =>
         requireFeedback(context).setStatus(context.session.user.id, input),
+      ),
+    ),
+  projectGitHubOverview: protectedProcedure
+    .input(gitHubProjectInputSchema)
+    .output(gitHubOverviewSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).overview(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  startGitHubAppInstall: protectedProcedure
+    .input(gitHubInstallStartInputSchema)
+    .output(gitHubInstallStartOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).startInstall(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  completeGitHubAppInstall: protectedProcedure
+    .input(gitHubInstallCompleteInputSchema)
+    .output(gitHubInstallCompleteOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).completeInstall(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  gitHubAppRepositories: protectedProcedure
+    .input(gitHubAvailableRepositoriesInputSchema)
+    .output(gitHubAvailableRepositoriesOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).availableRepositories(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  linkGitHubRepository: protectedProcedure
+    .input(gitHubLinkRepositoryInputSchema)
+    .output(gitHubRepositoryLinkSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).linkRepository(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  reconnectGitHubRepository: protectedProcedure
+    .input(gitHubLinkInputSchema)
+    .output(gitHubRepositoryLinkSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).reconnect(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  disconnectGitHubRepository: protectedProcedure
+    .input(gitHubLinkInputSchema)
+    .output(gitHubDisconnectOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).disconnect(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  syncGitHubNow: protectedProcedure
+    .input(gitHubLinkInputSchema)
+    .output(gitHubSyncNowOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).syncNow(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewGitHubReconnect: protectedProcedure
+    .input(gitHubLinkInputSchema)
+    .output(gitHubLinkPreviewSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).previewReconnect(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewGitHubDisconnect: protectedProcedure
+    .input(gitHubLinkInputSchema)
+    .output(gitHubLinkPreviewSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).previewDisconnect(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  gitHubTriagePreview: protectedProcedure
+    .input(gitHubLinkInputSchema)
+    .output(gitHubTriagePreviewSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).triagePreview(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  skipGitHubTriage: protectedProcedure
+    .input(gitHubLinkInputSchema)
+    .output(gitHubRepositoryLinkSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).skipTriage(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  searchGitHubRecords: protectedProcedure
+    .input(gitHubSearchRecordsInputSchema)
+    .output(gitHubSearchRecordsOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).searchRecords(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectGitHubWorkLinks: protectedProcedure
+    .input(gitHubWorkLinksInputSchema)
+    .output(gitHubWorkLinksOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).workLinks(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  linkGitHubWork: protectedProcedure
+    .input(gitHubLinkWorkInputSchema)
+    .output(gitHubWorkLinkSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).linkWork(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  unlinkGitHubWork: protectedProcedure
+    .input(gitHubUnlinkWorkInputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).unlinkWork(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewGitHubCreateWork: protectedProcedure
+    .input(gitHubCreateWorkPreviewInputSchema)
+    .output(gitHubCreateWorkPreviewSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).previewCreateWork(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  createGitHubWorkAndLink: protectedProcedure
+    .input(gitHubCreateWorkInputSchema)
+    .output(gitHubCreateWorkOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).createWorkAndLink(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectGitHubAttentionSignals: protectedProcedure
+    .input(gitHubWorkLinksInputSchema)
+    .output(z.array(gitHubAttentionSignalSchema))
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).attentionSignals(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectGitHubChecks: protectedProcedure
+    .input(gitHubChecksInputSchema)
+    .output(gitHubChecksOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).checks(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectGitHubPrContext: protectedProcedure
+    .input(gitHubPrContextInputSchema)
+    .output(gitHubPrContextOutputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).prContext(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  dismissGitHubAttentionSignal: protectedProcedure
+    .input(gitHubDismissSignalInputSchema)
+    .handler(({ context, input }) =>
+      runGitHubIntegrationOperation(() =>
+        requireGitHubIntegration(context).dismissSignal(
+          context.session.user.id,
+          input,
+        ),
       ),
     ),
   projectTestAssessments: protectedProcedure

@@ -1,5 +1,5 @@
 {
-  "id": "27a18f6d-0005-4985-be5b-170c496ac291",
+  "id": "64e743f3-a977-401c-bf15-55bc1319c888",
   "prevId": "cc2910f0-4456-468e-9e06-a46ccc5dfe20",
   "version": "7",
   "dialect": "postgresql",
@@ -4523,198 +4523,6 @@
         "smart_collection_view_presentation_check": {
           "name": "smart_collection_view_presentation_check",
           "value": "\"smart_collection_view\".\"presentation\" in ('List', 'Table')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.migration_artifact": {
-      "name": "migration_artifact",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "diagram_id": {
-          "name": "diagram_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_version_id": {
-          "name": "source_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_version_id": {
-          "name": "target_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_model_hash": {
-          "name": "source_model_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_model_hash": {
-          "name": "target_model_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "generator_version": {
-          "name": "generator_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "up_sql": {
-          "name": "up_sql",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "down_sql": {
-          "name": "down_sql",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "static_validation": {
-          "name": "static_validation",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "edit_diff": {
-          "name": "edit_diff",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "operations": {
-          "name": "operations",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "warning_manifest": {
-          "name": "warning_manifest",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "digest": {
-          "name": "digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "supersedes_artifact_id": {
-          "name": "supersedes_artifact_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "client_idempotency_key": {
-          "name": "client_idempotency_key",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "migration_artifact_diagram_idx": {
-          "name": "migration_artifact_diagram_idx",
-          "columns": [
-            {
-              "expression": "diagram_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "migration_artifact_supersedes_idx": {
-          "name": "migration_artifact_supersedes_idx",
-          "columns": [
-            {
-              "expression": "supersedes_artifact_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "migration_artifact_diagram_id_technical_diagram_id_fk": {
-          "name": "migration_artifact_diagram_id_technical_diagram_id_fk",
-          "tableFrom": "migration_artifact",
-          "tableTo": "technical_diagram",
-          "columnsFrom": ["diagram_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "migration_artifact_source_version_id_diagram_version_id_fk": {
-          "name": "migration_artifact_source_version_id_diagram_version_id_fk",
-          "tableFrom": "migration_artifact",
-          "tableTo": "diagram_version",
-          "columnsFrom": ["source_version_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "migration_artifact_target_version_id_diagram_version_id_fk": {
-          "name": "migration_artifact_target_version_id_diagram_version_id_fk",
-          "tableFrom": "migration_artifact",
-          "tableTo": "diagram_version",
-          "columnsFrom": ["target_version_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "migration_artifact_key_unique": {
-          "name": "migration_artifact_key_unique",
-          "nullsNotDistinct": false,
-          "columns": ["account_id", "client_idempotency_key"]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "migration_artifact_digest_check": {
-          "name": "migration_artifact_digest_check",
-          "value": "\"migration_artifact\".\"digest\" ~ '^[0-9a-f]{64}$'"
         }
       },
       "isRLSEnabled": false
@@ -12025,6 +11833,522 @@
       },
       "isRLSEnabled": false
     },
+    "public.project_github_external_record": {
+      "name": "project_github_external_record",
+      "schema": "",
+      "columns": {
+        "captured_at": {
+          "name": "captured_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "github_id": {
+          "name": "github_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "html_url": {
+          "name": "html_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "labels": {
+          "name": "labels",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "link_id": {
+          "name": "link_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "milestone": {
+          "name": "milestone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "number": {
+          "name": "number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_state": {
+          "name": "source_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_updated_at": {
+          "name": "source_updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "project_github_external_record_source_idx": {
+          "name": "project_github_external_record_source_idx",
+          "columns": [
+            {
+              "expression": "link_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "github_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "project_github_external_record_project_idx": {
+          "name": "project_github_external_record_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_github_external_record_link_id_project_github_repository_link_id_fk": {
+          "name": "project_github_external_record_link_id_project_github_repository_link_id_fk",
+          "tableFrom": "project_github_external_record",
+          "tableTo": "project_github_repository_link",
+          "columnsFrom": ["link_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_github_external_record_project_id_project_id_fk": {
+          "name": "project_github_external_record_project_id_project_id_fk",
+          "tableFrom": "project_github_external_record",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_github_external_record_kind_check": {
+          "name": "project_github_external_record_kind_check",
+          "value": "\"project_github_external_record\".\"kind\" in ('Issue', 'Pull request')"
+        },
+        "project_github_external_record_state_check": {
+          "name": "project_github_external_record_state_check",
+          "value": "\"project_github_external_record\".\"source_state\" in ('open', 'closed', 'merged')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.project_github_installation": {
+      "name": "project_github_installation",
+      "schema": "",
+      "columns": {
+        "account_login": {
+          "name": "account_login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "connected_by_account_id": {
+          "name": "connected_by_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "installation_id": {
+          "name": "installation_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "removed_at": {
+          "name": "removed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "project_github_installation_project_installation_idx": {
+          "name": "project_github_installation_project_installation_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "installation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "project_github_installation_installation_idx": {
+          "name": "project_github_installation_installation_idx",
+          "columns": [
+            {
+              "expression": "installation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_github_installation_project_id_project_id_fk": {
+          "name": "project_github_installation_project_id_project_id_fk",
+          "tableFrom": "project_github_installation",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_github_installation_credential": {
+      "name": "project_github_installation_credential",
+      "schema": "",
+      "columns": {
+        "ciphertext": {
+          "name": "ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "installation_row_id": {
+          "name": "installation_row_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "key_version": {
+          "name": "key_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "wrapped_data_key": {
+          "name": "wrapped_data_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_github_installation_credential_installation_row_id_project_github_installation_id_fk": {
+          "name": "project_github_installation_credential_installation_row_id_project_github_installation_id_fk",
+          "tableFrom": "project_github_installation_credential",
+          "tableTo": "project_github_installation",
+          "columnsFrom": ["installation_row_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_github_repository_link": {
+      "name": "project_github_repository_link",
+      "schema": "",
+      "columns": {
+        "disconnected_at": {
+          "name": "disconnected_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "html_url": {
+          "name": "html_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "installation_row_id": {
+          "name": "installation_row_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "linked_at": {
+          "name": "linked_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner": {
+          "name": "owner",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "repository_id": {
+          "name": "repository_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stop_reason": {
+          "name": "stop_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "triage_state": {
+          "name": "triage_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Pending'"
+        }
+      },
+      "indexes": {
+        "project_github_repository_link_project_repository_idx": {
+          "name": "project_github_repository_link_project_repository_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "repository_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_github_repository_link_installation_row_id_project_github_installation_id_fk": {
+          "name": "project_github_repository_link_installation_row_id_project_github_installation_id_fk",
+          "tableFrom": "project_github_repository_link",
+          "tableTo": "project_github_installation",
+          "columnsFrom": ["installation_row_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_github_repository_link_project_id_project_id_fk": {
+          "name": "project_github_repository_link_project_id_project_id_fk",
+          "tableFrom": "project_github_repository_link",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_github_repository_link_stop_reason_check": {
+          "name": "project_github_repository_link_stop_reason_check",
+          "value": "\"project_github_repository_link\".\"stop_reason\" is null or \"project_github_repository_link\".\"stop_reason\" in ('App uninstalled', 'Access revoked', 'Repository not found')"
+        },
+        "project_github_repository_link_triage_state_check": {
+          "name": "project_github_repository_link_triage_state_check",
+          "value": "\"project_github_repository_link\".\"triage_state\" in ('Pending', 'Skipped')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.project_github_repository_link_name": {
+      "name": "project_github_repository_link_name",
+      "schema": "",
+      "columns": {
+        "link_id": {
+          "name": "link_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observed_at": {
+          "name": "observed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner": {
+          "name": "owner",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_github_repository_link_name_link_id_project_github_repository_link_id_fk": {
+          "name": "project_github_repository_link_name_link_id_project_github_repository_link_id_fk",
+          "tableFrom": "project_github_repository_link_name",
+          "tableTo": "project_github_repository_link",
+          "columnsFrom": ["link_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "project_github_repository_link_name_pk": {
+          "name": "project_github_repository_link_name_pk",
+          "columns": ["link_id", "observed_at"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.spec_change_review": {
       "name": "spec_change_review",
       "schema": "",
@@ -19074,418 +19398,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.work_automation_application": {
-      "name": "work_automation_application",
-      "schema": "",
-      "columns": {
-        "applied_at": {
-          "name": "applied_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "changes": {
-          "name": "changes",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "idempotency_key": {
-          "name": "idempotency_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "previous_values": {
-          "name": "previous_values",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "undo_until": {
-          "name": "undo_until",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "undone_at": {
-          "name": "undone_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "work_automation_application_key_uidx": {
-          "name": "work_automation_application_key_uidx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "idempotency_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "work_automation_application_project_id_project_id_fk": {
-          "name": "work_automation_application_project_id_project_id_fk",
-          "tableFrom": "work_automation_application",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.work_automation_rule": {
-      "name": "work_automation_rule",
-      "schema": "",
-      "columns": {
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "definition": {
-          "name": "definition",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "enabled": {
-          "name": "enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name_key": {
-          "name": "name_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "trashed_at": {
-          "name": "trashed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        }
-      },
-      "indexes": {
-        "work_automation_rule_project_idx": {
-          "name": "work_automation_rule_project_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "work_automation_rule_project_name_uidx": {
-          "name": "work_automation_rule_project_name_uidx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "name_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "work_automation_rule_project_id_project_id_fk": {
-          "name": "work_automation_rule_project_id_project_id_fk",
-          "tableFrom": "work_automation_rule",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "work_automation_rule_name_check": {
-          "name": "work_automation_rule_name_check",
-          "value": "length(btrim(\"work_automation_rule\".\"name\")) > 0"
-        },
-        "work_automation_rule_revision_check": {
-          "name": "work_automation_rule_revision_check",
-          "value": "\"work_automation_rule\".\"revision\" >= 1"
-        },
-        "work_automation_rule_version_check": {
-          "name": "work_automation_rule_version_check",
-          "value": "\"work_automation_rule\".\"version\" >= 1"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.work_automation_rule_version": {
-      "name": "work_automation_rule_version",
-      "schema": "",
-      "columns": {
-        "definition": {
-          "name": "definition",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rule_id": {
-          "name": "rule_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "saved_at": {
-          "name": "saved_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "work_automation_rule_version_rule_id_work_automation_rule_id_fk": {
-          "name": "work_automation_rule_version_rule_id_work_automation_rule_id_fk",
-          "tableFrom": "work_automation_rule_version",
-          "tableTo": "work_automation_rule",
-          "columnsFrom": ["rule_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "work_automation_rule_version_rule_id_version_pk": {
-          "name": "work_automation_rule_version_rule_id_version_pk",
-          "columns": ["rule_id", "version"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.work_automation_signal": {
-      "name": "work_automation_signal",
-      "schema": "",
-      "columns": {
-        "failed_step": {
-          "name": "failed_step",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rule_id": {
-          "name": "rule_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rule_name": {
-          "name": "rule_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rule_version": {
-          "name": "rule_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "trigger": {
-          "name": "trigger",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "trigger_event_id": {
-          "name": "trigger_event_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "work_automation_signal_project_idx": {
-          "name": "work_automation_signal_project_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "occurred_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "work_automation_signal_project_id_project_id_fk": {
-          "name": "work_automation_signal_project_id_project_id_fk",
-          "tableFrom": "work_automation_signal",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "work_automation_signal_kind_check": {
-          "name": "work_automation_signal_kind_check",
-          "value": "\"work_automation_signal\".\"kind\" in ('automation-failed', 'automation-conflict')"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.roadmap_view": {
       "name": "roadmap_view",
       "schema": "",
@@ -20529,6 +20441,198 @@
         "workspace_tag_assignment_record_type_check": {
           "name": "workspace_tag_assignment_record_type_check",
           "value": "\"workspace_tag_assignment\".\"record_type\" in ('Work')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.migration_artifact": {
+      "name": "migration_artifact",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "diagram_id": {
+          "name": "diagram_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_version_id": {
+          "name": "source_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_version_id": {
+          "name": "target_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_model_hash": {
+          "name": "source_model_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_model_hash": {
+          "name": "target_model_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generator_version": {
+          "name": "generator_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "up_sql": {
+          "name": "up_sql",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "down_sql": {
+          "name": "down_sql",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "static_validation": {
+          "name": "static_validation",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "edit_diff": {
+          "name": "edit_diff",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operations": {
+          "name": "operations",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "warning_manifest": {
+          "name": "warning_manifest",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "digest": {
+          "name": "digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "supersedes_artifact_id": {
+          "name": "supersedes_artifact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "client_idempotency_key": {
+          "name": "client_idempotency_key",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "migration_artifact_diagram_idx": {
+          "name": "migration_artifact_diagram_idx",
+          "columns": [
+            {
+              "expression": "diagram_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "migration_artifact_supersedes_idx": {
+          "name": "migration_artifact_supersedes_idx",
+          "columns": [
+            {
+              "expression": "supersedes_artifact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "migration_artifact_diagram_id_technical_diagram_id_fk": {
+          "name": "migration_artifact_diagram_id_technical_diagram_id_fk",
+          "tableFrom": "migration_artifact",
+          "tableTo": "technical_diagram",
+          "columnsFrom": ["diagram_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "migration_artifact_source_version_id_diagram_version_id_fk": {
+          "name": "migration_artifact_source_version_id_diagram_version_id_fk",
+          "tableFrom": "migration_artifact",
+          "tableTo": "diagram_version",
+          "columnsFrom": ["source_version_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "migration_artifact_target_version_id_diagram_version_id_fk": {
+          "name": "migration_artifact_target_version_id_diagram_version_id_fk",
+          "tableFrom": "migration_artifact",
+          "tableTo": "diagram_version",
+          "columnsFrom": ["target_version_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "migration_artifact_key_unique": {
+          "name": "migration_artifact_key_unique",
+          "nullsNotDistinct": false,
+          "columns": ["account_id", "client_idempotency_key"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "migration_artifact_digest_check": {
+          "name": "migration_artifact_digest_check",
+          "value": "\"migration_artifact\".\"digest\" ~ '^[0-9a-f]{64}$'"
         }
       },
       "isRLSEnabled": false
