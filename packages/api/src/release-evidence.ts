@@ -271,7 +271,7 @@ export interface ReleaseEvidenceWorkFact {
   expectedOutcome: string | null;
   id: string;
   key: string;
-  /** The Work owner's status text, e.g. `Done`. */
+  /** The Work owner's status text, e.g. `Closed` when the Work is terminal. */
   status: string;
   title: string;
 }
@@ -389,7 +389,9 @@ const releaseSource = (facts: ReleaseEvidenceFacts) => ({
 });
 
 const isWorkOpen = (work: ReleaseEvidenceWorkFact) =>
-  work.status !== "Done" && work.status !== "Canceled";
+  // The Work owner's status vocabulary is `Not Started | In Progress |
+  // Blocked | Closed`; `Closed` is the terminal state.
+  work.status !== "Closed";
 
 export function releaseOpenScopeWork(facts: ReleaseEvidenceFacts) {
   if (!facts.scope.available) {
@@ -425,13 +427,15 @@ function attend(
 function unavailable(
   builder: Builder,
   section: ReleaseEvidenceSection,
+  /** The read source that failed; several sources share one section. */
+  sourceKey: string,
   reason: string,
 ) {
   attend(
     builder,
     section,
     "source-unavailable",
-    section,
+    `${sourceKey}:${section}`,
     releaseSource(builder.facts),
     `${section} source is unavailable`,
     reason,
@@ -461,7 +465,7 @@ function scopeSection(builder: Builder) {
     return sectionState(
       "Scope",
       [],
-      unavailable(builder, "Scope", scope.reason),
+      unavailable(builder, "Scope", "scope", scope.reason),
     );
   }
   const rows = scope.value.map(
@@ -588,7 +592,7 @@ function inconsistencyRows(builder: Builder): ReleaseEvidenceRow[] {
   const { inconsistencies, scope } = builder.facts;
   const section = "Pull requests and checks" as const;
   if (!inconsistencies.available) {
-    unavailable(builder, section, inconsistencies.reason);
+    unavailable(builder, section, "inconsistencies", inconsistencies.reason);
     return [];
   }
   return inconsistencies.value.map((item) => {
@@ -631,7 +635,7 @@ function pullRequestSection(builder: Builder) {
     return sectionState(
       section,
       [],
-      unavailable(builder, section, pullRequests.reason),
+      unavailable(builder, section, "pull-requests", pullRequests.reason),
     );
   }
   const rows = pullRequests.value.flatMap((pull) =>
@@ -663,7 +667,9 @@ function recordSection(builder: Builder) {
       });
     }
   } else {
-    reasons.push(unavailable(builder, section, facts.decisions.reason));
+    reasons.push(
+      unavailable(builder, section, "decisions", facts.decisions.reason),
+    );
   }
   if (facts.risks.available) {
     for (const record of facts.risks.value) {
@@ -696,7 +702,7 @@ function recordSection(builder: Builder) {
       }
     }
   } else {
-    reasons.push(unavailable(builder, section, facts.risks.reason));
+    reasons.push(unavailable(builder, section, "risks", facts.risks.reason));
   }
   return sectionState(
     section,
@@ -817,7 +823,7 @@ function testRecordRows(builder: Builder): PartialRows {
   const { facts } = builder;
   if (!facts.tests.available) {
     return {
-      reason: unavailable(builder, "Tests", facts.tests.reason),
+      reason: unavailable(builder, "Tests", "tests", facts.tests.reason),
       rows: [],
     };
   }
@@ -859,7 +865,10 @@ function testRecordRows(builder: Builder): PartialRows {
 function gapRows(builder: Builder): PartialRows {
   const { gaps } = builder.facts;
   if (!gaps.available) {
-    return { reason: unavailable(builder, "Tests", gaps.reason), rows: [] };
+    return {
+      reason: unavailable(builder, "Tests", "gaps", gaps.reason),
+      rows: [],
+    };
   }
   const rows = gaps.value.map((gap): ReleaseEvidenceRow => {
     const source = {
@@ -893,7 +902,7 @@ function assessmentRows(builder: Builder): PartialRows {
   const { assessment } = builder.facts;
   if (!assessment.available) {
     return {
-      reason: unavailable(builder, "Tests", assessment.reason),
+      reason: unavailable(builder, "Tests", "assessment", assessment.reason),
       rows: [],
     };
   }
@@ -973,7 +982,7 @@ function publishDiffSection(builder: Builder) {
     return sectionState(
       section,
       [],
-      unavailable(builder, section, diff.reason),
+      unavailable(builder, section, "publish-diff", diff.reason),
     );
   }
   const source = {

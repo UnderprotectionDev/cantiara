@@ -58,7 +58,7 @@ function facts(
         expectedOutcome: "Users can ship.",
         id: "work-1",
         key: "TID-1",
-        status: "Done",
+        status: "Closed",
         title: "Ship",
       },
     ]),
@@ -125,7 +125,7 @@ describe("Release Evidence Pack", () => {
             expectedOutcome: null,
             id: "work-2",
             key: "TID-2",
-            status: "Open",
+            status: "In Progress",
             title: "Unfinished",
           },
         ]),
@@ -218,7 +218,7 @@ describe("Release Evidence Pack", () => {
         inconsistencies: ok([
           {
             pullRequestRecordId: "pr-7",
-            summary: "TID-1 is Done but #7 is not merged",
+            summary: "TID-1 is Closed but #7 is not merged",
             workId: "work-1",
           },
         ]),
@@ -384,6 +384,42 @@ describe("Release Evidence Pack", () => {
       ),
     ).toBeNull();
     expect(reasons(published)).toContain("published-release-open-scope");
+  });
+
+  test("a Published release whose scope Works are all Closed neither signals nor raises open-scope attention", () => {
+    // The Work owner's terminal state is `Closed`; a closed Work is not open.
+    const closed = facts({
+      release: { ...facts().release, status: "Published" },
+    });
+    expect(deriveReleaseOpenScopeSignal(closed, false)).toBeNull();
+    expect(
+      reasons(closed).filter(
+        (reason) => reason === "published-release-open-scope",
+      ),
+    ).toEqual([]);
+  });
+
+  test("each unavailable source in a section keeps its own attention row", () => {
+    const pack = deriveReleaseEvidencePack(
+      facts({
+        decisions: { available: false, reason: "Karar is not readable." },
+        gaps: { available: false, reason: "Test Gaps are not readable." },
+        risks: { available: false, reason: "Risks are not readable." },
+        tests: { available: false, reason: "Test records are not readable." },
+      }),
+    );
+    const unavailable = pack.attention.filter(
+      (row) => row.reason === "source-unavailable",
+    );
+    expect(unavailable.map((row) => row.section)).toEqual([
+      "Decisions and Risks",
+      "Decisions and Risks",
+      "Tests",
+      "Tests",
+    ]);
+    expect(new Set(unavailable.map((row) => row.rowId)).size).toBe(
+      unavailable.length,
+    );
   });
 
   test("pack inputs reject domain writes, status and score fields", () => {
