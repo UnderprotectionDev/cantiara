@@ -12,11 +12,13 @@ export default function ProjectShellView({
   githubArea,
   projectId,
   releasesArea,
+  releaseEvidenceArea,
 }: {
   accountId?: string;
   githubArea?: ReactNode;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
+  releaseEvidenceArea?: (releaseId: string) => ReactNode;
 }) {
   const { accountPreferencesQuery, projectQuery, scopeTreeQuery } =
     useProjectShellData(accountId, projectId);
@@ -60,6 +62,7 @@ export default function ProjectShellView({
         githubArea={githubArea}
         project={projectQuery.data}
         projectId={projectId}
+        releaseEvidenceArea={releaseEvidenceArea}
         releasesArea={releasesArea}
         scopeTreeQuery={scopeTreeQuery}
       />

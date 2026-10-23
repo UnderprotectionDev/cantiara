@@ -23,6 +23,7 @@ import {
 } from "@tanstack/react-router";
 import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
 import {
+  type ComponentProps,
   type ComponentType,
   lazy,
   type ReactNode,
@@ -326,6 +327,32 @@ export default function ProjectShellSurface(
   );
 }
 
+/** The source record detail; a Project Release also carries its evidence pack. */
+function ProjectSourceRecordRoute({
+  projectId,
+  releaseEvidenceArea,
+  sourceId,
+  sourceType,
+}: {
+  projectId: string;
+  releaseEvidenceArea?: (releaseId: string) => ReactNode;
+  sourceId: string;
+  sourceType: ComponentProps<typeof ProjectSourceRecordView>["sourceType"];
+}) {
+  return (
+    <>
+      <ProjectSourceRecordView
+        projectId={projectId}
+        sourceId={sourceId}
+        sourceType={sourceType}
+      />
+      {sourceType === "Project Release"
+        ? releaseEvidenceArea?.(sourceId)
+        : null}
+    </>
+  );
+}
+
 function projectUncertaintySurface(
   projectId: string,
   accountId: string | undefined,
@@ -411,6 +438,7 @@ function ProjectShellContent({
   project,
   projectId,
   releasesArea,
+  releaseEvidenceArea,
   scopeTreeQuery,
 }: {
   accountId?: string;
@@ -419,6 +447,7 @@ function ProjectShellContent({
   project: ProjectProfile;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
+  releaseEvidenceArea?: (releaseId: string) => ReactNode;
   scopeTreeQuery: UseQueryResult<ScopeTree>;
 }) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
@@ -596,8 +625,9 @@ function ProjectShellContent({
     }
     if (sourceRecordRoute) {
       return (
-        <ProjectSourceRecordView
+        <ProjectSourceRecordRoute
           projectId={projectId}
+          releaseEvidenceArea={releaseEvidenceArea}
           sourceId={sourceRecordRoute.sourceId}
           sourceType={sourceRecordRoute.sourceType}
         />

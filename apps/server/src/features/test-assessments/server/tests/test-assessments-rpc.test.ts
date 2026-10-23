@@ -29,7 +29,7 @@ const input = {
   sessionIds: ["s1"],
 };
 
-const ASSESSMENT_PROCEDURE = /assessment/i;
+const ASSESSMENT_PROCEDURE = /test.?assessment/i;
 
 describe("Test Assessments RPC seam", () => {
   test("records and lists a snapshot for the authenticated account", async () => {

@@ -458,6 +458,29 @@ import {
   usageLinkSchema,
 } from "../relations";
 import {
+  changelogInputSchema,
+  closeAssessmentInputSchema,
+  publishReleaseNoteInputSchema,
+  type ReleaseCommunicationAccess,
+  reassessmentInputSchema,
+  recordObservationInputSchema,
+  releaseNotePreviewInputSchema,
+  releaseNotesInputSchema,
+  saveReleaseNoteDraftMutationInputSchema,
+  setLookAgainInputSchema,
+  startReassessmentInputSchema,
+} from "../release-communication";
+import {
+  addReleaseChecklistItemInputSchema,
+  closeReleaseOpenScopeSignalInputSchema,
+  releaseChecklistItemOutputSchema,
+  releaseEvidencePackInputSchema,
+  releaseEvidencePackSchema,
+  releaseOpenScopeSignalOutputSchema,
+  removeReleaseChecklistItemInputSchema,
+  setReleaseChecklistItemInputSchema,
+} from "../release-evidence";
+import {
   confirmResearchSessionBindingInputSchema,
   previewResearchSessionBindingInputSchema,
 } from "../research-session-bindings";
@@ -1135,6 +1158,60 @@ function requireWorkAutomation(context: Context): WorkAutomationAccess {
   return context.workAutomation;
 }
 
+function requireReleaseCommunication(
+  context: Context,
+): ReleaseCommunicationAccess {
+  if (!context.releaseCommunication) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.releaseCommunication;
+}
+
+function releaseUnavailable(): never {
+  throw new ORPCError("NOT_FOUND", {
+    defined: true,
+    message: "Release is unavailable.",
+  });
+}
+
+function projectUnavailable(): never {
+  throw new ORPCError("NOT_FOUND", {
+    defined: true,
+    message: "Project is unavailable.",
+  });
+}
+
+function rethrowReleaseCommunicationError(error: unknown): never {
+  if (!isRecord(error) || typeof error.code !== "string") {
+    throw error;
+  }
+  const status = {
+    RELEASE_COMMUNICATION_ALREADY_PUBLISHED: "CONFLICT",
+    RELEASE_COMMUNICATION_EVIDENCE_INVALID: "BAD_REQUEST",
+    RELEASE_COMMUNICATION_NOT_FOUND: "NOT_FOUND",
+    RELEASE_COMMUNICATION_NOT_PUBLISHED: "CONFLICT",
+    RELEASE_COMMUNICATION_PREVIEW_BLOCKED: "CONFLICT",
+    RELEASE_COMMUNICATION_PREVIEW_STALE: "PRECONDITION_FAILED",
+    RELEASE_COMMUNICATION_ROUND_CLOSED: "CONFLICT",
+    RELEASE_COMMUNICATION_SCOPE_INVALID: "BAD_REQUEST",
+    RELEASE_COMMUNICATION_STALE_REVISION: "PRECONDITION_FAILED",
+  }[error.code] as
+    | "BAD_REQUEST"
+    | "CONFLICT"
+    | "NOT_FOUND"
+    | "PRECONDITION_FAILED"
+    | undefined;
+  if (!status) {
+    throw error;
+  }
+  throw new ORPCError(status, {
+    data: { code: error.code },
+    defined: true,
+    message:
+      error instanceof Error ? error.message : "Release communication failed.",
+  });
+}
+
 function rethrowWorkAutomationError(error: unknown): never {
   if (!isRecord(error)) {
     throw error;
@@ -1414,6 +1491,13 @@ function requireTestAssessments(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.testAssessments;
+}
+
+function requireReleaseEvidence(context: Context) {
+  if (!context.releaseEvidence) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.releaseEvidence;
 }
 
 function requireGitHubIntegration(context: Context) {
@@ -3461,6 +3545,26 @@ const TEST_ASSESSMENT_FAILURES: Record<string, PlannedTestFailure> = {
   TEST_ASSESSMENT_SOURCE_UNAVAILABLE: { message: null, status: "BAD_REQUEST" },
 };
 
+const RELEASE_EVIDENCE_FAILURES: Record<string, PlannedTestFailure> = {
+  RELEASE_EVIDENCE_CHECKLIST_FULL: { message: null, status: "BAD_REQUEST" },
+  RELEASE_EVIDENCE_CHECKLIST_ITEM_NOT_FOUND: {
+    message: "Checklist item is unavailable.",
+    status: "NOT_FOUND",
+  },
+  RELEASE_EVIDENCE_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  RELEASE_EVIDENCE_PROJECT_READ_ONLY: {
+    message: "Archived Projects are read-only.",
+    status: "BAD_REQUEST",
+  },
+  RELEASE_EVIDENCE_RELEASE_NOT_FOUND: {
+    message: "Project Release is unavailable.",
+    status: "NOT_FOUND",
+  },
+};
+
 interface GitHubIntegrationFailure {
   message: string | null;
   status: "BAD_REQUEST" | "CONFLICT" | "NOT_FOUND" | "PRECONDITION_FAILED";
@@ -3541,6 +3645,32 @@ async function runTestAssessmentOperation<T>(
     }
     const failure = Object.hasOwn(TEST_ASSESSMENT_FAILURES, error.code)
       ? TEST_ASSESSMENT_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message:
+        failure.message ??
+        (error instanceof Error ? error.message : "Request refused."),
+    });
+  }
+}
+
+async function runReleaseEvidenceOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(RELEASE_EVIDENCE_FAILURES, error.code)
+      ? RELEASE_EVIDENCE_FAILURES[error.code]
       : undefined;
     if (!failure) {
       throw error;
@@ -7161,6 +7291,135 @@ export const appRouter = {
         input.receiptId,
       ),
     ),
+  releaseNotes: protectedProcedure
+    .input(releaseNotesInputSchema)
+    .handler(async ({ context, input }) => {
+      const notes = await requireReleaseCommunication(context).listNotes(
+        context.session.user.id,
+        input.releaseId,
+      );
+      return notes ?? releaseUnavailable();
+    }),
+  saveReleaseNoteDraft: protectedProcedure
+    .input(saveReleaseNoteDraftMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { clientIdempotencyKey: _key, ...payload } = input;
+      try {
+        const note = await requireReleaseCommunication(context).saveDraft(
+          context.session.user.id,
+          payload,
+        );
+        return note ?? releaseUnavailable();
+      } catch (error) {
+        rethrowReleaseCommunicationError(error);
+      }
+    }),
+  previewReleaseNotePublish: protectedProcedure
+    .input(releaseNotePreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const preview = await requireReleaseCommunication(
+          context,
+        ).previewPublish(context.session.user.id, input.noteId);
+        return preview ?? releaseUnavailable();
+      } catch (error) {
+        rethrowReleaseCommunicationError(error);
+      }
+    }),
+  publishReleaseNote: protectedProcedure
+    .input(publishReleaseNoteInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision: _base,
+        clientIdempotencyKey: _key,
+        ...payload
+      } = input;
+      try {
+        const entry = await requireReleaseCommunication(context).publish(
+          context.session.user.id,
+          payload,
+        );
+        return entry ?? releaseUnavailable();
+      } catch (error) {
+        rethrowReleaseCommunicationError(error);
+      }
+    }),
+  releaseChangelog: protectedProcedure
+    .input(changelogInputSchema)
+    .handler(async ({ context, input }) => {
+      const entries = await requireReleaseCommunication(context).changelog(
+        context.session.user.id,
+        input,
+      );
+      return entries ?? releaseUnavailable();
+    }),
+  releaseReassessment: protectedProcedure
+    .input(reassessmentInputSchema)
+    .handler(async ({ context, input }) => {
+      const view = await requireReleaseCommunication(context).reassessment(
+        context.session.user.id,
+        input.releaseId,
+      );
+      return view ?? releaseUnavailable();
+    }),
+  reassessmentActionNeeded: protectedProcedure
+    .input(changelogInputSchema.pick({ projectId: true }))
+    .handler(async ({ context, input }) => {
+      const rounds = await requireReleaseCommunication(context).actionNeeded(
+        context.session.user.id,
+        input.projectId,
+      );
+      return rounds ?? projectUnavailable();
+    }),
+  startReleaseReassessment: protectedProcedure
+    .input(startReassessmentInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const round = await requireReleaseCommunication(
+          context,
+        ).startReassessment(context.session.user.id, {
+          lookAgainAt: input.lookAgainAt,
+          releaseId: input.releaseId,
+        });
+        return round ?? releaseUnavailable();
+      } catch (error) {
+        rethrowReleaseCommunicationError(error);
+      }
+    }),
+  recordReleaseObservation: protectedProcedure
+    .input(recordObservationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { clientIdempotencyKey: _key, ...payload } = input;
+      try {
+        const round = await requireReleaseCommunication(
+          context,
+        ).recordObservation(context.session.user.id, payload);
+        return round ?? releaseUnavailable();
+      } catch (error) {
+        rethrowReleaseCommunicationError(error);
+      }
+    }),
+  closeReleaseAssessment: protectedProcedure
+    .input(closeAssessmentInputSchema)
+    .handler(async ({ context, input }) => {
+      const round = await requireReleaseCommunication(context).closeAssessment(
+        context.session.user.id,
+        input.roundId,
+      );
+      return round ?? releaseUnavailable();
+    }),
+  setReleaseLookAgain: protectedProcedure
+    .input(setLookAgainInputSchema)
+    .handler(async ({ context, input }) => {
+      const set = await requireReleaseCommunication(context).setLookAgain(
+        context.session.user.id,
+        input.releaseId,
+        input.fireAt,
+      );
+      return set
+        ? { fireAt: input.fireAt, releaseId: input.releaseId }
+        : releaseUnavailable();
+    }),
   healthCheck: publicProcedure.handler(() => "OK"),
   githubAvailability: publicProcedure.handler(({ context }) => ({
     status: context.githubAvailability.getStatus(),
@@ -7488,6 +7747,67 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runGitHubIntegrationOperation(() =>
         requireGitHubIntegration(context).dismissSignal(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectReleaseEvidencePack: protectedProcedure
+    .input(releaseEvidencePackInputSchema)
+    .output(releaseEvidencePackSchema)
+    .handler(({ context, input }) =>
+      runReleaseEvidenceOperation(() =>
+        requireReleaseEvidence(context).pack(context.session.user.id, input),
+      ),
+    ),
+  projectReleaseOpenScopeSignal: protectedProcedure
+    .input(releaseEvidencePackInputSchema)
+    .output(releaseOpenScopeSignalOutputSchema)
+    .handler(({ context, input }) =>
+      runReleaseEvidenceOperation(async () => ({
+        signal: await requireReleaseEvidence(context).openScopeSignal(
+          context.session.user.id,
+          input,
+        ),
+      })),
+    ),
+  closeReleaseOpenScopeSignal: protectedProcedure
+    .input(closeReleaseOpenScopeSignalInputSchema)
+    .handler(({ context, input }) =>
+      runReleaseEvidenceOperation(() =>
+        requireReleaseEvidence(context).closeOpenScopeSignal(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  addReleaseChecklistItem: protectedProcedure
+    .input(addReleaseChecklistItemInputSchema)
+    .output(releaseChecklistItemOutputSchema)
+    .handler(({ context, input }) =>
+      runReleaseEvidenceOperation(() =>
+        requireReleaseEvidence(context).addChecklistItem(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setReleaseChecklistItem: protectedProcedure
+    .input(setReleaseChecklistItemInputSchema)
+    .output(releaseChecklistItemOutputSchema)
+    .handler(({ context, input }) =>
+      runReleaseEvidenceOperation(() =>
+        requireReleaseEvidence(context).setChecklistItem(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  removeReleaseChecklistItem: protectedProcedure
+    .input(removeReleaseChecklistItemInputSchema)
+    .handler(({ context, input }) =>
+      runReleaseEvidenceOperation(() =>
+        requireReleaseEvidence(context).removeChecklistItem(
           context.session.user.id,
           input,
         ),

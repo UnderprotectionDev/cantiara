@@ -63,6 +63,8 @@ import type {
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "./relations";
+import type { ReleaseCommunicationAccess } from "./release-communication";
+import type { ReleaseEvidenceAccess } from "./release-evidence";
 import type { ResearchSessionsAccess } from "./research-sessions";
 import type { ReturnToWorkAccess } from "./return-to-work";
 import type { RoadmapHorizonAccess } from "./roadmap-horizon";
@@ -223,6 +225,8 @@ export interface Context {
   recordActions?: RecordActionsAccess;
   recordTable?: RecordTableAccess;
   relations?: RelationsAccess;
+  releaseCommunication?: ReleaseCommunicationAccess;
+  releaseEvidence?: ReleaseEvidenceAccess;
   researchSessions?: ResearchSessionsAccess;
   returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;

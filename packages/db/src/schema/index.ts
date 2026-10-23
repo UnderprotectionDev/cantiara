@@ -35,6 +35,8 @@ export * from "./project-release-planning";
 export * from "./project-wall";
 export * from "./record-action";
 export * from "./relation";
+export * from "./release-communication";
+export * from "./release-evidence";
 export * from "./research-session";
 export * from "./return-to-work";
 export * from "./risk";

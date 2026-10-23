@@ -7,7 +7,8 @@ import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
 
-const PROJECT_RELEASE_RPC = /ProjectRelease/i;
+// Planning RPCs only; Release Evidence (spec 64) owns the Evidence Pack and scope signal RPCs.
+const PROJECT_RELEASE_RPC = /ProjectRelease(?!Evidence|OpenScopeSignal)/i;
 
 function setup(authenticated = true) {
   const projectReleasePlanning: ProjectReleasePlanningAccess = {

@@ -1444,6 +1444,14 @@ Tam olarak bir Projeye ait Proje Sürümünde yayımlanacak İş kapsamını, ay
 UI: `Project Releases`, `Planning`, `Scope`, `Add Work to scope`, `Remove from scope`, `Audience`, `Primary access path`, `Access evidence`, `Intended outcome`, `Outcome evidence`, `Environment link`, `Create Project Release`.
 _Avoid_: Sürüm Kanıt Paketi, sprint planlaması, otomatik kapsam, yayın kapısı
 
+**Sürüm Kanıt Paketi**:
+Bir Proje Sürümünün kapsam, PR ve check, Karar, Risk, test, Test Açığı, kontrol listesi ve yayın farkını ana kaynaklarından türetip açan salt okunur değerlendirme yüzeyi; skor, hazır/hazır değil hükmü, yayın kapısı, sürüm notu veya kapanış özeti değildir ([Sürüm Kanıt Paketi](docs/prd/12-github-and-project-releases.md#sürüm-kanıt-paketi-ve-yayın-hazırlığı)). UI: `Release Evidence Pack`, `Open source record`.
+_Avoid_: Sürüm onayı, readiness skoru, yayın kapısı, Test özeti, PR Bağlam Kartı, Ürün sürüm adayı kanıtı
+
+**Sürüm kontrol listesi**:
+Kurucunun Sürüm Kanıt Paketinde yönettiği isteğe bağlı yayın maddeleri ve işaretleri; Proje Sürümü durumunu yazmaz, yayını kapılamaz veya otomatikleştirmez. UI: `Checklist`, `Add item`, `Remove`, `Close signal`.
+_Avoid_: Yayın kapısı, ikinci yayın checklist'i, Hafif kontrol listesi
+
 **Sürüm iletişim iskeleti**:
 Bir Proje Sürümüne ait, kullanıcının seçtiği kayıtlara bağlı ve cümlesini kendisinin yazdığı yayın söylemi maddeleri; otomatik anlatı veya herkese açık changelog değildir.
 _Avoid_: Yapım hikâyesi, otomatik blog, changelog yüzeyi
@@ -1455,6 +1463,14 @@ _Avoid_: Kampanya sonucu, erişim skoru, otomatik analytics sonucu
 **Sonuç gözlemi**:
 Bir Proje Sürümünden sonra hedeflenen davranış veya sonucun belirli bir değerlendirme turunda hangi ölçüde görüldüğüne dair kullanıcı tarafından kaydedilen sahipli değerlendirme; Erişim gözleminin yerine geçmez.
 _Avoid_: Sürüm başarısı, otomatik etki puanı, Erişim gözlemi
+
+**Sürüm notu**:
+Bir Proje Sürümünün kapsamındaki İşlere bağlanan, kullanıcının yazdığı ve yayın onayına kadar özel kalan Markdown anlatısı; onaylı yayın snapshot'ı sürekli changelog görünümüne girer, GitHub Release metni ikinci doğruluk kaynağı değildir ve Build in Public akışı veya Wiki yayını değildir ([Proje Sürümü iletişimi](docs/prd/12-github-and-project-releases.md#proje-sürümü-iletişimi)). UI: `Release notes`, `Changelog`, `Why was this done?`.
+_Avoid_: GitHub Release metni, kapsamsız pazarlama paragrafı, özel changelog kitlesi, ikinci etiket sistemi
+
+**Etki değerlendirme turu**:
+Yayımlanmış bir Proje Sürümünde kullanıcının açıkça başlattığı, tarihli ve sıralı değerlendirme; sıfır veya bir Erişim gözlemi ile sıfır veya bir Sonuç gözlemi taşır, sonraki tur öncekini yeniden yazmaz ve Özellik veya Proje Sürümü kapanışını engellemez ([Proje Sürümü iletişimi](docs/prd/12-github-and-project-releases.md#proje-sürümü-iletişimi)). UI: `Reassess impact`, `Close assessment`.
+_Avoid_: etki değerlendirme ana kaydı, scorecard, sabit kadans, Üretim Olayı, Manuel Proje Güncellemesi
 
 **Ürün sürüm adayı**:
 Bu ürünün PRD kabul koşullarına karşı doğrulanan kesin build'i; kullanıcının yönettiği bir Proje Sürümü değildir.

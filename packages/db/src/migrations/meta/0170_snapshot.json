@@ -1,5 +1,5 @@
 {
-  "id": "96933752-474d-412b-8041-bc47433f066e",
+  "id": "118a360c-8962-4223-abf1-2ed75d8f0af4",
   "prevId": "41ee3556-bc0a-4163-ac81-c0f526dd8adf",
   "version": "7",
   "dialect": "postgresql",
@@ -12025,6 +12025,171 @@
       },
       "isRLSEnabled": false
     },
+    "public.project_release_checklist_item": {
+      "name": "project_release_checklist_item",
+      "schema": "",
+      "columns": {
+        "checked": {
+          "name": "checked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "release_id": {
+          "name": "release_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "project_release_checklist_item_release_idx": {
+          "name": "project_release_checklist_item_release_idx",
+          "columns": [
+            {
+              "expression": "release_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_release_checklist_item_project_id_project_id_fk": {
+          "name": "project_release_checklist_item_project_id_project_id_fk",
+          "tableFrom": "project_release_checklist_item",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_release_checklist_item_release_id_project_release_id_fk": {
+          "name": "project_release_checklist_item_release_id_project_release_id_fk",
+          "tableFrom": "project_release_checklist_item",
+          "tableTo": "project_release",
+          "columnsFrom": ["release_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_release_checklist_item_text_check": {
+          "name": "project_release_checklist_item_text_check",
+          "value": "length(btrim(\"project_release_checklist_item\".\"text\")) between 1 and 500"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.project_release_signal_close": {
+      "name": "project_release_signal_close",
+      "schema": "",
+      "columns": {
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "release_id": {
+          "name": "release_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signal_id": {
+          "name": "signal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_release_signal_close_project_id_project_id_fk": {
+          "name": "project_release_signal_close_project_id_project_id_fk",
+          "tableFrom": "project_release_signal_close",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_release_signal_close_release_id_project_release_id_fk": {
+          "name": "project_release_signal_close_release_id_project_release_id_fk",
+          "tableFrom": "project_release_signal_close",
+          "tableTo": "project_release",
+          "columnsFrom": ["release_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "project_release_signal_close_pk": {
+          "name": "project_release_signal_close_pk",
+          "columns": ["release_id", "signal_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.project_github_attention_signal": {
       "name": "project_github_attention_signal",
       "schema": "",
@@ -17345,18 +17510,6 @@
       "name": "project_release",
       "schema": "",
       "columns": {
-        "access_evidence": {
-          "name": "access_evidence",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "audience": {
-          "name": "audience",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -17376,29 +17529,11 @@
           "primaryKey": true,
           "notNull": true
         },
-        "intended_outcome": {
-          "name": "intended_outcome",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "name": {
           "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "outcome_evidence": {
-          "name": "outcome_evidence",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "primary_access_path": {
-          "name": "primary_access_path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "project_id": {
           "name": "project_id",
@@ -17493,441 +17628,6 @@
         "project_release_version_label_check": {
           "name": "project_release_version_label_check",
           "value": "\"project_release\".\"version_label\" is null or length(btrim(\"project_release\".\"version_label\")) <= 255"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.project_release_audience": {
-      "name": "project_release_audience",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "contact_id": {
-          "name": "contact_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "persona_document_id": {
-          "name": "persona_document_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "release_id": {
-          "name": "release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "removed_at": {
-          "name": "removed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "target_type": {
-          "name": "target_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "project_release_audience_release_idx": {
-          "name": "project_release_audience_release_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "release_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "project_release_audience_company_id_workspace_company_id_fk": {
-          "name": "project_release_audience_company_id_workspace_company_id_fk",
-          "tableFrom": "project_release_audience",
-          "tableTo": "workspace_company",
-          "columnsFrom": ["company_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "project_release_audience_contact_id_workspace_contact_id_fk": {
-          "name": "project_release_audience_contact_id_workspace_contact_id_fk",
-          "tableFrom": "project_release_audience",
-          "tableTo": "workspace_contact",
-          "columnsFrom": ["contact_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "project_release_audience_persona_document_id_document_id_fk": {
-          "name": "project_release_audience_persona_document_id_document_id_fk",
-          "tableFrom": "project_release_audience",
-          "tableTo": "document",
-          "columnsFrom": ["persona_document_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "project_release_audience_project_id_project_id_fk": {
-          "name": "project_release_audience_project_id_project_id_fk",
-          "tableFrom": "project_release_audience",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "project_release_audience_release_id_project_release_id_fk": {
-          "name": "project_release_audience_release_id_project_release_id_fk",
-          "tableFrom": "project_release_audience",
-          "tableTo": "project_release",
-          "columnsFrom": ["release_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "project_release_audience_target_type_check": {
-          "name": "project_release_audience_target_type_check",
-          "value": "\"project_release_audience\".\"target_type\" in ('Persona', 'Contact', 'Company')"
-        },
-        "project_release_audience_target_check": {
-          "name": "project_release_audience_target_check",
-          "value": "(\"project_release_audience\".\"target_type\" = 'Persona' and \"project_release_audience\".\"persona_document_id\" is not null and \"project_release_audience\".\"contact_id\" is null and \"project_release_audience\".\"company_id\" is null) or (\"project_release_audience\".\"target_type\" = 'Contact' and \"project_release_audience\".\"contact_id\" is not null and \"project_release_audience\".\"persona_document_id\" is null and \"project_release_audience\".\"company_id\" is null) or (\"project_release_audience\".\"target_type\" = 'Company' and \"project_release_audience\".\"company_id\" is not null and \"project_release_audience\".\"persona_document_id\" is null and \"project_release_audience\".\"contact_id\" is null)"
-        },
-        "project_release_audience_revision_check": {
-          "name": "project_release_audience_revision_check",
-          "value": "\"project_release_audience\".\"revision\" >= 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.project_release_link": {
-      "name": "project_release_link",
-      "schema": "",
-      "columns": {
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "label": {
-          "name": "label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "release_id": {
-          "name": "release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "removed_at": {
-          "name": "removed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "repository_link_id": {
-          "name": "repository_link_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "url": {
-          "name": "url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "project_release_link_release_idx": {
-          "name": "project_release_link_release_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "release_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "project_release_link_project_id_project_id_fk": {
-          "name": "project_release_link_project_id_project_id_fk",
-          "tableFrom": "project_release_link",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "project_release_link_release_id_project_release_id_fk": {
-          "name": "project_release_link_release_id_project_release_id_fk",
-          "tableFrom": "project_release_link",
-          "tableTo": "project_release",
-          "columnsFrom": ["release_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "project_release_link_repository_link_id_project_github_repository_link_id_fk": {
-          "name": "project_release_link_repository_link_id_project_github_repository_link_id_fk",
-          "tableFrom": "project_release_link",
-          "tableTo": "project_github_repository_link",
-          "columnsFrom": ["repository_link_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "project_release_link_kind_check": {
-          "name": "project_release_link_kind_check",
-          "value": "\"project_release_link\".\"kind\" in ('Tag', 'Release', 'Environment link')"
-        },
-        "project_release_link_repository_check": {
-          "name": "project_release_link_repository_check",
-          "value": "\"project_release_link\".\"kind\" = 'Environment link' or \"project_release_link\".\"repository_link_id\" is not null"
-        },
-        "project_release_link_label_check": {
-          "name": "project_release_link_label_check",
-          "value": "length(btrim(\"project_release_link\".\"label\")) between 1 and 255"
-        },
-        "project_release_link_url_check": {
-          "name": "project_release_link_url_check",
-          "value": "\"project_release_link\".\"url\" is null or length(\"project_release_link\".\"url\") between 1 and 2048"
-        },
-        "project_release_link_revision_check": {
-          "name": "project_release_link_revision_check",
-          "value": "\"project_release_link\".\"revision\" >= 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.project_release_scope": {
-      "name": "project_release_scope",
-      "schema": "",
-      "columns": {
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "release_id": {
-          "name": "release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "removed_at": {
-          "name": "removed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "work_id": {
-          "name": "work_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "project_release_scope_release_work_uidx": {
-          "name": "project_release_scope_release_work_uidx",
-          "columns": [
-            {
-              "expression": "release_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "work_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "project_release_scope_project_work_idx": {
-          "name": "project_release_scope_project_work_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "work_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "project_release_scope_project_id_project_id_fk": {
-          "name": "project_release_scope_project_id_project_id_fk",
-          "tableFrom": "project_release_scope",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "project_release_scope_release_id_project_release_id_fk": {
-          "name": "project_release_scope_release_id_project_release_id_fk",
-          "tableFrom": "project_release_scope",
-          "tableTo": "project_release",
-          "columnsFrom": ["release_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "project_release_scope_work_fk": {
-          "name": "project_release_scope_work_fk",
-          "tableFrom": "project_release_scope",
-          "tableTo": "work",
-          "columnsFrom": ["project_id", "work_id"],
-          "columnsTo": ["project_id", "id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "project_release_scope_revision_check": {
-          "name": "project_release_scope_revision_check",
-          "value": "\"project_release_scope\".\"revision\" >= 0"
         }
       },
       "isRLSEnabled": false
