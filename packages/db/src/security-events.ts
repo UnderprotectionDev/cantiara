@@ -2,12 +2,14 @@ import { Client, Pool } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
 
 import "./local-postgres";
+import { reportIdleClientError } from "./pool-error";
 import { securityEvent } from "./schema/security-event";
 
 const schema = { securityEvent };
 
 export function createSecurityEventDb(config: { DATABASE_URL: string }) {
   const pool = new Pool({ connectionString: config.DATABASE_URL });
+  pool.on("error", reportIdleClientError);
   return drizzle({ client: pool, schema });
 }
 
