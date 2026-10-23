@@ -252,6 +252,24 @@ describe("Look again", () => {
     expect(fixtures.reminders).toHaveLength(1);
   });
 
+  test("a failed reminder date starts no round to retry into", async () => {
+    const fixtures = createFixtures({
+      release: { status: "Published" },
+      scheduleError: "reminder store unavailable",
+    });
+
+    await expect(
+      fixtures.access.startReassessment(ACCOUNT_ID, {
+        lookAgainAt: "2026-11-20T09:00:00.000Z",
+        releaseId: RELEASE_ID,
+      }),
+    ).rejects.toThrow("reminder store unavailable");
+    expect(fixtures.reminders).toEqual([]);
+    expect(
+      (await fixtures.access.reassessment(ACCOUNT_ID, RELEASE_ID))?.rounds,
+    ).toEqual([]);
+  });
+
   test("another account cannot set or read it", async () => {
     const fixtures = published();
     expect(

@@ -535,14 +535,16 @@ export function createReleaseCommunication(
           "Reassess impact opens after the Release is published.",
         );
       }
+      if (input.lookAgainAt) {
+        // Scheduled first: a failed reminder date must not leave a round
+        // behind that a retry would duplicate. The reminder starts no round.
+        await reminders.schedule(accountId, release.id, input.lookAgainAt);
+      }
       const round = await store.createRound({
         projectId: release.projectId,
         releaseId: release.id,
         startedAt: now().toISOString(),
       });
-      if (input.lookAgainAt) {
-        await reminders.schedule(accountId, release.id, input.lookAgainAt);
-      }
       return withState(round);
     },
   };

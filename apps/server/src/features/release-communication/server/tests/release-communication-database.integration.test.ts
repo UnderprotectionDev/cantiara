@@ -188,5 +188,23 @@ describeDatabase("Release Communication PostgreSQL integration", () => {
 
     expect(closed.closeReason).toBe("Close assessment");
     expect(await store.openRounds(projectId)).toEqual([]);
+
+    // The guarded write keeps observations off closed rounds even when the
+    // seam's own open-round check is passed by a concurrent reader.
+    await expect(
+      store.saveObservation({
+        assessment: "Observed",
+        authorId: accountId,
+        baseRevision: 0,
+        evidence: [],
+        kind: "outcome",
+        observedAt: "2026-10-24T10:00:00.000Z",
+        roundId: round.id,
+        savedAt: "2026-10-24T10:00:00.000Z",
+        text: "written after close",
+      }),
+    ).rejects.toMatchObject({
+      code: "RELEASE_COMMUNICATION_ROUND_CLOSED",
+    });
   });
 });

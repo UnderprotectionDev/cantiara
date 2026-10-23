@@ -1156,6 +1156,13 @@ function releaseUnavailable(): never {
   });
 }
 
+function projectUnavailable(): never {
+  throw new ORPCError("NOT_FOUND", {
+    defined: true,
+    message: "Project is unavailable.",
+  });
+}
+
 function rethrowReleaseCommunicationError(error: unknown): never {
   if (!isRecord(error) || typeof error.code !== "string") {
     throw error;
@@ -7209,7 +7216,7 @@ export const appRouter = {
         context.session.user.id,
         input.projectId,
       );
-      return rounds ?? releaseUnavailable();
+      return rounds ?? projectUnavailable();
     }),
   startReleaseReassessment: protectedProcedure
     .input(startReassessmentInputSchema)

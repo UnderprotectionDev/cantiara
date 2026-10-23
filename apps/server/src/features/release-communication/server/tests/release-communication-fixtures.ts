@@ -44,6 +44,7 @@ export function createScopeWork(
 export function createFixtures(
   input: {
     release?: Partial<ReleaseFactsRelease>;
+    scheduleError?: string;
     scope?: ReleaseScopeWork[];
   } = {},
 ) {
@@ -108,6 +109,9 @@ export function createFixtures(
     now: () => clock.current,
     reminders: {
       schedule: async (_accountId, releaseId, fireAt) => {
+        if (input.scheduleError) {
+          throw new Error(input.scheduleError);
+        }
         reminders.push({ fireAt, releaseId });
         return true;
       },

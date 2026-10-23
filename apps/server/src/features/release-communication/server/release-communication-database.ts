@@ -45,6 +45,28 @@ const stale = () =>
     "Release communication changed. Reload and try again.",
   );
 
+const roundClosed = () =>
+  new ReleaseCommunicationError(
+    "RELEASE_COMMUNICATION_ROUND_CLOSED",
+    "This assessment is closed.",
+  );
+
+/** A concurrent twin write hit a unique index, whatever the driver wraps it in. */
+function isUniqueViolation(error: unknown) {
+  let current: unknown = error;
+  while (current instanceof Error) {
+    const { cause, code } = current as Error & {
+      cause?: unknown;
+      code?: unknown;
+    };
+    if (code === "23505") {
+      return true;
+    }
+    current = cause;
+  }
+  return false;
+}
+
 function toNote(row: typeof releaseNote.$inferSelect): ReleaseNote {
   return releaseNoteSchema.parse({
     body: row.body,
@@ -188,27 +210,36 @@ export function createDatabaseReleaseStore(
     },
 
     async createRound({ projectId, releaseId, startedAt }) {
-      return await database.transaction(async (transaction) => {
-        const [latest] = await transaction
-          .select({ sequence: releaseReassessmentRound.sequence })
-          .from(releaseReassessmentRound)
-          .where(eq(releaseReassessmentRound.releaseId, releaseId))
-          .orderBy(desc(releaseReassessmentRound.sequence))
-          .limit(1);
-        const id = crypto.randomUUID();
-        await transaction.insert(releaseReassessmentRound).values({
-          id,
-          projectId,
-          releaseId,
-          sequence: (latest?.sequence ?? 0) + 1,
-          startedAt: new Date(startedAt),
+      try {
+        return await database.transaction(async (transaction) => {
+          const [latest] = await transaction
+            .select({ sequence: releaseReassessmentRound.sequence })
+            .from(releaseReassessmentRound)
+            .where(eq(releaseReassessmentRound.releaseId, releaseId))
+            .orderBy(desc(releaseReassessmentRound.sequence))
+            .limit(1);
+          const id = crypto.randomUUID();
+          await transaction.insert(releaseReassessmentRound).values({
+            id,
+            projectId,
+            releaseId,
+            sequence: (latest?.sequence ?? 0) + 1,
+            startedAt: new Date(startedAt),
+          });
+          const created = await round(transaction, id);
+          if (!created) {
+            throw stale();
+          }
+          return created;
         });
-        const created = await round(transaction, id);
-        if (!created) {
+      } catch (error) {
+        // A concurrent twin start read the same latest sequence; the retry
+        // allocates the next one instead of surfacing a raw database error.
+        if (isUniqueViolation(error)) {
           throw stale();
         }
-        return created;
-      });
+        throw error;
+      }
     },
 
     async findNote(noteId) {
@@ -339,6 +370,21 @@ export function createDatabaseReleaseStore(
 
     async saveObservation(write: ObservationWrite) {
       return await database.transaction(async (transaction) => {
+        // Locking the round first serializes observation writes against a
+        // concurrent Close assessment: it can never land on a closed round,
+        // and two corrections read their revisions one after the other.
+        const [guardedRound] = await transaction
+          .select({ closedAt: releaseReassessmentRound.closedAt })
+          .from(releaseReassessmentRound)
+          .where(eq(releaseReassessmentRound.id, write.roundId))
+          .for("update")
+          .limit(1);
+        if (!guardedRound) {
+          throw stale();
+        }
+        if (guardedRound.closedAt) {
+          throw roundClosed();
+        }
         const [existing] = await transaction
           .select()
           .from(releaseObservation)
@@ -538,6 +584,70 @@ export function createDatabaseReleaseFacts(
     },
 
     whyTrailRecord: () => Promise.resolve(null),
+  };
+}
+
+/** Narrow view of the personal reminder store that the `Look again` wiring needs. */
+interface LookAgainReminderStore {
+  cancel: (
+    accountId: string,
+    reminderId: string,
+    expected?: {
+      action?: "Review Later";
+      sourceRecordType?: "Project Release";
+    },
+  ) => Promise<unknown>;
+  create: (
+    accountId: string,
+    input: {
+      action: "Review Later";
+      clientIdempotencyKey: string;
+      condition?: "In any case" | "Only if still open";
+      fireAt: string;
+      sourceRecordId: string;
+      sourceRecordType: "Project Release";
+    },
+  ) => Promise<unknown>;
+  list: (
+    accountId: string,
+    input: { sourceRecordId: string; sourceRecordType: "Project Release" },
+  ) => Promise<{ action: string; id: string; status: string }[] | null>;
+}
+
+/**
+ * PRD 12: picking a date sets the user's existing personal `Look again`
+ * reminder for the source Proje Sürümü. An unsent one is replaced, so
+ * re-picking a date never accumulates fires on the Release; a reminder that
+ * has already fired stays in its signals and a new date starts a new reminder.
+ */
+export function createLookAgainSchedule(
+  reminders: LookAgainReminderStore,
+): LookAgainReminders["schedule"] {
+  return async (accountId, releaseId, fireAt) => {
+    const existing = await reminders.list(accountId, {
+      sourceRecordId: releaseId,
+      sourceRecordType: "Project Release",
+    });
+    for (const reminder of existing ?? []) {
+      if (reminder.action !== "Review Later" || reminder.status !== "Planned") {
+        continue;
+      }
+      // biome-ignore lint/performance/noAwaitInLoops: each unsent reminder is replaced before the new date.
+      await reminders.cancel(accountId, reminder.id, {
+        action: "Review Later",
+        sourceRecordType: "Project Release",
+      });
+    }
+    return (
+      (await reminders.create(accountId, {
+        action: "Review Later",
+        clientIdempotencyKey: `look-again:${releaseId}:${fireAt}`,
+        condition: "In any case",
+        fireAt,
+        sourceRecordId: releaseId,
+        sourceRecordType: "Project Release",
+      })) !== null
+    );
   };
 }
 

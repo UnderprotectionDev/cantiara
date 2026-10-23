@@ -101,7 +101,10 @@ import {
   createDatabaseUsageLinkMutationContracts,
   createDatabaseUsageLinks,
 } from "./features/relations/server/usage-links-database";
-import { createDatabaseReleaseCommunication } from "./features/release-communication/server/release-communication-database";
+import {
+  createDatabaseReleaseCommunication,
+  createLookAgainSchedule,
+} from "./features/release-communication/server/release-communication-database";
 import {
   createDatabaseResearchSessions,
   sweepExpiredResearchBindingPreviews,
@@ -258,15 +261,9 @@ const personalReminderWorker = createPersonalReminderWorker({
 export const startPersonalReminderWorker = personalReminderWorker.start;
 export const stopPersonalReminderWorker = personalReminderWorker.stop;
 export const releaseCommunication = createDatabaseReleaseCommunication(db, {
-  schedule: async (accountId, releaseId, fireAt) =>
-    (await personalReminderStore.create(accountId, {
-      action: "Review Later",
-      clientIdempotencyKey: `look-again:${releaseId}:${fireAt}`,
-      condition: "In any case",
-      fireAt,
-      sourceRecordId: releaseId,
-      sourceRecordType: "Project Release",
-    })) !== null,
+  // The Look again date replaces the Release's unsent Review Later reminder
+  // instead of accumulating fires on it (see createLookAgainSchedule).
+  schedule: createLookAgainSchedule(personalReminderStore),
 });
 const priorityMetricStore = createDatabasePriorityMetrics(db);
 export const priorityMetrics = createPriorityMetricsAccess(priorityMetricStore);
