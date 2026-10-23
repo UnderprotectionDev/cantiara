@@ -97,6 +97,10 @@ export function createServerEnv(
         .default("development"),
       PORT: z.coerce.number().int().positive().optional(),
       NEON_LOCAL_PROXY: z.string().min(1).optional(),
+      // Static SQL validation: a dedicated Neon branch, never the product database.
+      NEON_API_KEY: z.string().min(1).optional(),
+      NEON_VALIDATION_BRANCH_ID: z.string().min(1).optional(),
+      NEON_VALIDATION_PROJECT_ID: z.string().min(1).optional(),
       BETTER_AUTH_SECRET: z.string().min(32),
       BETTER_AUTH_URL: z.url(),
       CORS_ORIGIN: z.url(),

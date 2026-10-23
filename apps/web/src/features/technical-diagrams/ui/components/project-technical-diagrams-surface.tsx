@@ -12,6 +12,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { AppLink } from "@/components/app-link";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { usePersonalTechnicalDiagramView } from "../../hooks/use-personal-technical-diagram-view";
@@ -227,6 +228,14 @@ function DiagramCard({
       <p className="text-muted-foreground text-sm">
         {diagram.type} · {diagram.authorityMode}
       </p>
+      {diagram.type === "Data Model" ? (
+        <AppLink
+          className="text-sm underline"
+          href={`/projects/${encodeURIComponent(diagram.projectId)}/schema-artifacts?diagramId=${encodeURIComponent(diagram.id)}`}
+        >
+          Open Schema Artifacts
+        </AppLink>
+      ) : null}
       <DiagramOrigins origins={diagram.origins} />
       {diagram.externalSource ? (
         <ExternalSourceLinkDetails source={diagram.externalSource} />
