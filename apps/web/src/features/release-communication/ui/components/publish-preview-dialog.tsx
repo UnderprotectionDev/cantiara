@@ -71,6 +71,12 @@ export function PublishPreviewDialog({
   const [selection, setSelection] = useState<PublishSelection>(
     EMPTY_PUBLISH_SELECTION,
   );
+  const [selectionFor, setSelectionFor] = useState(preview.fingerprint);
+  if (selectionFor !== preview.fingerprint) {
+    // A changed preview never inherits approvals given to an earlier one.
+    setSelectionFor(preview.fingerprint);
+    setSelection(EMPTY_PUBLISH_SELECTION);
+  }
   const blocked = preview.findings.length > 0;
 
   return (

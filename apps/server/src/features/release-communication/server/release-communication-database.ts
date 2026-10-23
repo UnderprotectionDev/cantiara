@@ -73,7 +73,7 @@ function toObservation(
     id: row.id,
     kind: row.kind as Observation["kind"],
     observedAt: row.observedAt.toISOString(),
-    previous: previous
+    previous: [...previous]
       .sort((left, right) => left.revision - right.revision)
       .map((entry) => ({
         assessment: entry.assessment as Observation["assessment"],

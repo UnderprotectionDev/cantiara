@@ -110,6 +110,8 @@ describeDatabase("Release Communication PostgreSQL integration", () => {
     const entry = await store.publish({
       approvedAt: "2026-10-23T10:00:00.000Z",
       body: "First",
+      buildInPublicEventIds: [],
+      changelogLinks: [],
       noteId: created.id,
       publicLabels: [{ label: "Released", workId: "work-1" }],
       releaseId,

@@ -309,6 +309,7 @@ describe("Publish", () => {
       },
     });
     expect(entry?.publicLabels).toEqual([]);
+    expect(entry?.buildInPublicEventIds).toEqual(["event-1"]);
   });
 
   test("never completes Work or writes a Release status, and the note is frozen", async () => {

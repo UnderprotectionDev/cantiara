@@ -95,6 +95,8 @@ export interface NoteWrite {
 export interface ApprovedSnapshot {
   approvedAt: string;
   body: string;
+  buildInPublicEventIds: string[];
+  changelogLinks: { href: string; label: string }[];
   noteId: string;
   publicLabels: { label: string; workId: string }[];
   releaseId: string;
@@ -387,6 +389,14 @@ export function createReleaseCommunication(
       return store.publish({
         approvedAt: now().toISOString(),
         body: found.note.body,
+        buildInPublicEventIds: preview.buildInPublicEvents
+          .filter((event) =>
+            input.approval.buildInPublicEventIds.includes(event.id),
+          )
+          .map((event) => event.id),
+        changelogLinks: preview.changelogLinks.filter((link) =>
+          input.approval.changelogLinkHrefs.includes(link.href),
+        ),
         noteId: found.note.id,
         publicLabels,
         releaseId: found.release.id,
@@ -409,7 +419,7 @@ export function createReleaseCommunication(
         goal: release.goal,
         hypothesis: release.hypothesis,
         releaseId,
-        rounds: rounds
+        rounds: [...rounds]
           .sort((left, right) => left.sequence - right.sequence)
           .map(withState),
         scope: scope.map((entry) => ({

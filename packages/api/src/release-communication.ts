@@ -221,6 +221,9 @@ export type PublishReleaseNoteInput = z.infer<
 export interface ChangelogEntry {
   approvedAt: string;
   body: string;
+  /** Only the Build in Public events and links approved item by item. */
+  buildInPublicEventIds: string[];
+  changelogLinks: { href: string; label: string }[];
   noteId: string;
   publicLabels: { label: string; workId: string }[];
   releaseId: string;
