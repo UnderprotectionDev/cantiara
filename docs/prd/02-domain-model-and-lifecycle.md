@@ -1337,6 +1337,43 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Dış kopya nasıl kapatıldı | `How the external copy was closed` | Dış kopyanın paralel doğruluk kaynağı olmaktan çıkışının okunur açıklaması |
 | Kapanış kanıtı | `Close evidence` | Kapanmış Dış Araca Kaçışın görünür kanıtı: aday build, çalıştırma, dönüş yolu, bağlı kayıtlar ve dış kopya açıklaması |
 | Araca, nedene, Projeye veya duruma göre süz | `Filter by external tool`, `Filter by reason`, `Filter by Project`, `Filter by status` | Dogfooding özetinin yalnız seçen süzgeçleri; sıralama veya puan üretmez |
+| Web Capture boş seçim | `No selected text` | Uzantıda seçili metin yokken önizleme satırı; yakalama oluşturmaz |
+| Web Capture bekleme | `Sending…`, `Pairing…` | Gönderme ve eşleme sürerken düğme durumu |
+| Tamamlandı olarak işaretle | `Mark as Completed` | Otomasyon önerisi; kapatma adımını `Completed` seçili açar, kendiliğinden kapatmaz |
+| Proje Sürümü oluştur | `Create Project Release` | Tek bir Projeye ait yeni Proje Sürümü açma eylemi |
+| Proje Sürümü kapsamı | `Scope`, `Add Work to scope`, `Remove from scope` | Yayımlanacak İş kümesi; Kilometre Taşı veya Odak Dönemi değildir |
+| Proje Sürümü planlaması | `Planning` | Proje Sürümü ayrıntısında kapsam, bağlar ve hipotez bölümü |
+| Erişim ve sonuç hipotezi | `Audience`, `Primary access path`, `Access evidence`, `Intended outcome`, `Outcome evidence` | Proje Sürümü için isteğe bağlı hipotez alanları |
+| Ortam bağlantısı | `Environment link` | Proje Sürümüne bağlı dış ortam kaydı |
+| Sürüm durumu eylemleri | `Mark Published`, `Mark Cancelled` | `Published` ve `Cancelled` terminal durumlarına yalnız açık eylemle geçiş |
+| Üretim Olayı kaydet | `Record Production Incident` | Yeni Üretim Olayını başlık ve zamanla açma eylemi |
+| GitHub bağlantı eylemleri | `Connect repository`, `Install GitHub App`, `Connect selected repositories`, `GitHub records` | Repository bağlama akışı ve bağlı salt okunur GitHub kayıtları |
+| GitHub eşitleme durumu | `Last synced`, `Last error`, `Retry after`, `Source not found` | Eşitleme sağlığı; `No access` erişim kaybını gösterir |
+| İlk bağlantı triage | `Skip triage`, `Preview Work to create` | Issue'lardan İş oluşturmayı atlama veya önizleme |
+| PR inceleme durumu | `Pending`, `Approved`, `Changes requested`, `Commented` | GitHub'dan gelen salt okunur inceleme durumu |
+| Salt okunur Proje bandı | `This Project is archived and read-only.` | Arşivli Projede ve kayıtlarında salt okunur ve hareketsiz olduğunu söyleyen bant |
+| Proje arşivini geri al | `Unarchive` | Arşivlenen Projeyi çalışma yüzeyine kimliği değiştirmeden döndürme |
+| Çıkış paketi parolası | `Package password`, `Confirm package password` | Workspace Exit Package şifreleme parolası; sunucuda saklanmaz |
+| Paylaşım parolası ve süre | `Password`, `Expires on`, `No expiry` | Bağlantı paylaşımı erişim ayarları |
+| Parola kapısı | `Enter the password to view this page.`, `Password`, `View` | Parolalı bağlantıyı açan ziyaretçi metni |
+| Bağlantı süresi doldu | `This link has expired.` | Süresi dolmuş bağlantıya gelen ziyaretçi; yüzeyin var olup olmadığını açığa vurmaz |
+| Rota bulunamadı | `This page is unavailable.` | Varlığını ya da başlığını sızdırmayan genel bulunamadı metni |
+| Oturum sona erdi | `Your session has ended. Sign in again to continue.` | Giriş yüzeyinde oturum bitişi açıklaması |
+| İçe aktarma kararı | `Update existing`, `Skip`, `Resolve conflict` | Kararlı köken eşleşmesinde seçenekler |
+| Boş sinyal bölümü | `No signals in this section.` | Bildirim Merkezi bölümü boşken; her şey yolunda iddiası taşımaz |
+| Yeniden bak boş durumu | `Nothing to look at again.` | `Look again` yüzeyi boşken |
+| Çalışma Oturumu kümesi açıklaması | `Held for this session only.` | `Active Working Set` kalıcı olmadığını söyler |
+| Hesap adı uyuşmazlığı | `The name does not match.` | Hesabı kapatma ve silme onayında yazılan ad uyuşmadığında |
+| Dış yüzey dizin eylemleri | `Open source`, `Review diff`, `Change expiry`, `Reactivate`, `Revoke`, `Unpublish` | Shares and Publications satır eylemleri; durum ve yüzey türüne göre görünür |
+| Yayın gözden geçirme aralığı | `Review interval (days)`, `Enter a whole number of days from 7 to 180.` | `public-roadmap-review-due` sinyali için isteğe bağlı gün aralığı |
+| YouTube yükleme | `Load YouTube`, `Loading YouTube contacts a third-party server.` | Tıklayınca yüklenen YouTube kartı ve gizlilik uyarısı |
+| Dondurulmuş canlı blok etiketi | `Snapshot`, `As of` | Ziyaretçi yüzeyinde onaylı snapshot kaynağı ve tarihi |
+| Ziyaretçi alt bilgisi | `This page is read-only.` | Herkese açık yüzeyde salt okunur olduğunu söyleyen tek satır |
+| Herkese açık gezinme ve akış | `Project`, `Featured`, `Development feed` | Build in Public Proje görünümü sekmesi, öne çıkan kayıt ve gelişim akışı başlığı |
+| Paylaşım kapsam dışı bölümü | `Not included` | Paylaşım önizlemesinde kapsama girmeyenlerin başlığı |
+| Dışa aktarma manifesti | `Schema version`, `Scope`, `Filters`, `Visible fields`, `Produced at` | Her çıktıdaki kaynak manifesti alanları |
+| CSV kayıp raporu | `Lost in CSV`, `Escaped as data` | CSV'de kaybolan ilişki/tür/kimlik ve formül kaçışı raporu |
+| İçe aktarma eşleme ve makbuz | `Source column`, `Product field`, `Import receipt`, `Created`, `Updated`, `Rolled back` | İçe aktarma eşleme adımı ve tam commit/rollback makbuzu |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 
