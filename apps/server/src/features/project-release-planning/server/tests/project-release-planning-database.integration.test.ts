@@ -1,3 +1,4 @@
+import { ProjectReleasePlanningConflictError } from "@cantiara/api/project-release-planning";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { workspaceContact } from "@cantiara/db/schema/contact";
@@ -386,4 +387,96 @@ suite("Project Release Planning PostgreSQL seam", () => {
     );
     expect(await planning.setScope(accountId, scope(openWorkId))).toBeNull();
   });
+
+  test("a GitHub Release double leaves the status unchanged and only suggests Published", async () => {
+    const planning = access();
+    await db
+      ?.update(projectRelease)
+      .set({ revision: 2, status: "Preparing" })
+      .where(eq(projectRelease.id, releaseId));
+    const before = await releaseRow();
+    // Stand-in for a GitHub Release upsert: the linked Release reference.
+    const githubRelease = {
+      ...envelope(),
+      attached: true,
+      id: crypto.randomUUID(),
+      kind: "Release" as const,
+      label: "v1.0.0",
+      projectId,
+      releaseId,
+      repositoryLinkId: repositoryId,
+      url: "https://github.com/acme/tidekit/releases/tag/v1.0.0",
+    };
+    targets.push(githubRelease.id);
+    await planning.setLink(accountId, githubRelease);
+    expect(await releaseRow()).toEqual(before);
+    const detail = await planning.detail(accountId, { projectId, releaseId });
+    expect(detail?.release.status).toBe("Preparing");
+    expect(detail?.suggestion).toEqual({
+      linkId: githubRelease.id,
+      reason: "GitHub Release v1.0.0 was published.",
+      status: "Published",
+    });
+    const overview = await planning.overview(accountId, projectId);
+    expect(overview?.releases[0]?.release.status).toBe("Preparing");
+  });
+
+  test.each(["Published", "Cancelled"] as const)(
+    "a %s release keeps its scope, references and audience read-only",
+    async (status) => {
+      const planning = access();
+      const member = await planning.setScope(accountId, scope(doneWorkId));
+      if (member) {
+        targets.push(member.id);
+      }
+      await db
+        ?.update(projectRelease)
+        .set({ revision: 2, status })
+        .where(eq(projectRelease.id, releaseId));
+      const before = await releaseRow();
+      await expect(
+        planning.setScope(accountId, scope(openWorkId)),
+      ).rejects.toBeInstanceOf(ProjectReleasePlanningConflictError);
+      await expect(
+        planning.setScope(accountId, {
+          ...scope(doneWorkId),
+          attached: false,
+          baseRevision: 1,
+        }),
+      ).rejects.toBeInstanceOf(ProjectReleasePlanningConflictError);
+      const linkId = crypto.randomUUID();
+      targets.push(linkId);
+      await expect(
+        planning.setLink(accountId, {
+          ...envelope(),
+          attached: true,
+          id: linkId,
+          kind: "Release",
+          label: "v1.0.0",
+          projectId,
+          releaseId,
+          repositoryLinkId: repositoryId,
+          url: null,
+        }),
+      ).rejects.toBeInstanceOf(ProjectReleasePlanningConflictError);
+      await expect(
+        planning.setAudience(accountId, {
+          ...envelope(),
+          attached: true,
+          projectId,
+          releaseId,
+          targetId: contactId,
+          targetType: "Contact",
+        }),
+      ).rejects.toBeInstanceOf(ProjectReleasePlanningConflictError);
+      expect(await releaseRow()).toEqual(before);
+      const detail = await planning.detail(accountId, { projectId, releaseId });
+      expect(detail?.release.status).toBe(status);
+      expect(
+        detail?.scope.filter((row) => row.attached).map((row) => row.work.id),
+      ).toEqual([doneWorkId]);
+      expect(detail?.links).toEqual([]);
+      expect(detail?.suggestion).toBeNull();
+    },
+  );
 });

@@ -3,6 +3,7 @@ import type {
   MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
 import {
+  isTerminalProjectReleaseStatus,
   type ProjectReleaseAudienceLink,
   type ProjectReleaseAudienceTarget,
   type ProjectReleaseAudienceType,
@@ -17,6 +18,7 @@ import {
   projectReleasePlanningInputSchema,
   projectReleasePlanningProjectInputSchema,
   projectReleaseScopeCounts,
+  projectReleaseStatusSuggestion,
   setProjectReleaseAudienceInputSchema,
   setProjectReleaseLinkInputSchema,
   setProjectReleaseScopeInputSchema,
@@ -175,6 +177,35 @@ async function ownedRelease(
     .limit(1);
   const [release] = lock ? await query.for("share") : await query;
   return release ? { project: owned, release } : null;
+}
+
+/**
+ * A planning write locks the release and needs it open: `Published` and
+ * `Cancelled` freeze scope, references and audience links. The release row
+ * share lock serializes this check with an explicit status change.
+ */
+async function plannableRelease(
+  executor: ProjectReleasePlanningExecutor,
+  accountId: string,
+  projectId: string,
+  releaseId: string,
+) {
+  const owned = await ownedRelease(
+    executor,
+    accountId,
+    projectId,
+    releaseId,
+    true,
+  );
+  if (
+    owned &&
+    isTerminalProjectReleaseStatus(
+      owned.release.status as ProjectReleaseRecord["status"],
+    )
+  ) {
+    throw new ProjectReleasePlanningConflictError(releaseId);
+  }
+  return owned;
 }
 
 /** Scope members are Work of the same Project that is neither archived nor trashed. */
@@ -348,12 +379,11 @@ function scopeTarget(
       if (
         !(
           value &&
-          (await ownedRelease(
+          (await plannableRelease(
             executor,
             accountId,
             value.projectId,
             value.releaseId,
-            true,
           ))
         ) ||
         (value.attached &&
@@ -416,16 +446,23 @@ function linkTarget(
     executor: ProjectReleasePlanningExecutor,
     value: NonNullable<LinkValue["link"]>,
     lock: boolean,
+    write = false,
   ) {
-    if (
-      !(await ownedRelease(
-        executor,
-        accountId,
-        value.projectId,
-        value.releaseId,
-        lock,
-      ))
-    ) {
+    const owned = write
+      ? await plannableRelease(
+          executor,
+          accountId,
+          value.projectId,
+          value.releaseId,
+        )
+      : await ownedRelease(
+          executor,
+          accountId,
+          value.projectId,
+          value.releaseId,
+          lock,
+        );
+    if (!owned) {
       return false;
     }
     // A reference names only a repository linked to the same Project.
@@ -476,7 +513,7 @@ function linkTarget(
     },
     async update(executor, update) {
       const value = update.nextValue.link;
-      if (!(value && (await allowed(executor, value, true)))) {
+      if (!(value && (await allowed(executor, value, true, true)))) {
         return null;
       }
       const values = {
@@ -537,14 +574,22 @@ function audienceTarget(
     executor: ProjectReleasePlanningExecutor,
     value: NonNullable<AudienceValue["audience"]>,
     lock: boolean,
+    write = false,
   ) {
-    const owned = await ownedRelease(
-      executor,
-      accountId,
-      value.projectId,
-      value.releaseId,
-      lock,
-    );
+    const owned = write
+      ? await plannableRelease(
+          executor,
+          accountId,
+          value.projectId,
+          value.releaseId,
+        )
+      : await ownedRelease(
+          executor,
+          accountId,
+          value.projectId,
+          value.releaseId,
+          lock,
+        );
     if (!owned) {
       return false;
     }
@@ -586,7 +631,7 @@ function audienceTarget(
     },
     async update(executor, update) {
       const value = update.nextValue.audience;
-      if (!(value && (await allowed(executor, value, true)))) {
+      if (!(value && (await allowed(executor, value, true, true)))) {
         return null;
       }
       const values = {
@@ -1060,12 +1105,13 @@ export function createDatabaseProjectReleasePlanning(
               };
             },
           );
+          const release = toRelease(owned.release);
           return {
             audience,
             audienceCandidates,
             links,
             readOnly: owned.project.archivedAt !== null,
-            release: toRelease(owned.release),
+            release,
             repositories: repositories
               .filter((repository) => repository.disconnectedAt === null)
               .map(({ id, name, owner }) => ({ id, name, owner })),
@@ -1073,6 +1119,8 @@ export function createDatabaseProjectReleasePlanning(
             scopeCandidates: projectWork
               .filter((row) => !inScope.has(row.id))
               .map(toWork),
+            // Read-only: a linked GitHub Release never writes the status.
+            suggestion: projectReleaseStatusSuggestion(release, links),
           };
         },
         { accessMode: "read only", isolationLevel: "repeatable read" },

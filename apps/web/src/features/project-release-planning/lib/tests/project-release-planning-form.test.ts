@@ -3,6 +3,7 @@ import {
   projectReleaseCreateFormSchema,
   projectReleaseHypothesisFormSchema,
   projectReleaseLinkFormSchema,
+  projectReleaseStatusChangeCopy,
   projectReleasesHref,
 } from "../project-release-planning-form";
 
@@ -82,5 +83,31 @@ describe("Project Release Planning form schemas", () => {
     expect(projectReleasesHref("project-1", "release/1")).toBe(
       "/projects/project-1#source-project-release-release%2F1",
     );
+  });
+});
+
+describe("Change Release Status copy", () => {
+  test("terminal confirmations name the explicit action and stay final", () => {
+    expect(projectReleaseStatusChangeCopy("Published", 0)).toEqual({
+      action: "Mark Published",
+      description:
+        "Published is a final result. This Project Release cannot return to Draft or Preparing.",
+      openScope: null,
+      title: "Mark this Project Release Published?",
+    });
+    expect(projectReleaseStatusChangeCopy("Cancelled", 2)).toMatchObject({
+      action: "Mark Cancelled",
+      title: "Mark this Project Release Cancelled?",
+    });
+  });
+
+  test("open scope is an information line on publish, never a block", () => {
+    expect(projectReleaseStatusChangeCopy("Published", 1).openScope).toBe(
+      "1 Work in scope is still open. Publishing does not change it.",
+    );
+    expect(projectReleaseStatusChangeCopy("Published", 3).openScope).toBe(
+      "3 Work in scope are still open. Publishing does not change them.",
+    );
+    expect(projectReleaseStatusChangeCopy("Cancelled", 3).openScope).toBeNull();
   });
 });

@@ -11,7 +11,10 @@ import {
  * only through the Project source record commands; this seam owns scope
  * membership, repository/environment references and audience links. Nothing
  * here writes a status, fills scope automatically, scores readiness or holds a
- * planned or actual publish date.
+ * planned or actual publish date. `Published` and `Cancelled` are terminal
+ * results the founder writes explicitly; a linked GitHub Release only yields a
+ * read-only suggestion and a terminal release freezes its scope, references
+ * and audience links.
  */
 
 const identifier = z.string().trim().min(1).max(255);
@@ -167,6 +170,15 @@ export interface ProjectReleaseOverview {
   readOnly: boolean;
   releases: ProjectReleaseSummary[];
 }
+/**
+ * Read-only hint derived from a linked GitHub Release. It has no write path:
+ * acting on it opens the founder's explicit status change.
+ */
+export interface ProjectReleaseStatusSuggestion {
+  linkId: string;
+  reason: string;
+  status: "Published";
+}
 export interface ProjectReleasePlanningDetail {
   audience: ProjectReleaseAudienceLink[];
   audienceCandidates: ProjectReleaseAudienceTarget[];
@@ -176,6 +188,72 @@ export interface ProjectReleasePlanningDetail {
   repositories: ProjectReleaseRepository[];
   scope: ProjectReleaseScopeMember[];
   scopeCandidates: ProjectReleaseWork[];
+  suggestion: ProjectReleaseStatusSuggestion | null;
+}
+
+export const PROJECT_RELEASE_TERMINAL_STATUSES = [
+  "Published",
+  "Cancelled",
+] as const satisfies readonly ProjectReleaseStatus[];
+
+export function isTerminalProjectReleaseStatus(
+  status: ProjectReleaseStatus,
+): status is (typeof PROJECT_RELEASE_TERMINAL_STATUSES)[number] {
+  return (PROJECT_RELEASE_TERMINAL_STATUSES as readonly string[]).includes(
+    status,
+  );
+}
+
+/**
+ * Status matrix: `Draft` and `Preparing` switch freely and either may end in
+ * `Published` or `Cancelled`; a terminal result has no way back (no reopen).
+ */
+export function projectReleaseStatusTargets(
+  status: ProjectReleaseStatus,
+): ProjectReleaseStatus[] {
+  return isTerminalProjectReleaseStatus(status)
+    ? []
+    : PROJECT_RELEASE_STATUS_OPTIONS.filter((next) => next !== status);
+}
+
+export function projectReleaseTransitionAllowed(
+  from: ProjectReleaseStatus,
+  to: ProjectReleaseStatus,
+) {
+  return projectReleaseStatusTargets(from).includes(to);
+}
+
+/** Terminal results are written only after the founder confirms them. */
+export function projectReleaseStatusChangeNeedsConfirmation(
+  to: ProjectReleaseStatus,
+) {
+  return isTerminalProjectReleaseStatus(to);
+}
+
+/**
+ * A linked GitHub Release suggests `Published` while the release is still
+ * open. The newest attached GitHub Release names the suggestion.
+ */
+export function projectReleaseStatusSuggestion(
+  release: Pick<ProjectReleaseRecord, "status">,
+  links: readonly Pick<
+    ProjectReleaseLink,
+    "attached" | "id" | "kind" | "label"
+  >[],
+): ProjectReleaseStatusSuggestion | null {
+  if (isTerminalProjectReleaseStatus(release.status)) {
+    return null;
+  }
+  const githubRelease = links.findLast(
+    (link) => link.attached && link.kind === "Release",
+  );
+  return githubRelease
+    ? {
+        linkId: githubRelease.id,
+        reason: `GitHub Release ${githubRelease.label} was published.`,
+        status: "Published",
+      }
+    : null;
 }
 
 export class ProjectReleasePlanningConflictError extends Error {

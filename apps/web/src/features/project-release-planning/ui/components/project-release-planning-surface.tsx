@@ -177,6 +177,27 @@ export function ProjectReleasePlanningSurface({
         ),
       );
     },
+    onChangeStatus: (status) => {
+      const { release } = current;
+      // The founder's explicit status change keeps the Project source record
+      // transition; a GitHub Release suggestion only opens this action.
+      const command = {
+        projectId,
+        sourceId: release.id,
+        sourceType: "Project Release" as const,
+        status,
+      };
+      return done(
+        `Status changed to ${status}.`,
+        run(command, (clientIdempotencyKey) =>
+          client.transitionProjectSourceRecord({
+            ...command,
+            baseRevision: release.revision,
+            clientIdempotencyKey,
+          }),
+        ),
+      );
+    },
     onSaveHypothesis: (hypothesis) => {
       const { release } = current;
       // The record's own fields keep the Project source record write path.

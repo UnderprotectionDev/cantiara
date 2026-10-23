@@ -12,11 +12,15 @@ vi.mock("@/components/app-link", () => ({
   ),
 }));
 
+const DRAFT_NOT_PRESSED = /aria-pressed="false"[^>]*>Draft</;
+const PREPARING_PRESSED = /aria-pressed="true"[^>]*>Preparing</;
+
 const noop = async () => undefined;
 const actions: ProjectReleasePlanningActions = {
   onAddAudience: noop,
   onAddLink: noop,
   onAddScope: noop,
+  onChangeStatus: noop,
   onRemoveAudience: noop,
   onRemoveLink: noop,
   onRemoveScope: noop,
@@ -93,7 +97,18 @@ const detail: Detail = {
     { attached: false, id: "s-3", revision: 2, work: work("tk-3", "Blocked") },
   ],
   scopeCandidates: [work("tk-3", "Blocked")],
+  suggestion: null,
 };
+
+function render(overrides: Partial<Detail> = {}) {
+  return renderToStaticMarkup(
+    <ProjectReleasePlanningDetail
+      actions={actions}
+      detail={{ ...detail, ...overrides }}
+      projectId="project-1"
+    />,
+  );
+}
 
 describe("Project Release Planning detail", () => {
   test("shows the record type, Version label, status and the Planning view", () => {
@@ -189,5 +204,72 @@ describe("Project Release Planning detail", () => {
       expect(html).not.toContain(text);
     }
     expect(html).toContain("TK-1 · Work tk-1");
+  });
+
+  test("Draft and Preparing switch in place; terminal results are explicit actions", () => {
+    const html = render();
+    expect(html).toContain('aria-label="Status"');
+    expect(html).toMatch(DRAFT_NOT_PRESSED);
+    expect(html).toMatch(PREPARING_PRESSED);
+    expect(html).toContain("Mark Published");
+    expect(html).toContain("Mark Cancelled");
+  });
+
+  test("a linked GitHub Release shows a suggestion row that only opens the status change", () => {
+    const html = render({
+      suggestion: {
+        linkId: "link-1",
+        reason: "GitHub Release v1.1.0 was published.",
+        status: "Published",
+      },
+    });
+    expect(html).toContain("GitHub Release v1.1.0 was published.");
+    expect(html).toContain("Mark this Project Release Published?");
+    expect(html).toContain("Review status change");
+    // The status itself is unchanged by the suggestion.
+    expect(html).toMatch(PREPARING_PRESSED);
+    expect(render().includes("Review status change")).toBe(false);
+  });
+
+  test.each(["Published", "Cancelled"] as const)(
+    "a %s release shows its status read-only and freezes scope, references and audience",
+    (status) => {
+      const html = render({ release: { ...detail.release, status } });
+      expect(html).toContain(`${status} is final; the status cannot change.`);
+      for (const text of [
+        "Mark Published",
+        "Mark Cancelled",
+        "aria-pressed",
+        "Add Work to scope",
+        "Remove from scope",
+        "Add reference",
+        "Link audience",
+        "Remove Early adopter from audience",
+        "Review status change",
+      ]) {
+        expect(html).not.toContain(text);
+      }
+      expect(html).toContain("TK-1 · Work tk-1");
+      expect(html).toContain("acme/tidekit");
+    },
+  );
+
+  test("no publish date field or input appears in any status", () => {
+    for (const status of [
+      "Draft",
+      "Preparing",
+      "Published",
+      "Cancelled",
+    ] as const) {
+      const html = render({ release: { ...detail.release, status } });
+      for (const text of [
+        "Publish date",
+        "Published at",
+        "Target date",
+        'type="date"',
+      ]) {
+        expect(html).not.toContain(text);
+      }
+    }
   });
 });
