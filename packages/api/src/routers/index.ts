@@ -463,6 +463,16 @@ import {
   startReassessmentInputSchema,
 } from "../release-communication";
 import {
+  addReleaseChecklistItemInputSchema,
+  closeReleaseOpenScopeSignalInputSchema,
+  releaseChecklistItemOutputSchema,
+  releaseEvidencePackInputSchema,
+  releaseEvidencePackSchema,
+  releaseOpenScopeSignalOutputSchema,
+  removeReleaseChecklistItemInputSchema,
+  setReleaseChecklistItemInputSchema,
+} from "../release-evidence";
+import {
   confirmResearchSessionBindingInputSchema,
   previewResearchSessionBindingInputSchema,
 } from "../research-session-bindings";
@@ -1473,6 +1483,13 @@ function requireTestAssessments(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.testAssessments;
+}
+
+function requireReleaseEvidence(context: Context) {
+  if (!context.releaseEvidence) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.releaseEvidence;
 }
 
 function requireGitHubIntegration(context: Context) {
@@ -3520,6 +3537,26 @@ const TEST_ASSESSMENT_FAILURES: Record<string, PlannedTestFailure> = {
   TEST_ASSESSMENT_SOURCE_UNAVAILABLE: { message: null, status: "BAD_REQUEST" },
 };
 
+const RELEASE_EVIDENCE_FAILURES: Record<string, PlannedTestFailure> = {
+  RELEASE_EVIDENCE_CHECKLIST_FULL: { message: null, status: "BAD_REQUEST" },
+  RELEASE_EVIDENCE_CHECKLIST_ITEM_NOT_FOUND: {
+    message: "Checklist item is unavailable.",
+    status: "NOT_FOUND",
+  },
+  RELEASE_EVIDENCE_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  RELEASE_EVIDENCE_PROJECT_READ_ONLY: {
+    message: "Archived Projects are read-only.",
+    status: "BAD_REQUEST",
+  },
+  RELEASE_EVIDENCE_RELEASE_NOT_FOUND: {
+    message: "Project Release is unavailable.",
+    status: "NOT_FOUND",
+  },
+};
+
 interface GitHubIntegrationFailure {
   message: string | null;
   status: "BAD_REQUEST" | "CONFLICT" | "NOT_FOUND" | "PRECONDITION_FAILED";
@@ -3600,6 +3637,32 @@ async function runTestAssessmentOperation<T>(
     }
     const failure = Object.hasOwn(TEST_ASSESSMENT_FAILURES, error.code)
       ? TEST_ASSESSMENT_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message:
+        failure.message ??
+        (error instanceof Error ? error.message : "Request refused."),
+    });
+  }
+}
+
+async function runReleaseEvidenceOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(RELEASE_EVIDENCE_FAILURES, error.code)
+      ? RELEASE_EVIDENCE_FAILURES[error.code]
       : undefined;
     if (!failure) {
       throw error;
@@ -7594,6 +7657,67 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runGitHubIntegrationOperation(() =>
         requireGitHubIntegration(context).dismissSignal(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectReleaseEvidencePack: protectedProcedure
+    .input(releaseEvidencePackInputSchema)
+    .output(releaseEvidencePackSchema)
+    .handler(({ context, input }) =>
+      runReleaseEvidenceOperation(() =>
+        requireReleaseEvidence(context).pack(context.session.user.id, input),
+      ),
+    ),
+  projectReleaseOpenScopeSignal: protectedProcedure
+    .input(releaseEvidencePackInputSchema)
+    .output(releaseOpenScopeSignalOutputSchema)
+    .handler(({ context, input }) =>
+      runReleaseEvidenceOperation(async () => ({
+        signal: await requireReleaseEvidence(context).openScopeSignal(
+          context.session.user.id,
+          input,
+        ),
+      })),
+    ),
+  closeReleaseOpenScopeSignal: protectedProcedure
+    .input(closeReleaseOpenScopeSignalInputSchema)
+    .handler(({ context, input }) =>
+      runReleaseEvidenceOperation(() =>
+        requireReleaseEvidence(context).closeOpenScopeSignal(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  addReleaseChecklistItem: protectedProcedure
+    .input(addReleaseChecklistItemInputSchema)
+    .output(releaseChecklistItemOutputSchema)
+    .handler(({ context, input }) =>
+      runReleaseEvidenceOperation(() =>
+        requireReleaseEvidence(context).addChecklistItem(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setReleaseChecklistItem: protectedProcedure
+    .input(setReleaseChecklistItemInputSchema)
+    .output(releaseChecklistItemOutputSchema)
+    .handler(({ context, input }) =>
+      runReleaseEvidenceOperation(() =>
+        requireReleaseEvidence(context).setChecklistItem(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  removeReleaseChecklistItem: protectedProcedure
+    .input(removeReleaseChecklistItemInputSchema)
+    .handler(({ context, input }) =>
+      runReleaseEvidenceOperation(() =>
+        requireReleaseEvidence(context).removeChecklistItem(
           context.session.user.id,
           input,
         ),

@@ -105,6 +105,7 @@ import {
   createDatabaseReleaseCommunication,
   createLookAgainSchedule,
 } from "./features/release-communication/server/release-communication-database";
+import { createDatabaseReleaseEvidence } from "./features/release-evidence/server/release-evidence-database";
 import {
   createDatabaseResearchSessions,
   sweepExpiredResearchBindingPreviews,
@@ -280,6 +281,7 @@ export const prioritizationSessionMutationContracts =
   createDatabasePrioritizationSessionMutationContracts(db);
 export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
+export const releaseEvidence = createDatabaseReleaseEvidence(db);
 export const projectWall = createDatabaseProjectWall(db, relations, {
   collections: smartCollections,
   diagrams: technicalDiagrams,

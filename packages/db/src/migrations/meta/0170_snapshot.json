@@ -1,5 +1,5 @@
 {
-  "id": "5c553a40-1b1a-4571-a742-115049775fd3",
+  "id": "118a360c-8962-4223-abf1-2ed75d8f0af4",
   "prevId": "41ee3556-bc0a-4163-ac81-c0f526dd8adf",
   "version": "7",
   "dialect": "postgresql",
@@ -12025,6 +12025,171 @@
       },
       "isRLSEnabled": false
     },
+    "public.project_release_checklist_item": {
+      "name": "project_release_checklist_item",
+      "schema": "",
+      "columns": {
+        "checked": {
+          "name": "checked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "release_id": {
+          "name": "release_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "project_release_checklist_item_release_idx": {
+          "name": "project_release_checklist_item_release_idx",
+          "columns": [
+            {
+              "expression": "release_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_release_checklist_item_project_id_project_id_fk": {
+          "name": "project_release_checklist_item_project_id_project_id_fk",
+          "tableFrom": "project_release_checklist_item",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_release_checklist_item_release_id_project_release_id_fk": {
+          "name": "project_release_checklist_item_release_id_project_release_id_fk",
+          "tableFrom": "project_release_checklist_item",
+          "tableTo": "project_release",
+          "columnsFrom": ["release_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_release_checklist_item_text_check": {
+          "name": "project_release_checklist_item_text_check",
+          "value": "length(btrim(\"project_release_checklist_item\".\"text\")) between 1 and 500"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.project_release_signal_close": {
+      "name": "project_release_signal_close",
+      "schema": "",
+      "columns": {
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "release_id": {
+          "name": "release_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signal_id": {
+          "name": "signal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_release_signal_close_project_id_project_id_fk": {
+          "name": "project_release_signal_close_project_id_project_id_fk",
+          "tableFrom": "project_release_signal_close",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_release_signal_close_release_id_project_release_id_fk": {
+          "name": "project_release_signal_close_release_id_project_release_id_fk",
+          "tableFrom": "project_release_signal_close",
+          "tableTo": "project_release",
+          "columnsFrom": ["release_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "project_release_signal_close_pk": {
+          "name": "project_release_signal_close_pk",
+          "columns": ["release_id", "signal_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.project_github_attention_signal": {
       "name": "project_github_attention_signal",
       "schema": "",
@@ -17463,634 +17628,6 @@
         "project_release_version_label_check": {
           "name": "project_release_version_label_check",
           "value": "\"project_release\".\"version_label\" is null or length(btrim(\"project_release\".\"version_label\")) <= 255"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.release_changelog_snapshot": {
-      "name": "release_changelog_snapshot",
-      "schema": "",
-      "columns": {
-        "approved_at": {
-          "name": "approved_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "note_id": {
-          "name": "note_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "release_id": {
-          "name": "release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "snapshot": {
-          "name": "snapshot",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "release_changelog_snapshot_note_uidx": {
-          "name": "release_changelog_snapshot_note_uidx",
-          "columns": [
-            {
-              "expression": "note_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "revision",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "release_changelog_snapshot_project_idx": {
-          "name": "release_changelog_snapshot_project_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "approved_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "release_changelog_snapshot_note_id_release_note_id_fk": {
-          "name": "release_changelog_snapshot_note_id_release_note_id_fk",
-          "tableFrom": "release_changelog_snapshot",
-          "tableTo": "release_note",
-          "columnsFrom": ["note_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "release_changelog_snapshot_project_id_project_id_fk": {
-          "name": "release_changelog_snapshot_project_id_project_id_fk",
-          "tableFrom": "release_changelog_snapshot",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "release_changelog_snapshot_release_id_project_release_id_fk": {
-          "name": "release_changelog_snapshot_release_id_project_release_id_fk",
-          "tableFrom": "release_changelog_snapshot",
-          "tableTo": "project_release",
-          "columnsFrom": ["release_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "release_changelog_snapshot_revision_check": {
-          "name": "release_changelog_snapshot_revision_check",
-          "value": "\"release_changelog_snapshot\".\"revision\" >= 1"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.release_note": {
-      "name": "release_note",
-      "schema": "",
-      "columns": {
-        "author_id": {
-          "name": "author_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "body": {
-          "name": "body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "published_at": {
-          "name": "published_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "release_id": {
-          "name": "release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "scope_work_ids": {
-          "name": "scope_work_ids",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'Draft'"
-        },
-        "tag_ids": {
-          "name": "tag_ids",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "why_trail": {
-          "name": "why_trail",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "release_note_release_idx": {
-          "name": "release_note_release_idx",
-          "columns": [
-            {
-              "expression": "release_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "release_note_project_idx": {
-          "name": "release_note_project_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "release_note_project_id_project_id_fk": {
-          "name": "release_note_project_id_project_id_fk",
-          "tableFrom": "release_note",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "release_note_release_id_project_release_id_fk": {
-          "name": "release_note_release_id_project_release_id_fk",
-          "tableFrom": "release_note",
-          "tableTo": "project_release",
-          "columnsFrom": ["release_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "release_note_status_check": {
-          "name": "release_note_status_check",
-          "value": "\"release_note\".\"status\" in ('Draft', 'Published')"
-        },
-        "release_note_revision_check": {
-          "name": "release_note_revision_check",
-          "value": "\"release_note\".\"revision\" >= 1"
-        },
-        "release_note_scope_check": {
-          "name": "release_note_scope_check",
-          "value": "jsonb_array_length(\"release_note\".\"scope_work_ids\") >= 1"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.release_observation": {
-      "name": "release_observation",
-      "schema": "",
-      "columns": {
-        "assessment": {
-          "name": "assessment",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "author_id": {
-          "name": "author_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evidence": {
-          "name": "evidence",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "observed_at": {
-          "name": "observed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "round_id": {
-          "name": "round_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "saved_at": {
-          "name": "saved_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "text": {
-          "name": "text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        }
-      },
-      "indexes": {
-        "release_observation_round_kind_uidx": {
-          "name": "release_observation_round_kind_uidx",
-          "columns": [
-            {
-              "expression": "round_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "kind",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "release_observation_round_id_release_reassessment_round_id_fk": {
-          "name": "release_observation_round_id_release_reassessment_round_id_fk",
-          "tableFrom": "release_observation",
-          "tableTo": "release_reassessment_round",
-          "columnsFrom": ["round_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "release_observation_kind_check": {
-          "name": "release_observation_kind_check",
-          "value": "\"release_observation\".\"kind\" in ('access', 'outcome')"
-        },
-        "release_observation_assessment_check": {
-          "name": "release_observation_assessment_check",
-          "value": "\"release_observation\".\"assessment\" in ('Observed', 'Partially observed', 'Not observed', 'Could not learn')"
-        },
-        "release_observation_revision_check": {
-          "name": "release_observation_revision_check",
-          "value": "\"release_observation\".\"revision\" >= 1"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.release_observation_revision": {
-      "name": "release_observation_revision",
-      "schema": "",
-      "columns": {
-        "assessment": {
-          "name": "assessment",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "author_id": {
-          "name": "author_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evidence": {
-          "name": "evidence",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "observation_id": {
-          "name": "observation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "observed_at": {
-          "name": "observed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "saved_at": {
-          "name": "saved_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "text": {
-          "name": "text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "release_observation_revision_uidx": {
-          "name": "release_observation_revision_uidx",
-          "columns": [
-            {
-              "expression": "observation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "revision",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "release_observation_revision_observation_id_release_observation_id_fk": {
-          "name": "release_observation_revision_observation_id_release_observation_id_fk",
-          "tableFrom": "release_observation_revision",
-          "tableTo": "release_observation",
-          "columnsFrom": ["observation_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.release_reassessment_round": {
-      "name": "release_reassessment_round",
-      "schema": "",
-      "columns": {
-        "close_reason": {
-          "name": "close_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "closed_at": {
-          "name": "closed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "release_id": {
-          "name": "release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sequence": {
-          "name": "sequence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "release_reassessment_round_sequence_uidx": {
-          "name": "release_reassessment_round_sequence_uidx",
-          "columns": [
-            {
-              "expression": "release_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "sequence",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "release_reassessment_round_project_idx": {
-          "name": "release_reassessment_round_project_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "release_reassessment_round_project_id_project_id_fk": {
-          "name": "release_reassessment_round_project_id_project_id_fk",
-          "tableFrom": "release_reassessment_round",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "release_reassessment_round_release_id_project_release_id_fk": {
-          "name": "release_reassessment_round_release_id_project_release_id_fk",
-          "tableFrom": "release_reassessment_round",
-          "tableTo": "project_release",
-          "columnsFrom": ["release_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "release_reassessment_round_sequence_check": {
-          "name": "release_reassessment_round_sequence_check",
-          "value": "\"release_reassessment_round\".\"sequence\" >= 1"
-        },
-        "release_reassessment_round_close_check": {
-          "name": "release_reassessment_round_close_check",
-          "value": "(\"release_reassessment_round\".\"closed_at\" is null) = (\"release_reassessment_round\".\"close_reason\" is null)"
         }
       },
       "isRLSEnabled": false
