@@ -22,7 +22,14 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
-import { lazy, type ReactNode, Suspense, useEffect, useState } from "react";
+import {
+  type ComponentProps,
+  lazy,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useState,
+} from "react";
 import type { WorkStatusActionRequest } from "@/components/work-status-form";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
 import ProjectDecisionsSurface from "@/features/decisions/ui/components/project-decisions-surface";
@@ -294,6 +301,32 @@ export default function ProjectShellSurface(
   );
 }
 
+/** The source record detail; a Project Release also carries its evidence pack. */
+function ProjectSourceRecordRoute({
+  projectId,
+  releaseEvidenceArea,
+  sourceId,
+  sourceType,
+}: {
+  projectId: string;
+  releaseEvidenceArea?: (releaseId: string) => ReactNode;
+  sourceId: string;
+  sourceType: ComponentProps<typeof ProjectSourceRecordView>["sourceType"];
+}) {
+  return (
+    <>
+      <ProjectSourceRecordView
+        projectId={projectId}
+        sourceId={sourceId}
+        sourceType={sourceType}
+      />
+      {sourceType === "Project Release"
+        ? releaseEvidenceArea?.(sourceId)
+        : null}
+    </>
+  );
+}
+
 function projectUncertaintySurface(
   projectId: string,
   accountId: string | undefined,
@@ -378,6 +411,7 @@ function ProjectShellContent({
   githubArea,
   project,
   projectId,
+  releaseEvidenceArea,
   scopeTreeQuery,
 }: {
   accountId?: string;
@@ -385,6 +419,7 @@ function ProjectShellContent({
   githubArea?: ReactNode;
   project: ProjectProfile;
   projectId: string;
+  releaseEvidenceArea?: (releaseId: string) => ReactNode;
   scopeTreeQuery: UseQueryResult<ScopeTree>;
 }) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
@@ -556,8 +591,9 @@ function ProjectShellContent({
     }
     if (sourceRecordRoute) {
       return (
-        <ProjectSourceRecordView
+        <ProjectSourceRecordRoute
           projectId={projectId}
+          releaseEvidenceArea={releaseEvidenceArea}
           sourceId={sourceRecordRoute.sourceId}
           sourceType={sourceRecordRoute.sourceType}
         />

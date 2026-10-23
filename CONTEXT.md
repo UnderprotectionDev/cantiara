@@ -1438,6 +1438,14 @@ _Avoid_: Ürün kabul kanıtı, canlı test özeti, otomatik readiness kararı
 Kullanıcının yönettiği yazılım Projesinde kapsamı, hazırlığı ve yayımlanma durumunu taşıyan Sürüm ana kaydı; ürünün kendi kabul süreci değildir.
 _Avoid_: Ürün sürüm adayı, ürün release'i
 
+**Sürüm Kanıt Paketi**:
+Bir Proje Sürümünün kapsam, PR ve check, Karar, Risk, test, Test Açığı, kontrol listesi ve yayın farkını ana kaynaklarından türetip açan salt okunur değerlendirme yüzeyi; skor, hazır/hazır değil hükmü, yayın kapısı, sürüm notu veya kapanış özeti değildir ([Sürüm Kanıt Paketi](docs/prd/12-github-and-project-releases.md#sürüm-kanıt-paketi-ve-yayın-hazırlığı)). UI: `Release Evidence Pack`, `Open source record`.
+_Avoid_: Sürüm onayı, readiness skoru, yayın kapısı, Test özeti, PR Bağlam Kartı, Ürün sürüm adayı kanıtı
+
+**Sürüm kontrol listesi**:
+Kurucunun Sürüm Kanıt Paketinde yönettiği isteğe bağlı yayın maddeleri ve işaretleri; Proje Sürümü durumunu yazmaz, yayını kapılamaz veya otomatikleştirmez. UI: `Checklist`, `Add item`.
+_Avoid_: Yayın kapısı, ikinci yayın checklist'i, Hafif kontrol listesi
+
 **Sürüm iletişim iskeleti**:
 Bir Proje Sürümüne ait, kullanıcının seçtiği kayıtlara bağlı ve cümlesini kendisinin yazdığı yayın söylemi maddeleri; otomatik anlatı veya herkese açık changelog değildir.
 _Avoid_: Yapım hikâyesi, otomatik blog, changelog yüzeyi

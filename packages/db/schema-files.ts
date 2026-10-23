@@ -25,6 +25,7 @@ export const primarySchemaFiles = [
   "./src/schema/test-review.ts",
   "./src/schema/product-gap.ts",
   "./src/schema/test-assessment.ts",
+  "./src/schema/release-evidence.ts",
   "./src/schema/github-integration.ts",
   "./src/schema/spec-change-review.ts",
   "./src/schema/assumption.ts",
