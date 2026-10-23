@@ -1232,6 +1232,75 @@ describeDatabase(
       ).resolves.toBeNull();
     });
 
+    test("Project Release Planning keeps the optional hypothesis fields separate and never a publish gate", async () => {
+      if (!database) {
+        throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+      }
+      const records = createDatabaseProjectSourceRecords(database);
+      const created = await records.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "release-hypothesis-create",
+        description: null,
+        id: sourceIds[0],
+        name: "tidekit 1.1",
+        projectId,
+        sourceType: "Project Release",
+        versionLabel: "v1.1.0",
+      });
+      expect(created).toMatchObject({
+        accessEvidence: null,
+        audience: null,
+        intendedOutcome: null,
+        outcomeEvidence: null,
+        primaryAccessPath: null,
+        status: "Draft",
+      });
+      const release = {
+        description: null,
+        name: "tidekit 1.1",
+        projectId,
+        sourceId: sourceIds[0],
+        sourceType: "Project Release" as const,
+        versionLabel: "v1.1.0",
+      };
+      const accessOnly = await records.update(accountId, {
+        ...release,
+        audience: "Solo founders with two side projects",
+        baseRevision: 1,
+        clientIdempotencyKey: "release-hypothesis-access",
+        primaryAccessPath: "Launch post",
+      });
+      const outcome = await records.update(accountId, {
+        ...release,
+        baseRevision: 2,
+        clientIdempotencyKey: "release-hypothesis-outcome",
+        intendedOutcome: "Founders return to paused work",
+      });
+      expect(outcome).toMatchObject({
+        accessEvidence: null,
+        audience: "Solo founders with two side projects",
+        intendedOutcome: "Founders return to paused work",
+        outcomeEvidence: null,
+        primaryAccessPath: "Launch post",
+        status: "Draft",
+      });
+      expect(accessOnly).toMatchObject({ intendedOutcome: null });
+      // Empty evidence fields do not block the explicit terminal action.
+      const published = await records.transition(accountId, {
+        baseRevision: 3,
+        clientIdempotencyKey: "release-hypothesis-publish",
+        projectId,
+        sourceId: sourceIds[0],
+        sourceType: "Project Release",
+        status: "Published",
+      });
+      expect(published).toMatchObject({
+        intendedOutcome: "Founders return to paused work",
+        outcomeEvidence: null,
+        status: "Published",
+      });
+    });
+
     test("Decisions listing respects Account ownership and archived Project writes", async () => {
       if (!database) {
         throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import GitHubIntegrationSurface from "@/features/github-integration/ui/components/github-integration-surface";
+import ProjectReleasesView from "@/features/project-release-planning/ui/views/project-releases-view";
 import ProjectShellView from "@/features/project-shell/ui/views/project-shell-view";
 import { smartCollectionWorkPrefillFromSearch } from "@/features/smart-collections/lib/smart-collection-work-prefill";
 
@@ -31,6 +32,7 @@ function RouteComponent() {
         <GitHubIntegrationSurface key={projectId} projectId={projectId} />
       }
       projectId={projectId}
+      releasesArea={ProjectReleasesView}
     />
   );
 }

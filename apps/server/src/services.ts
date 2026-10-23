@@ -144,6 +144,7 @@ import {
 import { createDatabaseWorkTemplates } from "./features/work-templates/server/work-templates-database";
 import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/server/workspace-overview-database";
 import { createMaintenanceWorker } from "./maintenance-worker";
+import { createProjectReleasePlanning } from "./project-release-planning-wiring";
 
 const db = createDb(env);
 export const documents = createDatabaseDocuments(db);
@@ -189,6 +190,7 @@ export const favorites = createDatabaseFavorites(db);
 export const dailyFocus = createDatabaseDailyFocus(db);
 export const focusPeriod = createDatabaseFocusPeriod(db);
 export const projectGoals = createDatabaseProjectGoals(db);
+export const projectReleasePlanning = createProjectReleasePlanning(db);
 export const researchSessions = createDatabaseResearchSessions(db);
 export const projectSourceRecords = createDatabaseProjectSourceRecords(db);
 export const sourcesAndFreshness = createDatabaseSourcesAndFreshness(db);

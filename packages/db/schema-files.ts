@@ -40,6 +40,7 @@ export const primarySchemaFiles = [
   "./src/schema/project-goal-relation.ts",
   "./src/schema/project-milestone.ts",
   "./src/schema/project-release.ts",
+  "./src/schema/project-release-planning.ts",
   "./src/schema/production-incident.ts",
   "./src/schema/priority-metrics.ts",
   "./src/schema/personal-reminders.ts",
