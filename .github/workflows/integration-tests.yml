@@ -126,7 +126,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-vitest-v1-server-${{ matrix.shard }}-${{ hashFiles('bun.lock', '**/vite.config.*', '**/vitest.config.*', '**/tsconfig*.json') }}-
       - name: Install server integration browsers
-        run: bunx playwright install --with-deps chromium webkit
+        run: |
+          # A slow apt mirror must not consume the whole job timeout; apt keeps
+          # already downloaded packages, so a retry resumes where it stopped.
+          for attempt in 1 2; do
+            timeout 420 bunx playwright install --with-deps chromium webkit && exit 0
+            echo "Playwright install attempt $attempt did not finish"
+          done
+          exit 1
         working-directory: apps/server
       - name: Prepare PostgreSQL boundaries
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE cantiara_security'
