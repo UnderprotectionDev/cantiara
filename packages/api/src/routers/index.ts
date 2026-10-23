@@ -450,6 +450,19 @@ import {
   usageLinkSchema,
 } from "../relations";
 import {
+  changelogInputSchema,
+  closeAssessmentInputSchema,
+  publishReleaseNoteInputSchema,
+  type ReleaseCommunicationAccess,
+  reassessmentInputSchema,
+  recordObservationInputSchema,
+  releaseNotePreviewInputSchema,
+  releaseNotesInputSchema,
+  saveReleaseNoteDraftMutationInputSchema,
+  setLookAgainInputSchema,
+  startReassessmentInputSchema,
+} from "../release-communication";
+import {
   addReleaseChecklistItemInputSchema,
   closeReleaseOpenScopeSignalInputSchema,
   releaseChecklistItemOutputSchema,
@@ -1135,6 +1148,60 @@ function requireWorkAutomation(context: Context): WorkAutomationAccess {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.workAutomation;
+}
+
+function requireReleaseCommunication(
+  context: Context,
+): ReleaseCommunicationAccess {
+  if (!context.releaseCommunication) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.releaseCommunication;
+}
+
+function releaseUnavailable(): never {
+  throw new ORPCError("NOT_FOUND", {
+    defined: true,
+    message: "Release is unavailable.",
+  });
+}
+
+function projectUnavailable(): never {
+  throw new ORPCError("NOT_FOUND", {
+    defined: true,
+    message: "Project is unavailable.",
+  });
+}
+
+function rethrowReleaseCommunicationError(error: unknown): never {
+  if (!isRecord(error) || typeof error.code !== "string") {
+    throw error;
+  }
+  const status = {
+    RELEASE_COMMUNICATION_ALREADY_PUBLISHED: "CONFLICT",
+    RELEASE_COMMUNICATION_EVIDENCE_INVALID: "BAD_REQUEST",
+    RELEASE_COMMUNICATION_NOT_FOUND: "NOT_FOUND",
+    RELEASE_COMMUNICATION_NOT_PUBLISHED: "CONFLICT",
+    RELEASE_COMMUNICATION_PREVIEW_BLOCKED: "CONFLICT",
+    RELEASE_COMMUNICATION_PREVIEW_STALE: "PRECONDITION_FAILED",
+    RELEASE_COMMUNICATION_ROUND_CLOSED: "CONFLICT",
+    RELEASE_COMMUNICATION_SCOPE_INVALID: "BAD_REQUEST",
+    RELEASE_COMMUNICATION_STALE_REVISION: "PRECONDITION_FAILED",
+  }[error.code] as
+    | "BAD_REQUEST"
+    | "CONFLICT"
+    | "NOT_FOUND"
+    | "PRECONDITION_FAILED"
+    | undefined;
+  if (!status) {
+    throw error;
+  }
+  throw new ORPCError(status, {
+    data: { code: error.code },
+    defined: true,
+    message:
+      error instanceof Error ? error.message : "Release communication failed.",
+  });
 }
 
 function rethrowWorkAutomationError(error: unknown): never {
@@ -7134,6 +7201,135 @@ export const appRouter = {
         input.receiptId,
       ),
     ),
+  releaseNotes: protectedProcedure
+    .input(releaseNotesInputSchema)
+    .handler(async ({ context, input }) => {
+      const notes = await requireReleaseCommunication(context).listNotes(
+        context.session.user.id,
+        input.releaseId,
+      );
+      return notes ?? releaseUnavailable();
+    }),
+  saveReleaseNoteDraft: protectedProcedure
+    .input(saveReleaseNoteDraftMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { clientIdempotencyKey: _key, ...payload } = input;
+      try {
+        const note = await requireReleaseCommunication(context).saveDraft(
+          context.session.user.id,
+          payload,
+        );
+        return note ?? releaseUnavailable();
+      } catch (error) {
+        rethrowReleaseCommunicationError(error);
+      }
+    }),
+  previewReleaseNotePublish: protectedProcedure
+    .input(releaseNotePreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const preview = await requireReleaseCommunication(
+          context,
+        ).previewPublish(context.session.user.id, input.noteId);
+        return preview ?? releaseUnavailable();
+      } catch (error) {
+        rethrowReleaseCommunicationError(error);
+      }
+    }),
+  publishReleaseNote: protectedProcedure
+    .input(publishReleaseNoteInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision: _base,
+        clientIdempotencyKey: _key,
+        ...payload
+      } = input;
+      try {
+        const entry = await requireReleaseCommunication(context).publish(
+          context.session.user.id,
+          payload,
+        );
+        return entry ?? releaseUnavailable();
+      } catch (error) {
+        rethrowReleaseCommunicationError(error);
+      }
+    }),
+  releaseChangelog: protectedProcedure
+    .input(changelogInputSchema)
+    .handler(async ({ context, input }) => {
+      const entries = await requireReleaseCommunication(context).changelog(
+        context.session.user.id,
+        input,
+      );
+      return entries ?? releaseUnavailable();
+    }),
+  releaseReassessment: protectedProcedure
+    .input(reassessmentInputSchema)
+    .handler(async ({ context, input }) => {
+      const view = await requireReleaseCommunication(context).reassessment(
+        context.session.user.id,
+        input.releaseId,
+      );
+      return view ?? releaseUnavailable();
+    }),
+  reassessmentActionNeeded: protectedProcedure
+    .input(changelogInputSchema.pick({ projectId: true }))
+    .handler(async ({ context, input }) => {
+      const rounds = await requireReleaseCommunication(context).actionNeeded(
+        context.session.user.id,
+        input.projectId,
+      );
+      return rounds ?? projectUnavailable();
+    }),
+  startReleaseReassessment: protectedProcedure
+    .input(startReassessmentInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const round = await requireReleaseCommunication(
+          context,
+        ).startReassessment(context.session.user.id, {
+          lookAgainAt: input.lookAgainAt,
+          releaseId: input.releaseId,
+        });
+        return round ?? releaseUnavailable();
+      } catch (error) {
+        rethrowReleaseCommunicationError(error);
+      }
+    }),
+  recordReleaseObservation: protectedProcedure
+    .input(recordObservationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { clientIdempotencyKey: _key, ...payload } = input;
+      try {
+        const round = await requireReleaseCommunication(
+          context,
+        ).recordObservation(context.session.user.id, payload);
+        return round ?? releaseUnavailable();
+      } catch (error) {
+        rethrowReleaseCommunicationError(error);
+      }
+    }),
+  closeReleaseAssessment: protectedProcedure
+    .input(closeAssessmentInputSchema)
+    .handler(async ({ context, input }) => {
+      const round = await requireReleaseCommunication(context).closeAssessment(
+        context.session.user.id,
+        input.roundId,
+      );
+      return round ?? releaseUnavailable();
+    }),
+  setReleaseLookAgain: protectedProcedure
+    .input(setLookAgainInputSchema)
+    .handler(async ({ context, input }) => {
+      const set = await requireReleaseCommunication(context).setLookAgain(
+        context.session.user.id,
+        input.releaseId,
+        input.fireAt,
+      );
+      return set
+        ? { fireAt: input.fireAt, releaseId: input.releaseId }
+        : releaseUnavailable();
+    }),
   healthCheck: publicProcedure.handler(() => "OK"),
   githubAvailability: publicProcedure.handler(({ context }) => ({
     status: context.githubAvailability.getStatus(),

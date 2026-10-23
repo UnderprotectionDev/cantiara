@@ -101,6 +101,10 @@ import {
   createDatabaseUsageLinkMutationContracts,
   createDatabaseUsageLinks,
 } from "./features/relations/server/usage-links-database";
+import {
+  createDatabaseReleaseCommunication,
+  createLookAgainSchedule,
+} from "./features/release-communication/server/release-communication-database";
 import { createDatabaseReleaseEvidence } from "./features/release-evidence/server/release-evidence-database";
 import {
   createDatabaseResearchSessions,
@@ -257,6 +261,11 @@ const personalReminderWorker = createPersonalReminderWorker({
 });
 export const startPersonalReminderWorker = personalReminderWorker.start;
 export const stopPersonalReminderWorker = personalReminderWorker.stop;
+export const releaseCommunication = createDatabaseReleaseCommunication(db, {
+  // The Look again date replaces the Release's unsent Review Later reminder
+  // instead of accumulating fires on it (see createLookAgainSchedule).
+  schedule: createLookAgainSchedule(personalReminderStore),
+});
 const priorityMetricStore = createDatabasePriorityMetrics(db);
 export const priorityMetrics = createPriorityMetricsAccess(priorityMetricStore);
 export const priorityMetricMutationContracts =
