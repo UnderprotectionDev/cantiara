@@ -54,14 +54,18 @@ Alan başlığı, tek cümlelik açıklama, planlama yüzeyi gezintisi, `Priorit
 
 ### Görünüm çubuğu
 `Board` / `List` geçişi; `In Progress count`; odak eşiği aşıldığında uyarı; aktif kayıtlı görünüm sıralamasının salt okunur özeti.
-- **Label'lar:** `Board`, `List`, `In Progress count`, `Focus threshold`, `Sort by`, `Work number`, `Ascending`.
+- **Label'lar:** `Board`, `Kanban`, `List`, `In Progress count`, `Focus threshold`, `Sort by`, `Work number`, `Ascending`, `Over limit`.
+
+### Filtreler
+Board ve List'in ortak filtre satırı (→ 09.2 aynı filtreleri kullanır). Özel alan filtresi: Proje seçiliyken her özel alan için bir filtre; türe göre `True` / `False` / `Not evaluated`, seçenek ya da tarih aralığı; filtre etiketi alanın adının kendisidir. Öncelik ölçütü filtresi: ölçüt seçimi ve kademe (beş sabit kademe → 08.19 › Rank descriptions; ek olarak `Unevaluated`); filtre değer yazmaz, ölçüt tanımı yoksa kontrol çizilmez.
+- **Label'lar:** `Custom fields`, `Priority criterion`, `Rank`, `Unevaluated`, `True`, `False`, `Not evaluated`.
 
 ### Durum sütunları
 `Not Started`, `In Progress`, `Blocked`, `Closed`. Her sütun başlığında ad, kart sayısı, `Soft WIP` tanımlıysa sayı/sınır ve `Collapse` kontrolü. Kartlar kayıtlı görünümün sırasıyla dizilir; bağımsız manuel kart sırası yoktur.
 - **Label'lar:** `Not Started`, `In Progress`, `Blocked`, `Closed`, `Collapse`, `Expand`, `Soft WIP`, `Over limit`.
 
 ### İş kartı
-Kayıtlı görünümün görünür alanları; varsayılan sıra: İş anahtarı + tür, başlık, durum ve varsa kapanış sonucu, öncelik ölçütü değerleri, planlanan başlangıç / hedef / yeniden görünme tarihi, blokaj veya risk işareti, kontrol listesi ilerlemesi, aktif kartta durumda geçen süre, varsa `Not now` işareti.
+Kayıtlı görünümün görünür alanları; çekirdek ve satır metası → DS.17 (Work satırı; kart ilk ikisini taşır, burada yeniden listelenmez). Ekrana özgü fark: durum sütunu başlıkta olduğundan kartta yalnız varsa kapanış sonucu, blokaj veya risk işareti ve `Not now` işareti öne çıkar.
 - **Label'lar:** `Move`, `Status`, `Time in status`, `Open blocker`, `Reappear date`, `Completed`, `Abandoned`, `Open source record`, `Not now`.
 
 ### Durumlar
@@ -74,21 +78,23 @@ Hiç İş yoksa sütunlar başlıklarıyla durur; içerikte "No Work yet." ve `C
 #### Soft WIP over limit
 `In Progress 4 / 3` ve `Over limit In Progress` metinli işaret; renk tek başına taşımaz. Kartlar taşınmaya devam eder; bildirim veya sağlık hükmü yoktur.
 #### Focus threshold exceeded
-Görünüm çubuğunda nötr `Focus threshold exceeded` uyarısı; hareket engellenmez.
+Görünüm çubuğunda nötr `Focus threshold exceeded` uyarısı ve renge dayanmayan `Over limit` işareti; hareket engellenmez. Aynı eşik İş kaynaklı Akıllı Koleksiyon görünümünde de ayarlanır (→ 08.12).
 #### Column collapsed
 `Closed` daraltılmış: dar şerit ad, sayı ve `Open blocker` gibi önemli sinyalleri korur; `Expand` ile açılır. Filtre değildir.
 #### Dragging
 Sürüklenen kart ve hedef sütun vurgusu; ekran okuyucu duyurusu hedef sütunu söyler.
 #### Drop on Closed
 Bırakma anında 09.13 açılır; iptal kartı önceki sütuna döndürür.
+#### Drag out of Closed
+`Closed` kartı açık sütuna bırakılınca 09.14 `Reopen` adımı hedef durum bırakılan sütun olarak açılır; iptal kartı `Closed`'a döndürür.
 #### Reappear date backgrounded
 Gelecek `Reappear date` taşıyan İş varsayılan tahtada görünmez; tarih bugün veya geçmişse kart `Reappear date 2026-10-22` ile görünür, durum değişmez.
 #### Multi-select
-Kart seçim kutuları işaretlenince üstte seçim çubuğu: seçili sayı ve `Bulk Edit` girişi (→ 20 · `Bulk Edit`). Dialog burada çizilmez.
+Kart seçim kutuları işaretlenince üstte seçim çubuğu → DS.14 › Seçim; `Bulk Edit` dialog'u → 20.8, burada çizilmez.
 #### Work completed
 Kapatma sunucuda `Completed` kabul edilince kartın çevresinde efekt katmanı ve `Work completed` bildirimi (→ 09.30).
 
-**Spec:** [25 Kanban](../../specs/25-kanban/spec.md), [09 İş Yaşam Döngüsü](../../specs/09-work-lifecycle/spec.md), [19 Blokajlar](../../specs/19-blockers/spec.md), [26 Backlog](../../specs/26-backlog/spec.md) (`Reappear date`), [22 Toplu Düzenleme](../../specs/22-bulk-editing/spec.md) (yalnız seçim girişi).
+**Spec:** [25 Kanban](../../specs/25-kanban/spec.md), [09 İş Yaşam Döngüsü](../../specs/09-work-lifecycle/spec.md), [19 Blokajlar](../../specs/19-blockers/spec.md), [26 Backlog](../../specs/26-backlog/spec.md) (`Reappear date`), [22 Toplu Düzenleme](../../specs/22-bulk-editing/spec.md) (yalnız seçim girişi), [20 Önceliklendirme](../../specs/20-priority/spec.md) (ölçüt filtresi), [10 Özel Alanlar](../../specs/10-custom-fields/spec.md) (alan filtresi).
 
 ## 09.2 · Work List
 > Board ile aynı filtrelenmiş İş taramasını, planlanmamış İşler dahil, yoğun satır düzeninde sunmak.
@@ -100,12 +106,16 @@ Kapatma sunucuda `Completed` kabul edilince kartın çevresinde efekt katmanı v
 - `09.2 · Work List · Multi-select · 1440`
 
 ### Work alanı başlığı ve görünüm çubuğu
-09.1 ile aynı; `List` seçili. `Archived` filtresi var.
-- **Label'lar:** `Board`, `List`, `In Progress count`, `Focus threshold`, `Archived`.
+→ 09.1 › Work alanı başlığı, Görünüm çubuğu ve Filtreler; `List` seçili. Fark: `Archived` filtresi.
+- **Label'lar:** `Archived`.
+
+### Dışa ve içe aktarma girişleri
+Liste başlığı eylem alanında `Export` (→ 20.5) ve `Import` (→ 20.6). Fark: `Import` hedef kapsamı Proje ve türü Work olarak önceden doldurur; Proje kapanış dondurmasında `Import` pasif ve nedeni yazılıdır.
+- **Label'lar:** `Export`, `Import`.
 
 ### İş satırları
-Seçim kutusu, İş anahtarı, başlık, tür, durum + kapanış sonucu, `Time in status`, öncelik ölçütü değerleri, planlanan başlangıç / hedef / `Reappear date`, blokaj/risk, checklist ilerlemesi, `Not now` işareti.
-- **Label'lar:** `List Work`, `Open source record`, `Open blocker`, `Not now`.
+Çekirdek ve satır metası → DS.17 (Work satırı); alanlar 09.1 › İş kartı ile aynı kayıtlı görünüm alanlarıdır, yeniden tarif edilmez. Satıra özgü fark: başta seçim kutusu, sabit kolon hizası.
+- **Label'lar:** `List Work`.
 
 ### Durumlar
 #### Empty
@@ -117,11 +127,11 @@ Seçim kutusu, İş anahtarı, başlık, tür, durum + kapanış sonucu, `Time i
 #### Archived filter
 Arşivli satırlar `Archived` etiketiyle; satırda `Unarchive` eylemi kayıt detayında kalır.
 #### Multi-select
-Seçili satırlar ve `Bulk Edit` girişi (→ 20 · `Bulk Edit`).
+Seçili satırlar; seçim çubuğu → DS.14 › Seçim, `Bulk Edit` → 20.8.
 #### Many items
 Uzun liste sabit kolon hizasıyla kayar; başlık satırı yapışkan.
 
-**Spec:** [25 Kanban](../../specs/25-kanban/spec.md) (`List`), [09](../../specs/09-work-lifecycle/spec.md) (`Archive` filtresi), [29](../../specs/29-roadmap-horizon/spec.md) (`Not now` işareti), [22](../../specs/22-bulk-editing/spec.md) (seçim girişi).
+**Spec:** [25 Kanban](../../specs/25-kanban/spec.md) (`List`), [09](../../specs/09-work-lifecycle/spec.md) (`Archive` filtresi), [29](../../specs/29-roadmap-horizon/spec.md) (`Not now` işareti), [22](../../specs/22-bulk-editing/spec.md) (seçim girişi), [79 Veri Dışa Aktarma](../../specs/79-data-export/spec.md), [80 Veri İçe Aktarma](../../specs/80-data-import/spec.md).
 
 ## 09.3 · Backlog
 > Değerlendirilecek bütün aktif İşleri durumdan bağımsız görmek ve tek kalıcı manuel sırayla "önce hangisini ele alacağım?" kararını tutmak.
@@ -137,12 +147,13 @@ Uzun liste sabit kolon hizasıyla kayar; başlık satırı yapışkan.
 - **Label'lar:** `Backlog`.
 
 ### Sıralama çubuğu
-`Backlog sort` seçimi; `Priority` seçiliyken `Priority criterion`, `Field` seçiliyken `Field to sort by`; kayıtlı sunum kontrolleri.
-- **Label'lar:** `Backlog sort`, `Manual order`, `Priority`, `Date`, `Field`, `Priority criterion`, `Field to sort by`, `Title`, `Status`, `Saved presentation`, `Save presentation`, `Use saved presentation`.
+`Backlog sort` seçimi; `Priority` seçiliyken `Priority criterion`, `Field` seçiliyken `Field to sort by`; kayıtlı sunum kontrolleri; kayıtlı sunum özeti `Saved presentation: {sort}[ · {detail}]` (ayrıntı yalnız `Priority` ve `Field` için).
+`Export` (→ 20.5) Backlog'un kesin görünümünü (aktif İşler, seçili `Backlog sort`, kayıtlı sunum) kapsar.
+- **Label'lar:** `Export`, `Backlog sort`, `Manual order`, `Priority`, `Date`, `Field`, `Priority criterion`, `Field to sort by`, `Title`, `Status`, `Saved presentation`, `Save presentation`, `Use saved presentation`.
 
 ### Sıralı liste
-Her satırda sürükleme tutamacı (yalnız `Manual order`'da), sıra numarası, İş anahtarı, başlık, durum, varsa `Not now` işareti, `Reappear date` seçici.
-- **Label'lar:** `Drag {Work title}`, `Reappear date`, `Clear`, `Not now`, `Open source record`.
+Her satırda sürükleme tutamacı ve klavye alternatifi `Move up` / `Move down` (ikisi de yalnız `Manual order`'da; tutamaç spec 26, `Move up`/`Move down` spec 20 Backlog order; ikisi aynı kalıcı sırayı yazar), sıra numarası, İş anahtarı, başlık, durum, varsa aktif blokaj işareti, varsa `Not now` işareti, `Reappear date` seçici. Etkin her Öncelik ölçütünün değeri ayrı hücrede (kademeler → 08.19 › Rank descriptions, ya da `Unevaluated`); toplam veya skor yok. Ölçüt filtresi → 09.1 › Filtreler.
+- **Label'lar:** `Unevaluated`, `Drag {Work title}`, `Move up`, `Move down`, `Reappear date`, `Clear`, `Open blocker`, `Not now`, `Open source record`.
 
 ### Deferred
 Gelecek `Reappear date` taşıyan İşler; tarihe göre.
@@ -156,13 +167,13 @@ Gelecek `Reappear date` taşıyan İşler; tarihe göre.
 #### Error
 "Backlog is unavailable. Try loading this page again."; sıra yüklenemezse "Backlog order is unavailable."; sunum yüklenemezse "Backlog presentation is unavailable."
 #### Alternative sort
-`Priority` seçili: tutamaçlar gizli, satırlar ölçüt değerine göre; ölçüt değeri olmayanlar `Unevaluated` ile sonda. `Manual order` seçilince eski sıra geri gelir.
+`Priority` seçili: tutamaçlar ve `Move up` / `Move down` gizli, satırlar ölçüt değerine göre; ölçüt değeri olmayanlar `Unevaluated` ile sonda. `Manual order` seçilince eski sıra geri gelir.
 #### Reorder announcement
-Klavye taşıması sırasında canlı duyurular: "Picked up {Work}.", taşıma, bırakma ve "Moving {Work} was cancelled."
+Klavye taşıması sırasında canlı duyurular İş adını söyler: "Picked up {Work title}.", "{Work title} is over {Work title}.", "{Work title} is outside the Backlog.", "{Work title} was dropped over {Work title}.", "{Work title} was not moved.", "Moving {Work title} was cancelled."
 #### Save failures
 "Backlog order could not be saved. Try again.", "Backlog presentation could not be saved. Try again.", "Reappear date could not be saved. Try again." — ilgili satırın veya çubuğun yanında.
 #### Reappear date arrived
-Tarihi bugün olan İş Deferred'dan çıkıp kayıtlı konumuna döner; Proje `Notify on Reappear date` açıksa tek `reappear-date` sinyali Bildirim Merkezinde görünür (→ 00).
+Tarihi bugün olan İş Deferred'dan çıkıp kayıtlı konumuna döner; Proje `Notify on Reappear date` açıksa tek `reappear-date` sinyali Bildirim Merkezinde görünür (→ 00.5).
 
 **Spec:** [26 Backlog](../../specs/26-backlog/spec.md), [20 Önceliklendirme](../../specs/20-priority/spec.md) (`Priority` sıralaması), [29](../../specs/29-roadmap-horizon/spec.md) (`Not now` işareti).
 
@@ -177,12 +188,12 @@ Tarihi bugün olan İş Deferred'dan çıkıp kayıtlı konumuna döner; Proje `
 - `09.4 · Roadmap · Empty · 1440`
 
 ### Görünüm çubuğu
-Adlandırılmış görünüm seçimi, birincil kapsam (`Product direction` / `All Work types`), grup/lane alanı, işaret alanı, `Presentation Mode`.
-- **Label'lar:** `Roadmap`, `Product direction`, `All Work types`, `Horizon`, `Type`, `Status`, `No filter`, `Presentation Mode`.
+Adlandırılmış görünüm seçimi, birincil kapsam (`Product direction` / `All Work types`), grup/lane alanı, işaret alanı, `Presentation Mode`; görünüme kaydedilen zaman ölçeği ve görsel yoğunluk seçicisi (durum, öncelik veya Backlog sırası yazmaz).
+- **Label'lar:** `Roadmap`, `Product direction`, `All Work types`, `Horizon`, `Type`, `Status`, `No filter`, `Presentation Mode`, `Time scale`, `Density`.
 
 ### Roadmap kanvası
-`Now`, `Next`, `Later` lane'leri; planlanan başlangıç + hedefi olan İş aralık, yalnız hedefi olan İş nokta; `Product direction` görünümünde Research İşinin `Problem/Opportunity` ve `Expected Outcome` metni birincil, ona `Origin` ile bağlı Feature İşi ikincil; Kilometre Taşları tarih işaretleri; aktif blokaj rozeti; viewport kontrolleri.
-- **Label'lar:** `Now`, `Next`, `Later`, `No horizon`, `Primary`, `Secondary`, `Problem/Opportunity`, `Expected Outcome`, `Blocked by`, `Zoom in`, `Zoom out`, `Fit View`, `Roadmap canvas`.
+`Now`, `Next`, `Later` lane'leri; planlanan başlangıç + hedefi olan İş aralık, yalnız hedefi olan İş nokta; `Product direction` görünümünde Research İşinin `Problem/Opportunity` ve `Expected Outcome` metni birincil, ona `Origin` ile bağlı Feature İşi ikincil; Kilometre Taşları tarih işaretleri; aktif blokaj rozeti; viewport kontrolleri (zoom, `Fit View`) → 13.2 › Araç çubuğu.
+- **Label'lar:** `Now`, `Next`, `Later`, `No horizon`, `Primary`, `Secondary`, `Problem/Opportunity`, `Expected Outcome`, `Blocked by`, `Open source record`, `Roadmap canvas`.
 
 ### Planlama listesi
 Kanvasla aynı İşler; her satırda `Horizon` seçimi ve tarih alanları; `Not now` işareti.
@@ -193,8 +204,9 @@ Varsayılan daraltılmış; görünüm filtrelerine uyan fakat tarihi ve ufku ol
 - **Label'lar:** `Unplanned candidates`, `Place {Work key} on plan`.
 
 ### Milestones
-Proje Kilometre Taşları: başlık, hedef tarih, durum, bağlı İş sayısı (`In Milestone`).
-- **Label'lar:** `Milestones`, `Create Milestone`, `Planned`, `Reached`, `Abandoned`, `Reach`, `Abandon`, `In Milestone`, `No Milestone yet.`
+Proje Kilometre Taşları: başlık, hedef tarih, durum, bağlı İş sayısı (`In Milestone`); her satırda düzenleme girişi `Edit Milestone` (→ 09.29).
+Bölüm başlığında `Export` (→ `20.5`) ve `Import` (→ `20.6`, kapsam: seçili Proje). Arşivli Projede `Import` kapalıdır (→ `20.21`).
+- **Label'lar:** `Milestones`, `Export`, `Import`, `Create Milestone`, `Edit Milestone`, `Planned`, `Reached`, `Abandoned`, `Reach`, `Abandon`, `In Milestone`, `No Milestone yet.`
 
 ### Durumlar
 #### Empty
@@ -204,13 +216,13 @@ Kanvasın yerinde planlı İş yoksa dürüst boş durum ve açık `Unplanned ca
 #### Error
 "Roadmap is unavailable. Reload and try again."; viewport hatası "Roadmap viewport could not be fitted."
 #### Blocker badge selected
-Rozet seçili: engellenen `LUMA-58` ile kaynak `LUMA-63` vurgulu; diğer öğeler sakinleşir; ağ çizilmez.
+Rozet seçili: engellenen `LUMA-58` ile kaynak `LUMA-63` vurgulu; diğer öğeler sakinleşir; ağ çizilmez. Rozet iki ayrı açılabilir hedef taşır: engellenen kayıt (`LUMA-58`) ve kesin blokaj kaynağı (`LUMA-63`); her biri `Open source record`.
 #### Unplanned candidates expanded
 Bölüm açık, aday satırları görünür.
 #### All Work types view
 Bütün türler birincil; Research/Feature ayrımı yok.
 
-**Spec:** [29 Roadmap Ufku](../../specs/29-roadmap-horizon/spec.md), [19 Blokajlar](../../specs/19-blockers/spec.md) (rozet).
+**Spec:** [29 Roadmap Ufku](../../specs/29-roadmap-horizon/spec.md), [19 Blokajlar](../../specs/19-blockers/spec.md) (rozet), [79 Veri Dışa Aktarma](../../specs/79-data-export/spec.md) ve [80 Veri İçe Aktarma](../../specs/80-data-import/spec.md) (Milestones).
 
 ## 09.5 · Roadmap Presentation Mode
 > Mevcut adlandırılmış Roadmap görünümünü düzenleme ve yapılandırma araçları olmadan tam ekran sunmak.
@@ -220,8 +232,8 @@ Bütün türler birincil; Research/Feature ayrımı yok.
 - `09.5 · Roadmap Presentation Mode · Detail open · 1440`
 
 ### Sunum kanvası
-09.4 kanvasıyla aynı görünüm ve konum; düzenleme, ufuk seçimi, liste, `Unplanned candidates` yok.
-- **Label'lar:** `Presentation Mode`, `Exit Presentation Mode`, `Zoom in`, `Zoom out`, `Fit View`.
+09.4 kanvasıyla aynı görünüm ve konum; viewport kontrolleri → 13.2 › Araç çubuğu; düzenleme, ufuk seçimi, liste, `Unplanned candidates` yok.
+- **Label'lar:** `Presentation Mode`, `Exit Presentation Mode`.
 
 ### Salt okunur detay
 Seçili İşin başlığı, türü, durumu, tarihleri, ufku; düzenleme kontrolü yok.
@@ -243,12 +255,12 @@ Salt okunur panel açık.
 - `09.6 · Priority Map · Empty · 1440`
 
 ### Eksen çubuğu
-Yatay ve dikey eksen ölçüt seçimleri (ilk iki etkin ölçüt başlangıç), kanıt sinyali anahtarı.
-- **Label'lar:** `Horizontal axis`, `Vertical axis`, `Show evidence signals`.
+Yatay ve dikey eksen ölçüt seçimleri (ilk iki etkin ölçüt başlangıç), kanıt sinyali anahtarı; noktadan `Edit axis values` açılır (→ 09.27).
+- **Label'lar:** `Horizontal axis`, `Vertical axis`, `Show evidence signals`, `Edit axis values`.
 
 ### Harita düzlemi
-Beş kademeli iki eksen (`Very low` … `Very high`); her nokta İş anahtarı ve kısa başlık; kanıt sinyali açıksa yanında `Feedback`, `Unique Contact`, `Unique Company` sayıları. Çeyrek etiketi yoktur.
-- **Label'lar:** `Work by selected criteria`, `Very low`, `Low`, `Medium`, `High`, `Very high`, `Feedback`, `Unique Contact`, `Unique Company`, `Not now`.
+Beş kademeli iki eksen (kademeler → 08.19 › Rank descriptions); her nokta İş anahtarı ve kısa başlık; kanıt sinyali açıksa yanında `Feedback`, `Unique Contact`, `Unique Company` sayıları. Çeyrek etiketi yoktur.
+- **Label'lar:** `Work by selected criteria`, `Feedback`, `Unique Contact`, `Unique Company`, `Not now`.
 
 ### Unevaluated
 En az bir eksen değeri olmayan İşler.
@@ -256,7 +268,7 @@ En az bir eksen değeri olmayan İşler.
 
 ### Durumlar
 #### Empty
-Ölçüt yoksa: "No priority metrics yet." ve Yapılandırma modu bağlantısı (→ 08); İş yoksa "No Work yet."
+Ölçüt yoksa: "No priority metrics yet." ve Yapılandırma modu bağlantısı (→ 08.19); İş yoksa "No Work yet."
 #### Loading
 `Loading…`
 #### Error
@@ -339,7 +351,7 @@ Kök Proje; altında Feature İşleri; her Feature altında birincil kapsamdaki 
 
 ### Durumlar
 #### Empty
-Feature yoksa yalnız kök Proje ve dürüst tek satır açıklama (spec'te label yok); sahte ağaç çizilmez.
+Feature yoksa yalnız kök Proje ve tek satır açıklama `No Features in this Project yet.`; sahte ağaç çizilmez.
 #### Loading
 `Loading Work…`
 #### Error
@@ -353,20 +365,23 @@ Feature yoksa yalnız kök Proje ve dürüst tek satır açıklama (spec'te labe
 **Artboard'lar**
 - `09.10 · Work Detail · Bug · 1440`
 - `09.10 · Work Detail · Bug · 768`
-- `09.10 · Work Detail · Bug · 1440 · Dark`
+- `09.10 · Work Detail · Bug · Dark · 1440`
 - `09.10 · Work Detail · Feature · 1440`
 - `09.10 · Work Detail · Empty context section · 1440`
 - `09.10 · Work Detail · Closed Abandoned · 1440`
 - `09.10 · Work Detail · Archived · 1440`
 - `09.10 · Work Detail · Relation preview · 1440`
 - `09.10 · Work Detail · Automation suggestion · 1440`
+- `09.10 · Work Detail · Converted from capture · 1440`
+- `09.10 · Work Detail · Custom section · 1440`
+- `09.10 · Work Detail · Copied Markdown preview · 1440`
 
 ### Kayıt başlığı
-İş anahtarı, başlık, tür, durum (+ kapanış sonucu), eylem satırı ve taşma menüsü. Altında varsa `Not now` işareti ve köken satırı.
+İş anahtarı, başlık, tür, durum (+ kapanış sonucu), eylem satırı ve taşma menüsü. Altında varsa `Not now` işareti ve köken satırı. Ortak başlık eylemleri (`Add to Favorites`, `Remind me`, `Archive`, `Move to Trash` ve taşma menüsü) → DS.11; burada yalnız İşe özgü eylemler. Köken satırı: yakalamadan dönüşen İşte `Capture provenance` (özgün metin, bağlantı, yakalama zamanı, köken; `Origin` ilişkisi değildir); kontrol listesi maddesinden dönüşen İşte `Origin` ve `Origin Location`.
 <details>
 <summary>Label'lar</summary>
 
-`Work`, `Feature`, `Bug`, `Task`, `Research`, `Improvement`, `Not Started`, `In Progress`, `Blocked`, `Closed`, `Completed`, `Abandoned`, `Copy Context as Markdown`, `Record Action`, `Start Work`, `Not now`, `Archive`, `Unarchive`, `Duplicate Work`, `Merge as duplicate`, `Recreate in another Project`.
+`Work`, `Feature`, `Bug`, `Task`, `Research`, `Improvement`, `Not Started`, `In Progress`, `Blocked`, `Closed`, `Completed`, `Abandoned`, `Copy Context as Markdown`, `Record Action`, `Start Work`, `Not now`, `Unarchive`, `Duplicate Work`, `Merge as duplicate`, `Recreate in another Project`, `Capture provenance`, `Origin`, `Origin Location`, `Source item is gone`.
 
 </details>
 
@@ -376,87 +391,110 @@ Tür seçimi, durum seçimi, planlanan başlangıç, hedef tarih, `Reappear date
 
 ### Öncelik ölçütü değerleri
 Her etkin ölçüt ayrı satır; değer veya `Unevaluated`. Toplam veya skor yok.
-- **Label'lar:** `Priority metrics for {Work key}`, `Very low`, `Low`, `Medium`, `High`, `Very high`, `Unevaluated`.
+- **Label'lar:** `Priority metrics for {Work key}`, `Unevaluated`. Kademeler → 08.19 › Rank descriptions.
 
 ### Özel alanlar
-İş türüne bağlı Proje özel alanları; boş değer `Not evaluated` olarak `False`'tan ayrı.
-- **Label'lar:** `Custom fields`, `Custom field`, `Not evaluated`, `True`, `False`.
+İş türüne bağlı Proje özel alanları; satır ve boş değer kuralı → DS.12.
+Tarih değeri düzenleyicisi takvim günü seçer; Select ve Multi select düzenleyicisi seçenekleri Proje özel alan tanımından alır.
+- **Label'lar:** `Custom fields`, `Custom field`, `Not evaluated`, `True`, `False`, `Choose a calendar date.`, `Clear date`.
 
 ### İş Bağlam Kartı
-Üstte `Why am I doing this work?` zinciri; altında İş türünün hazır bölümleri Proje düzenindeki sırayla; gizli bölümler `Add Context` menüsünde. Bölüm öğeleri kaynağından canlıdır ve durumu ile kaynağı açar.
+Üstte `Why am I doing this work?` zinciri; altında İş türünün hazır bölümleri Proje düzenindeki sırayla; gizli bölümler `Add Context` menüsünde. Bölüm öğeleri kaynağından canlıdır ve durumu ile kaynağı açar. Zincirde çözülemeyen veya erişilemeyen adım içerik sızdırmadan açıklanır. Görünür boş bölüm → DS.13 › Boş bölüm. Yapılandırılmış özel bölüm hazır bölümlerle aynı yerleşimde `Section name` başlığıyla durur; rozet eklenmez.
 <details>
 <summary>Label'lar</summary>
 
-`Work Context Card`, `Why am I doing this work?`, `Add Context`, Bug bölümleri `Observed/Expected Behavior`, `Affected Releases`, `Evidence`, `GitHub & Tests`; Feature `Problem/Opportunity`, `Expected Outcome`, `Evidence & Decisions`, `Risks & Open Questions`, `Included Work`, `GitHub & Tests`, `Target Release`; Task `Description`, `Dependencies`, `GitHub & Tests`, `Target Release`; Research `Research Question`, `Sources & Evidence`, `Decisions`, `Related Work`; Improvement `Current Situation`, `Expected Outcome`, `Evidence`, `GitHub & Tests`.
+`Work Context Card`, `Why am I doing this work?`, `Add Context`, Bug bölümleri `Observed/Expected Behavior`, `Affected Releases`, `Evidence`, `GitHub & Tests`; Feature `Problem/Opportunity`, `Expected Outcome`, `Evidence & Decisions`, `Risks & Open Questions`, `Included Work`, `GitHub & Tests`, `Target Release`; Task `Description`, `Dependencies`, `GitHub & Tests`, `Target Release`; özel bölüm `Section name`; Research `Research Question`, `Sources & Evidence`, `Decisions`, `Related Work`; Improvement `Current Situation`, `Expected Outcome`, `Evidence`, `GitHub & Tests`.
 
 </details>
 
 ### Kontrol listesi
 Maddeler: tamamlama kutusu, metin, sırala/sil; dönüştürülmüş madde yeni İşe bağlantıyla görünür; altta yeni madde alanı.
-- **Label'lar:** `Checklist`, `Item`, `Checklist for {Work key}`, `New item for {Work key}`, `Move item {n} up`, `Move item {n} down`, `Delete item {n}`, `Convert to independent Work`.
+- **Label'lar:** `Checklist`, `Item`, `Checklist for {Work key}`, `New item for {Work key}`, `Move item {n} up`, `Move item {n} down`, `Delete item {n}`, `Add item`, `Convert to independent Work`.
 
 ### Dış yürütme devirleri
 İşteki devirler kronolojik; her satırda amaç, yürütücü, durum, başlangıç tarihi.
-- **Label'lar:** `External Execution Handoff`, `Start Handoff`, `View Handoffs`, `Open`, `Result returned`, `Reconciled`, `Canceled`.
+Durum label'ları ve devir ayrıntısı 09.24'te tanımlıdır; burada yeniden tarif edilmez.
+- **Label'lar:** `External Execution Handoff`, `Start Handoff`, `View Handoffs`.
 
 ### İlişkiler ve blokajlar
-Gruplar: blokajlar (`Blocked by`, `Blocks`, her biri `Active`/`Resolved`), standart ilişkiler (`Related`, `Origin`, `Derived`, `Included in`, `Contributes to Milestone`), kırık uçlar ortak sunumla. Ayrı `Used in` bölümü: ilişki geri bağlantıları ve kullanım bağları iki grup.
-<details>
-<summary>Label'lar</summary>
-
-`Relations`, `Relation type`, `Related`, `Related Work`, `Origin`, `Derived`, `Blocks`, `Blocked by`, `Includes`, `Included in`, `Contributes to Milestone`, `In Milestone`, `Active`, `Resolved`, `Mark blocker resolved`, `Reactivate blocker`, `Blocker history`, `Resolution date`, `Remove relation`, `Undo`, `Used in`, `Open source record`, `Archived`, `In Trash`, `Permanently deleted`, `Redacted for security`, `No access`.
-
-</details>
+Gruplar: blokajlar (`Blocked by`, `Blocks`, her biri `Active`/`Resolved`; çözme ve geçmiş → 09.21), standart ilişkiler (`Related`, `Origin`, `Derived`, `Included in`, `Contributes to Milestone`). İlişki ekleme önizlemesi, `Remove relation`, `Used in`, kırık uç sunumu ve ikinci birincil Feature reddi → 20.10. Bir İş en çok bir birincil Feature kapsamında olabilir (`Included in`).
+- **Label'lar:** `Relations`, `Blocks`, `Blocked by`, `Includes`, `Included in`, `Contributes to Milestone`, `In Milestone`, `Active`, `Resolved`, `Mark blocker resolved`, `Reactivate blocker`, `Blocker history`, `Resolution date`. Kalanı → 20.10.
 
 ### Ekler
 İşe bağlı dosya ekleri listesi.
-- **Label'lar:** → `20 · Shared Dialogs & States` › File attachments.
+- **Label'lar:** → 20.13.
+
+### Etiketler
+İşe uygulanmış Çalışma Alanı etiketleri; uygulama ve kaldırma ortak seçiciyle (→ 20.11).
+- **Label'lar:** `Tags`, `Tag`.
 
 ### Priority Foundations
 Hedef, tarih, blokaj, risk, Kilometre Taşı, Geri Bildirim, Karar, Kaynak, efor ve ölçüt değerleri kaynaklarına bağlı; tıklanabilir sayılar. Skor yok.
 - **Label'lar:** `Priority Foundations`, `Show {label} source records ({count})`, `Feedback`, `Unique Contact`, `Unique Company`, `Archived`.
 
+### Return to Work
+URL'de açıkça seçilmiş İş bağlamında kaynağa bağlı kısa özet: isteğe bağlı sonraki adım alanı ve son açılıştan beri olan olaylar.
+- **Label'lar:** `Return to Work`, `Next concrete step`, `Since you last looked`, `Open source record`.
+
+### Evidence by Evidence Role
+İşe bağlı kanıtın Kanıt Rolüne göre gruplanmış, sayılı bölgesi (→ 12.10). Boş durum `No evidence linked.`
+- **Label'lar:** `Evidence by Evidence Role`, `No evidence linked.`
+
+### Evidence Flow
+İşe açıkça `Provides evidence` ile bağlı öğeler zaman sırasıyla, kaynak türüne göre süzülebilir; `Related` ilişkisi veya metin benzerliği satır üretmez.
+- **Label'lar:** `Evidence Flow`, `Open source record`.
+
 ### Geçmiş
 İşin olağan değişiklik geçmişi: durum ve sütun hareketleri, kapanış/yeniden açma (önceki sonuç korunur), devir olayları, otomasyon değişiklikleri (kural, tanım sürümü, tetikleyici), `Not now` izi.
-- **Label'lar:** `History`, `You`, `Handoff started`, `Going package produced`, `Going package copied`.
+Devir olayı label'ları ve `You` aktörü → 09.24 › Handoff history. Aynı kayıtta beş dakika içindeki güvenli alan değişiklikleri açılabilir tek bir sunum kümesinde toplanır; açınca her değişiklik ayrı görünür.
+Geçmiş satırı: aktör, zaman, köken ve desteklenen alanlarda önceki → sonraki değer. Aktör türü ortak Aktör satırıyla gösterilir (→ 20.14 › Aktör satırı); `You` yalnız 09.24 › Handoff history içindedir.
+- **Label'lar:** `History`.
 
 ### Durumlar
 #### Loading
 `Loading Work…`
 #### Error / not found
-"Work is unavailable. Try loading this page again."; bulunamayan kayıt → 20 not found.
+"Work is unavailable. Try loading this page again."; bulunamayan kayıt → 20.19.
+#### Custom fields states
+`Loading Custom field…`; yükleme hatası `Custom field values could not be loaded. Try loading this page again.`; yazma hatası `Custom field values could not be saved.` (satırın altında).
 #### Feature
-`LUMA-51`: Bağlam Kartında `Included Work` (kapsanan İşler, türetilen ilerleme `0/1`), `Feature health` güncellemeleri (`On Track` / `At Risk` / `Off Track` + kısa gerekçe, yazar, zaman; kronolojik), `Primary spec` belgesi; `Dependencies` bağlantısı salt okunur görünüm olarak.
+`LUMA-51`: Bağlam Kartında `Included Work` (kapsanan İşler, türetilen ilerleme `0/1`), `Feature health` güncellemeleri (`On Track` / `At Risk` / `Off Track` + kısa gerekçe, yazar, zaman; kronolojik) ve `Record Feature health` eylemi, `Primary spec` belgesi (bu spec için `Spec Change Review` kuyruğu varsa satırda `Spec Change Review` bağlantısı → 10.16; `Primary spec`'siz Feature'da kuyruk açılmaz ve bağlantı yoktur); `GitHub & Tests` bölümünde yalnız Feature için `Test Summary: LUMA-51` bağlantısı (→ 15.21; Bug, Task ve Improvement'ta yok); `Dependencies` bağlantısı salt okunur görünüm olarak; Feature bağlamında `Story Timeline` (→ 08.8 `Project History`).
 #### Bug
 `LUMA-42` (varsayılan artboard): `Affected Releases` çoklu seçim ve Bug bölümleri.
 #### Empty context section
-Görünür boş bölüm: "Nothing here yet." ve tek ekle/bağla eylemi; uyarı rengi veya eksiklik sayısı yok.
+Görünür boş bölüm → DS.13 › Boş bölüm (`Nothing here yet.` ve ekle/bağla eylemi).
+#### Custom section
+Özel bölüm `Section name` başlığıyla; satırlar kaynağında canlı (durum + `Open source record`); yalnız açık İşten erişilen kayıtlar; boşsa `Nothing here yet.`
 #### Closed · Completed / Closed · Abandoned
 Durum `Closed`, sonuç metinli; gerekçe varsa altında; `Reopen` görünür.
 #### Archived
-Başlık altında `Archived` bandı ve `Unarchive`; planlama alanları salt okunur görünür, kimlik ve anahtar aynı.
+Başlık altında `Archived` işareti ve `Unarchive`; arşivli kayıt davranışı → DS.11 › Durumlar (kayıt düzenlenebilir kalır); kimlik ve anahtar aynı. Salt okunur yüzey yalnız Arşivli Projede (→ `20.21`).
 #### Merged key
 Emekli anahtarla açılan kayıt yaşayan kayda yönlenir; üstte "Origin: LUMA-12 → LUMA-42" ve kısa süreli `Undo`.
+#### Converted from capture
+Yakalamadan dönüşen İşte köken satırı `Capture provenance`: özgün metin, bağlantı, yakalama zamanı, köken. `Origin` ilişkisi üretmez.
+#### Converted from checklist item
+Kontrol listesi maddesinden dönüşen yeni İşte `Origin` satırı kaynak İşi açar; yanında `Origin Location` (kaynak İş + madde metni, kararlı sürüm). Madde sonradan silinse bile konum sabit okunur; çözülemeyen konumda `Source item is gone`.
 #### Recreated
 Yeni İşte kaynağını gösteren köken satırı (`Origin` → `TIDE-9`); kaynak İş tidekit'te değişmeden kalır, eski anahtar yeni İşe yönlenmez.
 #### Relation preview
-İlişki eklerken iki uç ve tür önizlenir: "Review the relation preview before confirming."; onay sonrası `Undo · …` receipt.
+İlişki ekleme önizlemesi ve onay receipt'i → 20.10 › Seçici; ikinci birincil Feature reddi → 20.10 › Durumlar.
 #### Source closed suggestion
-Blokaj kaynağı kapanınca ilişki `Active` kalır; yanında görünür çözüm önerisi ve `Mark blocker resolved`; otomatik çözülmez.
+→ 09.21 › Resolve suggested.
 #### Automation suggestion
-Hazır PR-merge kuralı kapalı ve bütün `Required for completion` PR'lar merge edilmişse GitHub bölümünde öneri: `Mark as Completed` (→ 09.13 kapatma adımı, sonuç `Completed` seçili gelir).
+GitHub bölümünde `Mark as Completed` önerisi (koşul → 08.23 › Kural formu); eylem 09.13 kapatma adımını `Completed` seçili açar.
 #### Automation applied
-Arayüz açıkken otomasyon İşi değiştirdiyse tek sonuç bildirimi, 10 saniye `Undo`; Bitiriş efekti oynamaz.
+Arayüz açıkken otomasyon İşi değiştirdiyse tek sonuç bildirimi (→ 20.14 Write Receipts, `Undo`); Bitiriş efekti oynamaz.
 #### Copy Context as Markdown
-Panoya kopyalandı toast'ı; hata "Context could not be copied." Kopyalanan Markdown üretim zamanını, okunur kaynak kimliklerini/bağlantılarını ve `Primary source is in the app` notunu içerir; sır, erişilemeyen alan ve özel Dosya Eki baytı içermez.
+Panoya kopyalandı toast'ı `Context copied.`; hata "Context could not be copied." Kopyalanan Markdown bölümleri: İş anahtarı, başlık, tür, durum, `Description`, `Checklist`, `Why am I doing this work?`, `Primary spec`, `Related Decision, Risk, and Open Question`, `Active blockers`, `GitHub context`, `Produced at`, `Primary source is in the app`. Kopyalanan Markdown üretim zamanını, okunur kaynak kimliklerini/bağlantılarını ve `Primary source is in the app` notunu içerir; sır, erişilemeyen alan ve özel Dosya Eki baytı içermez.
 #### Work completed
 → 09.30.
 #### Offline
-Yazma kontrolleri pasif; → 20 `You're offline`.
+Yazma kontrolleri pasif; → 20.16.
 #### Long content
-Uzun başlık iki satıra kırılır; çok sayıda ilişki grupta "show all" ile kısalır.
+→ DS.15 › Long content; ek olarak çok sayıda ilişki grupta "show all" ile kısalır.
 
-**Spec:** [09 İş Yaşam Döngüsü](../../specs/09-work-lifecycle/spec.md), [16 İş Bağlam Kartı](../../specs/16-work-context/spec.md), [10](../../specs/10-custom-fields/spec.md), [12](../../specs/12-relations/spec.md), [18](../../specs/18-work-checklists/spec.md), [19](../../specs/19-blockers/spec.md), [20](../../specs/20-priority/spec.md), [21](../../specs/21-record-actions/spec.md), [24](../../specs/24-external-handoffs/spec.md), [26](../../specs/26-backlog/spec.md), [29](../../specs/29-roadmap-horizon/spec.md), [17](../../specs/17-work-templates/spec.md), [23](../../specs/23-completion-effects/spec.md), [62](../../specs/62-work-automation/spec.md).
+**Spec:** [09 İş Yaşam Döngüsü](../../specs/09-work-lifecycle/spec.md), [16 İş Bağlam Kartı](../../specs/16-work-context/spec.md), [45 Kanıt](../../specs/45-evidence/spec.md), [52 Spec Değişikliği İnceleme Kuyruğu](../../specs/52-spec-change-review/spec.md), [57 Test İnceleme](../../specs/57-test-review-and-follow-up/spec.md), [35 Kişisel Hatırlatıcılar](../../specs/35-personal-reminders/spec.md), [39 Favoriler](../../specs/39-favorites/spec.md), [10](../../specs/10-custom-fields/spec.md), [12](../../specs/12-relations/spec.md), [18](../../specs/18-work-checklists/spec.md), [19](../../specs/19-blockers/spec.md), [20](../../specs/20-priority/spec.md), [21](../../specs/21-record-actions/spec.md), [24](../../specs/24-external-handoffs/spec.md), [26](../../specs/26-backlog/spec.md), [29](../../specs/29-roadmap-horizon/spec.md), [17](../../specs/17-work-templates/spec.md), [23](../../specs/23-completion-effects/spec.md), [62](../../specs/62-work-automation/spec.md).
 
 ## 09.11 · Create Work
 > Projede yalnız başlıkla İş oluşturmak; form bağlantı varken kişisel `Draft` olarak otomatik korunur.
@@ -467,28 +505,29 @@ Uzun başlık iki satıra kırılır; çok sayıda ilişki grupta "show all" ile
 - `09.11 · Create Work · Resumed Draft · 1440`
 
 ### Form başlığı
-`Create` başlığı, otomatik kayıt durumu, `Create from template` girişi.
-- **Label'lar:** `Create`, `Draft`, `Saving…`, `Ready`, `Draft saved.`, `Last saved`, `Create from template`.
+`Create` başlığı, otomatik kayıt durumu (Draft form durum şeridinin sahibi bu ekran; 02.10 referans verir), `Create from template` girişi.
+- **Label'lar:** `Create`, `Draft`, `Saving…`, `Ready`, `Draft saved.`, `Create from template`. Durum şeridi metni: "Changes save automatically while you are online. Create turns this Draft into one Work."; `Save` ve `Create`. `Last saved` → 20.16.
 
 ### Alanlar
 Başlık (tek zorunlu), tür, açıklama; altında İş'e bağlı özel alanlar.
-- **Label'lar:** `Title`, `Type`, `Description`, `Custom fields`, `Not evaluated`, `Text`, `Number`, `Boolean`, `Date`, `Single select`, `Multi select`.
+Özel alan türleri → 08.16; değer satırı → DS.12.
+- **Label'lar:** `Title`, `Type`, `Description`, `Custom fields`.
 
 ### Eylem satırı
 Birincil `Create`.
 - **Label'lar:** `Create`, `Creating…`.
 
 ### Drafts özeti
-Kişisel Draft'lar; başlık veya `Untitled Draft`, son kayıt zamanı, sürdür/sil.
-- **Label'lar:** `Drafts`, `Untitled Draft`, `Draft resumed.`, `Draft deleted.`, `No Drafts yet.`, `Loading Drafts…`
+Kişisel Draft'lar; liste ve durum metinleri 02.10'da tanımlıdır (yeniden tarif edilmez). Burada yalnız form içi sürdür/sil geri bildirimi.
+- **Label'lar:** `Drafts`, `Draft resumed.`, `Draft deleted.`
 
 ### Durumlar
 #### Empty
-Boş form; `No Drafts yet.`
+Boş form; Draft listesi boşken → 02.10 › Empty.
 #### Saving
 `Saving…` sessiz durum metni.
 #### Offline
-Bağlantı kopunca: `Last saved 14:32` ve `Unsaved changes may be lost`; yerel kuyruk yok. Yeniden bağlanınca gizli tekrar yok (→ 20 offline).
+Bağlantı kopunca → 20.16 (`Last saved 14:32`, `Unsaved changes may be lost`); yerel kuyruk yok, yeniden bağlanınca gizli tekrar yok.
 #### Error
 "Draft could not be saved. Try again.", "Draft could not be saved. Check the form.", "Work could not be created. Try again."; alan hatası "Check the form."
 #### Type warning
@@ -508,12 +547,16 @@ Projenin etkin şablonları.
 - **Label'lar:** `Work Templates`.
 
 ### Önizleme
-Başlık alanı, tür, açıklama iskeleti, seçili alan varsayılanları, hafif kontrol listesi, çözülmüş tarihler.
-- **Label'lar:** `Title`, `Type`, `Description`, `Selected field defaults`, `Checklist`, `Relative dates`, `Creation day`, `Planned start`, `Target`, `Resolved dates preview`, `Not set`.
+Başlık alanı, tür, açıklama iskeleti, seçili alan varsayılanları, hafif kontrol listesi, çözülmüş tarihler. `Resolved dates preview` bileşeni (`Creation day`, `Planned start`, `Target`, `Not set`) → 08.17 › Resolved dates preview; burada yalnız çözülemeyen tarihte onayın pasif olması.
+- **Label'lar:** `Title`, `Type`, `Description`, `Selected field defaults`, `Checklist`.
+
+### Eylem satırı
+Onay ve iptal; çözülemeyen tarihte onay pasif. Giriş düğmesi `Create from template` (→ 09.11), dialog onayı `Create Work`.
+- **Label'lar:** `Create Work`, `Cancel`.
 
 ### Durumlar
 #### Empty
-Şablon yoksa Yapılandırma modu bağlantısı (→ 08).
+Şablon yoksa Yapılandırma modu bağlantısı (→ 08.17).
 #### Error
 "Work could not be created from this template."; tarih çözülemezse önizleme kapalı kalır ve onay pasif; "Check the Work title."
 #### Unavailable field
@@ -566,7 +609,7 @@ Bölüm açık.
 
 ### Onay
 Hedef durum seçimi ve onay cümlesi.
-- **Label'lar:** `Reopen {Work key}`, `Not Started`, `In Progress`, `Blocked`, `Reopen`, `Cancel`.
+- **Label'lar:** `Reopen {Work key}`, `Not Started`, `In Progress`, `Blocked`, `Confirm reopen`, `Cancel`.
 
 ### Durumlar
 #### Error
@@ -583,13 +626,13 @@ Hedef durum seçimi ve onay cümlesi.
 
 ### Impact preview
 Eski → yeni tür, etkilenen kapsanan İşler, Feature health geçmişi, `Primary spec`.
-- **Label'lar:** `Impact preview`, `Type for {Work key}`, `Feature`, `Included Work`, `Feature health`, `Primary spec`, `Confirm`.
+- **Label'lar:** `Impact preview`, `Type for {Work key}`, `Feature`, `Included Work`, `Feature health`, `Primary spec`, `Confirm type change`, `Detach`.
 
 ### Durumlar
 #### Blocked exit
-Çıkış engelli; neyin ayrılması gerektiği listelenir.
+Çıkış engelli: `Detach included Work, Feature health history, and Primary spec before leaving Feature.`; her kalem için `Detach`.
 #### Entering Feature
-Feature'a girişte yalnız bilgilendirici önizleme ve `Confirm`.
+Feature'a girişte yalnız bilgilendirici önizleme ve `Confirm type change`.
 #### Error
 "Work type could not be changed. Try again."
 
@@ -601,20 +644,28 @@ Feature'a girişte yalnız bilgilendirici önizleme ve `Confirm`.
 **Artboard'lar**
 - `09.16 · Merge as duplicate · Field conflicts · 1440`
 - `09.16 · Merge as duplicate · Ready · 1440`
+- `09.16 · Merge as duplicate · Relations · 1440`
 
 ### Hedef ve yaşayan kayıt
 Birleştirilecek İş, yaşayan kayıt seçimi.
-- **Label'lar:** `Merge {Work key}`, `Surviving record`, `Merge Preview`.
+- **Label'lar:** `Merge {Work key}`, `Surviving record`, `Merge Preview`, `Confirm Merge`, `Edit selection`.
 
 ### Field conflicts
 Her çatışan alanda iki değer ve seçim.
-- **Label'lar:** `Field conflicts`, `Empty`.
+- **Label'lar:** `Field conflicts`, `Choose a value`, `Use surviving record`, `Use duplicate`, `Fields without conflicts`, `Empty`. Kapanış gerekçesi satırı `Closure reason` kapanış adımındaki `Reason` değerinin kendisidir.
+- **Label'lar (ek):** `Closure reason`.
 
 ### Relations
-Taşınacak ilişkiler listesi.
-- **Label'lar:** `Relations`, `No relations yet.`
+Taşınacak ilişkiler listesi (boş metin `No relations yet.` → `20.10`); her satırda düzeltme eylemi: kopyanın kaynak ucu için `Rewrite source`, kopyaya giden hedef ucu için `Rewrite target`, birleştirme sonrası kendine dönen ilişki için `Remove self relation`, kopya Feature altındaki İş bağı için `Rewrite Included in`.
+- **Label'lar:** `Relations`, `Rewrite source`, `Rewrite target`, `Remove self relation`, `Rewrite Included in`.
 
 ### Durumlar
+#### Field conflicts
+Çatışan alanlar çözülene kadar `Confirm Merge` pasif.
+#### Ready
+Çatışma yok; önizleme tamam, `Confirm Merge` etkin.
+#### Relations
+Taşınacak ilişkiler satır düzeltmeleriyle listelenir.
 #### Error
 "Work could not be merged. Try again."
 #### Merged receipt
@@ -660,7 +711,8 @@ Yeni anahtar yer tutucusu, `Not Started`, kaynak değişmez notu.
 
 ### Kopya önizlemesi
 Başlık (düzenlenebilir), kopyalanacaklar (tür, açıklama, tarih dışı özel alanlar, checklist), kopyalanmayacaklar (geçmiş, ilişkiler, kapanış, durum, planlama, bütün mutlak tarihler).
-- **Label'lar:** `Duplicate Work`, `Title`, `Type`, `Description`, `Checklist`, `Custom fields`.
+Bütün mutlak tarihler, tarih tipli özel alan değerleri dahil, kopyalanmaz. Eylem satırı: onay `Duplicate Work`, `Cancel`.
+- **Label'lar:** `Duplicate Work`, `Title`, `Type`, `Description`, `Checklist`, `Custom fields`, `Cancel`.
 
 ### Durumlar
 #### Error
@@ -677,7 +729,7 @@ Başlık (düzenlenebilir), kopyalanacaklar (tür, açıklama, tarih dışı öz
 
 ### Önizleme
 Başlık, Proje, başlangıç durumu; köken açıklaması (kaynak İş ve madde).
-- **Label'lar:** `Convert to independent Work`, `Title`, `Project`, `Start status`, `Origin`, `Confirm convert`.
+- **Label'lar:** `Convert to independent Work`, `Title`, `Project`, `Start status`, `Origin`, `Origin Location`, `Confirm convert`, `Cancel`. Üretilen İşte köken gösterimi → 09.10 › Converted from checklist item.
 
 ### Durumlar
 #### Loading
@@ -691,9 +743,14 @@ Başlık, Proje, başlangıç durumu; köken açıklaması (kaynak İş ve madde
 > Adlandırılmış Record Action'ı tek İş üzerinde açıkça başlatmak, kesin farkı önizlemek ve tek atomik sonuç uygulamak.
 
 **Artboard'lar**
+- `09.20 · Record Action run · Start · 1440`
 - `09.20 · Record Action run · Preview · 1440`
 - `09.20 · Record Action run · Runtime inputs · 1440`
 - `09.20 · Record Action run · Finalizing · 1440`
+
+### Başlatma
+Seçilen Kayıt Eylemi yalnız açık `Start` ile başlar: girdi yoksa doğrudan `Preview changes`'a, girdi varsa `Runtime inputs` adımına götürür. Arka planda çalıştırma yoktur; örnek eylem `Start Work`.
+- **Label'lar:** `Start`, `Start Work`.
 
 ### Runtime inputs
 Tasarımda tanımlı `Date`, `Number`, `Select` veya `Related Work` girdileri.
@@ -701,7 +758,7 @@ Tasarımda tanımlı `Date`, `Number`, `Select` veya `Related Work` girdileri.
 
 ### Preview changes
 Seçilen girdiler ve hedef kaydın alan farkı: alan, mevcut değer, yeni değer.
-- **Label'lar:** `Preview {action}`, `Inputs selected`, `Runtime inputs selected`, `Changes`, `Current value`, `In Daily Focus`, `Not in Daily Focus`, `Apply`.
+- **Label'lar:** `Preview changes`, `Inputs selected`, `Runtime inputs selected`, `Changes`, `Current value`, `In Daily Focus`, `Not in Daily Focus`, `Apply`.
 
 ### Durumlar
 #### Preparing
@@ -712,6 +769,8 @@ Commit sonrası `Finalizing`; iptal yok.
 Receipt ve `Undo` (`Preparing Undo…`); geri alınamazsa açıklama.
 #### Error
 Neyin yazılıp yazılmadığını açıklayan hata ve `Retry` (aynı anahtar).
+#### Stale revision
+Apply sırasında kayıt değişmişse bütün eylem reddedilir, hiçbir adım yazılmaz: `Conflict`, `Current value`, `This page is out of date.` (→ 20.14 › Conflict); `Change inputs` ile yeniden önizleme.
 
 **Spec:** [21 Kayıt Eylemleri](../../specs/21-record-actions/spec.md).
 
@@ -721,18 +780,19 @@ Neyin yazılıp yazılmadığını açıklayan hata ve `Retry` (aynı anahtar).
 **Artboard'lar**
 - `09.21 · Mark blocker resolved · Default · 1440`
 - `09.21 · Mark blocker resolved · History · 1440`
+- `09.21 · Mark blocker resolved · History after Undo · 1440`
 
 ### Çözüm formu
-İlişki özeti, çözüm tarihi, not.
-- **Label'lar:** `Mark blocker resolved`, `Resolution date`, `Confirm resolution`, `Cancel`.
+İlişki özeti, çözüm tarihi, isteğe bağlı not. Çözme ve yeniden etkinleştirme sonrası makbuzda `Undo` (→ 20.14).
+- **Label'lar:** `Mark blocker resolved`, `Resolution date`, `Note`, `Confirm resolution`, `Undo`, `Cancel`.
 
 ### Blocker history
-Aynı ilişkinin `Active` → `Resolved` → `Active` geçmişi tarihleriyle.
-- **Label'lar:** `Blocker history`, `Active`, `Resolved`, `Reactivate blocker`.
+Aynı ilişkinin `Active` → `Resolved` → `Active` geçmişi tarihleriyle. Geri alınmış geçişte `Undo` işareti; `Reactivate blocker` geri alınınca özgün `Resolution date` geri yüklenmiş görünür.
+- **Label'lar:** `Blocker history`, `Active`, `Resolved`, `Reactivate blocker`, `Undo`, `Resolution date`.
 
 ### Durumlar
 #### Resolve suggested
-Blokajı kaynağı olan Karar veya Açık Soru çözüldüğünde ilişki `Active` kalır; kayıtta çözüme dair görünür bir öneri çıkar, ilişkiyi kendiliğinden kapatmaz.
+Blokajı kaynağı olan Karar veya Açık Soru çözüldüğünde (veya kaynak İş kapandığında) ilişki `Active` kalır; kayıtta görünür öneri çıkar, ilişkiyi kendiliğinden kapatmaz. 09.10 › Source closed suggestion buraya bağlanır.
 #### Error
 "Blocker could not be resolved.", "Blocker could not be reactivated."
 
@@ -751,8 +811,8 @@ Gerekçe, yeniden değerlendirme koşulu ve dayanak kayıtlar.
 - **Label'lar:** `Not now`, `Reason`, `Re-evaluation condition`, `Supporting records`, `Preview`, `Confirm Not now`.
 
 ### Önizleme
-Kaydedilecek değerler; durum, öncelik, Backlog sırası, ufuk ve tarihlerin değişmediği notu; değiştirmede `Review later` etkisi.
-- **Label'lar:** `Keep Review later`, `Remove Review later`, `Review Later reminders`.
+Kaydedilecek değerler; durum, öncelik, Backlog sırası, ufuk ve tarihlerin değişmediği notu; değiştirmede veya `Reconsidering` ile kapatmada `Review later` etkisi (`Keep Review later` / `Remove Review later`).
+- **Label'lar:** `Keep Review later`, `Remove Review later`, `Review later reminders`.
 
 ### History
 Etkin ve eski izler; yazar, zaman; değiştirilen iz `Replaced`.
@@ -777,15 +837,15 @@ Etkin ve eski izler; yazar, zaman; değiştirilen iz `Replaced`.
 
 ### Form
 Devir amacı, yürütücü, beklenen çıktı, kısıtlar, sürümler ve izinli bağlantılar.
-- **Label'lar:** `Start Handoff`, `Purpose`, `Executor`, `Expected output`, `Constraints`, `Selected versions`, `Permitted external links`.
+- **Label'lar:** `Start Handoff`, `Purpose`, `Executor`, `Expected output`, `Constraints`, `Selected versions`, `Permitted external links`, `Include this Work`, `Add selected version`, `Remove selected version`, `GitHub context` (izinli GitHub kimlikleri).
 
 ### Paket önizlemesi
 Okunabilir Markdown: üretim zamanı, İş anahtarı, devir kimliği, `Source of truth is in the app`; serbest metin uyarısı.
-- **Label'lar:** `Source of truth is in the app`, `Free text is copied as entered and is not scanned for secrets. Review the package before sharing.`, `Going package produced`, `Going package copied`.
+- **Label'lar:** `Source of truth is in the app`, `Free text is copied as entered and is not scanned for secrets. Review the package before sharing.`, `Going package produced`, `Going package copied`, `Going package`, `Package version`, `Produced at`, `Related Decision, Risk, and Open Question`, `Active blockers`, `Copy going package`.
 
 ### Durumlar
 #### Error
-"Check the handoff details."; "Going package could not be copied."; "Going package was copied, but its Work history could not be recorded."
+"Check the handoff details."; "Going package could not be copied."; "Going package was copied, but its Work history could not be recorded."; `This handoff could not be written.`
 
 **Spec:** [24 Dış Yürütme Devirleri](../../specs/24-external-handoffs/spec.md).
 
@@ -802,16 +862,17 @@ Devir amacı, yürütücü, durum ve sonraki eylemler.
 - **Label'lar:** `External Execution Handoff`, `Open`, `Result returned`, `Reconciled`, `Canceled`, `Reconcile`, `Cancel Handoff`.
 
 ### Gidiş paketi
-Donmuş Markdown ve sürüm listesi; sonraki paket sürümleri tarihli.
-- **Label'lar:** `Selected versions`, `Source of truth is in the app`.
+Donmuş Markdown ve sürüm listesi; sonraki paket sürümleri tarihli, `New package version` gönderilmiş kopyayı ezmez.
+`Selected versions`, `Source of truth is in the app` ve `Package version` etiketleri → 09.23 › Paket önizlemesi.
+- **Label'lar:** `New package version`.
 
 ### Dönüş
 Dönüş formu veya kaydı.
 - **Label'lar:** `Record return`, `Executor summary`, `Changed assumptions`, `Produced evidence`, `Permitted external links`, `Open questions`.
 
 ### Handoff history
-Devir olayları kronolojik.
-- **Label'lar:** `Handoff history`, `Handoff started`, `Going package produced`, `Going package copied`, `You`.
+Devir olayları kronolojik; hepsi `You` ile, içerik veya gerekçe metni olmadan (iptal gerekçesi geçmişe girmez, yalnız devirde `Reason` görünür).
+- **Label'lar:** `Handoff history`, `Handoff started`, `Going package produced`, `Going package copied`, `Return recorded`, `Handoff reconciled`, `Handoff canceled`, `You`.
 
 ### Durumlar
 #### Open
@@ -821,7 +882,7 @@ Dönüş görünür; `Reconcile` birincil.
 #### Reconciled / Canceled
 Salt okunur; iptalde `Reason` görünür; yeniden açma yok.
 #### Error
-"Check the return details."
+"Check the return details."; `This handoff could not be written.`
 
 **Spec:** [24 Dış Yürütme Devirleri](../../specs/24-external-handoffs/spec.md).
 
@@ -833,11 +894,11 @@ Salt okunur; iptalde `Reason` görünür; yeniden açma yok.
 - —
 
 ### Proposed relations
-Aynı Projedeki İşlere önerilen kesin ilişkiler.
+Aynı Projedeki İşlere önerilen kesin ilişkiler; `Related Work` seçici yalnız aynı Projenin arşivsiz diğer İşlerini sunar (sahip İş ve arşivli İş yok).
 - **Label'lar:** `Proposed relations`, `Related Work`, `Related`, `Origin`, `Blocks`, `Blocked by`, `Add proposed relation`, `Remove proposed relation`.
 
 ### Follow-up Work
-Açıkça seçilen takip İşleri.
+Açıkça seçilen takip İşleri. Ortak önizleme ve onay (tek İş oluşturma, kaynağı değiştirmeme) → 20.22 (kaynak satırı: Reconcile); burada yalnız seçim girişi.
 - **Label'lar:** `Follow-up Work`, `Add follow-up Work`, `Remove follow-up Work`.
 
 ### Önizleme ve onay
@@ -846,7 +907,9 @@ Fark önizlemesi ve karar eylemleri.
 
 ### Durumlar
 #### Error
-Seçilen parça kullanılamaz olduysa hiçbiri yazılmaz; açıklama.
+Seçilen parça kullanılamaz olduysa hiçbiri yazılmaz; açıklama. Genel yazma hatası `This handoff could not be written.`
+#### Preview changed
+Önizleme kimliği bayatsa onay verilemez: `Preview changed. Review it again.`.
 
 **Spec:** [24 Dış Yürütme Devirleri](../../specs/24-external-handoffs/spec.md).
 
@@ -863,7 +926,7 @@ Zorunlu iptal gerekçesi.
 
 ### Durumlar
 #### Error
-"Check the cancellation reason."
+"Check the cancellation reason."; `This handoff could not be written.`
 
 **Spec:** [24](../../specs/24-external-handoffs/spec.md).
 
@@ -876,7 +939,7 @@ Zorunlu iptal gerekçesi.
 
 ### Değerler
 Noktaya bağlı popover'da iki eksen değeri.
-- **Label'lar:** `Edit axis values for {Work key}`, `Horizontal axis`, `Vertical axis`, `Very low`, `Low`, `Medium`, `High`, `Very high`, `Unevaluated`, `Save`.
+- **Label'lar:** `Edit axis values for {Work key}`, `Horizontal axis`, `Vertical axis`, `Unevaluated`, `Save`. Kademeler → 08.19 › Rank descriptions.
 
 ### Durumlar
 #### Error
@@ -906,17 +969,24 @@ Ufuk ve tarih alanları, değişiklik önizlemesi.
 
 **Artboard'lar**
 - `09.29 · Milestone · Create · 1440`
+- `09.29 · Milestone · Edit · 1440`
 - `09.29 · Milestone · Link Work · 1440`
 
 ### Alanlar
-Kilometre Taşı başlığı, açıklaması, hedef tarihi ve durumu.
-- **Label'lar:** `Create Milestone`, `Milestone`, `Title`, `Description`, `Target date`, `No target date`, `Planned`, `Reached`, `Abandoned`, `Save`.
+Kilometre Taşı başlığı, açıklaması, hedef tarihi ve durumu. `Edit` formu mevcut değerlerle dolu açılır (`Edit Milestone`, → 09.4 › Milestones). Durum yalnız gösterilir; geçiş `Reach` / `Abandon` açık eylemleriyle olur (→ 09.4), form durumu elle seçtirmez. Ortak başlık eylemleri (`Export` dahil) → DS.11 → `20.5`; `Import` bu tek kayıt ekranında yoktur. Türe bağlı Proje özel alanları: satır ve boş değer kuralı → DS.12.
+- **Label'lar:** `Create Milestone`, `Edit Milestone`, `Milestone`, `Title`, `Description`, `Target date`, `No target date`, `Planned`, `Reached`, `Abandoned`, `Reach`, `Abandon`, `Save`, `Cancel`, `Custom fields` (satır ve `Not evaluated` boş değer kuralı → DS.12).
 
 ### Bağlı İşler
 Bağlı İşler ve önizlemeli bağlama formu.
-- **Label'lar:** `Work in {Milestone}`, `In Milestone`, `Contributes to Milestone`, `Preview relation`, `Confirm relation`, `Review the relation before confirming.`
+- **Label'lar:** `Work in {Milestone}`, `In Milestone`, `Contributes to Milestone`, `Preview relation`, `Confirm relation`. Önizleme metni ve ilişki seçici → 20.10 › Seçici (`Review the relation preview before confirming.`).
 
 ### Durumlar
+#### Create
+Boş form; `Planned` başlangıç durumu.
+#### Edit
+Form mevcut değerlerle dolu.
+#### Link Work
+Bağlı İşler ve önizlemeli bağlama formu.
 #### Error
 "Check the form."; "This action could not be completed."
 
@@ -931,11 +1001,11 @@ Bağlı İşler ve önizlemeli bağlama formu.
 - `09.30 · Work completed · Effect off · 1440`
 
 ### Bildirim
-Ekranın sabit bildirim alanında 10 sn: durum ikonu, metin, `Reopen`.
+Ekranın sabit bildirim alanında 10 sn: durum ikonu, metin, `Reopen`. `Reopen` 09.14 onay adımını açar; kapanış sonucunu sessizce silmez.
 - **Label'lar:** `Work completed`, `Reopen`.
 
 ### Efekt katmanı
-İş başlığı veya kart çevresinde en fazla 1,2 sn dekoratif katman; hesapta seçili tema/palet (örnek `Calm` · `Haze`); odak ve girdiyi almaz. Ayarlar → `01 · Account` › Completion effects.
+İş başlığı veya kart çevresinde en fazla 1,2 sn dekoratif katman; hesapta seçili tema/palet (örnek `Calm` · `Haze`); odak ve girdiyi almaz. Ayarlar → `01.7 · Completion effects` › Başlık.
 
 ### Durumlar
 #### Effect off
@@ -943,7 +1013,7 @@ Yalnız bildirim.
 #### Reduce Motion
 Katman yok; bildirim, ikon ve kibar ekran okuyucu duyurusu kalır.
 #### Not eligible
-`Abandoned`, otomasyon, PR-merge kuralı, Reconcile: efekt yok (otomasyonda 09.10 › Automation applied).
+`Abandoned`, kontrol listesi maddesi tamamlama, PR merge, otomasyon, PR-merge kuralı, Reconcile, Daily Focus kapama (`04.2` `Close focus`), Odak Dönemi kapama (`04.4` `Close`), Kilometre Taşı ulaşma (09.29 `Reach`), Proje veya aşama tamamlama ve Proje Sürümü yayımlama: efekt yok (otomasyonda 09.10 › Automation applied).
 #### Wait period
 İlk efektten sonraki 30 saniye içinde gelen yeni başarılar yalnız bildirim alır.
 #### Rejected / conflict / undo
@@ -951,6 +1021,6 @@ Hiçbir şey oynamaz. Kapatma sonucu kendi yüzeyinde gösterilir.
 #### Low performance
 Dekoratif katman atlanır, bildirim aynı hızda gelir.
 #### Efekt kuralları
-Katman yalnız kapatılan İşin satırı ya da kartı çevresinde oynar, en fazla 1,2 sn sürer; odağı çalmaz, girdiyi yakalamaz, kaydırmayı ve gezinmeyi engellemez, yüzey değişince temizlenir. Ses, titreşim ve flaş yoktur. Dark ve %200 ölçekte bildirim katmandan bağımsız okunur. Bildirim Merkezine kayıt düşmez.
+Katman yalnız kapatılan İşin satırı ya da kartı çevresinde oynar, en fazla 1,2 sn sürer; odağı çalmaz, girdiyi yakalamaz, kaydırmayı ve gezinmeyi engellemez, yüzey değişince temizlenir. Ses, titreşim ve flaş yoktur. Bildirimin katmandan bağımsız okunması Light ve Dark ayrı doğrulanır (→ DS.0 #4, DS.1); %200 ölçekte de aynı. Bildirim Merkezine kayıt düşmez.
 
 **Spec:** [23 Bitiriş Efektleri](../../specs/23-completion-effects/spec.md), [09](../../specs/09-work-lifecycle/spec.md).

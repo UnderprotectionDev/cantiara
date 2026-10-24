@@ -22,19 +22,20 @@ Projenin `Releases` alanı: Proje Sürümü planlama, kanıt, notlar ve sonuç.
 - `16.1 · Project Releases · Empty · 1440`
 
 ### Alan başlığı
-- **Label'lar:** `Releases`, `Changelog`; `Create Project Release`.
+Başlık eylem alanında `Export` (→ `20.5`) ve `Import` (→ `20.6`; Proje kapsamı önceden dolu).
+- **Label'lar:** `Releases`, `Changelog`; `Create Project Release`; `Export`, `Import` (→ `20.5`, `20.6`).
 
 ### Sürüm listesi
-Durum gruplarıyla liste; her satır: ad, `Version label`, durum, kapsam sayısı (tamamlanan/açık İş), bağlı GitHub Release/tag, son değişiklik.
+Durum gruplarıyla liste; satır metası → DS.17. Bu ekrana özgü ek: kapsam sayısı (tamamlanan/açık İş) ve bağlı GitHub Release/tag.
 - **Label'lar:** `Project Release`, `Version label`, `Draft`, `Preparing`, `Published`, `Cancelled`; `Scope`.
 
 ### Durumlar
 #### Empty
 Tek cümle: Proje Sürümü yayımlanacak kapsamdır; Kilometre Taşı veya Odak Dönemi değildir. + `Create Project Release`.
 #### Loading
-`Loading source record…` deseninde liste yükleniyor satırı.
+Liste yükleniyor satırı (erişilebilir yüklenme durumu; spec bu ekran için ayrı label vermez).
 #### Error
-Liste okunamadı + `Retry`.
+Liste okunamadı + `Retry` (→ `20.15`).
 #### Archived project
 Ferry: salt okunur liste, oluşturma yok.
 
@@ -65,9 +66,12 @@ Yayımlanacak İşler: tamamlanan ve açık olarak iki grup; ekleme/çıkarma.
 İsteğe bağlı, beş ayrı alan: hedef kitle (serbest metin + Persona/Contact/Company ilişkileri), tek birincil erişim yolu, erişim kanıtı, hedeflenen davranış/sonuç, sonuç kanıtı. Kapı olmadığı tek cümleyle belirtilir.
 - **Label'lar:** `Audience`, `Primary access path`, `Access evidence`, `Intended outcome`, `Outcome evidence`.
 
+### Özel alanlar
+Proje Sürümüne bağlı Proje özel alanları; satır ve boş değer kuralı → DS.12.
+
 ### Yan sütun: durum ve GitHub
 Mevcut durum ve serbest geçiş; GitHub Release'den öneri; bağlı tag/GitHub Release/ortam bağları (birden çok repository olabilir); `Test Summary` girişi.
-- **Label'lar:** `Draft`, `Preparing`, `Published`, `Cancelled`; GitHub dış kayıtları `Tag`, `Release`; `Environment link`; `Test Summary: tidekit 1.0`.
+- **Label'lar:** `Draft`, `Preparing`, `Published`, `Cancelled`; GitHub dış kayıtları `Tag`, `Release`; `Environment link`; `Test Summary: tidekit 1.0` (bu giriş `15.22 · Test Summary · Project Release` ekranını açar; özet `Release Evidence Pack` yerine geçmez).
 
 ### Durumlar
 #### Default
@@ -79,9 +83,9 @@ Bağlı GitHub Release `v1.0.0` yayımlandı: yan sütunda öneri satırı "GitH
 #### Cancelled
 Terminal, salt okunur kapsam.
 #### Loading
-`Loading source record…`
+Kayıt yükleniyor (erişilebilir yüklenme durumu; spec bu ekran için ayrı label vermez).
 #### Error
-`Source record is unavailable.`
+Kayıt bulunamadı veya bu Projeye ait değil → `20.19 · Not Found`.
 #### Empty hypothesis
 Hipotez alanları boş: tek satır "Optional" açıklaması; uyarı yok.
 
@@ -97,6 +101,9 @@ Hipotez alanları boş: tek satır "Optional" açıklaması; uyarı yok.
 ### Alanlar
 Ad, sürüm etiketi ve açıklama; başlangıç durumu `Draft`, tarih alanı yok.
 - **Label'lar:** `Name`; `Version label`, `Description`, `Create Project Release`. Başlangıç durumu `Draft`. Tarih alanı yok.
+
+### Özel alanlar
+Proje Sürümüne bağlı Proje özel alanları, formun altında; satır ve boş değer kuralı → DS.12.
 
 ### Durumlar
 #### Default
@@ -135,8 +142,8 @@ Bilgi satırıyla `Published` onayı.
 - `16.5 · Release Evidence Pack · Missing sources · 1440`
 
 ### Paket başlığı
-Başlık ve sabit not: pakette düzenleme yok, düzeltme kaynak kayıtta yapılır; skor veya yayın kapısı yok.
-- **Label'lar:** `Release Evidence Pack`.
+Başlık ve sabit not: pakette düzenleme yok, düzeltme kaynak kayıtta yapılır; skor veya yayın kapısı yok. Her bölümün her satırı (yalnız Attention değil) `Open source record` ile kaynağına açılır ve gösterilme nedenini taşır: kapsam, PR, Karar/Risk, test ve kontrol listesi satırlarında da (örnek `Shown because: in scope`, `Shown because: linked from LUMA-51`); Attention satırlarındaki neden aynen kalır.
+- **Label'lar:** `Release Evidence Pack`, `Open source record`, `Shown because: {reason}`.
 
 ### Attention
 Eksik veya olumsuz bağlam satırları, her biri neden + kaynak.
@@ -145,14 +152,14 @@ Eksik veya olumsuz bağlam satırları, her biri neden + kaynak.
 Kapsamdaki İşler ve her biri için `Expected Outcome`.
 
 ### Pull request'ler ve check'ler
-PR satırları, check durumları ve İş–PR tutarsızlığı satırı.
-- **Label'lar:** `Required for completion`, `Contextual`, check `Required` / `Unknown`; İş–PR tutarsızlığı satırı.
+Sürüm kapsamındaki PR satırları ve check durumları; her satır kaynağa açılır. Rol (`Required for completion` / `Contextual`), check (`Required` / `Unknown`) ve İş–PR tutarsızlığı satırının sunumu `18.7 · Pull Request · PR Context Card`'dadır, burada yeniden tarif edilmez.
+- **Label'lar:** → `18.7`; `Open source record`.
 
 ### Kararlar ve Riskler
 İlgili Karar ve Risk satırları.
 
 ### Testler
-İlgili Planlı Test Senaryoları, Handoff'lar, Test Oturumları ve Oturum Testleri (ham + normalize sonuç, kaynak oturum, teknik/zaman bağlamı), açık Test Açıkları, son Test değerlendirmesi. GitHub check'leri burada değil, PR bölümünde.
+Nötr test özeti, bölüm içeriği ve sayılı satırlar → `15.22 · Test Summary · Project Release` (burada yeniden tarif edilmez). GitHub check'leri sayılmaz; GitHub check'leri burada değil, PR bölümünde.
 
 ### Kontrol listesi
 Kurucunun yönettiği isteğe bağlı yayın kontrol listesi; işaretlemek yayını engellemez/açmaz.
@@ -183,13 +190,17 @@ Bölüm bazında yükleniyor / okunamadı satırı; diğer bölümler çalışı
 
 ### Not editörü
 Taslak not metni; mevcut Markdown ve görsel ek; genel etiketler (changelog'a özgü ikinci etiket yok).
-- **Label'lar:** `Release notes`; tag picker → `20`.
+- **Label'lar:** `Release notes`; etiket seçici → `20.11`.
 
 ### Kapsam bağları
 Notun dayandığı kapsam İşleri; bağlanmamış paragraf uyarısı değil, kapsam listesi.
 
+### Yayın önizlemesine geçiş
+Not hazır olunca `16.7`'yi açan eylem; açılana kadar hiçbir şey yayımlanmaz.
+- **Label'lar:** `Preview publish`.
+
 ### Why was this done?
-Tek tek seçilen kayıtlar (İş, Geri Bildirim, Karar, Kaynak, Belge, Tasarım, Deney/doğrulama) ve her biri için ayrıca onaylanacak herkese açık alan snapshot'ı.
+Tek tek seçilen kayıtlar (İş, Geri Bildirim, Karar, Kaynak, Belge, Tasarım, Deney/doğrulama). Her kaydın herkese açık alan snapshot'ının ayrı onayı `16.7`'dedir, burada yinelenmez.
 - **Label'lar:** `Why was this done?`
 
 ### Durumlar
@@ -218,16 +229,17 @@ Kapsamdaki İşlerin mevcut iç durumları (değişmeyeceği belirtilir).
 Önerilen herkese açık etiket, changelog bağlantısı, `Why was this done?` alan snapshot'ları, gelişim akışına girecek olaylar; her biri ayrı onay.
 
 ### Güvenlik denetimleri
-Yer tutucu, hassas veri, kapalı dünya kapsamı ve dolaylı sızıntı bulguları → ortak closed-world önizleme `20 · Shared Dialogs & States`.
+Yer tutucu, hassas veri, kapalı dünya kapsamı ve dolaylı sızıntı bulguları → ortak closed-world önizleme → `20.4 · Share`.
 
 ### Eylemler
-Yayınla ve iptal.
+Onay kutuları işaretli satırları yayımlayan eylem ve vazgeç. Her önerinin kendi onay kutusu, üstte `<n> of <m> approved` özeti. Yayın İş durumunu ve Proje Sürümü durumunu yazmaz; satırda tek cümle: `Publishing does not change Work status or the Project Release status.`
+- **Label'lar:** `Publish Release notes`, `Cancel`, `Approve {item}`, `{n} of {m} approved`.
 
 ### Durumlar
 #### Default
 Bütün öneriler onay kutularıyla listelenmiş.
 #### Blocking finding
-Çözülmemiş yer tutucu: yayın pasif; çöz veya onayla seçeneği.
+Çözülmemiş yer tutucu: yayın pasif; çöz veya onayla seçeneği. Liste ve onay çizimi `20.4 · Yer tutucu kontrolü` ile aynıdır, yeniden çizilmez.
 #### Partially approved
 Onaylanmayan öneriler özel ve değişmemiş kalır, özet satırında sayılır.
 
@@ -276,7 +288,7 @@ Tarihli turlar yeni→eski; düzeltmeler yazar, zaman, önceki değerle.
 #### Not started
 Yayımlandı, tur yok: tek cümle + tur başlat; atlanabilir olduğu belirtilir.
 #### Round in progress
-Bir alan değerlendirildi, diğeri boş: `Notification Center`'da tek `release-observation-missing` (→ `00`).
+Bir alan değerlendirildi, diğeri boş: `Notification Center`'da tek `release-observation-missing` (→ `00.5`).
 #### Round complete
 İki alan değerlendirilmiş (`Could not learn` dahil).
 #### Two rounds

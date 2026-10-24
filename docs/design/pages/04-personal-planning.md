@@ -24,16 +24,16 @@ Sayfa başlığı, gün seçici, isteğe bağlı kapanış eylemi.
 - **Label'lar:** `Daily Focus`, `Selected day`, `Close focus`.
 
 ### Günün İşleri
-Seçili güne üye İşlerin listesi; sıra eklenme sırasıdır. Bir İş birden çok Projeden gelebilir.
-- **Label'lar:** `Remove from Daily Focus`, `Open source record` (satır bağlantısı).
+Seçili güne üye İşlerin listesi; sıra eklenme sırasıdır. Bir İş birden çok Projeden gelebilir. Aktif blokajı olan İş satırında metinli `Open blocker` işareti görünür (renge dayanmaz); `Resolved` ilişki işaret üretmez.
+- **Label'lar:** `Remove from Daily Focus`, `Open source record` (satır bağlantısı), `Open blocker`.
 
 ### What happened today?
-Seçili gündeki desteklenen olayların kronolojik, salt okunur listesi; düzenleme alanı yoktur.
-- **Label'lar:** `What happened today?`, `Open source record`, `No notable events for this day.`.
+Seçili gündeki desteklenen olayların kronolojik, salt okunur listesi; düzenleme alanı yoktur. Her satırda olay zamanı, Proje kapsamı ve olay türü: tamamlanan, vazgeçilen veya yeniden açılan İş; kaydedilen Karar (`Recorded`); ulaşılan Kilometre Taşı; yayımlanan Proje Sürümü girdisi; çözülen Üretim Olayı.
+- **Label'lar:** `What happened today?`, `Recorded`, `Open source record`, `No notable events for this day.`.
 
 ### Candidates
-En çok beş öneri; üye değildir. Bölüm başında kuralı açıklayan sabit metin.
-- **Label'lar:** `Candidates`, `Work appears here when Target date is this day through the next 7 days, or Reappear date is on or before this day.`, `Target date is near`, `Reappear date has arrived`, `Accept`, `Reject`, `No Candidates for this day.`.
+En çok beş öneri; üye değildir. Bölüm başında kuralı açıklayan sabit metin. Her gerekçe ilgili tarihle birlikte yazılır; İş iki tarih koşuluna da uyuyorsa iki gerekçe birlikte görünür. Aktif blokajı olan aday satırında aynı `Open blocker` işareti görünür. `Reject` adayı yalnız bu görünümde gizler; kayıt, üyelik veya durum yazmaz, yeniden yüklemede aday dönebilir; gizleme sonrası geri alma kontrolü çizilmez.
+- **Label'lar:** `Candidates`, `Work appears here when Target date is this day through the next 7 days, or Reappear date is on or before this day.`, `Target date is near`, `Reappear date has arrived`, `Accept`, `Reject`, `Open blocker`, `No Candidates for this day.`.
 
 ### Add to Daily Focus
 İş seçici ve ekleme düğmesi.
@@ -65,8 +65,8 @@ Başlık, seçili gün, aynı güne dönüş.
 - **Label'lar:** `Close focus`, `Selected day`, `Daily Focus`.
 
 ### Gruplar
-Sırasıyla dört grup; boş grup hiç çizilmez.
-- **Label'lar:** `Completed`, `Abandoned`, `Deferred`, `Still open`, `Open source record`.
+Sırasıyla dört grup; boş grup hiç çizilmez. `Deferred` grubu, yeniden görünme tarihi ertelenen İşlerdir (spec: reappear-deferred); Backlog'un `Deferred` bölümüyle aynı kaynak kuralıdır, yeni bir durum değildir. `Still open` satırlarında aktif blokajı olan İş `Open blocker` işaretini taşır.
+- **Label'lar:** `Completed`, `Abandoned`, `Deferred`, `Still open`, `Open blocker`, `Open source record`.
 
 ### Durumlar
 #### Empty
@@ -110,8 +110,8 @@ Dönem üyesi İşler.
 - **Label'lar:** `Work`, `Remove`, `No Work in this Focus Period.`.
 
 ### Dependencies
-Başlangıçta kapalı, açılıp kapanabilen salt okunur bölüm; dönem kapsamındaki İşler arasındaki mevcut `Active` ve `Resolved` blokaj ilişkileri.
-- **Label'lar:** `Dependencies`, `Open source record`, `Active`, `Resolved`, `Part of a dependency cycle`, `No dependencies in this Focus Period.`.
+Başlangıçta kapalı, açılıp kapanabilen salt okunur bölüm; dönem kapsamındaki İşler arasındaki mevcut `Active` ve `Resolved` blokaj ilişkileri; her ilişkinin yönünü (hangi İş hangisini bekliyor) ve durumunu yalnız renge dayanmadan anlatan metin. Satır biçimi `LUMA-58 · Blocked by · LUMA-63 · Active`; kaynak ucundan okunduğunda `LUMA-63 · Blocks · LUMA-58`. Durum `Active` / `Resolved` metin olarak; döngüde `Part of a dependency cycle`.
+- **Label'lar:** `Dependencies`, `Blocks`, `Blocked by`, `Open source record`, `Active`, `Resolved`, `Part of a dependency cycle`, `No dependencies in this Focus Period.`.
 
 ### Durumlar
 #### Empty
@@ -120,7 +120,7 @@ Hiç dönem yokken liste ve detay yerine tek satır `No Focus Period yet.`; olu�
 `Loading Focus Period…`.
 #### Error
 `Focus Period is unavailable.`; yazma hatası `Focus Period could not be updated.`; oluşturma reddi `Focus Period could not be created.`, alan hataları `Purpose is required.` ve `Focus Period must be 1–8 weeks.` ilgili alanın altında.
-#### Üyelik reddi
+#### Membership rejected
 Örtük ikinci etkin üyelik: `Work is already in an active Focus Period. Use Move.`; örtüşen pencere: `Work is already in another Focus Period.`.
 #### Planned
 Detayda yalnız `Cancel`; üyelik kontrolü açık; `Dependencies` mevcut.
@@ -164,8 +164,8 @@ Atlanabilir üç serbest metin alanı.
 - **Label'lar:** `Period evaluation`, `Optional learning notes. Leave the fields blank to skip.`, `Keep`, `Change`, `Try next`, `Save evaluation`, `Skip`.
 
 ### Follow-up Work
-Bir öğrenimden takip İşi formu, önizleme bölümü ve bağlı takip İşleri listesi.
-- **Label'lar:** `Follow-up Work`, `Add follow-up Work`, `Learning source`, `Project`, `Select Project`, `Title`, `Description`, `Preview Follow-up Work`, `Follow-up Work preview`, `Source Focus Period`, `Confirm`, `Change`, `No Follow-up Work linked to this Focus Period.`.
+Öğrenim kaynağı seçimi ve bağlı takip İşleri listesi. Önizleme bölümü (alanlar, tek İş uyarısı, `Confirm`, hata cümleleri) ortak önizlemedir → `20.22 · Create Follow-up Work` (kaynak satırı `04.4`). Burada yalnız girişe özgü delta: kaynak `Keep` / `Change` / `Try next` öğrenimlerinden biridir (`Learning source`) ve bağ `Source Focus Period` olarak yazılır.
+- **Label'lar:** `Follow-up Work`, `Add follow-up Work`, `Learning source`, `Source Focus Period`, `No Follow-up Work linked to this Focus Period.`.
 
 ### Dependencies
 `04.3` ile aynı salt okunur bölüm, akışın en altında.
@@ -184,7 +184,7 @@ Karar bölümü kalkar; karşılaştırma, değerlendirme, takip İşleri kalır
 #### Work is unavailable
 Karşılaştırmada bir satır bağlantısız ve `Work is unavailable.` taşır.
 #### Follow-up preview
-Önizleme bölümü açık, `Confirm` birincil.
+`20.22` önizlemesi açık (`04.4` kaynak satırı), `Confirm` birincil.
 
 **Spec:** [30 Odak Dönemi](../../specs/30-focus-period/spec.md); [26 Backlog](../../specs/26-backlog/spec.md) (gönderim hedefi); [09 İş yaşamı](../../specs/09-work-lifecycle/spec.md) (vazgeçme).
 
@@ -216,12 +216,12 @@ Görünür her gün için bir hücre (Month ve Week yedi kolon, Day tek kolon); 
 - **Label'lar:** `Planned start · Target date` (aralık alt satırı), `Open source record`.
 
 ### Tarih değişikliği önizlemesi
-Izgaranın üstünde, sürükleme veya seçim sırasında görünen tek satırlık şerit.
+Izgaranın üstünde, sürükleme veya seçim sırasında görünen tek satırlık şerit; bırakmadan önce tarih türü ile eski ve yeni değer görünür.
 - **Label'lar:** `Save`, `Cancel`.
 
 ### Geri bildirim satırı
-Izgara altında yazma sonucu.
-- **Label'lar:** `Calendar date updated.`, `Undo`, `Calendar date could not be saved. Try again.`, `This Work date change is no longer available for Undo.`.
+Izgara altında yazma sonucu; `Undo` davranışı ve toast deseni → `20.14 · Write Receipts` › Undo toast. Burada yalnız Takvim cümleleri.
+- **Label'lar:** `Calendar date updated.`, `Calendar date could not be saved. Try again.`, `This Work date change is no longer available for Undo.`.
 
 ### Agenda görünümü
 `Agenda` seçildiğinde (`/calendar?view=Agenda`) ızgara yerine dört kolonlu yoğun satır listesi çizilir: tarih + tarih seçici, tür, İş, `Open source record`. Seçili ayın her tarih işareti için bir satır, tarihe göre sıralı; aynı İşin iki türü iki ayrı satırdır. Kapsam ve tür filtreleri aynıdır.
@@ -242,7 +242,7 @@ Tek gün; aralık boyanmaz, yalnız o günün konumları; her işarette tarih se
 #### Dragging
 Bir işaret sürükleniyor; hedef hücre vurgulu; önizleme şeridi görünür.
 #### Saved with Undo
-Geri bildirim satırında `Calendar date updated.` + `Undo`.
+Geri bildirim satırında `Calendar date updated.` + `Undo` (→ `20.14`).
 #### Filtered
 Yalnız `Target date` seçili; diğer türlerin işaretleri yok, aralıklar da yok (aralık iki tür birlikte seçiliyken çizilir).
 #### Offline

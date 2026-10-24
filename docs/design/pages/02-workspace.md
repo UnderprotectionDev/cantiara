@@ -36,8 +36,8 @@
 - **Label'lar:** `Projects`, `Create Project`.
 
 ### Projeler listesi
-`Your Projects` alt başlığı ve sağında Proje sayısı; altında yoğun, ayraçlı satır listesi. Her satırda Proje adı (bağlantı), yaşam durumu rozeti, Başlangıç yapılandırması ve varsa hedef tarih, varsa amaç cümlesi; `Short code` bloğu.
-- **Label'lar:** `Your Projects`, `Short code`, `Edit Short code`, `Save Short code`, `Cancel`, `Short code is locked after the first Work.`, yaşam durumu `Active` / `Pending` / `Completed` / `Abandoned`.
+`Your Projects` alt başlığı ve sağında Proje sayısı; altında yoğun, ayraçlı satır listesi. Her satırda Proje adı (bağlantı), yaşam durumu rozeti, Başlangıç yapılandırması ve varsa hedef tarih, varsa amaç cümlesi; `Short code` bloğu. Satır eylemi `Copy project structure` → `08.25` (yeni ad ve `Short code` ile önizlemeli kopya; Başlangıç yapılandırması sunulmaz).
+- **Label'lar:** `Your Projects`, `Copy project structure`, `Short code`, `Edit Short code`, `Save Short code`, `Cancel`, `Short code is locked after the first Work.`, yaşam durumu `Active` / `Pending` / `Completed` / `Abandoned`.
 
 ### Çalışma Alanı genel bakışı başlığı
 İnce bir ayraçtan sonra `Workspace overview` başlığı ve "every count stays connected to its source records" açıklaması.
@@ -75,6 +75,7 @@ Projeler yüklenemezse liste yerinde "Project is unavailable." + "Try loading th
 **Artboard'lar**
 - `02.2 · Customize overview · Default · 1440`
 - `02.2 · Customize overview · Empty · 1440`
+- `02.2 · Customize overview · Live block limit reached · 1440`
 
 ### Modül düzeni
 `02.1`'in alt kısmında, açık açıklamanın ilk bloğu: `Arrange modules` başlığı, "Presentation only. Hiding a module never removes its source records." notu; dört modülün sıralı listesi, her satırda yukarı/aşağı taşıma ve göster/gizle.
@@ -82,6 +83,7 @@ Projeler yüklenemezse liste yerinde "Project is unavailable." + "Try loading th
 
 ### Canlı bloklar
 `Live blocks` başlığı, referans açıklaması; `Existing source` seçicisi ve `Add live block`; eklenmiş blokların listesi (başlık, `Open source record`, kaldır).
+Üst sınıra ulaşılınca `Add live block` pasif olur ve yanında sınırı söyleyen sessiz satır görünür: `Live block limit reached. Remove one to add another.`; sınır sayısı çizime yazılmaz. Mevcut bloklar kaldırılabilir kalır.
 - **Label'lar:** `Live blocks`, `Existing source`, `Choose a source`, `Add live block`, `Open source record`, "Remove live block" (erişilebilir ad), `No existing source records`.
 
 ### Saved lists
@@ -91,6 +93,8 @@ Projeler yüklenemezse liste yerinde "Project is unavailable." + "Try loading th
 ### Durumlar
 #### Empty
 `Saved lists`: "No saved lists yet. Create one to keep a live cross-Project view." Canlı blok kaynağı yoksa "No existing Documents or named Smart Collection views are available…".
+#### Live block limit reached
+`Add live block` pasif, sınır satırı görünür; her blokta kaldırma açık.
 #### Error
 Kaydetme hatası `02.1` alt satırında.
 
@@ -113,7 +117,7 @@ Modül adı, "Exact source records · N", geri dönüş; Projeler listesi gizlen
 
 ### Durumlar
 #### Empty
-"No source records yet." / `Active Projects` için "No Active Projects yet.".
+→ `02.1` › Empty (aynı metinler).
 
 **Spec:** [15 Çalışma Alanı Genel Bakışı](../../specs/15-workspace-overview/spec.md).
 
@@ -130,8 +134,8 @@ Modül adı, "Exact source records · N", geri dönüş; Projeler listesi gizlen
 - **Label'lar:** `Saved lists`, `Edit list`, `Export`, `Back to Projects`.
 
 ### Tablo
-Tam genişlikte seçili kolonlar, kayıtlı sıralama ve gruplama (gruplama varsa grup başlıkları).
-- **Label'lar:** `Project`, `Status`, `Stage`, `Target date`, `Project areas`, `Archive`, `Last reported health`; değerler `Archived` / `Not archived`.
+Tam genişlikte seçili kolonlar, kayıtlı sıralama ve gruplama (gruplama varsa grup başlıkları). Kolon kataloğu → `02.5` › Görünüm. `Last reported health` hücresi son Manual Project Update sağlığını tarihiyle birlikte gösterir; tarihsiz rozet çizilmez.
+- **Label'lar:** değerler `Archived` / `Not archived`.
 
 ### Durumlar
 #### Empty
@@ -157,13 +161,13 @@ Ad alanı ve koşullar: ad, yaşam durumu, ad içerir, aşamalar, arşiv, Proje 
 <details>
 <summary>Label'lar</summary>
 
-`List name`, `Lifecycle` (`Active`, `Pending`, `Completed`, `Abandoned`; "Leave all four unchecked to include every lifecycle status."), `Project name contains`, `Stages` ("Enter visible stage names separated by commas."), `Archive` (`All Projects`, `Not archived`, `Archived`), `Project areas match` (`Any`, `All`), `Target date from`, `Target date to`.
+`List name`, `Lifecycle` (`Active`, `Pending`, `Completed`, `Abandoned`; "Leave all four unchecked to include every lifecycle status."), `Project name contains`, `Stages` ("Enter visible stage names separated by commas."), `Archive` (`All Projects`, `Not archived`, `Archived`), `Areas` (desteklenen Proje alanları çoklu seçimi), `Project areas match` (`Any`, `All`), `Target date from`, `Target date to`.
 
 </details>
 
 ### Görünüm
 Kolon onay kutuları üç sütun; sıralama, yön ve gruplama üç sütun.
-- **Label'lar:** `Columns` (`Project`, `Status`, `Stage`, `Target date`, `Project areas`, `Archive`, `Last reported health`), `Sort` (`Project`, `Status`, `Target date`, `Created date`, `Updated date`), `Direction` (`Ascending`, `Descending`), `Grouping` (`None`, `Status`, `Stage`, `Archive`).
+- **Label'lar:** `Columns` (`Project`, `Status`, `Stage`, `Target date`, `Project areas`, `Archive`, `Last reported health`), `Sort` (`Project`, `Status`, `Target date`, `Created date`, `Updated date`), `Direction` (tarih ve sayı kolonlarında `Ascending`, `Descending`; metin kolonu `Project` için `A–Z`, `Z–A`), `Grouping` (`None`, `Status`, `Stage`, `Archive`).
 
 ### Eylemler
 .
@@ -184,11 +188,16 @@ Kolon onay kutuları üç sütun; sıralama, yön ve gruplama üç sütun.
 - `02.6 · Create Project · Error · 1440`
 
 ### Ekmek kırıntısı ve başlık
-`Projects` › `Create`; `Create a Project`; "Give the work a home. Choose a starting configuration once…".
-- **Label'lar:** `Projects`, `Create`, `Create a Project`.
+`Projects` › `Create`; `Create Project`; "Give the work a home. Choose a starting configuration once…".
+- **Label'lar:** `Projects`, `Create`, `Create Project`.
 
 ### Project profile
-Zorunlu profil bölümü: `Project profile` başlığı ve "Start with a name and configuration. A Short code is suggested from the Project Name and can be changed from Projects until the first Work." Ad alanı; altında önerilen `Short code` önizlemesi (salt okunur); Başlangıç yapılandırması seçimi, seçilebilir dört satırlık liste olarak, her satırda ne kurduğunun kısa özeti.
+Zorunlu profil bölümü: `Project profile` başlığı ve "Start with a name and configuration. A Short code is suggested from the Project Name and can be changed from Projects until the first Work." Ad alanı; altında önerilen `Short code` önizlemesi (salt okunur); Başlangıç yapılandırması seçimi, seçilebilir dört satırlık liste olarak, her satırda ne kurduğunun kısa özeti:
+  - `Blank Project`: aşama yok; alanlar `Work`, `Documents`; görünümler `Backlog`, `Board`, `List`.
+  - `Solo SaaS`: aşamalar `Discovery`, `Design`, `Build`, `Validate`, `Release`, `Operate`; bütün Proje alanları; sabitlenenler `Discovery`, `Decisions`, `Design`, `Tests`, `Releases`; görünümler `Backlog`, `Board`, `List`, `Roadmap`.
+  - `Open Source Library`: aşamalar `Scope`, `Build`, `Validate`, `Release`, `Maintain`; alanlar `Work`, `Documents`, `Decisions`, `Technical Diagrams`, `Tests`, `Releases`, `GitHub`; sabitlenenler `GitHub`, `Tests`, `Releases`; görünümler `Backlog`, `Board`, `List`, `Roadmap`.
+  - `Mobile Application`: aşamalar `Discovery`, `Design`, `Build`, `Validate`, `Release`, `Operate`; bütün Proje alanları; sabitlenenler `Discovery`, `Design`, `Tests`, `Releases`, `Production`; görünümler `Backlog`, `Board`, `List`, `Roadmap`.
+  - Dördü de `Not Started`, `In Progress`, `Blocked`, `Closed` Work durumlarını kurar ve `Overview`, `Work`, `Documents`, `All Tools` erişilebilir kalır. Örnek içerik kurulmaz.
 - **Label'lar:** `Project profile`, `Project Name`, `Short code`, `Starter Configuration`, `Blank Project`, `Solo SaaS`, `Open Source Library`, `Mobile Application`, "A one-time starting structure. It does not create sample content."
 
 ### Optional profile details
@@ -227,11 +236,11 @@ Tek seçici: `Search`, on bir hazır dizin, `Table`.
 - **Label'lar:** `Discovery view`, `Search`, `All Work`, `All Documents`, `All Decisions`, `All Risks`, `All Research Sessions`, `All Tests`, `All Designs`, `All Technical Diagrams`, `All Project Releases`, `All Sources`, `All Files`, `Table`.
 
 ### Sorgu ve filtreler
-Sorgu alanı; görünür filtrelerle eşleşen sınırlı operatörler otomatik tamamlamayla filtre çipine dönüşür; `Archived` onay kutusu; Karar sonuçlarında `Status`.
-- **Label'lar:** `Search`, `Scope` (`All scopes`, `Personal Wiki`, `Project: Luma`), `Type` (`All types`), `Folder` (`All folders`), `Archived`, `Status`. `Type` ve `Folder` yalnız Belge ve Dosya dizinlerinde görünür.
+Sorgu alanı; görünür filtrelerle eşleşen sınırlı operatörler otomatik tamamlamayla filtre çipine dönüşür; `Archived` onay kutusu; Karar sonuçlarında `Status`. Proje kapsamında, türe bağlı Proje özel alanları da arama ve filtreye sunulur (alan tanımı → `08.16`); özel alan filtresi ile `Priority criterion` / `Rank` filtresinin kuralı → `09.1 · Filtreler` (kademe skalası → `08.19 › Rank descriptions`). Süzülmüş aramayı koleksiyona çeviren eylem `Save as Smart Collection` (→ `08.12` `Create` formu, koşullar önceden dolu; geçici arama üyelik yazmaz). `All Work` sonuç satırlarında seçim kutuları ve seçim çubuğu → `DS.14 · Seçim` (`Bulk Edit` → `20.8`; Projeler arası alan seçici kuralı da orada).
+- **Label'lar:** `Search`, `Scope` (`All scopes`, `Personal Wiki`, `Project: Luma`), `Type` (`All types`), `Folder` (`All folders`), `Archived`, `Status`, `Save as Smart Collection`, `Bulk Edit`. `Type` ve `Folder` yalnız Belge ve Dosya dizinlerinde görünür.
 
 ### Search results
-Sonuç kartları başlık sırasına göre (başlık/anahtar → güncel Proje → aktif → `Completed`/`Abandoned` → yenilik → kimlik). Her sonuçta başlık, rozetler (tür, durum, varsa kapanış sonucu, kapsam), vurgulu eşleşme parçası, eşleşme sayısı, `Open source record`.
+Sonuç kartları başlık sırasına göre (başlık/anahtar → güncel Proje → aktif → `Completed`/`Abandoned` → yenilik → kimlik). Her sonuçta başlık, rozetler (tür, durum, varsa kapanış sonucu, kapsam), vurgulu eşleşme parçası, eşleşme sayısı, `Open source record`. Bir sonuç açıldığında tür destekliyorsa eşleşme konumuna inilir; desteklemiyorsa bunu söyleyen kısa açıklama görünür (spec'te label yok; metni tasarım aşamasında yazılır). Sonuç türleri arasında Proje de vardır (tür rozeti `Project`; `Open source record` Projenin `Overview`'ına gider) ve eşleşme parçası `Next concrete step` metninden gelebilir. Workspace kapsamında kimlik defteri sonuç grupları `Contact` ve `Company`; emekli kimlik sonuç olarak listelenmez (→ `06.1` › Redirected from).
 - **Label'lar:** `Search results`, `Open source record`, kapsam `Project: Luma` / `Personal Wiki`, "N matches".
 
 ### Durumlar
@@ -255,12 +264,15 @@ Arşivli sonuçlar `Archived` durum rozetiyle; Çöp Kutusu hiçbir zaman.
 - `02.8 · Type index · Empty · 1440`
 - `02.8 · Type index · All Documents · Wiki scope · 1440`
 
+### Sayfa başlığı
+Dizin adı ve eylem alanı. `All Work` çapraz Proje İş listesidir: başlıkta `Export` → `20.5 · Export` (ekranda görülen kesin görünüm; seçim varsa seçili kayıtlar). `Import` yoktur, çünkü çapraz Proje listesi tek kapsam seçemez (→ `20.6`). `All Work` satırlarında seçim kutuları ve seçim çubuğu → `DS.14 · Seçim` (`Bulk Edit` → `20.8`). Diğer dizinlerde `Export` yoktur.
+- **Label'lar:** `Export`, `Bulk Edit`.
+
 ### Filtreler
-`02.7` modalında sorgu alanı yerine filtre satırı. Kapsam her dizinde; `Type` ve `Folder` yalnız `All Documents` ve `All Files`'ta; `All Decisions`'ta `Status`; `Archived`.
-- **Label'lar:** `Scope` (`All scopes`, `Personal Wiki`, `Project: <name>`), `Type` (`All types`), `Folder` (`All folders`), `Status`, `Archived`.
+`02.7` › Sorgu ve filtreler ile aynı label'lar; modalda sorgu alanı yerine yalnız filtre satırı. Dizine özgü fark: kapsam her dizinde; `Type` ve `Folder` yalnız `All Documents` ve `All Files`'ta; `Status` yalnız `All Decisions`'ta.
 
 ### Dizin satırları
-Başlık, rozetler (tür, kategori, `All Technical Diagrams`'da otorite kipi, `All Files`'ta dosya adı ve MIME), durum, kapsam, varsa "Folder: …", `Open source record`. Eşleşme parçası/sayısı yok.
+Başlık, rozetler (tür, kategori, `All Technical Diagrams`'da otorite kipi, `All Files`'ta dosya adı ve MIME), durum, kapsam, varsa "Folder: …", `Open source record`. Eşleşme parçası/sayısı yok. `All Files` satırlarında küçük resim ve çözülemeyen görselde `Unavailable` kenar durumu → `20.13 · Önizleme`.
 - **Label'lar:** `Open source record`.
 
 ### Durumlar
@@ -290,11 +302,12 @@ Proje ve Wiki Belgeleri birlikte listelenir; her satırda `Personal Wiki` veya `
 
 ### Tablo
 Tam genişlikte sıralanabilir kolon başlıkları, izinli hücrelerde satır içi düzenleme.
-- **Label'lar:** `Title`, `Status`, `Description`, `Target date`, `Impact`, `Probability`… (türe göre); "Sort by …", "Edit … for …" (erişilebilir adlar).
+Tablo başlığı eylem alanında `Export` → `20.5 · Export`. `Work` türünde satır seçim kutuları ve seçim çubuğu → `DS.14 · Seçim` (`Bulk Edit` → `20.8`; Projeler arası alan seçici kuralı da orada).
+- **Label'lar:** `Title`, `Status`, `Description`, `Target date`, `Impact`, `Probability`… (türe göre); `Export`, `Bulk Edit`; "Sort by …", "Edit … for …" (erişilebilir adlar).
 
 ### Paste rows
-En altta kapalı bölüm: yapıştırma alanı ve `Preview paste`; ardından kolon eşleme (her kaynak kolon için alan, `Skip column` veya `Record ID`); `Review paste` satır listesi: "Row N · Create/Update", hatalı satırda `Correct row`, `Exclude row`/`Include row`; en altta `Apply changes`.
-- **Label'lar:** `Paste rows`, `Preview paste`, `Column mapping`, `Skip column`, `Record ID`, `Review paste`, `Correct row`, `Exclude row`, `Include row`, `Apply changes`, `Applying changes…`, `Changes applied.`
+En altta kapalı bölüm: yapıştırma alanı ve `Preview paste`. Kolon eşleme ve satır inceleme (`Column mapping` etiketleri ve davranışı → `20.6 · Column mapping`; kaynak kolon → alan, `Skip column`, hatalı satırı düzeltme / hariç tutma, "Row N · Create/Update" farkı) `20.6 · Import` › 2 · Eşleme ve 3 · Fark ve çatışmalar ile aynı sözleşmedir; burada yeniden tarif edilmez. `Paste rows` farkı: dosya yok, satırlar bu Tablonun seçili türüne yazılır; eşleme seçeneklerine `Record ID` eklenir (mevcut satırı günceller); onay `Apply Import` değil `Apply changes`.
+- **Label'lar:** `Paste rows`, `Preview paste`, `Record ID`, `Review paste`, `Apply changes`, `Applying changes…`, `Changes applied.`
 
 ### Durumlar
 #### Empty
@@ -304,7 +317,7 @@ En altta kapalı bölüm: yapıştırma alanı ve `Preview paste`; ardından kol
 #### Error
 "Table is unavailable."; yapıştırma: "Paste a header row and at least one data row.", "Record ID must match a row in this Table.", "Select a Project before creating rows.", "Could not apply these changes.".
 #### Paste review
-Eşleme + inceleme açık, bir satır düzeltme formunda.
+Eşleme + inceleme açık (`20.6` bileşenleri), bir satır düzeltme formunda.
 
 **Spec:** [33 Kayıt Keşfi](../../specs/33-record-discovery/spec.md), [80 Standart Dosyalardan İçe Aktarma](../../specs/80-data-import/spec.md) (aynı önizleme sözleşmesi).
 
@@ -325,8 +338,7 @@ Tek sütun liste; her satırda başlık (yoksa `Untitled Draft`), tür · hedef 
 - **Label'lar:** `Untitled Draft`, `Resume`, `Delete`, `Last saved`.
 
 ### Taslak formu durum şeridi (referans)
-Formdaki `Draft` başlığı, "Changes save automatically while you are online. Create turns this Draft into one Work.", `Saving…`/`Ready`; `Save` ve `Create`. Form gövdesi sayfa 09'da çizilir.
-- **Label'lar:** `Draft`, `Saving…`, `Ready`, `Save`, `Create`, `Creating…`, "Work <key> created.".
+→ `09.11` (durum şeridi, `Save` / `Create` ve form gövdesi orada çizilir; burada yeniden yazılmaz).
 
 ### Durumlar
 #### Empty
@@ -336,7 +348,7 @@ Formdaki `Draft` başlığı, "Changes save automatically while you are online. 
 #### Error
 "Drafts are unavailable. Try loading this page again."
 #### Offline
-`Resume`/`Delete`/`Create` kapalı; `Last saved` zamanı ve `Unsaved changes may be lost` görünür; yerel kuyruk yok, yeniden bağlanınca gizli tekrar yok (→ `20.16 · Offline`).
+→ `20.16 · Offline`. Burada yalnız `Resume` / `Delete` / `Create` kapalıdır.
 
 **Spec:** [11 Tamamlanmamış İş Taslakları](../../specs/11-work-drafts/spec.md).
 
@@ -348,34 +360,37 @@ Formdaki `Draft` başlığı, "Changes save automatically while you are online. 
 - `02.11 · Trash · Empty · 1440`
 - `02.11 · Trash · Project group expanded · 1440`
 - `02.11 · Trash · Permanent delete blocked · 1440`
+- `02.11 · Trash · Restored with kept surface · 1440`
 
 ### Başlık
 `Trash`; 30 gün sonra kalıcı silindiğini ve Arşiv veya geri yükleme noktası olmadığını söyleyen tek satır; altında ince filtre satırı (tür, kapsam).
 - **Label'lar:** `Trash`.
 
 ### Ana kayıtlar
-Satır: kayıt başlığı, tür, kapsam (Proje / Kişisel Wiki), Çöp Kutusuna alınma tarihi, kalan gün, bağlı Dış yüzey özeti; `Restore`, `Permanently Delete`.
+Satır: kayıt başlığı, tür, kapsam (Proje / Kişisel Wiki), Çöp Kutusuna alınma tarihi, kalan gün, bağlı Dış yüzey özeti; `Restore`, `Permanently Delete`. Test Oturumu çocuk Oturum Testleriyle tek tarihsel bütün olarak tek satırdır; çocuklarda eylem yoktur. İptal edilmiş Dış yüzey kaydı da `In Trash` satırıdır ve `Restore` / `Permanently Delete` taşır.
 - **Label'lar:** `Restore`, `Permanently Delete`, `In Trash`.
 
 ### Proje silme grupları
-Proje başına tek satır: Proje adı, içerdiği kayıt sayısı, tek 30 günlük saat; satır genişletilince çocuklar salt okunur listelenir (tek tek eylem yok).
-- **Label'lar:** `Restore`, `Permanently Delete`.
+Proje başına tek satır: Proje adı, içerdiği kayıt sayısı, tek 30 günlük saat; satır genişletilince çocuklar salt okunur listelenir (tek tek eylem yok). Geri yükleme Projeyi Aktif'e değil Arşive döndürür ve Dış yüzeyi yeniden yayımlamaz; eylem Proje grubunda `Restore to Archive` (grup dışı kayıtlarda `Restore`); sonuç metni `Restoring returns the Project to Archive. No surface is republished and GitHub stays disconnected.`.
+- **Label'lar:** `Restore to Archive`, `Restore`, `Permanently Delete`.
 
 ### Yapılandırma çöpü
-Proje bazlı özel alan, öncelik ölçütü, Akıllı Koleksiyon, adlandırılmış görünüm, Önceliklendirme oturumu, otomasyon kuralı, kayıt eylemi, şablonlar; her satırda etkilenen değer sayısı ve "çalışmıyor" notu.
-- **Label'lar:** `Restore`, `Permanently Delete`.
+Tür listesinin ve "çalışmıyor" kuralının tek sahibi burasıdır (`20.2` › Yapılandırma çöpü yalnız taşıma anındaki etki önizlemesini çizer ve buraya bağlanır). Proje bazlı türler: özel alan, öncelik ölçütü, Akıllı Koleksiyon, adlandırılmış görünüm, Önceliklendirme oturumu, otomasyon kuralı, kullanıcı tanımlı Kayıt Eylemi, Belge şablonu, İş şablonu. Satırda tür, Proje, etkilenen saklı değer sayısı ve `Not running` notu: çöpteki tanım çalışmaz, kural tetiklenmez, görünüm ve koleksiyon üyelik üretmez veya listelemez. `Restore` aynı kimliği ve saklı değerleri döndürür; çözülemeyen bağımlılık varsa `02.12` önizlemesi açılır, sessiz yeniden bağlama yoktur.
+- **Label'lar:** `Restore`, `Permanently Delete`, `Not running`.
 
 ### Durumlar
 #### Empty
-Dürüst boş durum: Çöp Kutusunda kayıt yok (label spec'te yok; PRD term tablosuna eklenecek).
+Dürüst boş durum: `Trash is empty.`; "her şey yolunda" iddiası taşımaz.
 #### Loading
 Satır iskeletleri.
 #### Error
 Liste yüklenemedi + yeniden dene.
 #### Permanently deleted
-Kalıcı silinen kayıt listeden kalkar; ilgili kırık referanslarda `Permanently deleted` nedeni görünür (sayfa 20).
+Kalıcı silinen kayıt listeden kalkar; ilgili kırık referanslarda `Permanently deleted` nedeni görünür (→ `20.10 · Kırık uç`).
 #### Permanent delete blocked
-Etkin Dış yüzey veya redaksiyon bekleyen içerik nedeniyle kapalı `Permanently Delete` ve açıklaması.
+→ `20.3 · Permanently Delete` › Engelli (neden ve ilgili yer orada tanımlıdır).
+#### Restored with kept surface
+Geri yüklenen Projede korunan (kept) Dış yüzey donmuş kalır, otomatik yeniden bağlanmaz; yayın açık bağla-ve-onayla gerektirir: `Republishing requires a new approval.`.
 
 **Spec:** [77 Çöp Kutusu](../../specs/77-trash/spec.md), [76 Paylaşım ve Yayınları Yönetme](../../specs/76-external-surface-management/spec.md) (iptal edilmiş Dış yüzey satırları).
 
@@ -403,13 +418,15 @@ Uygulanamadı; hiçbir şey değişmedi.
 **Spec:** [77 Çöp Kutusu](../../specs/77-trash/spec.md).
 
 ## 02.13 · Shares and Publications
-> Bütün Dış yüzeyler (bağlantı paylaşımı, Wiki yayını, Build in Public) tek dizinde görülür ve yaşam döngüleri yönetilir; oluşturma burada değil.
+> Bütün Dış yüzeyler (bağlantı paylaşımı, Wiki yayını, Build in Public) tek dizinde görülür ve yaşam döngüleri yönetilir; oluşturma burada değil. Yaşam döngüsü yönetiminin (dizin, `Change expiry`, `Reactivate`, `Revoke` / `Unpublish`) tek sahibi bu ekrandır.
 
 **Artboard'lar**
 - `02.13 · Shares and Publications · Default · 1440`
 - `02.13 · Shares and Publications · Default · 768`
 - `02.13 · Shares and Publications · Empty · 1440`
+- `02.13 · Shares and Publications · Project scope · 1440`
 - `02.13 · Shares and Publications · Revoke confirmation · 1440`
+- `02.13 · Shares and Publications · Unpublish confirmation · 1440`
 - `02.13 · Shares and Publications · Purge retry · 1440`
 
 ### Başlık
@@ -417,11 +434,11 @@ Uygulanamadı; hiçbir şey değişmedi.
 - **Label'lar:** `Shares and Publications`.
 
 ### Filtreler
-Proje (Proje kapsamlı giriş bunu önceden seçer), görünürlük türü, durum.
+Proje (Proje kapsamlı giriş bunu önceden seçer; `Project scope` artboard'ında Proje filtresi seçili ve kilitli, Proje adı başlıkta), görünürlük türü, durum.
 - **Label'lar:** `Active`, `Expired`, `Revoked`.
 
 ### Dizin
-Tam genişlik tablo, satır sonunda eylem menüsü; satır durumuna göre eylemler: `Open source`, `Review diff`, `Change expiry` / `Reactivate`, `Revoke` (Wiki yayını için `Unpublish`). Kolonlar: kaynak kayıt ve kapsam, görünürlük türü, parola var/yok (asla parola değil), sona erme, durum, son onay zamanı, yayımlanmamış değişiklik işareti, redaksiyon durumu, donmuş/ayrık işareti.
+Tam genişlik tablo, satır sonunda eylem menüsü; satır durumuna göre eylemler: `Open source`, `Review diff`, `Change expiry` / `Reactivate`, `Revoke` (yalnız bağlantı paylaşımı), `Unpublish` (Wiki yayını ve Build in Public; PRD 02'de ayrı label'lardır, birbirinin yerine yazılmaz), `Move to Trash`. `Change expiry` ve `Reactivate` satır durumuna göre (`Expired` satırda `Reactivate`); `Revoked` satır terminaldir (URL yeniden kullanılmaz). Kolonlar: kaynak kayıt ve kapsam, görünürlük türü, parola var/yok (asla parola değil), sona erme, durum, son onay zamanı, yayımlanmamış değişiklik işareti, redaksiyon durumu, donmuş/ayrık işareti.
 - **Label'lar:** `Active`, `Expired`, `Revoked`.
 
 ### Durumlar
@@ -432,7 +449,9 @@ Satır iskeletleri.
 #### Error
 Dizin yüklenemedi.
 #### Revoke confirmation
-Satırdan iptal: aynı terminal semantik; eski URL genel `410 Gone`, `noindex`, sitemap dışı, URL yeniden kullanılmaz; üçüncü taraf kopyaların silindiği iddia edilmez.
+Bağlantı paylaşımı satırından `Revoke`: yeni erişim hemen durur, cache temizliği başlar, URL yeniden kullanılmaz; üçüncü taraf kopyaların silindiği iddia edilmez. Kamuya açık `410 Gone` davranışı → `19.9`.
+#### Unpublish confirmation
+Wiki yayını ve Build in Public satırından `Unpublish`: `Revoke confirmation` ile aynı çizim, ikinci varyant; onay metni ve eylemleri → `20.4 · Yayın ayarları`. `410 Gone` → `19.9`.
 #### Purge retry
 Cache/indeks temizleme isteği başarısız: satırda görünür yeniden deneme; içerik yeniden açılmaz.
 #### Redacted
@@ -447,22 +466,24 @@ Redakte revizyon "redacted" olarak, kaldırılan değer olmadan.
 - `02.14 · Workspace Exit Package · Default · 1440`
 - `02.14 · Workspace Exit Package · Producing · 1440`
 - `02.14 · Workspace Exit Package · Ready · 1440`
+- `02.14 · Workspace Exit Package · Download revoked · 1440`
 - `02.14 · Workspace Exit Package · Account closure · 1440`
 
 ### Başlık ve sınırlar
-`Workspace Exit Package`; uygulama içi geri yükleme olmadığını, AB'deki canlı verinin taşınmadığını ve operasyonel yedek olmadığını söyleyen kısa metin; uygulamasız envelope tanımına bağlantı.
-- **Label'lar:** `Workspace Exit Package`.
+`Workspace Exit Package`; uygulama içi geri yükleme olmadığını, AB'deki canlı verinin taşınmadığını ve operasyonel yedek olmadığını söyleyen kısa metin; uygulamasız envelope tanımına bağlantı `Envelope definition`.
+- **Label'lar:** `Workspace Exit Package`, `Envelope definition`.
 
 ### İçerik özeti
 Girecekler: kullanıcı içeriği, ek sürümleri, kimlikler, ilişkiler, geçmiş, yapılandırma (okunabilir Markdown/JSON + özgün dosyalar + tek manifest). Girmeyecekler: oturumlar, secret'lar, dış erişim anahtarları, operasyon logları, türetilmiş cache'ler, Yakalama ekleri.
 
 ### Parola
-Parola ve tekrar alanı; sunucuda saklanmadığını, unutulursa paketin okunamayacağını, kurtarma kodu veya şifresiz kopya olmadığını söyleyen uyarı.
-- **Label'lar:** `Package password`, `Confirm package password`.
+Parola ve tekrar alanı; sunucuda saklanmadığını, unutulursa paketin okunamayacağını, kurtarma kodu veya şifresiz kopya olmadığını söyleyen uyarı. Uyuşmazlıkta alan altında `The passwords do not match.`.
+Parola kaybı cümlesinin tek sahibi burasıdır; `01.9` ve `01.10` bu cümleyi referansla gösterir: `If you forget the package password, the Workspace Exit Package cannot be read. There is no recovery code and no unencrypted copy.`.
+- **Label'lar:** `Package password`, `Confirm package password`, `The passwords do not match.`, `If you forget the package password, the Workspace Exit Package cannot be read. There is no recovery code and no unencrypted copy.`.
 
 ### Üretim ve indirme
-Üretim durumu; hazır olunca süreli indirme ve sona erme zamanı; indirmeyi iptal etme.
-- **Label'lar:** `Download Workspace Exit Package`.
+Üretim durumu; üretimi başlatan eylem `Produce Workspace Exit Package`; hazır olunca süreli indirme ve sona erme zamanı; indirmeyi iptal etme `Revoke download`.
+- **Label'lar:** `Produce Workspace Exit Package`, `Download Workspace Exit Package`, `Revoke download`.
 
 ### Durumlar
 #### Producing
@@ -471,6 +492,8 @@ Parola ve tekrar alanı; sunucuda saklanmadığını, unutulursa paketin okunama
 İndirme ve sona erme görünür.
 #### Expired / Revoked
 Bağlantı öldü; yeni paket üretilebilir.
+#### Download revoked
+`Revoke download` sonrası indirme bağlantısı kapalı; durum satırı bunu söyler ve `Produce Workspace Exit Package` yeniden açılır.
 #### Error
 Üretim başarısız; parola saklanmadığı için yeniden girilmesi gerekir.
 #### Account closure

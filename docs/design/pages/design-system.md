@@ -41,7 +41,7 @@ Anti-referanslar: sağlık skorları, widget dashboard'ları, krem SaaS landing'
 | 1 | Mood ve görsel yön | Tek cümlelik yön, mood kelimesi | `PRODUCT.md` kişiliği ve anti-referansları | açık |
 | 2 | Renk rolleri | Zemin, yükseltilmiş yüzey, metin, sessiz metin, ayırıcı, birincil eylem, odak halkası, seçim | Gövde metni ≥4.5:1 kontrast; anlam yalnız renkle aktarılmaz (WCAG 2.2 AA, [PRD 15](../../prd/15-product-quality.md)) | açık |
 | 3 | Semantik renkler | Success, warning, danger, info; durum rozetleri | Her durum metin veya ikonla da okunur; Light ve Dark ayrı doğrulanır | açık |
-| 4 | Light / Dark | `Appearance` değerleri `Light`, `Dark`; `System` yok | [spec 02](../../specs/02-account-preferences/spec.md); "tema sistemi" değildir, Proje rengi yoktur | açık |
+| 4 | Light / Dark | İki tema token'ı; `Appearance` kuralı → `01.6` | [spec 02](../../specs/02-account-preferences/spec.md); "tema sistemi" değildir, Proje rengi yoktur | açık |
 | 5 | Tipografi | Font ailesi; display, heading, subhead, body, label, caption, mono/data; ağırlık; satır yüksekliği | %200 ölçekte okunur; uzun içerik kırılır; İş anahtarı ve tarihte tabular rakam | açık |
 | 6 | Spacing ölçeği | Temel birim; bileşen içi, grup arası, bölge arası | Yoğun liste ile geniş okuma yüzeyi aynı ölçekten çıkar | açık |
 | 7 | Yoğunluk | Liste ve tablo satır yüksekliği | Linear sınıfı araç kullanıcısı; satır başına tek bilgi hattı | açık |
@@ -120,22 +120,24 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 **Artboard'lar**
 - `DS.9 · Components · Product components`
 
+Bileşeni başka bir bölüm ya da ekran tanımlıyorsa bu tablo yalnız adını ve sahibini gösterir; label ve varyantlar sahibinde durur.
+
 | Bileşen | Kullanıldığı yerler | Varyantlar |
 |---|---|---|
-| Record row | Listeler, Backlog, arama, Smart Collection | Anahtar + başlık + durum + meta; seçili; çoklu seçim; sürüklenebilir |
+| Record row | Listeler, Backlog, arama, Smart Collection | Satır biçimi → DS.17; seçili; çoklu seçim → DS.14; sürüklenebilir |
 | Status badge | İş, Risk, Karar, test sonucu, senkron | Her kapalı katalog değeri; metinli |
-| Record header | Bütün kayıt detayları | Başlık, anahtar, durum, eylem menüsü (`Add to Favorites`, `Remind me`, `Move to Trash`, `Share`, `Export`) |
-| Property list | Kayıt detay yan paneli | Alan + değer; boş; özel alan; salt okunur |
-| Relation chip, `Used in` | Kayıt detayları | Normal, `Blocks` / `Blocked by`, silinmiş hedef |
+| Record header | Bütün kayıt detayları | → DS.11 |
+| Property list | Kayıt detay yan paneli | → DS.12 |
+| Relation chip, `Used in` | Kayıt detayları | → DS.13, `20.10` |
 | Tag chip | Kayıtlar | Seçili, yeni oluştur, çok sayıda |
 | Kanban card | `Board` | Normal, sürükleniyor, `Soft WIP` aşımı |
-| Context record preview | Kanban, Calendar, Roadmap, Favorites, Smart Collection | Kayıt türüne göre; `Open full page` |
-| Empty state | Bütün listeler | İlk kullanım, filtre boş, arşivli |
-| Archived / read-only banner | Arşivli Proje ve kayıtlar | Tek güvenlik eylemli |
-| Offline banner | Bütün uygulama | `You're offline`, `Last saved` |
-| Undo toast | Bütün mutasyonlar | `Undo`, conflict, `Finalizing` |
-| Canvas chrome | Kanvaslar | Araç çubuğu, `Fit View`, `Presentation Mode`, outline geçişi |
-| Editor toolbar | Belge editörü, Wiki | Tam; dar ekran kaydırmalı (`Swipe for more formatting tools →`) |
+| Context record preview | Kanban, Calendar, Roadmap, Favorites, Smart Collection | → `00.9` |
+| Empty state | Bütün listeler | → DS.15 |
+| Archived / read-only banner | Arşivli Proje ve kayıtlar | → `20.21` |
+| Offline banner | Bütün uygulama | → `20.16` |
+| Undo toast | Bütün mutasyonlar | → `20.14`, `20.15` |
+| Canvas chrome | Kanvaslar | → `13.2` |
+| Editor toolbar | Belge editörü, Wiki | → `10.2` |
 
 ## DS.10 · Page Header
 > Tam sayfa yüzeylerin ve Proje alanlarının üstündeki başlık: ad, açıklama, alan içi görünüm geçişi, birincil ve ikincil eylemler.
@@ -149,19 +151,7 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 - `DS.10 · Page Header · Archived Project · 1440`
 
 - **Page:** Sayfa adı, açıklama, en çok bir birincil eylem. Örnekler: `Capture Inbox` + `New capture`; `Calendar` + `Day`/`Week`/`Month`/`Agenda`; `Daily Focus`.
-- **Area:** Proje alanı adı + alan içi görünüm geçişi + birincil oluşturma eylemi. Hepsi aynı iskeleti kullanır; yalnız parametreler değişir:
-
-| Alan | Görünüm geçişi | Birincil eylem |
-|---|---|---|
-| `Documents` | `Archived` filtresi | `Create Document` |
-| `Discovery` | `Sources`, `Research Sessions`, `Feedback`, `Feed`, `Validation Records` | türe göre oluştur |
-| `Decisions` | `Decisions`, `Risks`, `Assumptions`, `Open Questions` | `Create` |
-| `Design` | `Project Wall`, `Screen`, `User Flow`, `Moodboard` (bölüm dizini, kayıt sayılarıyla) | bölüme göre |
-| `Technical Diagrams` | — | `New Technical Diagram` |
-| `Tests` | `Tests overview`, `Planned Test Cases`, `Test Handoffs`, `Test Sessions`, `Test Gaps`, `Recent Test Assessments` | `Record Test Session` |
-| `Releases` | `Changelog` bağlantısı | `Create Project Release` |
-| `Production` | — | `Record Production Incident` (öneri) |
-| `GitHub` | `Repository`, `GitHub records` | `Connect repository` |
+- **Area:** Proje alanı adı + alan içi görünüm geçişi + birincil oluşturma eylemi. Hepsi aynı iskeleti kullanır; yalnız parametreler değişir. Parametreler (görünüm geçişi ve birincil eylem) alanın ilk ekranında tanımlıdır: `Work` → `09.1`, `Documents` → `10.1`, `Discovery` → `11.1`, `Decisions` → `12.1`, `Design` → `13.1`, `Technical Diagrams` → `14.1`, `Tests` → `15.1`, `Releases` → `16.1`, `Production` → `17.1`, `GitHub` → `18.1`.
 
 - **Kural:** Başlık bir dashboard bandı olmaz; sayaç, sağlık skoru ve widget içermez. Arşivli Projede birincil oluşturma eylemi gizlenir.
 
@@ -172,7 +162,7 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 **Artboard'lar**
 - `DS.11 · Record Header · Work (Bug) · 1440`
 - `DS.11 · Record Header · Work (Bug) · 768`
-- `DS.11 · Record Header · Work (Bug) · 1440 · Dark`
+- `DS.11 · Record Header · Work (Bug) · Dark · 1440`
 - `DS.11 · Record Header · Document · 1440`
 - `DS.11 · Record Header · Decision · 1440`
 - `DS.11 · Record Header · Without key · 1440`
@@ -181,9 +171,9 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 - `DS.11 · Record Header · Overflow menu · 1440`
 
 - **Kimlik:** İş anahtarı (`LUMA-42`) varsa başlıkla birlikte; anahtarı olmayan kayıtlarda yalnız başlık ve tür.
-- **Eylemler (ortak):** `Add to Favorites` (→ `20.12`), `Remind me` / `Review Later` (→ `20.9`), taşma menüsü: `Share` (→ `20.4`), `Export` (→ `20.5`), `Move to Trash` (→ `20.2`). Kayıt türüne göre taşmaya `Archive`, `Duplicate`, `Redact` (→ `20.7`) girer.
-- **Türe özgü eylemler:** İş için `Record Action`, `Copy Context as Markdown`, `Start Work`, `Not now`; Belge için `Convert to template`, `Personal Review`. Her türün tam listesi sahibi ekran kartındadır; iskelet bu bölgedir.
-- **Durumlar:** `Archived` ve `In Trash` kayıtlarda yazma eylemleri gizlenir, geri yükleme eylemi görünür.
+- **Eylemler (ortak):** `Add to Favorites` (→ `20.12`), `Remind me` / `Review Later` (→ `20.9`), taşma menüsü: `Share` (→ `20.4`), yalnız İş ve Belge için `Add to Active Working Set` / `Remove from Active Working Set` (→ `00.3`: label'lar ve gizleme kuralı orada), `Export` (→ `20.5`), `Archive`, `Move to Trash` (→ `20.2`). Bu liste ortak eylemlerin tek sahibidir; özellik kartları yalnız türe özgü eylemleri listeler. Kayıt türüne göre taşmaya ayrıca `Duplicate`, `Redact` (→ `20.7`) girer.
+- **Türe özgü eylemler:** İş için `Record Action`, `Copy Context as Markdown`, `Start Work`, `Not now`; Belge için `Convert to template`. Her türün tam listesi sahibi ekran kartındadır; iskelet bu bölgedir.
+- **Durumlar:** `Archived` kayıt (İş, Belge; kayıt düzeyi arşiv) yalnız sessiz arşiv işareti ve `Unarchive` taşır; arşiv Çöp Kutusu değildir ve kayıt düzenlenebilir kalır (spec 09, 31). `In Trash` kayıtlarda yazma eylemleri gizlenir, geri yükleme eylemi görünür. Arşivli Projedeki kayıtlar salt okunurdur (→ `20.21`, spec 83).
 
 
 ## DS.12 · Record Properties
@@ -197,9 +187,10 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 - `DS.12 · Record Properties · Read-only · 1440`
 - `DS.12 · Record Properties · Save error · 1440`
 
-- **Satır:** sabit genişlikli etiket sütunu + değer; boş değer `Not evaluated` ya da `—` olarak açıkça gösterilir (`False`'tan farklıdır).
+- **Satır:** sabit genişlikli etiket sütunu + değer; boş değer `Not evaluated` olarak açıkça gösterilir (`False`'tan farklıdır).
 - **Düzenleme:** satır içi; hata satırın altında ("… could not be saved.").
 - **Gruplar:** durum ve planlama, öncelik ölçütleri, özel alanlar, etiketler.
+- **Özel alanlar:** kayıt türüne bağlı Proje özel alanları (tanım → `08.16`) aynı etiket + değer satırıdır; başlık `Custom fields`, satır etiketi alanın adıdır. Boolean alan `True` / `False` / `Not evaluated`, diğer türler seçenek ya da tarih; boş değer `Not evaluated`. Ekranlar yalnız hangi türde göründüğünü ve forma özgü konumu söyler.
 - **Salt okunur:** arşivli ve çöpteki kayıtlarda değerler okunur, kontroller gizli.
 
 **Spec:** [09](../../specs/09-work-lifecycle/spec.md), [10](../../specs/10-custom-fields/spec.md), [13](../../specs/13-tags/spec.md), [20](../../specs/20-priority/spec.md).
@@ -215,12 +206,12 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 - `DS.13 · Record Sections · Broken target · 1440`
 - `DS.13 · Record Sections · Collapsed · 1440`
 
-- **Relations:** Kapalı tür kataloğu (kullanıcı yeni tür icat etmez), her tür iki uçta iki ayrı adla görünür: `Related`, `Origin` / `Derived`, `Evidence` / `Provides evidence`, `Contributes to Goal` / `In Goal`, `Blocks` / `Blocked by`, `Includes` / `Included in`, `Contributes to Milestone` / `In Milestone`, `Primary spec`, `Supersedes` / `Superseded by`, `Implements` / `Implemented by`, `Belongs to Company`, `Participant`, `Required for completion` / `Contextual`. `Blocks` / `Blocked by` ayrıca `Active` / `Resolved` taşır. Ekleme relation picker ile (→ `20.10`).
+- **Relations:** Kapalı tür kataloğu (kullanıcı yeni tür icat etmez), her tür iki uçta iki ayrı adla görünür; katalog, `Active` / `Resolved` ve ekleme (relation picker) → `20.10`.
 - **Used in:** ilişki geri bağlantıları ve kullanım bağları iki ayrı grup.
 - **Attachments:** liste + önizleme (→ `20.13`).
-- **Evidence:** Kanıt Rolü, kaynak türü, durum, `Open source record` (→ `11.13`).
+- **Evidence:** Kanıt Rolü, kaynak türü, durum, `Open source record` (rol gruplaması → `12.10`, Kanıt Akışı → `11.13`).
 - **History:** kronolojik olay listesi.
-- **Boş bölüm:** bölüm başlığı ve desteklenen ekle/bağla eylemi; sahte içerik yok.
+- **Boş bölüm:** bölüm başlığı, tarafsız `Nothing here yet.` metni ve desteklenen ekle/bağla eylemi; sahte içerik yok. Ekranlar bu metni yeniden yazmaz, yalnız bölüm adını ve eylemi söyler. Metin sağlık veya tamlık skoru değildir. Eylem adı spec'te yoktur ve bölümün kayıt türünden türetilir; `Relations` bölümünün boş metni → `20.10` (`No relations yet.`; metin orada tek yerde tanımlıdır).
 - **Kırık hedef:** silinmiş, arşivli, erişilemez hedef içerik sızdırmadan ortak işaretle (→ `20.10`).
 
 **Spec:** [12](../../specs/12-relations/spec.md), [19](../../specs/19-blockers/spec.md), [14](../../specs/14-file-attachments/spec.md), [45](../../specs/45-evidence/spec.md).
@@ -231,7 +222,7 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 **Artboard'lar**
 - `DS.14 · Collection Views · List · 1440`
 - `DS.14 · Collection Views · List · 768`
-- `DS.14 · Collection Views · List · 1440 · Dark`
+- `DS.14 · Collection Views · List · Dark · 1440`
 - `DS.14 · Collection Views · Table · 1440`
 - `DS.14 · Collection Views · Board · 1440`
 - `DS.14 · Collection Views · Gallery · 1440`
@@ -242,7 +233,7 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 
 - **Biçimler:** `List`, `Table`, `Board`, `Gallery`, `Agenda`. Hangi ekranın hangi biçimi sunduğu sahibi spec'te tanımlıdır; araç çubuğu hepsinde aynıdır.
 - **Araçlar:** görünüm seçici, filtre, sıralama, gruplama, `Saved views`.
-- **Seçim:** çoklu seçim, seçim çubuğu, `Bulk Edit` (→ `20.8`).
+- **Seçim:** satır ya da kart seçim kutuları; işaretlenince üstte seçim çubuğu: seçili sayı ve `Bulk Edit` girişi (diyalog → `20.8`, burada çizilmez). Projeler arası listede her İş kendi Proje alanlarını korur; alan seçici yalnız seçilenlerin ortak alanlarını sunar. Ekranlar yalnız seçimin hangi kayıt türünde açık olduğunu söyler.
 - **Gruplu liste:** grup başlığı (durum, yaşam ya da klasör) sessiz bir başlıktır; örnekler: `Open`/`Watching`/`Resolved` (olaylar), `Draft`/`Preparing`/`Published` (sürümler), klasör başlıkları (Belgeler).
 - **Satır / kart:** [DS.17](#ds17--record-representations) biçimlerini kullanır.
 - **Boş:** ilk kullanım ile filtre sonucu boş ayrı metinler taşır (→ [DS.15](#ds15--state-patterns)).
@@ -263,7 +254,7 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 - **Empty (filtre sonucu):** filtreyi temizleme eylemi.
 - **Loading:** iskelet satırlar; üst çerçeve hemen çizilir.
 - **Error:** ne olduğu, yeniden dene, `Support reference` (→ `20.15`).
-- **Offline:** `You're offline`, `Last saved`, yazılmamış risk (→ `20.16`).
+- **Offline:** `You’re offline`, `Last saved`, yazılmamış risk (→ `20.16`).
 - **Read-only / archived:** şerit ve gizli yazma kontrolleri (→ `20.21`).
 - **No access / broken reference:** içerik sızdırmayan işaret (→ `20.10`).
 - **Long content:** uzun başlık ve metin kırpılmaz, sarılır ya da erişilebilir biçimde kısaltılır.
@@ -275,7 +266,7 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 
 **Artboard'lar**
 - `DS.16 · Dialog and Panel Frames · Dialog and Sheet · 1440`
-- `DS.16 · Dialog and Panel Frames · Dialog and Sheet · 1440 · Dark`
+- `DS.16 · Dialog and Panel Frames · Dialog and Sheet · Dark · 1440`
 - `DS.16 · Dialog and Panel Frames · Destructive confirm · 1440`
 - `DS.16 · Dialog and Panel Frames · Preview before apply · 1440`
 - `DS.16 · Dialog and Panel Frames · Side panel · 1440`
@@ -283,6 +274,7 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 - `DS.16 · Dialog and Panel Frames · Toast and Undo · 1440`
 
 - **Dialog:** başlık, gövde, hata satırı, eylem satırı (iptal ya da ikincil, birincil).
+- **Form hata kalıbı:** kaydetme hatası gövdede ve metin korunur: `<Type> could not be saved. Retry, or reload to check for changes. Your text is kept here.` + `Retry`; doğrulama `Check the <Type>.`. Güncel olmayan tabanda `Conflict` cümlesi ve `Current value` → `20.14 › Conflict`. Ekranlar yalnız tür adını (`<Type>`) ve ek alan doğrulamalarını yazar.
 - **Yıkıcı onay:** eylemin ne sildiğini ve geri alınıp alınamayacağını söyler (→ `20.2`, `20.3`).
 - **Preview before apply:** önce etki önizlemesi, sonra uygulama; Cantiara'nın birçok eyleminin kalıbıdır (`Bulk Edit`, `Import`, `Copy project structure`).
 - **Yan panel:** Personal shell, Favorites, Notification Center (→ `00.2`).
@@ -306,7 +298,7 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 
 **Kural:** Bir kayıt her biçimde aynı çekirdeği taşır: tür işareti, anahtar (varsa), başlık, durum. Satırda çekirdeğin yanında aşağıdaki **satır meta**'sı görünür. Kart satır metasının ilk ikisini taşır. Kompakt etiket yalnız çekirdektir. Önizleme çekirdek + satır meta + kaydın kendi ilk bölümüdür.
 
-| Kayıt türü | Çekirdek | Satır meta | Örnek | Sahibi |
+| Kayıt türü | Çekirdek | Satır meta | Örnek | Ekran kartı |
 |---|---|---|---|---|
 | İş | `LUMA-42` · başlık · tür · durum | `Time in status`, öncelik ölçütü değerleri, planlanan başlangıç / hedef / `Reappear date`, blokaj ve risk, checklist ilerlemesi, `Not now` | `LUMA-51` · `Not now: Waiting for Stripe API v2 GA` | [09.2](09-work.md#092--work-list) |
 | Belge | başlık · tür | kapsam rozeti, klasör, sürüm | `Reminder engine spec` · Spec | [10.1](10-documents.md#101--documents) |
@@ -329,7 +321,7 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 | Yakalama öğesi | metin | zaman, köken, mini şablon alanları | `Idea: weekly digest of overdue invoices` | [03.1](03-capture.md#031--capture-inbox) |
 | Proje Hedefi | başlık | canlı özet | `Freelancers get paid within 7 days` | [08.6](08-project-shell-and-overview.md#086--project-goals) |
 
-Bu tablo ekran kartlarındaki liste bölgelerinden derlendi. Bir ayrıntı iki ekranda farklıysa bu tablo karar verir, ekran uyar. Tabloda `—` olan satırlarda ekran kartı şu an ek meta tanımlamıyor.
+Tablo satır metasının tek sahibidir: bir ayrıntı iki ekranda farklıysa tablo karar verir, ekran uyar. `Ekran kartı` sütunu yalnız o türün liste bölgesinin çizildiği yeri gösterir. Tabloda `—` olan satırlarda ekran kartı şu an ek meta tanımlamıyor.
 
 **Spec:** [33](../../specs/33-record-discovery/spec.md), [39](../../specs/39-favorites/spec.md), [28](../../specs/28-unified-calendar/spec.md).
 

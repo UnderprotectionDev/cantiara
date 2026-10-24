@@ -18,7 +18,7 @@ Kurucu Planlı Test Senaryosunu başlık, amaç, kapsam, önkoşul, beklenen dav
 6. As a founder recording an ad hoc Session Test, I want it allowed without a Planned Test Case, with then-current purpose and expected behavior stored on the Session Test.
 7. As a founder later linking that ad hoc test to a Planned Test Case, I want past content not rewritten and the new case version not treated as already executed.
 8. As a founder, I want a Test Handoff as a light historical Project record of requested external test work and returning sessions, not as a Test Session and not as a runner.
-9. As a founder, I want a Handoff to carry purpose/scope, selected exact Planned Test Case versions, optional due date, target executor, technical context, produced package version, and arriving Test Sessions.
+9. As a founder, I want a Handoff to carry purpose/scope, selected exact Planned Test Case versions, optional target date, target executor, technical context, produced package version, and arriving Test Sessions.
 10. As a founder, I want executor to be me, Codex, Claude Code, Conductor, or a freely named external tool, so that the product does not ship a closed vendor list as a runtime.
 11. As a founder, I want Handoff states `Draft`, `Ready to share`, `Shared`, `Result received`, `Closed`, `Canceled` to describe the handoff process, not the test result.
 12. As a founder, I want the product to be allowed to suggest `Result received` when a bound report arrives, and never to auto-close the Handoff.

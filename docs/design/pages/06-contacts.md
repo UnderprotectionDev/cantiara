@@ -25,8 +25,8 @@ Kimlik defteri: Contact ve Company kayıtları.
 - `06.1 · Contacts · Profile · 768`
 
 ### Sayfa başlığı
-Başlık, açıklama, oluşturma eylemleri.
-- **Label'lar:** `Contact`, `People who give Feedback, with an optional Company.`, `Create Contact`, `Create Company`, `Duplicate candidates`.
+Başlık, açıklama, oluşturma, içe aktarma ve dışa aktarma eylemleri. `Export` → `20.5 · Export`, `Import` → `20.6 · Import`.
+- **Label'lar:** `Contact`, `People who give Feedback, with an optional Company.`, `Create Contact`, `Create Company`, `Duplicate candidates`, `Export`, `Import`.
 
 ### Liste kolonu
 `Contacts` listesi, altında `Companies` listesi.
@@ -34,15 +34,16 @@ Başlık, açıklama, oluşturma eylemleri.
 
 ### Contact profili · başlık
 Contact etiketi ve kayıt eylemleri.
-- **Label'lar:** `Archive`, `Move to Trash`, `Export Personal Data`, `Erase Personal Data`, `Merge Contacts`.
+`Archive` ve `Move to Trash` ortak kayıt eylemleridir → `DS.11 · Record Header`; burada yalnız Contact'a özgü eylemler.
+- **Label'lar:** `Export Personal Data`, `Erase Personal Data`, `Merge Contacts`.
 
 ### Contact profili · kimlik alanları
-Düzenlenebilir görünen ad ve e-posta takma adları; Company bağı; geçmiş Company'ler; Persona bağları.
-- **Label'lar:** `Display name`, `Email`, `Add an email`, `Save Contact`, `Belongs to Company`, `None`, `Past Companies`, `Persona`, `Open Source Record`.
+Düzenlenebilir görünen ad ve e-posta takma adları; Company bağı; geçmiş Company'ler; Persona bağları. Kimlik alanlarının altında tek satır sessiz özel kategori veri uyarısı (metin ve davranış → `06.3 · Contact formu`)
+- **Label'lar:** `Display name`, `Email`, `Add an email`, `Save Contact`, `Belongs to Company`, `None`, `Past Companies`, `Persona`, `Open source record`, `Unarchive`, `Restore`.
 
 ### Contact profili · ilişkili Geri Bildirimler
 Bu Contact'a bağlı Geri Bildirimlerin kısa listesi; gövde kopyalanmaz, yalnız başlık/tarih/Proje.
-- **Label'lar:** `Feedback`, `Open Source Record`.
+- **Label'lar:** `Feedback`, `Open source record`.
 
 ### Durumlar
 #### Empty
@@ -52,11 +53,13 @@ Liste ve profil yerinde iskelet satırlar.
 #### Error
 Profil okunamazsa `Contact is unavailable.`; yazma hataları profil üstünde: `Contact could not be saved.`, `Belongs to Company could not be updated.`, `Contact is invalid.`.
 #### Redirected from
-Emekli kimlikten açılan profilde başlık altında `Redirected from <eski kimlik>` satırı ve `Undo Merge` eylemi (→ `06.6`). Eski kimlik ayrı satır veya arama sonucu olarak listede görünmez.
+Emekli kimlikten açılan profilde başlık altında `Redirected from <old identity>` satırı ve `Undo Merge` eylemi (→ `06.6`). Eski kimlik ayrı satır veya arama sonucu olarak listede görünmez.
 #### No Company
 `Belongs to Company` `None`; `Past Companies` satırı yok.
 #### Archived
-Arşivli Contact salt okunur bantla (→ `Design System` › Archived / read-only banner); kişisel veri eylemleri yine erişilebilir.
+Arşivli kayıt davranışı → `DS.11 · Record Header` (Archived); `Unarchive` eylemi, kişisel veri eylemleri yine erişilebilir. Çöpteki kayıtta `Restore` (→ `02.11 · Trash`).
+#### Profile · 768
+Dar yerleşimde liste ve profil iki ayrı görünümdür: önce `Contacts` / `Companies` listesi, bir satır seçilince profil tam genişlikte açılır ve listeye dönüş vardır. Profil bölümlerinin sırası değişmez (başlık, kimlik alanları, ilişkili `Feedback`).
 #### Unnamed Contact
 Adsız ve e-postasız Contact: başlık `Unnamed Contact`.
 #### Many items
@@ -72,8 +75,8 @@ Uzun liste; liste kolonu kendi içinde kaydırılır.
 - (yok)
 
 ### Company profili
-06.1'in liste kolonu aynen; sağ kolonda ad; bağlı güncel Contact'lar; Company'ye bağlı Geri Bildirimler; Persona bağları.
-- **Label'lar:** `Company`, `Contacts`, `Feedback`, `Persona`, `Open Source Record`, `Archive`, `Move to Trash`.
+06.1'in liste kolonu aynen; sağ kolonda düzenlenebilir ad; bağlı güncel Contact'lar; Company'ye bağlı Geri Bildirimler; Persona bağları. Ad `Save Company` ile kaydedilir. Contact'ı Company'ye bağlama ve ayırma `Belongs to Company` ile (ilişki seçici → `20.10`). `Persona` bölümünde bağ ekleme ve kaldırma ilişki seçiciyle yapılır; otomatik atama yoktur. Arşivli Company'de `Unarchive`, Çöpte `Restore`.
+- **Label'lar:** `Company`, `Company name`, `Save Company`, `Contacts`, `Belongs to Company`, `Feedback`, `Persona`, `Open source record`, `Unarchive`, `Restore` (`Archive` / `Move to Trash` → `DS.11`).
 
 ### Durumlar
 #### Empty
@@ -91,7 +94,7 @@ Bağlı Contact veya Geri Bildirim yoksa ilgili bölüm `None`.
 - `06.3 · Create Contact · Company · 1440`
 
 ### Contact formu
-Küçük dialog; alanlar ve gönderim.
+Küçük dialog; alanlar ve gönderim; alanların altında tek satır sessiz uyarı: `Health, biometric, government ID, payment card and children's data are not stored as a first-product type. Do not enter them.`
 - **Label'lar:** `Create Contact`, `Display name`, `Email`, `Company`, `None`.
 
 ### Company formu
@@ -114,8 +117,8 @@ Aynı dialog, yalnız `Company name`.
 - `06.4 · Duplicate candidates · Empty · 1440`
 
 ### Aday listesi
-06.1'in sağ kolonu yerinde; çift başına bir satır: güç etiketi, iki Contact, güçlüyse birleştirme başlatıcı.
-- **Label'lar:** `Duplicate candidates`, `Strong copy candidate`, `Weak suggestion`, `Surviving Contact`, `Merge Contacts`, `No duplicate candidates.`.
+06.1'in sağ kolonu yerinde; çift başına bir satır: güç etiketi, iki Contact, neden satırı (güçlü aday için `Same email address`; zayıf öneri için `Similar name` veya `Similar Company`), güçlüyse birleştirme başlatıcı.
+- **Label'lar:** `Duplicate candidates`, `Strong copy candidate`, `Weak suggestion`, `Same email address`, `Similar name`, `Similar Company`, `Surviving Contact`, `Merge Contacts`, `No duplicate candidates.`.
 
 ### Durumlar
 #### Empty
@@ -184,10 +187,12 @@ Uyarı bölümü görünür.
 - (yok)
 
 ### Paket önizlemesi
-Orta boy dialog: pakete girecek kaynaklar türlere göre gruplu; girmeyecekler için tek açıklama satırı (Secret, oturum, token, başka Contact'lar, ilgisiz Çalışma Alanı geçmişi girmez; geri yükleme biçimi değildir); biçim; eylem satırı.
-- **Label'lar:** `Export Personal Data`, `Contact`, `Email`, `Feedback`, `Research`, `Cancel`.
+Orta boy dialog: pakete girecek kaynaklar türlere göre gruplu; girmeyecekler için tek açıklama satırı (Secret, oturum, token, başka Contact'lar, ilgisiz Çalışma Alanı geçmişi girmez; geri yükleme biçimi değildir); biçim; eylem satırı. Kaynak kalemleri arasında ilişkili kanıt da vardır. Biçim seçimi `JSON` / `Markdown`; birincil eylem `Download` (`10.11` ile aynı).
+- **Label'lar:** `Export Personal Data`, `Contact`, `Email`, `Feedback`, `Research`, `Related evidence`, `JSON`, `Markdown`, `Download`, `Cancel`.
 
 ### Durumlar
+#### Preview
+Paket önizlemesi açık: kaynak grupları, biçim seçimi ve `Download` hazır; henüz indirme başlamadı.
 #### Preparing
 Paket hazırlanırken ilerleme metni; dialog kapanabilir.
 #### Error
@@ -206,23 +211,25 @@ Hazırlanamazsa → `20.15 · Support Reference Error`.
 - `06.8 · Erase Personal Data · Erased profile · 1440`
 
 ### Etki önizlemesi
-Orta-geniş adımlı dialog'un ilk adımı: dokunulacak kaynaklar (Contact alanları, e-posta takma adları, Geri Bildirim mesajları, Araştırma notları, aktif paylaşım ve yayındaki değerler); kalacak içeriksiz tombstone açıklaması; Çöp Kutusu veya geri yüklemenin bu değerleri geri getirmeyeceği.
+Orta-geniş adımlı dialog'un ilk adımı. Yayılım önizlemesi ve adım şeridi → `20.7 · Redact` ve `20.1`; burada yalnız Contact'a özgü kaynak listesi: Contact alanları, e-posta takma adları, Geri Bildirim mesajları, Araştırma notları, aktif paylaşım ve yayındaki değerler.
 - **Label'lar:** `Erase Personal Data`, `Cancel`.
 
 ### Kimlik teyidi
-Bu silme işlemine bağlı GitHub teyidi; ikinci bir kart açılmaz.
+→ `20.1 · Confirm GitHub Identity` (bu silme işlemine bağlı; ikinci bir kart açılmaz).
 - **Label'lar:** `Confirm GitHub Identity`.
 
 ### Hesap adı onayı
-Hedef Hesap adını yazma alanı; eşleşmeden onay devre dışı.
+→ `20.3 · Permanently Delete` (Hesap adı varyantı: `Type the Account name to confirm`; eşleşmeden onay devre dışı). Adım şeridi → `20.1`.
 
 ### Durumlar
+#### Preview
+Etki önizlemesi adımı açık: Contact'a özgü kaynak listesi ve `Cancel`; kimlik teyidi ve Hesap adı adımları henüz açılmadı.
 #### Grant missing
-Teyit yapılmadan son adım kilitli; hiçbir şey yazılmaz.
+→ `20.1` (teyit yapılmadan son adım kilitli; hiçbir şey yazılmaz).
 #### Name mismatch
-Yazılan ad eşleşmiyor; onay devre dışı, alan altında kısa açıklama.
+→ `20.3 · Permanently Delete` › Name mismatch (`The name does not match.`, onay devre dışı, alan altında kısa açıklama).
 #### Erased
-Dialog kapanır; 06.1 profilinde Contact içeriksiz tombstone olarak görünür (ad ve e-posta yerinde `Redacted for security`); ilişkili Geri Bildirim satırları aynı işaretle.
+Dialog kapanır; aktif paylaşım ve yayındaki değerlerin aynı işlemde kaldırıldığı ve cache temizliğinin kuyruğa alındığı tek satırla söylenir: `Shared and published copies were removed. Cache cleanup is queued.`; temizlik başarısızsa `02.13 · Purge retry` ile aynı görünür yeniden deneme (içerik yeniden açılmaz). 06.1 profilinde Contact içeriksiz tombstone olarak görünür (ad ve e-posta yerinde `Redacted for security`, işaret → `20.7` › Sonuç); ilişkili Geri Bildirim satırları aynı işaretle.
 #### Error
 Redaksiyon başarısızsa hiçbir kısmi yazma yok; → `20.15 · Support Reference Error`.
 

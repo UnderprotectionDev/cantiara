@@ -34,8 +34,8 @@ Yakalama ve triage: Gelen Kutuları, hızlı yakalama ve Web Capture.
 - **Label'lar:** `Saved captures`, `New capture`, `Sequential triage`, `Bulk sense-making`.
 
 ### Inbox grupları
-Grup başlığı (`Workspace Capture Inbox` veya Proje adı + `Project Capture Inbox`), grup sayısı; altında öğeler. Öğe: yakalama zamanı, içerik metni, varsa mini şablon alanları (tanım listesi), `Link:`, `Capture attachment:`, `Origin:` satırları.
-- **Label'lar:** `Workspace Capture Inbox`, `Project Capture Inbox`, `Bug Capture`, `Feedback Capture`, `Research Fragment`, `Observed Behavior`, `Expected Behavior`, `Reproduction Context`, `Feedback`, `Channel`, `Contact`, `Note or Excerpt`, `Source Context`.
+Grup başlığı (`Workspace Capture Inbox` veya Proje adı + `Project Capture Inbox`), grup sayısı; altında öğeler. Öğe: yakalama zamanı, içerik metni, varsa mini şablon alanları (tanım listesi), `Link:`, `Capture attachment:`, `Origin:` satırları. Her öğede üç açık çıkış: `Convert` (→ `03.3`), `Attach to existing` (→ `03.4`), `Delete`; `Sequential triage` ve `Bulk sense-making` modlarında aynı üç çıkış (→ `03.5`, `03.6`).
+- **Label'lar:** `Convert`, `Attach to existing`, `Delete`, `Workspace Capture Inbox`, `Project Capture Inbox`, `Bug Capture`, `Feedback Capture`, `Research Fragment`, `Observed Behavior`, `Expected Behavior`, `Reproduction Context`, `Feedback`, `Channel`, `Contact`, `Note or Excerpt`, `Source Context`.
 
 ### Durumlar
 #### Empty
@@ -45,9 +45,9 @@ Başlık + "Loading captures…".
 #### Error
 "Capture Inbox is unavailable. Try loading this page again."
 #### Offline
-Triage eylemleri kapalı; `Last saved` ve risk satırı; yerel kuyruk yok (→ `20.16 · Offline`).
+→ `20.16 · Offline`. Burada yalnız triage eylemleri kapalıdır.
 #### Many items
-Uzun grup listeleri; gruplar başlıklarıyla ayrık, sayfalama yok. Uzun içerik birkaç satırda kırpılmaz, sarılır.
+Uzun grup listeleri; gruplar başlıklarıyla ayrık, sayfalama yok. Uzun içerik → `DS.15 · State Patterns` › Long content.
 #### Time passed
 Eski öğe süreyle silinmez; zaman yalnız bilgi.
 
@@ -129,12 +129,14 @@ Hedef kimlik ve ilişki türü.
 - **Label'lar:** `Target record ID`, `Relation` (`Origin`, `Evidence`), `Preview`, `Cancel`.
 
 ### Önizleme
-`Original capture`, `Relation preview` (tür + hedef kimlik); farklı Projede `Cross-Project bind: <Project>` uyarısı.
-- **Label'lar:** `Attach Preview`, `Relation preview`, `Cross-Project bind`, `Confirm` (`Attaching…`), `Cancel`.
+`Original capture`; ilişki önizlemesinin biçimi ve metni → `20.10 · Seçici` (`Relation preview`, yeniden yazılmaz); farklı Projede `Cross-Project bind: <Project>` uyarısı.
+- **Label'lar:** `Attach Preview`, `Cross-Project bind`, `Confirm` (`Attaching…`), `Cancel`.
 
 ### Durumlar
 #### Cross-Project
 Hedef tidekit'te: belirgin hedef kapsam onayı.
+#### Attached
+`Confirm` ile bağ yazıldıktan sonra `20.14 · Write Receipts` Undo toast'ı (`Undo`); `Undo` seçilince `03.7 · Undo Preview` açılır.
 
 **Spec:** [06 Yakalama ve Triage](../../specs/06-capture-triage/spec.md).
 
@@ -189,6 +191,8 @@ Boş sütun yalnız başlıkla.
 ## 03.7 · Undo Preview
 > Onaylanmış birleştirmeyi geri alırken Inbox'a neyin döneceğini ve hedeften yalnız bu birleştirmenin yazdıklarının kaldırılacağını göstermek.
 
+Açılış: `03.4` onayı sonrası Undo toast'ındaki `Undo`; `Confirm` onaylar.
+
 **Artboard'lar**
 - `03.7 · Undo Preview · Default · 1440`
 - (yok)
@@ -208,6 +212,8 @@ Geri alınamadı; hedef değişmedi.
 
 **Artboard'lar**
 - `03.8 · Web Capture · Preview · 390`
+- `03.8 · Web Capture · Permission · 390`
+- `03.8 · Web Capture · Permission declined · 390`
 - `03.8 · Web Capture · Unpaired · 390`
 - `03.8 · Web Capture · Re-authorization · 390`
 - `03.8 · Web Capture · Error · 390`
@@ -222,8 +228,8 @@ Dört yakalama eylemi.
 - **Label'lar:** `Capture`, `Capture URL`, `Capture selected text`, `Capture selected image`, `Capture screenshot`.
 
 ### Preview
-İçerik, köken URL'si, hedef Inbox (aranabilir seçici: Workspace + bütün yetkili Proje Inbox'ları).
-- **Label'lar:** `Preview`, `Content`, `Origin URL`, `Target Inbox`, `Search Inbox`, `Send`; `No selected text`, `Sending…`, `Last successful save`.
+İçerik, köken URL'si, hedef Inbox (aranabilir seçici: Workspace + bütün yetkili Proje Inbox'ları). Hassas ya da geniş okuma izni gerekiyorsa eylemden önce izin bloğu görünür: başlık `Permission needed`, kapsam satırı `Scope`, risk satırı `Access risk`, eylemler `Allow` / `Cancel` (işaretler aşağıdaki Label'lar satırında).
+- **Label'lar:** `Permission needed`, `Scope` (mevcut ad, farklı anlam: PRD 02'de Proje alanı; burada izin kapsamı; bağlam satırı PRD 02 terim tablosunda), `Access risk` (`Risk` kayıt türüyle karışmasın diye ayrı seçildi), `Allow`, `Cancel`, `Preview`, `Content`, `Origin URL`, `Target Inbox`, `Search Inbox`, `Send`; `No selected text`, `Sending…`, `Last successful save`.
 
 ### Pair this browser
 "Generate a Pairing code in Cantiara, then enter it here…"; kod ve cihaz alanları.
@@ -236,6 +242,8 @@ Yalnız eşleme formu; "Pair this browser to choose a Target Inbox.".
 30 gün kullanılmamış: "This browser needs to be paired again before it can write." / "…before it can read Inbox targets.".
 #### Error
 "This Pairing code is invalid, expired, or already used."; "This page cannot be captured."; "Capture could not be sent. No local queue was created."; "Inbox targets are unavailable.".
+#### Permission declined
+Hassas ya da geniş okuma izni reddedilirse yakalama kendiliğinden genişletilmez; hiçbir şey gönderilmez: `Permission declined. Nothing was sent.`.
 #### Unsupported browser
 Safari: "This browser cannot pair with Web Capture.".
 #### Sent

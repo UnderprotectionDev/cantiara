@@ -4,7 +4,7 @@ Projenin `Tests` alanı: test planı, devir, rapor, kabul, boşluklar ve değerl
 
 | Ekran | Ne çizilir |
 |---|---|
-| [15.1 · Tests Overview](#151--tests-overview) | sekiz canlı yönetim bölümü |
+| [15.1 · Tests overview](#151--tests-overview) | sekiz canlı yönetim bölümü |
 | [15.2 · Planned Test Cases](#152--planned-test-cases) | senaryo listesi + sürümlü detay |
 | [15.3 · Planned Test Case Editor](#153--planned-test-case-editor) | senaryo oluşturma / yeni sürüm formu |
 | [15.4 · Test Handoffs](#154--test-handoffs) | Handoff listesi + süreç detayı |
@@ -24,18 +24,19 @@ Projenin `Tests` alanı: test planı, devir, rapor, kabul, boşluklar ve değerl
 | [15.19 · Recent Test Assessments](#1519--recent-test-assessments) | tarihli değerlendirme snapshot'ları |
 | [15.20 · Record Test Assessment](#1520--record-test-assessment) | değerlendirme formu |
 | [15.21 · Test Summary · Feature](#1521--test-summary--feature) | Özellik detayında nötr özet |
+| [15.22 · Test Summary · Project Release](#1522--test-summary--project-release) | Proje Sürümü detayında nötr özet |
 
-## 15.1 · Tests Overview
+## 15.1 · Tests overview
 > Proje'deki mevcut test kayıtlarını canlı türetilmiş yönetim bölümleriyle göstermek; her sayıyı kesin kayıt kümesine açmak.
 
 **Artboard'lar**
-- `15.1 · Tests Overview · Default · 1440`
-- `15.1 · Tests Overview · Section expanded · 1440`
-- `15.1 · Tests Overview · Empty · 1440`
-- `15.1 · Tests Overview · Archived project · 1440`
+- `15.1 · Tests overview · Default · 1440`
+- `15.1 · Tests overview · Section expanded · 1440`
+- `15.1 · Tests overview · Empty · 1440`
+- `15.1 · Tests overview · Archived project · 1440`
 
 ### Alan başlığı
-- **Label'lar:** `Tests`, `Tests overview`, `Live sections over existing records. Each number opens the records behind it. This is not a phase or a CI dashboard.`
+- **Label'lar:** `Tests`, `Live sections over existing records. Each number opens the records behind it.`
 
 ### Alt görünüm gezinmesi
 Alan içi görünümler: overview ve tür listeleri.
@@ -54,15 +55,15 @@ Sekiz bölüm satırı bu sırayla; her satır bölüm adı + sayı; açılınca
 #### Empty
 Alan etkin fakat hiç test kaydı yok: sekiz bölüm yine görünür, her biri `0`; üstte tek dürüst cümle ve iki başlangıç eylemi (`Record Test Session`, `Create Planned Test Case`). Örnek veri veya sahte grafik yok.
 #### Loading
-`Loading Test Summary…` durum satırı; bölüm iskeleti yok.
+`Loading Tests overview…` durum satırı; bölüm iskeleti yok.
 #### Error
-`Test Summary is unavailable.` + `Retry`.
+`Tests overview is unavailable.` + `Retry`.
 #### Section expanded
 `Unreviewed reports` açık: filtre satırı `Review state: Unreviewed`, altında tek kayıt; diğer bölümler kapalı.
 #### Area not enabled
-Tests alanı Proje'de etkin değilse kayıt hash'i alanı açmaz; Proje kabuğunun `Enable Tests` alan katalog davranışı geçerlidir (Proje kabuğu sayfası).
+Tests alanı Proje'de etkin değilse kayıt hash'i alanı açmaz; Proje kabuğunun alan etkinleştirme davranışı geçerlidir (`Enabled` / `Available`; → `08.13 · Configuration Mode › Project areas`, katalog `08.2`).
 #### Archived project
-Ferry gibi arşivli Proje'de bölümler okunur; bütün oluşturma ve inceleme eylemleri gizlenir; üstte salt okunur notu.
+Ferry gibi arşivli Proje'de bölümler okunur; bütün oluşturma ve inceleme eylemleri gizlenir. Bant ve metin → `20.21 · Archived Read-only Banner`.
 
 **Spec:** [57 Test İnceleme ve Takip](../../specs/57-test-review-and-follow-up/spec.md), [53](../../specs/53-test-plan-and-handoff/spec.md), [54](../../specs/54-test-report-acceptance/spec.md), [55](../../specs/55-test-gaps/spec.md), [56](../../specs/56-test-assessments/spec.md)
 
@@ -79,7 +80,7 @@ Başlık + güncel sürüm numarası; liste başında oluşturma eylemi.
 
 ### Senaryo detayı
 Başlık, sürüm; alanlar sırayla: amaç, kapsam, önkoşullar, beklenen davranış, notlar; ilişkiler.
-- **Label'lar:** `Purpose`, `Scope`, `Preconditions`, `Expected behavior`, `Notes`, `Relations`, `No relations.`, `New version`.
+- **Label'lar:** `Purpose`, `Scope`, `Preconditions`, `Expected behavior` (Planlı Test Senaryosu alanı; Bug Capture'ın `Expected Behavior` alanından ayrı kavram), `Notes`, `Relations`, `No relations.`, `New version`.
 
 ### Sürüm geçmişi
 Sürüm satırları yeni→eski: sürüm no, değişiklik türü, tarih.
@@ -93,7 +94,7 @@ Sürüm satırları yeni→eski: sürüm no, değişiklik türü, tarih.
 #### Error
 `Planned Test Cases are unavailable.`
 #### Broken relation
-Erişilemeyen veya silinmiş ilişki hedefi satırda `No access` nedeniyle görünür; sessizce kaybolmaz.
+Kırık ilişki hedefi satırı `20.10 · Kırık uç` sunumudur (neden kümesi, sızmama); burada yeniden yazılmaz.
 #### Archived
 Arşivli senaryo salt okunur; `New version` gizli.
 
@@ -108,11 +109,14 @@ Arşivli senaryo salt okunur; `New version` gizli.
 
 ### Alanlar
 Başlık, amaç, kapsam, önkoşullar, beklenen davranış, isteğe bağlı notlar; yeni sürüm kipinde değişiklik türü seçimi.
-- **Label'lar:** `Title`, `Purpose`, `Scope`, `Preconditions`, `Expected behavior`, `Notes (optional)`, `Change kind` (`Meaningful change`, `Editorial change`).
+- **Label'lar:** `Title`, `Purpose`, `Scope`, `Preconditions`, `Expected behavior` (→ `15.2`), `Notes (optional)`, `Change kind` (`Meaningful change`, `Editorial change`).
 
 ### İlişkiler
 İlişki türü seçimi, hedef seçimi, seçili ilişki listesi.
 - **Label'lar:** `Relations`, `Relation type` (`Work`, `Document`, `Decision`, `Risk`, `Project Goal`, `Milestone`, `Source`, `Screen`), `Whole Document`, `Selected relations`, `Remove relation <label>`, `This Project has no <type> to relate yet.`
+
+### Özel alanlar
+Özel alanlar: satır ve boş değer kuralı → DS.12; Planlı Test Senaryosu türüne bağlı Proje alanları.
 
 ### Form eylemleri
 Kaydet ve iptal düğmeleri.
@@ -146,13 +150,14 @@ Başlık, `State:` değeri; öneri kutusu; izin verilen geçiş düğmeleri; alt
 <details>
 <summary>Label'lar</summary>
 
-`State: Shared`, `Mark as Result received`, `Mark as Closed`, `Mark as Canceled`, `Changes only this record. Nothing outside the product is started, stopped or contacted.`, öneri `2 linked Session Tests arrived. Mark Result received when you have read them; the Test Handoff stays open until you close it.`, iptal sonrası `Result arrived after cancel. The Test Handoff stays Canceled.`
+`State: Shared`, `Mark as Draft` (`Ready to share` durumunda ve paket üretilmediyse), `Mark as Ready to share`, `Mark as Shared`, `Mark as Result received`, `Mark as Closed`, `Mark as Canceled`, `Changes only this record. Nothing outside the product is started, stopped or contacted.`, öneri `2 linked Session Tests arrived. Mark Result received when you have read them; the Test Handoff stays open until you close it.`, iptal sonrası `Result arrived after cancel. The Test Handoff stays Canceled.`
 
 </details>
 
 ### Handoff içeriği
 Tanım listesi: amaç ve kapsam, hedef yürütücü, hedef tarih, seçili senaryo sürümleri, ad hoc kapsam, paket bağlamı, teknik bağlam, ortam önkoşulları, paket sürümü.
-- **Label'lar:** `Purpose and scope`, `Target executor`, `Due date`, `Planned Test Case versions`, `Ad hoc scope`, `Package context`, `Repository`, `Branch`, `Commit`, `Build`, `Target environment`, `Environment preconditions`, `Package version`, `No package produced yet`, `None selected.`
+- **Label'lar:** `Purpose and scope`, `Target executor`, `Target date`, `Planned Test Case versions`, `Ad hoc scope`, `Package context`, `Repository`, `Branch`, `Commit`, `Build`, `Target environment`, `Environment preconditions`, `Package version`, `No package produced yet`, `None selected.`
+- `Target date` yanında ortak `Remind me` kontrolü (→ `20.9`, kaynak bağlantılı kişisel hatırlatma); `A reminder is a normal reminder on this record. It is not a runner deadline.`
 
 ### Gelen Oturum Testleri
 Handoff'a bağlı gelen Oturum Testleri; bağlama alanı.
@@ -183,7 +188,7 @@ Terminal; düzenleme ve geçiş yok.
 
 ### Temel alanlar
 Başlık, amaç ve kapsam, hedef yürütücü, hedef tarih.
-- **Label'lar:** `Title`, `Purpose and scope`, `Target executor` (serbest metin; öneriler `Me`, `Codex`, `Claude Code`, `Conductor`), `Due date`.
+- **Label'lar:** `Title`, `Purpose and scope`, `Target executor` (serbest metin; öneriler `Me`, `Codex`, `Claude Code`, `Conductor`), `Target date`.
 
 ### Senaryo sürümleri
 Her Planlı Test Senaryosu için dahil etme kutusu ve sürüm seçimi; `latest` seçeneği yok.
@@ -200,6 +205,9 @@ Kurucunun yazdığı teknik bağlam alanları; ürün doldurmaz.
 ### Paket bağlamı
 Seçilen İş/Özellik, kesin Belge revizyonu/bölümü ve kesin Ekran/Wireframe/Teknik Diyagram sürümleri.
 - **Label'lar:** `Package context`, `Context type`, `Context record`, `Choose a version`, `Whole Document`, `Selected context records`, `Remove context <label>`, `No context records.`
+
+### Özel alanlar
+Özel alanlar: satır ve boş değer kuralı → DS.12; Test Handoff türüne bağlı Proje alanları.
 
 ### Form eylemleri
 Kaydet düğmesi.
@@ -223,17 +231,19 @@ Seçili senaryoya sürüm seçilmemiş: alan hatası; `Choose a Wireframe versio
 - `15.6 · Handoff Package · Not shareable yet · 1440`
 
 ### Paket önizlemesi
-Sonraki paket sürümünün içereceği bölümler; ayrı "asla girmez" listesi; engeller.
+Sonraki paket sürümünün içereceği bölümler (kurucunun yazdığı yalnız dolu `product_build_context`, `environment_preconditions` ve `return_instructions` alanları dahil; ürün bunları GitHub veya CI'dan doldurmaz); ayrı "asla girmez" listesi; engeller. Paketi üretmek Handoff durumunu değiştirmez, araç başlatmaz, yazma yetkisi vermez.
 <details>
 <summary>Label'lar</summary>
 
-`Package`, `Package preview of <title>`, `Package version 3 will contain`, `Included in the package`, `Planned Test Case versions`, `Ad hoc scope`, `Work context`, `Document context`, `Design references`, `Never included in the package` / `Never included` (secrets, tokens, credentials, unselected relations, redacted values, unapproved attachments), `Package blockers`.
+`Package`, `Package preview of <title>`, `Package version 3 will contain`, `Included in the package`, `Planned Test Case versions`, `Ad hoc scope`, `Work context`, `Document context`, `Design references`, `Never included in the package` / `Never included` (secrets, tokens, credentials, unselected relations, redacted values, unapproved attachments), `Package blockers`, `Preview package`, `Produce package version 3`, `Package version`.
+
+Bölüm satırları (kapalı sözleşme alanları, kod adı olarak): `Schema version: test-handoff-package/1`, `Handoff id`, `Package version`, `Created at`, `Return instructions`. `Technical context` alt alanları (`Repository`, `Branch`, `Commit`, `Build`, `Target environment`) yalnız kurucu doldurmuşsa görünür.
 
 </details>
 
 ### Üretilmiş paketler
 Sürüm satırları; her biri Markdown ve JSON için kopyala/indir.
-- **Label'lar:** `Produced packages of <title>`, `Package version 2`, `Markdown package`, `Copy <label> version 2`, `Download <label> version 2`, başarı `Package version 3 produced.`
+- **Label'lar:** `Produced packages of <title>`, `Package version 2`, `Markdown package`, `JSON package`, `Copy <label> version 2`, `Download <label> version 2`, başarı `Package version 3 produced.`
 
 ### Durumlar
 #### Not shareable yet
@@ -257,7 +267,8 @@ Sürüm satırları; her biri Markdown ve JSON için kopyala/indir.
 - **Label'lar:** `Record Test Session`, `Import Test Session file`.
 
 ### Oturum listesi
-Her satır: başlık/özet, inceleme durumu, yürüten türü, yürüten, raporlayan, giriş yolu, rapor zamanı.
+Her satır: başlık/özet, inceleme durumu; satır metası (yürüten türü, yürüten, raporlayan, giriş yolu, rapor zamanı) → `DS.17`.
+Elle kaydedilen `Unreviewed` oturum satırında bildirim rozeti yoktur (bildirim yalnız dosya/MCP girişinde).
 - **Label'lar:** `Test Sessions`, `Unreviewed`, `Executor type`, `Executor`, `Reporter`, `Ingress` (`Application`, `File import`, `MCP`), `Reported at`, `No Test Sessions yet.`
 
 ### Durumlar
@@ -283,7 +294,11 @@ Yürüten, sürüm, rapor zamanı ve özet.
 
 ### Oturum Testleri
 Her blok: başlık, sonuç, notlar; isteğe bağlı senaryo bağı.
-- **Label'lar:** `Session Test n title`, `Session Test n result` (`Passed`, `Failed`, `Blocked`, `Skipped`, `Inconclusive`, `Not reported`), `Session Test n notes`, `Add Session Test`, `Remove Session Test n`, `Link <title> to a Planned Test Case`.
+- **Label'lar:** `Session Test n title`, `Session Test n result` (`Passed`, `Failed`, `Blocked`, `Skipped`, `Inconclusive`, `Not reported`), `Session Test n notes`, `Add Session Test`, `Remove Session Test n`, `Link to Planned Test Case version` (blok başlığı erişilebilir adda).
+Ad hoc blokta (senaryo bağı yok) o anki amaç ve beklenen davranış giriş alanları: `Purpose when recorded`, `Expected behavior when recorded`.
+
+### Özel alanlar
+Özel alanlar: satır ve boş değer kuralı → DS.12; Test Oturumu türüne bağlı Proje alanları.
 
 ### Form eylemleri
 Kaydet düğmesi.
@@ -293,9 +308,9 @@ Kaydet düğmesi.
 #### Default
 İki Oturum Testi bloklu dolu form.
 #### Sensitive data
-`Nothing was saved. Possible sensitive data in: <paths>. Remove it from the source and send the report again.` — yalnız maskeli alan yolu.
+`Nothing was saved. Possible sensitive data in: <paths>. Remove it from the source and send the report again.` — yalnız maskeli alan yolu. Belirsiz secret bulgusunda elle girişte de içerik gösterilmeden maskeli inceleme (biçim `15.9 · Masked review` ile aynı).
 #### Limit
-200 Oturum Testi sınırında `Add Session Test` pasif, neden metni.
+200 Oturum Testi sınırında `Add Session Test` pasif; neden metni `A manual Test Session holds up to 200 Session Tests.`.
 #### Saved
 Kayıt sonrası 15.10 açılır; oturum `Unreviewed`; bildirim üretilmez.
 
@@ -312,7 +327,7 @@ Kayıt sonrası 15.10 açılır; oturum `Unreviewed`; bildirim üretilmez.
 
 ### Dosya seçimi
 Dosya alanı ve biçim ipucu.
-- **Label'lar:** `Import Test Session file`, `Test report file`, ipucu `Choose a .json, .md or .markdown file.`
+- **Label'lar:** `Import Test Session file`, `Test report file`, ipucu `Choose a .json, .md or .markdown file.`, boyut ipucu `Up to 5 MiB; up to 1,000 Session Tests.`
 
 ### Kabul sonucu
 Başarıda makbuz: iç oturum kimliği, dış oturum kimliği, kabul zamanı, `created` / `duplicate`; retçe sabit hata kodu, güvenli alan yolu, düzeltme açıklaması.
@@ -327,7 +342,7 @@ Hata kodları kod olarak görünür: `schema_unsupported`, `project_not_authoriz
 #### Default
 Boş seçim.
 #### Accepted
-Makbuz; oturum `Unreviewed`; `Notification Center`'da tek `unreviewed-test-report` (→ `00 · Shared Shell`).
+Makbuz; oturum `Unreviewed`; `Notification Center`'da tek `unreviewed-test-report` (→ `00.5`).
 #### Duplicate
 Aynı içerik tekrar: önceki makbuz, `duplicate`; yeni oturum yok.
 #### Rejected
@@ -352,9 +367,12 @@ Başlık; oturum inceleme durumu seçimi; toplu eylem; kapatma.
 <details>
 <summary>Label'lar</summary>
 
-`Test Review`, açıklama `Review is your management decision on top of a reported result. It does not change the result, gate a release, or touch a Handoff.`, `Session review: Unreviewed`, `Reviewed`, `Follow-up needed`, `Closed`, `Mark session and selected results as reviewed`, `Close Test Session`, `New context after close`.
+`Test Review`, açıklama `Review is your management decision on top of a reported result. It does not change the result, gate a release, or touch a Handoff.`, `Session review: Unreviewed`, `Reviewed`, `Follow-up needed`, `Closed`, madde düzeyi seçici `Review of <title>`, `Mark session and selected results as reviewed`, `Close Test Session`, `New context after close`.
 
 </details>
+
+### Özel alanlar
+Özel alanlar: satır ve boş değer kuralı → DS.12; Test Oturumu türüne bağlı Proje alanları. `Session Test` satırları ve Test Değerlendirmesi (`15.20`) özel alan taşımaz.
 
 ### Oturum meta
 Yürüten, raporlayan, giriş yolu, zaman, teknik bağlam ve bağlı Handoff.
@@ -365,13 +383,13 @@ Her satır: seçim kutusu, başlık, ham sonuç, normalize sonuç, inceleme duru
 <details>
 <summary>Label'lar</summary>
 
-`Session Tests`, `Select <title>`, `Raw result`, `Normalized result`, `Reported`, `Current result`, `Current result: withdrawn (Withdrawal)`, `Planned Test Case: <title>`, `Bound to v1, current v3`, `Changes since the bound version`, `Ad hoc, not bound to a Planned Test Case.`, `Purpose when recorded`, `Expected behavior when recorded`, `Correction for <title>`, `Withdrawal for <title>`, `Redact reported result of <title>`, `Supersedes`, `Create follow-up work`, `No Session Tests.`
+`Session Tests`, `Select <title>`, `Raw result`, `Normalized result`, `Reported`, `Current result`, `Current result: withdrawn (Withdrawal)`, `Planned Test Case: <title>`, `Bound to v1, current v3`, `Linked later`, `Link to Planned Test Case version`, `Changes since the bound version`, `Ad hoc, not bound to a Planned Test Case.`, `Purpose when recorded`, `Expected behavior when recorded`, `Correction for <title>`, `Withdrawal for <title>`, `Redact value`, `Supersedes`, `Create follow-up work` (→ `20.22 · Create Follow-up Work`, kaynak Oturum Testi), `No Session Tests.`, `A Session Test has no Trash or archive of its own.`
 
 </details>
 
 ### Düzeltme geçmişi
 Maddeye bağlı olay zinciri: tür, zaman, gerekçe, yazar; özgün bildirim yerinde.
-- **Label'lar:** `Correction history`, `Correction`, `Withdrawal`, `Redaction`, `Redacted`, `Redact content of <kind> <time>`.
+- **Label'lar:** `Correction history`, `Correction`, `Withdrawal`, `Redaction`, `Redacted for security`, `Redact value`.
 
 ### Sinyaller
 Çelişen sonuçlar ve bağlam değişikliği bölümleri, yalnız varsa.
@@ -394,11 +412,11 @@ Oturum `Reviewed`, bir madde `Follow-up needed` — bağımsızlığı gösterir
 #### Conflict
 Çelişen sonuçlar bölümü açık.
 #### Context changed
-`Context changed: Bounce on +alias address` · `Primary spec changed`; sonuç geçersiz/başarısız işaretlenmez.
+`Context changed: Bounce on +alias address` · `Primary spec changed`; kayıtlı branch/commit/build hedef bağlamla uyuşmadığında da (`Technical context` farkı nedeni olarak adlandırılır) sinyal çıkar; sonuç geçersiz/başarısız işaretlenmez, zaman aşımı veya ilgisiz commit bayatlık sayılmaz.
 #### New context after close
 Kapalı oturuma sonradan düzeltme geldi: başlık altında `New context after close`; inceleme durumu geri alınmaz.
 #### Withdrawn and redacted
-Bir madde `Current result: withdrawn (Withdrawal)`; bir değer `Redacted` işareti, zaman, gerekçe, aktör.
+Bir madde `Current result: withdrawn (Withdrawal)`; redakte değer işareti `20.7 · Sonuç` sunumudur (`Redacted for security`).
 #### Empty
 `No Test Sessions to review.` (alan listesinde)
 #### Error
@@ -415,7 +433,7 @@ Bir madde `Current result: withdrawn (Withdrawal)`; bir değer `Redacted` işare
 
 ### Önizleme
 Değişecek kesin kayıt listesi; onay ve iptal.
-- **Label'lar:** `Preview: Mark session and selected results as reviewed`, `These exact records become Reviewed in one step:`, `Records to change`, `Everything selected is already Reviewed. Nothing would change.`, hata `The preview is unavailable.`
+- **Label'lar:** `Preview: Mark session and selected results as reviewed`, onay `Mark session and selected results as reviewed`, vazgeç `Cancel`, `These exact records become Reviewed in one step:`, `Records to change`, `Everything selected is already Reviewed. Nothing would change.`, hata `The preview is unavailable.`
 
 ### Durumlar
 #### Default
@@ -434,7 +452,7 @@ Boş küme metni; onay pasif.
 
 ### Kalan kayıtlar
 Kalan maddeler listesi ve isteğe bağlı gerekçe alanı.
-- **Label'lar:** `Close Test Session`, `Remaining Session Tests`, `Every Session Test has been reviewed or closed.`, gerekçe alanı.
+- **Label'lar:** `Close Test Session`, `Remaining Session Tests`, `Every Session Test has been reviewed or closed.`, `Close reason (optional)`, onay `Close Test Session`, vazgeç `Cancel`.
 
 ### Durumlar
 #### With remaining
@@ -456,7 +474,7 @@ Olay türü, düzeltilmiş değer ve gerekçe; özgün raporun korunduğu sabit 
 <details>
 <summary>Label'lar</summary>
 
-`Correction`, `Withdrawal`, `Redaction`, `Corrected summary`, `Note (optional)`, sabit açıklama `This adds a new event. The original report is not edited or deleted.`, redaksiyonda `The value is replaced by a mark with time, reason and actor. It cannot be used as current evidence or export. This is not Trash.`, `Redact a sensitive value`.
+`Correction`, `Withdrawal`, `Redaction`, `Corrected summary`, `Reason` (zorunlu: düzeltme, geri çekme ve redaksiyon gerekçeli olaydır), sabit açıklama `This adds a new event. The original report is not edited or deleted.`, redaksiyonda açıklama ve `Redact value` → `20.7 · Redact` (yeniden yazılmaz).
 
 </details>
 
@@ -466,7 +484,7 @@ Normalize sonuç ve gerekçeyle düzeltme formu.
 #### Withdrawal
 Sonucu geri çeken gerekçeli olay formu.
 #### Redaction
-Yüksek riskli onay; etkisi açıkça gösterilir → ortak `Redact` dialog'u `20 · Shared Dialogs & States`.
+Yüksek riskli onay; etkisi açıkça gösterilir → ortak `Redact` dialog'u `20.7`.
 
 **Spec:** [57 Test İnceleme ve Takip](../../specs/57-test-review-and-follow-up/spec.md)
 
@@ -479,13 +497,13 @@ Yüksek riskli onay; etkisi açıkça gösterilir → ortak `Redact` dialog'u `2
 
 ### Seçim ve karşılaştırma
 İki sonuç yan yana, teknik bağlam farkı ve supersede zinciri.
-- **Label'lar:** `Supersedes`, `Newer result`, `Technical context difference`, `No recorded technical context difference.`, `Supersedes chain`, `Superseded`.
+- **Label'lar:** `Supersedes`, `Older result`, `Newer result`, onay `Create Supersedes relation`, `Technical context difference`, `No recorded technical context difference.`, `Supersedes chain`, `Superseded`.
 
 ### Durumlar
 #### Default
 Yeni ve eski sonuç yan yana, teknik bağlam farkıyla.
 #### Cycle refused
-Döngü oluşturacak seçim reddedilir, neden metni.
+Döngü oluşturacak seçim reddedilir: `This would create a cycle. A result cannot supersede itself through the chain.`.
 
 **Spec:** [57 Test İnceleme ve Takip](../../specs/57-test-review-and-follow-up/spec.md)
 
@@ -495,6 +513,10 @@ Döngü oluşturacak seçim reddedilir, neden metni.
 **Artboard'lar**
 - `15.16 · Test Gaps · Default · 1440`
 - `15.16 · Test Gaps · Empty · 1440`
+
+### Liste başlığı
+Test Açığı kaydetme girişi.
+- **Label'lar:** `File Test Gap` (→ `15.17`).
 
 ### Sayı satırı
 Açık ve planlı Test Açığı sayısı; sayı tam kümeye açılır.
@@ -507,7 +529,12 @@ Başlık, durum, gerekçe, dayanak ilişkileri, planlama, kapanış.
 
 `Test Gaps`, `Open`, `Planned`, `Met by result`, `Not needed`, `Rationale`, `Support relations`, `No support relations.`, `Planning`, `Not linked to any test plan.`, `Planned Test Case: <title>, version <n>`, `Test Handoff: <title> (<state>)`, `Closure`, `Session Tests that met this Test Gap`, `Session Test: <title>`, `Decision: <label>`, `Decision: unavailable (No access)`, `Open <title>`.
 
+Satır eylemleri: `Open` / `Planned` satırda `Close <title>` (→ `15.18`) ve ortak `Archive`; `Met by result` / `Not needed` kapanışlı satırda `Closure` bölümü ve `Open <title>`; arşivli satırda `Unarchive`.
+
 </details>
+
+### Özel alanlar
+Özel alanlar: satır ve boş değer kuralı → DS.12; seçili Test Açığı detayında türe bağlı Proje alanları.
 
 ### Durumlar
 #### Empty
@@ -524,7 +551,7 @@ Salt okunur; ilişkiler korunur.
 **Spec:** [55 Test Açığı](../../specs/55-test-gaps/spec.md)
 
 ## 15.17 · File Test Gap
-> Başlık, gerekçe ve dayanak ilişkileriyle Test Açığı kaydetmek; isteğe bağlı senaryo veya Handoff'a planlamak.
+> Başlık, gerekçe ve dayanak ilişkileriyle Test Açığı kaydetmek; isteğe bağlı senaryo veya Handoff'a planlamak. `15.16` liste başlığındaki `File Test Gap` eyleminden açılır.
 
 **Artboard'lar**
 - `15.17 · File Test Gap · Default · 1440`
@@ -537,6 +564,9 @@ Başlık, gerekçe ve dayanak ilişkileri.
 ### Planlama
 İsteğe bağlı senaryo sürümü veya Handoff bağı.
 - **Label'lar:** `Planning for <title>`, `Planned Test Case version`, `Test Handoff`, `Linked to the Planned Test Case version.`, `Linked to the Test Handoff.`, `Link to <title> removed.`
+
+### Özel alanlar
+Özel alanlar: satır ve boş değer kuralı → DS.12; Test Açığı türüne bağlı Proje alanları.
 
 ### Form eylemleri
 Kaydet düğmesi.
@@ -558,8 +588,8 @@ Zorunlu alan eksik: alan altında hata.
 - `15.18 · Close Test Gap · Not needed · 1440`
 
 ### Kapanış
-Kapanış türü, kesin Oturum Testi seçimi veya gerekçe ve Karar.
-- **Label'lar:** `Close <title>`, `Close as` (`Met by result`, `Not needed`), `Session Tests that meet this Test Gap`, `Rationale (optional)`, `Rationale`, Decision seçimi, `Mark as Met by result`, `Mark as Not needed`.
+Kapanış türü, kesin Oturum Testi seçimi veya gerekçe ve Karar. `15.16` satırındaki `Close <title>` eyleminden açılır.
+- **Label'lar:** `Close <title>`, `Close as` (`Met by result`, `Not needed`), `Session Tests that meet this Test Gap`, `Rationale (optional)`, `Rationale`, `Decision (optional)`, `Mark as Met by result`, `Mark as Not needed`.
 
 ### Durumlar
 #### Met by result
@@ -578,11 +608,11 @@ Gerekçe zorunlu; Karar isteğe bağlı.
 - `15.19 · Recent Test Assessments · Empty · 1440`
 
 ### Snapshot
-Bağlam, karar, değerlendiren/zaman, bilinen sınırlamalar, atıf verilen kayıtlar; varsa yeni bağlam bildirimi.
+`Record Test Assessment` eylemi (→ `15.20`; Feature, Test Handoff veya Project Release bağlamından açılınca `Context` önceden seçili). Bağlam, karar, değerlendiren/zaman, bilinen sınırlamalar, atıf verilen kayıtlar; varsa yeni bağlam bildirimi.
 <details>
 <summary>Label'lar</summary>
 
-`Recent Test Assessments`, `<kind>: <label>` (`Feature`, `Test Handoff`, `Project Release`), `Decision at the time: `, `Acceptable`, `Follow-up needed`, `Undecided`, `Assessed <time> by <assessor>`, `Known limits: `, `Test Session ids`, `Test Gap ids`, `Follow-up Work ids`, `Unavailable record`, `New test context after this assessment`.
+`Recent Test Assessments`, `<kind>: <label>` (`Feature`, `Test Handoff`, `Project Release`), `Decision at the time: `, `Acceptable`, `Follow-up needed`, `Undecided`, `Assessed <time> by <assessor>`, `Known limits: `, `Test Session ids`, `Test Gap ids`, `Follow-up Work ids`, `Unavailable record`, `New test context after this assessment`, `Record Test Assessment`, ortak `Archive` / `Unarchive`.
 
 </details>
 
@@ -595,6 +625,8 @@ Bağlam, karar, değerlendiren/zaman, bilinen sınırlamalar, atıf verilen kay�
 `Test Assessments are unavailable.`
 #### New test context
 Snapshot hâlâ `Acceptable`; altında `New test context after this assessment` ve kesin kaynaklar.
+#### Archived
+Arşivlenmiş değerlendirmede snapshot ve atıf verilen oturum/Açık kimlikleri salt okunur kalır; `Unarchive`.
 
 **Spec:** [56 Test Değerlendirmesi](../../specs/56-test-assessments/spec.md)
 
@@ -606,7 +638,7 @@ Snapshot hâlâ `Acceptable`; altında `New test context after this assessment` 
 - —
 
 ### Alanlar
-Bağlam türü ve kaydı, karar, bilinen sınırlamalar ve kesin kaynak seçimleri.
+`15.19` başlığındaki `Record Test Assessment` eyleminden açılır. Bağlam türü ve kaydı, karar, bilinen sınırlamalar ve kesin kaynak seçimleri.
 <details>
 <summary>Label'lar</summary>
 
@@ -634,7 +666,9 @@ Kapsam satırı, sayılı bölüm satırları ve iki sabit sınır notu.
 <details>
 <summary>Label'lar</summary>
 
-`Test Summary: <Feature>`, `Scope: Feature: <label>`, `Planned Test Cases`, `Test Handoffs`, `Test Sessions`, `Session Tests`, `Open Test Gaps`, `Follow-up work`, `Latest Test Assessment`; sabit notlar `A neutral view of existing records. It is not a score, a coverage figure, a pass/fail verdict, a waiver, a release gate or a Release Evidence Pack.`, `GitHub checks are external facts. They are not Test Sessions and are not counted here.`
+`Test Summary: <Feature>`, `Scope: Feature: <label>`, `Planned Test Cases`, `Test Handoffs`, `Test Sessions`, `Session Tests`, `Open Test Gaps`, `Follow-up Work`, `Latest Test Assessment`; sabit notlar `A neutral view of existing records.`, `GitHub checks are external facts. They are not Test Sessions and are not counted here.`
+
+`Latest Test Assessment` satırı canlı kayıt olarak tarih ve kararı gösterir: `Assessed <time> by <assessor>`, `Decision at the time: Acceptable`; sonradan sonuç geldiyse `New test context after this assessment`. Skor veya kapı yoktur; `Open Test Gaps` satırı kaynaklı canlı kayıt listesine açılır.
 
 </details>
 
@@ -654,5 +688,37 @@ Nötr dikkat satırları listesi.
 `No related test records` attention satırı; sayılar 0.
 #### Loading / Error
 `Loading Test Summary…` / `Test Summary is unavailable.` + `Retry`.
+
+**Spec:** [57 Test İnceleme ve Takip](../../specs/57-test-review-and-follow-up/spec.md), [55](../../specs/55-test-gaps/spec.md), [56](../../specs/56-test-assessments/spec.md)
+
+## 15.22 · Test Summary · Project Release
+> Proje Sürümü detayında kapsamdaki Özellik/İş ilişkileri ve doğrudan bağlardan türeyen test kayıtlarının nötr canlı manzarasını göstermek; her sayıyı kesin kayıt kümesine açmak. Anatomi `15.21` ile aynıdır; yalnız kapsam farklıdır.
+
+**Artboard'lar**
+- `15.22 · Test Summary · Project Release · Default · 1440`
+- `15.22 · Test Summary · Project Release · No related records · 1440`
+
+### Özet bölümleri
+Kapsam satırı, `15.21` ile aynı sayılı bölüm satırları ve iki sabit sınır notu; her satırda ilişkinin kaynağı.
+<details>
+<summary>Label'lar</summary>
+
+`Test Summary: <Project Release>` (örnek `Test Summary: tidekit 1.0`), `Scope: Project Release: <label>`; bölüm satırları, `Latest Test Assessment` satırı ve iki sabit sınır notu `15.21 · Özet bölümleri` ile aynıdır (yeniden listelenmez; GitHub check'lerinin sayılmadığı not `15.21`'deki gibi kalır). Delta: satır kaynağı `In scope through Work: <key>` / `Linked directly to this Project Release`; Değerlendirme yoksa `Publishing never needs one.`
+
+</details>
+
+### Attention
+`15.21 · Attention` ile aynı label'lar ve satırlar (yeniden çizilmez). Ek not ve geçiş:
+- **Label'lar:** `This is not the Release Evidence Pack.`, `Release Evidence Pack` (→ `16.5`).
+
+### Durumlar
+#### Default
+`tidekit 1.0` kapsamıyla sayılı bölümler; her satırda kaynak (`In scope through Work: <key>` / `Linked directly to this Project Release`).
+#### No related records
+`No related test records` attention satırı; sayılar 0.
+#### Loading / Error
+`Loading Test Summary…` / `Test Summary is unavailable.` + `Retry`.
+
+`16.2` yan sütunundaki `Test Summary: tidekit 1.0` girişi bu ekrana açılır.
 
 **Spec:** [57 Test İnceleme ve Takip](../../specs/57-test-review-and-follow-up/spec.md), [55](../../specs/55-test-gaps/spec.md), [56](../../specs/56-test-assessments/spec.md)
