@@ -58,9 +58,9 @@ Her bölüm kendi yüklenme satırını gösterir (`Loading Project Walls…`, `
 #### Error
 Bölüm düzeyinde: `Project Walls are unavailable.`, `Screens are unavailable.` + `Retry`, `User Flows are unavailable.` + `Retry`, `Moodboard is unavailable.` Bir bölümün hatası diğerlerini gizlemez.
 #### Archived Project (read-only)
-Ferry: bütün oluşturma formları ve yaşam eylemleri gizli; listeler okunur, tuvaller salt okunur açılır. Arşiv bandı → `20` Archived / read-only banner.
+Ferry: bütün oluşturma formları ve yaşam eylemleri gizli; listeler okunur, tuvaller salt okunur açılır. Arşiv bandı → `20.21 · Archived Read-only Banner`.
 #### Area disabled
-`Design` alanı etkin değilse sayfa açılmaz; etkinleştirme `08 · Project Shell & Overview` Configuration Mode'dadır.
+`Design` alanı etkin değilse sayfa açılmaz; etkinleştirme `08.13 · Configuration Mode › Project areas` panelindedir (katalog ve satır eylemleri `08.2 · All Tools`).
 
 **Spec:** [51 Proje Duvarı](../../specs/51-project-wall/spec.md), [48 Ekranlar ve Wireframe](../../specs/48-screens-and-wireframes/spec.md), [49 Kullanıcı Akışı](../../specs/49-user-flow/spec.md), [50 Moodboard](../../specs/50-moodboards/spec.md).
 
@@ -73,13 +73,16 @@ Ferry: bütün oluşturma formları ve yaşam eylemleri gizli; listeler okunur, 
 - `13.2 · Canvas Chrome · Outline item inspected · 1440`
 - `13.2 · Canvas Chrome · Presentation frame · 1440`
 
+### Anatomi
+`Anatomy` artboard'ı (1440 ve 768) dört bölgeyi birlikte gösterir: araç çubuğu, Outline, tuval ve kişisel viewport'un görünmez davranışı. 768'de hiçbir bölge kaybolmaz, yalnız yer değiştirir (DS.0 #8). Bölgelerin içeriği aşağıdadır.
+
 ### Araç çubuğu
-Tuvale özgü oluşturma araçları (ilgili ekranda); `Undo`, `Redo`; çoklu seçimde hizalama/katman sırası; görünüm grubu: `Zoom In`, `Zoom Out`, `Fit View`; tuval destekliyorsa `Fit Selection`; kaydetme eylemi (Wireframe ve Kullanıcı Akışı sürüm kaydeder); `Presentation Mode`.
-- **Label'lar:** `Undo`, `Redo`, `Zoom In`, `Zoom Out`, `Fit View`, `Fit Selection`, `Align Left`, `Align Center`, `Align Right`, `Align Top`, `Align Middle`, `Align Bottom`, `Bring to Front`, `Send to Back`, `Presentation Mode`.
+Tuvale özgü oluşturma araçları (ilgili ekranda); `Undo`, `Redo`; çoklu seçimde hizalama/katman sırası; görünüm grubu: `Zoom in`, `Zoom out`, `Fit View`; tuval destekliyorsa `Fit Selection`; kaydetme eylemi (Wireframe ve Kullanıcı Akışı sürüm kaydeder); `Presentation Mode`. Bu araç çubuğu tek tanımdır: `13.3`, `13.8`, `13.9`, `13.12` ve `14.3` yalnız tuvale özgü araçları ekler. `14.3` Teknik Diyagram tuvali görünüm grubunu ve kişisel viewport'u kullanır; sunum çerçevesi yoktur.
+- **Label'lar:** `Undo`, `Redo`, `Zoom in`, `Zoom out`, `Fit View`, `Fit Selection`, `Align Left`, `Align Center`, `Align Right`, `Align Top`, `Align Middle`, `Align Bottom`, `Bring to Front`, `Send to Back`, `Save Version`, `Discard changes`, `Presentation Mode`.
 
 ### Outline
-Tuvaldeki bütün öğelerin yapılandırılmış listesi; gruplar daraltılabilir başlık satırı (üye sayısıyla); her satırda seçim, sıralama, gruplama, inceleme ve `Open Source Record`. Tuvalin işlevsel eşdeğeridir, salt okunur yedek değildir: oluşturma, seçme, sıralama, gruplama, bağlama, bağı kaldırma, inceleme ve kaynak kaydı açma işaretçi olmadan buradan yapılır.
-- **Label'lar:** `Outline`, `Inspect`, `Move up`, `Move down`, `Expand`, `Collapse`, `Open Source Record`.
+Tuvaldeki bütün öğelerin yapılandırılmış listesi; gruplar daraltılabilir başlık satırı (üye sayısıyla); her satırda seçim, sıralama, gruplama, inceleme ve `Open source record`. Tuvalin işlevsel eşdeğeridir, salt okunur yedek değildir: oluşturma, seçme, sıralama, gruplama, bağlama, bağı kaldırma, inceleme ve kaynak kaydı açma işaretçi olmadan buradan yapılır.
+- **Label'lar:** `Outline`, `Inspect`, `Move up`, `Move down` (PRD 02:61-62), `Expand`, `Collapse`, `Open source record`.
 
 ### Tuval
 Tuvale özgü nesneler; seçim çerçevesi; bağlantı çizgileri; daraltılmış grup özeti; canlı kayıt kartları.
@@ -92,6 +95,8 @@ Görünür eleman yoktur; davranış: kurucunun son merkez, zoom ve görünüm-y
 - **Label'lar:** `Presentation Mode`, `Exit Presentation Mode`, `Previous`, `Next`, `Focus order`, `Nothing to present yet.`
 
 ### Durumlar
+#### Anatomy
+Bölgelerin hepsi birlikte görünür; içerik aşağıdaki bölümlerdedir.
 #### Restored viewport
 Tuval kurucunun son konumunda açılır; Outline'da daraltılmış gruplar daraltılmış görünür.
 #### Fitted after meaningless position
@@ -116,30 +121,39 @@ Sürüm kaydeden tuvallerde (Wireframe, Kullanıcı Akışı) kaydedilmemiş de�
 - `13.3 · Wireframe Editor · Multi-select · 1440`
 - `13.3 · Wireframe Editor · Behavior (Spec) · 1440`
 - `13.3 · Wireframe Editor · Read-only · 1440`
+- `13.3 · Wireframe Editor · Record sections · 1440`
 
 ### Ekran başlığı
-Ekran adı, yaşam durumu, son kaydedilen sürüm.
+Ekran adı, yaşam durumu, son kaydedilen sürüm. Ekran bağımsız ana kayıttır: kayıt başlığı, ilişkiler, geçmiş ve `Used in` ortak kayıt bileşenleridir (→ `DS.11`, `DS.12`, `DS.13`); burada yeniden çizilmez.
 - **Label'lar:** `Wireframe`, `Saved version`, `Close Wireframe`.
+- **Kayıt bölümleri (`Record sections` artboard'ı):** kayıt başlığı + `Relations`, `History`, `Used in`. Kullanıcı Akışı düğümünden Ekrana bağ `Used in` altında kullanım bağı olarak görünür (Köken değil); Ekran silinince diğer yüzeylerde kırık hedef kalır (→ `20.10`). Yeni label yok.
 
 ### Bileşen araçları
 Kapalı semantik bileşen kümesi, her biri ikon + adla; yanında `Place live card`.
 - **Label'lar:** `Button`, `Input`, `Card`, `Table`, `Navigation`, `Chart`, `Text`, `Place live card`, `Save Version`.
 
 ### Wireframe tuvali
-El çizimi çizgiyle block'lar (anlam canonical geometride, çizgi yalnız görünüş); canlı kartlar (başlık, durum, az sinyal); metin block'ları (placeholder veya canlı Markdown bölüm referansı); bağlı block'ların bağ işareti.
+El çizimi çizgiyle block'lar (anlam canonical geometride, çizgi yalnız görünüş); canlı kartlar (başlık, durum, az sinyal); metin block'ları (`Text source` ile placeholder veya canlı Markdown bölüm referansı); bağlı block'ların bağ işareti.
 
 ### Wireframe outline ve block inceleme
-`13.2` Outline'ı; gruplar (`Collapse <grup> group (n)`); çoklu seçimde `Align selection`; tek seçili block'ta inceleme paneli: tür, etiket, konum, boyut, bağlı block durumu; satır eylemleri; bağlı block kontrolleri; `13.4 · Convert and Bind` paneli yalnız seçili block satırında.
+`13.2` Outline'ı; gruplar (`Collapse <group> group (n)`); çoklu seçimde `Align selection`; tek seçili block'ta inceleme paneli: tür, etiket, konum, boyut, bağlı block durumu; satır eylemleri; bağlı block kontrolleri; `13.4 · Convert and Bind` paneli yalnız seçili block satırında.
 <details>
 <summary>Label'lar</summary>
 
-`Wireframe outline`, `Inspect block`, `Kind`, `Label`, `Position`, `Size`, `Linked block`, `Not linked`, `Linked to <ad>`, `Move up`, `Move down`, `Remove Block`, `Open Source Record`, `Create Linked Block`, `Detach Link`, `Source label`, `Preview Change`, `Apply Change`, `Affected Screens`, `No Screens affected.`, `No blocks yet.`
+`Wireframe outline`, `Inspect block`, `Kind`, `Label`, `Position`, `Size`, `Linked block`, `Not linked`, `Linked to <name>`, `Remove Block`, `Create Linked Block`, `Detach Link`, `Source label`, `Preview Change`, `Apply Change`, `Affected Screens`, `No Screens affected.`, `No blocks yet.`
 
 </details>
 
+### Seçimi veya Ekranı dışa aktarma
+Seçili block'ların veya Ekranın kesin sürümünden `PNG` / `SVG` çıktısı; biçim butonları ve etiketleri `13.7`'dedir (→ `13.7`), burada yeniden tarif edilmez.
+
 ### Kapalı animasyon ve prototip bağlantısı (Spec)
 Seçili block için davranış listesi: göster/gizle, iki durum arasında sabit süreli geçiş, hover/press, sıralı adım, Ekranlar arası geçiş (hedef Ekran seçimi). Süre ürünün kapalı değer kümesinden seçilir (dört sabit seçenek); zaman çizelgesi, keyframe, easing eğrisi alanı yoktur.
-- **Label'lar:** Spec'te İngilizce label tanımlı değil; ilk gösterimde terim tablosuna eklenmeli.
+- **Label'lar:** `Behaviors`, `Add behavior`, türler `Show / hide`, `Two-state transition`, `Hover / press`, `Sequential steps`, `Screen transition`; süre `Duration` (`Fast`, `Normal`, `Slow`, `Slower`); hedef `Target Screen`.
+
+### Metin block'u kaynağı
+Seçili metin block'unda canlı metin kontrolleri.
+- **Label'lar:** `Text source` (`Placeholder`, `Live section`), `Choose a section`, kayıtlı sürümde `Text seen when saved`, `Open current source`.
 
 ### Durumlar
 #### Empty
@@ -151,7 +165,7 @@ Yalnız başlıkla açılmış `Pricing`: tuval boş, Outline `No blocks yet.`; 
 #### Linked block change preview
 `Preview Change` sonrası `Affected Screens` listesi ve `Apply Change`; hata: `Linked block could not be updated.`, `Link could not be detached.`
 #### Broken live text
-Kaynak bölüm silinmiş metin block'u boş görünmez: `Broken reference` işareti ve son görülen metin; `Open Source Record` yerine kırık hedef açıklaması (→ `20` kırık hedef).
+Kaynak bölüm silinmiş metin block'u boş görünmez: `Broken` işareti (PRD 02) ve son görülen metin; `Open source record` yerine kırık hedef açıklaması (→ `20.10` Kırık uç).
 #### Saved version text
 Eski sürüm açıkken canlı metin block'u o anda görülen metni tarihsel bağlam olarak gösterir ve güncel canlı kaynağa ayrı geçiş sunar.
 #### Multi-select
@@ -174,11 +188,11 @@ Arşivli Ekran veya arşivli Proje: bileşen araçları, `Save Version`, satır 
 
 ### Hedef seçimi
 Hedef tür; tür İş ise İş türü; başlık (boşsa block etiketinden).
-- **Label'lar:** `Convert and Bind`, `Target type` (Wireframe) / `Record type` (Kullanıcı Akışı), `Work`, `Decision`, `Risk`, `Open Question`, `Work type`, `Task`, `Bug`, `Research`, `Improvement`, `Title`, `Preview`, `Cancel`.
+- **Label'lar:** `Convert and Bind`, `Target type`, `Work`, `Decision`, `Risk`, `Open Question`, `Work type`, `Task`, `Bug`, `Research`, `Improvement`, `Title`, `Preview`, `Cancel`.
 
 ### Önizleme
 Oluşacak tek kaydın salt okunur dökümü.
-- **Label'lar:** `Convert and Bind preview`, `Target type`, `Target Project` / `Project`, `Title`, `Body`, `Originates from` (kod: `Origin` / `Relation`), `Origin Location`, `No Screen is created.`, `Confirm`.
+- **Label'lar:** `Convert and Bind preview`, `Target type`, `Target Project` / `Project`, `Title`, `Body`, `Origin` (kod: `Relation`), `Origin Location`, `No Screen is created.`, `Confirm`.
 
 ### Durumlar
 #### Preview stale
@@ -186,9 +200,9 @@ Oluşacak tek kaydın salt okunur dökümü.
 #### Preview unavailable
 `Preview is unavailable.`
 #### Created
-Panel kapanır; oluşan kayıt kendi listesinde `Originates from` `Invoices` ile görünür. Kaynak block değişmeden kalır.
+Panel kapanır; oluşan kayıt kendi listesinde `Origin` `Invoices` ile görünür. Kaynak block değişmeden kalır.
 #### Source item gone
-Kaynak block silinmiş veya redakte edilmiş: oluşan kayıt yaşar, `Originates from` Ekrana bağlı kalır; Origin Location `Source item is gone` okur ve başka block'a kaymaz.
+Kaynak block silinmiş veya redakte edilmiş: oluşan kayıt yaşar, `Origin` Ekrana bağlı kalır; Origin Location `Source item is gone` okur ve başka block'a kaymaz.
 
 **Spec:** [48](../../specs/48-screens-and-wireframes/spec.md) (block), [49](../../specs/49-user-flow/spec.md) (düğüm); [PRD 02 Köken konumu](../../prd/02-domain-model-and-lifecycle.md#koken-konumu).
 
@@ -229,7 +243,7 @@ Bu Ekrandaki tetikleyici block'ların klavye yolu.
 
 ### Durumlar
 #### Unresolved target
-Hedef Ekran sunuma dahil değil veya silinmiş: `Unresolved: <hedef>` durum satırı; başka Ekrana yönlendirme yok.
+Hedef Ekran sunuma dahil değil veya silinmiş: `Unresolved: <target>` durum satırı; başka Ekrana yönlendirme yok.
 #### No version
 `This Screen has no Wireframe version to present.`
 
@@ -244,7 +258,15 @@ Hedef Ekran sunuma dahil değil veya silinmiş: `Unresolved: <hedef>` durum sat�
 
 ### Ekran seçimi
 Çöpte olmayan ve sürümü olan Ekranlar; işaretlenince sürüm seçimi (varsayılan en son).
-- **Label'lar:** `Presentation and Export`, `Wireframe version of <Ekran>`.
+- **Label'lar:** `Presentation and Export`, `Wireframe version of <Screen>`.
+
+### Seçili block kapsamı
+`13.3`'ten seçili blockla açılınca dışa aktarma kapsamı seçili block'lardır; yalnız `PNG` ve `SVG` sunulur (`PDF` ve `HTML` seçim için yok).
+- **Label'lar:** `Selected blocks`, `Selection of <Screen>`.
+
+### Başlangıç Ekranı
+Sunum Kipi için başlangıç Ekranı; seçenekler seçilen Ekranlardır. Seçilmeyen hedef `13.6` ile aynı biçimde `Unresolved: <target>` görünür.
+- **Label'lar:** `Start Screen`, `Unresolved: <target>`.
 
 ### Eylemler
 `Presentation Mode` ve dört biçim butonu.
@@ -275,30 +297,33 @@ Panel içinde hata satırı.
 - `13.8 · User Flow Editor · Unsaved changes · 1440`
 - `13.8 · User Flow Editor · Archived and broken Screen · 1440`
 - `13.8 · User Flow Editor · Promote to Screen · 1440`
+- `13.8 · User Flow Editor · Record sections · 1440`
 
 ### Araç çubuğu
-`13.2` araç çubuğu, akışa özgü düzenleme ve sürüm eylemleriyle.
+`13.2` araç çubuğu (ortak label'lar yeniden yazılmaz → `13.2`); yalnız akışa özgü düzenleme ve sürüm eylemleri eklenir.
 <details>
 <summary>Label'lar</summary>
 
-`User Flow editor tools`, `Undo`, `Redo`, `Select All`, `Copy`, `Paste`, `Delete`, `Zoom In`, `Zoom Out`, `Fit View`, `Fit Selection`, `Align Left` … `Align Bottom`, `Bring to Front`, `Bring Forward`, `Send Backward`, `Send to Back`, `Snap Selection to Grid`, `Snap to grid`, `Save version`, `Discard changes`.
+`User Flow editor tools`, `Select All`, `Copy`, `Paste`, `Delete`, `Bring Forward`, `Send Backward`, `Snap Selection to Grid`, `Snap to grid` (`Save Version`, `Discard changes` → `13.2`).
 
 </details>
 
 ### Akış tuvali
 Beş kapalı öğe türü; her düğüm türünü metinle yazar (renk tek anlam taşıyıcısı değildir); `Section` üyelerini çerçeveler; yönlü bağlantılar; `Screen` düğümü canlı Ekran referansı ve varsa seçilen güncel Wireframe sürümünün küçük önizlemesi; salt okunur canlı kartlar.
-- **Label'lar:** `Screen`, `Action`, `Decision`, `State/Outcome`, `Section`, `Open Source Record`, `Archived`, `Remove card`.
+`Screen` düğümünde, Ekranın Wireframe düzenleyicisini açan tek eylem: `Open Wireframe` (→ `13.3`); düğüm kopya Ekran üretmez.
+- **Label'lar:** `Screen`, `Action`, `Decision`, `State/Outcome`, `Section`, `Open source record`, `Open Wireframe`, `Archived`, `Remove card`.
+- **Kayıt bölümleri (`Record sections` artboard'ı):** Kullanıcı Akışı kayıt başlığı + `Relations`, `History`, `Used in` (ortak bileşenler → `DS.11`, `DS.12`, `DS.13`); Kullanıcı Akışı düğümü → Ekran bağı `Used in` altında kullanım bağıdır, Köken değildir. Yeni label yok.
 
 ### Seçili düğüm
 Düğüme özgü metin (açıklama, geçiş, koşul, karar metni düğümde kalır, Ekrana yazılmaz); sınırlı erişilebilir stil seçimi.
 - **Label'lar:** `Selected node text`, `Style`.
 
 ### Outline
-`13.2` Outline'ı; `Section` başlıkları altında üyeler; düğüm ekleme formu; seçimi gruplama; satırda `Select`, `Move up`, `Move down`, `Collapse`/`Expand (n hidden)`, `Inspect`, Section seçimi; inceleme: tür, metin, stil, Section, gelen/giden bağlantılar; bağlama ve bağı kaldırma.
+`13.2` Outline'ı (ortak satır eylemleri `Move up`, `Move down`, `Collapse`/`Expand`, `Inspect` → `13.2`); akışa özgü: `Section` başlıkları altında üyeler, düğüm ekleme formu, seçimi gruplama, satırda `Select` ve Section seçimi; inceleme: tür, metin, stil, Section, gelen/giden bağlantılar; bağlama ve bağı kaldırma.
 <details>
 <summary>Label'lar</summary>
 
-`Outline`, `Outline nodes`, `Add a node to the outline`, `Outline node type`, `Outline node text`, `Outline Screen`, `Group selection into Section`, `Select`, `Selected`, `Inspect`, `Type`, `Text`, `Style`, `Section`, `Ungrouped`, `Leads to`, `Comes from`, `Nothing`, `No text`, `Bind to…`, `Bind`, `Unbind`, `The outline is empty`.
+`Outline nodes`, `Add a node to the outline`, `Outline node type`, `Outline node text`, `Outline Screen`, `Group selection into Section`, `Select`, `Selected`, `Type`, `Text`, `Style`, `Section`, `Ungrouped`, `Leads to`, `Comes from`, `Nothing`, `No text`, `Bind to…`, `Bind`, `Unbind`, `The outline is empty`.
 
 </details>
 
@@ -318,11 +343,11 @@ Düğümsüz akış: tuval boş, tek giriş `Place node`; `This User Flow has no
 #### Error
 `User Flows are unavailable.` + `Retry`; kaydetme: `User Flow could not be saved.`
 #### Unsaved changes
-`Unsaved changes. Save or discard them before placing a node.` + `Save version` / `Discard changes`.
+`Unsaved changes. Save or discard them before placing a node.` + `Save Version` / `Discard changes`.
 #### Archived Screen
 `Screen` düğümü `Archived · Client detail` gösterir ve kaynağı açmaya devam eder.
 #### Broken Screen
-Çöpteki, kalıcı silinmiş veya erişilemeyen Ekran: `Broken — In Trash` / `Broken — Permanently deleted`, bağın kurulma zamanı (`Linked 2026-09-14`); başlık ve gövde sızmaz, başka Ekrana bağlanmaz. Kırık hedef aramada, sayımlarda ve export'ta yer almaz.
+Çöpteki, kalıcı silinmiş veya erişilemeyen Ekran: kırık hedef sunumu `20.10` Kırık uç'tadır (neden kümesi, başlık/gövde sızmaması, başka Ekrana bağlanmama); burada yalnız düğümün bağın kurulma zamanını gösterdiği fark kalır (`Linked 2026-09-14`). Kırık hedef aramada, sayımlarda ve export'ta yer almaz.
 #### Template placeholder
 Şablondan açılmış akışta `Screen` düğümleri Ekran kimliği taşımayan yer tutucu; Wireframe önizlemesi ve editör açma bekler.
 
@@ -340,7 +365,8 @@ Düğümsüz akış: tuval boş, tek giriş `Place node`; `This User Flow has no
 
 ### Başlık ve araçlar
 Moodboard adı, ekleme araçları ve görünüm araçları.
-- **Label'lar:** `Moodboard`, `Presentation Mode`, `Add visual`, `Add Color Swatch`, `Zoom in`, `Zoom out`, `Fit View`.
+Görünüm araçları (zoom, `Fit View`) `13.2`'dedir; burada yeniden yazılmaz.
+- **Label'lar:** `Moodboard`, `Presentation Mode`, `Add visual`, `Add Color Swatch`.
 
 ### Board
 Görseller (sunulan görünümle: kırpma ve döndürme uygulanmış), altyazı, köken işareti; renk örnekleri.
@@ -349,17 +375,21 @@ Görseller (sunulan görünümle: kırpma ve döndürme uygulanmış), altyazı,
 `Add visual`: köken seçimi (Dosya Eki sürümü veya dış bağlantı), referans, altyazı. Görsel satırında `Caption` düzenleme ve görünüm-yerel `Crop`, `Rotate 90°`, `Reset view`; kırpma kesin Dosya Eki sürümüne bağlı üstveridir, özgün dosyayı ve diğer görünümleri değiştirmez.
 - **Label'lar:** `Add visual`, `Origin`, `File Attachment version`, `External link`, `Caption`, `Save`, `Crop`, `Rotate 90°`, `Reset view`, `Apply`, `Crop must leave part of the image.`, `Check the Visual details.`, `Check the Caption.`
 
+### Dışa aktarma
+Sunulan görünümden (uygulanmış kırpma ve döndürme) `PNG` / `PDF` çıktısı; özgün dosya değişmez ve ayrıca indirilebilir kalır. Grup/bölge snapshot'ı ayrıdır (→ `13.11`).
+- **Label'lar:** `Export` grubunda `PNG`, `PDF`; görsel satırında `Download original` (özgün Dosya Eki sürümü, kırpmasız); açıklama `Export uses the presented view. The original file is unchanged and can be downloaded separately.`
+
 ### Color Swatch bölümü
 Palet grupları ve her grubun renk örnekleri; grupsuz örnekler `No Palette group` altında; `Add palette group`. Ekleme formu → `13.10 · Color Swatch`.
 - **Label'lar:** `Color Swatch`, `Palette group`, `No Palette group`, `Add palette group`, `Check the Palette group name.`
 
 ### Outline
 `13.2` Outline'ı (`Outline (n)`); satır: tür + etiket; inceleme: `Kind`, `Origin`, `Caption`/`Note`; renk örneğinde `Group` seçimi; sürükleme tutamacı.
-- **Label'lar:** `Outline`, `Inspect`, `Kind`, `Visual`, `Color Swatch`, `Origin`, `None`, `Group`, `Move up`, `Move down`, `Open Source Record`, `No items yet.`
+- **Label'lar:** `Kind`, `Visual`, `Color Swatch`, `Origin`, `None`, `Group`, `No items yet.` (ortak Outline label'ları → `13.2`)
 
 ### Focus order
-Sunum Kipi için isteğe bağlı görünüm-yerel sıra; içerik kopyası değildir.
-- **Label'lar:** `Focus order`, `Move up`, `Down`.
+Sunum Kipi için isteğe bağlı görünüm-yerel sıra; içerik kopyası değildir. `Focus order` bölümünün sahibi burasıdır; `13.12` aynı bölümü yeniden tarif etmez.
+- **Label'lar:** `Focus order`, `Move up`, `Move down` (satır eylemleri `13.2` Outline'ı ile aynı).
 
 ### Durumlar
 #### Empty
@@ -371,7 +401,7 @@ Sunum Kipi için isteğe bağlı görünüm-yerel sıra; içerik kopyası değil
 #### Crop editing
 Görsel üzerinde kırpma çerçevesi, `Apply` / `Reset view`.
 #### Presentation Mode
-`13.2` sunum çerçevesi: odak sırasına göre tek görsel/renk örneği, `Previous` / `Next`, `Presented view: <altyazı>`; içerik yoksa `Nothing to present yet.`
+`13.2` sunum çerçevesi: odak sırasına göre tek görsel/renk örneği, `Previous` / `Next`, `Presented view: <caption>`; içerik yoksa `Nothing to present yet.`
 
 **Spec:** [50 Moodboard](../../specs/50-moodboards/spec.md).
 
@@ -391,6 +421,8 @@ Renk örneğinin notu ve palet grubu.
 - **Label'lar:** `Note`, `Palette group`, `No Palette group`, `Check the Color Swatch details.`
 
 ### Durumlar
+#### Form
+Boş form: `Add Color Swatch` başlığı altında `Picker` ve değer alanı, `Note` ve `Palette group` seçimi.
 #### Eyedrop sampling
 Board'da görseller örneklenebilir işaretli; tarayıcı desteklemiyorsa `Eyedrop` gizlenir, seçici ve değer alanı kalır.
 #### Invalid value
@@ -430,7 +462,7 @@ Sayfalama (PNG seçimleri ayrı görseller, PDF grupları ayrı okunur sayfalar;
 **Artboard'lar**
 - `13.12 · Project Wall · Default · 1440`
 - `13.12 · Project Wall · Default · 768`
-- `13.12 · Project Wall · Default · 1440 · Dark`
+- `13.12 · Project Wall · Default · Dark · 1440`
 - `13.12 · Project Wall · Empty · 1440`
 - `13.12 · Project Wall · Customer Journey skeleton · 1440`
 - `13.12 · Project Wall · Card densities · 1440`
@@ -452,7 +484,7 @@ Kaynak kayıt seçimi (İş, Karar, Risk, Teknik Diyagram, Akıllı Koleksiyon);
 <details>
 <summary>Label'lar</summary>
 
-`Canvas tools`, `Fit View`, `Zoom in`, `Zoom out`, `Align`, `Distribute Horizontally`, `Distribute Vertically`, `Bring to Front`, `Send to Back`, `Preview Auto-layout`, `Auto-layout preview`, `Auto-layout moves <n> card`, `Apply Auto-layout`, `Cancel preview`, `Undo Auto-layout`, `Auto-layout: nothing to rearrange.`, `Expand group`, `Collapse group`.
+`Canvas tools`, `Distribute Horizontally`, `Distribute Vertically`, `Preview Auto-layout`, `Auto-layout preview`, `Auto-layout moves <n> card`, `Apply Auto-layout`, `Cancel preview`, `Undo Auto-layout`, `Auto-layout: nothing to rearrange.`, `Expand group`, `Collapse group`.
 
 </details>
 
@@ -461,25 +493,24 @@ Yoğunluğa göre ürünün seçtiği alanlar (`Key`, `Status`, `Type`, `Descrip
 <details>
 <summary>Label'lar</summary>
 
-`Compact`, `Preview`, `Detailed`, `Density`, `Highlight`, `No highlight`, `Group`, `No group`, `Lock Position`, `Remove from Project Wall`, `Open Source Record`, `Live`, `Exact`, `Pin exact Diagram Version`, `Follow live diagram`, `Diagram preview: <görünüm>`, `Default`, `Collection summary: <ad>`, `Open all in source`, `Shared source`.
+`Compact`, `Preview`, `Detailed`, `Density`, `Highlight`, `No highlight`, `Group`, `No group`, `Lock Position`, `Remove from Project Wall`, `Open source record`, `Live`, `Exact`, `Pin exact Diagram Version`, `Follow live diagram`, `Diagram preview: <view>`, `Default`, `Collection summary: <name>`, `Open all in source`, `Shared source`.
 
 </details>
 
 ### Grup gezinmesi
 Grup açma ve tam duvara dönüş.
-- **Label'lar:** `Open group`, `Open group: <ad>`, `Show full wall`.
+- **Label'lar:** `Open group`, `Open group: <name>`, `Show full wall`.
 
 ### Wall narrative
 Görsel bağlantı listesi, grup listesi, ekleme formları. Açıklama: görsel bağlantı, grup ve yakınlık kayıt ilişkisi değildir.
 - **Label'lar:** `Wall narrative`, `Visual links`, `No Visual links.`, `Add Visual link`, `From`, `To`, `Label`, `Select a card`, `Bind`, `Unbind`, `Create Persistent Relation` (→ `13.13`), `Groups`, `Create Group`, `Group name`, `Group selection`, `Delete group`.
 
 ### Outline
-`13.2` Outline'ı (`Outline rows (n)`); inceleme paneli `Inspector: <kart>` kart ayarlarını ve kartın görsel bağlantılarını (`Visual links of this card`) taşır.
-- **Label'lar:** `Outline`, `Outline rows`, `Select: <kart>`, `Inspect: <kart>`, `Move up: <kart>`, `Move down: <kart>`, `Group: <kart>`, `Open Source Record: <kart>`.
+`13.2` Outline'ı (`Outline rows (n)`); inceleme paneli `Inspector: <card>` kart ayarlarını ve kartın görsel bağlantılarını (`Visual links of this card`) taşır.
+- **Label'lar:** `Outline rows`, `Select: <card>`, `Inspect: <card>`, `Move up: <card>`, `Move down: <card>`, `Group: <card>`, `Open source record: <card>`.
 
 ### Focus order
-Sunum Kipi için görünüm-yerel kart sırası.
-- **Label'lar:** `Focus order`, `Move up`, `Down`.
+Sunum Kipi için görünüm-yerel kart sırası; bölümün anatomisi ve label'ları `13.9 · Focus order`'dadır (→ `13.9`), burada yalnız elemanlar kartlardır.
 
 ### Durumlar
 #### Empty
@@ -493,13 +524,13 @@ Sunum Kipi için görünüm-yerel kart sırası.
 #### Group no longer available
 Açılmış grup silinmiş: `This group is no longer available.` + `Show full wall`; başka gruba yönlendirme yok.
 #### Broken card
-Kaynağı arşivli kart `Archived`; çöpteki/kalıcı silinmiş `Broken — Permanently deleted` (`Unavailable record`), eski içerik gösterilmez.
+Kaynağı arşivli kart `Archived`; çöpteki, kalıcı silinmiş veya erişilemeyen kaynakta kart `Unavailable record` gösterir ve eski içerik sızmaz; neden kümesi `20.10` Kırık uç'tadır (→ `20.10`).
 #### Auto-layout preview
 Önerilen konumlar hayalet olarak; kilitli kartlar yerinde. "Nothing is saved until you apply".
 #### Presentation Mode
 `13.2` sunum çerçevesi; odak sırasıyla kart kart `Previous`/`Next`.
 #### Dark
-Varsayılan durumun Dark örneği (Start Here › Dark örnekleri).
+Varsayılan durumun Dark örneği (`13.12 · Project Wall · Default · Dark · 1440` artboard'ı).
 
 **Spec:** [51 Proje Duvarı](../../specs/51-project-wall/spec.md); Teknik Diyagram kartı [59](../../specs/59-technical-diagrams/spec.md).
 

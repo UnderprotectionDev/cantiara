@@ -24,7 +24,8 @@ Birden çok yüzeyin çağırdığı dialog'lar ve sistem durumları. Her biri b
 | [20.19 · Not Found](#2019--not-found) | Kabuk içinde tek durum bloğu |
 | [20.20 · Session Ended](#2020--session-ended) | Açıklama satırlı giriş yüzeyi |
 | [20.21 · Archived Read-only Banner](#2021--archived-read-only-banner) | Yüzey başlığı altında ince bant |
-| [20.22 · Create Follow-up Work](#2022--create-follow-up-work) | Bildirim, Ürün Boşluğu, Spec adayı, Oturum Testi, Üretim Olayı için tek takip İşi önizlemesi |
+| [20.22 · Create Follow-up Work](#2022--create-follow-up-work) | Bildirim, Geri Bildirim, Odak Dönemi, Reconcile, Ürün Boşluğu, Spec adayı, Oturum Testi, Üretim Olayı için tek takip İşi önizlemesi |
+| [20.23 · Account Closing Banner](#2023--account-closing-banner) | Dondurmada yüzey başlığı altında ince bant |
 
 ## 20.1 · Confirm GitHub Identity
 > Yüksek riskli işlemden hemen önce, yeni bir GitHub OAuth turuyla aynı değişmez GitHub kimliğini doğrulayıp tek kullanımlık, en fazla 10 dakikalık işleme bağlı yetkiyi almak; çağıran akışın kendi yazılı ad teyidine geri dönmek.
@@ -37,7 +38,7 @@ Birden çok yüzeyin çağırdığı dialog'lar ve sistem durumları. Her biri b
 
 ### Yüksek risk adım şeridi
 Çağıran dialog'un içinde ayrı numaralı adım; üç sıralı adım: 1) etki önizlemesi (çağıran), 2) `Confirm GitHub Identity`, 3) Hesap veya Proje adını yazma (çağıran). Kayıt başlığı değil, etkilenen Hesap veya Proje adı yazılır.
-- **Label'lar:** `Confirm GitHub Identity`, `Confirm GitHub Identity and type the Project name to continue.`, `Type the Project name to confirm`.
+- **Label'lar:** `Confirm GitHub Identity`, `Confirm GitHub Identity and type the Project name to continue.`; adım 3 yalnız adım olarak anılır, ad yazma etiketleri ve `The name does not match.` metni → `20.3` (Hesap adı yazdıran çağıranlar: `Erase Personal Data`, `Close Account`, Hesap düzeyi erken kalıcı silme).
 
 ### GitHub adımı
 Ne kanıtlandığını dürüstçe söyleyen tek cümle (aynı GitHub hesabıyla yeniden onay; parola, MFA veya yeni kimlik bilgisi değil), `Confirm GitHub Identity` eylemi. Tur sistem tarayıcısında / açılır pencerede GitHub hesap seçimiyle açılır.
@@ -75,7 +76,7 @@ Dar dialog'un başı: "`LUMA-58 Onboarding checklist copy` → Trash" sorusu; 30
 - **Label'lar:** `Move to Trash`, `Trash`.
 
 ### Bağlı Dış yüzeyler
-Kayda bağlı her Dış yüzey satırı: tür (bağlantı paylaşımı / Wiki yayını / Build in Public), durum, son onay zamanı. Varsayılan sonuç: terminal iptal, ziyaretçi oturumları kapanır, URL/token yeniden kullanılmaz.
+Artboard `With External Surfaces`: kayda bağlı her Dış yüzey satırı: tür (bağlantı paylaşımı / Wiki yayını / Build in Public), durum, son onay zamanı. Varsayılan sonuç: terminal iptal, ziyaretçi oturumları kapanır, URL/token yeniden kullanılmaz.
 - **Label'lar:** `Active`, `Expired`, `Revoked`, `Keep approved surface`.
 
 ### Eylemler
@@ -86,9 +87,9 @@ Kayda bağlı her Dış yüzey satırı: tür (bağlantı paylaşımı / Wiki ya
 #### Dış yüzey yok
 Bağlı Dış yüzeyler bölümü çizilmez.
 #### Yapılandırma çöpü
-Custom field, öncelik ölçütü, Akıllı Koleksiyon, adlandırılmış görünüm, Önceliklendirme oturumu, otomasyon kuralı, Kayıt Eylemi, şablon: etkilenen saklı değerler ve bağımlı görünüm/kural listesi; "çöpteyken çalışmaz" notu.
+Artboard `Configuration`. Tür listesi ve "çalışmıyor" notu → `02.11 · Yapılandırma çöpü`. Bu dialog'a özgü: etkilenen saklı değerler ve bağımlı görünüm/kural listesi.
 #### Grup silme bağlamı
-Proje silme grubu (yalnız Arşivden `Delete Project`, 83): grup içeriği tek 30 günlük birim, bütün proje kapsamlı Dış yüzeyler terminal iptal; `Keep approved surface` hiç görünmez. Çalışma Alanı ve Kişisel Wiki kayıtları gruba girmez.
+Proje silme grubu (yalnız Arşivden `Delete Project`): önizleme içeriği → `08.28`; bu dialog'da `Keep approved surface` hiç görünmez.
 #### Test Oturumu
 Test Oturumu ve Oturum Testleri tek bütün olarak listelenir; çocuk tek başına seçilemez.
 #### Error
@@ -109,14 +110,14 @@ Test Oturumu ve Oturum Testleri tek bütün olarak listelenir; çocuk tek başı
 - **Label'lar:** `Permanently Delete {name}?`, `Permanently Delete`.
 
 ### Teyit
-→ `20.1` GitHub adımı, sonra Hesap veya Proje adı alanı.
-- **Label'lar:** `Confirm GitHub Identity`, `Type the Project name to confirm`.
+Artboard `Ready`: adım 3 doldurulmuş, uygulama eylemi etkin. → `20.1` GitHub adımı, sonra Hesap veya Proje adı alanı (`20.1` şeridinin adım 3'ü; etiketlerin ve hata metninin sahibi bu ekrandır).
+- **Label'lar:** `Confirm GitHub Identity`, `Type the Project name to confirm`, `Type the Account name to confirm`, `The name does not match.`
 
 ### Durumlar
 #### Engelli
-Aktif bir Dış yüzey kaydı hâlâ kullanıyorsa veya hassas içerik güvenle kaldırılmadıysa uygulama eylemi yok; neden ve ilgili yer gösterilir (Dış yüzey yönetimi veya `Redact` → `20.7`).
+Artboard `Blocked by active surface`. Aktif bir Dış yüzey kaydı hâlâ kullanıyorsa veya hassas içerik güvenle kaldırılmadıysa uygulama eylemi yok; neden ve ilgili yer gösterilir (Dış yüzey yönetimi veya `Redact` → `20.7`).
 #### Name mismatch
-Alan altında satır içi hata; yazma yok.
+Yazılan Hesap veya Proje adı uyuşmazsa alan altında sessiz satır içi hata `The name does not match.`; yazma yok. Metnin sahibi burasıdır: `01.9` ve `06.8` buraya yönlendirir.
 #### Finalizing
 Bariyerden sonra `Finalizing`, iptal yok (→ `20.14`).
 #### Error
@@ -127,6 +128,8 @@ Bariyerden sonra `Finalizing`, iptal yok (→ `20.14`).
 ## 20.4 · Share
 > Seçili kök kaydın kapalı dünya önizlemesini kurucuya tek tek onaylatıp bağlantıyla sınırlı salt okunur paylaşım (Dış yüzey + Onaylı snapshot revizyonu) oluşturmak; mevcut bağlantının parola, süre ve iptalini yönetmek.
 
+Paylaşılabilir kök kayıt türleri arasında Ürün Boşluğu da vardır (spec 58: paylaşım kapalı dünya önizlemesi ve açık onay ister); bu ekran kayıt türüne göre değişmez, Ürün Boşluğu girişi `07.1`'dedir.
+
 **Artboard'lar**
 - `20.4 · Share · Scope preview · 1440`
 - `20.4 · Share · Scope preview · 768`
@@ -135,7 +138,7 @@ Bariyerden sonra `Finalizing`, iptal yok (→ `20.14`).
 - `20.4 · Share · Expired · 1440`
 
 ### Kapsam önizlemesi
-Geniş dialog'un sol sütunu (onay kutulu liste); seçili öğenin ziyaretçi önizlemesi. Çıkacak her kesin kayıt, sürüm, alan, ilişki, gömü ve Dosya Eki sürümü ayrı satır; Proje Duvarı/Moodboard'da kart, yerleşim, grup başlığı, görsel çizgi, görünüm metni, odak sırası, palet, kırpma/döndürme, işaretleme katmanı, canlı Akıllı Koleksiyon bloğu ayrı öğeler. Adlandırılmış görünümden başlanmışsa filtre/düzen yalnız ilk taslaktır.
+Geniş dialog'un sol sütunu (onay kutulu liste); seçili öğenin ziyaretçi önizlemesi. Çıkacak her kesin kayıt, sürüm, alan, ilişki, gömü ve Dosya Eki sürümü ayrı satır; Proje Duvarı/Moodboard'da kart, yerleşim, grup başlığı, görsel çizgi, görünüm metni, odak sırası, palet, kırpma/döndürme, işaretleme katmanı, canlı Akıllı Koleksiyon bloğu ayrı öğeler. Adlandırılmış görünümden başlanmışsa filtre/düzen yalnız ilk taslaktır. Ekran paylaşılırken kesin Wireframe sürümü seçilir (sonraki sürümler görünmez); ürün-sahipli Teknik Diyagramda kesin Diyagram Sürümü ve Diyagram Görünümü seçilir; dış kaynak bağlantılı diyagramda iframe yoktur, yalnız origin snapshot (URL, bilinen revizyon/zaman, son kontrol, sağlayıcı) önizlenir.
 - **Label'lar:** `Share`, `Approved snapshot`, `Live`, `Some fields live`, `Source visual`, `Marking layer`.
 
 ### Canlı alanlar
@@ -147,18 +150,25 @@ Kapsama hiç girmeyenlerin açıklaması: Secret, paylaşım token'ı, bağlant�
 - **Label'lar:** `Not included`.
 
 ### Yer tutucu kontrolü
-Çözülmemiş `{{alan_adı}}` listesi: kaynak kayıt, alan, metin bağlamı. Kod bloğu ve satır içi koddaki eşleşmeler listelenmez. Bu bölüm 74 (`Publish Wiki Document`, sayfa 05) ve 75 (Build in Public, sayfa 08) önizlemelerinde aynı çizimle tekrar kullanılır.
+Çözülmemiş `{{field_name}}` listesi: kaynak kayıt, alan, metin bağlamı. Kod bloğu ve satır içi koddaki eşleşmeler listelenmez. Bu bölüm 74 (`Publish Wiki Document`, sayfa 05) ve 75 (Build in Public, sayfa 08) önizlemelerinde aynı çizimle tekrar kullanılır.
 - **Label'lar:** `Publish/share anyway`.
 
 ### Erişim ayarları
 Altta: isteğe bağlı ortak parola (kimlik değildir açıklamasıyla), isteğe bağlı sona erme tarih/saati profil saat diliminde (varsayılan yok). Bağlantının bearer olduğu, elinde tutan herkesin erişebileceği dürüstçe yazılır.
 - **Label'lar:** `Password`, `Expires on`, `No expiry`.
 
+### Yayın ayarları
+Wiki yayını (`05.4`) ve Build in Public (`08.24`) ortak bölgesi; bağlantı paylaşımı artboard'larında çizilmez. Sahibi burasıdır, `05.4`, `05.5` ve `08.24` yalnız kendi farkını ekler.
+- **Adres:** yayın adresi Çalışma Alanında benzersizdir; çakışmada `This address is already in use.` Adres değişirse `Redirect preview` eski adresin yenisine yönlendirildiğini söyler: `The old address redirects to the new one until you unpublish. It never points at private content.`
+- **İndeksleme:** varsayılan `noindex` ve sitemap dışı; ayrı açık anahtar `Allow indexing` ve açmadan önce geri alınamazlık uyarısı: üçüncü taraf kopyalar tamamen geri çağrılamaz.
+- **Unpublish onayı:** küçük onay dialog'u; yeni erişim hemen durur, cache temizliği başlar, URL yeniden kullanılmaz; ziyaretçi sonucu (`410 Gone`) → `19.9`; yaşam döngüsü yönetimi (dizin, `Change expiry`, `Reactivate`, `Revoke`/`Unpublish`) → `02.13`. Sahip ekran canlı kaydın silinmediğini ekler (Wiki Belgesi ve geçmişi `05.5`; iç Roadmap `08.24`).
+- **Label'lar:** `Address`, `This address is already in use.`, `Redirect preview`, `Allow indexing`, `Unpublish`, `Cancel` (mevcut ad).
+
 ### Durumlar
 #### Approved (link minted)
 Bağlantı metni ve kopyalama, son kapsam onay zamanı, `Approved snapshot` / `Some fields live`.
 #### Mevcut bağlantı
-Parola ekle/değiştir/kaldır, süreyi uzat, `Revoke` (terminal, geri dönüşsüz uyarı). Sonraki kaynak değişiklikleri yalnız fark önizlemesinde (76 `Review diff`) görünür.
+Parola ekle/değiştir/kaldır, süreyi uzat, `Revoke` (yalnız bağlantı paylaşımı; terminal, geri dönüşsüz uyarı; ziyaretçi sonucu `410 Gone` → `19.9`; yaşam döngüsü → `02.13`). Sonraki kaynak değişiklikleri yalnız fark önizlemesinde (76 `Review diff`) görünür.
 #### Expired
 İki ayrı eylem: varsayılan `Reshare with a new link`; `Reopen the same link` bütün eski bağlantı sahiplerinin yeniden erişeceği uyarısı ve ek onayla.
 #### Revoked
@@ -177,31 +187,37 @@ Yer tutucu listesi açık, onay `Publish/share anyway` olmadan tamamlanamaz.
 - `20.5 · Export · JSON · 1440`
 - `20.5 · Export · CSV with loss report · 1440`
 - `20.5 · Export · Limit exceeded · 1440`
+- `20.5 · Export · PDF snapshot · 1440`
+- `20.5 · Export · Capacity refused · 1440`
 
 ### Biçim
-Orta genişlikte dialog'un başı: `JSON` ve `CSV` seçimi; JSON'un kanonik round-trip, CSV'nin düz ve kayıplı olduğu.
-- **Label'lar:** `Export`, `JSON`, `CSV`.
+Orta genişlikte dialog'un başı: `JSON` ve `CSV` seçimi; JSON'un kanonik round-trip, CSV'nin düz ve kayıplı olduğu. `PDF` seçeneği yalnız İş listeleri, Akıllı Koleksiyonlar ve Projeler arası listeler için sunulur; başka kapsamda seçenek görünmez.
+- **Label'lar:** `Export`, `JSON`, `CSV`, `PDF`.
 
 ### Önizleme
 Çıkacak kayıtlar, alanlar, kimlikler, yalnız iki ucu seçili ilişkiler; JSON'da şema sürümü, Work-key geçmişi, kapsamdaki custom field tanımları, köken. Erişilemeyen alanlar listelenmez.
 - **Label'lar:** `Schema version`, `Scope`, `Filters`, `Visible fields`, `Produced at`.
 
 ### CSV kayıp ve formül raporu
-CSV'de kaybolacak ilişkiler, türler, kimlikler; `=`, `+`, `-`, `@`, tab, CR ile başlayan hücrelerin veri olarak kaçışlandığı ve hangi hücreler olduğu.
+Artboard `CSV with loss report`. CSV'de kaybolacak ilişkiler, türler, kimlikler; `=`, `+`, `-`, `@`, tab, CR ile başlayan hücrelerin veri olarak kaçışlandığı ve hangi hücreler olduğu.
 - **Label'lar:** `Lost in CSV`, `Escaped as data`.
+
+### PDF anlık görüntü
+Artboard `PDF snapshot`. Desteklenen İş listeleri, Akıllı Koleksiyonlar ve Projeler arası listeler için ekrandaki kesin kapsamı yakalayan okunabilir PDF; adlandırılmış görünüm veya canlı abonelik oluşturmaz. PDF'in erişilebilirlik sınırı (etiketli PDF/WCAG değil) açıklanır ve Markdown alternatifi sunulur; bu, tek Belge Markdown/PDF yolu (`10.2`) değildir.
+- **Label'lar:** `PDF`, `Markdown`.
 
 ### Manifest ve bölge notu
 Şema sürümü, kapsam, filtreler, görünür alanlar, üretim zamanı; canlı verinin AB bölgesinde kaldığı, dosyanın kurucunun kopyası olduğu; bunun `Workspace Exit Package` veya yedek olmadığı. Secret, oturum/entegrasyon/paylaşım token'ı ve bağlantı parolası hiçbir çıktıda yoktur.
 - **Label'lar:** `Workspace Exit Package` (karşılaştırma notunda).
 
 ### Giriş yeri
-Bir listenin veya Akıllı Koleksiyonun başlığındaki `Export` eylemi; seçim varsa seçili kayıt sayısı, yoksa kesin görünüm gösterilir. Kayıt eyleminden de açılır (→ [Record Header](design-system.md#ds11--record-header)). Desteklenmeyen tür veya sınır aşımında giriş kapalıdır ve nedeni yazılıdır; eşzamanlı dışa aktarma kapasitesi aşılınca görünür ret verilir. Barındıran ekranlar: `02.4` Saved list, İş listeleri, Akıllı Koleksiyonlar, Belge listesi. Örnek: Luma İş listesinde 4 seçili kayıt.
+Bir listenin veya Akıllı Koleksiyonun başlığındaki `Export` eylemi; seçim varsa seçili kayıt sayısı, yoksa kesin görünüm gösterilir. Kayıt eyleminden de açılır (→ [Record Header](design-system.md#ds11--record-header)). Desteklenmeyen tür veya sınır aşımında giriş kapalıdır ve nedeni yazılıdır; eşzamanlı dışa aktarma kapasitesi aşılınca görünür ret verilir. Sahibi burasıdır; ekranlar yalnız `Export` yazıp `20.5`'e bağlanır. Barındıran ekranlar: `02.4` Saved list (çizili giriş), `02.9`, `06.1`, `07.1`, `08.12`, `09.2`, `09.3`, Project Goals `08.6`, Roadmap `Milestones` bölümü `09.4`, Discovery listeleri `11.1`, `11.5`, `11.8`, `11.12`, Decisions listeleri `12.1`, `12.4`, `12.6`, `12.8`, `16.1` ve `17.1`; spec 79 İş listeleri ve Akıllı Koleksiyonlar için de ister. Belge bu katalogda değildir (tek Belge `Export` → `10.2`). Örnek: Luma İş listesinde 4 seçili kayıt.
 
 ### Durumlar
 #### Limit aşıldı
 10.000 satır veya 25 MB aşılırsa indirme yok; kapsamı bölme açıklaması.
 #### Kapasite reddi
-Eşzamanlı dışa aktarma kapasitesi doluysa görünür ret; sessiz uzun iş yok.
+Eşzamanlı dışa aktarma kapasitesi doluysa görünür ret; sessiz uzun iş yok. Metin: `Export capacity is full. Try again in a moment.`.
 #### Desteklenmeyen aile
 Belge (→ tek Belge `Export` Markdown/PDF, Belge sayfası), Ekran/Duvar/Moodboard listede yok; Teknik Diyagram JSON yalnız dışa aktarım notuyla.
 #### Hesap kapanma dondurması
@@ -221,29 +237,31 @@ Dialog açık kalır (84).
 - `20.6 · Import · Mapping · 1440`
 - `20.6 · Import · Finalizing · 1440`
 - `20.6 · Import · Receipt · 1440`
+- `20.6 · Import · Receipt reopened · 1440`
 
 ### 1 · Dosya ve hedef
 Adımlı geniş dialog'un ilk adımı: tek dosya seçimi, kayıt türü, hedef kapsam (Proje veya Kişisel Wiki); 10.000 satır / 25 MB sınırı; klasör, ZIP, çok dosya yok.
 - **Label'lar:** `Import`, `Choose file`, `No file selected`.
 
 ### 2 · Eşleme
-Kaynak sütun → ürün alanı / Proje custom field eşlemesi, kayıplar.
-- **Label'lar:** `Source column`, `Product field`, `Skip column`.
+Kaynak sütun → ürün alanı / Proje custom field eşlemesi, kayıplar. Tek Markdown dosyası (Proje veya Kişisel Wiki Belgesi) sütun eşlemesi yerine üç alan gösterir: Belge başlığı, Belge türü ve hedef kapsam (Proje / Kişisel Wiki). Cantiara Belge JSON'u eşleme istemez; aynı Belge ailesi olarak önizlenir.
+Tablo yapıştırma (`02.9 · Paste rows`) eşleme ve inceleme adımının sahibi olarak burayı kullanır: kaynak kolon → alan (`Column mapping`, `Skip column`, `Record ID`), sonra satır incelemesi (`Review paste`: "Row N · Create/Update", hatalı satırda `Correct row`, `Exclude row` / `Include row`). `02.9` yalnız yapıştırma girişi ve `Paste rows` / `Preview paste` / `Apply changes` farkını tutar.
+- **Label'lar:** `Source column`, `Product field`, `Skip column`; Markdown için `Title`, `Document type`, `Target` (mevcut ad, yeni bağlam: Belge hedef kapsamı; Komut Paleti önizleme alanı `Target`'tan ayrı anlam); yapıştırma için `Column mapping`, `Record ID`, `Review paste`, `Include row` (etiket ayrıntısı `02.9`).
 
 ### 3 · Fark ve çatışmalar
-Yazılacak kesin küme; geçersiz satırlar (düzelt veya açıkça düşür); kararlı köken eşleşmesinde `update existing` / `skip` / `resolve conflict`; kalıcı silinmiş kimliğin yeni kimlik ve önceki kökenle geleceği; ilişkilerin yalnız açık eşlemeyle yeni kimliklere bağlanacağı; kararlı kimlik yoksa tahmin yapılmadığı.
-- **Label'lar:** `Update existing`, `Skip`, `Resolve conflict`.
+Artboard `Diff and conflicts` (1440 ve 768). Yazılacak kesin küme; geçersiz satırlar (düzelt veya açıkça düşür); kararlı köken eşleşmesinde `Update existing` / `Skip` / `Resolve conflict`; kalıcı silinmiş kimliğin yeni kimlik ve önceki kökenle geleceği (köken sütununda görünür); ilişkilerin yalnız açık eşlemeyle yeni kimliklere bağlanacağı (her ilişki için eşleme satırı); kararlı kimlik yoksa tahmin yapılmadığı. Önizleme hiçbir kaydı değiştirmez; yüklenen dosya en çok 24 saat tutulur.
+- **Label'lar:** `Update existing`, `Skip`, `Resolve conflict`; `Correct row`, `Exclude row`, `Previous origin`, `Map relation`; `Preview does not change any record. The uploaded file is kept for at most 24 hours.`.
 
 ### 4 · Apply Import
 Ayrı onay adımı; "ya hepsi bir kez ya hiçbiri".
 - **Label'lar:** `Apply Import`, `Cancel`, `Finalizing`.
 
 ### 5 · Makbuz
-Tam commit veya tam rollback makbuzu; oluşan/güncellenen sayılar; kaynak dosya kapsamı.
-- **Label'lar:** `Import receipt`, `Created`, `Updated`, `Rolled back`.
+Tam commit veya tam rollback makbuzu; oluşan/güncellenen sayılar; kaynak dosya kapsamı. Makbuz kalıcıdır: bağlantı koptuktan sonra yeniden açılınca aynı sonuç görünür (`Receipt reopened`). Oluşan veya güncellenen kayıtlar Work türündeyse makbuz satırlarında seçim kutuları ve seçim çubuğu (seçili sayı + `Bulk Edit`, → `20.8`) bulunur; seçim çubuğu import sonucu kayıtlarını toplu düzenlemeye açar.
+- **Label'lar:** `Import receipt`, `Created`, `Updated`, `Rolled back`; `Bulk Edit` (→ `20.8`).
 
 ### Giriş yeri
-Hedef kapsamdaki `Import` eylemi; tek dosya, tek tür, tek kapsam notu yanında görünür. Barındıran ekranlar: Proje `Documents`, Kişisel Wiki, Saved list. Örnek: `luma-work.csv` · Work · Luma. Desteklenmeyen tür veya sınır aşımında giriş kapalıdır ve nedeni yazılıdır.
+Hedef kapsamdaki `Import` eylemi; `One file · one type · one scope` notu yanında görünür. Sahibi burasıdır; ekranlar yalnız `Import` yazıp `20.6`'ya bağlanır. Barındıran ekranlar: Kişisel Wiki (`05.1`), Contacts (`06.1`), Product Gaps (`07.1`), Work listesi (`09.2`), Proje `Documents` (`10.1`), Project Goals (`08.6`), Roadmap `Milestones` bölümü (`09.4`, kapsam seçili Proje), Discovery listeleri `11.1` (Source metadata), `11.5`, `11.8`, `11.12`, Decisions listeleri `12.1`, `12.4`, `12.6`, `12.8`, `16.1` ve `17.1`; giriş her ekranın sayfa başlığındadır. Liste, spec 80 kataloğundaki kayıt türleriyle sınırlıdır; katalogda olmayan türlerin liste başlığında `Import` yoktur. Arşivli Projede `Import` kapalı ve nedeni yazılıdır. Projeler arası Saved list tek kapsam seçemediği için giriş değildir. Örnek: `luma-work.csv` · Work · Luma. Desteklenmeyen tür veya sınır aşımında giriş kapalıdır ve nedeni yazılıdır.
 
 ### Durumlar
 #### Bilinmeyen şema
@@ -254,6 +272,8 @@ Teknik Diyagram JSON, DDL/DBML, Draw.io/Visio; `test-report/1` zarfı (54'e devr
 `Closing`/dondurmada yeni import reddi (84).
 #### Rollback
 Tam rollback makbuzu, hiçbir kayıt görünmez, `Support reference`.
+#### Receipt reopened
+Bağlantı koptuktan sonra makbuz yeniden açılır: aynı `Import receipt`, aynı sayılar; yeniden yazma yapılmaz.
 
 **Spec:** [80 Data Import](../../specs/80-data-import/spec.md), [04 Mutation and Undo](../../specs/04-mutation-and-undo/spec.md) (`Finalizing`)
 
@@ -261,16 +281,21 @@ Tam rollback makbuzu, hiçbir kayıt görünmez, `Support reference`.
 > Hassas bir değeri güncel içerikten ve onu taşıyan her kopyadan geri döndürülemez kaldırmak; önizleme, `Confirm GitHub Identity` ve yazılı Hesap/Proje adıyla.
 
 **Artboard'lar**
+- `20.7 · Redact · Choose value · 1440`
 - `20.7 · Redact · Spread preview · 1440`
 - `20.7 · Redact · Ready · 1440`
 - `20.7 · Redact · Result mark · 1440`
 
+### Değer seçimi
+Akışın başı: kurucunun kayıt içinde hangi değeri redakte edeceğini seçtiği adım; kayıt + alan seçici veya metin aralığı, seçili kayıt ve alan adı salt okunur gösterilir. Değerin kendisi bu adımda ve sonraki önizlemede maskeli görünür. `Redact` kayıt başlığı taşma menüsünden (`DS.11`) açılır.
+- **Label'lar:** `Value to redact`.
+
 ### Yayılım önizlemesi
-20.1 adım şeridinin adım 1'i; değeri hâlâ taşıyan her yer ayrı satır: güncel alan, kayıt geçmişi revizyonları, Dış yüzey Onaylı snapshot revizyonları, arama indeksi, dışa aktarma staging'i, cache. Serbest Markdown'da secret tespiti iddia edilmediği notu.
+Artboard `Spread preview`. 20.1 adım şeridinin adım 1'i; değeri hâlâ taşıyan her yer ayrı satır: güncel alan, kayıt geçmişi revizyonları, Dış yüzey Onaylı snapshot revizyonları, arama indeksi, dışa aktarma staging'i, cache. Serbest Markdown'da secret tespiti iddia edilmediği notu.
 - **Label'lar:** `Redact`.
 
 ### Teyit
-→ `20.1`; sonra Hesap veya Proje adı (kayıt başlığı değil).
+Artboard `Ready`. → `20.1`; sonra Hesap veya Proje adı (kayıt başlığı değil).
 - **Label'lar:** `Confirm GitHub Identity`, `Redact`.
 
 ### Sonuç
@@ -296,16 +321,16 @@ Redaksiyonun `Correction` ve `Withdrawal`'dan ayrı üçüncü olay olduğu ve r
 - `20.8 · Bulk Edit · Results with failure · 1440`
 
 ### Alan ve değer
-Dialog'un üstü: mevcut alan seçimi ve yeni değer; `Closed` seçilirse kapanış adımı (`Closure result`, `Reason`).
-- **Label'lar:** `Bulk Edit`, `Status`, `Select status`, `Closure result`, `Reason`, `Closure check`, `Close anyway`.
+Dialog'un üstü: mevcut alan seçimi ve yeni değer. Alan seçici Calendar/Backlog'daki mevcut İş alanlarını sunar: `Status`, `Planned start`, `Target date`, `Reappear date`; özel alanlar ve Tür değişimi kapsam dışıdır (Feature giriş/çıkış önizlemesi ayrı akıştır). Başlık altında seçili sayı ve dokunulmayan kayıt notu. `Closed` seçilirse kapanış adımı `09.13 · Close Work` ile aynıdır (sonuç seçimi, `Closure check`, `Close anyway`), burada yeniden tarif edilmez.
+- **Label'lar:** `Bulk Edit`, `Status`, `Select status`; kapanış label'ları → `09.13`; `Field`, `Planned start`, `Target date`, `Reappear date`, `{n} Work selected`, `Only the selected Work is changed.`.
 
 ### Preview
-; seçili her İş için önce → sonra; seçilmeyenler yok. Arşiv/Çöp İşleri yalnız onları gösteren yüzeyde açıkça seçildiyse.
+Seçili her İş için önce → sonra; seçilmeyenler yok. Arşiv/Çöp İşleri yalnız onları gösteren yüzeyde açıkça seçildiyse.
 - **Label'lar:** `Preview`, `No changes to apply.`, `Apply`.
 
 ### Progress ve sonuçlar
-Sonra `Progress` ve sonuç tablosu: ilk ilerleme bütçe içinde (p95 1 sn); her İş için `Succeeded`, `Failed` (`Support reference` ile), `Canceled`; bariyeri geçmiş satırlar `Finalizing`. Başarılı geri alınabilir değişiklikte satır `Undo`; geri alınınca `Undone`.
-- **Label'lar:** `Progress`, `Succeeded`, `Failed`, `Canceled`, `Finalizing`, `Undo`, `Undone`, `Support reference`.
+Artboard `Results with failure`: en az bir satır `Failed`. Sonra `Progress` ve sonuç tablosu: ilk ilerleme bütçe içinde (p95 1 sn); her İş için `Succeeded`, `Failed` (`Support reference` ile), `Canceled`; bariyeri geçmiş satırlar `Finalizing`. Başarılı geri alınabilir değişiklikte satır `Undo`; geri alınınca `Undone`. İlerleme sürerken `Cancel` kuyruktaki, bariyere varmamış yazmaları durdurur (satırlar `Canceled`); bariyeri geçmişler `Finalizing`'te kalır ve iptal edilemez.
+- **Label'lar:** `Progress`, `Cancel`, `Succeeded`, `Failed`, `Canceled`, `Finalizing`, `Undo`, `Undone`, `Support reference`.
 
 ### Durumlar
 #### Route return
@@ -344,8 +369,12 @@ Formun altında; kayda bağlı Hatırlatmalar yaşamıyla; geçmişte tetiklenme
 Belge açılır, `This section is missing.`; başka başlığa kaydırılmaz.
 #### Archived Project
 Arşivli Proje kayıtlarında oluşturma ve yeniden zamanlama kapalı (→ `20.21`).
+#### Deleted source
+Kaynağı kalıcı silinmiş Hatırlatma satırı içerik veya başlık göstermez; ortak kırık referans sunumu (label'lar `20.10 · Kırık uç` ve `20.19 · Durum bloğu`'ndadır; `00.4` ile aynı). `Triggered` geçmişi zamanı ve nedeni korur; yeniden zamanlama kapalıdır.
+#### Condition not available
+`Document`, `Decision` ve `Project Release` kaynaklarında `Condition` yalnız `In any case` sunar (`Only if still open` seçilemez; `Only if still open` yalnız Proje, İş, Risk, Kilometre Taşı ve Üretim Olayı için vardır). Varsayılan her zaman `In any case` seçilidir. Açıklama: `Only if still open is not available for this record type.`.
 #### Fired signal
-Tetiklenen sinyalde `Dismiss` ve yeni zaman seçimi — sunum Bildirim Merkezi'nde (`00 · Shared Shell`).
+Tetiklenen sinyalde `Dismiss` ve yeni zaman seçimi — sunum `00.5 · Notification Center`'da.
 
 **Spec:** [35 Personal Reminders](../../specs/35-personal-reminders/spec.md)
 
@@ -358,8 +387,8 @@ Tetiklenen sinyalde `Dismiss` ve yeni zaman seçimi — sunum Bildirim Merkezi'n
 - `20.10 · Relation Picker & Used in · Broken targets · 1440`
 
 ### Seçici
-Küçük dialog: ilişki türü (kapalı katalog), hedef kayıt araması, `Relation preview` (iki uç + tür + yön).
-- **Label'lar:** `Relation type`, `Related`, `Origin`, `Derived`, `Select a Work`, `Relation preview`, `Review the relation preview before confirming.`
+Küçük dialog: ilişki türü (kapalı katalog), hedef kayıt araması, `Relation preview` (iki uç + tür + yön). `Blocked by` türü seçiliyken hedef araması Work, Decision ve Open Question kayıtlarını sunar; `Blocks` yönü yalnız Work hedefler. Work hedefli türlerde boş seçenek `Select a Work` kalır; Decision / Open Question seçilebilen türlerde `Select a record`. Önizleme iki ucu ve `Active` başlangıç durumunu gösterir; çift gönderim ikinci bir `Active` bekleyiş üretmez. Work'ün zaten bir `Included in` ucu (birincil Feature) varsa seçici ikinci birincil Feature'ı reddeder (diğer Feature'lar `Related` olarak kalabilir).
+- **Label'lar:** `Relation type`, `Related`, `Origin`, `Derived`, `Select a Work`, `Select a record`, `Relation preview`, `Review the relation preview before confirming.`
 
 ### Relations listesi
 Kayıt ayrıntısında; türe göre gruplanmış standart ilişkiler; her satır kaynağı açar.
@@ -367,11 +396,11 @@ Kayıt ayrıntısında; türe göre gruplanmış standart ilişkiler; her satır
 
 ### Used in
 İki ayrı grup: standart ilişki geri bağlantıları ve kullanım bağları (satır içi referans, canlı blok, sabitlenmiş dosya/wireframe bağı, akıştan Ekrana). Kullanım bağı satırları "backlink" olarak adlandırılmaz, ilişki sayısına girmez. Erişilemeyen kayıt sayılmaz ve adlandırılmaz.
-- **Label'lar:** `Used in`, `Pinned bind`.
+- **Label'lar:** `Used in`, `Usage links`, `Pinned bind`.
 
 ### Kırık uç (Silinmiş hedef işareti)
-Varlık, neden, kurulma zamanı; gövde/alan/önizleme yok. Başlık yalnız kurucu hedefe hâlâ erişebiliyorsa.
-- **Label'lar:** `Archived`, `In Trash`, `Permanently deleted`, `Redacted for security`, `No access`, `Open source record`.
+Varlık, neden, kurulma zamanı; gövde/alan/önizleme yok. Başlık yalnız kurucu hedefe hâlâ erişebiliyorsa. `Open source record` yalnız `Archived` ve `In Trash` uçlarında görünür; `Permanently deleted`, `Redacted for security` ve `No access` uçlarında gizlenir.
+- **Label'lar:** `Broken —`, `(current)`, `Archived`, `In Trash`, `Permanently deleted`, `Redacted for security`, `No access`, `Open source record`. Kırık uç satırı `Broken —` önekiyle başlar (örnek `Broken — Redacted for security`); ucun güncel kayıt olduğu satırda `(current)` eki taşınır.
 
 ### Standart ilişki türleri kataloğu
 Seçici yalnız bu kapalı katalogdaki türleri sunar; iki uç, yön ve izinli uç türleri her tür için sabittir:
@@ -379,11 +408,11 @@ Seçici yalnız bu kapalı katalogdaki türleri sunar; iki uç, yön ve izinli u
 
 ### Durumlar
 #### Empty
-`No relations yet.`
+Boş metin yukarıdaki `Relations listesi` label'ıdır.
 #### Loading
-`Loading relations…`
+Yükleme metni yukarıdaki `Relations listesi` label'ıdır.
 #### Error
-`Relation could not be created.`, `Relation could not be removed.`, `Relation could not be undone.`, `Relation preview failed.`, `This relation is no longer available for Undo.`
+`Relation could not be created.`, `Relation could not be removed.`, `Relation could not be undone.`, `Relation preview failed.`, `This relation is no longer available for Undo.`, `Relations could not be loaded. Try loading this page again.` (liste yükleme hatası); ikinci birincil Feature reddi: `This Work is already included in a Feature.` + `Remove relation` yönlendirmesi.
 
 **Spec:** [12 Relations](../../specs/12-relations/spec.md), [04 Mutation and Undo](../../specs/04-mutation-and-undo/spec.md)
 
@@ -400,7 +429,7 @@ Kayıt başlığı altında etiket sırası + seçici popover: arama alanı; ön
 
 ### Durumlar
 #### Error
-`Tag could not be applied.`, `Tag could not be created.`, `Tag could not be removed.`, `Tag could not be renamed.`, `Check the tag name.`, `Tag is unavailable.`
+`Tag could not be applied.`, `Tag could not be created.`, `Tag could not be removed.`, `Check the tag name.`, `Tag is unavailable.` Yeniden adlandırma hataları `08.11`'dedir.
 
 **Spec:** [13 Tags](../../specs/13-tags/spec.md), [04 Mutation and Undo](../../specs/04-mutation-and-undo/spec.md)
 
@@ -435,17 +464,18 @@ Arşivli veya salt okunur kaynakta da kullanılabilir (kişisel üyelik kaynağ�
 - `20.13 · File Attachment Viewer · Upload new version · 1440`
 - `20.13 · File Attachment Viewer · Bind as origin · 1440`
 - `20.13 · File Attachment Viewer · Upload failed · 1440`
+- `20.13 · File Attachment Viewer · Gallery · 1440`
 
 ### Yükleme
 Üstte yükleme sırası: dosya seçimi, seçili dosya adı, yükleme; tür/boyut kuralları (görsel 25 MB, PDF 50 MB, CSV 25 MB, metin 10 MB, ses 100 MB, video 250 MB, ZIP 100 MB yalnız indirme). SVG, HTML, çalıştırılabilir, script, makrolu ofis ve bilinmeyen MIME/uzantı reddedilir.
 - **Label'lar:** `Choose file`, `No file selected`, `Upload`, `Uploading`, `Cancel`, `Finalizing`, `This file type is not supported.`, `File Attachment upload could not be completed. Try again.`
 
 ### Önizleme
-Dosya listesi + seçili dosyanın büyük önizlemesi; türe göre: görsel; sayfalı PDF; sınırlı CSV satırları (`Preview is truncated`); güvenli düz metin; kullanıcı başlatmalı ses/video (hız, tam ekran, döngü, altyazı); ZIP önizlemesi yok.
+Dosya listesi + seçili dosyanın büyük önizlemesi; türe göre: görsel; sayfalı PDF; sınırlı CSV satırları (`Preview is truncated`); güvenli düz metin; kullanıcı başlatmalı ses/video (hız, tam ekran, döngü, altyazı); ZIP önizlemesi yok. Liste ve galeri satırlarında küçük resim bulunur; çözülemeyen veya sınırı aşan görselde küçük resim yerine `Unavailable` görünür ve `Download` açık kalır. Galeri küçük resimleri özgün dosyayı değil türetilmiş küçük sürümü yükler.
 - **Label'lar:** `File Attachment`, `Preview`, `CSV preview`, `PDF preview`, `Loading PDF preview`, `Download`, `Playback speed`, `Fullscreen`, `Loop`, `Captions`, `Unavailable`, `Retry preview`, `Preview is unavailable.`, `PDF preview is unavailable. Download the original file instead.`
 
 ### Versions
-Aynı kaydın sürüm zinciri; her sürüm özgün hâliyle görüntülenebilir/indirilebilir. `Upload new version` önce hedef kayıt, mevcut sürüm ve gelen dosyayı yan yana gösterir.
+Aynı kaydın sürüm zinciri; her sürüm özgün hâliyle görüntülenebilir/indirilebilir. `Upload new version` önce hedef kayıt, mevcut sürüm ve gelen dosyayı yan yana gösterir. Önizleme notu: `Pinned binds and approved snapshots stay on the current version.`.
 - **Label'lar:** `Versions`, `Upload new version`, `Select a File Attachment`.
 
 ### İşaretleme katmanı
@@ -461,22 +491,24 @@ Görsel/PDF üzerinde `Point` veya `Region` seçimi; `New Work` (Proje gerekli) 
 
 </details>
 
-### Documents alanında ve Belge sahipliği
-Dosya Eki Documents alanında Projenin kapsamında `Project File Attachments` bölgesi olarak, ayrıca kayıt eklerinde ve Moodboard'da aynı bileşenle görünür; Belge ya da global havuz değildir. Bölge gövdesi bu kartın klonudur. Satırda eki sahiplenen Belge görünür; sahiplik `Assign File Attachments` ile kurulur (→ `10.10`). Örnek: `etiquette-survey.csv` → `Late-payment etiquette notes`. Luma ekleri: `gmail-alias-bounce.png`, `stripe-webhook-log.txt`, `etiquette-survey.csv`, `beta-onboarding.mp4`, `ferry-assets.zip`.
+### Kullanım yerleri ve Belge sahipliği
+Dosya Eki kayıt eklerinde ve Moodboard'da aynı bileşenle görünür; Belge ya da global havuz değildir. `Documents` alanındaki `Project File Attachments` bölgesinin yerleşimi → `10.1`. Sahiplik (`Assign File Attachments`) ve örnek ekler → `10.1`, `10.10`.
 
 ### Durumlar
 #### Empty
 Dosya yok: yalnız yükleme sırası ve kısa açıklama.
 #### Upload failed
-Görünür Dosya Eki yok; neden, yazma sonucu, `Support reference` (→ `20.15`).
+Görünür Dosya Eki yok; neden, yazma sonucu, `Support reference` (→ `20.15`). Bağlantı yükleme sırasında koparsa devam edilmez: yükleme baştan (sıfırıncı bayttan) yeniden başlar ve durum görünür.
+#### Copy
+`Copy` yeni kimlikli bir Dosya Eki üretir; kaynak ek değişmez. `Move` gösteriliyorsa etki önizlemelidir.
 #### Quota warning
-%80'de uyarı; aşıldığında yeni yükleme/sürüm kapalı, okuma/indirme/silme açık.
+%80'de uyarı: `Workspace storage is 80% full.`; aşıldığında yeni yükleme/sürüm kapalı, okuma/indirme/silme açık: `Storage quota exceeded. New uploads and versions are blocked; existing files stay readable, downloadable, and deletable.`.
+#### Gallery
+Dosya listesi galeri sunumunda: her dosya küçük resim kartı; çözülemeyen görselde `Unavailable`.
 #### Preview Unavailable
 Decode/kare sınırı aşan görsel: `Unavailable`, `Download` açık, dosya bozuk işaretlenmez.
 #### Bind errors
 `Location preview is unavailable.`, `Bind as origin could not be completed.`, `A Project is required for a new Work.`
-#### Empty (Documents alanı)
-`No File Attachments are available in this Project yet.` ve yükleme sırası.
 #### ZIP
 `ZIP files are available for download only.`
 #### Arşivli Proje
@@ -493,19 +525,22 @@ Yükleme yok; okuma ve indirme açık (→ `20.21`).
 - `20.14 · Write Receipts · Finalizing · 1440`
 
 ### Undo toast
-Tek yığın; ne değişti cümlesi + `Undo`. Yalnız tersi deterministik değişikliklerde (alan, ilişki, görünüm üstverisi, atomik dönüşüm).
-- **Label'lar:** `Undo`, `Relation removed.`, `Tag renamed.`, `Undone`.
+Tek yığın; ne değişti cümlesi + `Undo` (toast geri bildirim satırının sahibi burasıdır; ekranlar satır içi `Undo` metni yazmaz, buraya bağlanır, ör. `04.5`). Yalnız tersi deterministik değişikliklerde (alan, ilişki, görünüm üstverisi, atomik dönüşüm).
+Örnek cümleler sahip ekranlardadır (`20.10`, `08.11`); burada yalnız desen.
+- **Label'lar:** `Undo`, `Undone`.
 
 ### Conflict
 Satır içi, düzenlenen alanın yanında: güncel olmayan tabanda yazma reddi; `Current value` gösterilir; aynı idempotency anahtarıyla farklı payload için de `Conflict`. Undo aynı alandaki daha yeni değere çarparsa durur ve açıklar.
+Kayıt formlarındaki çatışma cümlesi desenidir; ekranlar yalnız tür adını verir: `{Record type} changed. Cancel and reopen before saving again. Your text is kept here.`. Kaydetme hatası deseni sahibi `DS.16`'dır.
 - **Label'lar:** `Conflict`, `Current value`, `Retry`, `This page is out of date.`
 
 ### Finalizing
 Çok adımlı yazma bariyeri geçince `Finalizing`; sahte `Cancel` yok. Sonuç tam commit veya tam rollback makbuzu.
+Devam eden işlem satırı (in-flight): her işlem satırı kesin durumunu (`Finalizing`, tam commit / tam rollback makbuzu) bu ortak etiketle gösterir; bariyerden önce iptal edilen iş makbuzuyla listelenir. `01.10` (Closing) ve `08.26` (Archive) bu satır etiketini yazmaz, `20.14`'e bağlanır ve yalnız kendi iş türü ayrıntısını tutar.
 - **Label'lar:** `Finalizing`, `Cancel` (yalnız bariyer öncesi).
 
 ### Aktör satırı
-Kayıt geçmişinde aktör türü.
+Kayıt geçmişinde aktör türü; dört türün sahibi burasıdır (`08.8` ve `09.10` yalnız referans verir). Tür, yazan kaynağı söyler: kurucu, kural motoru, GitHub olayı ya da yetkili dış araç.
 - **Label'lar:** `User`, `System automation`, `GitHub`, `Authorized integration`.
 
 ### Durumlar
@@ -522,14 +557,16 @@ Tam rollback: hiçbir kısmi kayıt yok; → `20.15`.
 **Artboard'lar**
 - `20.15 · Support Reference Error · Toast not written · 1440`
 - `20.15 · Support Reference Error · Toast outcome unknown · 1440`
-- `20.15 · Support Reference Error · Session check failed · 1440`
+- `20.15 · Support Reference Error · Toast data was written · 1440`
+- `20.15 · Support Reference Error · Toast list failure · 1440`
+- `20.15 · Support Reference Error · Toast Retry used · 1440`
 - `20.15 · Support Reference Error · Unreachable · 1440`
 - `20.15 · Support Reference Error · Session unavailable · 1440`
 - `20.15 · Support Reference Error · Session unavailable · Retry used · 1440`
 - `20.15 · Support Reference Error · Session unavailable · Unknown outcome · 1440`
 
 ### Hata toast'ı
-: neden; isteğe bağlı kurtarma ipucu; yazma sonucu; yeniden deneme sınırı; `Support reference` kodu veya `Support reference unavailable.`
+İçerik: neden; isteğe bağlı kurtarma ipucu; yazma sonucu; yeniden deneme sınırı; `Support reference` kodu veya `Support reference unavailable.` Yazılmamış yazma toast'ı kurucu kapatana veya `Retry` seçene kadar kalır (kapatma kontrolü vardır), böylece `Retry` ve `Support reference` erişilebilir kalır; kendiliğinden kapanmaz (kapanma kuralları: `Auto-dismiss`).
 <details>
 <summary>Label'lar</summary>
 
@@ -537,29 +574,31 @@ Tam rollback: hiçbir kısmi kayıt yok; → `20.15`.
 
 </details>
 
-### Oturum kontrolü durumu
-Korunan rotada kabuk içinde tam blok: başlık, referans, yazma sonucu, sınır, `Retry`.
-- **Label'lar:** `Cantiara couldn’t be reached.`, `Cantiara couldn’t check your session.`, `Session unavailable`, `Support reference`, `Support reference unavailable.`, `Retry`.
-
-### Tam sayfa varyantı (Session unavailable)
-Korunan rotada oturum denetimi geçici başarısız olduğunda içerik yerine uyarı bloğu çizilir; kurucu oturumdan çıkmış sayılmaz. Üst çubukta yalnız wordmark kalır. Blok sırasıyla: `Session unavailable` başlığı, `Support reference` satırı, yazma sonucu, yeniden deneme sınırı, `Retry`.
-- **Label'lar:** `Session unavailable`, `Cantiara couldn’t be reached.`, `Cantiara couldn’t check your session.`, `Support reference`, `Support reference unavailable.`, `Data was not written.`, `Data write outcome is unknown.`, `You can retry once.`, `Do not retry.`, `Retry`.
+### Oturum kontrolü durumu (Session unavailable)
+Korunan rotada oturum denetimi geçici başarısız olduğunda içerik yerine kabuk içinde tam uyarı bloğu çizilir; kurucu oturumdan çıkmış sayılmaz. Kabuk durumu (üst çubukta yalnız wordmark) `00.1`'dedir. Blok sırasıyla: `Session unavailable` başlığı, `Support reference` satırı, yazma sonucu, yeniden deneme sınırı, `Retry`.
+- **Label'lar:** `Session unavailable`, `Cantiara couldn’t be reached.`, `Cantiara couldn’t check your session.`; `Support reference`, yazma sonucu, yeniden deneme sınırı ve `Retry` label'ları hata toast'ındakilerdir (aynı metinler, burada yeniden tanımlanmaz).
 
 ### Durumlar
 #### Reference available
 Sunucu referansı görünür.
+#### Data was written
+Yazma tamamlandığı hâlde sonuç hatalıysa (`Data was written.`) toast bunu söyler; `Retry` yoktur ve `Support reference` görünür.
+#### List failure
+Sorgu/liste hatası toast'ı: `Data was not written.` ve `Support reference`.
+#### Auto-dismiss
+Süre kuralının tek sahibi burasıdır: yazılmış (`Data was written.`) ve sorgu/liste hatası toast'ları kendiliğinden kapanır, kapatma kontrolü zorunlu değildir; yazılmamış yazma toast'ı yalnız kapatma ya da `Retry` ile kapanır.
+#### Schema drift
+Şema kayması listesi hatası: neden satırı (`Please restart after applying the latest migration.` veya `Please restart the API and try again.`) ile birlikte `Data was not written.` ve `Support reference` görünür; ham SQLSTATE (`42P01`, `42703`) ve "404 Not Found" görünmez.
 #### Unreachable
 Sunucuya ulaşılamadı: `Support reference unavailable.`; ham tarayıcı ağ mesajı hiç gösterilmez.
-#### Repeated failure
-`Retry` gizlenir, `Do not retry.`
 #### Retry used
-İkinci başarısızlıkta `Retry` kaybolur, `Do not retry.` görünür.
+İkinci (tekrarlanan) başarısızlıkta `Retry` kaybolur, `Do not retry.` görünür (hem toast'ta hem `Session unavailable` bloğunda).
 #### Unknown outcome
 `Data write outcome is unknown.` görünür, `Retry` gösterilmez.
 #### Retrying
 Blok `aria-busy` durumda, düğme pasif.
 
-**Spec:** [03 Web macOS Client](../../specs/03-web-macos-client/spec.md), [01 Account Access](../../specs/01-account-access/spec.md) (`Session unavailable`), [01 Account Access](../../specs/01-account-access/spec.md) (korunan rota)
+**Spec:** [03 Web macOS Client](../../specs/03-web-macos-client/spec.md), [01 Account Access](../../specs/01-account-access/spec.md) (`Session unavailable`, korunan rota)
 
 ## 20.16 · Offline
 > Bağlantı kesildiğinde yazmanın kuyruğa alınmadığını, son başarılı kaydın zamanını ve gerekiyorsa kaydedilmemiş riski göstermek.
@@ -608,8 +647,8 @@ Kabuk içinde bant olarak (`layout=status`).
 - —
 
 ### Durum bloğu
-`00 · Shared Shell` içinde, içerik alanında tek blok: tek cümle; nedeni biliniyorsa kırık referans nedeni (yalnız erişim varsa başlık).
-- **Label'lar:** `Source record is unavailable.`, `No access`, `Permanently deleted`, `Document or Project is unavailable.`, `Smart Collection is unavailable.`, `Technical Diagram is unavailable.`
+`00.1 · App Frame` içinde, içerik alanında tek blok: tek cümle; nedeni biliniyorsa kırık referans nedeni ve başlık sızmama kuralı `20.10 · Kırık uç`'taki gibidir (neden label'ları orada).
+- **Label'lar:** `Source record is unavailable.`, `Document or Project is unavailable.`, `Smart Collection is unavailable.`, `Technical Diagram is unavailable.`
 
 ### Durumlar
 #### Generic
@@ -627,14 +666,14 @@ Tür bazlı metinler yukarıdaki gibi.
 - —
 
 ### Giriş
-Account Access giriş yüzeyi; üstte kısa açıklama satırı: oturumun sona erdiğini söyleyen tek satır (`Your session has ended. Sign in again to continue.`), `Continue with GitHub`. Hesap veya Çalışma Alanı varlığı açıklanmaz.
-- **Label'lar:** `Continue with GitHub`, `Waiting for GitHub`, `GitHub is taking a moment to respond.`
+Giriş yüzeyi, düğme ve bekleme durumları → `01.1 · Login`; bu ekranın tek farkı üstte oturumun sona erdiğini söyleyen tek açıklama satırıdır. Hesap veya Çalışma Alanı varlığı açıklanmaz.
+- **Label'lar:** `Your session has ended. Sign in again to continue.`; diğerleri → `01.1`.
 
 ### Durumlar
 #### Revoked
 Başka cihazdan `Revoke Session` sonrası: aynı ekran.
 #### Waiting for GitHub
-GitHub kesintisinde yeni giriş görünür biçimde bekler.
+→ `01.1`.
 #### Session unavailable (karşıt)
 Geçici servis hatası oturum bitişi değildir → `20.15`.
 
@@ -648,17 +687,18 @@ Geçici servis hatası oturum bitişi değildir → `20.15`.
 - —
 
 ### Bant
-Yüzey başlığının hemen altında tam genişlik ince bant: arşivde olduğu; normal düzenleme, GitHub eşitlemesi, otomasyon ve hatırlatmanın durduğu; yalnız erişimi azaltan güvenlik eylemlerinin (Dış yüzey iptali, token/parola döndürme, oturum sonlandırma, entegrasyon kesme, `Redact`) açık olduğu.
-- **Label'lar:** `Archived`, `Archive`, `Delete Project`; `This Project is archived and read-only.`, `Unarchive`.
+Yüzey başlığının hemen altında tam genişlik ince bant: arşivde olduğu; normal düzenleme, GitHub eşitlemesi, otomasyon ve hatırlatmanın durduğu; yalnız erişimi azaltan güvenlik eylemlerinin (Dış yüzey iptali, token/parola döndürme, oturum sonlandırma, entegrasyon kesme, `Redact`) açık olduğu. `Delete Project` ve `Archive` bantta bulunmaz; `Delete Project` yalnız Arşiv görünümünde sunulur (→ `08.27`).
+Arşivli Proje metni ve bantın sahibi burasıdır: `11.1`, `11.5`, `11.12`, `12.x`, `15.1` gibi yüzeyler `Archived project` durumunda yüzeye özgü metin yazmaz, bu banta bağlanır; yalnız yüzeyin neyi kapattığını (ör. oluşturma yok) ekler.
+- **Label'lar:** `Archived`, `This Project is archived and read-only.`, `Unarchive`.
 
 ### Durumlar
 #### Restored from Trash
-Silinip geri yüklenen Proje Arşive döner: aynı bant, yayınlar ve GitHub bağı açılmamış notuyla.
+Silinip geri yüklenen Proje Arşive döner: aynı bant, yayınlar ve GitHub bağı açılmamış notuyla; arşivden çıkarma da GitHub'ı açmaz, yeniden bağlama akışı `18.5`'tedir.
 
 **Spec:** [83 Project Retirement](../../specs/83-project-retirement/spec.md), [35 Personal Reminders](../../specs/35-personal-reminders/spec.md) (hatırlatma durur), [77 Trash](../../specs/77-trash/spec.md) (`Delete Project` yalnız Arşivden)
 
 ## 20.22 · Create Follow-up Work
-> Bir kaynaktan (bildirim, Ürün Boşluğu, Spec Değişikliği adayı, Oturum Testi, Üretim Olayı) tam olarak bir takip İşi önizleyip onayla oluşturmak; kaynağı kapatmamak.
+> Bir kaynaktan (bildirim, Geri Bildirim, Odak Dönemi, Reconcile, Ürün Boşluğu, Spec Değişikliği adayı, Oturum Testi, Üretim Olayı) tam olarak bir takip İşi önizleyip onayla oluşturmak; kaynağı kapatmamak.
 
 **Artboard'lar**
 - `20.22 · Create Follow-up Work · From notification · 1440`
@@ -673,16 +713,19 @@ Silinip geri yüklenen Proje Arşive döner: aynı bant, yayınlar ve GitHub ba�
 
 ### Ortak önizleme
 Oluşacak tek İşin salt okunur önizlemesi: başlık, tür, hedef Proje, başlangıç durumu ve köken ilişkileri. Onaydan önce hiçbir şey yazılmaz; onay tek İş oluşturur, kaynağın durumunu ve inceleme sonucunu değiştirmez.
-- **Label'lar:** `Create Follow-up Work`, `Follow-up Work preview`, `Title`, `Description`, `Work type`, `Target Project`, `Starting status`, `Originates from`, `Confirming creates exactly one Work. Nothing exists until then.`, `Cancel`, `Confirm`.
+- **Label'lar:** dialog başlığı `Create Follow-up Work`; eylem label'ı `Create follow-up work` (Ürün Boşluğu, Oturum Testi, Üretim Olayı; spec 58/57/66). Bildirim (spec 71) ve Spec Değişikliği adayı (spec 52) giriş eylemini de `Create Follow-up Work` yazar. Yazım kuralının tek sahibi burasıdır; `Follow-up Work preview`, `Title`, `Description`, `Work type`, `Target Project`, `Starting status`, `Originates from`, `Confirming creates exactly one Work. Nothing exists until then.`, `Cancel`, `Confirm`.
 
 ### Kaynağa göre farklar
 | Kaynak | Çağıran ekran | Yalnız bu kaynağa özgü |
 |---|---|---|
 | Bildirim | `00.5 · Notification Center` | Kaynak `LUMA-51 Stripe webhook retry` · `github-check-failed`; yeni İş Luma'da "Fix failing ci / test on PR #88"; köken: sinyal ve `LUMA-51`. Bildirimi kapatmaz. Bitince satır açık kalır, yanında yeni İşe bağlantı görünür. |
+| Geri Bildirim | `11.10 · Convert to Work` | Giriş `Convert to Work`; `Feature` seçilemez, hedef Proje Geri Bildirimin kendi Projesidir; köken: bu Geri Bildirim → yeni İş; Geri Bildirimin değişmediği cümlesi `11.10`'da. |
+| Odak Dönemi | `04.4 · Close Focus Period` | Giriş `Add follow-up Work` (Period evaluation öğreniminden); ek alanlar `Learning source`, `Source Focus Period`; hedef Proje seçilir (`Select Project`). Dönemin durumu ve kapanışı değişmez. |
+| Related Work (Reconcile) | `09.25 · Reconcile` | Giriş `Add follow-up Work`; önerilen ilişkilerle (`Proposed relations`) birlikte açıkça seçilen takip İşleri; kaynak Devir/dönen sonuç değişmez, `Reconcile` ayrı onaydır. |
 | Ürün Boşluğu | `07.1 · Product Gaps` | Seçim: `Create follow-up work` veya `Relate a Feature`; `Target Project` (`tidekit`), `Feature relation`; önizleme `Create 1 Feature in tidekit.` ya da `Relate Feature <ad> as a follow-up. No Work is created.`; `Preview follow-up`, `Confirm follow-up`, `Discard preview`. Sonuç `Follow-up Work created.` / `Follow-up Feature related.` |
 | Spec Değişikliği adayı | `10.16 · Spec Change Review` | Ek alan `Changed spec versions` (Version 4 → Version 5) ve `Why`; örnek `Update reminder copy for 72-hour retries` · Task · Luma · `Not Started`. `The review status of the candidate does not change.` |
-| Oturum Testi | `15.10 · Test Session Review` | `Target` (yeni İş / mevcut İş), `Results for follow-up`, `Results to link`; önizlemede `Originates from` (Test Oturumu) ve `Origin Location` (kesin Oturum Testi); mevcut İş seçiliyse `The İş keeps its own Origin; only the results are linked.` Örnek mevcut İş `LUMA-42`; sonuçlar `Bounce on +alias address`, `Retry header present`. |
-| Üretim Olayı | `17.2 · Production Incident Detail` | İş alanları (örnek Task "Alert when reminder queue age > 15 min") ve ayrı `İlişki önizlemesi`: `Originates from` → bu Üretim Olayı, varsa ek bağlar. |
+| Oturum Testi | `15.10 · Test Session Review` | Eylem `Create follow-up work`; `Target` (yeni İş / mevcut İş), `Results for follow-up`, `Results to link`; önizlemede `Originates from` (Test Oturumu) ve `Origin Location` (kesin Oturum Testi); mevcut İş seçiliyse `The Work keeps its own Origin; only the results are linked.` Örnek mevcut İş `LUMA-42`; sonuçlar `Bounce on +alias address`, `Retry header present`. |
+| Üretim Olayı | `17.2 · Production Incident Detail` | Eylem `Create follow-up work`; Work alanları (örnek Task "Alert when reminder queue age > 15 min") ve ayrı `Relation preview`: `Originates from` → bu Üretim Olayı, varsa ek bağlar. |
 
 ### Durumlar
 #### Applying
@@ -694,4 +737,21 @@ Düğme bekleme durumunda.
 #### Applied
 Dialog kapanır; kaynak yerinde kalır, yeni İşe bağlantı görünür.
 
-**Spec:** [71 Attention Signals](../../specs/71-attention-signals/spec.md), [58 Product Gaps](../../specs/58-product-gaps/spec.md), [52 Spec Change Review](../../specs/52-spec-change-review/spec.md), [57 Test Review and Follow-up](../../specs/57-test-review-and-follow-up/spec.md), [66 Production Incidents](../../specs/66-production-incidents/spec.md), [09 Work Lifecycle](../../specs/09-work-lifecycle/spec.md).
+**Spec:** [71 Attention Signals](../../specs/71-attention-signals/spec.md), [58 Product Gaps](../../specs/58-product-gaps/spec.md), [52 Spec Change Review](../../specs/52-spec-change-review/spec.md), [57 Test Review and Follow-up](../../specs/57-test-review-and-follow-up/spec.md), [66 Production Incidents](../../specs/66-production-incidents/spec.md), [09 Work Lifecycle](../../specs/09-work-lifecycle/spec.md), [47 Feedback](../../specs/47-feedback/spec.md), [30 Focus Period](../../specs/30-focus-period/spec.md), [24 External Handoffs](../../specs/24-external-handoffs/spec.md).
+
+## 20.23 · Account Closing Banner
+> Hesap `Closing` dondurmasında kurucunun gördüğü her yüzeyde normal yazmaların reddedildiğini ve yalnız kapanışı iptal etmenin ile dışa aktarmanın açık olduğunu aynı bantla söylemek.
+
+**Artboard'lar**
+- `20.23 · Account Closing Banner · Workspace surface · 1440`
+- —
+
+### Bant
+Yüzey başlığının hemen altında tam genişlik ince bant; yalnız dondurmada görünür. Yazma eylemleri pasiftir ve nedeni bantla aynı cümleyi izler; kurucu oturumu `Closing` geçişinde sona erdiği için dondurmada dönen kurucu bu bantlı yüzeyleri görür. Bant iki eylem sunar: kapanışı iptal etmek ve `Workspace Exit Package` ekranına (`02.14`) gitmek. `Closing` geçişinin kendisi `01.10`'dadır; burada yeniden çizilmez.
+- **Label'lar:** `This Account is closing. Only cancelling the closure and exporting are available.`, `Cancel closing`, `Workspace Exit Package`.
+
+### Durumlar
+#### Frozen write
+Dondurmada yazma eylemi seçilince eylem yazmaz; nedeni bantla aynı cümledir. `Export` ve `Import` için dialog notları `20.5 · Hesap kapanma dondurması` ve `20.6 · Kapanış dondurması`'ndadır.
+
+**Spec:** [84 Account Closure](../../specs/84-account-closure/spec.md), [82 Workspace Exit](../../specs/82-workspace-exit/spec.md)

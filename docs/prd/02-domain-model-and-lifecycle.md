@@ -1374,6 +1374,229 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Dışa aktarma manifesti | `Schema version`, `Scope`, `Filters`, `Visible fields`, `Produced at` | Her çıktıdaki kaynak manifesti alanları |
 | CSV kayıp raporu | `Lost in CSV`, `Escaped as data` | CSV'de kaybolan ilişki/tür/kimlik ve formül kaçışı raporu |
 | İçe aktarma eşleme ve makbuz | `Source column`, `Product field`, `Import receipt`, `Created`, `Updated`, `Rolled back` | İçe aktarma eşleme adımı ve tam commit/rollback makbuzu |
+| Tekrar bak öğeleri yükleniyor | `Loading Look again items…` | Tekrar bak listesi yüklenirken gösterilen durum metni |
+| Tekrar bak öğeleri kullanılamıyor | `Look again items are unavailable.` | Tekrar bak listesi alınamadığında gösterilen hata metni |
+| Etkin Çalışma Setine ekle / çıkar | `Add to Active Working Set`, `Remove from Active Working Set` | İş ve Belge kayıt başlığının taşma menüsünde Etkin Çalışma Setine üye ekleme ve çıkarma eylemleri |
+| Tepsiyi göster | `Show tray` | Küçültülmüş Etkin Çalışma Seti tepsisinin yeniden açma tetiği |
+| Okundu işaretle / okunmadı işaretle | `Mark as read`, `Mark as unread` | Bildirim Merkezi satırında okundu işaretleme ve geri alma eylemleri |
+| Kişiler'i aç | `Open Contacts` | Komut paletinde Kişiler yüzeyini açan komut |
+| Kişiler | `Contacts` | Kişi ve Şirket yüzeyinin gezinti etiketi; `More` altında yer alır |
+| Canlı blok sınırı doldu | `Live block limit reached. Remove one to add another.` | Canlı blok üst sınırına ulaşılınca `Add live block` yanında gösterilen sessiz satır |
+| Arşive geri yükle | `Restore to Archive` | Çöp Kutusu'ndaki Proje grubunu Aktif'e değil Arşive döndüren eylem |
+| Arşive geri yükleme sonucu | `Restoring returns the Project to Archive. No surface is republished and GitHub stays disconnected.` | Proje grubu geri yüklenirken gösterilen sonuç metni |
+| Çalışmıyor | `Not running` | Çöp Kutusu'ndaki kuralın çalışmadığını söyleyen durum etiketi |
+| Çöp Kutusu boş | `Trash is empty.` | Çöp Kutusu'nun dürüst boş durum metni |
+| Yeniden yayın için yeni onay | `Republishing requires a new approval.` | Geri yüklenen Projede korunan Dış yüzeyin yeniden yayımlanması için açık onay gerektiğini söyleyen metin |
+| Zarf tanımı | `Envelope definition` | Çalışma Alanı Çıkış Paketi ekranında uygulamasız envelope tanımına bağlantı |
+| Parolalar eşleşmiyor | `The passwords do not match.` | Paket parolası ve tekrar alanı uyuşmadığında alan altında gösterilen hata |
+| Paket parolası kaybı uyarısı | `If you forget the package password, the Workspace Exit Package cannot be read. There is no recovery code and no unencrypted copy.` | Parola kaybının sonucunu söyleyen tek sahipli cümle |
+| Çalışma Alanı Çıkış Paketi üret | `Produce Workspace Exit Package` | Çalışma Alanı Çıkış Paketi üretimini başlatan eylem |
+| İndirmeyi iptal et | `Revoke download` | Hazır paketin süreli indirmesini iptal eden eylem |
+| İzin gerekli | `Permission needed` | Yakalama uzantısında okuma izni istenirken gösterilen başlık |
+| Erişim riski | `Access risk` | Yakalama uzantısında izin isteminin riskini gösteren etiket |
+| İzin ver | `Allow` | Yakalama uzantısında okuma iznini veren eylem |
+| İzin reddedildi | `Permission declined. Nothing was sent.` | Okuma izni reddedilince hiçbir şeyin gönderilmediğini söyleyen metin |
+| Oturum iptal edildi | `Session revoked.` | Tek oturum iptal edilince gösterilen sonuç bildirimi |
+| Diğer oturumlar iptal edildi | `Other sessions revoked.` | `Revoke Other Sessions` sonrası gösterilen sonuç bildirimi |
+| Dondurulmuş | `Frozen` | Hesap kapanma sürecinin 30 günlük dondurma aşaması |
+| Kapanış dondurması açıklaması | `Only Cancel closing and export are available.` | Dondurma aşamasında yalnız kapanışı iptal etme ve dışa aktarmanın açık olduğunu söyleyen açıklama |
+| Dondurma bitiş tarihi | `Freeze ends {date}` | Hesap kapanma zaman çizelgesinde dondurmanın bitiş tarihi satırı |
+| Kalıcı silme tarihi | `Permanent deletion on {date}` | Hesap kapanma zaman çizelgesinde kalıcı silme tarihi satırı |
+| Dış araç kaçışları ayrı listelenir | `Tool Escapes are listed separately; nothing is shared until you approve each row.` | Ürün Boşluğu paylaşım önizlemesinde Dış Araca Kaçış satırlarını açıklayan metin |
+| Şirketi kaydet | `Save Company` | Şirket adını kaydeden eylem |
+| Kişisel veri uyarısı | `Health, biometric, government ID, payment card and children's data are not stored as a first-product type. Do not enter them.` | Kişi oluşturma dialogunda alanların altındaki sessiz uyarı |
+| Aynı e-posta adresi | `Same email address` | Güçlü kopya adayında gösterilen neden satırı |
+| Benzer ad | `Similar name` | Zayıf öneride gösterilen neden satırı |
+| Benzer Şirket | `Similar Company` | Zayıf öneride gösterilen neden satırı |
+| İlgili kanıt | `Related evidence` | Kişisel veri dışa aktarma dialogunda ilgili kanıt kayıtlarını kapsayan seçenek |
+| Paylaşılan ve yayımlanan kopyalar kaldırıldı | `Shared and published copies were removed. Cache cleanup is queued.` | Kişisel veri silme sonrası paylaşım ve yayın kopyalarının kaldırıldığını ve cache temizliğinin kuyruğa alındığını söyleyen satır |
+| Gömme kodu desteklenmiyor | `Embed code is not supported. Paste the page URL instead.` | Kaynak eklerken gömme kodu yapıştırılınca gösterilen hata |
+| Ekran görüntüsü | `Screenshot` | Yakalanan içerik bölümündeki ekran görüntüsü etiketi |
+| Kaynak Kontrolü kaydedildi | `Source Check saved.` | `Keep current version` sonrası gösterilen sonuç; onaylı sürüm değişmez |
+| Kaynak sürümü kaydedildi | `Source version saved.` | `Save as new Source version` sonrası gösterilen sonuç; eski sürüm ve bağlar yerinde kalır |
+| Dosya Eki transkript değildir | `A file is not a transcript or an evidence bind.` | Dosya Ekleri bölümünde bir dosyanın transkript ya da kanıt bağı sayılmadığını söyleyen not |
+| Katılımcı alıntısı yönergesi | `The participant’s own words. Use an anonymous Speaker label; do not copy Contact details.` | `Participant quote` türü seçiliyken gösterilen yönerge |
+| Kişi veya Şirket değiştirilemedi | `Contact or Company could not be changed. Reload and try again.` | Araştırma Oturumu ve Geri Bildirim kaydında ilişki değişmediğinde gösterilen hata |
+| Durum değişikliği İş'i değiştirmez | `Changing the status does not change any Work.` | Geri Bildirim durumu değişirken gösterilen not |
+| Kanıt kalitesi geçmişi | `Evidence quality history` | Geri Bildirimde kanıt kalitesi değişikliklerinin geçmişi |
+| Kanıt kalitesi geçersiz | `Evidence quality is invalid.` | Kanıt kalitesi kaydedilirken gösterilen doğrulama hatası |
+| Kaynak olay zamanı | `Source event time` | Kanıtın kaynağında olayın gerçekleştiği zaman |
+| Kanıt zamanı | `Evidence time` | Kanıtın kaydedildiği zaman |
+| Tek dosya, tek tür, tek kapsam | `One file · one type · one scope` | İçe aktarma girişinin yanındaki not |
+| İçindekiler | `Contents` | Odak Modunda Belge bölümlerini listeleyen kontrol |
+| Bölüme odaklan | `Focus on section` | Odak Modunda tek bölüme odaklanan eylem |
+| Tam Belgeye dön | `Back to full Document` | Bölüm odağından tam Belgeye dönen eylem |
+| Odak Modundan çık | `Exit Focus Mode` | Odak Modunu kapatan eylem |
+| Gelişmiş | `Advanced` | Bul ve değiştir içinde düz metin varsayılanından ayrı regex anahtarı |
+| Kalıp geçerli değil | `This pattern is not valid.` | Bul ve değiştirde geçersiz regex kalıbı hatası |
+| Sürüm 5 için Spec Değişiklik İncelemesi açıldı | `Spec Change Review opened for Version 5.` | Sürümler listesinde bir sürümden Spec Değişiklik İncelemesi açılınca gösterilen sonuç |
+| Proje görünümleri | `Project views` | Proje Genel Bakışında görünümlere giden bölümün başlığı |
+| Bağlayan ilişki türü | `Bound by {relation type}` | Değer Zinciri düğümünde bağın ilişki türünü gösteren etiket |
+| İlişkili bağ katkı sayılmaz | `A Related link does not count as a contribution to this goal.` | `Related` bağının Hedefe katkı sayılmadığını söyleyen not |
+| Bu boşluğu doldur | `Fill this gap` | Değer Zincirinde eksik veya çözülemeyen adımın yanındaki eylem |
+| Mevcut kaydı seç | `Choose an existing record` | Boşluk panelinde ilişki seçiciyi açan yol |
+| Yeni kayıt başlat | `Start a new record` | Boşluk panelinde ilgili özelliğin oluşturma akışına giden yol |
+| Boşluk paneli notu | `Nothing is written until you save the relation in the owning feature. No other record changes status.` | Boşluk panelinde hiçbir şeyin sahip özellikte kaydedilene kadar yazılmadığını söyleyen sabit not |
+| Kayıt açılamadı | `The record could not be opened.` | Boşluk panelinde kaydın açılamaması hatası |
+| Kilometre Taşına ulaşıldı | `Milestone reached` | Proje Hikâyesi zaman çizelgesinde olay türü |
+| Yaşam döngüsü değişikliği | `Lifecycle change` | Proje Hikâyesi zaman çizelgesinde olay türü |
+| Kod değişikliği | `Code change` | Proje Hikâyesi zaman çizelgesinde olay türü |
+| Deney sonucu | `Experiment result` | Proje Hikâyesi zaman çizelgesinde olay türü |
+| Vazgeçme gerekçesi | `Abandonment rationale` | Vazgeçilen İşin Proje Hikâyesi olayındaki gerekçe etiketi |
+| Kaynağa göre süz | `Filter by source`, `Any source` | Proje etkinlik akışında kaynak süzgeci ve tüm kaynakları kapsayan seçenek |
+| Olay türüne göre süz | `Filter by event type`, `Any event type` | Proje etkinlik akışında olay türü süzgeci ve tüm olay türlerini kapsayan seçenek |
+| Alan değişikliği | `Field change` | Etkinlik akışında olay türü süzgeci değeri |
+| Durum değişikliği | `Status change` | Etkinlik akışında olay türü süzgeci değeri |
+| Önceki / sonraki değer | `Previous` | Etkinlik satırında önceki ve sonraki alan değerini gösteren etiketler |
+| Geri alma sınırı | `Undo boundary` | Küme açıkken geri alma sınırını gösteren satır |
+| Değişiklik kümesi | `{n} changes by {actor} within 5 minutes` | Beş dakika içindeki aynı aktörün değişikliklerini kümeleyen satır |
+| Hikâye boş | `No story events yet.` | Yeni Projede Proje Hikâyesi boş durum metni |
+| Etkinlik boş | `No activity yet.` | Yeni Projede etkinlik akışı boş durum metni |
+| Durum işareti | `Status mark` | Proje Güncellemesinde durum işareti alanı |
+| Anlatı | `Narrative` | Proje Güncellemesinde serbest anlatı alanı |
+| Kayıt anındaki canlı özet | `Live summary at save time` | Proje Güncellemesinde kayıt anında katlanan canlı özet alanı |
+| Proje Güncellemesi kaydedildi | `Project Update saved.` | Proje Güncellemesi kaydedilince gösterilen başarı bildirimi |
+| Yazıldığı andaki özet | `Summary when written` | Proje Güncellemesi liste girişinde katlanmış snapshot |
+| Kaydedilmiş güncelleme düzenlenmez | `A saved update cannot be edited. Write a new update instead.` | Kaydedilmiş Proje Güncellemesinin düzenlenmediğini ve silinmediğini söyleyen not |
+| Tekrarlayan hatırlatma | `Repeating reminder` | Tekrarlayan Kişisel Planlama hatırlatması türü |
+| Düşünme sorusu | `Reflection question` | Tekrarlayan hatırlatmaya bağlanan düşünme sorusu |
+| Aralık | `Interval` | Tekrarlayan hatırlatmanın tekrar aralığı |
+| Hatırlatmayı duraklat | `Pause reminder` | Tekrarlayan hatırlatmayı duraklatan eylem |
+| Hatırlatmayı kapat | `Turn off reminder` | Tekrarlayan hatırlatmayı kapatan eylem |
+| Kapanış Özeti Taslağı notu | `The draft contains only headings and links to your records. It writes no conclusions.` | Kapanış Özeti Taslağının yalnız başlık ve bağlantı içerdiğini söyleyen not |
+| Kaynak seç | `Select sources` | Kapanış Özeti Taslağında kaynak seçim adımı |
+| Tamamlanan İş | `Completed Work` | Kapanış Özeti Taslağında kaynak grubu |
+| Başlıkları önizle | `Preview headings` | Kapanış Özeti Taslağında oluşacak başlıkları gösteren eylem |
+| Taslak oluştur | `Generate draft` | Kapanış Özeti Taslağını üreten eylem |
+| Planlanan tarih geçmişi | `Planned date history` | Kapanış Özeti Taslağında planlanan tarih değişikliklerinin geçmişi |
+| Taşındı | `Moved` | Planlanan tarih geçmişinde hedefin taşındığını gösteren değer |
+| Hedeften önce | `Before target` | Planlanan tarih geçmişinde hedeften önce biten değer |
+| Hedefte | `On target` | Planlanan tarih geçmişinde hedefte biten değer |
+| Hedeften sonra | `After target` | Planlanan tarih geçmişinde hedeften sonra biten değer |
+| Geçmiş okumasıdır, puan değildir | `This is a reading of existing history. It is not a score.` | Planlanan tarih geçmişi notu |
+| Belge olarak kaydet | `Save as Document` | Kapanış özetini `General` Belge olarak kaydeden eylem |
+| Taslağı at | `Discard draft` | Kapanış özeti taslağını kaydetmeden atan eylem |
+| Etkilenen Belgeler yeni sürüm alır | `Affected Documents get a new version. Undo restores them together.` | Etiket yeniden adlandırma makbuzunda etkilenen Belgelerin sürümlü değiştiğini söyleyen satır |
+| Eşleşecek alan değişikliği yok | `No field change can make this record match.` | Sürükleme önizlemesi doğrudan alan eşitliği olmayan koşulda gösterilen metin |
+| Çöpteki kural çalışmaz | `A rule in Trash does not run.` | Çöpteki otomasyon kuralları için not |
+| Yeni otomasyon kuralı | `New automation rule` | Otomasyon kuralı formunun başlığı |
+| Tetikleyici | `Trigger` | Otomasyon kuralı formunda tetikleyici alanı |
+| Koşullar (isteğe bağlı) | `Conditions (optional)` | Otomasyon kuralı formunda koşul alanı |
+| Kapalı liste notu | `Triggers, conditions and actions come from a closed list. There is no scripting.` | Otomasyon formunda tetikleyici, koşul ve eylemlerin kapalı listeden geldiğini söyleyen not |
+| Tekrarlayan İş | `Repeating Work` | Hazır otomasyon kuralı türü |
+| Tekrarlayan İş açıklaması | `Each repeat creates a new, independent Work. The same Work is never reopened.` | Tekrarlayan İş kuralı açıklaması |
+| Her şu kadar tekrarla | `Repeat every` | Tekrarlayan İş kuralında tekrar aralığı alanı |
+| Deneme çalıştırması | `Dry run` | Otomasyon kuralını yazmadan deneyen düğme |
+| Deneme çalıştırması sonucu | `Dry run result` | Deneme çalıştırması sonuç başlığı |
+| Hiçbir şey yazılmadı | `Nothing was written.` | Deneme çalıştırması sonrası gösterilen not |
+| Tanım geçmişi | `Definition history` | Otomasyon kuralı tanım sürümlerinin geçmişi |
+| Sürüm {n} | `Version {n}` | Tanım geçmişinde sürüm satırı |
+| Bu tanımı geri yükle | `Restore this definition` | Eski kural tanımını geri yükleyen eylem |
+| Tanım geri yükleme notu | `Restoring a definition affects future runs only.` | Tanım geri yüklemenin yalnız gelecek çalıştırmaları etkilediğini söyleyen not |
+| Çelişen öneri notu | `No change was written. These rules propose different values for the same field.` | Aynı hedef alana çelişen kural önerilerinde gösterilen sabit metin |
+| Önerilen değer | `Proposed value` | Çelişen öneri tablosunda sütun |
+| Çöz | `Resolve` | Çelişen öneriyi çözme eylemi |
+| Başarısız adım | `Failed step` | Başarısız otomasyon çalıştırmasında başarısız adımı gösteren alan |
+| Build in Public'i etkinleştir | `Enable Build in Public` | Build in Public yüzeyini açan eylem |
+| Yayımla | `Publish` | Build in Public onaylı revizyonunu yayımlayan birincil eylem |
+| Önerilen: Yayımlandı | `Suggested: Released` | Yayımlanmış Proje Sürümü üyesi İş için önerilen etiket |
+| Released'ı kullan | `Use Released` | Önerilen etiketi kabul eden eylem |
+| Öne çıkarma bitişi | `Featured until` | Öne çıkarılan kaydın bitiş tarihi alanı |
+| Starter Configuration sunulmaz | `Starter Configuration is not offered; the copied structure is the structure.` | Proje yapısını kopyalarken Starter Configuration sunulmadığını söyleyen not |
+| Oluşturuluyor… | `Creating…` | Proje oluşturulurken onay düğmesinin kaydetme durumu |
+| Arama açıklaması | `Search description` | Kişisel Wiki Belgesi yayın önizlemesinde arama açıklaması alanı |
+| Tam Diyagram Sürümü | `Exact Diagram Version`, `Diagram View` | Dışa aktarma önizlemesinde dışa aktarılan Diyagram Sürümü veya görünümü |
+| Bu dışa aktarmada dışarıda kalanlar | `Left out of this export` | Dışa aktarma önizlemesinde dışarıda kalan öğeler satırı |
+| Statik çıktı notu | `Static output. It is not a live link or an editable source.` | Diyagram dışa aktarmasının canlı bağlantı veya düzenlenebilir kaynak olmadığını söyleyen not |
+| JSON içe aktarılamaz | `This JSON cannot be imported.` | Diyagram dışa aktarma önizlemesinde JSON'ın içe aktarılamayacağını söyleyen not |
+| Model hash'i | `Model hash` | DDL manifestinde model özeti |
+| Üretici sürümü | `Generator version` | DDL manifestinde üretici sürümü |
+| Uyarı manifesti | `Warning manifest` | DDL ile birlikte üretilen uyarı manifesti |
+| .sql olarak dışa aktar | `Export .sql` | DDL'i .sql dosyası olarak dışa aktaran eylem; manifest eşlik eder |
+| DDL kopyalandı | `DDL copied.` | DDL panoya kopyalanınca gösterilen başarı bildirimi |
+| DDL üretilemedi | `DDL could not be generated.` | DDL üretimi başarısız olunca gösterilen hata |
+| Statically Validated notu | `Statically Validated means the SQL passed parse and apply on a disposable database that was destroyed afterwards. It does not mean the SQL ran on any of your databases.` | `Statically Validated` durumunun anlamını sınırlayan sabit not |
+| CREATE EXTENSION üretilmez | `CREATE EXTENSION is never generated.` | DDL üretiminde extension oluşturma komutunun üretilmediğini söyleyen not |
+| Yıkıcı olmayan | `Non-destructive` | Migration operasyon sınıfı |
+| Olası yıkıcı | `Potentially destructive` | Migration operasyon sınıfı |
+| Desteklenmeyen | `Unsupported` | Migration operasyon sınıfı |
+| Faz <n> | `Phase <n>` | Migration planında operasyonun fazı |
+| Mevcut veri uyarısı | `Existing data warning` | Migration satırında mevcut veriye etkisi uyarısı |
+| Geri dönüş veri uyarısı | `Reverse data warning` | Migration satırında geri dönüşte veri kaybı uyarısı |
+| Extension gerekli | `Extension required` | Migration satırında extension gerektiren operasyon etiketi |
+| Migration operasyonları | `Create table`, `Rename table`, `Rename column`, `Widen column type`, `Relax nullability`, `Tighten nullability`, `Add or change default`, `Drop default`, `Add primary key`, `Add foreign key`, `Change referential action`, `Add unique constraint`, `Add check constraint`, `Add index`, `Drop index`, `Create enum type`, `Add enum value`, `Rename enum value`, `Create domain`, `Add domain constraint` | Yıkıcı olmayan migration operasyonlarının PRD 11 sırasındaki İngilizce adları |
+| Yeniden doğrula | `Revalidate` | Düzenlenen Up SQL'i yeniden doğrulayan eylem |
+| Olası yıkıcı satır onayı | `I understand this can lose data or guarantees` | Olası yıkıcı satırlar için gösterilen ek onay kutusu |
+| Manifesti dışa aktar | `Export manifest` | `.sql` ile eşlik eden manifesti dışa aktaran eylem |
+| Beklenen davranış | `Expected behavior` | Planlı Test Senaryosu alanı; Bug Capture'ın `Expected Behavior` alanından ayrı kavramdır |
+| Taslak olarak işaretle | `Mark as Draft` | Paketi henüz üretilmemiş `Ready to share` Test Devrini Taslağa döndüren eylem |
+| Hatırlatma normal hatırlatmadır | `A reminder is a normal reminder on this record. It is not a runner deadline.` | Test Devrinde `Remind me` kontrolünün yanındaki not |
+| Dönüş yönergeleri | `Return instructions` | Test Devri paketinde raporların `test-report/1` olarak döneceğini söyleyen bölüm satırı |
+| Oturum Testi sınırı | `A manual Test Session holds up to 200 Session Tests.` | 200 Oturum Testi sınırında `Add Session Test` pasifken gösterilen neden |
+| Dosya boyutu ipucu | `Up to 5 MiB; up to 1,000 Session Tests.` | Test Oturumu dosyası içe aktarılırken boyut ve Oturum Testi sınırı ipucu |
+| Madde incelemesi | `Review of <title>` | Test İncelemesinde madde düzeyi inceleme durumu seçicisi |
+| Oturum Testinin Çöpü veya arşivi yok | `A Session Test has no Trash or archive of its own.` | Oturum Testi listesinde Oturum Testinin kendi Çöp Kutusu veya arşivi olmadığını söyleyen not |
+| Kapatma gerekçesi (isteğe bağlı) | `Close reason (optional)` | Test Oturumu kapatma dialogunda isteğe bağlı gerekçe alanı |
+| Eski sonuç | `Older result` | Supersedes ilişkisi seçiminde eski sonuç |
+| Supersedes ilişkisi oluştur | `Create Supersedes relation` | Supersedes ilişkisini onaylayan eylem |
+| Döngü reddi | `This would create a cycle. A result cannot supersede itself through the chain.` | Supersedes zincirinde döngü oluşturacak seçim reddedilince gösterilen metin |
+| Planlama: başlık | `Planning for <title>` | Test Açığının planlama bağlantıları dialogunun başlığı |
+| Kapsam kaynağı | `In scope through Work: <key>`, `Linked directly to this Project Release` | Test Özetinde Proje Sürümü delta satırının kapsam kaynağı |
+| Bu Release Evidence Pack değildir | `This is not the Release Evidence Pack.` | Test Özetinin Release Evidence Pack olmadığını söyleyen not |
+| Karar tarihi | `Decision date` | Karar kaydında kararın verildiği tarih alanı |
+| Yerine geçilen tarih | `Superseded on` | Yerine yeni Karar geçen Kararın tarih etiketi |
+| Geri çekilme tarihi | `Withdrawn on` | Geri çekilen Kararın tarih etiketi |
+| Yeni bağlantı iste | `Ask the person who sent the link for a new link.` | Süresi dolmuş bağlantı sayfasındaki yönlendirme |
+| Gösterilme nedeni | `Shown because: {reason}` | Release Evidence Pack satırında kaydın gösterilme nedeni |
+| Yayını önizle | `Preview publish` | Yayın öncesi önizlemeyi açan eylem |
+| Release notes'u yayımla | `Publish Release notes` | Release notes yayınını onaylayan eylem |
+| Öğeyi onayla | `Approve {item}` | Release notes yayın dialogunda öğe onay eylemi |
+| Onaylanan sayısı | `{n} of {m} approved` | Release notes yayın dialogunda onay ilerleme göstergesi |
+| Davranışlar | `Behaviors`, `Add behavior` | Tasarım prototipinde davranış listesi ve ekleme eylemi |
+| Davranış türleri | `Show / hide`, `Two-state transition`, `Hover / press`, `Sequential steps`, `Screen transition` | Tasarım prototipinde davranış türleri |
+| Süre | `Duration`, `Fast`, `Normal`, `Slow`, `Slower` | Davranış süresi alanı ve değerleri |
+| Hedef Ekran | `Target Screen` | Davranışın hedef ekranı alanı |
+| Metin kaynağı | `Text source`, `Placeholder`, `Live section` | Tasarım metninin kaynağı alanı ve değerleri |
+| Bölüm seç | `Choose a section` | Canlı bölüm kaynağı için bölüm seçimi |
+| Kaydedildiğinde görülen metin | `Text seen when saved` | Kayıtlı sürümde canlı kaynaktan görülen metin |
+| Güncel kaynağı aç | `Open current source` | Canlı bölüm kaynağının güncel hâlini açan eylem |
+| Seçili bloklar | `Selected blocks` | Tasarım seçiminde seçili bloklar etiketi |
+| Ekranın seçimi | `Selection of <Screen>` | Tasarım seçiminde ekrana ait seçim etiketi |
+| Başlangıç Ekranı | `Start Screen` | Prototipin başlangıç ekranı |
+| Çözülemeyen hedef | `Unresolved: <target>` | Çözülemeyen davranış hedefi etiketi |
+| Özgünü indir | `Download original` | Görselin özgün Dosya Eki sürümünü kırpmasız indiren eylem |
+| Dışa aktarma notu | `Export uses the presented view. The original file is unchanged and can be downloaded separately.` | Tasarım dışa aktarma açıklaması |
+| Dışa aktarma kapasitesi dolu | `Export capacity is full. Try again in a moment.` | Eşzamanlı dışa aktarma kapasitesi dolunca gösterilen ret metni |
+| Önceki köken | `Previous origin` | İçe aktarma önizlemesinde önceki köken |
+| İlişkiyi eşle | `Map relation` | İçe aktarma önizlemesinde ilişki eşleme eylemi |
+| İçe aktarma önizleme notu | `Preview does not change any record. The uploaded file is kept for at most 24 hours.` | İçe aktarma önizlemesinin kayıt değiştirmediğini söyleyen not |
+| Redakte edilecek değer | `Value to redact` | Değer redakte etme dialogunda alan etiketi |
+| Seçili İş sayısı | `{n} Work selected` | Toplu düzenleme dialogunda seçili İş sayısı |
+| Toplu düzenleme notu | `Only the selected Work is changed.` | Toplu düzenlemede yalnız seçili İşin değiştiğini söyleyen not |
+| Yalnız hâlâ açıksa kullanılamaz | `Only if still open is not available for this record type.` | Document, Decision ve Project Release kaynaklarında `Condition` açıklaması |
+| Özellik reddi | `This Work is already included in a Feature.` | İkinci birincil Feature ilişkisi reddi |
+| Sabitlenmiş bağlar notu | `Pinned binds and approved snapshots stay on the current version.` | Yeni sürüm yükleme önizlemesinde sabitlenmiş bağlar ve onaylı snapshot notu |
+| Depolama %80 dolu | `Workspace storage is 80% full.` | Çalışma Alanı depolaması %80'e ulaşınca gösterilen uyarı |
+| Depolama kotası aşıldı | `Storage quota exceeded. New uploads and versions are blocked; existing files stay readable, downloadable, and deletable.` | Kota aşılınca yeni yükleme ve sürümün kapalı olduğunu söyleyen metin |
+| Kayıt değişti | `{Record type} changed. Cancel and reopen before saving again. Your text is kept here.` | Kayıt formlarında çatışma cümlesi deseni |
+| Hesap kapanıyor | `This Account is closing. Only cancelling the closure and exporting are available.` | Hesap kapanırken ilgili ekranlarda gösterilen sabit metin |
+| Sıra | `Rank` | Work filtresinde öncelik ölçütü kademesi |
+| Zaman ölçeği | `Time scale` | Roadmap görünümünde zaman ölçeği seçicisi |
+| Yoğunluk | `Density` | Roadmap görünümünde yoğunluk seçicisi |
+| Kilometre Taşını düzenle | `Edit Milestone` | Roadmap Kilometre Taşı satırında düzenleme girişi |
+| Bu Projede henüz Özellik yok | `No Features in this Project yet.` | Özellik ağacında Özellik yoksa gösterilen açıklama |
+| Bağlam kopyalandı | `Context copied.` | İş Bağlam Kartı panoya kopyalanınca gösterilen toast |
+| Dönüş kaydedildi | `Return recorded` | Devir geçmişi olay etiketi |
+| Devir uzlaştırıldı | `Handoff reconciled` | Devir geçmişi olay etiketi |
+| Devir iptal edildi | `Handoff canceled` | Devir geçmişi olay etiketi |
+| Önizleme değişti | `Preview changed. Review it again.` | Önizleme kimliği bayatsa onay verilemeyeceğini söyleyen metin |
+| GitHub kaydını yeniden dahil et | `Re-include`, `Confirm re-include` | Silinmiş GitHub kaydının tombstone satırından yeniden dahil edilmesi ve onayı |
+| Yeniden dahil etme uyarısı | `Re-including creates a new record. It originates from the deleted GitHub record and is not the same identity.` | Yeniden dahil etmenin yeni kayıt ürettiğini söyleyen uyarı |
+| Geri yükleme uyarısı | `Restoring syncs the record with GitHub now. Review the difference.` | Çöpten geri yüklenen GitHub kaydının hemen eşitleneceğini söyleyen uyarı |
+| GitHub'da aç | `Open on GitHub` | Kaydı GitHub'daki sayfasında açma |
+| GitHub inceleme ve birleştirme notu | `Review and merge happen on GitHub.` | İnceleme ve birleştirmenin GitHub'da yapıldığını belirten not |
+| Öneriyi yok say | `Dismiss suggestion` | GitHub bağlama önerisini reddetme |
+| GitHub kaydını bağla / bağı kaldır | `Link GitHub record`, `Unlink GitHub record` | İş ile GitHub kaydı arasındaki bağı kurma ve kaldırma |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 

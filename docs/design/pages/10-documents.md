@@ -29,19 +29,24 @@ Projenin `Documents` alanı: Belge listesi, editör, sürümler, şablonlar ve S
 - `10.1 · Documents · Archived filter · 1440`
 
 ### Alan başlığı
-- **Label'lar:** `Documents`, `Archived`, `Create Document`.
+Alan adı, `Archived` süzgeci, `Create Document`, Belge içe aktarma girişi, etikete göre süzme ve alt görünüm girişi. `Import` tek Markdown dosyasını bu Projenin Belgesi olarak içe aktarır; yanında `One file · one type · one scope` notu görünür, hedef kapsam bu Proje olarak önceden dolar ve diyalog → `20.6 · Import`. Hesap kapanma dondurmasında `Import` kapalıdır ve nedeni yazılıdır (→ `20.6` Kapanış dondurması). `Filter by tag` Belge listesini Çalışma Alanı Etiket kimliğiyle daraltır (→ `08.11 · Tags`); bir Belge bu süzgeçten açılınca editör eşleşen etiket tokenının konumuna odaklanır (konumu Belge çözer, Etiket özelliği gövdeyi çözümlemez). `Spec Change Review` alt görünümü Projenin açık spec değişikliği incelemelerini açar (→ `10.16 · Spec Change Review`).
+- **Label'lar:** `Documents`, `Archived`, `Create Document`, `Import`, `Filter by tag`, `Spec Change Review`.
 
 ### Belge gezinmesi
-Klasör başlıkları (klasörsüz Belgeler başlıksız ilk grupta), her klasörde kök Belge ve altında girintili çocuk/torun Belgeler; satırda başlık ve sessiz kapsam rozeti. Seçili satır `aria-current` taşır.
+Klasör başlıkları (klasörsüz Belgeler başlıksız ilk grupta), her klasörde kök Belge ve altında girintili çocuk/torun Belgeler; satırda başlık; liste tek Projeye ait olduğundan kapsam rozeti yoktur (`Project: <project name>` rozeti yalnız karışık kapsamlı Belge dizininde, → `02.7`, `02.8`). Seçili satır `aria-current` taşır.
 - **Label'lar:** Klasör adları kullanıcı verisidir; tür değerleri `General`, `PRD`, `Plan`, `Spec`, `Research Note`, `Persona`.
 
 ### Seçim yok
 Sağ kolonda tek satır boş durum.
 - **Label'lar:** `Select a Document.`
 
+### Project File Attachments (Documents alanında)
+Gezinmenin altında Projenin kapsamındaki `Project File Attachments` bölgesi; Dosya Eki Belge ya da global havuz değildir. Bölge gövdesi ortak `File Attachments` bileşenidir (→ `20.13 · File Attachment Viewer`). Satırda eki sahiplenen Belge görünür; sahiplik `Assign File Attachments` ile kurulur (→ `10.10`). Örnek: `etiquette-survey.csv` → `Late-payment etiquette notes`. Luma ekleri: `gmail-alias-bounce.png`, `stripe-webhook-log.txt`, `etiquette-survey.csv`, `beta-onboarding.mp4`, `ferry-assets.zip`.
+- **Label'lar:** `Project File Attachments`, `File Attachments`, `Assign File Attachments`, `No File Attachments are available in this Project yet.` (boş durum).
+
 ### Durumlar
 #### Empty
-Projede Belge yok: gezinme boş, yalnız `Select a Document.` yerine dürüst boş durum ve `Create Document`. Örnek Belge üretilmez. Başlangıç iskeleti yapılandırılmış Projede bile iskelet Belgeler kullanıcı seçmeden oluşmaz.
+Projede Belge yok: gezinme boş, yalnız `Select a Document.` yerine dürüst boş durum ve `Create Document`. Örnek Belge üretilmez. Başlangıç iskeleti yapılandırılmış Projede bile iskelet Belgeler kullanıcı seçmeden oluşmaz. `Project File Attachments` boşsa `No File Attachments are available in this Project yet.` ve yükleme sırası.
 #### Loading
 `Loading Documents…`
 #### Error
@@ -61,7 +66,7 @@ Uzun klasör listesi ve üç seviye girinti; uzun başlıklar satırda kırılı
 **Artboard'lar**
 - `10.2 · Document Editor · Write · 1440`
 - `10.2 · Document Editor · Write · 768`
-- `10.2 · Document Editor · Write · 1440 · Dark`
+- `10.2 · Document Editor · Write · Dark · 1440`
 - `10.2 · Document Editor · Markdown · 1440`
 - `10.2 · Document Editor · Preview with live blocks · 1440`
 - `10.2 · Document Editor · Broken live content · 1440`
@@ -81,8 +86,12 @@ Kaydedilmiş sürüme bağlı tek Belge işlemleri ve hiyerarşi düzeni; gövde
 - **Label'lar:** `Move`, `Copy`, `Export`, `Organize Document`, `Archive` / `Unarchive`, `Convert to template`, `Save your changes before organizing or archiving this Document.`
 
 ### Belge içi etiketler
-Gövdedeki kayıtlı `#tag` tokenlarının Çalışma Alanı Etiketlerine bağlı listesi.
+Gövdedeki kayıtlı `#tag` tokenlarının Çalışma Alanı Etiketlerine bağlı listesi. Her `Tags` düğmesi kaydedilmiş kaynak tokena odaklanır; gövdede kaydedilmemiş değişiklik varken devre dışıdır ve nedeni Yönetim eylemleri bölgesindeki cümleyle aynıdır.
 - **Label'lar:** `Tags`
+
+### Etiketler (yapısal)
+Kayıt başlığı altında Belgeye uygulanmış Çalışma Alanı Etiketleri; uygulama ve kaldırma ortak seçiciyle (→ `20.11 · Tag Picker`). Yapısal etiket gövdedeki `#tag` tokenından ayrı bir bağdır; gövde tokenları ile bu bölge aynı Etiket kimliğini paylaşır (token–etiket ilişkisi spec 31'in sınırıdır). Etiket uygulamak Belgenin durumunu, kapsamını veya paylaşımını değiştirmez.
+- **Label'lar:** `Tags` (ayrıntı ve hata metinleri `20.11`'dedir).
 
 ### Görünüm sekmeleri ve araç çubuğu
 Birbirini dışlayan üç görünüm; `Write` varsayılan. `Write` görünümünde gruplu araç çubuğu: metin stili, satır içi biçim, bloklar, ekleme, tablo düzenleme (tablo içindeyken), geçmiş.
@@ -111,20 +120,20 @@ Aynı gövdenin düzenlenebilir kaynağı ve kaynağa ekleme denetimleri: kayıt
   - `Live Work block`: anahtar, başlık, tür, durum, öncelik, planlanan başlangıç/hedef tarihi; `Change status`, `Close`, `Open source record`.
   - `Smart Collection · Named view`: koleksiyonun kendi sunumu, `Membership reason: `.
   - `Read-only live section`: kaynak Belge adı, son güncelleme, güncel bölüm metni, `Open source record`.
-  - Teknik Diyagram canlı bloğu: salt okunur görünüm, kaynağı açar; kesin sürüm sabitlenmişse ayrı etiketli.
+  - Teknik Diyagram canlı bloğu: salt okunur görünüm, kaynağı açar; diyagramı izleyen kart `Live`, kesin Diyagram Sürümüne sabitlenmiş kart `Exact` etiketli.
 <details>
 <summary>Label'lar</summary>
 
-`Document preview`, `Mermaid diagram`, `Live Work block`, `Change status`, `Close`, `Open source record`, `Smart Collection · Named view`, `Read-only live section`, `Diagram elements`, `Diagram links`, `This section is missing.`, `Diagram could not be rendered.`, `Formula could not be rendered.`, `Loading source record…`, `Source record is unavailable.`
+`Document preview`, `Mermaid diagram`, `Live Work block`, `Change status`, `Close`, `Open source record`, `Smart Collection · Named view`, `Read-only live section`, `Live`, `Exact`, `Diagram elements`, `Diagram links`, `This section is missing.`, `Diagram could not be rendered.`, `Formula could not be rendered.`, `Loading source record…`, `Source record is unavailable.`
 
 </details>
 
 ### İçindekiler ve belge içi bul
 Başlık hiyerarşisinden canlı türeyen İçindekiler; desteklenen başlıkta bölüme odaklanma (kaynak yol ve tam Belgeye dönüş görünür); belge içi arama ve `Find and replace` paneli (düz metin varsayılan, açık gelişmiş regex modu, eşleşme önizlemesi ve sayı); `Focus Mode` geçişi.
-- **Label'lar:** `Focus Mode`, `Find and replace`. İçindekiler, bölüme odaklan, tam Belgeye dön ve gelişmiş mod için İngilizce label PRD terim tablosunda yok; çizimde yer tutucu bırakılır.
+- **Label'lar:** `Focus Mode`, `Find and replace`, `Contents`, `Focus on section`, `Back to full Document`, `Exit Focus Mode`, `Advanced` (düz metin varsayılanından ayrı regex anahtarı), `This pattern is not valid.` (geçersiz kalıp hatası).
 
 ### Belge tarafı kanıt
-Bu Belgenin kesin sürümlerinden bağlanmış kanıt kullanımları: hedef kayıt, sürüm, alıntı, `Evidence Role`, `Founder interpretation` ve geçmişi; seçili metin için iki bağlama eylemi.
+Bu Belgenin kesin sürümlerinden bağlanmış kanıt kullanımları. Kullanım satırı, daha yeni sürüm bilgisi ve rol/yorum alanları ortak biçimdedir (→ `11.2 · Source Detail › Kanıt kullanımları`, `12.10`); bu ekrana özgü: hedef kayıt, bağlı Belge sürümü, alıntı ve seçili metin için iki bağlama eylemi.
 <details>
 <summary>Label'lar</summary>
 
@@ -132,9 +141,13 @@ Bu Belgenin kesin sürümlerinden bağlanmış kanıt kullanımları: hedef kay�
 
 </details>
 
+### Çocuk Belge kartları
+Belgenin doğrudan çocukları (en fazla üç seviye) editörün altında kart olarak otomatik önizlenir; ayrı kapak kaydı yoktur. Kart çocuk Belgenin başlığını, kısa metin önizlemesini ve varsa gövdedeki ilk erişilebilir desteklenen görseli gösterir; görsel yoksa ilk anlamlı düz metin, o da yoksa başlık ve tür. Kart çocuk Belgeyi açar (`Open source record` ile aynı davranış). `10.1` Belge gezinmesindeki çocuk görünümü liste girintisidir; `Card` sunumu yalnız burada çizilir.
+- **Label'lar:** `Card`
+
 ### Sürümler
-Editörün altında `Versions` bölgesi; ayrıntısı `10.4 · Document Versions`.
-- **Label'lar:** `Versions`
+Editörün altında `Versions` bölgesi; ayrıntısı `10.4 · Document Versions`. Bir Özelliğin Birincil spec Belgesinde yeni sürüm kaydedilince başarı satırı incelemenin açıldığını söyler ve `10.16 · Spec Change Review`'a bağlanır. Birincil spec'i olmayan Özellik için kuyruk açılmaz ve bu satır görünmez.
+- **Label'lar:** `Versions`, `Spec Change Review opened for Version 5.`; sürüm numarası kaydedilen sürümdür.
 
 ### Durumlar
 #### Loading
@@ -151,20 +164,22 @@ Silinmiş bölüm: `This section is missing.`; erişilemeyen kayıt: `Source rec
 Panel editör üstünde; eşleşme sayısı ve gruplu önizleme.
 #### Focus Mode
 Kabuk ve yan kolonlar gizli; yalnız başlık, gövde ve görünür çıkış.
+#### Kaydedilmemiş gövde
+`Tags` düğmeleri devre dışıdır; `Move`, `Copy`, `Export`, `Organize Document`, `Archive` / `Unarchive` ve `Convert to template` ile birlikte gerekçe görünür (cümle Yönetim eylemleri bölgesindedir).
 #### Daha yeni sürüm
 `A newer Document version is available.` ve `Reload latest version`; yerel taslak korunur, `Save` devre dışı.
 #### Offline ve kurtarma
-Bağlantı kesik: editör yeni girdi almaz; blok düzeyinde `Offline`, `Last successful save` zamanı, `Unsaved changes may be lost`, bellek tamponunun uygulama kapanınca korunmadığı açıklaması, `Copy` ve `Download`. Yazılmamış değişiklik yoksa `The Document has no unwritten changes.` Genel offline bandı → `20.16 · Offline`.
+Bağlantı kesik: editör yeni girdi almaz. Genel offline bandı ve etiketleri (`You’re offline`, `Unsaved changes may be lost`, `Retry`) → `20.16 · Offline`. Belgeye özgü (spec 31): blok düzeyinde `Offline`, `Last successful save` zamanı (spec 31 etiketidir; `20.16`'daki istemci kabuğu etiketi `Last saved` bu blokta kullanılmaz), bellek tamponunun uygulama kapanınca korunmadığı açıklaması, `Copy` ve `Download`. Yazılmamış değişiklik yoksa `The Document has no unwritten changes.`
 #### Conflict Draft
 Bayat tabanla kayıt: editör üstünde kalıcı `Conflict Draft` toast'ı (→ `10.5 · Conflict Draft`); editörün başında `Conflict Drafts` bölgesi ve açık `Compare` → `10.5 · Conflict Draft`.
 #### Arşivli Belge
-Belge arşivde: başlıkta sessiz arşiv işareti, `Unarchive` eylemi; içerik okunur ve düzenlenebilir kalır.
+Arşivli kayıt davranışı → `DS.11 › Durumlar` (sessiz arşiv işareti, `Unarchive`, içerik düzenlenebilir kalır). Belge arşivi yalnız gezinme durumudur (spec 31); yazma eylemlerini gizleyen `In Trash` kayıt durumundan ve Arşivli Projeden (`20.21`) ayrıdır.
 #### Arşivli Proje
-Ferry: bütün alanlar salt okunur, yönetim eylemleri yok.
+Ferry: bant ve salt okunur metni → `20.21 · Archived Read-only Banner`; yönetim eylemleri yok.
 #### Long content
 Uzun spec: İçindekiler yapışkan kalır; geniş tablo yatay kaydırılır, kod bloğu kendi içinde kaydırılır.
 #### Closure Summary
-Kaydedilen kapanış özeti olağan sürümlü bir `General` Belgedir: başlık `Project Closure Summary`, köken bağı kaynak Projeye (örnek Ferry · Version 1 · 2026-09-30), gövdede yalnız bölüm başlıkları ve okunabilir kaynak bağlantıları. Sistem cümlesi, başarı hükmü, puan veya özel kapanış kartı yoktur. Arşivli Projede salt okunur. Öğrenimleri Kişisel Wiki'ye kopyalama → `10.10`. Üretim akışı → `08.10`.
+Kaydedilen kapanış özeti olağan sürümlü bir `General` Belgedir; başlık, köken ve gövde kuralları ile üretim akışı → `08.10 · Closure Summary Draft` (burada yeniden tarif edilmez). Bu ekrana özgü: örnek köken Ferry · Version 1 · 2026-09-30, özel kapanış kartı yok, Arşivli Projede salt okunur. Öğrenimleri Kişisel Wiki'ye kopyalama → `10.10`.
 
 **Spec:** [31 Belge Yazarlığı ve Sürümleri](../../specs/31-documents/spec.md); [45 Kanıt İlişkileri ve Kanıt Akışı](../../specs/45-evidence/spec.md) (Belge tarafı kanıt listesi).
 
@@ -198,9 +213,9 @@ Proje kabuğunun kataloğunda seçili iskeletler `Starter skeleton` listesinde g
 #### Blank Project
 İskelet seçimi yok; yalnız başlık/tür ve kısa yönlendirme.
 #### Kişisel Wiki
-`Starter skeletons require a Project.` İskelet seçimi görünmez.
+`Starter skeletons require a Project.` (cümlenin sahibi bu ekrandır; `05.1`, `10.10` referans verir.) İskelet seçimi görünmez.
 #### İskelet seçili
-`Launch Plan` seçili; altında oluşacak boş başlıklar sessiz liste: `Release`, `Audience`, `Scope`, `Readiness`, `Communication`, `Launch steps`, `Risks`, `Observation plan`, `Related records`. Örnek içerik yok.
+`Launch Plan` seçili; altında oluşacak boş başlıklar sessiz liste (başlık kümesi → Starter skeleton içerikleri bölgesi, yeniden yazılmaz). Örnek içerik yok.
 #### Error
 `Document could not be created.`; girilen değerler korunur.
 
@@ -304,7 +319,7 @@ Dialog ve taslak açık kalır, erişilebilir hata gösterilir.
 - `10.7 · Convert to template · Preview · 1440`
 - —
 
-### Önizleme
+### Önizleme (`Preview`)
 Kaynak `Version`, düzenlenebilir iskelet (kayıt referansları okunur düz metne dönmüş, canlı bloklar çıkarılmış), algılanan `{{field_name}}` yer tutucuları.
 - **Label'lar:** `Convert to template`, `Name`, `Version`, `Skeleton`, `Placeholders`, `Save`, `Cancel`.
 
@@ -343,19 +358,22 @@ Hata metni ve korunmuş girdiler.
 
 ### Alanlar
 Klasör ve üst Belge seçimleri.
-- **Label'lar:** `Organize Document`, `Folder`, `Parent Document`, `No Parent Document`, `Preview changes in the same Project. Document identity, content, and …`
+- **Label'lar:** `Organize Document`, `Folder`, `Parent Document`, `No Parent Document`, `Preview`, `Cancel`, `Preview changes in the same Project. Document identity, content, and …`
 
 ### Etki önizlemesi
 Etkilenen torunlar; çocukların kendi bağ, klasör ve arşiv durumunu koruduğu açıklaması.
-- **Label'lar:** `No child Documents.`, `Children keep their current parent links, folders, and archive state.`
+Önizleme tüm alt ağacı üç seviye, döngü ve kapsam kurallarına karşı denetler; uygulama bu denetimleri yineler. `Apply` önizleme geçerli olana dek kapalıdır; `Cancel` hiçbir şeyi değiştirmez.
+- **Label'lar:** `No child Documents.`, `Children keep their current parent links, folders, and archive state.`, `Apply`, `Cancel`
 
 ### Durumlar
-#### Dördüncü seviye engeli
+#### Depth blocked (dördüncü seviye engeli)
 Önizleme taşımayı reddeder; düzleştirme önerilmez, başka üst seçmesi istenir; `Apply` kapalı.
 #### Archive
-`Archive` önizlemesi: `The Document will leave normal navigation and remain available through Archived.`
+`Archive` aynı iki adımı izler: `Preview`, ardından `Apply`; `Cancel` hiçbir şeyi değiştirmez. Önizleme: `The Document will leave normal navigation and remain available through Archived.` Sonuçta Belge `Archived` süzgecinde kalır; çocuklar kendi klasör, üst bağ ve arşiv durumunu korur.
+- **Label'lar:** `Archive`, `Preview`, `Apply`, `Cancel`, `Archived`
 #### Unarchive
-`The Document will return to normal navigation.`
+`Unarchive` da `Preview` ve `Apply` ister; `Cancel` hiçbir şeyi değiştirmez. Önizleme: `The Document will return to normal navigation.`
+- **Label'lar:** `Unarchive`, `Preview`, `Apply`, `Cancel`
 #### Error
 `Check the form.`
 
@@ -397,7 +415,7 @@ Yanıt kayboldu: aynı onaylı komut kullanıcı başlatmalı tekrar için korun
 #### Arşivli kaynak Proje
 `Move` başlatılamaz; yalnız `Copy`.
 #### Wiki hedefi
-Hedef kapsam `Personal Wiki` iken: `Target scope` varsayılanı `Personal Wiki`; `Copy` için etkin bir Proje de seçilebilir; `Version` kopyalanacak sürümü seçer. Örnek: Luma'daki `Late-payment etiquette notes` ve çocuğu `Email tone examples` Wiki'ye taşınır. `Starter skeleton` seçeneği Wiki'de yoktur. Kaynakta kalıp üstünü kaybedecek seçilmemiş çocuklar ve `Unavailable` referanslar önizlemede ayrı satırlarla görünür.
+Hedef kapsam `Personal Wiki` iken: `Target scope` varsayılanı `Personal Wiki`; `Copy` için etkin bir Proje de seçilebilir; `Version` kopyalanacak sürümü seçer. Örnek: Luma'daki `Late-payment etiquette notes` ve çocuğu `Email tone examples` Wiki'ye taşınır. `Starter skeleton` seçeneği Wiki'de yoktur (→ `10.3 › Kişisel Wiki`). Kaynakta kalıp üstünü kaybedecek seçilmemiş çocuklar ve `Unavailable` referanslar önizlemede ayrı satırlarla görünür.
 
 **Spec:** [31 Belge Yazarlığı ve Sürümleri](../../specs/31-documents/spec.md); [14 Dosya Ekleri ve Görsel Kanıt](../../specs/14-file-attachments/spec.md) (sahip olunan ekler).
 
@@ -427,12 +445,12 @@ Seçimler üstte (sürüm, format), hazırlanmış statik önizleme altta.
 - `10.12 · Convert to record · Preview · 1440`
 - —
 
-### Önizleme
-Kayıt türü, başlık, Proje, seçili metnin eşlendiği alan, kesin Belge sürümü.
+### Önizleme (`Preview`)
+Hedef türü, başlık, Proje, seçili metnin eşlendiği alan, kesin Belge sürümü.
 <details>
 <summary>Label'lar</summary>
 
-`Convert to record`, `Record type`, `Work`, `Decision`, `Risk`, `Assumption`, `Open Question`, `Title`, `Description`, `Decision text`, `Statement`, `Question`, `Evidence: selected text · version-pinned`, `Create one record with version-pinned evidence from the selected Document text.`, `No text selected.`, `Cancel`.
+`Convert to record`, `Target type`, `Project`, `Work`, `Decision`, `Risk`, `Assumption`, `Open Question`, `Title`, `Description`, `Decision text`, `Statement`, `Question`, `Evidence: selected text · version-pinned`, `Create one record with version-pinned evidence from the selected Document text.`, `No text selected.`, `Cancel`.
 
 </details>
 
@@ -450,8 +468,8 @@ Hata metni; hiçbir kayıt oluşmaz. Kişisel Wiki'de `A Project is required for
 - —
 
 ### Satır adayları
-Her liste satırı ayrı İş adayı; seçim kutusu, başlık; tür bilgisi.
-- **Label'lar:** `Convert in bulk`, `Record type: Task`, `Choose saved list rows to create as Work. All selected rows and …`, `Cancel`.
+Her liste satırı ayrı İş adayı; seçim kutusu ve başlık. İş türü bu dialog'da seçilmez (spec 31 yalnız seçilen satırlardan hepsi-veya-hiçbiri İş oluşturmayı tanımlar).
+- **Label'lar:** `Convert in bulk`, `Choose saved list rows to create as Work. All selected rows and …`, `Cancel`.
 
 ### Durumlar
 #### Kaydedilmemiş gövde
@@ -478,7 +496,7 @@ Sürüm çifti başlığı, başlık değişikliği (varsa), bölüm bazlı sat�
 - **Label'lar:** `Changed sections`, `Added: `, `Removed: `, `Text before the first heading`, `Previous change`, `Next change`, `No section text changed in this version.`
 
 ### Adaylar
-Her aday: kayıt, neden aday olduğu, bağlı bölüm veya `Document-level candidate`, inceleme durumu, kısa not, takip İşi eylemi.
+Her aday: kayıt, neden aday olduğu, bağlı bölüm veya `Document-level candidate`, inceleme durumu, kısa not, takip İşi eylemi (önizleme ve onay → `20.22 · Create Follow-up Work`, kaynak satırı: Spec Değişikliği adayı).
 - **Label'lar:** `Candidates`, `Review candidates`, `Why`, `Primary spec`, `Stable section reference`, `Inline reference`, `Live content use`, `Version-pinned evidence`, `Explicit relation`, `Document-level candidate`, `Waiting`, `Reviewed`, `Not affected`, `Save note`, `Create Follow-up Work`.
 
 ### Durumlar

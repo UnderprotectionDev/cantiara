@@ -1,6 +1,6 @@
 # 12 · Decisions
 
-Projenin `Decisions` alanı: Kararlar, Riskler, Varsayımlar, Açık Sorular ve doğrulama kayıtları.
+Projenin `Decisions` alanı: Kararlar, Riskler, Varsayımlar ve Açık Sorular. Doğrulama kayıtları bu dosyada değildir (→ `11.12 · Validation Records`).
 
 | Ekran | Ne çizilir |
 |---|---|
@@ -26,15 +26,23 @@ Projenin `Decisions` alanı: Kararlar, Riskler, Varsayımlar, Açık Sorular ve 
 - `12.1 · Decisions · Empty · 1440`
 
 ### Alan başlığı ve tür geçişi
+Yerleşim: `Assumptions` ve `Open Questions` bu alanda yer alır (PRD 02 Proje alanı kataloğu, CONTEXT). Spec 41 ve uygulanan kod (`#project-area-discovery`) aynı kayıtları `Discovery` altında açar; bu kaynak çelişkisi çözülene kadar harita PRD'yi izler.
 - **Label'lar:** `Decisions`, `Risks`, `Assumptions`, `Open Questions`.
 
 ### Karar listesi
-Bütün yaşamlar tarihsel gezinme için listelenir; satırda başlık ve yaşam.
-- **Label'lar:** `Decisions`, `Create`, `Valid`, `Superseded`, `Withdrawn`.
+Bütün yaşamlar tarihsel gezinme için listelenir; satırda başlık ve yaşam. Başlıkta `Export` (→ `20.5 · Export`) ve `Import` (→ `20.6 · Import`).
+- **Label'lar:** `Decisions`, `Create`, `Valid`, `Superseded`, `Withdrawn`, `Export`, `Import`.
 
 ### Başlık bölgesi
-Başlık, yaşam, Karar tarihi; eylemler.
-- **Label'lar:** `Decision`, `Edit`, `Withdraw`, `Supersede another decision`, `Remove supersession`.
+Başlık, yaşam, Karar tarihi; eylemler. Karar tarihi geçiş zamanından ayrı kalır: `Superseded` Kararda geçiş zamanı `Superseded on`, `Withdrawn` Kararda `Withdrawn on` olarak ayrıca yazılır. Ortak kayıt eylemleri (`Add to Favorites`, `Remind me` ve diğerleri) → `DS.11 · Record Header`; burada yalnız Karara özgü eylemler. Arşivli Projede `Add to Favorites` kullanılabilir kalır, yazma eylemleri gizlidir.
+- **Label'lar:** `Decision`, `Decision date`, `Superseded on`, `Withdrawn on`, `Edit`, `Withdraw`, `Supersede another decision`, `Remove supersession`.
+
+### Etiketler
+Karara uygulanmış Çalışma Alanı Etiketleri; uygulama ve kaldırma ortak seçiciyle (→ `20.11 · Tag Picker`). Etiket uygulamak Kararın yaşamını, kapsamını veya paylaşımını değiştirmez.
+- **Label'lar:** `Tags` (ayrıntı ve hata metinleri `20.11`'dedir).
+
+### Özel alanlar
+Karar türüne bağlı Proje özel alanları. Özel alanlar: satır ve boş değer kuralı → DS.12.
 
 ### Decision chain
 En eski kayıttan güncel `Valid` Karara nesil listesi; her geçişin tarihi ve gerekçesi. İlişkisiz tek Kararda gösterilmez.
@@ -56,13 +64,13 @@ Hedef tarafı kanıt yüzeyi → `12.10 · Evidence by Evidence Role`; altında 
 #### Error
 `Decisions are unavailable.` ve `Retry`; `Decision is unavailable.`; `Decision chain is unavailable.`
 #### Form
-`Create`/`Edit`: `Title`, `Decision text`, `Rationale`, `Save`, `Saving…`, `Cancel`. Hata `Decision could not be saved. Retry, or reload to check for changes. Your text is kept here.`; çatışma `Decision changed. Cancel and reopen before saving again. Your text is kept here.`; başarı `Decision saved.`
+`Create`/`Edit`: `Title`, `Decision text`, `Rationale`, `Save`, `Saving…`, `Cancel`. Kaydetme hatası ve çatışma kalıbı → DS.16 ve `20.14 › Conflict`; tür adı `Decision`; başarı `Decision saved.`
 #### Superseded Karar
-Başlıkta doğrudan halef ve son `Valid` Karar, geçiş zamanı ve gerekçesi, `Open current decision`; özgün içerik, kanıt rolleri, ilişkiler ve geçmiş okunur, içerik düzenlenemez.
+Başlıkta doğrudan halef ve son `Valid` Karar, `Superseded on` geçiş zamanı ve gerekçesi, `Open current decision`; özgün içerik, kanıt rolleri, ilişkiler ve geçmiş okunur, içerik düzenlenemez.
 #### Withdrawn Karar
-`Withdrawn` · geri çekme tarihi ve isteğe bağlı gerekçe özgün gerekçeden ayrı; başarı `Decision withdrawn.`
+`Withdrawn` · `Withdrawn on` geri çekme tarihi ve isteğe bağlı gerekçe özgün gerekçeden ayrı; başarı `Decision withdrawn.`
 #### Arşivli Proje
-Ferry: okunur, yazma eylemi yok.
+Ferry: bant ve salt okunur metni → `20.21 · Archived Read-only Banner`; yazma eylemi yok, `Add to Favorites` kalır.
 
 **Spec:** [38 Kararlar](../../specs/38-decisions/spec.md); [45 Kanıt İlişkileri ve Kanıt Akışı](../../specs/45-evidence/spec.md) (kanıt bölgeleri).
 
@@ -75,16 +83,16 @@ Ferry: okunur, yazma eylemi yok.
 - `12.2 · Supersede another decision · Stale preview · 1440`
 
 ### Seçim
-Yeni Karar için yerine geçilecek Kararların seçimi ve isteğe bağlı geçiş gerekçesi.
-- **Label'lar:** `Supersession`, `Supersede another decision`, `Decisions to supersede`, `Transition rationale (optional)`, `Preview`, `Cancel`, `Loading…`
+Yeni Karar için yerine geçilecek Kararların seçimi ve isteğe bağlı geçiş gerekçesi (alan label'ı `Transition rationale`; isteğe bağlılık label'a eklenmez).
+- **Label'lar:** `Supersession`, `Supersede another decision`, `Decisions to supersede`, `Transition rationale`, `Preview`, `Cancel`, `Loading…`
 
 ### Supersession preview
 Her iki tarafın hüküm metni, gerekçesi ve mevcut kanıtı; değişecek yaşamlar; ilişkili kayıtların taşınmadığı açıklaması.
 - **Label'lar:** `Supersession preview`, `Supersedes`, `Evidence`, `Valid → Superseded`, `Confirm supersession`, `Saving…`, `Only full replacement uses Supersedes. Related records and their status, …`
 
 ### Remove supersession
-Aynı önizleme `Superseded → Valid` yönünde; halef ve diğer zincir bağları korunur.
-- **Label'lar:** `Remove supersession`, `Superseded → Valid`, `Confirm removal`.
+Aynı önizleme `Superseded → Valid` yönünde; halef ve diğer zincir bağları korunur. Önizlemede isteğe bağlı `Transition rationale` alanı bulunur (seçim formundaki aynı label); girilen gerekçe yerine geçme geçmişinde saklanır.
+- **Label'lar:** `Remove supersession`, `Superseded → Valid`, `Transition rationale`, `Confirm removal`.
 
 ### Durumlar
 #### Loading
@@ -125,12 +133,15 @@ Metin korunur, aynı istek tekrar edilebilir.
 - `12.4 · Risks · Empty · 1440`
 
 ### Risk listesi
-Riskler başlık ve yaşamla.
-- **Label'lar:** `Risks`, `Create`, `Open`, `Mitigating`, `Occurred`, `Resolved`, `Accepted`.
+Riskler başlık ve yaşamla. Başlıkta `Export` (→ `20.5 · Export`) ve `Import` (→ `20.6 · Import`).
+- **Label'lar:** `Risks`, `Create`, `Open`, `Mitigating`, `Occurred`, `Resolved`, `Accepted`, `Export`, `Import`.
 
 ### Risk detayı
-Başlık, açıklama, etki, olasılık, yanıt, yaşam ve gerekçe.
+Başlık, açıklama, etki, olasılık, yanıt, yaşam ve gerekçe. Ortak kayıt eylemleri → `DS.11 · Record Header`.
 - **Label'lar:** `Risk`, `Title`, `Description`, `Impact`, `Probability`, `Response/mitigation`, `Status`, `Rationale`, `Edit`.
+
+### Özel alanlar
+Risk türüne bağlı Proje özel alanları. Özel alanlar: satır ve boş değer kuralı → DS.12.
 
 ### Kanıt
 → `12.10 · Evidence by Evidence Role`. Risk Kanıt Akışı göstermez.
@@ -143,11 +154,11 @@ Başlık, açıklama, etki, olasılık, yanıt, yaşam ve gerekçe.
 #### Error
 `Risks are unavailable.` ve `Retry`; `Risk is unavailable.`
 #### Form
-`Title`, `Description`, `Impact`, `Probability`, `Response/mitigation`, `Save`, `Saving…`, `Cancel`; `Check the form.`; `Risk could not be saved. Retry, or reload to check for changes. Your text is kept here.`; çatışma `Risk changed. Cancel and reopen before saving again. Your text is kept here.`; `Risk saved.`
+`Title`, `Description`, `Impact`, `Probability`, `Response/mitigation`, `Save`, `Saving…`, `Cancel`; `Check the form.`; kaydetme hatası ve çatışma kalıbı → DS.16 ve `20.14 › Conflict`, tür adı `Risk`; `Risk saved.`
 #### Accepted
 Başlık altında `A known Risk remains recorded when accepted.` ve kabul gerekçesi.
 #### Arşivli Proje
-Okunur; yazma yok.
+Okunur; yazma yok → `20.21 · Archived Read-only Banner`.
 
 **Spec:** [40 Riskler](../../specs/40-risks/spec.md); [45 Kanıt İlişkileri ve Kanıt Akışı](../../specs/45-evidence/spec.md) (kanıt bölgesi).
 
@@ -178,12 +189,15 @@ Boş kabul gerekçesi alan hatası; aynı duruma geçiş çatışması.
 - `12.6 · Assumptions · Empty · 1440`
 
 ### Liste
-Varsayımlar başlık ve yaşamla.
-- **Label'lar:** `Assumption`, `Create`, `Open`, `Confirmed`, `Refuted`, `No longer applicable`.
+Varsayımlar başlık ve yaşamla. Başlıkta `Export` (→ `20.5 · Export`) ve `Import` (→ `20.6 · Import`).
+- **Label'lar:** `Assumption`, `Create`, `Open`, `Confirmed`, `Refuted`, `No longer applicable`, `Export`, `Import`.
 
 ### Detay
-Önerme, gerekçe, kanıt (kesin sürüm ve alıntı) veya kanıt yok satırı; yaşam butonları.
-- **Label'lar:** `Statement`, `Rationale`, `Evidence`, `Version`, `No evidence linked.`, `Edit`.
+Önerme, gerekçe, kanıt veya kanıt yok satırı; yaşam butonları. Kanıt satırı yerine `Evidence by Evidence Role` bölgesi çağrılır (→ `12.10 · Evidence by Evidence Role`; kesin sürüm ve alıntı orada); altında katlanır `Evidence Flow` (→ `11.13 · Evidence Flow`). Kanıt yoksa `No evidence linked.` kalır.
+- **Label'lar:** `Statement`, `Rationale`, `Evidence by Evidence Role`, `Evidence Flow`, `Version`, `No evidence linked.`, `Edit`.
+
+### Özel alanlar
+Varsayım türüne bağlı Proje özel alanları. Özel alanlar: satır ve boş değer kuralı → DS.12.
 
 ### Durumlar
 #### Empty
@@ -193,11 +207,11 @@ Varsayımlar başlık ve yaşamla.
 #### Error
 `Assumptions are unavailable.` ve `Retry`; `Assumption is unavailable.`
 #### Form
-`Title`, `Statement`, `Rationale`, `Save`, `Saving…`, `Cancel`; `Assumption could not be saved. Retry, or reload to check for changes. Your text is kept here.`; `Assumption saved.`
+`Title`, `Statement`, `Rationale`, `Save`, `Saving…`, `Cancel`; kaydetme hatası kalıbı → DS.16, tür adı `Assumption`; `Assumption saved.`
 #### Kanıtsız sonuç
 `Confirmed` ama kanıt yok: `No evidence linked.` gerekçe olsa bile görünür.
 #### Arşivli Proje
-Kayıtlar ve kanıtlar okunur.
+Kayıtlar ve kanıtlar okunur → `20.21 · Archived Read-only Banner`.
 
 **Spec:** [41 Varsayımlar ve Açık Sorular](../../specs/41-uncertainty-records/spec.md); [45 Kanıt İlişkileri ve Kanıt Akışı](../../specs/45-evidence/spec.md).
 
@@ -215,7 +229,7 @@ Seçilen yaşam; `Confirmed`/`Refuted` için gerekçe ve kanıt; `Open`/`No long
 #### Error
 `Evidence is unavailable. Choose it again before saving.`; `Evidence choices are unavailable. You can save a Rationale or continue …`
 #### Conflict
-`Assumption or Evidence changed. Cancel and reopen before saving again. Your text is kept here.`
+Çatışma kalıbı → `20.14 › Conflict` ve DS.16; tür adları `Assumption or Evidence`.
 
 **Spec:** [41 Varsayımlar ve Açık Sorular](../../specs/41-uncertainty-records/spec.md).
 
@@ -228,12 +242,16 @@ Seçilen yaşam; `Confirmed`/`Refuted` için gerekçe ve kanıt; `Open`/`No long
 - `12.8 · Open Questions · Empty · 1440`
 
 ### Liste
-Açık Sorular başlık ve yaşamla.
-- **Label'lar:** `Open Question`, `Create`, `Open`, `Answered`, `No longer applicable`.
+Açık Sorular başlık ve yaşamla. Başlıkta `Export` (→ `20.5 · Export`) ve `Import` (→ `20.6 · Import`).
+- **Label'lar:** `Open Question`, `Create`, `Open`, `Answered`, `No longer applicable`, `Export`, `Import`.
 
 ### Detay
-Soru, bağlam, yanıt, gerekçe ve kanıt; yaşam eylemleri.
-- **Label'lar:** `Question`, `Context`, `Answer`, `Rationale`, `Evidence`, `No evidence linked.`, `Answered`, `No longer applicable`.
+Soru, bağlam, yanıt, gerekçe ve kanıt; yaşam eylemleri. Kanıt satırı yerine `Evidence by Evidence Role` bölgesi çağrılır (→ `12.10 · Evidence by Evidence Role`). Açık Soru Kanıt Akışı göstermez (akış İş, Karar ve Varsayımdadır).
+- **Label'lar:** `Question`, `Context`, `Answer`, `Rationale`, `Evidence by Evidence Role`, `No evidence linked.`, `Answered`, `No longer applicable`.
+
+### Oluşturma formu
+`Create` ile açılan form (kaynak çelişkisi: spec 41 bu yüzeyi `Discovery` altında anar; PRD 02/04 ve CONTEXT `Decisions` der, harita `Decisions`'ta bırakır).
+- **Label'lar:** `Title`, `Question`, `Context`, `Save`, `Saving…`, `Cancel`.
 
 ### Durumlar
 #### Empty
@@ -254,14 +272,14 @@ Soru, bağlam, yanıt, gerekçe ve kanıt; yaşam eylemleri.
 - `12.9 · Answer Open Question · Default · 1440`
 
 ### Form
-Yanıt, isteğe bağlı gerekçe ve kanıt.
-- **Label'lar:** `Answer`, `Rationale (optional)`, `Evidence (optional)`, `No new evidence`, `The selected Document text is pinned to this exact …`, `Save`, `Saving…`, `Cancel`.
+Zorunlu yanıt, isteğe bağlı gerekçe (label'ı `Rationale`) ve kanıt. Kanıt seçici `12.7 · Assumption Transition › Form` ile aynıdır (`Evidence (optional)`, `No new evidence` ve sabitleme cümlesi orada tanımlıdır).
+- **Label'lar:** `Answer`, `Rationale`, `Save`, `Saving…`, `Cancel`.
 
 ### Durumlar
 #### Error
-`Open Question could not be saved. Retry, or reload to check for changes. Your text is kept here.`; `Documents are unavailable. You can save without new evidence.`
+Kaydetme hatası kalıbı → DS.16, tür adı `Open Question`; `Documents are unavailable. You can save without new evidence.`
 #### Conflict
-`Open Question or evidence changed. Cancel and reopen before saving. Your text is kept here.`
+Çatışma kalıbı → `20.14 › Conflict` ve DS.16; tür adları `Open Question or evidence`.
 
 **Spec:** [41 Varsayımlar ve Açık Sorular](../../specs/41-uncertainty-records/spec.md).
 
@@ -273,7 +291,7 @@ Yanıt, isteğe bağlı gerekçe ve kanıt.
 - `12.10 · Evidence by Evidence Role · Edit role · 1440`
 
 ### Rol grupları
-`Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified` grupları; her sayı yalnız erişilebilir ilişki kümesini açar. Erişilemeyen kanıt rolü gizlenir.
+Rol kataloğunun sahibi bu bölgedir (`11.13` ve `10.2` değerleri yeniden listelemez): `Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified` grupları; her sayı yalnız erişilebilir ilişki kümesini açar. Erişilemeyen kanıt rolü gizlenir (aşağıda `Rol gizlendi`).
 - **Label'lar:** `Evidence by Evidence Role`, `Evidence Role`, `Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified`, `Unavailable source`, `Version-pinned evidence`, `Open source record`.
 
 ### Rol düzenleme
@@ -282,9 +300,10 @@ Kapalı rol seçimi, kaynak metinden ayrı kurucu yorumu, önceki değerlerin ak
 
 ### Durumlar
 #### Empty
-Kanıt bağı yok: bölge yalnız kısa dürüst cümle ve bağlama eylemi.
+Kanıt bağı yok: bölge yalnız `No evidence linked.` cümlesi ve bağlama eylemi (09.10, 12.6, 12.8 aynı cümleyi kullanır).
+- **Label'lar:** `No evidence linked.`
 #### Rol gizlendi
-Erişilemeyen veya silinmiş kaynak: satır güvenli neden, rol ve yorum gösterilmez, sayıya karışmaz.
+Kırık/erişilemeyen kaynak sunumu → `20.10 · Relation Picker & Used in · Broken targets` (yeniden tarif edilmez). Bu ekrana özgü: kalıcı silinmiş, redakte ve erişimsiz uçlarda `Open source record` gizlenir; rol ve yorum gösterilmez, sayıya karışmaz.
 #### Error
 Rol kaydı hatası, seçim korunur.
 

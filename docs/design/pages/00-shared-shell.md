@@ -28,8 +28,7 @@ Bütün ekranların içinde durduğu ortak uygulama kabuğu: üst çubuk, kişis
 - `00.1 · App Frame · Offline band · 1440`
 
 ### Skip link
-Sayfanın ilk Tab durağı; odak alana kadar görünmez, odakta belirir.
-- **Label'lar:** `Skip to main content`
+Tanım ve label → `00.11 · Navigation` › Skip link. Bu ekran yalnız `Skip link focused` artboard'unu çizer.
 
 ### Gezinme
 Üst çubuk, kişisel yüzeyler, proje alanları ve araç kümesinin tamamı [Navigation](00-shared-shell.md#0011--navigation) bölgesinde tek ve eksiksiz tanımlıdır; bu ekran onu çerçevenin içine yerleştirir. Burada yeniden tarif edilmez.
@@ -38,8 +37,14 @@ Sayfanın ilk Tab durağı; odak alana kadar görünmez, odakta belirir.
 ### Ana içerik alanı
 Etkin rotanın tek yüzeyi (örnek: Luma Project shell, `#work`); odaklanabilir hedef (`main-content`) budur.
 
-### Çevrimdışı bant ve sonuç bildirimleri (yer tutucu)
-Bağlantı kesildiğinde üst çubuğun hemen altında tam genişlikte, nazik duyurulu bant görünür; sonuç bildirimleri ekranın alt köşesinde yığılır. İçerik ve durumlar → `20.16 · Offline` ve `20.15 · Support Reference Error`.
+### More menüsü
+`More open` artboard'ı açık `More` menüsünü çerçeve içinde çizer. İçerik tek yerde tanımlıdır: kişisel yüzeyler (`Drafts` → `02.10`, `Contacts` → `06.1`) ve Çalışma Alanı yönetimi grubu → `00.11 · Navigation` › Gruplar. Bu ekran yalnız menünün üst çubuktaki konumunu ve katman sırasını çizer.
+
+### Appearance menüsü
+`Appearance menu open` artboard'ı üst çubuktan açılan Appearance seçicisini çizer. Değerler (`Light`, `Dark`; `System` yok) ve kural → `01.6 · Preferences`; tetik yeri → `01.3 · Account menu`. Label bu ekranda yeniden yazılmaz.
+
+### Çevrimdışı bant ve sonuç bildirimleri
+Katman sırası: bant üst çubuğun hemen altında tam genişlikte durur; sonuç bildirimleri ekranın alt köşesinde yığılır. İçerik ve durumlar → `20.16 · Offline` ve `20.15 · Support Reference Error` (aynı mantık `00.11 › Offline`).
 
 ### Durumlar
 #### Loading
@@ -47,11 +52,11 @@ Bağlantı kesildiğinde üst çubuğun hemen altında tam genişlikte, nazik du
 #### Error
 Korunan rotada oturum denetimi başarısız olursa üst çubukta yalnız wordmark kalır. İçerik alanında → `20.15 · Support Reference Error` görünür ve `Search` gösterilmez.
 #### Public / oturumsuz krom
-Login ve oturumsuz rotalarda üst çubukta yalnız `cantiara` wordmark'ı ve skip link bulunur. Gezinme, palet, `Search`, panel tetikleri ve Appearance yoktur. Ziyaretçi Dış yüzeylerinde kurucu paleti hiç yüklenmez (05).
+İçerik → `00.11 · Navigation` › Marka. Bu ekran yalnız `Public header` artboard'unu çizer.
 #### Offline
-Bant görünür, üst çubuk değişmez. Yazma yapan eylemler kendi yüzeylerinde reddedilir (→ `20`).
+İçerik → `00.11 · Navigation` › Offline ve `20.16`. Bu ekran yalnız bandın çerçevedeki katman sırasını çizer.
 #### Many surfaces / dar çubuk
-1440'ta tüm etiketler sığar. 768'de birincil gezinme `More` menüsüne katlanır. Yatay kaydırma gerekmez.
+768 katlanması → `00.11 · Navigation` › 768. Bu ekran yalnız `768` artboard'larını çizer.
 
 **Spec:** [72 Personal Shell](../../specs/72-personal-shell/spec.md), [03 Web and macOS Client](../../specs/03-web-macos-client/spec.md), [05 Command Palette](../../specs/05-command-palette/spec.md), [33 Record Discovery](../../specs/33-record-discovery/spec.md), [39 Favorites](../../specs/39-favorites/spec.md), [71 Attention Signals](../../specs/71-attention-signals/spec.md), [02 Account Preferences](../../specs/02-account-preferences/spec.md) (Appearance menüsü)
 
@@ -70,16 +75,16 @@ Bant görünür, üst çubuk değişmez. Yazma yapan eylemler kendi yüzeylerind
 - `00.2 · Personal Shell Panel · Favorites · Dark · 768`
 
 ### Panel başlığı
-Seçili yüzeyin adı başlık olur; `Open full page` ve kapatma bulunur.
-- **Label'lar:** `Daily Focus` / `Favorites` / `Notification Center` / `Look again`, `Open full page`
+Seçili yüzeyin adı başlık olur (adlar → Yüzey geçişi); `Open full page` ve kapatma bulunur.
+- **Label'lar:** `Open full page`
 
 ### Yüzey geçişi
 Dört eş düzey sekme.
 - **Label'lar:** `Daily Focus`, `Favorites`, `Notification Center`, `Look again`
 
 ### Yüzey · Daily Focus
-Günlük Odak'ın bugünkü listesi, kendi sahibinin görünümüyle. İçerik ve eylemler → `Daily Focus` sayfası (27); burada yalnız panel içindeki sığdırma çizilir.
-- **Label'lar:** `Daily Focus`, `Candidates`, `Open source record` (27'nin label'ları)
+Günlük Odak'ın bugünkü listesi, kendi sahibinin görünümüyle. İçerik ve eylemler → `04.1`; burada yalnız panel içindeki sığdırma çizilir.
+- **Label'lar:** `Daily Focus`, `Candidates`, `Open source record` (`04.1`'in label'ları)
 
 ### Yüzey · Favorites
 Favoriler listesi (39). Kuralları → `00.4`.
@@ -88,15 +93,16 @@ Favoriler listesi (39). Kuralları → `00.4`.
 Birleşik Bildirim Merkezi (71), varsayılan bölüm `Action Required`. Kuralları → `00.5`.
 
 ### Yüzey · Look again
-Zamanı gelmiş `review-later` öğelerinin kaynak listesi. Üyelik ve tetik Hatırlatmaya aittir (35).
+Zamanı gelmiş `review-later` öğelerinin kaynak listesi. Üyelik ve tetik Hatırlatmaya aittir (35). Her satırda sırasıyla kaynak başlığı, tür, kapsam ve tetiklenme zamanı; satır eylemi `Open source record` (spec 72, Record Discovery ortak eylemi).
+- **Label'lar:** `Open source record`, `Nothing to look at again.`, `Loading Look again items…`, `Look again items are unavailable.`
 
 ### Durumlar
 #### Empty
-Her yüzey kendi sahibinin boş metnini gösterir. Örnekler: `No Favorites yet.`, 27'nin `No Work in Daily Focus for this day.` metni. `Look again` için boş metin `Nothing to look at again.`
+Her yüzey kendi sahibinin boş metnini gösterir: Favorites → `00.4`, Daily Focus → `04.1`. `Look again` için boş metin `Nothing to look at again.`
 #### Loading
-Seçili yüzeyin yükleme metni görünür (örnek `Loading Favorites…`). Başlık ve geçiş hemen çizilir.
+Seçili yüzeyin yükleme metni görünür (Favorites → `00.4`; `Look again` → `Loading Look again items…`). Başlık ve geçiş hemen çizilir.
 #### Error
-Yalnız seçili yüzey hata verir (örnek `Favorites are unavailable.`). Diğer sekmeler kullanılabilir kalır.
+Yalnız seçili yüzey hata verir (Favorites → `00.4`; `Look again` → `Look again items are unavailable.`). Diğer sekmeler kullanılabilir kalır.
 #### Kaynak görünüm korunur
 Panel kapanınca alttaki Luma `#work` yüzeyi aynı scroll ve seçim durumundadır. Bu durum için iki karelik bir karşılaştırma artboard'u çizilir.
 #### Yeni oturum
@@ -117,7 +123,10 @@ Tepsinin adı ve üye sayısı, ardından kalıcı olmadığını anlatan kısa 
 - **Label'lar:** `Active Working Set`
 
 ### Üyeler
-Her üye için türü (İş ya da Belge), anahtarı veya başlığı ve kapsamı.
+Her üye için türü (İş ya da Belge), anahtarı veya başlığı ve kapsamı. Üye eklenir ve çıkarılır; bu kaynak kaydı ya da planlama yüzeylerini değiştirmez, Favori ya da Günlük Odak değildir. Küçültülmüş tepsi ve üyeler kaynak görünüm bağlamı kaybedilmeden tek eylemle yeniden açılır. Üye ekleme ve çıkarma eylemlerinin label'ı spec'te yoktur (spec 72 yeni label'ları PRD 02 sözlüğüne eklemeyi şart koşar).
+- **Üye ekleme/çıkarma:** yalnız İş ve Belge kayıt başlığının taşma menüsünden (→ `DS.11`): `Add to Active Working Set` / `Remove from Active Working Set`. Arşivli ve Çöp Kutusu'ndaki kayıtta gizlidir.
+- **Küçültme/yeniden açma:** tepsi başlığında `Collapse` (mevcut ad, yeni bağlam: CONTEXT.md ve PRD 02:772'deki `Collapse`); küçültülmüş tepsinin tetiği `Show tray` (`Reopen` İş yeniden açma eylemiyle karışacağı için kullanılmaz) (`Collapsed` artboard'ı).
+- **Label'lar:** `Add to Active Working Set`, `Remove from Active Working Set`, `Collapse`, `Show tray`
 
 ### Durumlar
 #### Empty
@@ -141,11 +150,11 @@ Yeni oturumda set boştur ve geri yükleme teklif edilmez.
 
 ### Favori satırı
 Panelin açıklama satırı `Open your source records from Favorites.` altında liste; her satırda sırasıyla kaynak başlığı, tür, varsa kapsam ve yaşam işareti.
-- **Label'lar:** `Open source record`
+- **Label'lar:** `Open source record`, `Remove from Favorites`
 
 ### Kırık referans satırı
-Başlık ve içerik gösterilmez; yalnız durum metni, neden ve Favoriye eklenme zamanı (Hesap biçimiyle) görünür.
-- **Label'lar:** `Source record is unavailable.`, `No access`, `Permanently deleted`
+`Broken reference` artboard'ı bu satırı çizer (iki alt durum: `Missing target`, `Deleted source`). Kırık uç gösterimi (neden etiketleri, içerik sızdırmama, `Open source record` koşulu) → `20.10 › Kırık uç`. Bu ekrana özgü: satırda Favoriye eklenme zamanı (Hesap biçimiyle) görünür ve üyelik kaynak kaybolsa da kaldırılabilir.
+- **Label'lar:** `Source record is unavailable.`, `Remove from Favorites`
 
 ### Durumlar
 #### Empty
@@ -183,8 +192,8 @@ Grup başlığında ana kaynağın başlığı, türü ve Projesi; altında o ka
   - Bir Akıllı Koleksiyon: `smart-collection-entry` ("LUMA-58 entered").
 
 ### Sinyal satırı
-Her satırda neden, kaynak olayı, zaman ve okunma/kapatılma durumu kendi başına korunur. Nedenleri üretici feature yazar, merkez yeniden yazmaz.
-- **Label'lar:** `Open source record`, `Create Follow-up Work`
+Her satırda neden, kaynak olayı, zaman ve okunma/kapatılma durumu kendi başına korunur. Nedenleri üretici feature yazar, merkez yeniden yazmaz. Satırda okundu işaretleme ve kapatma eylemleri bulunur; ikisi de kaynak kaydın sonucunu değiştirmez (→ Durumlar › Read / Closed). Okundu ve kapatma eylemlerinin label'ı spec 71'de yoktur; `personal-reminder` satırında kapatma eylemi `Dismiss`'tir (PRD 02). Diğer sinyal türlerinde okundu işaretleme `Mark as read` (okunmuşu geri alan `Mark as unread`), kapatma `Close` (mevcut ad, yeni bağlam: Odak Dönemi `Close` ile aynı label; PRD 02:169). Ek durum label'ı yoktur; `Read` / `Closed` yalnız görsel sessizleşmedir.
+- **Label'lar:** `Open source record`, `Create Follow-up Work`, `Dismiss` (yalnız `personal-reminder`), `Mark as read`, `Mark as unread`, `Close`
 - **Kapalı sinyal türleri:** `due-date`, `reappear-date`, `personal-reminder`, `review-later`, `work-blocked`, `open-risk`, `smart-collection-entry`, `external-run-returned`, `handoff-result-after-cancel`, `unreviewed-test-report`, `test-result-conflict`, `source-version-in-use`, `unlinked-open-pr`, `work-pr-status-conflict`, `github-check-failed`, `github-activity`, `automation-failed`, `published-release-open-scope`, `release-observation-missing`; isteğe bağlı `public-roadmap-review-due` (Build in Public). Her türün hangi bölümde (`Action Required` / `Information Flow`) durduğu spec 71 kayıt defterindedir.
 
 ### Durumlar
@@ -200,6 +209,8 @@ Okunmuş satır sessizleşir. Kapatılmış satır listeden çıkar ya da en ses
 Kesin olay artık çözülemiyorsa kayıt açılır ve kayıp hedef bir açıklama satırıyla belirtilir. Başka bir olaya sessizce kaydırılmaz.
 #### Deleted source
 Grup başlığı yerine güvenli bir mezar taşı satırı görünür: içerik ve başlık sızdırılmaz.
+#### Full page
+`Open full page` ile açılan tam sayfa aynı iki bölümü, aynı gruplamayı ve aynı satır eylemlerini taşır; panelden farkı yalnız genişliktir ve yeni label yoktur.
 #### Many items
 Gruplar kaydırılır. Grup sırası zaman sırasıdır. AI önem sıralaması ve sağlık puanı yoktur.
 
@@ -234,11 +245,13 @@ Komutun nedenli ve görünür başarısızlığı; hiçbir yazma yapılmaz.
 
 ### Komut listesi
 İki grup: önce `Commands`, sonra `Authorized records`.
-- **Label'lar:** `Commands`, `Authorized records`, `Switch Project`, `Create`, `Open Projects`, `Open Sessions`, `Open Preferences`, `Create <type>`, `Scope`, `Target`, `Selection`, `Menu:`, `Enter`
+- **Label'lar:** `Commands`, `Authorized records`, `Switch Project`, `Create`, `Open Projects`, `Open Sessions`, `Open Preferences`, `Open Contacts`, `Create <type>`, `Copy Context as Markdown` (İş Bağlam Kartı bağlamını panoya aktarır; spec 16), `Scope`, `Target`, `Selection`, `Menu:`, `Enter`
 
 ### Durumlar
 #### Empty
 `No matching command`
+#### Filtered
+Sorgu yazılınca `Commands` ve `Authorized records` grupları filtrelenir, eşleşmeyen grup gizlenir; hiç eşleşme yoksa `No matching command`.
 #### Loading
 Giriş hemen odaklanır. `Authorized records` grubu bir kare sonra dolar, komutlar beklemez.
 #### Error
@@ -250,7 +263,7 @@ Satırın kısayol yerinde dönen gösterge belirir. Diğer satırlar pasifleşi
 #### Visitor
 Dış yüzeyde palet yüklenmez. Çizim gerekmez, App Frame'in public header durumu bunu gösterir.
 #### Tetik
-Tetik [Navigation](00-shared-shell.md#0011--navigation) araç kümesinde durur: `Command Palette` etiketi ve `Ctrl+K` / `⌘K` ipucu; solunda `Switch Project` ve `Create` hızlı eylemleri paleti ilgili komutla açar. 768'de yalnız ikon kalır, hızlı eylemler gizlenir. Kısayol ipucu sessizdir ama okunur.
+Tetik [Navigation](00-shared-shell.md#0011--navigation) araç kümesinde tanımlıdır (→ `00.11` › Araçlar); burada yeniden tarif edilmez.
 
 **Spec:** [05 Command Palette](../../specs/05-command-palette/spec.md), [04 Mutation and Undo](../../specs/04-mutation-and-undo/spec.md)
 
@@ -301,13 +314,13 @@ Yalnız gövde kayar, başlık ve alt şerit sabit kalır.
 **Artboard'lar**
 - `00.11 · Navigation · Default · 1440`
 - `00.11 · Navigation · Default · 768`
-- `00.11 · Navigation · Default · 1440 · Dark`
+- `00.11 · Navigation · Default · Dark · 1440`
 - `00.11 · Navigation · Inside a Project · 1440`
 - `00.11 · Navigation · Blank Project · 1440`
 - `00.11 · Navigation · Configuration Mode · 1440`
 - `00.11 · Navigation · Archived Project (Ferry) · 1440`
 - `00.11 · Navigation · Tools open · 1440`
-- `00.11 · Navigation · Account menu open · 1440`
+- `00.11 · Navigation · Workspace management open · 1440`
 - `00.11 · Navigation · Offline band · 1440`
 
 **Biçim kararı (DS.0 #17):** yan gezinme, üst gezinme veya ikisinin birleşimi. Aşağıdaki yapı biçimden bağımsızdır; hangi grup nerede duracağı seçilen biçime göre yerleşir.
@@ -315,13 +328,16 @@ Yalnız gövde kayar, başlık ve alt şerit sabit kalır.
 **Yapı (grup grup, içerik kesin)**
 
 ### Gruplar
-- **Marka:** `cantiara` wordmark'ı `/projects` bağlantısıdır. Oturumsuz rotalarda yalnız wordmark ve skip link kalır.
-- **Kişisel yüzeyler:** Etkin rota `aria-current="page"` taşır. `Daily Focus` varsayılan olarak Personal shell panelini açar; tam sayfa panelden `Open full page` ile açılır (→ `00.2`). PRD terim tablosuna göre `Projects`, `Daily Focus`, `Capture Inbox` birincil, diğerleri `More` altındadır; biçim kararı bunu belirler.
+- **Marka:** `cantiara` wordmark'ı `/projects` bağlantısıdır. Login ve oturumsuz rotalarda üst çubukta yalnız wordmark ve skip link kalır; gezinme, palet, `Search`, panel tetikleri ve Appearance yoktur. Ziyaretçi Dış yüzeylerinde kurucu paleti hiç yüklenmez (05).
+- **Kişisel yüzeyler:** Etkin rota `aria-current="page"` taşır. `Daily Focus` varsayılan olarak Personal shell panelini açar; tam sayfa panelden `Open full page` ile açılır (→ `00.2`). PRD terim tablosuna göre `Projects`, `Daily Focus`, `Capture Inbox` birincil, diğerleri `More` altındadır; biçim kararı bunu belirler. `More` altında en az `Drafts` (→ `02.10`; Create Work formundaki `Drafts` bağlantısı da aynı yüzeye gider, → `09.11`) ve `Contacts` (→ `06.1`; 768'de de `More`'da) bulunur. Tam `More` listesi spec 72'nindir. Emekli kimlik Contacts girişinde sonuç olarak sayılmaz.
+- **Label'lar:** `Drafts`, `Contacts`
+- **Çalışma Alanı yönetimi:** Hesap menüsü içinde ya da `More` altında yer alan grup (konumu çizen karar verir); girişler `Trash` (→ `02.11`), `Shares and Publications` (→ `02.13`), `Workspace Exit Package` (→ `02.14`), `Archive` (Arşivli Projeler, → `08.27`). Hepsi 768'de `More`'a iner. Proje içindeyken `Shares and Publications` Proje kapsamlı giriş olarak önceden Proje filtreli `02.13`'ü açar; Proje `Archive` girişi → `08.26`.
+  - **Label'lar:** `Trash`, `Shares and Publications`, `Workspace Exit Package`, `Archive`
 - **Proje seçimi:** `Switch Project` ve `Create` Komut Paletini ilgili komutla açar (→ `00.8`).
-- **Proje alanları:** Daima erişilir girişler (`Overview`, `Tags`, `Smart Collection`, `All Tools`), etkin çekirdek alanlar, ince ayırıcı, pinli ek alanlar. Pinlenmemiş etkin alanlar yalnız `All Tools` içindedir (→ `08.2`). `Design` tek seferde bir iç hedef gösterir: `Project Wall`, `Screen`, `User Flow`, `Moodboard`. Seçili giriş `aria-current="location"`.
-- **Configuration Mode:** Mod açıkken günlük yüzey ve gezinme yapılandırma yüzeyine döner; düğme `Exit Configuration Mode` olur (→ `08.13`).
-- **Araçlar:** Komut Paleti tetiği `Open Command Palette (Ctrl+K)` / `⌘K`; `Search` (`Ctrl+/`) → `02.7`; `Favorites`, `Notification Center` → `00.2`; `Active Working Set` boşken pasif, doluyken üye sayısı (bildirim sayısı değildir) → `00.3`. `Notification Center` için okunmamış sayı rozeti çizilmez.
-- **Hesap:** Appearance menüsü yalnız `Light` ve `Dark` taşır, `System` yoktur. `Account menu` 1440'ta `Deniz Aksoy`, 768'de `D` gösterir.
+- **Proje alanları:** Daima erişilir girişler (`Overview`, `Tags`, `Smart Collection`, `All Tools`), etkin çekirdek alanlar, ince ayırıcı, pinli ek alanlar. Pinlenmemiş etkin alanlar yalnız `All Tools` içindedir (→ `08.2`). `Design` tek seferde bir iç hedef gösterir (iç hedef listesi → `13.1`). Seçili giriş `aria-current="location"`.
+- **Configuration Mode:** Mod açıkken günlük yüzey ve gezinme yapılandırma yüzeyine döner; düğme Proje başlığındadır (→ `08.1`); açıkken etiketi `Exit Configuration Mode` olur (→ `08.1`).
+- **Araçlar:** Komut Paleti tetiği `Command Palette` etiketi ve `Ctrl+K` / `⌘K` ipucu, solunda `Switch Project` ve `Create` hızlı eylemleri; 768'de yalnız ikon kalır, hızlı eylemler gizlenir; `Search` (`Ctrl+/`) → `02.7`; `Favorites`, `Notification Center` → `00.2`; `Active Working Set` boşken pasif, doluyken üye sayısı (bildirim sayısı değildir) → `00.3`. `Notification Center` için okunmamış sayı rozeti çizilmez.
+- **Hesap:** `Account menu` tetiği 1440'ta `Deniz Aksoy`, 768'de `D` gösterir. Açık menü içeriği ve artboard'ı → `01.3`; Appearance değerleri (`Light`/`Dark`) → `01.6`.
 - **Skip link:** İlk Tab durağı; `Skip to main content` odağı ana içerik alanına taşır.
 
 ### Durumlar
@@ -332,14 +348,16 @@ Yalnız `Overview`, `Tags`, `Smart Collection`, `All Tools`, `Work`, `Documents`
 #### Configuration Mode
 Gezinme yapılandırma girişlerini gösterir; günlük yüzey girişleri pasif.
 #### Archived Project
-Proje seçili, arşiv işaretiyle; `Configuration Mode` pasif; yazma girişleri gizli (→ `08.27`).
+Proje seçili, arşiv işaretiyle; `Configuration Mode` pasif; yazma girişleri gizli (Arşivli Proje gezinmesi → `08.1`, bant → `20.21`).
+#### Loading / Error
+Proje rotası yüklenirken üst çubuk ve kişisel yüzeyler hemen çizilir, Proje alanı grubu iskelet olarak gelir; içerik alanı kendi yüklemesini gösterir. Proje okunamazsa Proje alanı grubu çizilmez, kişisel yüzeyler yerinde kalır; hata metni ve yeniden deneme içerik alanındadır (→ `08.1 › Durumlar`).
 #### Gizlenmiş alan
 Alan gezinmeden düşer, `All Tools`'ta `Hidden` kalır. Kayıt silinmez.
 #### Tools open
 Her araç kendi paneliyle: Palette (→ `00.8`), Search (→ `02.7`), Favorites ve Notification Center (→ `00.2`), Working Set (→ `00.3`).
 #### Offline
-Gezinme değişmez; üstte bant (→ `20.16`).
+Gezinme ve üst çubuk değişmez; üstte bant görünür (→ `20.16`). Yazma yapan eylemler kendi yüzeylerinde reddedilir (→ `20.16`).
 #### 768
-Birincil girişler kalır, geri kalanı katlanır; proje alanları yatay kaydırmaz, tek satırda sığar ya da menüye iner. Hiçbir hedef kaybolmaz.
+1440'ta tüm etiketler sığar. 768'de birincil girişler kalır, geri kalanı `More` menüsüne katlanır; proje alanları yatay kaydırmaz, tek satırda sığar ya da menüye iner. Hiçbir hedef kaybolmaz.
 
-**Spec:** [72](../../specs/72-personal-shell/spec.md), [07](../../specs/07-project-shell/spec.md), [05](../../specs/05-command-palette/spec.md), [33](../../specs/33-record-discovery/spec.md), [39](../../specs/39-favorites/spec.md), [71](../../specs/71-attention-signals/spec.md), [02](../../specs/02-account-preferences/spec.md), [83](../../specs/83-project-retirement/spec.md).
+**Spec:** [72](../../specs/72-personal-shell/spec.md), [07](../../specs/07-project-shell/spec.md), [05](../../specs/05-command-palette/spec.md), [33](../../specs/33-record-discovery/spec.md), [39](../../specs/39-favorites/spec.md), [71](../../specs/71-attention-signals/spec.md), [02](../../specs/02-account-preferences/spec.md), [83](../../specs/83-project-retirement/spec.md), [11](../../specs/11-work-drafts/spec.md), [46](../../specs/46-contact-and-company/spec.md), [76](../../specs/76-external-surface-management/spec.md), [77](../../specs/77-trash/spec.md), [82](../../specs/82-workspace-exit/spec.md).

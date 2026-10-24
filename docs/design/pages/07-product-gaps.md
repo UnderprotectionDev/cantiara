@@ -18,24 +18,26 @@ Başka araçta bitirilen işlerin kaydı: Ürün Boşlukları.
 - `07.1 · Product Gaps · Empty · 1440`
 
 ### Başlık
-Sayfa başlığı ve kayıt eylemi.
-- **Label'lar:** `Product Gaps`, `Record Product Gap`.
+Sayfa başlığı, kayıt eylemi ve liste eylemleri: `Export` → `20.5 · Export`, `Import` → `20.6 · Import`.
+- **Label'lar:** `Product Gaps`, `Record Product Gap`, `Export`, `Import`.
 
 ### Dogfooding süzgeçleri
 Dört seçici; yalnız seçer, sıralamaz.
 - **Label'lar:** `Filter Product Gaps`, `Filter by external tool`, `Any tool`, `Filter by reason`, `Any reason`, `Filter by Project`, `Any Project`, `Filter by status`, `Any status`.
 
 ### Boşluk bloğu
-Tek kolon listede her boşluk bir blok: başlık; karşılanmayan ihtiyaç; varsa kapsam; ilgili kayıtlar; kaçış sayısı düğmesi; durum seçici; takip eylemi.
-- **Label'lar:** `Scope: …`, `Related records`, `<n> Tool Escapes`, `Status of <başlık>`, `Open`, `Evaluating`, `Met`, `Conscious boundary`, `Create follow-up work`.
+Tek kolon listede her boşluk bir blok: başlık; karşılanmayan ihtiyaç; varsa kapsam; ilgili kayıtlar; kaçış sayısı düğmesi; durum seçici; takip eylemi (`Create follow-up work` önizleme ve onayı → `20.22 · Create Follow-up Work` › Ürün Boşluğu); paylaşma eylemi `Share` → `20.4 · Share` (kapalı dünya kapsam önizlemesi ve `Approved snapshot`; Ürün Boşluğu `20.4` kök kayıt türleri arasındadır). Dış Araca Kaçış olayları ve dış araç / neden alanları önizlemede ayrı satırdır: `Tool Escapes are listed separately; nothing is shared until you approve each row.`.
+- **Label'lar:** `Scope: …`, `Related records`, `<n> Tool Escapes`, `Status of <title>`, `Open`, `Evaluating`, `Met`, `Conscious boundary`, `Create follow-up work`, `Share`, `Tool Escapes are listed separately; nothing is shared until you approve each row.`.
 
 ### Tool Escapes (açılmış olay kümesi)
 Sayıyı oluşturan olaylar, aynı süzgeçle; her olay satırı ve varsa kapanış kanıtı ya da kapanış eylemi.
-- **Label'lar:** `Tool Escapes of <başlık>`, `Reasons: …`, `Source …`, `Note: …`, `Close Tool Escape`, `Close evidence`.
+- **Label'lar:** `Tool Escapes of <title>`, `Reasons: …`, `Source …`, `Note: …`, `Close Tool Escape`, `Close evidence`.
 
 ### Durumlar
 #### Empty
 `No Product Gaps recorded yet.`; `Record Product Gap` birincil kalır.
+#### Filtered
+Bir veya birkaç süzgeç seçili (örn. `Filter by external tool` = bir araç, `Filter by status` = `Open`): liste yalnız eşleşen blokları gösterir, seçili süzgeç değerleri seçicilerde görünür, olay kümesi aynı süzgeçle daralır. Hiçbiri eşleşmezse `No matches`.
 #### No matches
 `No Product Gaps match these filters.`.
 #### Loading
@@ -102,7 +104,7 @@ Kapanış ve vazgeçme.
 
 ### Durumlar
 #### Refused
-Koşul eksikse kapanmaz: `The Tool Escape was not closed. Unmet: <koşullar>.`; örn. `External copy` `Active parallel source`.
+Koşul eksikse kapanmaz: `The Tool Escape was not closed. Unmet: <conditions>.`; örn. `External copy` `Active parallel source`.
 #### Never held parallel truth
 Yalnız yargı ve açıklama; dört alan yok.
 #### Closed

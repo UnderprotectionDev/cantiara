@@ -14,6 +14,8 @@ Projenin `GitHub` alanı: GitHub App bağlantısı, repository ve otomasyon.
 | [18.8 · Issue · Create Work and Link](#188--issue--create-work-and-link) | Issue → İş önizleme dialog'u |
 | [18.9 · Work GitHub Links](#189--work-github-links) | İş detayında bağlı kayıtlar ve öneriler |
 
+**Bu sayfadaki PRD 02 sözlüğüne eklenmiş label'lar:** `Re-include`, `Re-including creates a new record. It originates from the deleted GitHub record and is not the same identity.`, `Confirm re-include`, `Restoring syncs the record with GitHub now. Review the difference.`, `Open on GitHub`, `Review and merge happen on GitHub.`, `Dismiss suggestion`, `Link GitHub record`, `Unlink GitHub record`.
+
 ## 18.1 · GitHub Connections
 > Proje'ye bağlı repository'leri bağlantı yaşamı, eşitleme durumu ve eylemleriyle göstermek.
 
@@ -31,7 +33,7 @@ Geniş satır: kimlik, eşitleme durumu, eylemler. İçerik: repository adı/sah
 - **Label'lar:** `Connected`, `Paused`, `Disconnected`, `Out of date`, `Sync now`, `Reconnect`, `Disconnect`; `Last synced`, `Last error`, `Retry after`, `No access`, `Source not found`.
 
 ### İzin açıklaması
-Sessiz tek blok: App'in yalnız okuma izinleri (`Metadata`, `Contents`, `Issues`, `Pull requests`, `Checks`, `Commit statuses`) ve `Contents`'in yalnız release/tag/commit çözümlemek için istendiği.
+Sessiz tek blok: App'in yalnız okuma izinleri olduğu ve `Contents`'in gerekçesi; izin listesi ve metin `18.2 · Adım 1 · GitHub App`'tedir, burada yeniden yazılmaz.
 
 ### Durumlar
 #### Default
@@ -47,9 +49,9 @@ App kaldırıldı veya erişim geri çekildi: `No access` nedeni, eşitleme durd
 #### Source not found
 Repository silindi/taşındı: `Source not found`; otomatik başka repoya bağlanmaz.
 #### Paused (archived project)
-Proje arşivli: `Paused`, son veriler zamanıyla; arşivden çıkınca otomatik sürmez.
+Proje arşivli: `Paused`, son veriler zamanıyla; arşivden çıkınca otomatik sürmez (bant ve uyarı `20.21`, yeniden bağlama akışı `18.5`).
 #### Disconnected
-`Disconnected`; yakalanmış kayıtlar "no longer syncing" bilgisiyle kalır.
+`Disconnected`; yakalanmış kayıtlar tarihsel kalır ve "no longer syncing" bilgisiyle gösterilir (bu anlamın sahibi burasıdır; `18.4` ve `18.9` bağlanır).
 
 **Spec:** [61 GitHub Bağlantısı ve Geliştirme Gerçeği](../../specs/61-github-integration/spec.md)
 
@@ -61,7 +63,7 @@ Proje arşivli: `Paused`, son veriler zamanıyla; arşivden çıkınca otomatik 
 - `18.2 · Connect Repository · Select repositories · 1440`
 
 ### Adım 1 · GitHub App
-Orta boy dialog'un ilk adımı: App'in login'den ayrı yetki olduğu; istenen okuma izinleri ve `Contents` gerekçesi; GitHub'a gidiş.
+Orta boy dialog'un ilk adımı: App'in login'den ayrı yetki olduğu; istenen yalnız okuma izinleri (`Metadata`, `Contents`, `Issues`, `Pull requests`, `Checks`, `Commit statuses`) ve `Contents`'in yalnız release/tag/commit çözümlemek için istendiği; GitHub'a gidiş.
 - **Label'lar:** `GitHub App`; `Install GitHub App`.
 
 ### Adım 2 · Repository seçimi
@@ -102,7 +104,7 @@ Gruplar ve seçilebilir Issue listesi.
 #### Preview
 Seçili 3 Issue için oluşacak İş ve alan önizlemesi.
 #### Skipped
-Atlama sonrası 18.6'ya yönlendirme, hiçbir Issue İş olmadı bilgisi.
+Atlama sonrası `18.6 · GitHub Records`'a yönlendirme, hiçbir Issue İş olmadı bilgisi.
 
 **Spec:** [61 GitHub Bağlantısı ve Geliştirme Gerçeği](../../specs/61-github-integration/spec.md)
 
@@ -114,7 +116,7 @@ Atlama sonrası 18.6'ya yönlendirme, hiçbir Issue İş olmadı bilgisi.
 - —
 
 ### Önizleme
-Orta boy dialog: repository; etkilenecek İş–PR/Issue bağlantıları; yakalanmış kayıtların tarihsel kalacağı; yeni eşitlemenin duracağı ve secret'ın iptal edileceği.
+Orta boy dialog: repository; etkilenecek İş–PR/Issue bağlantıları; yeni eşitlemenin duracağı ve secret'ın iptal edileceği; yakalanmış kayıtların durumu `18.1 · Disconnected`'tadır, burada yeniden yazılmaz.
 - **Label'lar:** `Disconnect`.
 
 ### Durumlar
@@ -157,7 +159,8 @@ Farklı kararlı kimlik yeni bağlantıdır; ada göre eşleme yapılmadığı a
 - **Label'lar:** GitHub kavram adları: issue, pull request, branch, commit, check, tag, Release; `Repository` filtresi; `GitHub external record`.
 
 ### Kayıt tablosu
-Geniş tablo: başlık/ad, numara/SHA, GitHub durumu, bağlı İşler ve rolleri, son eşitleme.
+Geniş tablo: başlık/ad, numara/SHA, GitHub durumu, bağlı İşler ve rolleri, son eşitleme. Satır eylemleri kaydı yerel yaşam durumlarına geçirir ve geri getirir; kayıt kaynak GitHub'da değişmez.
+- **Label'lar:** `Archive`, `Move to Trash` (ortak kayıt eylemleri → `design-system.md` `DS.11 · Record Header`, onay `20.2`), `Restore` (Çöp Kutusu geri yüklemesi → `02.11`), `Permanently Delete` (→ `20.3`). Tombstone satırında `Re-include`.
 
 ### Durumlar
 #### Default
@@ -166,8 +169,16 @@ Geniş tablo: başlık/ad, numara/SHA, GitHub durumu, bağlı İşler ve rolleri
 Üstte bağlantının güncel olmadığı ve son eşitleme zamanı; veri güncelmiş gibi sunulmaz.
 #### Empty
 Henüz yakalanan kayıt yok (ilk eşitleme devam ediyor).
+#### Archived record
+Yerelde arşivlenen GitHub dış kaydı, Proje bağı sağlıklı olduğu sürece kaynak güncellemelerini almaya devam eder.
 #### Trashed record
 Çöp Kutusundaki dış kayıt yeni kaynak durumu almaz; geri yüklemede fark açıkça uzlaştırılır.
+#### Tombstone
+Kalıcı silinen dış kayıt içeriksiz tombstone bırakır; sonraki webhook aynı ürün kimliğini diriltmez. Açıkça yeniden dahil etme yeni kimlik ve görünür köken üretir.
+#### Re-include
+Tombstone satırında `Re-include` önizleme açar: `Re-including creates a new record. It originates from the deleted GitHub record and is not the same identity.`; onay `Confirm re-include`.
+#### Restore reconcile
+Çöpten `Restore` sonrası fark önizlemesi: `Restoring syncs the record with GitHub now. Review the difference.`
 
 **Spec:** [61 GitHub Bağlantısı ve Geliştirme Gerçeği](../../specs/61-github-integration/spec.md)
 
@@ -179,10 +190,12 @@ Henüz yakalanan kayıt yok (ilk eşitleme devam ediyor).
 - `18.7 · Pull Request · PR Context Card · Unlinked PR · 1440`
 
 ### PR başlığı
-Üstte başlık, numara, açık/kapalı/merge durumu, branch, head SHA, son eşitleme; GitHub'da aç.
+Üstte başlık, numara, açık/kapalı/merge durumu, branch, head SHA, son eşitleme; GitHub'a geçiş eylemi (yeni sekme). Kartta İncelemenin ve merge'in GitHub'da yapıldığı yazılır.
+- **Label'lar:** `Open on GitHub`; `Review and merge happen on GitHub.`
 
 ### PR Context Card
 Sol geniş sütun: problem kaynağı, beklenen sonuç, ilgili Kararlar, açık Riskler, geri bildirimler, hedef Proje Sürümü, test kayıtları, bağlantının rolü; her madde asıl kayda açılır.
+Bağlantı rolünün sahibi burasıdır (tür çifti kataloğu `20.10`): `Required for completion` PR'ın İşi tamamlamak için gerekli olduğunu, `Contextual` yalnız bağlam verdiğini söyler; İş durumunu, kapanışı veya blokajı değiştirmez. `18.9` ve `16.5` yalnız referans verir.
 - **Label'lar:** `PR Context Card`, `Required for completion`, `Contextual`, `Expected Outcome`, `Open source record`.
 
 ### Check özeti
@@ -197,7 +210,7 @@ Sağ sütunda, veri varsa kompakt salt okunur liste.
 #### Default
 Bağlı İşli PR, dolu kart.
 #### Unlinked PR
-Bağlı İş yok: kart bölümleri boş ve dürüst ("No linked Work"); `Notification Center`'da tek `unlinked-open-pr` sinyali (→ `00`).
+Bağlı İş yok: kart bölümleri boş ve dürüst ("No linked Work"); `Notification Center`'da tek `unlinked-open-pr` sinyali (→ `00.5`).
 #### Failed check
 `github-check-failed` sinyalinin kaynağı; kart yalnız gösterir.
 #### Completed Work with open PR
@@ -232,15 +245,15 @@ Alanlar seçili, önizleme dolu.
 - `18.9 · Work GitHub Links · No links · 1440`
 
 ### Bağlı kayıtlar
-İş detayında bölüm; her satır: tür, başlık/numara, GitHub durumu, rol, eşleşme kaynağı (hangi anahtar), kaldırma.
-- **Label'lar:** `Required for completion`, `Contextual`.
+İş detayında bölüm; her satır: tür, başlık/numara, GitHub durumu, rol, eşleşme kaynağı (hangi anahtar), kaldırma. Rol label'ları ve anlamı → `18.7 · PR Context Card`.
 
 ### Öneriler
-Bağlı kayıtların altında; eksik, birden çok veya proje dışı anahtar eşleşmeleri yalnız öneri.
+Bağlı kayıtların altında; eksik, birden çok veya proje dışı anahtar eşleşmeleri yalnız öneri. Her öneri satırı rolü seçerek bağlar ya da öneriyi kapatır; eylem İş durumunu değiştirmez.
+- **Label'lar:** `Link as Required for completion`, `Link as Contextual`, `Dismiss suggestion`.
 
 ### Bağlama dialog'u
-Orta boy dialog: GitHub kaydı seçimi (relation picker deseni → `20`), rol seçimi.
-- **Label'lar:** `Required for completion`, `Contextual`.
+Orta boy dialog: GitHub kaydı seçimi (relation picker deseni → `20.10`), rol seçimi. Dialog'u bağlı kayıtlar bölümündeki açılış eylemi açar; bağlı satırda kaldırma eylemi vardır.
+- **Label'lar:** rol label'ları → `18.7`; `Link GitHub record`, `Unlink GitHub record` (bağlı satırdaki kaldırma eylemi; `Remove link` Belge metni bağlantısı için ayrıdır).
 
 ### Anahtar eşleşme kuralı
 PR gövdesindeki benzersiz İş anahtarı ile `Fixes` / `Closes` / `Resolves` birlikte `Required for completion` üretir; diğer benzersiz eşleşmeler `Contextual` olur; eksik, çoklu veya Proje dışı anahtar yalnız öneri üretir. Bağlama İş durumunu, kapanışı veya blokajları değiştirmez.
@@ -251,6 +264,6 @@ PR gövdesindeki benzersiz İş anahtarı ile `Fixes` / `Closes` / `Resolves` bi
 #### No links
 Bağlı kayıt yok; açık seçim eylemi.
 #### Repository disconnected
-Bağlar "no longer syncing" bilgisiyle tarihsel.
+Bağlar tarihsel; "no longer syncing" bilgisi `18.1 · Disconnected` ile aynıdır.
 
 **Spec:** [61 GitHub Bağlantısı ve Geliştirme Gerçeği](../../specs/61-github-integration/spec.md)

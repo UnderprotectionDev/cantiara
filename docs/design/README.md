@@ -10,6 +10,8 @@ Cantiara'nın bütün arayüzü Paper'da tek bir yeni dosyada çizilir. Bu klas�
 
 Bir parça birden çok sayfada görünüyorsa tek yerde çizilir (`Design System`, `00` veya `20`); diğer sayfalar yeniden çizmez.
 
+İstisna: Design tuvallerinin ortak kabuğu (araç çubuğu, zoom, `Fit View`, `Presentation Mode`, kişisel viewport) [13.2](pages/13-design.md#132--canvas-chrome) içinde tek yerde tanımlıdır. Design System yalnız ona işaret eder; `09`, `13` ve `14` yeniden listelemez.
+
 ## Sayfalar
 
 | Paper sayfası | Ekran |
@@ -30,24 +32,24 @@ Bir parça birden çok sayfada görünüyorsa tek yerde çizilir (`Design System
 | [12 · Decisions](pages/12-decisions.md) | 10 |
 | [13 · Design](pages/13-design.md) | 13 |
 | [14 · Technical Diagrams](pages/14-technical-diagrams.md) | 9 |
-| [15 · Tests](pages/15-tests.md) | 20 |
+| [15 · Tests](pages/15-tests.md) | 21 |
 | [16 · Releases](pages/16-releases.md) | 9 |
 | [17 · Production](pages/17-production.md) | 3 |
 | [18 · GitHub](pages/18-github.md) | 9 |
 | [19 · Public Surfaces](pages/19-public-surfaces.md) | 9 |
-| [20 · Shared Dialogs & States](pages/20-shared-dialogs-and-states.md) | 21 |
+| [20 · Shared Dialogs & States](pages/20-shared-dialogs-and-states.md) | 22 |
 
-Toplam 264 ekran.
+Toplam 266 ekran.
 
 Ekranı olmayan spec: [85 Operasyonel Yedek, Kurtarma ve Alarm](../specs/85-operator-backup-and-alarms/spec.md). Spec "No founder-facing restore UI" ve "No Turkish product UI" der; kurucuya dönük yüzey açmaz.
 
 ## Ekran nasıl yazılır
 
-Her ekran yalnız içeriği söyler: amaç, artboard adları, bölgeler (içerik ve label'lar), durumlar ve spec bağlantısı. Neyin nerede duracağı, hiyerarşi ve yerleşim burada yazılmaz; onu çizen karar verir. Artboard adı biçimi: `NN.M · <Screen> · <durum> · <genişlik>`.
+Her ekran yalnız içeriği söyler: amaç, artboard adları, bölgeler (içerik ve label'lar), durumlar ve spec bağlantısı. Neyin nerede duracağı, hiyerarşi ve yerleşim burada yazılmaz; onu çizen karar verir. Artboard adı biçimi: `NN.M · <Screen> · <durum> · <genişlik>`. `Loading`, `Error`, `Empty`, `Offline`, `Many items`, `Long content` ve `Validation` gibi durumlar artboard'sız `####` olarak yazılır; yalnız yerleşimi veya içeriği ayırt edici biçimde değişen durumlar artboard alır. Ekran numaraları kalıcıdır; kaldırılan ekranın numarası yeniden kullanılmaz, bu yüzden numaralarda aralıklar vardır.
 
 ## Kurallar
 
-- **Genişlik:** Uygulama ekranları 1440. 768 yalnız layout'u değişen ekranlarda. 390 yalnız `19 · Public Surfaces`. Kimlik doğrulamalı mobil ürün kapsam dışıdır ([PRD 19](../prd/19-out-of-scope.md)).
+- **Genişlik:** Uygulama ekranları 1440. 768 yalnız layout'u değişen ekranlarda. 390 yalnız `19 · Public Surfaces` ve `03.8 · Web Capture` (uzantı açılır penceresi). Kimlik doğrulamalı mobil ürün kapsam dışıdır ([PRD 19](../prd/19-out-of-scope.md)).
 - **Light / Dark:** Light çizilir. Dark yalnız adında `· Dark` olan artboard'larda.
 - **Metin:** Ekrandaki İngilizce metin spec'in kesin UI label'ıdır; terimler [`CONTEXT.md`](../../CONTEXT.md) sözlüğünü izler. Spec'te metni olmayan yerler için seçilen label'lar [PRD 02 sözlüğüne](../prd/02-domain-model-and-lifecycle.md#terim-sözlüğü) eklenmiştir.
 - **Sahiplik:** Ürün davranışının sahibi [`docs/specs/`](../specs/) ve [`docs/prd/`](../prd/). Bu harita onlarla çelişirse harita güncellenir.
