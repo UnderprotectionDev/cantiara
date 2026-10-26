@@ -109,6 +109,7 @@ import type { TestGapsAccess } from "@cantiara/api/test-gaps";
 import type { TestReportAcceptanceAccess } from "@cantiara/api/test-report";
 import type { TestReviewAccess } from "@cantiara/api/test-review";
 import type { UserFlowAccess } from "@cantiara/api/user-flow";
+import type { ValueChainAccess } from "@cantiara/api/value-chain";
 import {
   type WebCaptureAccess,
   webCapturePairingInputSchema,
@@ -264,6 +265,7 @@ export interface AppDependencies {
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   userFlow?: UserFlowAccess;
+  valueChain?: ValueChainAccess;
   webCapture?: WebCaptureAccess;
   workAutomation?: WorkAutomationAccess;
   workContext?: WorkContextAccess;
@@ -1298,6 +1300,7 @@ export function createApp(dependencies: AppDependencies) {
         dependencies.specChangeReviewMutationContracts,
       relations: dependencies.relations,
       releaseEvidence: dependencies.releaseEvidence,
+      valueChain: dependencies.valueChain,
       trustedProxyIps: dependencies.trustedProxyIps,
       usageLinkMutationContracts: dependencies.usageLinkMutationContracts,
       usageLinks: dependencies.usageLinks,

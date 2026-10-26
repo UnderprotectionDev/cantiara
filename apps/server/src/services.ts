@@ -135,6 +135,7 @@ import { createDatabaseTestGaps } from "./features/test-gaps/server/test-gaps-da
 import { createDatabaseTestReports } from "./features/test-report/server/test-report-database";
 import { createDatabaseTestReview } from "./features/test-review/server/test-review-database";
 import { createDatabaseUserFlow } from "./features/user-flow/server/user-flow-database";
+import { createDatabaseValueChain } from "./features/value-chain/server/value-chain-database";
 import {
   createDatabaseWorkAutomation,
   type WorkAutomationWorkCreation,
@@ -284,6 +285,7 @@ export const prioritizationSessionMutationContracts =
 export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
 export const releaseEvidence = createDatabaseReleaseEvidence(db);
+export const valueChain = createDatabaseValueChain(db);
 export const projectWall = createDatabaseProjectWall(db, relations, {
   collections: smartCollections,
   diagrams: technicalDiagrams,

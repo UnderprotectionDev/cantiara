@@ -96,6 +96,7 @@ import type { TestGapsAccess } from "@cantiara/api/test-gaps";
 import type { TestReportAcceptanceAccess } from "@cantiara/api/test-report";
 import type { TestReviewAccess } from "@cantiara/api/test-review";
 import type { UserFlowAccess } from "@cantiara/api/user-flow";
+import type { ValueChainAccess } from "@cantiara/api/value-chain";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkAutomationAccess } from "@cantiara/api/work-automation";
 import type { WorkContextAccess } from "@cantiara/api/work-context";
@@ -190,6 +191,7 @@ export interface CreateContextOptions {
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   userFlow?: UserFlowAccess;
+  valueChain?: ValueChainAccess;
   webCapture?: WebCaptureAccess;
   workAutomation?: WorkAutomationAccess;
   workContext?: WorkContextAccess;
@@ -281,6 +283,7 @@ export async function createContext({
   specChangeReviewMutationContracts,
   relations,
   releaseEvidence,
+  valueChain,
   tagMutationContracts,
   trustedProxyIps,
   usageLinkMutationContracts,
@@ -381,6 +384,7 @@ export async function createContext({
     specChangeReviewMutationContracts,
     relations,
     releaseEvidence,
+    valueChain,
     auth: null,
     session,
     tagMutationContracts,

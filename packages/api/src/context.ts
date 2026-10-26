@@ -84,6 +84,7 @@ import type { TestGapsAccess } from "./test-gaps";
 import type { TestReportAcceptanceAccess } from "./test-report";
 import type { TestReviewAccess } from "./test-review";
 import type { UserFlowAccess } from "./user-flow";
+import type { ValueChainAccess } from "./value-chain";
 import type { WebCaptureAccess } from "./web-capture";
 import type { WorkAutomationAccess } from "./work-automation";
 import type { WorkContextAccess } from "./work-context";
@@ -253,6 +254,7 @@ export interface Context {
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   userFlow?: UserFlowAccess;
+  valueChain?: ValueChainAccess;
   webCapture?: WebCaptureAccess;
   workAutomation?: WorkAutomationAccess;
   workContext?: WorkContextAccess;
