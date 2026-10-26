@@ -5,6 +5,7 @@ import {
   BACKLOG_HASH,
   CONFIGURATION_HOSTS,
   configurationHostId,
+  DAILY_ACTION_HASHES,
   documentRecordFromHash,
   documentRecordHash,
   documentSectionRecordHash,
@@ -17,6 +18,7 @@ import {
   ROADMAP_HASH,
   workRecordHash,
   workRecordHref,
+  workRecordIdFromHash,
   workRelationsHash,
 } from "../project-shell-navigation";
 
@@ -121,6 +123,13 @@ describe("Project Shell Work navigation", () => {
     expect(isWorkRecordHash(workRelationsHash("work-1"))).toBe(false);
     expect(isWorkSurfaceHash(hash)).toBe(true);
     expect(navigationSurfaceFromHash(hash, ["Work"], [], [])).toBe("Work");
+  });
+
+  test("does not read a Daily action hash as a Work record id", () => {
+    for (const hash of Object.values(DAILY_ACTION_HASHES)) {
+      expect(workRecordIdFromHash(hash)).toBeNull();
+    }
+    expect(workRecordIdFromHash(workRecordHash("work/2"))).toBe("work/2");
   });
 
   test("round trips typed source record links without losing encoded IDs", () => {

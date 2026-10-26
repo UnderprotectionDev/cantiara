@@ -70,6 +70,9 @@ import { createDatabasePriorityMetrics } from "../src/features/priority-metrics/
 import { createDatabasePriorityMetricMutationContracts } from "../src/features/priority-metrics/server/priority-metrics-mutation-database";
 import { createDatabaseProductGaps } from "../src/features/product-gaps/server/product-gaps-database";
 import { createDatabaseProjectGoals } from "../src/features/project-goals/server/project-goals-database";
+import { createProjectActivity } from "../src/features/project-history/server/project-activity";
+import { createDatabaseProjectActivityStore } from "../src/features/project-history/server/project-activity-database";
+import { createDatabaseProjectHistory } from "../src/features/project-history/server/project-history-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "../src/features/project-source-records/server/project-source-records-database";
@@ -395,6 +398,10 @@ const app = createApp({
   projectSourceRecords,
   personalReminders,
   favorites: createDatabaseFavorites(database),
+  projectActivity: createProjectActivity(
+    createDatabaseProjectActivityStore(database),
+  ),
+  projectHistory: createDatabaseProjectHistory(database),
   priorityMetricMutationContracts,
   priorityMetrics,
   projectShell,

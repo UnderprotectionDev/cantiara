@@ -248,7 +248,10 @@ export function documentRecordFromHash(
 
 /** The Work id of a `work-<id>` record hash, or null. */
 export function workRecordIdFromHash(hash: string) {
-  if (!isWorkRecordHash(hash)) {
+  if (
+    !isWorkRecordHash(hash) ||
+    Object.values(DAILY_ACTION_HASHES).includes(hash)
+  ) {
     return null;
   }
   try {
