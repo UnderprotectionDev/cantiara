@@ -1,5 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the current filters and cursor.
-import type { ProjectActivity } from "@cantiara/api/project-activity";
+import {
+  clusterProjectActivityRows,
+  type ProjectActivity,
+} from "@cantiara/api/project-activity";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -41,9 +44,12 @@ function ProjectActivityPages({
     );
   }
   const cursor = older ? older.cursor : first.data.nextCursor;
+  const rows = [...first.data.rows, ...(older?.rows ?? [])];
   const activity: ProjectActivity = {
     ...first.data,
-    rows: [...first.data.rows, ...(older?.rows ?? [])],
+    // Re-clustered over all loaded pages so a cluster is not split at a page edge.
+    entries: clusterProjectActivityRows(rows),
+    rows,
   };
   return (
     <ProjectActivityView

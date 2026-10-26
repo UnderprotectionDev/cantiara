@@ -232,3 +232,45 @@ test("an empty result says so and offers older changes only when more exist", ()
     ),
   ).toBe(false);
 });
+
+test("five-minute field changes form one accessible disclosure that lists every atomic event", () => {
+  const view = render([
+    entry({
+      id: "h1",
+      nextValue: { work: { title: "B" } },
+      previousValue: { work: { title: "A" } },
+    }),
+    entry({
+      id: "h2",
+      nextValue: { work: { title: "C" } },
+      occurredAt: "2026-05-01T10:02:00.000Z",
+      previousValue: { work: { title: "B" } },
+      undo: { kind: "field" },
+    }),
+    entry({
+      id: "h3",
+      nextValue: { work: { status: "Done", title: "C" } },
+      occurredAt: "2026-05-01T10:03:00.000Z",
+      previousValue: { work: { status: "Todo", title: "C" } },
+    }),
+  ]);
+  const top = [
+    ...view.querySelectorAll("ol[aria-label='Project Activity'] > li"),
+  ];
+  expect(top).toHaveLength(2);
+  const toggle = top[1]?.querySelector("button");
+  expect(top[1]?.textContent).toContain("2 field changes");
+  expect(top[1]?.textContent).toContain("title");
+  expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+  expect(top[1]?.querySelectorAll("ol li")).toHaveLength(0);
+  act(() => toggle?.click());
+  expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+  const controlled = toggle?.getAttribute("aria-controls") ?? "";
+  expect(
+    document.getElementById(controlled)?.querySelectorAll("ol > li"),
+  ).toHaveLength(2);
+  const text = top[1]?.textContent ?? "";
+  expect(text).toContain("title: A → B");
+  expect(text).toContain("title: B → C");
+  expect(top[0]?.textContent).toContain("Status change");
+});
