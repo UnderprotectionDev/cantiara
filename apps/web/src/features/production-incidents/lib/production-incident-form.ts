@@ -3,7 +3,7 @@ import {
   type ProductionIncidentLinkType,
   type ProductionIncidentRecord,
 } from "@cantiara/api/production-incidents";
-import { format, isValid, parse } from "date-fns";
+import { isValid } from "date-fns";
 import { z } from "zod";
 import {
   projectSourceRecordHash,
@@ -41,18 +41,61 @@ export function productionIncidentLinkHref(
   }
 }
 
-const LOCAL_DATE_TIME = "yyyy-MM-dd'T'HH:mm";
+const LOCAL_DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
-/** `datetime-local` text of a stored instant, in the browser's time zone. */
-export function incidentTimeInput(value: string) {
-  const date = new Date(value);
-  return isValid(date) ? format(date, LOCAL_DATE_TIME) : "";
+/** `yyyy-MM-ddTHH:mm` wall clock of `date` in `timeZone`, or `null`. */
+function wallClockInTimeZone(date: Date, timeZone: string) {
+  try {
+    const parts = new Map(
+      new Intl.DateTimeFormat("en-GB", {
+        day: "2-digit",
+        hour: "2-digit",
+        hourCycle: "h23",
+        minute: "2-digit",
+        month: "2-digit",
+        timeZone,
+        year: "numeric",
+      })
+        .formatToParts(date)
+        .map((part) => [part.type, part.value]),
+    );
+    const clock = (type: Intl.DateTimeFormatPartTypes) => parts.get(type) ?? "";
+    const wall = `${clock("year")}-${clock("month")}-${clock("day")}T${clock("hour")}:${clock("minute")}`;
+    return LOCAL_DATE_TIME_PATTERN.test(wall) ? wall : null;
+  } catch {
+    // An unsupported time zone reads as UTC.
+    return null;
+  }
 }
 
-/** The stored instant of a `datetime-local` text, or `null` when it is not a time. */
-export function incidentTimeInstant(value: string) {
-  const date = parse(value, LOCAL_DATE_TIME, new Date());
-  return isValid(date) ? date.toISOString() : null;
+/** Milliseconds `timeZone` is east of UTC at `date`; an unsupported zone reads as 0. */
+function timeZoneOffsetMs(date: Date, timeZone: string) {
+  const wall = wallClockInTimeZone(date, timeZone);
+  return wall ? Date.parse(`${wall}:00Z`) - date.getTime() : 0;
+}
+
+/**
+ * `datetime-local` text of a stored instant, in the Account time zone the
+ * detail view also displays it in.
+ */
+export function incidentTimeInput(value: string, timeZone: string) {
+  const date = new Date(value);
+  return isValid(date) ? (wallClockInTimeZone(date, timeZone) ?? "") : "";
+}
+
+/** The stored instant of a `datetime-local` text in `timeZone`, or `null` when it is not a time. */
+export function incidentTimeInstant(value: string, timeZone: string) {
+  if (!LOCAL_DATE_TIME_PATTERN.test(value)) {
+    return null;
+  }
+  const naive = Date.parse(`${value}:00Z`);
+  if (Number.isNaN(naive)) {
+    return null;
+  }
+  // Two passes land on the instant whose wall clock in `timeZone` is the
+  // entered text, correcting the offset across a DST edge.
+  const guess = new Date(naive - timeZoneOffsetMs(new Date(naive), timeZone));
+  return new Date(naive - timeZoneOffsetMs(guess, timeZone)).toISOString();
 }
 
 const optionalText = z
@@ -63,31 +106,38 @@ const optionalText = z
 
 /**
  * Production Incident record fields: a title, when it happened and five
- * optional founder-written texts. There is no severity, duration or score.
+ * optional founder-written texts. The occurrence time is entered in the
+ * Account time zone and stored as an instant. There is no severity, duration
+ * or score.
  */
-export const productionIncidentFormSchema = z
-  .object({
-    detectedHow: optionalText,
-    impact: optionalText,
-    learning: optionalText,
-    occurredAt: z
-      .string()
-      .trim()
-      .transform((value, context) => {
-        const instant = incidentTimeInstant(value);
-        if (!instant) {
-          context.addIssue({ code: "custom", message: "Enter when it began." });
-          return z.NEVER;
-        }
-        return instant;
-      }),
-    resolution: optionalText,
-    rootCause: optionalText,
-    title: z.string().trim().min(1).max(255),
-  })
-  .strict();
+export function productionIncidentFormSchema(timeZone: string) {
+  return z
+    .object({
+      detectedHow: optionalText,
+      impact: optionalText,
+      learning: optionalText,
+      occurredAt: z
+        .string()
+        .trim()
+        .transform((value, context) => {
+          const instant = incidentTimeInstant(value, timeZone);
+          if (!instant) {
+            context.addIssue({
+              code: "custom",
+              message: "Enter when it began.",
+            });
+            return z.NEVER;
+          }
+          return instant;
+        }),
+      resolution: optionalText,
+      rootCause: optionalText,
+      title: z.string().trim().min(1).max(255),
+    })
+    .strict();
+}
 export type ProductionIncidentFormValues = z.output<
-  typeof productionIncidentFormSchema
+  ReturnType<typeof productionIncidentFormSchema>
 >;
 export interface ProductionIncidentDraft {
   detectedHow: string;
@@ -111,12 +161,13 @@ export const EMPTY_PRODUCTION_INCIDENT_DRAFT: ProductionIncidentDraft = {
 
 export function productionIncidentDraft(
   incident: ProductionIncidentRecord,
+  timeZone: string,
 ): ProductionIncidentDraft {
   return {
     detectedHow: incident.detectedHow ?? "",
     impact: incident.impact ?? "",
     learning: incident.learning ?? "",
-    occurredAt: incidentTimeInput(incident.occurredAt),
+    occurredAt: incidentTimeInput(incident.occurredAt, timeZone),
     resolution: incident.resolution ?? "",
     rootCause: incident.rootCause ?? "",
     title: incident.title,

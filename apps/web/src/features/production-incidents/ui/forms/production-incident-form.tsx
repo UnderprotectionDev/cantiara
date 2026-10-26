@@ -28,18 +28,21 @@ export function ProductionIncidentForm({
   mode,
   onCancel,
   onSubmit,
+  timeZone,
 }: {
   draft?: ProductionIncidentDraft;
   mode: "create" | "edit";
   onCancel?: () => void;
   onSubmit: (values: ProductionIncidentFormValues) => Promise<unknown>;
+  /** Account time zone; the occurrence time is entered and shown in it. */
+  timeZone: string;
 }) {
   const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: draft,
     onSubmit: async ({ value }) => {
       setError(null);
-      const parsed = productionIncidentFormSchema.safeParse(value);
+      const parsed = productionIncidentFormSchema(timeZone).safeParse(value);
       if (!parsed.success) {
         setError("Enter a title and when the incident began.");
         return;

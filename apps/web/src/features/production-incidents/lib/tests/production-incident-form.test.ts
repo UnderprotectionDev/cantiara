@@ -18,7 +18,7 @@ const valid = {
 
 describe("Production Incident form schema", () => {
   test("needs a title and a time; the five texts are optional", () => {
-    const parsed = productionIncidentFormSchema.parse({
+    const parsed = productionIncidentFormSchema("UTC").parse({
       ...valid,
       impact: "  20 minutes of failed checkouts ",
     });
@@ -30,17 +30,24 @@ describe("Production Incident form schema", () => {
       rootCause: null,
       title: "Checkout outage",
     });
-    expect(parsed.occurredAt).toBe(incidentTimeInstant("2026-10-19T08:30"));
+    expect(parsed.occurredAt).toBe(
+      incidentTimeInstant("2026-10-19T08:30", "UTC"),
+    );
     expect(
-      productionIncidentFormSchema.safeParse({ ...valid, title: "  " }).success,
-    ).toBe(false);
-    expect(
-      productionIncidentFormSchema.safeParse({ ...valid, occurredAt: "" })
+      productionIncidentFormSchema("UTC").safeParse({ ...valid, title: "  " })
         .success,
     ).toBe(false);
     expect(
-      productionIncidentFormSchema.safeParse({ ...valid, occurredAt: "soon" })
-        .success,
+      productionIncidentFormSchema("UTC").safeParse({
+        ...valid,
+        occurredAt: "",
+      }).success,
+    ).toBe(false);
+    expect(
+      productionIncidentFormSchema("UTC").safeParse({
+        ...valid,
+        occurredAt: "soon",
+      }).success,
     ).toBe(false);
   });
 
@@ -52,15 +59,26 @@ describe("Production Incident form schema", () => {
       { ttr: "20" },
     ]) {
       expect(
-        productionIncidentFormSchema.safeParse({ ...valid, ...extra }).success,
+        productionIncidentFormSchema("UTC").safeParse({
+          ...valid,
+          ...extra,
+        }).success,
       ).toBe(false);
     }
   });
 
-  test("round-trips a stored instant through the datetime-local text", () => {
+  test("round-trips a stored instant through the datetime-local text in the Account zone", () => {
     const instant = "2026-10-19T08:30:00.000Z";
-    expect(incidentTimeInstant(incidentTimeInput(instant))).toBe(instant);
-    expect(incidentTimeInput("not a time")).toBe("");
+    for (const timeZone of ["UTC", "America/Los_Angeles", "Europe/Istanbul"]) {
+      expect(
+        incidentTimeInstant(incidentTimeInput(instant, timeZone), timeZone),
+      ).toBe(instant);
+    }
+    expect(incidentTimeInput(instant, "America/Los_Angeles")).toBe(
+      "2026-10-19T01:30",
+    );
+    expect(incidentTimeInput("not a time", "UTC")).toBe("");
+    expect(incidentTimeInstant("soon", "UTC")).toBeNull();
   });
 
   test("labels the fields and the five linkable record types", () => {

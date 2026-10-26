@@ -69,6 +69,8 @@ export function ProductionIncidentSurface({
     onPreview: (values) =>
       client.previewProductionIncidentFollowUp({ ...base, ...values }),
     onCreate: async (values, preview) => {
+      // The id survives a failed attempt: a retried identical command replays
+      // the server receipt instead of creating a second Work.
       followUpWorkId.current ??= crypto.randomUUID();
       const workId = followUpWorkId.current;
       const command = {
@@ -77,23 +79,17 @@ export function ProductionIncidentSurface({
         previewFingerprint: preview.fingerprint,
         workId,
       };
-      try {
-        await done(
-          "Follow-up work created.",
-          run(command, (clientIdempotencyKey) =>
-            client.createProductionIncidentFollowUp({
-              ...command,
-              baseRevision: 0,
-              clientIdempotencyKey,
-            }),
-          ),
-        );
-        followUpWorkId.current = null;
-      } catch (error) {
-        // A stale preview needs a new preview, which gets its own Work id.
-        followUpWorkId.current = null;
-        throw error;
-      }
+      await done(
+        "Follow-up work created.",
+        run(command, (clientIdempotencyKey) =>
+          client.createProductionIncidentFollowUp({
+            ...command,
+            baseRevision: 0,
+            clientIdempotencyKey,
+          }),
+        ),
+      );
+      followUpWorkId.current = null;
     },
     onAddLink: (target) => {
       const command = {

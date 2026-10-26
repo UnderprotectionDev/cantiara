@@ -138,7 +138,7 @@ async function ownedProject(
   lock: RowLock,
 ) {
   const query = executor
-    .select({ archivedAt: project.archivedAt, id: project.id })
+    .select({ project })
     .from(project)
     .innerJoin(workspace, eq(project.workspaceId, workspace.id))
     .where(
@@ -147,7 +147,8 @@ async function ownedProject(
     .limit(1);
   const [row] = lock ? await query.for(lock, { of: project }) : await query;
   // Writes need an active Project; an archived Project stays readable.
-  return row && (!lock || row.archivedAt === null) ? row : null;
+  const owned = row?.project;
+  return owned && (!lock || owned.archivedAt === null) ? owned : null;
 }
 
 /** The incident must belong to the founder's Project named in the command. */
@@ -482,15 +483,8 @@ function followUpTarget(
       if (!owned) {
         return null;
       }
-      const [projectRow] = await executor
-        .select()
-        .from(project)
-        .where(eq(project.id, value.projectId))
-        .limit(1)
-        .for("update");
-      if (!projectRow) {
-        return null;
-      }
+      // The Project row is already fully read under the same lock.
+      const projectRow = owned.project;
       // The exact previewed plan, re-derived from the live incident.
       const live = await previewOfFollowUp(
         buildFollowUpPlan(toIncident(owned.incident), value),

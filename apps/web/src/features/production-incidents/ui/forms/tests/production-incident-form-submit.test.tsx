@@ -26,7 +26,13 @@ function mount(onSubmit: Submit) {
   document.body.append(host);
   root = createRoot(host);
   act(() => {
-    root?.render(<ProductionIncidentForm mode="create" onSubmit={onSubmit} />);
+    root?.render(
+      <ProductionIncidentForm
+        mode="create"
+        onSubmit={onSubmit}
+        timeZone="UTC"
+      />,
+    );
   });
 }
 
@@ -60,6 +66,7 @@ describe("Record Production Incident form submit", () => {
     await submit();
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit.mock.calls[0]?.[0]).toMatchObject({
+      occurredAt: "2026-10-19T08:30:00.000Z",
       title: "Checkout outage",
     });
   });

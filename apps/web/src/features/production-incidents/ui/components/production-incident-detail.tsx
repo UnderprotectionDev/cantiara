@@ -111,13 +111,14 @@ export function ProductionIncidentDetail({
             </div>
             {editing ? (
               <ProductionIncidentForm
-                draft={productionIncidentDraft(incident)}
+                draft={productionIncidentDraft(incident, formatting.timeZone)}
                 mode="edit"
                 onCancel={() => setEditing(false)}
                 onSubmit={async (values) => {
                   await actions.onSave(values);
                   setEditing(false);
                 }}
+                timeZone={formatting.timeZone}
               />
             ) : (
               <dl className="grid gap-3 text-sm">

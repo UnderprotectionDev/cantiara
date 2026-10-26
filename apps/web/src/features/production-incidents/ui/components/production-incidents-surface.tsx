@@ -52,7 +52,10 @@ export function ProductionIncidentsSurface({
     );
     incidentId.current = null;
     setCreating(false);
-    await navigate({ href: productionIncidentsHref(projectId, id) });
+    // A failed in-app navigation must not read as a failed create.
+    await navigate({ href: productionIncidentsHref(projectId, id) }).catch(
+      () => undefined,
+    );
   }
 
   if (overview.isPending) {
@@ -105,6 +108,7 @@ export function ProductionIncidentsSurface({
             mode="create"
             onCancel={() => setCreating(false)}
             onSubmit={create}
+            timeZone={formatting.timeZone}
           />
         </DialogContent>
       </Dialog>

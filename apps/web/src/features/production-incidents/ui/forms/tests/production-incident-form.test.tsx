@@ -8,7 +8,7 @@ const PAGER_COPY = /severity|pager|on-call|status page|TTR|TTD/i;
 describe("Production Incident form", () => {
   test("create asks for Title, Occurred at and the five optional texts, and starts Open", () => {
     const html = renderToStaticMarkup(
-      <ProductionIncidentForm mode="create" onSubmit={noop} />,
+      <ProductionIncidentForm mode="create" onSubmit={noop} timeZone="UTC" />,
     );
     for (const id of [
       "production-incident-title",
@@ -42,6 +42,7 @@ describe("Production Incident form", () => {
         }}
         mode="edit"
         onSubmit={noop}
+        timeZone="UTC"
       />,
     );
     expect(html).toContain('value="Checkout outage"');
