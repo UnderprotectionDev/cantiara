@@ -232,6 +232,32 @@ function projectReleasesSurface(
   ) : null;
 }
 
+/** The project `Production` area component, injected by the route. */
+export type ProjectProductionArea = ComponentType<{
+  formatting: AccountPreferences;
+  hash: string;
+  projectId: string;
+}>;
+
+function projectProductionSurface(
+  activeHash: string,
+  formatting: AccountPreferences,
+  projectId: string,
+  ProductionArea?: ProjectProductionArea,
+) {
+  const isProductionSurface =
+    ["production", "project-area-production"].includes(activeHash) ||
+    projectSourceRecordFromHash(activeHash)?.sourceType ===
+      "Production Incident";
+  return ProductionArea && isProductionSurface ? (
+    <ProductionArea
+      formatting={formatting}
+      hash={activeHash}
+      projectId={projectId}
+    />
+  ) : null;
+}
+
 function liveSourceRouteForHash(activeHash: string, projectId: string) {
   const source = projectSourceRecordFromHash(activeHash);
   if (activeHash === "risks" || source?.sourceType === "Risk") {
@@ -436,6 +462,7 @@ function ProjectShellContent({
   accountFormattingPreferences,
   githubArea,
   project,
+  productionArea,
   projectId,
   releasesArea,
   releaseEvidenceArea,
@@ -444,6 +471,7 @@ function ProjectShellContent({
   accountId?: string;
   accountFormattingPreferences: AccountPreferences;
   githubArea?: ReactNode;
+  productionArea?: ProjectProductionArea;
   project: ProjectProfile;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
@@ -587,6 +615,12 @@ function ProjectShellContent({
       accountFormattingPreferences,
       projectId,
       releasesArea,
+    ) ??
+    projectProductionSurface(
+      activeHash,
+      accountFormattingPreferences,
+      projectId,
+      productionArea,
     ) ??
     projectGitHubSurface(activeHash, githubArea) ??
     projectUncertaintySurface(

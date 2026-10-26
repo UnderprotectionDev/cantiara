@@ -4,18 +4,21 @@ import { useProjectShellData } from "@/features/project-shell/hooks/use-project-
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 
 import ProjectShellSurface, {
+  type ProjectProductionArea,
   type ProjectReleasesArea,
 } from "../components/project-shell-surface";
 
 export default function ProjectShellView({
   accountId,
   githubArea,
+  productionArea,
   projectId,
   releasesArea,
   releaseEvidenceArea,
 }: {
   accountId?: string;
   githubArea?: ReactNode;
+  productionArea?: ProjectProductionArea;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
@@ -60,6 +63,7 @@ export default function ProjectShellView({
         accountFormattingPreferences={formattingPreferences}
         accountId={accountId}
         githubArea={githubArea}
+        productionArea={productionArea}
         project={projectQuery.data}
         projectId={projectId}
         releaseEvidenceArea={releaseEvidenceArea}
