@@ -70,6 +70,9 @@ import { createDatabasePriorityMetrics } from "../src/features/priority-metrics/
 import { createDatabasePriorityMetricMutationContracts } from "../src/features/priority-metrics/server/priority-metrics-mutation-database";
 import { createDatabaseProductGaps } from "../src/features/product-gaps/server/product-gaps-database";
 import { createDatabaseProjectGoals } from "../src/features/project-goals/server/project-goals-database";
+import { createProjectActivity } from "../src/features/project-history/server/project-activity";
+import { createDatabaseProjectActivityStore } from "../src/features/project-history/server/project-activity-database";
+import { createDatabaseProjectHistory } from "../src/features/project-history/server/project-history-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "../src/features/project-source-records/server/project-source-records-database";
@@ -95,6 +98,7 @@ import { createDatabaseTestAssessments } from "../src/features/test-assessments/
 import { createDatabaseTestGaps } from "../src/features/test-gaps/server/test-gaps-database";
 import { createDatabaseTestReports } from "../src/features/test-report/server/test-report-database";
 import { createDatabaseTestReview } from "../src/features/test-review/server/test-review-database";
+import { createDatabaseValueChain } from "../src/features/value-chain/server/value-chain-database";
 import { createWorkContextAccess } from "../src/features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "../src/features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
@@ -392,9 +396,14 @@ const app = createApp({
   githubIdentityConfirmation,
   nodeEnv: "test",
   projectGoals: createDatabaseProjectGoals(database),
+  valueChain: createDatabaseValueChain(database),
   projectSourceRecords,
   personalReminders,
   favorites: createDatabaseFavorites(database),
+  projectActivity: createProjectActivity(
+    createDatabaseProjectActivityStore(database),
+  ),
+  projectHistory: createDatabaseProjectHistory(database),
   priorityMetricMutationContracts,
   priorityMetrics,
   projectShell,

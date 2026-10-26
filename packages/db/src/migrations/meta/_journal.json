@@ -1212,6 +1212,20 @@
       "when": 1792766479426,
       "tag": "0172_confused_klaw",
       "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1793003525441,
+      "tag": "0173_solid_omega_red",
+      "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1793004832971,
+      "tag": "0174_jazzy_reaper",
+      "breakpoints": true
     }
   ]
 }

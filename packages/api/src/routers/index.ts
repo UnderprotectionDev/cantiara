@@ -351,6 +351,19 @@ import {
   toolEscapeRecordSchema,
 } from "../product-gaps";
 import {
+  createProductionIncidentFollowUpInputSchema,
+  ProductionIncidentConflictError,
+  ProductionIncidentFollowUpStaleError,
+  previewProductionIncidentFollowUpInputSchema,
+  productionIncidentInputSchema,
+  productionIncidentsInputSchema,
+  setProductionIncidentLinkInputSchema,
+} from "../production-incidents";
+import {
+  projectActivityInputSchema,
+  projectActivitySchema,
+} from "../project-activity";
+import {
   createProjectGoalInputSchema,
   ProjectGoalConflictError,
   projectGoalInputSchema,
@@ -358,6 +371,10 @@ import {
   projectGoalsProjectInputSchema,
   updateProjectGoalInputSchema,
 } from "../project-goals";
+import {
+  storyTimelineInputSchema,
+  storyTimelineSchema,
+} from "../project-history";
 import {
   ProjectReleasePlanningConflictError,
   projectReleasePlanningInputSchema,
@@ -700,6 +717,7 @@ import {
   userFlowInputSchema,
   userFlowProjectInputSchema,
 } from "../user-flow";
+import { valueChainInputSchema } from "../value-chain";
 import type { WebCaptureAccess } from "../web-capture";
 import { WireframeDocumentError } from "../wireframe-document";
 import {
@@ -1491,6 +1509,27 @@ function requireTestAssessments(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.testAssessments;
+}
+
+function requireProjectHistory(context: Context) {
+  if (!context.projectHistory) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectHistory;
+}
+
+function requireProjectActivity(context: Context) {
+  if (!context.projectActivity) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectActivity;
+}
+
+function requireValueChain(context: Context) {
+  if (!context.valueChain) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.valueChain;
 }
 
 function requireReleaseEvidence(context: Context) {
@@ -3545,6 +3584,25 @@ const TEST_ASSESSMENT_FAILURES: Record<string, PlannedTestFailure> = {
   TEST_ASSESSMENT_SOURCE_UNAVAILABLE: { message: null, status: "BAD_REQUEST" },
 };
 
+const PROJECT_HISTORY_FAILURES: Record<string, PlannedTestFailure> = {
+  PROJECT_HISTORY_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PROJECT_HISTORY_WORK_NOT_FEATURE: {
+    message: "Only a Feature has its own story.",
+    status: "BAD_REQUEST",
+  },
+  PROJECT_HISTORY_WORK_NOT_FOUND: {
+    message: "Work is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PROJECT_ACTIVITY_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+};
+
 const RELEASE_EVIDENCE_FAILURES: Record<string, PlannedTestFailure> = {
   RELEASE_EVIDENCE_CHECKLIST_FULL: { message: null, status: "BAD_REQUEST" },
   RELEASE_EVIDENCE_CHECKLIST_ITEM_NOT_FOUND: {
@@ -3645,6 +3703,32 @@ async function runTestAssessmentOperation<T>(
     }
     const failure = Object.hasOwn(TEST_ASSESSMENT_FAILURES, error.code)
       ? TEST_ASSESSMENT_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message:
+        failure.message ??
+        (error instanceof Error ? error.message : "Request refused."),
+    });
+  }
+}
+
+async function runProjectHistoryOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(PROJECT_HISTORY_FAILURES, error.code)
+      ? PROJECT_HISTORY_FAILURES[error.code]
       : undefined;
     if (!failure) {
       throw error;
@@ -4222,7 +4306,99 @@ async function projectReleasePlanningWrite<T>(
     throw error;
   }
 }
+function requireProductionIncidents(context: Context) {
+  if (!context.productionIncidents) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.productionIncidents;
+}
+async function productionIncidentWrite<T>(
+  targetId: string,
+  write: () => Promise<T | null>,
+): Promise<T> {
+  try {
+    const result = await write();
+    if (!result) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return result;
+  } catch (error) {
+    if (error instanceof ProductionIncidentFollowUpStaleError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: "PREVIEW_STALE", targetId },
+        defined: true,
+        message: "Preview changed",
+      });
+    }
+    if (error instanceof ProductionIncidentConflictError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: "CONFLICT", targetId },
+        defined: true,
+        message: "Conflict",
+      });
+    }
+    throw error;
+  }
+}
 export const appRouter = {
+  productionIncidents: protectedProcedure
+    .input(productionIncidentsInputSchema)
+    .handler(async ({ context, input }) => {
+      const overview = await requireProductionIncidents(context).overview(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!overview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return overview;
+    }),
+  productionIncidentDetail: protectedProcedure
+    .input(productionIncidentInputSchema)
+    .handler(async ({ context, input }) => {
+      const detail = await requireProductionIncidents(context).detail(
+        context.session.user.id,
+        input,
+      );
+      if (!detail) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return detail;
+    }),
+  previewProductionIncidentFollowUp: protectedProcedure
+    .input(previewProductionIncidentFollowUpInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireProductionIncidents(context).previewFollowUp(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return preview;
+    }),
+  createProductionIncidentFollowUp: protectedProcedure
+    .input(createProductionIncidentFollowUpInputSchema)
+    .handler(({ context, input }) =>
+      productionIncidentWrite(input.incidentId, () =>
+        requireProductionIncidents(context).createFollowUp(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setProductionIncidentLink: protectedProcedure
+    .input(setProductionIncidentLinkInputSchema)
+    .handler(({ context, input }) =>
+      productionIncidentWrite(input.incidentId, () =>
+        requireProductionIncidents(context).setLink(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
   projectReleases: protectedProcedure
     .input(projectReleasePlanningProjectInputSchema)
     .handler(async ({ context, input }) => {
@@ -7752,6 +7928,37 @@ export const appRouter = {
         ),
       ),
     ),
+  projectStoryTimeline: protectedProcedure
+    .input(storyTimelineInputSchema)
+    .output(storyTimelineSchema)
+    .handler(({ context, input }) =>
+      runProjectHistoryOperation(() =>
+        requireProjectHistory(context).storyTimeline(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectActivity: protectedProcedure
+    .input(projectActivityInputSchema)
+    .output(projectActivitySchema)
+    .handler(({ context, input }) =>
+      runProjectHistoryOperation(() =>
+        requireProjectActivity(context).list(context.session.user.id, input),
+      ),
+    ),
+  projectValueChain: protectedProcedure
+    .input(valueChainInputSchema)
+    .handler(async ({ context, input }) => {
+      const chain = await requireValueChain(context).chain(
+        context.session.user.id,
+        input,
+      );
+      if (!chain) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return chain;
+    }),
   projectReleaseEvidencePack: protectedProcedure
     .input(releaseEvidencePackInputSchema)
     .output(releaseEvidencePackSchema)

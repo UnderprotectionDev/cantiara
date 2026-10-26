@@ -5,6 +5,7 @@ import {
   BACKLOG_HASH,
   CONFIGURATION_HOSTS,
   configurationHostId,
+  DAILY_ACTION_HASHES,
   documentRecordFromHash,
   documentRecordHash,
   documentSectionRecordHash,
@@ -17,6 +18,7 @@ import {
   ROADMAP_HASH,
   workRecordHash,
   workRecordHref,
+  workRecordIdFromHash,
   workRelationsHash,
 } from "../project-shell-navigation";
 
@@ -55,6 +57,15 @@ describe("Project Shell Work navigation", () => {
       ),
     ).toBe("Technical Diagrams");
   });
+
+  test("round trips the always-reachable Project History surface", () => {
+    expect(ALWAYS_REACHABLE_SURFACES).toContain("Project History");
+    expect(navigationHash("Project History")).toBe("project-history");
+    expect(navigationSurfaceFromHash("project-history", [], [], [])).toBe(
+      "Project History",
+    );
+  });
+
   test("opens a Moodboard record under the Design area", () => {
     expect(
       navigationSurfaceFromHash("moodboard-board-1", ["Design"], [], []),
@@ -112,6 +123,13 @@ describe("Project Shell Work navigation", () => {
     expect(isWorkRecordHash(workRelationsHash("work-1"))).toBe(false);
     expect(isWorkSurfaceHash(hash)).toBe(true);
     expect(navigationSurfaceFromHash(hash, ["Work"], [], [])).toBe("Work");
+  });
+
+  test("does not read a Daily action hash as a Work record id", () => {
+    for (const hash of Object.values(DAILY_ACTION_HASHES)) {
+      expect(workRecordIdFromHash(hash)).toBeNull();
+    }
+    expect(workRecordIdFromHash(workRecordHash("work/2"))).toBe("work/2");
   });
 
   test("round trips typed source record links without losing encoded IDs", () => {

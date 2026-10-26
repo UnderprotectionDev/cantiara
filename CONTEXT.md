@@ -1439,6 +1439,21 @@ Kullanıcının yönettiği yazılım Projesinde kapsamı, hazırlığı ve yay�
 UI: `Project Release`; durumlar `Draft`, `Preparing`, `Published`, `Cancelled`.
 _Avoid_: Ürün sürüm adayı, ürün release'i, Kilometre Taşı, Odak Dönemi
 
+**Üretim Olayı**:
+Yayımlanmış üründe gerçekleşen önemli operasyonel olayı zaman, etki, tespit, çözüm, kök neden ve öğrenimle kaydeden, Bug İşinden ayrı Proje ana kaydı ([Üretim Olayları](docs/prd/12-github-and-project-releases.md#uretim-olaylari)); canlı müdahale değildir.
+UI: `Production Incident`; durumlar `Open`, `Watching`, `Resolved`; alanlar `Occurred at`, `Impact`, `Detected how`, `Resolution`, `Root cause`, `Learning`.
+_Avoid_: Bug, pager, nöbet, durum sayfası, TTD/TTI/TTR, güvenilirlik dashboard'u, S1 alarmı, Sentry olayı, Üretim Olayı Önleme Zinciri
+
+**Üretim Olayı bağı**:
+Üretim Olayını aynı Projenin Bug, GitHub PR, Proje Sürümü, Risk veya Kararına bağlayan kaynak ilişkisi; bağlanan kaydın durumunu veya yaşamını yazmaz, ters yönü örtük yazmaz, Bitiriş efekti çağırmaz ve Bug, Risk veya İş üretmez.
+UI: `Linked records`, `Link record`, `Remove link`.
+_Avoid_: otomatik Bug, otomatik Risk, Takip İşi, durum yayılımı, Bitiriş efekti
+
+**Üretim Olayı Takip İşi**:
+Kullanıcının bir Üretim Olayından yalnız açık önizlemeden sonra onaylayarak oluşturduğu Takip İşi; önizleme İşi ve Köken ilişkisini gösterir, onay yalnız aynı önizleme parmak iziyle çalışır ve olay değişmişse bayatlar. Olay kaydını, durumunu, Bug veya Riski yazmaz; olay yok olursa İşin Kökeni kırık başvuru olarak kalır.
+UI: `Create follow-up work`, `Follow-up work`, `Preview changed`.
+_Avoid_: otomatik Takip İşi, önizlemesiz İş, otomatik Bug, olay kapatma
+
 **Proje Sürümü planlaması**:
 Tam olarak bir Projeye ait Proje Sürümünde yayımlanacak İş kapsamını, aynı Projenin repository'lerinden tag, GitHub Release ve ortam bağlarını ve isteğe bağlı erişim/sonuç hipotezini açık kullanıcı eylemiyle yönetmek ([Proje Sürümü planlama](docs/prd/12-github-and-project-releases.md#proje-sürümü-planlama)). Durum yazmaz, kapsamı otomatik doldurmaz, skor veya yayın kapısı üretmez ve yerleşik hedef ya da gerçek yayın tarihi tutmaz; hipotez alanları birbirinden ayrıdır ve ölçüm yapmaz.
 UI: `Project Releases`, `Planning`, `Scope`, `Add Work to scope`, `Remove from scope`, `Audience`, `Primary access path`, `Access evidence`, `Intended outcome`, `Outcome evidence`, `Environment link`, `Create Project Release`.
@@ -1667,8 +1682,16 @@ Bir hedef kaydın Kayıt geçmişinde ilerleyen ve Mutation Contract'ın yazma g
 _Avoid_: genel belge sürümü, restore-point, sessiz son yazan kazanır
 
 **Proje Etkinliği**:
-Mevcut Kayıt geçmişinden türetilen, kaynak ve önceki–sonraki değerle incelenen atomik değişiklik görünümü; ürün hikâyesi veya Bildirim Merkezi değildir ([Proje Etkinliği](docs/prd/06-work-management-and-planning.md#proje-etkinliği)).
+Mevcut Kayıt geçmişinden türetilen, kaynak ve önceki–sonraki değerle incelenen atomik değişiklik görünümü; ürün hikâyesi veya Bildirim Merkezi değildir ([Proje Etkinliği](docs/prd/06-work-management-and-planning.md#proje-etkinliği)). UI: `Project Activity`, `What changed?`, `Open source record`.
 _Avoid_: GitHub Activity, e-posta günlüğü, zaman çizelgesi hikâyesi, ikinci olay deposu
+
+**Proje Geçmişi**:
+Proje hikâyesini (gerçekleşen olayların zaman çizelgesi) ve atomik değişiklik izini (Proje Etkinliği) iki ayrı soruya cevap veren iki ayrı yüzey olarak taşıyan modül; tek feed değildir. UI: `Project History`.
+_Avoid_: Birleşik feed, Bildirim Merkezi, Proje genel bakışı
+
+**Gerçekleşen olayların zaman çizelgesi**:
+Proje veya Özellik türündeki İşte Karar, Belge, tasarım, İş, ulaşılan Kilometre Taşı, yaşam döngüsü değişikliği, kod değişikliği, Üretim Olayı, deney/doğrulama sonucu ve Proje Sürümü gibi önemli gerçekleşmiş olayları kronolojik dizen, alan düzeyi düzenlemeleri içermeyen ve her olayda kaynak ana kaydı açan hikâye görünümü; Dikkat sinyali üretmez ([gerçekleşen olayların zaman çizelgesi](docs/prd/06-work-management-and-planning.md#gerçekleşen-olayların-zaman-çizelgesi)). UI: `Story Timeline`, modül başlığı `Project History`.
+_Avoid_: Proje Etkinliği, Kapanış özeti, herkese açık gelişim akışı, otomatik başarı anlatısı, sürüm notu
 
 **Güvenli geri alma**:
 Ürünün ters işlemi deterministik hesaplayabildiği alan, ilişki, görünüm üstverisi ve atomik dönüşümlerde ilgisiz sonraki değişikliği sarmadan uygulanan geri alma ([değişiklik geçmişi](docs/prd/02-domain-model-and-lifecycle.md#değişiklik-geçmişi-aktör-ve-geri-alma)). UI: `Undo`.
