@@ -351,7 +351,10 @@ import {
   toolEscapeRecordSchema,
 } from "../product-gaps";
 import {
+  createProductionIncidentFollowUpInputSchema,
   ProductionIncidentConflictError,
+  ProductionIncidentFollowUpStaleError,
+  previewProductionIncidentFollowUpInputSchema,
   productionIncidentInputSchema,
   productionIncidentsInputSchema,
   setProductionIncidentLinkInputSchema,
@@ -4245,6 +4248,14 @@ async function productionIncidentWrite<T>(
     }
     return result;
   } catch (error) {
+    if (error instanceof ProductionIncidentFollowUpStaleError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: "PREVIEW_STALE", targetId },
+        defined: true,
+        message: "Preview changed",
+      });
+    }
     if (error instanceof ProductionIncidentConflictError) {
       throw new ORPCError("CONFLICT", {
         cause: error,
@@ -4281,6 +4292,28 @@ export const appRouter = {
       }
       return detail;
     }),
+  previewProductionIncidentFollowUp: protectedProcedure
+    .input(previewProductionIncidentFollowUpInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireProductionIncidents(context).previewFollowUp(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return preview;
+    }),
+  createProductionIncidentFollowUp: protectedProcedure
+    .input(createProductionIncidentFollowUpInputSchema)
+    .handler(({ context, input }) =>
+      productionIncidentWrite(input.incidentId, () =>
+        requireProductionIncidents(context).createFollowUp(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
   setProductionIncidentLink: protectedProcedure
     .input(setProductionIncidentLinkInputSchema)
     .handler(({ context, input }) =>

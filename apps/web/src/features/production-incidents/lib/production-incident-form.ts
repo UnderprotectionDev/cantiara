@@ -1,6 +1,7 @@
-import type {
-  ProductionIncidentLinkType,
-  ProductionIncidentRecord,
+import {
+  PRODUCTION_INCIDENT_FOLLOW_UP_TYPES,
+  type ProductionIncidentLinkType,
+  type ProductionIncidentRecord,
 } from "@cantiara/api/production-incidents";
 import { format, isValid, parse } from "date-fns";
 import { z } from "zod";
@@ -140,3 +141,27 @@ export const PRODUCTION_INCIDENT_LINK_GROUPS = [
   label: string;
   type: ProductionIncidentLinkType;
 }[];
+
+/** Choice before the preview: the Work type and its title; nothing is written yet. */
+export const productionIncidentFollowUpFormSchema = z
+  .object({
+    title: z.string().trim().min(1).max(255),
+    workType: z.enum(PRODUCTION_INCIDENT_FOLLOW_UP_TYPES),
+  })
+  .strict();
+export type ProductionIncidentFollowUpValues = z.output<
+  typeof productionIncidentFollowUpFormSchema
+>;
+export interface ProductionIncidentFollowUpDraft {
+  title: string;
+  workType: ProductionIncidentFollowUpValues["workType"];
+}
+
+export function productionIncidentFollowUpDraft(
+  incident: Pick<ProductionIncidentRecord, "title">,
+): ProductionIncidentFollowUpDraft {
+  return {
+    title: `Follow up: ${incident.title}`.slice(0, 255),
+    workType: "Task",
+  };
+}

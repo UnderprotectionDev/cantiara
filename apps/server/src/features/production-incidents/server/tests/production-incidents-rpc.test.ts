@@ -1,6 +1,7 @@
 import type { Context } from "@cantiara/api/context";
 import {
   ProductionIncidentConflictError,
+  ProductionIncidentFollowUpStaleError,
   type ProductionIncidentsAccess,
 } from "@cantiara/api/production-incidents";
 import { appRouter } from "@cantiara/api/routers/index";
@@ -12,6 +13,8 @@ const INCIDENT_RPC =
 
 function setup(authenticated = true) {
   const productionIncidents: ProductionIncidentsAccess = {
+    createFollowUp: vi.fn().mockResolvedValue({ id: "work-9" }),
+    previewFollowUp: vi.fn().mockResolvedValue({ fingerprint: "fp", plan: {} }),
     detail: vi.fn().mockResolvedValue({ incident: { id: "incident-1" } }),
     overview: vi.fn().mockResolvedValue({ incidents: [], readOnly: false }),
     setLink: vi.fn().mockResolvedValue({ id: "link-1" }),
@@ -78,6 +81,8 @@ describe("Production Incidents RPC seam", () => {
         .filter((name) => INCIDENT_RPC.test(name))
         .sort(),
     ).toEqual([
+      "createProductionIncidentFollowUp",
+      "previewProductionIncidentFollowUp",
       "productionIncidentDetail",
       "productionIncidents",
       "setProductionIncidentLink",
@@ -127,6 +132,67 @@ describe("Production Incidents RPC seam", () => {
     await expect(client.setProductionIncidentLink(link)).rejects.toMatchObject({
       code: "CONFLICT",
       data: { code: "CONFLICT", targetId: "incident-1" },
+    });
+  });
+
+  test("follow-up work is previewed first and committed only with the preview fingerprint", async () => {
+    const { client, productionIncidents } = setup();
+    const preview = {
+      incidentId: "incident-1",
+      projectId: "project-1",
+      title: "Add a canary",
+      workType: "Task" as const,
+    };
+    await client.previewProductionIncidentFollowUp(preview);
+    expect(productionIncidents.previewFollowUp).toHaveBeenCalledWith(
+      "founder",
+      preview,
+    );
+    expect(productionIncidents.createFollowUp).not.toHaveBeenCalled();
+    const commit = {
+      ...preview,
+      baseRevision: 0,
+      clientIdempotencyKey: "follow-up",
+      previewFingerprint: "fp",
+      workId: "work-9",
+    };
+    await client.createProductionIncidentFollowUp(commit);
+    expect(productionIncidents.createFollowUp).toHaveBeenCalledWith(
+      "founder",
+      commit,
+    );
+    const { previewFingerprint: _omitted, ...withoutPreview } = commit;
+    await expect(
+      client.createProductionIncidentFollowUp(withoutPreview as never),
+    ).rejects.toThrow();
+    await expect(
+      client.createProductionIncidentFollowUp({
+        ...commit,
+        previewFingerprint: "",
+      }),
+    ).rejects.toThrow();
+    expect(productionIncidents.createFollowUp).toHaveBeenCalledTimes(1);
+  });
+
+  test("a stale preview is a conflict the founder can review again", async () => {
+    const { client, productionIncidents } = setup();
+    vi.mocked(productionIncidents.createFollowUp).mockRejectedValue(
+      new ProductionIncidentFollowUpStaleError("incident-1"),
+    );
+    await expect(
+      client.createProductionIncidentFollowUp({
+        baseRevision: 0,
+        clientIdempotencyKey: "follow-up",
+        incidentId: "incident-1",
+        previewFingerprint: "old",
+        projectId: "project-1",
+        title: "Add a canary",
+        workId: "work-9",
+        workType: "Task",
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      data: { code: "PREVIEW_STALE" },
     });
   });
 

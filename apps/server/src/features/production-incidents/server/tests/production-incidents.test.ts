@@ -7,11 +7,13 @@ import { describe, expect, test } from "vitest";
 import {
   type BugCandidate,
   bugTarget,
+  buildFollowUpPlan,
   decisionTarget,
   isBindableBug,
   isBindablePullRequest,
   missingTarget,
   type PullRequestCandidate,
+  previewOfFollowUp,
   productionIncidentLinkId,
   pullRequestTarget,
   releaseTarget,
@@ -129,6 +131,73 @@ describe("Production Incidents seam: what may be bound", () => {
     expect(
       await productionIncidentLinkId({ ...base, targetType: "Risk" }),
     ).not.toBe(first);
+  });
+});
+
+describe("Production Incidents seam: follow-up Work preview", () => {
+  const incident = {
+    id: "incident-1",
+    revision: 3,
+    status: "Open" as const,
+    title: "Checkout outage",
+  };
+  const choice = { title: "Add a canary", workType: "Task" as const };
+
+  test("the preview names the one Work and the Origin relation, and leaves the status as it is", async () => {
+    const { plan } = await previewOfFollowUp(
+      buildFollowUpPlan(incident, choice),
+    );
+    expect(plan.work).toEqual({
+      description: "Follow-up of Production Incident Checkout outage.",
+      status: "Not Started",
+      title: "Add a canary",
+      type: "Task",
+    });
+    expect(plan.relations).toEqual([
+      {
+        from: {
+          id: "incident-1",
+          label: "Checkout outage",
+          type: "Production Incident",
+        },
+        kind: "Origin",
+        to: { label: "Add a canary", type: "Work" },
+      },
+    ]);
+    expect(plan.incident.status).toBe("Open");
+  });
+
+  test("a Bug is previewed only when the founder chooses it", async () => {
+    const { plan } = await previewOfFollowUp(
+      buildFollowUpPlan(incident, { ...choice, workType: "Bug" }),
+    );
+    expect(plan.work.type).toBe("Bug");
+    expect(buildFollowUpPlan(incident, choice).work.type).toBe("Task");
+  });
+
+  test("the fingerprint is stable and changes with the choice or the incident", async () => {
+    const first = await previewOfFollowUp(buildFollowUpPlan(incident, choice));
+    const again = await previewOfFollowUp(buildFollowUpPlan(incident, choice));
+    expect(again.fingerprint).toBe(first.fingerprint);
+    for (const changed of [
+      buildFollowUpPlan(incident, { ...choice, title: "Other" }),
+      buildFollowUpPlan(incident, { ...choice, workType: "Research" }),
+      buildFollowUpPlan({ ...incident, revision: 4 }, choice),
+      buildFollowUpPlan({ ...incident, status: "Resolved" }, choice),
+      buildFollowUpPlan({ ...incident, title: "Renamed" }, choice),
+    ]) {
+      expect(changed).not.toEqual(first.plan);
+    }
+    const fingerprints = await Promise.all(
+      [
+        buildFollowUpPlan(incident, { ...choice, title: "Other" }),
+        buildFollowUpPlan(incident, { ...choice, workType: "Research" }),
+        buildFollowUpPlan({ ...incident, revision: 4 }, choice),
+        buildFollowUpPlan({ ...incident, status: "Resolved" }, choice),
+        buildFollowUpPlan({ ...incident, title: "Renamed" }, choice),
+      ].map(async (plan) => (await previewOfFollowUp(plan)).fingerprint),
+    );
+    expect(new Set([first.fingerprint, ...fingerprints]).size).toBe(6);
   });
 });
 

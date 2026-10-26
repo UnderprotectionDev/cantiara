@@ -132,3 +132,43 @@ export const productionIncidentLink = pgTable(
     ),
   ],
 );
+
+/**
+ * Follow-up Work created from a Production Incident after its preview. The
+ * Work carries the incident as `origin_owner_record_id`; this row is the
+ * incident-side record of the Origin. `incident_id` has no foreign key so a
+ * deleted incident leaves the Origin visible as a broken reference instead of
+ * erasing it, and the composite Work key keeps the Work in the incident's
+ * Project. Only the preview fingerprint and incident revision are stored; the
+ * incident status is never written.
+ */
+export const productionIncidentFollowUp = pgTable(
+  "production_incident_follow_up",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    incidentId: text("incident_id").notNull(),
+    incidentRevision: integer("incident_revision").notNull(),
+    previewFingerprint: text("preview_fingerprint").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    revision: integer("revision").default(1).notNull(),
+    workId: text("work_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId, table.workId],
+      foreignColumns: [work.projectId, work.id],
+      name: "production_incident_follow_up_work_fk",
+    }).onDelete("cascade"),
+    index("production_incident_follow_up_incident_idx").on(
+      table.projectId,
+      table.incidentId,
+    ),
+    check(
+      "production_incident_follow_up_revision_check",
+      sql`${table.revision} >= 0`,
+    ),
+  ],
+);

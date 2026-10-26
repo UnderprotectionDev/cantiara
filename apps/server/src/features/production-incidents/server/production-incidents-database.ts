@@ -3,12 +3,17 @@ import type {
   MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
 import {
+  type CreateProductionIncidentFollowUpInput,
+  createProductionIncidentFollowUpInputSchema,
   ProductionIncidentConflictError,
+  type ProductionIncidentFollowUp,
+  ProductionIncidentFollowUpStaleError,
   type ProductionIncidentLink,
   type ProductionIncidentLinkTarget,
   type ProductionIncidentLinkType,
   type ProductionIncidentRecord,
   type ProductionIncidentsAccess,
+  previewProductionIncidentFollowUpInputSchema,
   productionIncidentInputSchema,
   productionIncidentsInputSchema,
   setProductionIncidentLinkInputSchema,
@@ -23,6 +28,7 @@ import {
 } from "@cantiara/db/schema/github-integration";
 import {
   productionIncident,
+  productionIncidentFollowUp,
   productionIncidentLink,
 } from "@cantiara/db/schema/production-incident";
 import { project } from "@cantiara/db/schema/project";
@@ -32,10 +38,12 @@ import { work } from "@cantiara/db/schema/work";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import {
   bugTarget,
+  buildFollowUpPlan,
   decisionTarget,
   isBindableBug,
   isBindablePullRequest,
   missingTarget,
+  previewOfFollowUp,
   productionIncidentLinkId,
   pullRequestTarget,
   releaseTarget,
@@ -71,6 +79,24 @@ export interface ProductionIncidentTarget<TValue> {
  * of the mutation adapter.
  */
 export interface ProductionIncidentPorts {
+  /**
+   * Inserts the one follow-up Work with its Project key and Origin owner
+   * record. The caller holds the Project row lock and passes that row.
+   */
+  insertWork: (
+    executor: ProductionIncidentExecutor,
+    owner: typeof project.$inferSelect,
+    input: {
+      committedAt: Date;
+      description: string;
+      idempotencyKey: string;
+      originOwnerRecordId: string;
+      payloadFingerprint: string;
+      title: string;
+      type: string;
+      workId: string;
+    },
+  ) => Promise<string>;
   mutationContract: <TValue>(
     target: ProductionIncidentTarget<TValue>,
   ) => MutationContract<TValue>;
@@ -364,6 +390,156 @@ function linkTarget(
   };
 }
 
+interface FollowUpValue {
+  followUp: {
+    incidentId: string;
+    previewFingerprint: string;
+    projectId: string;
+    title: string;
+    workId: string;
+    workType: CreateProductionIncidentFollowUpInput["workType"];
+  } | null;
+}
+
+/**
+ * Follow-up Work commit: the Work, its key allocation and the incident-side
+ * Origin row commit together under the Project lock, only when the live
+ * preview still has the fingerprint the founder saw. The incident row is
+ * never written.
+ */
+function followUpTarget(
+  accountId: string,
+  input: NonNullable<FollowUpValue["followUp"]>,
+  ports: ProductionIncidentPorts,
+): ProductionIncidentTarget<FollowUpValue> {
+  return {
+    async find(executor, targetId, lock) {
+      const owned = await ownedIncident(
+        executor,
+        accountId,
+        input.projectId,
+        input.incidentId,
+        lock,
+      );
+      if (!owned) {
+        return null;
+      }
+      const [row] = await executor
+        .select({ incidentId: productionIncidentFollowUp.incidentId })
+        .from(productionIncidentFollowUp)
+        .where(eq(productionIncidentFollowUp.id, targetId))
+        .limit(1);
+      if (row && row.incidentId !== input.incidentId) {
+        return null;
+      }
+      return {
+        id: targetId,
+        revision: row ? 1 : 0,
+        value: { followUp: row ? input : null },
+      };
+    },
+    async update(executor, update) {
+      const value = update.nextValue.followUp;
+      if (!value || update.expectedRevision !== 0) {
+        return null;
+      }
+      const owned = await ownedIncident(
+        executor,
+        accountId,
+        value.projectId,
+        value.incidentId,
+        true,
+      );
+      if (!owned) {
+        return null;
+      }
+      const [projectRow] = await executor
+        .select()
+        .from(project)
+        .where(eq(project.id, value.projectId))
+        .limit(1)
+        .for("update");
+      if (!projectRow) {
+        return null;
+      }
+      // The exact previewed plan, re-derived from the live incident.
+      const live = await previewOfFollowUp(
+        buildFollowUpPlan(toIncident(owned.incident), value),
+      );
+      if (live.fingerprint !== value.previewFingerprint) {
+        throw new ProductionIncidentFollowUpStaleError(value.incidentId);
+      }
+      await ports.insertWork(executor, projectRow, {
+        committedAt: update.committedAt,
+        description: live.plan.work.description,
+        idempotencyKey: `production-incident-follow-up:${value.workId}`,
+        originOwnerRecordId: value.incidentId,
+        payloadFingerprint: value.previewFingerprint,
+        title: live.plan.work.title,
+        type: live.plan.work.type,
+        workId: value.workId,
+      });
+      await executor.insert(productionIncidentFollowUp).values({
+        createdAt: update.committedAt,
+        id: update.targetId,
+        incidentId: value.incidentId,
+        incidentRevision: owned.incident.revision,
+        previewFingerprint: value.previewFingerprint,
+        projectId: value.projectId,
+        revision: 1,
+        workId: value.workId,
+      });
+      return { id: update.targetId, revision: 1, value: { followUp: value } };
+    },
+  };
+}
+
+async function followUpsOf(
+  executor: ProductionIncidentExecutor,
+  projectId: string,
+  incidentId: string,
+): Promise<ProductionIncidentFollowUp[]> {
+  const rows = await executor
+    .select({
+      archivedAt: work.archivedAt,
+      createdAt: productionIncidentFollowUp.createdAt,
+      id: productionIncidentFollowUp.id,
+      key: work.key,
+      status: work.status,
+      title: work.title,
+      trashedAt: work.trashedAt,
+      type: work.type,
+      workId: work.id,
+    })
+    .from(productionIncidentFollowUp)
+    .innerJoin(work, eq(work.id, productionIncidentFollowUp.workId))
+    .where(
+      and(
+        eq(productionIncidentFollowUp.projectId, projectId),
+        eq(productionIncidentFollowUp.incidentId, incidentId),
+      ),
+    )
+    .orderBy(
+      asc(productionIncidentFollowUp.createdAt),
+      asc(productionIncidentFollowUp.id),
+    );
+  return rows.map((row) => {
+    const unavailable = Boolean(row.archivedAt || row.trashedAt);
+    return {
+      createdAt: row.createdAt.toISOString(),
+      id: row.id,
+      work: {
+        id: row.workId,
+        key: row.key,
+        status: row.status,
+        title: unavailable ? null : row.title,
+        type: row.type,
+        unavailable,
+      },
+    };
+  });
+}
+
 /** Read-only facts of the bound records, resolved per type in one query each. */
 async function resolveTargets(
   executor: ProductionIncidentExecutor,
@@ -594,7 +770,10 @@ export function createDatabaseProductionIncidents(
         cause instanceof Error;
         { cause } = cause
       ) {
-        if (cause instanceof ProductionIncidentConflictError) {
+        if (
+          cause instanceof ProductionIncidentConflictError ||
+          cause instanceof ProductionIncidentFollowUpStaleError
+        ) {
           throw cause;
         }
       }
@@ -612,6 +791,53 @@ export function createDatabaseProductionIncidents(
   }
 
   return {
+    async previewFollowUp(accountId, rawInput) {
+      const input =
+        previewProductionIncidentFollowUpInputSchema.parse(rawInput);
+      const owned = await ownedIncident(
+        database,
+        accountId,
+        input.projectId,
+        input.incidentId,
+        false,
+      );
+      // An archived Project takes no new Work, so it has nothing to preview.
+      if (!owned || owned.project.archivedAt) {
+        return null;
+      }
+      return previewOfFollowUp(
+        buildFollowUpPlan(toIncident(owned.incident), input),
+      );
+    },
+
+    async createFollowUp(accountId, rawInput) {
+      const input = createProductionIncidentFollowUpInputSchema.parse(rawInput);
+      const { baseRevision, clientIdempotencyKey, ...payload } = input;
+      const receipt = await commit(
+        followUpTarget(accountId, payload, ports),
+        {
+          accountId,
+          baseRevision,
+          clientIdempotencyKey,
+          payload,
+          targetId: input.workId,
+        },
+        (current) => {
+          if (current.followUp) {
+            throw new ProductionIncidentConflictError(input.workId);
+          }
+          return { followUp: payload };
+        },
+      );
+      if (!receipt) {
+        return null;
+      }
+      const [followUp] = (
+        await followUpsOf(database, input.projectId, input.incidentId)
+      ).filter((row) => row.id === input.workId);
+      return followUp ?? null;
+    },
+
     async setLink(accountId, rawInput) {
       const input = setProductionIncidentLinkInputSchema.parse(rawInput);
       const { baseRevision, clientIdempotencyKey, ...payload } = input;
@@ -725,6 +951,11 @@ export function createDatabaseProductionIncidents(
             );
           const resolve = await resolveTargets(executor, input.projectId, rows);
           return {
+            followUps: await followUpsOf(
+              executor,
+              input.projectId,
+              input.incidentId,
+            ),
             candidates: owned.project.archivedAt
               ? []
               : await candidates(executor, input.projectId),

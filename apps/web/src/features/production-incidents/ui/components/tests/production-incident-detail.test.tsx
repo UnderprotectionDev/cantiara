@@ -5,7 +5,7 @@ import { describe, expect, test, vi } from "vitest";
 import { ProductionIncidentDetail } from "../production-incident-detail";
 
 const FORBIDDEN_COPY =
-  /on-call|status page|downtime|\bTTR\b|\bTTD\b|\bTTI\b|reliability|Create follow-up work/i;
+  /on-call|status page|downtime|\bTTR\b|\bTTD\b|\bTTI\b|reliability/i;
 
 vi.mock("@/components/app-link", () => ({
   AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
@@ -17,6 +17,8 @@ const noop = async () => undefined;
 const actions = {
   onAddLink: noop,
   onChangeStatus: noop,
+  onCreate: noop,
+  onPreview: () => Promise.reject(new Error("not used")),
   onRemoveLink: noop,
   onSave: noop,
 };
@@ -86,6 +88,7 @@ function detail(overrides: Partial<Detail> = {}): Detail {
         },
       },
     ],
+    followUps: [],
     readOnly: false,
     ...overrides,
   };
@@ -138,10 +141,38 @@ describe("Production Incident detail", () => {
     expect(html).not.toMatch(FORBIDDEN_COPY);
   });
 
+  test("offers Create follow-up work as an action that opens a preview, and lists created follow-up with its Origin", () => {
+    const html = render(
+      detail({
+        followUps: [
+          {
+            createdAt: "2026-10-20T10:00:00.000Z",
+            id: "work-9",
+            work: {
+              id: "work-9",
+              key: "TK-9",
+              status: "Not Started",
+              title: "Add a canary",
+              type: "Task",
+              unavailable: false,
+            },
+          },
+        ],
+      }),
+    );
+    expect(html).toContain("Create follow-up work");
+    expect(html).toContain("TK-9 Add a canary");
+    expect(html).toContain("Origin: this Production Incident");
+    // The incident stays Watching: the follow-up never moves its status.
+    expect(html).toContain('aria-pressed="true"');
+    expect(render(detail())).toContain("only created after you review a");
+  });
+
   test("an archived Project hides every write control", () => {
     const html = render(detail({ readOnly: true }));
     expect(html).not.toContain("Edit incident");
     expect(html).not.toContain("Link record");
+    expect(html).not.toContain("Create follow-up work</button>");
     expect(html).not.toContain("Remove link");
     expect(html).toContain("Checkout outage");
   });

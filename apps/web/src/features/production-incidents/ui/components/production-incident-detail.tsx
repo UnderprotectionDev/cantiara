@@ -13,6 +13,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useState } from "react";
 import { AppLink } from "@/components/app-link";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
+import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
 import {
   PRODUCTION_INCIDENT_LINK_GROUPS,
   PRODUCTION_INCIDENT_TEXT_FIELDS,
@@ -26,8 +27,13 @@ import {
   linkTargetKey,
   ProductionIncidentLinkForm,
 } from "../forms/production-incident-link-form";
+import {
+  type ProductionIncidentFollowUpActions,
+  ProductionIncidentFollowUpDialog,
+} from "./production-incident-follow-up-dialog";
 
-export interface ProductionIncidentActions {
+export interface ProductionIncidentActions
+  extends ProductionIncidentFollowUpActions {
   onAddLink: (target: ProductionIncidentLinkTarget) => Promise<unknown>;
   onChangeStatus: (status: ProductionIncidentStatus) => Promise<unknown>;
   onRemoveLink: (link: ProductionIncidentLink) => Promise<unknown>;
@@ -166,6 +172,41 @@ export function ProductionIncidentDetail({
           </section>
         </div>
       </div>
+      <section aria-label="Follow-up work" className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-medium text-lg">Follow-up work</h3>
+          {readOnly ? null : (
+            <ProductionIncidentFollowUpDialog
+              actions={actions}
+              incident={incident}
+            />
+          )}
+        </div>
+        {detail.followUps.length ? (
+          <ul className="divide-y rounded-lg border border-border/70">
+            {detail.followUps.map((followUp) => (
+              <li className="p-3 text-sm" key={followUp.id}>
+                <AppLink
+                  className="underline underline-offset-4"
+                  href={workRecordHref(projectId, followUp.work.id)}
+                >
+                  {followUp.work.key}
+                  {followUp.work.title ? ` ${followUp.work.title}` : ""}
+                </AppLink>
+                <span className="ml-2 text-muted-foreground">
+                  {followUp.work.type} · {followUp.work.status} · Origin: this
+                  Production Incident
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            No follow-up work yet. It is only created after you review a
+            preview.
+          </p>
+        )}
+      </section>
       <section aria-label="Linked records" className="space-y-4">
         <h3 className="font-medium text-lg">Linked records</h3>
         {attached.length ? null : (

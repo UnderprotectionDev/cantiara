@@ -1,4 +1,7 @@
-import { ProductionIncidentConflictError } from "@cantiara/api/production-incidents";
+import {
+  ProductionIncidentConflictError,
+  ProductionIncidentFollowUpStaleError,
+} from "@cantiara/api/production-incidents";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
@@ -15,6 +18,7 @@ import {
 } from "@cantiara/db/schema/mutation";
 import {
   productionIncident,
+  productionIncidentFollowUp,
   productionIncidentLink,
 } from "@cantiara/db/schema/production-incident";
 import { project } from "@cantiara/db/schema/project";
@@ -477,6 +481,155 @@ suite("Production Incidents PostgreSQL seam", () => {
       .from(risk)
       .where(eq(risk.id, riskId));
     expect(riskRow?.life).toBe("Open");
+  });
+
+  describe("follow-up work", () => {
+    const choice = {
+      incidentId,
+      projectId,
+      title: "Add a checkout canary",
+      workType: "Task" as const,
+    };
+    function commitOf(fingerprint: string, workId = crypto.randomUUID()) {
+      return {
+        ...envelope(),
+        ...choice,
+        previewFingerprint: fingerprint,
+        workId,
+      };
+    }
+    async function workCount() {
+      return (
+        await database()
+          .select({ id: work.id })
+          .from(work)
+          .where(eq(work.projectId, projectId))
+      ).length;
+    }
+
+    test("the preview writes nothing and shows the Work and the Origin relation", async () => {
+      const seam = incidents();
+      const before = await counts();
+      const preview = await seam.previewFollowUp(accountId, choice);
+      expect(preview?.plan.work).toMatchObject({
+        status: "Not Started",
+        title: "Add a checkout canary",
+        type: "Task",
+      });
+      expect(preview?.plan.relations).toMatchObject([
+        { from: { id: incidentId }, kind: "Origin" },
+      ]);
+      expect(await counts()).toEqual(before);
+      expect(
+        await database().select().from(productionIncidentFollowUp),
+      ).toEqual([]);
+    });
+
+    test("a commit without the matching preview is rejected and writes nothing", async () => {
+      const seam = incidents();
+      const before = await counts();
+      await expect(
+        seam.createFollowUp(accountId, commitOf("not-the-preview")),
+      ).rejects.toBeInstanceOf(ProductionIncidentFollowUpStaleError);
+      // A preview of another choice does not authorize this one.
+      const other = await seam.previewFollowUp(accountId, {
+        ...choice,
+        workType: "Research",
+      });
+      await expect(
+        seam.createFollowUp(accountId, commitOf(other?.fingerprint ?? "")),
+      ).rejects.toBeInstanceOf(ProductionIncidentFollowUpStaleError);
+      expect(await counts()).toEqual(before);
+    });
+
+    test("an approved commit creates exactly one Work with the incident as Origin and leaves the incident alone", async () => {
+      const seam = incidents();
+      const records = await database()
+        .select()
+        .from(productionIncident)
+        .where(eq(productionIncident.id, incidentId));
+      const before = await counts();
+      const preview = await seam.previewFollowUp(accountId, choice);
+      if (!preview) {
+        throw new Error("Preview required");
+      }
+      const command = commitOf(preview.fingerprint);
+      const created = await seam.createFollowUp(accountId, command);
+      targets.push(command.workId);
+      expect(created).toMatchObject({
+        id: command.workId,
+        work: {
+          status: "Not Started",
+          title: "Add a checkout canary",
+          type: "Task",
+        },
+      });
+      const [workRow] = await database()
+        .select()
+        .from(work)
+        .where(eq(work.id, command.workId));
+      expect(workRow).toMatchObject({
+        originOwnerRecordId: incidentId,
+        projectId,
+      });
+      // Only the one Work: no Bug, Risk, Decision or Release appears.
+      const [works, risks, decisions, releases] = await counts();
+      const [workBefore = 0, ...rest] = before;
+      expect([works, risks, decisions, releases]).toEqual([
+        workBefore + 1,
+        ...rest,
+      ]);
+      const [incidentRow] = await database()
+        .select()
+        .from(productionIncident)
+        .where(eq(productionIncident.id, incidentId));
+      expect(incidentRow).toEqual(records[0]);
+      expect(incidentRow?.status).toBe("Open");
+      const detail = await seam.detail(accountId, { incidentId, projectId });
+      expect(detail?.followUps.map((row) => row.work.id)).toEqual([
+        command.workId,
+      ]);
+      // A retry with the same key returns the same result without a second Work.
+      expect(await seam.createFollowUp(accountId, command)).toEqual(created);
+      expect(await workCount()).toBe(workBefore + 1);
+    });
+
+    test("an incident that changed after the preview makes the commit stale", async () => {
+      const seam = incidents();
+      const preview = await seam.previewFollowUp(accountId, choice);
+      await database()
+        .update(productionIncident)
+        .set({ revision: 1, status: "Watching" })
+        .where(eq(productionIncident.id, incidentId));
+      const before = await workCount();
+      await expect(
+        seam.createFollowUp(accountId, commitOf(preview?.fingerprint ?? "")),
+      ).rejects.toBeInstanceOf(ProductionIncidentFollowUpStaleError);
+      expect(await workCount()).toBe(before);
+    });
+
+    test("another account, a foreign incident or an archived Project gets no preview or Work", async () => {
+      const seam = incidents();
+      const preview = await seam.previewFollowUp(accountId, choice);
+      expect(await seam.previewFollowUp(otherAccountId, choice)).toBeNull();
+      expect(
+        await seam.previewFollowUp(accountId, {
+          ...choice,
+          projectId: otherProjectId,
+        }),
+      ).toBeNull();
+      expect(
+        await seam.createFollowUp(
+          otherAccountId,
+          commitOf(preview?.fingerprint ?? ""),
+        ),
+      ).toBeNull();
+      await database()
+        .update(project)
+        .set({ archivedAt: new Date() })
+        .where(eq(project.id, projectId));
+      expect(await seam.previewFollowUp(accountId, choice)).toBeNull();
+    });
   });
 
   test("an archived Project stays readable but takes no link", async () => {

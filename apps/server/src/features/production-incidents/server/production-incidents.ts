@@ -1,6 +1,11 @@
+import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
 import type {
+  PreviewProductionIncidentFollowUpInput,
+  ProductionIncidentFollowUpPlan,
+  ProductionIncidentFollowUpPreview,
   ProductionIncidentLinkTarget,
   ProductionIncidentLinkType,
+  ProductionIncidentRecord,
 } from "@cantiara/api/production-incidents";
 
 /**
@@ -150,4 +155,56 @@ export async function productionIncidentLinkId(parts: {
     ),
   );
   return `incident-link:${Buffer.from(digest).toString("hex")}`;
+}
+
+/**
+ * The follow-up Work and relations for the live incident, derived on the
+ * server from the incident and the founder's choice only. The incident
+ * revision is part of the plan, so a changed incident invalidates a preview.
+ * Nothing here names a Bug, Risk or Work other than the one previewed, and
+ * the incident status is only echoed, never changed.
+ */
+export function buildFollowUpPlan(
+  incident: Pick<
+    ProductionIncidentRecord,
+    "id" | "revision" | "status" | "title"
+  >,
+  choice: Pick<PreviewProductionIncidentFollowUpInput, "title" | "workType">,
+): ProductionIncidentFollowUpPlan {
+  return {
+    incident: {
+      id: incident.id,
+      revision: incident.revision,
+      status: incident.status,
+      title: incident.title,
+    },
+    relations: [
+      {
+        from: {
+          id: incident.id,
+          label: incident.title,
+          type: "Production Incident",
+        },
+        kind: "Origin",
+        to: { label: choice.title, type: "Work" },
+      },
+    ],
+    work: {
+      description: `Follow-up of Production Incident ${incident.title}.`,
+      status: "Not Started",
+      title: choice.title,
+      type: choice.workType,
+    },
+  };
+}
+
+export async function previewOfFollowUp(
+  plan: ProductionIncidentFollowUpPlan,
+): Promise<ProductionIncidentFollowUpPreview> {
+  return {
+    fingerprint: await fingerprintMutationPayload(
+      plan as unknown as Parameters<typeof fingerprintMutationPayload>[0],
+    ),
+    plan,
+  };
 }

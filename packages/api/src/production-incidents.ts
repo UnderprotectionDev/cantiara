@@ -81,6 +81,101 @@ export interface ProductionIncidentLink {
   revision: number;
   target: ProductionIncidentLinkTarget;
 }
+export const PRODUCTION_INCIDENT_FOLLOW_UP_LABEL = "Create follow-up work";
+/** Follow-up Work types the founder may pick; `Bug` only by that explicit choice. */
+export const PRODUCTION_INCIDENT_FOLLOW_UP_TYPES = [
+  "Task",
+  "Bug",
+  "Research",
+  "Improvement",
+] as const;
+export const productionIncidentFollowUpTypeSchema = z.enum(
+  PRODUCTION_INCIDENT_FOLLOW_UP_TYPES,
+);
+export type ProductionIncidentFollowUpType = z.infer<
+  typeof productionIncidentFollowUpTypeSchema
+>;
+
+/** What the founder chooses before the preview: the Work type and its title. */
+export const previewProductionIncidentFollowUpInputSchema = z
+  .object({
+    incidentId: identifier,
+    projectId: identifier,
+    title: z.string().trim().min(1).max(255),
+    workType: productionIncidentFollowUpTypeSchema,
+  })
+  .strict();
+export type PreviewProductionIncidentFollowUpInput = z.infer<
+  typeof previewProductionIncidentFollowUpInputSchema
+>;
+
+/**
+ * The commit repeats the previewed choice and must carry the fingerprint of
+ * that exact preview; without it, or with another one, nothing is written.
+ */
+export const createProductionIncidentFollowUpInputSchema =
+  humanMutationEnvelopeSchema
+    .extend({
+      incidentId: identifier,
+      previewFingerprint: z.string().trim().min(1).max(255),
+      projectId: identifier,
+      title: z.string().trim().min(1).max(255),
+      workId: identifier,
+      workType: productionIncidentFollowUpTypeSchema,
+    })
+    .strict();
+export type CreateProductionIncidentFollowUpInput = z.infer<
+  typeof createProductionIncidentFollowUpInputSchema
+>;
+
+/** The Work and the source relations shown before anything is written. */
+export interface ProductionIncidentFollowUpPlan {
+  incident: {
+    id: string;
+    revision: number;
+    status: ProductionIncidentStatus;
+    title: string;
+  };
+  /** Source relations set by the commit; the incident is the Origin. */
+  relations: {
+    from: { id: string; label: string; type: "Production Incident" };
+    kind: "Origin";
+    to: { label: string; type: "Work" };
+  }[];
+  work: {
+    description: string;
+    status: "Not Started";
+    title: string;
+    type: ProductionIncidentFollowUpType;
+  };
+}
+export interface ProductionIncidentFollowUpPreview {
+  fingerprint: string;
+  plan: ProductionIncidentFollowUpPlan;
+}
+export interface ProductionIncidentFollowUp {
+  createdAt: string;
+  id: string;
+  work: {
+    id: string;
+    key: string;
+    status: string;
+    title: string | null;
+    type: string;
+    unavailable: boolean;
+  };
+}
+
+export class ProductionIncidentFollowUpStaleError extends Error {
+  readonly code = "PREVIEW_STALE" as const;
+  readonly targetId: string;
+  constructor(targetId: string, options?: ErrorOptions) {
+    super("The preview changed. Review it again before creating.", options);
+    this.name = "ProductionIncidentFollowUpStaleError";
+    this.targetId = targetId;
+  }
+}
+
 export interface ProductionIncidentSummary {
   incident: ProductionIncidentRecord;
   linkCount: number;
@@ -92,6 +187,7 @@ export interface ProductionIncidentOverview {
 export interface ProductionIncidentDetail {
   /** Selectable records of this Project by type. */
   candidates: ProductionIncidentLinkTarget[];
+  followUps: ProductionIncidentFollowUp[];
   incident: ProductionIncidentRecord;
   /** Link rows, removed rows included so a re-add re-attaches them. */
   links: ProductionIncidentLink[];
@@ -109,11 +205,17 @@ export class ProductionIncidentConflictError extends Error {
 }
 
 /**
- * The whole seam: read the incidents and their links, and bind or unbind one
- * record. There is deliberately no member that writes an incident, a status
- * or a linked record, and none that accepts an alarm or an error event.
+ * The whole seam: read the incidents and their links, bind or unbind one
+ * record, and create follow-up Work after its preview. There is deliberately
+ * no member that writes an incident, a status or a linked record, and none
+ * that accepts an alarm or an error event.
  */
 export interface ProductionIncidentsAccess {
+  /** Writes the previewed Work only when the fingerprint matches the live preview. */
+  createFollowUp: (
+    accountId: string,
+    input: CreateProductionIncidentFollowUpInput,
+  ) => Promise<ProductionIncidentFollowUp | null>;
   detail: (
     accountId: string,
     input: z.infer<typeof productionIncidentInputSchema>,
@@ -122,6 +224,11 @@ export interface ProductionIncidentsAccess {
     accountId: string,
     projectId: string,
   ) => Promise<ProductionIncidentOverview | null>;
+  /** Read-only: the Work and relations a commit would create. */
+  previewFollowUp: (
+    accountId: string,
+    input: PreviewProductionIncidentFollowUpInput,
+  ) => Promise<ProductionIncidentFollowUpPreview | null>;
   setLink: (
     accountId: string,
     input: SetProductionIncidentLinkInput,

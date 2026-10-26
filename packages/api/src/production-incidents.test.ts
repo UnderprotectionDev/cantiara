@@ -2,10 +2,13 @@ import { productionIncident } from "@cantiara/db/schema/production-incident";
 import { describe, expect, test } from "vitest";
 import {
   attachedProductionIncidentLinks,
+  createProductionIncidentFollowUpInputSchema,
   groupProductionIncidentsByStatus,
+  PRODUCTION_INCIDENT_FOLLOW_UP_LABEL,
   PRODUCTION_INCIDENT_LINK_TYPES,
   type ProductionIncidentLink,
   type ProductionIncidentsAccess,
+  previewProductionIncidentFollowUpInputSchema,
   setProductionIncidentLinkInputSchema,
 } from "./production-incidents";
 import {
@@ -142,16 +145,69 @@ describe("Production Incidents contract", () => {
 
   test("the access has exactly the read and the link members: no incident, status or alarm writer", () => {
     const members: (keyof ProductionIncidentsAccess)[] = [
+      "createFollowUp",
       "detail",
       "overview",
+      "previewFollowUp",
       "setLink",
     ];
     const access: ProductionIncidentsAccess = {
+      createFollowUp: () => Promise.resolve(null),
       detail: () => Promise.resolve(null),
       overview: () => Promise.resolve(null),
+      previewFollowUp: () => Promise.resolve(null),
       setLink: () => Promise.resolve(null),
     };
     expect(Object.keys(access).sort()).toEqual(members);
+  });
+
+  test("follow-up creation needs the preview fingerprint and takes no status, Bug or Risk field", () => {
+    const create = {
+      baseRevision: 0,
+      clientIdempotencyKey: "key-1",
+      incidentId: "incident-1",
+      previewFingerprint: "abc",
+      projectId: "project-1",
+      title: "Add a canary",
+      workId: "work-9",
+      workType: "Task",
+    };
+    expect(
+      createProductionIncidentFollowUpInputSchema.safeParse(create).success,
+    ).toBe(true);
+    const { previewFingerprint: _omitted, ...withoutPreview } = create;
+    expect(
+      createProductionIncidentFollowUpInputSchema.safeParse(withoutPreview)
+        .success,
+    ).toBe(false);
+    expect(
+      createProductionIncidentFollowUpInputSchema.safeParse({
+        ...create,
+        previewFingerprint: "",
+      }).success,
+    ).toBe(false);
+    for (const extra of [
+      { status: "Resolved" },
+      { createBug: true },
+      { createRisk: true },
+      { workType: "Feature" },
+    ]) {
+      expect(
+        createProductionIncidentFollowUpInputSchema.safeParse({
+          ...create,
+          ...extra,
+        }).success,
+      ).toBe(false);
+    }
+    expect(
+      previewProductionIncidentFollowUpInputSchema.safeParse({
+        incidentId: "incident-1",
+        projectId: "project-1",
+        title: "Add a canary",
+        workType: "Bug",
+      }).success,
+    ).toBe(true);
+    expect(PRODUCTION_INCIDENT_FOLLOW_UP_LABEL).toBe("Create follow-up work");
   });
 
   test("groups by status in the catalog order and lists attached links by type", () => {

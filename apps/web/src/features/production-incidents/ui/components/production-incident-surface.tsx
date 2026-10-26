@@ -3,7 +3,7 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { client, orpc } from "@/utils/orpc";
 import { useProductionIncidentCommand } from "../../hooks/use-production-incident-command";
 import {
@@ -26,6 +26,8 @@ export function ProductionIncidentSurface({
     }),
   );
   const run = useProductionIncidentCommand();
+  // One Work id per previewed attempt, so a retried confirm cannot make a second Work.
+  const followUpWorkId = useRef<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string>();
   const [errorMessage, setErrorMessage] = useState<string>();
 
@@ -64,6 +66,35 @@ export function ProductionIncidentSurface({
     setSavedMessage(message);
   }
   const actions: ProductionIncidentActions = {
+    onPreview: (values) =>
+      client.previewProductionIncidentFollowUp({ ...base, ...values }),
+    onCreate: async (values, preview) => {
+      followUpWorkId.current ??= crypto.randomUUID();
+      const workId = followUpWorkId.current;
+      const command = {
+        ...base,
+        ...values,
+        previewFingerprint: preview.fingerprint,
+        workId,
+      };
+      try {
+        await done(
+          "Follow-up work created.",
+          run(command, (clientIdempotencyKey) =>
+            client.createProductionIncidentFollowUp({
+              ...command,
+              baseRevision: 0,
+              clientIdempotencyKey,
+            }),
+          ),
+        );
+        followUpWorkId.current = null;
+      } catch (error) {
+        // A stale preview needs a new preview, which gets its own Work id.
+        followUpWorkId.current = null;
+        throw error;
+      }
+    },
     onAddLink: (target) => {
       const command = {
         ...base,
