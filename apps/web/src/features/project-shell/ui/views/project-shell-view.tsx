@@ -4,24 +4,29 @@ import { useProjectShellData } from "@/features/project-shell/hooks/use-project-
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 
 import ProjectShellSurface, {
+  type ProjectProductionArea,
   type ProjectReleasesArea,
 } from "../components/project-shell-surface";
 
 export default function ProjectShellView({
   accountId,
   githubArea,
+  productionArea,
   projectHistoryArea,
   projectId,
   releasesArea,
   releaseEvidenceArea,
+  valueChainArea,
   workHistoryArea,
 }: {
   accountId?: string;
   githubArea?: ReactNode;
+  productionArea?: ProjectProductionArea;
   projectHistoryArea?: ReactNode;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
+  valueChainArea?: (goalId: string) => ReactNode;
   workHistoryArea?: (workId: string) => ReactNode;
 }) {
   const { accountPreferencesQuery, projectQuery, scopeTreeQuery } =
@@ -64,12 +69,14 @@ export default function ProjectShellView({
         accountFormattingPreferences={formattingPreferences}
         accountId={accountId}
         githubArea={githubArea}
+        productionArea={productionArea}
         project={projectQuery.data}
         projectHistoryArea={projectHistoryArea}
         projectId={projectId}
         releaseEvidenceArea={releaseEvidenceArea}
         releasesArea={releasesArea}
         scopeTreeQuery={scopeTreeQuery}
+        valueChainArea={valueChainArea}
         workHistoryArea={workHistoryArea}
       />
     </main>

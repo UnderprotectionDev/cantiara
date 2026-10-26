@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
 
 import GitHubIntegrationSurface from "@/features/github-integration/ui/components/github-integration-surface";
+import ProductionIncidentsView from "@/features/production-incidents/ui/views/production-incidents-view";
 import ProjectActivitySurface from "@/features/project-history/ui/components/project-activity-surface";
 import StoryTimelineSurface from "@/features/project-history/ui/components/story-timeline-surface";
 import WorkRecordHistorySurface from "@/features/project-history/ui/components/work-record-history-surface";
@@ -9,6 +10,7 @@ import ProjectReleasesView from "@/features/project-release-planning/ui/views/pr
 import ProjectShellView from "@/features/project-shell/ui/views/project-shell-view";
 import ReleaseEvidencePackSurface from "@/features/release-evidence/ui/components/release-evidence-pack-surface";
 import { smartCollectionWorkPrefillFromSearch } from "@/features/smart-collections/lib/smart-collection-work-prefill";
+import ValueChainSurface from "@/features/value-chain/ui/components/value-chain-surface";
 
 export const Route = createFileRoute("/_auth/projects/$projectId/")({
   validateSearch: (search) => {
@@ -51,12 +53,20 @@ function RouteComponent() {
     [projectId],
   );
 
+  const valueChainArea = useCallback(
+    (goalId: string) => (
+      <ValueChainSurface goalId={goalId} key={goalId} projectId={projectId} />
+    ),
+    [projectId],
+  );
+
   return (
     <ProjectShellView
       accountId={session.data?.user.id}
       githubArea={
         <GitHubIntegrationSurface key={projectId} projectId={projectId} />
       }
+      productionArea={ProductionIncidentsView}
       projectHistoryArea={
         <>
           <StoryTimelineSurface key={projectId} projectId={projectId} />
@@ -66,6 +76,7 @@ function RouteComponent() {
       projectId={projectId}
       releaseEvidenceArea={releaseEvidenceArea}
       releasesArea={ProjectReleasesView}
+      valueChainArea={valueChainArea}
       workHistoryArea={workHistoryArea}
     />
   );

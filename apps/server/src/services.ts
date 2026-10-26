@@ -138,6 +138,7 @@ import { createDatabaseTestGaps } from "./features/test-gaps/server/test-gaps-da
 import { createDatabaseTestReports } from "./features/test-report/server/test-report-database";
 import { createDatabaseTestReview } from "./features/test-review/server/test-review-database";
 import { createDatabaseUserFlow } from "./features/user-flow/server/user-flow-database";
+import { createDatabaseValueChain } from "./features/value-chain/server/value-chain-database";
 import {
   createDatabaseWorkAutomation,
   type WorkAutomationWorkCreation,
@@ -152,6 +153,7 @@ import {
 import { createDatabaseWorkTemplates } from "./features/work-templates/server/work-templates-database";
 import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/server/workspace-overview-database";
 import { createMaintenanceWorker } from "./maintenance-worker";
+import { createProductionIncidents } from "./production-incidents-wiring";
 import { createProjectReleasePlanning } from "./project-release-planning-wiring";
 
 const db = createDb(env);
@@ -199,6 +201,7 @@ export const dailyFocus = createDatabaseDailyFocus(db);
 export const focusPeriod = createDatabaseFocusPeriod(db);
 export const projectGoals = createDatabaseProjectGoals(db);
 export const projectReleasePlanning = createProjectReleasePlanning(db);
+export const productionIncidents = createProductionIncidents(db);
 export const researchSessions = createDatabaseResearchSessions(db);
 export const projectSourceRecords = createDatabaseProjectSourceRecords(db);
 export const sourcesAndFreshness = createDatabaseSourcesAndFreshness(db);
@@ -291,6 +294,7 @@ export const projectHistory = createDatabaseProjectHistory(db);
 export const projectActivity = createProjectActivity(
   createDatabaseProjectActivityStore(db),
 );
+export const valueChain = createDatabaseValueChain(db);
 export const projectWall = createDatabaseProjectWall(db, relations, {
   collections: smartCollections,
   diagrams: technicalDiagrams,

@@ -1347,6 +1347,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ortam bağlantısı | `Environment link` | Proje Sürümüne bağlı dış ortam kaydı |
 | Sürüm durumu eylemleri | `Mark Published`, `Mark Cancelled` | `Published` ve `Cancelled` terminal durumlarına yalnız açık eylemle geçiş |
 | Üretim Olayı kaydet | `Record Production Incident` | Yeni Üretim Olayını başlık ve zamanla açma eylemi |
+| Üretim Olayı bağları | `Linked records`, `Link record`, `Remove link` | Üretim Olayına aynı Projenin Bug, GitHub PR, Proje Sürümü, Risk ve Kararını bağlama; bağlanan kaydın durumunu yazmaz |
+| Üretim Olayı Takip İşi | `Follow-up work`, `Create follow-up work`, `Preview`, `Preview changed` | Üretim Olayından yalnız önizleme sonrası onayla İş oluşturma; önizleme değişirse yeniden önizlenir, olay ve Bug yazılmaz |
 | GitHub bağlantı eylemleri | `Connect repository`, `Install GitHub App`, `Connect selected repositories`, `GitHub records` | Repository bağlama akışı ve bağlı salt okunur GitHub kayıtları |
 | GitHub eşitleme durumu | `Last synced`, `Last error`, `Retry after`, `Source not found` | Eşitleme sağlığı; `No access` erişim kaybını gösterir |
 | İlk bağlantı triage | `Skip triage`, `Preview Work to create` | Issue'lardan İş oluşturmayı atlama veya önizleme |
@@ -1431,6 +1433,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kalıp geçerli değil | `This pattern is not valid.` | Bul ve değiştirde geçersiz regex kalıbı hatası |
 | Sürüm 5 için Spec Değişiklik İncelemesi açıldı | `Spec Change Review opened for Version 5.` | Sürümler listesinde bir sürümden Spec Değişiklik İncelemesi açılınca gösterilen sonuç |
 | Proje görünümleri | `Project views` | Proje Genel Bakışında görünümlere giden bölümün başlığı |
+| Değer Zinciri | `Value Chain` | Seçilen Proje Hedefinden gözlenen sonuca uzanan türetilmiş görünümün başlığı |
+| Hedefe bağlanmamış | `Not linked to goal` | Değer Zincirinde Hedefe katkı yolu olmayan ilgili kayıtların bölüm başlığı |
+| Erişilemeyen kayıt | `Unavailable record` | Değer Zincirinde içeriği gösterilemeyen ucun yer tutucusu |
 | Bağlayan ilişki türü | `Bound by {relation type}` | Değer Zinciri düğümünde bağın ilişki türünü gösteren etiket |
 | İlişkili bağ katkı sayılmaz | `A Related link does not count as a contribution to this goal.` | `Related` bağının Hedefe katkı sayılmadığını söyleyen not |
 | Bu boşluğu doldur | `Fill this gap` | Değer Zincirinde eksik veya çözülemeyen adımın yanındaki eylem |
@@ -1438,6 +1443,18 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yeni kayıt başlat | `Start a new record` | Boşluk panelinde ilgili özelliğin oluşturma akışına giden yol |
 | Boşluk paneli notu | `Nothing is written until you save the relation in the owning feature. No other record changes status.` | Boşluk panelinde hiçbir şeyin sahip özellikte kaydedilene kadar yazılmadığını söyleyen sabit not |
 | Kayıt açılamadı | `The record could not be opened.` | Boşluk panelinde kaydın açılamaması hatası |
+| Düğüm gösterim nedeni | `Shown because: {relation}` | Değer Zinciri düğümünde neden gösterildiğini söyleyen etiket |
+| Boşluk bölümü | `Gaps` | Değer Zincirinde eksik adımların sayısıyla listelendiği bölüm başlığı |
+| Boş hedef boşluğu | `No Work, Milestone or Project Release contributes to this goal.` | Hedefe hiç katkı bağlı olmadığında gösterilen boşluk |
+| İş boşluk cümlesi | `No {stage} is bound to this Work.` | Zincir İşinde eksik aşamayı adlandıran boşluk |
+| Boşluk yok notu | `No step is missing on the explicit relations. This is not a verdict.` | Boşluk bulunmadığında gösterilen not |
+| Zincir türetme notu | `Derived from explicit records and relations. Nothing here is written, scored or inferred.` | Zincir başlığının altındaki türetme notu |
+| Zincir yükleniyor | `Loading Value Chain…` | Zincir okunurken gösterilen durum |
+| Zincir okunamadı | `Value Chain is unavailable.` | Zincir okunamadığında gösterilen hata |
+| Erişilemeyen Hedef notu | `This Project Goal is unavailable: {reason}. Records still bound to it are shown.` | Hedef çözümlenemediğinde gösterilen durum |
+| Diğer daldan tekrar | `Also reached from another branch; shown in full there.` | Zincirde ikinci kez ulaşılan düğümün notu |
+| Zincir dışı ilişkili not | `Related to a record in this chain, but no Contributes to Goal path reaches it.` | `Not linked to goal` satırının gösterilme nedeni |
+| Bağlanmamış İş eki notu | `Attached to {record}, which itself has no Contributes to Goal path from this goal.` | Bağlanmamış bir İşin Karar, kanıt veya test ekinin gösterilme nedeni |
 | Kilometre Taşına ulaşıldı | `Milestone reached` | Proje Hikâyesi zaman çizelgesinde olay türü |
 | Yaşam döngüsü değişikliği | `Lifecycle change` | Proje Hikâyesi zaman çizelgesinde olay türü |
 | Kod değişikliği | `Code change` | Proje Hikâyesi zaman çizelgesinde olay türü |

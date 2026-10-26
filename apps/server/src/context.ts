@@ -57,6 +57,7 @@ import type {
   PriorityMetricsAccess,
 } from "@cantiara/api/priority-metrics";
 import type { ProductGapsAccess } from "@cantiara/api/product-gaps";
+import type { ProductionIncidentsAccess } from "@cantiara/api/production-incidents";
 import type { ProjectActivityAccess } from "@cantiara/api/project-activity";
 import type { ProjectGoalsAccess } from "@cantiara/api/project-goals";
 import type { ProjectHistoryAccess } from "@cantiara/api/project-history";
@@ -98,6 +99,7 @@ import type { TestGapsAccess } from "@cantiara/api/test-gaps";
 import type { TestReportAcceptanceAccess } from "@cantiara/api/test-report";
 import type { TestReviewAccess } from "@cantiara/api/test-review";
 import type { UserFlowAccess } from "@cantiara/api/user-flow";
+import type { ValueChainAccess } from "@cantiara/api/value-chain";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkAutomationAccess } from "@cantiara/api/work-automation";
 import type { WorkContextAccess } from "@cantiara/api/work-context";
@@ -157,6 +159,7 @@ export interface CreateContextOptions {
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
   productGaps?: ProductGapsAccess;
+  productionIncidents?: ProductionIncidentsAccess;
   projectActivity?: ProjectActivityAccess;
   projectGoals?: ProjectGoalsAccess;
   projectHistory?: ProjectHistoryAccess;
@@ -194,6 +197,7 @@ export interface CreateContextOptions {
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   userFlow?: UserFlowAccess;
+  valueChain?: ValueChainAccess;
   webCapture?: WebCaptureAccess;
   workAutomation?: WorkAutomationAccess;
   workContext?: WorkContextAccess;
@@ -253,6 +257,7 @@ export async function createContext({
   projectShellMutationContracts,
   projectGoals,
   projectReleasePlanning,
+  productionIncidents,
   projectSourceRecords,
   documentEvidence,
   sourceEvidence,
@@ -287,6 +292,7 @@ export async function createContext({
   relations,
   releaseEvidence,
   projectHistory,
+  valueChain,
   tagMutationContracts,
   trustedProxyIps,
   usageLinkMutationContracts,
@@ -355,6 +361,7 @@ export async function createContext({
     projectShellMutationContracts,
     projectGoals,
     projectReleasePlanning,
+    productionIncidents,
     projectSourceRecords,
     documentEvidence,
     sourceEvidence,
@@ -389,6 +396,7 @@ export async function createContext({
     relations,
     releaseEvidence,
     projectHistory,
+    valueChain,
     auth: null,
     session,
     tagMutationContracts,

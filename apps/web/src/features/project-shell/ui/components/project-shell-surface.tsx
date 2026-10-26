@@ -244,6 +244,32 @@ function projectReleasesSurface(
   ) : null;
 }
 
+/** The project `Production` area component, injected by the route. */
+export type ProjectProductionArea = ComponentType<{
+  formatting: AccountPreferences;
+  hash: string;
+  projectId: string;
+}>;
+
+function projectProductionSurface(
+  activeHash: string,
+  formatting: AccountPreferences,
+  projectId: string,
+  ProductionArea?: ProjectProductionArea,
+) {
+  const isProductionSurface =
+    ["production", "project-area-production"].includes(activeHash) ||
+    projectSourceRecordFromHash(activeHash)?.sourceType ===
+      "Production Incident";
+  return ProductionArea && isProductionSurface ? (
+    <ProductionArea
+      formatting={formatting}
+      hash={activeHash}
+      projectId={projectId}
+    />
+  ) : null;
+}
+
 function liveSourceRouteForHash(activeHash: string, projectId: string) {
   const source = projectSourceRecordFromHash(activeHash);
   if (activeHash === "risks" || source?.sourceType === "Risk") {
@@ -449,15 +475,18 @@ function ProjectShellContent({
   githubArea,
   project,
   projectHistoryArea,
+  productionArea,
   projectId,
   releasesArea,
   releaseEvidenceArea,
   scopeTreeQuery,
   workHistoryArea,
+  valueChainArea,
 }: {
   accountId?: string;
   accountFormattingPreferences: AccountPreferences;
   githubArea?: ReactNode;
+  productionArea?: ProjectProductionArea;
   project: ProjectProfile;
   projectHistoryArea?: ReactNode;
   projectId: string;
@@ -465,6 +494,7 @@ function ProjectShellContent({
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
   scopeTreeQuery: UseQueryResult<ScopeTree>;
   workHistoryArea?: (workId: string) => ReactNode;
+  valueChainArea?: (goalId: string) => ReactNode;
 }) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
   const configurationReturnHash = useLocation({
@@ -605,6 +635,12 @@ function ProjectShellContent({
       releasesArea,
     ) ??
     projectHistorySurface(activeHash, projectHistoryArea) ??
+    projectProductionSurface(
+      activeHash,
+      accountFormattingPreferences,
+      projectId,
+      productionArea,
+    ) ??
     projectGitHubSurface(activeHash, githubArea) ??
     projectUncertaintySurface(
       projectId,
@@ -620,6 +656,7 @@ function ProjectShellContent({
           hash={activeHash}
           key={`${projectId}:${activeHash}`}
           projectId={projectId}
+          valueChainArea={valueChainArea}
         />
       );
     }

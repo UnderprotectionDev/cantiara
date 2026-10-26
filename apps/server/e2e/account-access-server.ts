@@ -98,6 +98,7 @@ import { createDatabaseTestAssessments } from "../src/features/test-assessments/
 import { createDatabaseTestGaps } from "../src/features/test-gaps/server/test-gaps-database";
 import { createDatabaseTestReports } from "../src/features/test-report/server/test-report-database";
 import { createDatabaseTestReview } from "../src/features/test-review/server/test-review-database";
+import { createDatabaseValueChain } from "../src/features/value-chain/server/value-chain-database";
 import { createWorkContextAccess } from "../src/features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "../src/features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
@@ -395,6 +396,7 @@ const app = createApp({
   githubIdentityConfirmation,
   nodeEnv: "test",
   projectGoals: createDatabaseProjectGoals(database),
+  valueChain: createDatabaseValueChain(database),
   projectSourceRecords,
   personalReminders,
   favorites: createDatabaseFavorites(database),

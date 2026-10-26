@@ -45,6 +45,7 @@ import type {
   PriorityMetricsAccess,
 } from "./priority-metrics";
 import type { ProductGapsAccess } from "./product-gaps";
+import type { ProductionIncidentsAccess } from "./production-incidents";
 import type { ProjectActivityAccess } from "./project-activity";
 import type { ProjectGoalsAccess } from "./project-goals";
 import type { ProjectHistoryAccess } from "./project-history";
@@ -86,6 +87,7 @@ import type { TestGapsAccess } from "./test-gaps";
 import type { TestReportAcceptanceAccess } from "./test-report";
 import type { TestReviewAccess } from "./test-review";
 import type { UserFlowAccess } from "./user-flow";
+import type { ValueChainAccess } from "./value-chain";
 import type { WebCaptureAccess } from "./web-capture";
 import type { WorkAutomationAccess } from "./work-automation";
 import type { WorkContextAccess } from "./work-context";
@@ -218,6 +220,7 @@ export interface Context {
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
   productGaps?: ProductGapsAccess;
+  productionIncidents?: ProductionIncidentsAccess;
   projectActivity?: ProjectActivityAccess;
   projectGoals?: ProjectGoalsAccess;
   projectHistory?: ProjectHistoryAccess;
@@ -257,6 +260,7 @@ export interface Context {
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   userFlow?: UserFlowAccess;
+  valueChain?: ValueChainAccess;
   webCapture?: WebCaptureAccess;
   workAutomation?: WorkAutomationAccess;
   workContext?: WorkContextAccess;
