@@ -19,9 +19,8 @@ import {
  * a Birleşik Bildirim Merkezi section, and it is neither GitHub Activity nor an
  * e-mail digest. The owners keep writing their own history; this module only
  * reads it, attributes it to a Project record and presents one atomic row per
- * history entry (grouping into presentation clusters is a later, separate
- * step and needs every field kept here: actor, time, origin, undo boundary,
- * previous–next and source reference).
+ * history entry. `entries` groups them into five-minute presentation clusters
+ * (#465) without dropping any atomic row.
  *
  * Secrets are never shown as previous–next. A redacted value carries a
  * contentless mark (Güvenlik redaksiyonu), never reconstructed text.
@@ -94,6 +93,14 @@ export const projectActivityInputSchema = z
       .max(PROJECT_ACTIVITY_MAX_PAGE_SIZE)
       .default(PROJECT_ACTIVITY_PAGE_SIZE),
     projectId: identifierSchema,
+    /** One ana kayıt: that record's own Kayıt geçmişi view. */
+    sourceRecord: z
+      .object({
+        recordId: identifierSchema,
+        recordType: z.enum(PROJECT_ACTIVITY_RECORD_TYPES),
+      })
+      .strict()
+      .optional(),
     sourceTypes: z.array(projectActivitySourceTypeSchema).max(6).default([]),
   })
   .strict();
@@ -185,6 +192,39 @@ export const projectActivityRowSchema = z
   .strict();
 export type ProjectActivityRow = z.infer<typeof projectActivityRowSchema>;
 
+/**
+ * Five-minute presentation cluster (spec 68 #465). A cluster is presentation
+ * only: it carries EVERY atomic row (newest first), so nothing is dropped,
+ * summed or rewritten, and the ungrouped list stays derivable.
+ */
+export const projectActivityClusterSchema = z
+  .object({
+    actor: projectActivityActorSchema,
+    /** Distinct changed field names; never values. */
+    fieldNames: z.array(z.string()),
+    from: z.string(),
+    id: z.string(),
+    origin: projectActivityOriginSchema,
+    rows: z.array(projectActivityRowSchema).min(2),
+    source: projectActivitySourceRefSchema,
+    to: z.string(),
+  })
+  .strict();
+export type ProjectActivityCluster = z.infer<
+  typeof projectActivityClusterSchema
+>;
+
+export const projectActivityEntrySchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("row"), row: projectActivityRowSchema }).strict(),
+  z
+    .object({
+      cluster: projectActivityClusterSchema,
+      kind: z.literal("cluster"),
+    })
+    .strict(),
+]);
+export type ProjectActivityEntry = z.infer<typeof projectActivityEntrySchema>;
+
 export const projectActivitySourceStatusSchema = z
   .object({
     reason: z.string().nullable(),
@@ -198,6 +238,8 @@ export type ProjectActivitySourceStatus = z.infer<
 
 export const projectActivitySchema = z
   .object({
+    /** The same rows as presentation entries: single rows and clusters. */
+    entries: z.array(projectActivityEntrySchema),
     nextCursor: z.string().nullable(),
     projectId: z.string(),
     rows: z.array(projectActivityRowSchema),
@@ -469,6 +511,146 @@ function toRow(fact: ProjectActivityHistoryFact): ProjectActivityRow {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Five-minute presentation cluster
+// ---------------------------------------------------------------------------
+
+export const PROJECT_ACTIVITY_CLUSTER_WINDOW_MS = 5 * 60 * 1000;
+/** Undo kinds that are ordinary field boundaries; every other kind is structural. */
+const CLUSTERABLE_UNDO_KINDS = new Set<string | null>([null, "field"]);
+
+/**
+ * Only an ordinary, non-redacted field edit may sit in a cluster. Create,
+ * Status change, Archive, Relation and Automation event types, undo entries and
+ * structural undo boundaries always stay their own row. (Comments, security
+ * events and publications are not Kayıt geçmişi rows and never reach here.)
+ */
+function isClusterable(row: ProjectActivityRow): boolean {
+  return (
+    row.eventType === "Field change" &&
+    !row.redacted &&
+    row.undo.of === null &&
+    CLUSTERABLE_UNDO_KINDS.has(row.undo.kind)
+  );
+}
+
+function clusterKey(row: ProjectActivityRow): string {
+  return JSON.stringify([
+    row.actor.kind,
+    row.actor.actorId,
+    row.origin.kind,
+    row.source.recordType,
+    row.source.recordId,
+  ]);
+}
+
+function compareNewestFirst(
+  left: ProjectActivityRow,
+  right: ProjectActivityRow,
+) {
+  return left.occurredAt === right.occurredAt
+    ? right.id.localeCompare(left.id)
+    : right.occurredAt.localeCompare(left.occurredAt);
+}
+
+function buildCluster(oldestFirst: ProjectActivityRow[]): ProjectActivityEntry {
+  const [first] = oldestFirst;
+  const last = oldestFirst.at(-1);
+  if (!(first && last) || oldestFirst.length < 2) {
+    throw new Error("A cluster needs at least two rows.");
+  }
+  return {
+    cluster: {
+      actor: first.actor,
+      fieldNames: [
+        ...new Set(
+          oldestFirst.flatMap((row) => row.changes.map((c) => c.field)),
+        ),
+      ],
+      from: first.occurredAt,
+      id: `cluster:${first.id}`,
+      origin: first.origin,
+      rows: [...oldestFirst].reverse(),
+      source: first.source,
+      to: last.occurredAt,
+    },
+    kind: "cluster",
+  };
+}
+
+function entryHead(entry: ProjectActivityEntry): ProjectActivityRow {
+  if (entry.kind === "row") {
+    return entry.row;
+  }
+  const [head] = entry.cluster.rows;
+  if (!head) {
+    throw new Error("A cluster needs at least two rows.");
+  }
+  return head;
+}
+
+/**
+ * Pure, deterministic and clock-free: groups atomic rows into presentation
+ * entries, newest first. Window rule: a row joins the open cluster when it is
+ * at most five minutes after the PRECEDING row of that cluster (chaining). The
+ * same actor kind, actor id, origin kind and source record are required; any
+ * other row of the same record in between (another actor, a lifecycle change,
+ * an undo) closes the cluster. Every atomic row is kept, in a cluster or alone.
+ */
+export function clusterProjectActivityRows(
+  rows: readonly ProjectActivityRow[],
+): ProjectActivityEntry[] {
+  const oldestFirst = [...rows].sort((a, b) => compareNewestFirst(b, a));
+  const open = new Map<string, ProjectActivityRow[]>();
+  const done: ProjectActivityRow[][] = [];
+  const recordOf = (row: ProjectActivityRow) =>
+    `${row.source.recordType}:${row.source.recordId}`;
+  const close = (record: string) => {
+    const group = open.get(record);
+    if (group) {
+      done.push(group);
+      open.delete(record);
+    }
+  };
+  for (const row of oldestFirst) {
+    const record = recordOf(row);
+    const group = open.get(record);
+    const previous = group?.at(-1);
+    if (
+      group &&
+      previous &&
+      isClusterable(row) &&
+      clusterKey(row) === clusterKey(previous) &&
+      Date.parse(row.occurredAt) - Date.parse(previous.occurredAt) <=
+        PROJECT_ACTIVITY_CLUSTER_WINDOW_MS
+    ) {
+      group.push(row);
+      continue;
+    }
+    close(record);
+    if (isClusterable(row)) {
+      open.set(record, [row]);
+    } else {
+      done.push([row]);
+    }
+  }
+  for (const record of [...open.keys()]) {
+    close(record);
+  }
+  return done
+    .map((group): ProjectActivityEntry => {
+      const [only] = group;
+      if (group.length > 1) {
+        return buildCluster(group);
+      }
+      if (!only) {
+        throw new Error("Empty group.");
+      }
+      return { kind: "row", row: only };
+    })
+    .sort((a, b) => compareNewestFirst(entryHead(a), entryHead(b)));
+}
+
 function matchesSource(
   row: ProjectActivityRow,
   sourceTypes: readonly ProjectActivitySourceType[],
@@ -546,6 +728,9 @@ export function deriveProjectActivity(
     .map(toRow)
     .filter(
       (row) =>
+        (!input.sourceRecord ||
+          (row.source.recordType === input.sourceRecord.recordType &&
+            row.source.recordId === input.sourceRecord.recordId)) &&
         matchesSource(row, input.sourceTypes) &&
         (input.eventTypes.length === 0 ||
           input.eventTypes.includes(row.eventType)),
@@ -559,6 +744,7 @@ export function deriveProjectActivity(
   const page = rows.slice(0, input.limit);
   const last = page.at(-1);
   return {
+    entries: clusterProjectActivityRows(page),
     nextCursor: rows.length > input.limit && last ? cursorOf(last) : null,
     projectId,
     rows: page,

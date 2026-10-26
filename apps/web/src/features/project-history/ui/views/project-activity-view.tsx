@@ -5,9 +5,12 @@ import {
   PROJECT_HISTORY_LABEL,
   type ProjectActivity,
   type ProjectActivityChange,
+  type ProjectActivityCluster,
+  type ProjectActivityEntry,
   type ProjectActivityRow,
 } from "@cantiara/api/project-activity";
 import { Button } from "@cantiara/ui/components/button";
+import { useCallback, useId, useState } from "react";
 import { AppLink } from "@/components/app-link";
 import type { ProjectActivityFilters } from "../../lib/project-activity-filters";
 import {
@@ -97,6 +100,89 @@ function ActivityRow({
   );
 }
 
+function ActivityCluster({
+  cluster,
+  projectId,
+}: {
+  cluster: ProjectActivityCluster;
+  projectId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  const toggle = useCallback(() => setOpen((value) => !value), []);
+  const actor = activityActorText(
+    cluster.actor.kind,
+    cluster.actor.actorId,
+    cluster.actor.authorizingUserId,
+  );
+  return (
+    <li className="space-y-2 rounded-md border border-border/60 p-3">
+      <p className="font-medium">
+        {`${cluster.rows.length} field changes · ${cluster.source.recordType} · ${cluster.source.label}`}
+      </p>
+      <p className="text-muted-foreground text-sm">
+        {`${actor} · `}
+        <time dateTime={cluster.from}>{activityTimeText(cluster.from)}</time>
+        {" – "}
+        <time dateTime={cluster.to}>{activityTimeText(cluster.to)}</time>
+        {` · ${cluster.fieldNames.join(", ") || "fields not shown"}`}
+      </p>
+      <Button
+        aria-controls={listId}
+        aria-expanded={open}
+        onClick={toggle}
+        type="button"
+        variant="outline"
+      >
+        {open ? "Hide each change" : "Show each change"}
+      </Button>
+      <div id={listId}>
+        {open ? (
+          <ol
+            aria-label={`Each change in ${cluster.rows.length} field changes`}
+            className="space-y-2"
+          >
+            {cluster.rows.map((row) => (
+              <ActivityRow key={row.id} projectId={projectId} row={row} />
+            ))}
+          </ol>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+/** Rows and five-minute presentation clusters; shared by the record's own history. */
+export function ProjectActivityEntries({
+  entries,
+  label,
+  projectId,
+}: {
+  entries: ProjectActivityEntry[];
+  label: string;
+  projectId: string;
+}) {
+  return (
+    <ol aria-label={label} className="space-y-2">
+      {entries.map((entry) =>
+        entry.kind === "cluster" ? (
+          <ActivityCluster
+            cluster={entry.cluster}
+            key={entry.cluster.id}
+            projectId={projectId}
+          />
+        ) : (
+          <ActivityRow
+            key={entry.row.id}
+            projectId={projectId}
+            row={entry.row}
+          />
+        ),
+      )}
+    </ol>
+  );
+}
+
 /**
  * `Project Activity`: the atomic, filterable `What changed?` trail derived from
  * existing record history. It is a secondary area: not the Project landing
@@ -174,11 +260,11 @@ export function ProjectActivityView({
           No changes match these filters.
         </p>
       ) : (
-        <ol aria-label={PROJECT_ACTIVITY_LABEL} className="space-y-2">
-          {activity.rows.map((row) => (
-            <ActivityRow key={row.id} projectId={projectId} row={row} />
-          ))}
-        </ol>
+        <ProjectActivityEntries
+          entries={activity.entries}
+          label={PROJECT_ACTIVITY_LABEL}
+          projectId={projectId}
+        />
       )}
       {hasMore ? (
         <Button
