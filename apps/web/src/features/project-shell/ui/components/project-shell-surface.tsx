@@ -65,6 +65,7 @@ import {
   navigationHash,
   navigationSurfaceFromHash,
   PRIORITY_MAP_HASH,
+  PROJECT_HISTORY_HASH,
   projectSourceRecordFromHash,
   ROADMAP_HASH,
   SPEC_CHANGE_REVIEW_HASH,
@@ -204,6 +205,16 @@ function projectGitHubSurface(activeHash: string, githubArea?: ReactNode) {
   return githubArea &&
     ["github", "project-area-github"].includes(activeHash) ? (
     <div id={activeHash}>{githubArea}</div>
+  ) : null;
+}
+
+/** The route composes `Project History`, a secondary area behind its own hash. */
+function projectHistorySurface(
+  activeHash: string,
+  projectHistoryArea?: ReactNode,
+) {
+  return projectHistoryArea && activeHash === PROJECT_HISTORY_HASH ? (
+    <div id={activeHash}>{projectHistoryArea}</div>
   ) : null;
 }
 
@@ -436,6 +447,7 @@ function ProjectShellContent({
   accountFormattingPreferences,
   githubArea,
   project,
+  projectHistoryArea,
   projectId,
   releasesArea,
   releaseEvidenceArea,
@@ -445,6 +457,7 @@ function ProjectShellContent({
   accountFormattingPreferences: AccountPreferences;
   githubArea?: ReactNode;
   project: ProjectProfile;
+  projectHistoryArea?: ReactNode;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
@@ -588,6 +601,7 @@ function ProjectShellContent({
       projectId,
       releasesArea,
     ) ??
+    projectHistorySurface(activeHash, projectHistoryArea) ??
     projectGitHubSurface(activeHash, githubArea) ??
     projectUncertaintySurface(
       projectId,
@@ -789,6 +803,7 @@ function ProjectShellContent({
             enabledAreas={configuration.enabledAreas}
             extraPinnedAreas={configuration.extraPinnedAreas}
             hiddenAreas={configuration.hiddenAreas}
+            showProjectHistory={Boolean(projectHistoryArea)}
           />
 
           <div className="min-w-0 space-y-10">{projectSurface}</div>
@@ -1173,10 +1188,12 @@ function ProjectNavigation({
   enabledAreas,
   extraPinnedAreas,
   hiddenAreas,
+  showProjectHistory,
 }: {
   enabledAreas: readonly ProjectArea[];
   extraPinnedAreas: readonly ProjectArea[];
   hiddenAreas: readonly ProjectArea[];
+  showProjectHistory: boolean;
 }) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
   const visiblePinnedAreas = extraPinnedAreas.filter(
@@ -1194,6 +1211,7 @@ function ProjectNavigation({
     hiddenAreas,
     visiblePinnedAreas,
   );
+  const projectHistoryActive = activeHash === PROJECT_HISTORY_HASH;
 
   return (
     <aside className="min-w-0 lg:sticky lg:top-4 lg:self-start">
@@ -1206,7 +1224,7 @@ function ProjectNavigation({
       >
         {ALWAYS_REACHABLE_SURFACES.map((surface) => (
           <ProjectNavigationLink
-            activeSurface={activeSurface}
+            activeSurface={projectHistoryActive ? null : activeSurface}
             hash={navigationHash(surface)}
             key={surface}
             surface={surface}
@@ -1214,7 +1232,7 @@ function ProjectNavigation({
         ))}
         {visibleCoreAreas.map((area) => (
           <ProjectNavigationLink
-            activeSurface={activeSurface}
+            activeSurface={projectHistoryActive ? null : activeSurface}
             hash={navigationHash(area)}
             key={area}
             surface={area}
@@ -1228,14 +1246,35 @@ function ProjectNavigation({
         ) : null}
         {visiblePinnedAreas.map((area) => (
           <ProjectNavigationLink
-            activeSurface={activeSurface}
+            activeSurface={projectHistoryActive ? null : activeSurface}
             hash={navigationHash(area)}
             key={area}
             surface={area}
           />
         ))}
+        {showProjectHistory ? (
+          <ProjectHistoryNavigationLink isActive={projectHistoryActive} />
+        ) : null}
       </nav>
     </aside>
+  );
+}
+
+/** A secondary entry: `Project History` is never the landing surface. */
+function ProjectHistoryNavigationLink({ isActive }: { isActive: boolean }) {
+  const linkProps = useLinkProps({
+    activeOptions: { exact: true, includeHash: true },
+    hash: PROJECT_HISTORY_HASH,
+    to: ".",
+  });
+  return (
+    <a
+      {...linkProps}
+      aria-current={isActive ? "location" : undefined}
+      className={`${NAVIGATION_LINK_BASE} ${navigationLinkStateClass(isActive)}`}
+    >
+      Project History
+    </a>
   );
 }
 
@@ -1244,7 +1283,7 @@ function ProjectNavigationLink({
   hash,
   surface,
 }: {
-  activeSurface: NavigationSurface;
+  activeSurface: NavigationSurface | null;
   hash: string;
   surface: NavigationSurface;
 }) {

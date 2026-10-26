@@ -351,6 +351,10 @@ import {
   toolEscapeRecordSchema,
 } from "../product-gaps";
 import {
+  projectActivityInputSchema,
+  projectActivitySchema,
+} from "../project-activity";
+import {
   createProjectGoalInputSchema,
   ProjectGoalConflictError,
   projectGoalInputSchema,
@@ -1491,6 +1495,13 @@ function requireTestAssessments(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.testAssessments;
+}
+
+function requireProjectActivity(context: Context) {
+  if (!context.projectActivity) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectActivity;
 }
 
 function requireReleaseEvidence(context: Context) {
@@ -3545,6 +3556,13 @@ const TEST_ASSESSMENT_FAILURES: Record<string, PlannedTestFailure> = {
   TEST_ASSESSMENT_SOURCE_UNAVAILABLE: { message: null, status: "BAD_REQUEST" },
 };
 
+const PROJECT_ACTIVITY_FAILURES: Record<string, PlannedTestFailure> = {
+  PROJECT_ACTIVITY_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+};
+
 const RELEASE_EVIDENCE_FAILURES: Record<string, PlannedTestFailure> = {
   RELEASE_EVIDENCE_CHECKLIST_FULL: { message: null, status: "BAD_REQUEST" },
   RELEASE_EVIDENCE_CHECKLIST_ITEM_NOT_FOUND: {
@@ -3645,6 +3663,32 @@ async function runTestAssessmentOperation<T>(
     }
     const failure = Object.hasOwn(TEST_ASSESSMENT_FAILURES, error.code)
       ? TEST_ASSESSMENT_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message:
+        failure.message ??
+        (error instanceof Error ? error.message : "Request refused."),
+    });
+  }
+}
+
+async function runProjectActivityOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(PROJECT_ACTIVITY_FAILURES, error.code)
+      ? PROJECT_ACTIVITY_FAILURES[error.code]
       : undefined;
     if (!failure) {
       throw error;
@@ -7750,6 +7794,14 @@ export const appRouter = {
           context.session.user.id,
           input,
         ),
+      ),
+    ),
+  projectActivity: protectedProcedure
+    .input(projectActivityInputSchema)
+    .output(projectActivitySchema)
+    .handler(({ context, input }) =>
+      runProjectActivityOperation(() =>
+        requireProjectActivity(context).list(context.session.user.id, input),
       ),
     ),
   projectReleaseEvidencePack: protectedProcedure

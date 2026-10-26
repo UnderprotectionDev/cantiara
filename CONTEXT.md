@@ -1667,8 +1667,12 @@ Bir hedef kaydın Kayıt geçmişinde ilerleyen ve Mutation Contract'ın yazma g
 _Avoid_: genel belge sürümü, restore-point, sessiz son yazan kazanır
 
 **Proje Etkinliği**:
-Mevcut Kayıt geçmişinden türetilen, kaynak ve önceki–sonraki değerle incelenen atomik değişiklik görünümü; ürün hikâyesi veya Bildirim Merkezi değildir ([Proje Etkinliği](docs/prd/06-work-management-and-planning.md#proje-etkinliği)).
+Mevcut Kayıt geçmişinden türetilen, kaynak ve önceki–sonraki değerle incelenen atomik değişiklik görünümü; ürün hikâyesi veya Bildirim Merkezi değildir ([Proje Etkinliği](docs/prd/06-work-management-and-planning.md#proje-etkinliği)). UI: `Project Activity`, `What changed?`, `Open source record`.
 _Avoid_: GitHub Activity, e-posta günlüğü, zaman çizelgesi hikâyesi, ikinci olay deposu
+
+**Proje Geçmişi**:
+Proje Hikâyesi ve Etkinlik Geçmişi modülünün ikincil Proje alanı; ürün hikâyesini ve Proje Etkinliğini iki ayrı işlemle sunar, tek feed, varsayılan Proje açılışı veya Bildirim Merkezi değildir ([spec 68](docs/specs/68-project-history/spec.md)). UI: `Project History`.
+_Avoid_: birleşik feed, etkinlik feed'i, Proje genel bakışı
 
 **Güvenli geri alma**:
 Ürünün ters işlemi deterministik hesaplayabildiği alan, ilişki, görünüm üstverisi ve atomik dönüşümlerde ilgisiz sonraki değişikliği sarmadan uygulanan geri alma ([değişiklik geçmişi](docs/prd/02-domain-model-and-lifecycle.md#değişiklik-geçmişi-aktör-ve-geri-alma)). UI: `Undo`.

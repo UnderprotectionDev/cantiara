@@ -105,6 +105,8 @@ export const DAILY_ACTION_MESSAGES: Record<DailyAction, string> = {
     "Planning remains outside Configuration Mode. Saved views are a separate Project configuration entry.",
 };
 
+/** `Project History` is a secondary area behind this hash, never the landing surface. */
+export const PROJECT_HISTORY_HASH = "project-history";
 export const BACKLOG_HASH = "backlog";
 export const ROADMAP_HASH = "roadmap";
 const WORK_RELATIONS_HASH_PREFIX = "work-relations-";

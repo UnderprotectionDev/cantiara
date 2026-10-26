@@ -10,12 +10,14 @@ import ProjectShellSurface, {
 export default function ProjectShellView({
   accountId,
   githubArea,
+  projectHistoryArea,
   projectId,
   releasesArea,
   releaseEvidenceArea,
 }: {
   accountId?: string;
   githubArea?: ReactNode;
+  projectHistoryArea?: ReactNode;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
@@ -61,6 +63,7 @@ export default function ProjectShellView({
         accountId={accountId}
         githubArea={githubArea}
         project={projectQuery.data}
+        projectHistoryArea={projectHistoryArea}
         projectId={projectId}
         releaseEvidenceArea={releaseEvidenceArea}
         releasesArea={releasesArea}

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
 
 import GitHubIntegrationSurface from "@/features/github-integration/ui/components/github-integration-surface";
+import ProjectActivitySurface from "@/features/project-history/ui/components/project-activity-surface";
 import ProjectReleasesView from "@/features/project-release-planning/ui/views/project-releases-view";
 import ProjectShellView from "@/features/project-shell/ui/views/project-shell-view";
 import ReleaseEvidencePackSurface from "@/features/release-evidence/ui/components/release-evidence-pack-surface";
@@ -42,6 +43,9 @@ function RouteComponent() {
       accountId={session.data?.user.id}
       githubArea={
         <GitHubIntegrationSurface key={projectId} projectId={projectId} />
+      }
+      projectHistoryArea={
+        <ProjectActivitySurface key={projectId} projectId={projectId} />
       }
       projectId={projectId}
       releaseEvidenceArea={releaseEvidenceArea}
