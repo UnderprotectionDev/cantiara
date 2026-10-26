@@ -4,8 +4,8 @@ import { StoryTimelineView } from "../views/story-timeline-view";
 
 /**
  * Loads the Story Timeline of a Project, or of one Feature-type Work when
- * `workId` is given. Read-only. A Work that is not a Feature has no story of
- * its own, so the Feature scope renders nothing for it.
+ * `workId` is given. Read-only. Callers mount the Feature scope only for a
+ * Feature-type Work; any other Work has no story of its own.
  */
 export default function StoryTimelineSurface({
   projectId,
@@ -22,12 +22,7 @@ export default function StoryTimelineSurface({
     return <p role="status">Loading Story Timeline…</p>;
   }
   if (!timeline.data) {
-    const notFeature =
-      workId !== undefined &&
-      (timeline.error as { code?: string } | null)?.code === "BAD_REQUEST";
-    return notFeature ? null : (
-      <p role="alert">Story Timeline is unavailable.</p>
-    );
+    return <p role="alert">Story Timeline is unavailable.</p>;
   }
   return <StoryTimelineView projectId={projectId} timeline={timeline.data} />;
 }

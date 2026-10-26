@@ -1,15 +1,10 @@
-// biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the current filters and cursor.
-import {
-  clusterProjectActivityRows,
-  type ProjectActivity,
-} from "@cantiara/api/project-activity";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { client, orpc } from "@/utils/orpc";
+import { useCallback, useState } from "react";
+import { useProjectActivity } from "../../hooks/use-project-activity";
 import {
   NO_PROJECT_ACTIVITY_FILTERS,
   type ProjectActivityFilters,
+  projectActivityFiltersKey,
 } from "../../lib/project-activity-filters";
 import { ProjectActivityView } from "../views/project-activity-view";
 
@@ -22,58 +17,35 @@ function ProjectActivityPages({
   onApplyFilters: (filters: ProjectActivityFilters) => void;
   projectId: string;
 }) {
-  const input = { ...filters, projectId };
-  const first = useQuery(orpc.projectActivity.queryOptions({ input }));
-  const [older, setOlder] = useState<{
-    cursor: string | null;
-    rows: ProjectActivity["rows"];
-  } | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const { activity, query } = useProjectActivity({ filters, projectId });
+  const { fetchNextPage, refetch } = query;
+  const loadMore = useCallback(() => {
+    fetchNextPage();
+  }, [fetchNextPage]);
+  const retry = useCallback(() => {
+    refetch();
+  }, [refetch]);
 
-  if (first.isPending) {
+  if (query.isPending) {
     return <p role="status">Loading Project Activity…</p>;
   }
-  if (!first.data) {
+  if (!activity) {
     return (
       <div className="space-y-3">
         <p role="alert">Project Activity is unavailable.</p>
-        <Button onClick={() => first.refetch().catch(() => undefined)}>
-          Retry
-        </Button>
+        <Button onClick={retry}>Retry</Button>
       </div>
     );
   }
-  const cursor = older ? older.cursor : first.data.nextCursor;
-  const rows = [...first.data.rows, ...(older?.rows ?? [])];
-  const activity: ProjectActivity = {
-    ...first.data,
-    // Re-clustered over all loaded pages so a cluster is not split at a page edge.
-    entries: clusterProjectActivityRows(rows),
-    rows,
-  };
   return (
     <ProjectActivityView
       activity={activity}
       filters={filters}
-      hasMore={cursor !== null}
-      loadingMore={loadingMore}
+      hasMore={query.hasNextPage}
+      loadingMore={query.isFetchingNextPage}
+      loadMoreFailed={query.isFetchNextPageError}
       onApplyFilters={onApplyFilters}
-      onLoadMore={() => {
-        if (cursor === null) {
-          return;
-        }
-        setLoadingMore(true);
-        client
-          .projectActivity({ ...input, cursor })
-          .then((page) =>
-            setOlder({
-              cursor: page.nextCursor,
-              rows: [...(older?.rows ?? []), ...page.rows],
-            }),
-          )
-          .catch(() => undefined)
-          .finally(() => setLoadingMore(false));
-      }}
+      onLoadMore={loadMore}
       projectId={projectId}
     />
   );
@@ -91,7 +63,7 @@ export default function ProjectActivitySurface({
   return (
     <ProjectActivityPages
       filters={filters}
-      key={`${filters.sourceTypes.join()}|${filters.eventTypes.join()}`}
+      key={projectActivityFiltersKey(filters)}
       onApplyFilters={setFilters}
       projectId={projectId}
     />

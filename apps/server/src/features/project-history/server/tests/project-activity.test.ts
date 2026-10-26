@@ -253,6 +253,47 @@ describe("Project Activity projection", () => {
     ).toContainEqual([]);
   });
 
+  test("redacts values under secret-like keys, nested and case-insensitive", async () => {
+    const list = setup([
+      fact({
+        next: {
+          settings: {
+            Authorization: "Bearer ZZZ-NEW",
+            nested: [{ Cookie: "c-NEW" }],
+          },
+          title: "B",
+        },
+        previous: {
+          settings: {
+            Authorization: "Bearer ZZZ-OLD",
+            nested: [{ Cookie: "c-OLD" }],
+          },
+          title: "A",
+        },
+      }),
+      fact({
+        next: { PASSWORD: "pw-NEW" },
+        previous: { PASSWORD: "pw-OLD" },
+      }),
+    ]);
+    const response = await list();
+    const serialized = JSON.stringify(response);
+    for (const secret of [
+      "ZZZ-NEW",
+      "ZZZ-OLD",
+      "c-NEW",
+      "c-OLD",
+      "pw-NEW",
+      "pw-OLD",
+    ]) {
+      expect(serialized).not.toContain(secret);
+    }
+    const settings = response.rows
+      .flatMap((row) => row.changes)
+      .find((change) => change.field === "settings");
+    expect(settings?.values).toEqual({ kind: "redacted" });
+  });
+
   test("keeps every history entry atomic with its own time, origin and undo boundary", async () => {
     const list = setup([
       fact({

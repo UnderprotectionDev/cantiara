@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import GitHubIntegrationSurface from "@/features/github-integration/ui/components/github-integration-surface";
 import ProjectActivitySurface from "@/features/project-history/ui/components/project-activity-surface";
 import StoryTimelineSurface from "@/features/project-history/ui/components/story-timeline-surface";
+import WorkRecordHistorySurface from "@/features/project-history/ui/components/work-record-history-surface";
 import ProjectReleasesView from "@/features/project-release-planning/ui/views/project-releases-view";
 import ProjectShellView from "@/features/project-shell/ui/views/project-shell-view";
 import ReleaseEvidencePackSurface from "@/features/release-evidence/ui/components/release-evidence-pack-surface";
@@ -41,7 +42,7 @@ function RouteComponent() {
 
   const workHistoryArea = useCallback(
     (workId: string) => (
-      <StoryTimelineSurface
+      <WorkRecordHistorySurface
         key={workId}
         projectId={projectId}
         workId={workId}

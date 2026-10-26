@@ -7,7 +7,7 @@ import {
 } from "@cantiara/api/project-history";
 import { format, parseISO } from "date-fns";
 import { AppLink } from "@/components/app-link";
-import { storySourceHref } from "../../lib/project-history-links";
+import { projectRecordHref } from "../../lib/project-record-links";
 
 function StoryEventItem({
   event,
@@ -32,7 +32,7 @@ function StoryEventItem({
       <AppLink
         aria-label={`${PROJECT_HISTORY_OPEN_SOURCE_LABEL}: ${event.source.label}`}
         className="underline underline-offset-2"
-        href={storySourceHref(projectId, event.source)}
+        href={projectRecordHref(projectId, event.source)}
       >
         {PROJECT_HISTORY_OPEN_SOURCE_LABEL}
       </AppLink>

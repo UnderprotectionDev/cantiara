@@ -1,3 +1,4 @@
+import type { ProjectActivityRow } from "@cantiara/api/project-activity";
 import { format, isValid, parseISO } from "date-fns";
 
 /** A plain-language value for one previous–next side. */
@@ -14,13 +15,10 @@ export function activityTimeText(iso: string) {
   return isValid(parsed) ? format(parsed, "yyyy-MM-dd HH:mm") : iso;
 }
 
-export function activityActorText(
-  kind: string,
-  actorId: string,
-  authorizingUserId: string | null,
-) {
-  if (kind === "Authorized integration") {
-    return `${kind} ${actorId}${authorizingUserId ? ` (authorized by ${authorizingUserId})` : ""}`;
+/** The actor kind is never collapsed; an integration also names itself and who authorized it. */
+export function activityActorText(actor: ProjectActivityRow["actor"]) {
+  if (actor.kind === "Authorized integration") {
+    return `${actor.kind} ${actor.actorId}${actor.authorizingUserId ? ` (authorized by ${actor.authorizingUserId})` : ""}`;
   }
-  return kind === "User" ? "User" : kind;
+  return actor.kind;
 }

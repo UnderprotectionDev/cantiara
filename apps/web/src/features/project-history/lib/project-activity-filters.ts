@@ -18,6 +18,11 @@ export const NO_PROJECT_ACTIVITY_FILTERS: ProjectActivityFilters = {
   sourceTypes: [],
 };
 
+/** One remount key per filter set; the separators cannot occur in a member name. */
+export function projectActivityFiltersKey(filters: ProjectActivityFilters) {
+  return `source:${filters.sourceTypes.join(";")}/event:${filters.eventTypes.join(";")}`;
+}
+
 /** Toggles one member of a filter set without mutating the previous value. */
 export function toggleFilterValue<T extends string>(
   values: readonly T[],

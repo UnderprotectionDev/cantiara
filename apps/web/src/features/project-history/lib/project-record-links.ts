@@ -1,4 +1,5 @@
-import type { StorySourceRef } from "@cantiara/api/project-history";
+import type { ProjectActivityRecordType } from "@cantiara/api/project-activity";
+import type { StorySourceType } from "@cantiara/api/project-history";
 import { projectAreaNavigationHash } from "@/features/project-shell/lib/project-area-navigation";
 import {
   documentRecordHash,
@@ -7,10 +8,16 @@ import {
   workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 
-/** Where `Open source record` goes: the owner record's own surface. */
-export function storySourceHref(
+/**
+ * Where `Open source record` goes: the owner record's own surface. One map for
+ * the Story Timeline and Project Activity source references.
+ */
+export function projectRecordHref(
   projectId: string,
-  source: Pick<StorySourceRef, "recordId" | "recordType">,
+  source: {
+    recordId: string;
+    recordType: ProjectActivityRecordType | StorySourceType;
+  },
 ) {
   const base = `/projects/${encodeURIComponent(projectId)}#`;
   switch (source.recordType) {
@@ -19,6 +26,7 @@ export function storySourceHref(
     case "Document":
       return `${base}${documentRecordHash(source.recordId)}`;
     case "Decision":
+    case "Risk":
     case "Milestone":
     case "Production Incident":
     case "Validation Record":
