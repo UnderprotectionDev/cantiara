@@ -35,7 +35,7 @@ import { project } from "@cantiara/db/schema/project";
 import { projectRelease } from "@cantiara/db/schema/project-release";
 import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import {
   bugTarget,
   buildFollowUpPlan,
@@ -125,11 +125,17 @@ function toIncident(row: typeof productionIncident.$inferSelect) {
   }) as ProductionIncidentRecord;
 }
 
+/**
+ * A writer takes the lock it needs first and once: asking for `share` and then
+ * upgrading to `update` on the same row deadlocks two concurrent commits.
+ */
+type RowLock = false | "share" | "update";
+
 async function ownedProject(
   executor: ProductionIncidentExecutor,
   accountId: string,
   projectId: string,
-  lock: boolean,
+  lock: RowLock,
 ) {
   const query = executor
     .select({ archivedAt: project.archivedAt, id: project.id })
@@ -139,7 +145,7 @@ async function ownedProject(
       and(eq(project.id, projectId), eq(workspace.ownerAccountId, accountId)),
     )
     .limit(1);
-  const [row] = lock ? await query.for("share", { of: project }) : await query;
+  const [row] = lock ? await query.for(lock, { of: project }) : await query;
   // Writes need an active Project; an archived Project stays readable.
   return row && (!lock || row.archivedAt === null) ? row : null;
 }
@@ -150,7 +156,7 @@ async function ownedIncident(
   accountId: string,
   projectId: string,
   incidentId: string,
-  lock: boolean,
+  lock: RowLock,
 ) {
   const owned = await ownedProject(executor, accountId, projectId, lock);
   if (!owned) {
@@ -166,9 +172,32 @@ async function ownedIncident(
       ),
     )
     .limit(1);
+  // The Project row already carries the exclusive lock; the incident row only
+  // needs to stay put.
   const [row] = lock ? await query.for("share") : await query;
   return row ? { incident: row, project: owned } : null;
 }
+
+const BUG_COLUMNS = {
+  archivedAt: work.archivedAt,
+  id: work.id,
+  key: work.key,
+  status: work.status,
+  title: work.title,
+  trashedAt: work.trashedAt,
+  type: work.type,
+};
+
+const PULL_REQUEST_COLUMNS = {
+  archivedAt: githubExternalRecord.archivedAt,
+  id: githubExternalRecord.id,
+  kind: githubExternalRecord.kind,
+  number: githubExternalRecord.number,
+  repository: githubRepositoryLink.name,
+  sourceState: githubExternalRecord.sourceState,
+  title: githubExternalRecord.title,
+  trashedAt: githubExternalRecord.trashedAt,
+};
 
 /**
  * A bound record is one of the same Project: a live Work of type `Bug`, a live
@@ -183,15 +212,7 @@ async function bindableTarget(
   switch (type) {
     case "Bug": {
       const [row] = await executor
-        .select({
-          archivedAt: work.archivedAt,
-          id: work.id,
-          key: work.key,
-          status: work.status,
-          title: work.title,
-          trashedAt: work.trashedAt,
-          type: work.type,
-        })
+        .select(BUG_COLUMNS)
         .from(work)
         .where(and(eq(work.id, targetId), eq(work.projectId, projectId)))
         .limit(1)
@@ -200,16 +221,7 @@ async function bindableTarget(
     }
     case "GitHub PR": {
       const [row] = await executor
-        .select({
-          archivedAt: githubExternalRecord.archivedAt,
-          id: githubExternalRecord.id,
-          kind: githubExternalRecord.kind,
-          number: githubExternalRecord.number,
-          repository: githubRepositoryLink.name,
-          sourceState: githubExternalRecord.sourceState,
-          title: githubExternalRecord.title,
-          trashedAt: githubExternalRecord.trashedAt,
-        })
+        .select(PULL_REQUEST_COLUMNS)
         .from(githubExternalRecord)
         .innerJoin(
           githubRepositoryLink,
@@ -259,8 +271,11 @@ async function bindableTarget(
         .for("share");
       return Boolean(row);
     }
-    default:
-      return false;
+    default: {
+      // Exhaustive: a new link type fails to compile here until it is handled.
+      const unhandled: never = type;
+      return unhandled;
+    }
   }
 }
 
@@ -289,10 +304,10 @@ function linkTarget(
   accountId: string,
   input: NonNullable<LinkValue["link"]>,
 ): ProductionIncidentTarget<LinkValue> {
-  async function allowed(
+  async function incidentAndTargetUsable(
     executor: ProductionIncidentExecutor,
     value: NonNullable<LinkValue["link"]>,
-    lock: boolean,
+    lock: RowLock,
   ) {
     const owned = await ownedIncident(
       executor,
@@ -317,7 +332,13 @@ function linkTarget(
   }
   return {
     async find(executor, targetId, lock) {
-      if (!(await allowed(executor, input, lock))) {
+      if (
+        !(await incidentAndTargetUsable(
+          executor,
+          input,
+          lock ? "share" : false,
+        ))
+      ) {
         return null;
       }
       const query = executor
@@ -350,7 +371,9 @@ function linkTarget(
     },
     async update(executor, update) {
       const value = update.nextValue.link;
-      if (!(value && (await allowed(executor, value, true)))) {
+      if (
+        !(value && (await incidentAndTargetUsable(executor, value, "share")))
+      ) {
         return null;
       }
       const values = {
@@ -419,7 +442,8 @@ function followUpTarget(
         accountId,
         input.projectId,
         input.incidentId,
-        lock,
+        // The commit takes the exclusive Project lock once, up front.
+        lock ? "update" : false,
       );
       if (!owned) {
         return null;
@@ -427,7 +451,12 @@ function followUpTarget(
       const [row] = await executor
         .select({ incidentId: productionIncidentFollowUp.incidentId })
         .from(productionIncidentFollowUp)
-        .where(eq(productionIncidentFollowUp.id, targetId))
+        .where(
+          and(
+            eq(productionIncidentFollowUp.id, targetId),
+            eq(productionIncidentFollowUp.projectId, input.projectId),
+          ),
+        )
         .limit(1);
       if (row && row.incidentId !== input.incidentId) {
         return null;
@@ -448,7 +477,7 @@ function followUpTarget(
         accountId,
         value.projectId,
         value.incidentId,
-        true,
+        "update",
       );
       if (!owned) {
         return null;
@@ -468,6 +497,16 @@ function followUpTarget(
       );
       if (live.fingerprint !== value.previewFingerprint) {
         throw new ProductionIncidentFollowUpStaleError(value.incidentId);
+      }
+      // A client-chosen Work id that already names a Work (of any Project) is
+      // a conflict the founder can retry with a new attempt, not a failure.
+      const [taken] = await executor
+        .select({ id: work.id })
+        .from(work)
+        .where(eq(work.id, value.workId))
+        .limit(1);
+      if (taken) {
+        throw new ProductionIncidentConflictError(value.workId);
       }
       await ports.insertWork(executor, projectRow, {
         committedAt: update.committedAt,
@@ -498,6 +537,7 @@ async function followUpsOf(
   executor: ProductionIncidentExecutor,
   projectId: string,
   incidentId: string,
+  followUpId?: string,
 ): Promise<ProductionIncidentFollowUp[]> {
   const rows = await executor
     .select({
@@ -517,6 +557,9 @@ async function followUpsOf(
       and(
         eq(productionIncidentFollowUp.projectId, projectId),
         eq(productionIncidentFollowUp.incidentId, incidentId),
+        followUpId === undefined
+          ? undefined
+          : eq(productionIncidentFollowUp.id, followUpId),
       ),
     )
     .orderBy(
@@ -554,15 +597,7 @@ async function resolveTargets(
   const bugIds = idsOf("Bug");
   if (bugIds.length) {
     const rows = await executor
-      .select({
-        archivedAt: work.archivedAt,
-        id: work.id,
-        key: work.key,
-        status: work.status,
-        title: work.title,
-        trashedAt: work.trashedAt,
-        type: work.type,
-      })
+      .select(BUG_COLUMNS)
       .from(work)
       .where(and(eq(work.projectId, projectId), inArray(work.id, bugIds)));
     for (const row of rows) {
@@ -572,16 +607,7 @@ async function resolveTargets(
   const pullIds = idsOf("GitHub PR");
   if (pullIds.length) {
     const rows = await executor
-      .select({
-        archivedAt: githubExternalRecord.archivedAt,
-        id: githubExternalRecord.id,
-        kind: githubExternalRecord.kind,
-        number: githubExternalRecord.number,
-        repository: githubRepositoryLink.name,
-        sourceState: githubExternalRecord.sourceState,
-        title: githubExternalRecord.title,
-        trashedAt: githubExternalRecord.trashedAt,
-      })
+      .select(PULL_REQUEST_COLUMNS)
       .from(githubExternalRecord)
       .innerJoin(
         githubRepositoryLink,
@@ -655,15 +681,7 @@ async function candidates(
 ): Promise<ProductionIncidentLinkTarget[]> {
   const [bugs, pulls, releases, risks, decisions] = await Promise.all([
     executor
-      .select({
-        archivedAt: work.archivedAt,
-        id: work.id,
-        key: work.key,
-        status: work.status,
-        title: work.title,
-        trashedAt: work.trashedAt,
-        type: work.type,
-      })
+      .select(BUG_COLUMNS)
       .from(work)
       .where(
         and(
@@ -676,16 +694,7 @@ async function candidates(
       .orderBy(desc(work.number))
       .limit(CANDIDATE_LIMIT),
     executor
-      .select({
-        archivedAt: githubExternalRecord.archivedAt,
-        id: githubExternalRecord.id,
-        kind: githubExternalRecord.kind,
-        number: githubExternalRecord.number,
-        repository: githubRepositoryLink.name,
-        sourceState: githubExternalRecord.sourceState,
-        title: githubExternalRecord.title,
-        trashedAt: githubExternalRecord.trashedAt,
-      })
+      .select(PULL_REQUEST_COLUMNS)
       .from(githubExternalRecord)
       .innerJoin(
         githubRepositoryLink,
@@ -750,7 +759,7 @@ export function createDatabaseProductionIncidents(
       payload: Record<string, string | boolean | null>;
       targetId: string;
     },
-    next: (current: TValue) => TValue,
+    valueAfter: (current: TValue) => TValue,
   ) {
     try {
       return await ports.mutationContract(target).mutate(
@@ -762,7 +771,7 @@ export function createDatabaseProductionIncidents(
           payload: input.payload,
           targetId: input.targetId,
         },
-        ({ currentValue }) => next(currentValue),
+        ({ currentValue }) => valueAfter(currentValue),
       );
     } catch (error) {
       for (
@@ -832,9 +841,12 @@ export function createDatabaseProductionIncidents(
       if (!receipt) {
         return null;
       }
-      const [followUp] = (
-        await followUpsOf(database, input.projectId, input.incidentId)
-      ).filter((row) => row.id === input.workId);
+      const [followUp] = await followUpsOf(
+        database,
+        input.projectId,
+        input.incidentId,
+        input.workId,
+      );
       return followUp ?? null;
     },
 
@@ -893,7 +905,7 @@ export function createDatabaseProductionIncidents(
       if (!owned) {
         return null;
       }
-      const [incidents, links] = await Promise.all([
+      const [incidents, linkCounts] = await Promise.all([
         database
           .select()
           .from(productionIncident)
@@ -904,18 +916,25 @@ export function createDatabaseProductionIncidents(
           ),
         database
           .select({
+            count: count(),
             incidentId: productionIncidentLink.incidentId,
-            removedAt: productionIncidentLink.removedAt,
           })
           .from(productionIncidentLink)
-          .where(eq(productionIncidentLink.projectId, input.projectId)),
+          .where(
+            and(
+              eq(productionIncidentLink.projectId, input.projectId),
+              isNull(productionIncidentLink.removedAt),
+            ),
+          )
+          .groupBy(productionIncidentLink.incidentId),
       ]);
+      const countOf = new Map(
+        linkCounts.map((row) => [row.incidentId, row.count]),
+      );
       return {
         incidents: incidents.map((row) => ({
           incident: toIncident(row),
-          linkCount: links.filter(
-            (link) => link.incidentId === row.id && link.removedAt === null,
-          ).length,
+          linkCount: countOf.get(row.id) ?? 0,
         })),
         readOnly: owned.archivedAt !== null,
       };

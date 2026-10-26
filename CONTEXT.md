@@ -1449,6 +1449,11 @@ _Avoid_: Bug, pager, nöbet, durum sayfası, TTD/TTI/TTR, güvenilirlik dashboar
 UI: `Linked records`, `Link record`, `Remove link`.
 _Avoid_: otomatik Bug, otomatik Risk, Takip İşi, durum yayılımı, Bitiriş efekti
 
+**Üretim Olayı Takip İşi**:
+Kullanıcının bir Üretim Olayından yalnız açık önizlemeden sonra onaylayarak oluşturduğu Takip İşi; önizleme İşi ve Köken ilişkisini gösterir, onay yalnız aynı önizleme parmak iziyle çalışır ve olay değişmişse bayatlar. Olay kaydını, durumunu, Bug veya Riski yazmaz; olay yok olursa İşin Kökeni kırık başvuru olarak kalır.
+UI: `Create follow-up work`, `Follow-up work`, `Preview changed`.
+_Avoid_: otomatik Takip İşi, önizlemesiz İş, otomatik Bug, olay kapatma
+
 **Proje Sürümü planlaması**:
 Tam olarak bir Projeye ait Proje Sürümünde yayımlanacak İş kapsamını, aynı Projenin repository'lerinden tag, GitHub Release ve ortam bağlarını ve isteğe bağlı erişim/sonuç hipotezini açık kullanıcı eylemiyle yönetmek ([Proje Sürümü planlama](docs/prd/12-github-and-project-releases.md#proje-sürümü-planlama)). Durum yazmaz, kapsamı otomatik doldurmaz, skor veya yayın kapısı üretmez ve yerleşik hedef ya da gerçek yayın tarihi tutmaz; hipotez alanları birbirinden ayrıdır ve ölçüm yapmaz.
 UI: `Project Releases`, `Planning`, `Scope`, `Add Work to scope`, `Remove from scope`, `Audience`, `Primary access path`, `Access evidence`, `Intended outcome`, `Outcome evidence`, `Environment link`, `Create Project Release`.

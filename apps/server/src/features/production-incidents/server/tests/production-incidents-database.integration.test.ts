@@ -25,7 +25,7 @@ import { project } from "@cantiara/db/schema/project";
 import { projectRelease } from "@cantiara/db/schema/project-release";
 import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   afterAll,
   afterEach,
@@ -606,6 +606,72 @@ suite("Production Incidents PostgreSQL seam", () => {
         seam.createFollowUp(accountId, commitOf(preview?.fingerprint ?? "")),
       ).rejects.toBeInstanceOf(ProductionIncidentFollowUpStaleError);
       expect(await workCount()).toBe(before);
+    });
+
+    test("a status-only change after the preview makes the commit stale", async () => {
+      const seam = incidents();
+      const preview = await seam.previewFollowUp(accountId, choice);
+      await database()
+        .update(productionIncident)
+        .set({ status: "Resolved" })
+        .where(eq(productionIncident.id, incidentId));
+      const before = await workCount();
+      await expect(
+        seam.createFollowUp(accountId, commitOf(preview?.fingerprint ?? "")),
+      ).rejects.toBeInstanceOf(ProductionIncidentFollowUpStaleError);
+      expect(await workCount()).toBe(before);
+    });
+
+    test("a Task follow-up creates no Bug", async () => {
+      const seam = incidents();
+      const bugsIn = async () =>
+        (
+          await database()
+            .select({ id: work.id })
+            .from(work)
+            .where(and(eq(work.projectId, projectId), eq(work.type, "Bug")))
+        ).length;
+      const before = await bugsIn();
+      const preview = await seam.previewFollowUp(accountId, choice);
+      const command = commitOf(preview?.fingerprint ?? "");
+      await seam.createFollowUp(accountId, command);
+      targets.push(command.workId);
+      expect(await bugsIn()).toBe(before);
+    });
+
+    test("a Work id that already names a Work of another Project is a conflict, not a failure", async () => {
+      const seam = incidents();
+      const preview = await seam.previewFollowUp(accountId, choice);
+      const before = await workCount();
+      await expect(
+        seam.createFollowUp(
+          accountId,
+          commitOf(preview?.fingerprint ?? "", otherBugId),
+        ),
+      ).rejects.toBeInstanceOf(ProductionIncidentConflictError);
+      expect(await workCount()).toBe(before);
+    });
+
+    test("a vanished incident leaves the follow-up Work readable and the incident unavailable", async () => {
+      const seam = incidents();
+      const preview = await seam.previewFollowUp(accountId, choice);
+      const command = commitOf(preview?.fingerprint ?? "");
+      await seam.createFollowUp(accountId, command);
+      targets.push(command.workId);
+      await database()
+        .delete(productionIncident)
+        .where(eq(productionIncident.id, incidentId));
+      // Incidents have no Trash; the pointer has no foreign key, so the Work
+      // keeps its Origin id and the incident side answers as unavailable.
+      const [workRow] = await database()
+        .select()
+        .from(work)
+        .where(eq(work.id, command.workId));
+      expect(workRow?.originOwnerRecordId).toBe(incidentId);
+      expect(
+        await seam.detail(accountId, { incidentId, projectId }),
+      ).toBeNull();
+      expect(await seam.previewFollowUp(accountId, choice)).toBeNull();
     });
 
     test("another account, a foreign incident or an archived Project gets no preview or Work", async () => {

@@ -68,7 +68,7 @@ export function ProductionIncidentFollowUpDialog({
     } catch {
       // A stale or failed commit sends the founder back to a fresh preview.
       setError(
-        "The Production Incident changed or the Work could not be created. Review the preview again.",
+        "Preview changed. The Production Incident changed or the Work could not be created; review a fresh preview.",
       );
       setPreview(null);
     } finally {
