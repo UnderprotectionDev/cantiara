@@ -6,6 +6,7 @@ import ProjectReleasesView from "@/features/project-release-planning/ui/views/pr
 import ProjectShellView from "@/features/project-shell/ui/views/project-shell-view";
 import ReleaseEvidencePackSurface from "@/features/release-evidence/ui/components/release-evidence-pack-surface";
 import { smartCollectionWorkPrefillFromSearch } from "@/features/smart-collections/lib/smart-collection-work-prefill";
+import ValueChainSurface from "@/features/value-chain/ui/components/value-chain-surface";
 
 export const Route = createFileRoute("/_auth/projects/$projectId/")({
   validateSearch: (search) => {
@@ -37,6 +38,13 @@ function RouteComponent() {
     [projectId],
   );
 
+  const valueChainArea = useCallback(
+    (goalId: string) => (
+      <ValueChainSurface goalId={goalId} key={goalId} projectId={projectId} />
+    ),
+    [projectId],
+  );
+
   return (
     <ProjectShellView
       accountId={session.data?.user.id}
@@ -46,6 +54,7 @@ function RouteComponent() {
       projectId={projectId}
       releaseEvidenceArea={releaseEvidenceArea}
       releasesArea={ProjectReleasesView}
+      valueChainArea={valueChainArea}
     />
   );
 }

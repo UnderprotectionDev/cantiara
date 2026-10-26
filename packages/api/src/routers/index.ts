@@ -700,6 +700,7 @@ import {
   userFlowInputSchema,
   userFlowProjectInputSchema,
 } from "../user-flow";
+import { valueChainInputSchema } from "../value-chain";
 import type { WebCaptureAccess } from "../web-capture";
 import { WireframeDocumentError } from "../wireframe-document";
 import {
@@ -1491,6 +1492,13 @@ function requireTestAssessments(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.testAssessments;
+}
+
+function requireValueChain(context: Context) {
+  if (!context.valueChain) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.valueChain;
 }
 
 function requireReleaseEvidence(context: Context) {
@@ -7752,6 +7760,18 @@ export const appRouter = {
         ),
       ),
     ),
+  projectValueChain: protectedProcedure
+    .input(valueChainInputSchema)
+    .handler(async ({ context, input }) => {
+      const chain = await requireValueChain(context).chain(
+        context.session.user.id,
+        input,
+      );
+      if (!chain) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return chain;
+    }),
   projectReleaseEvidencePack: protectedProcedure
     .input(releaseEvidencePackInputSchema)
     .output(releaseEvidencePackSchema)

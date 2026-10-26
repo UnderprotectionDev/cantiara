@@ -440,6 +440,7 @@ function ProjectShellContent({
   releasesArea,
   releaseEvidenceArea,
   scopeTreeQuery,
+  valueChainArea,
 }: {
   accountId?: string;
   accountFormattingPreferences: AccountPreferences;
@@ -449,6 +450,7 @@ function ProjectShellContent({
   releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
   scopeTreeQuery: UseQueryResult<ScopeTree>;
+  valueChainArea?: (goalId: string) => ReactNode;
 }) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
   const configurationReturnHash = useLocation({
@@ -603,6 +605,7 @@ function ProjectShellContent({
           hash={activeHash}
           key={`${projectId}:${activeHash}`}
           projectId={projectId}
+          valueChainArea={valueChainArea}
         />
       );
     }

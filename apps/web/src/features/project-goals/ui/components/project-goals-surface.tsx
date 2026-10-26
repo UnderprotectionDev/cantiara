@@ -4,7 +4,7 @@ import {
 } from "@cantiara/api/project-goals";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import {
@@ -17,9 +17,11 @@ import { ProjectGoalsView } from "./project-goals-view";
 export default function ProjectGoalsSurface({
   projectId,
   selectedId,
+  valueChainArea,
 }: {
   projectId: string;
   selectedId?: string;
+  valueChainArea?: (goalId: string) => ReactNode;
 }) {
   const queryClient = useQueryClient();
   const options = orpc.projectGoals.queryOptions({ input: { projectId } });
@@ -110,11 +112,14 @@ export default function ProjectGoalsSurface({
       goals={goals.data.records}
       membership={
         selectedId ? (
-          <ProjectGoalMembership
-            goalId={selectedId}
-            key={selectedId}
-            projectId={projectId}
-          />
+          <>
+            <ProjectGoalMembership
+              goalId={selectedId}
+              key={selectedId}
+              projectId={projectId}
+            />
+            {valueChainArea?.(selectedId)}
+          </>
         ) : undefined
       }
       onSave={save}
@@ -130,9 +135,11 @@ export default function ProjectGoalsSurface({
 export function ProjectGoalsRoute({
   projectId,
   hash,
+  valueChainArea,
 }: {
   projectId: string;
   hash: string;
+  valueChainArea?: (goalId: string) => ReactNode;
 }) {
   let selectedId: string | undefined;
   if (hash.startsWith("project-goal-")) {
@@ -145,5 +152,11 @@ export function ProjectGoalsRoute({
       return <p role="alert">Project Goal is unavailable.</p>;
     }
   }
-  return <ProjectGoalsSurface projectId={projectId} selectedId={selectedId} />;
+  return (
+    <ProjectGoalsSurface
+      projectId={projectId}
+      selectedId={selectedId}
+      valueChainArea={valueChainArea}
+    />
+  );
 }

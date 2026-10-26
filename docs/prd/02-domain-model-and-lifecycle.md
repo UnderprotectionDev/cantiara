@@ -1431,6 +1431,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kalıp geçerli değil | `This pattern is not valid.` | Bul ve değiştirde geçersiz regex kalıbı hatası |
 | Sürüm 5 için Spec Değişiklik İncelemesi açıldı | `Spec Change Review opened for Version 5.` | Sürümler listesinde bir sürümden Spec Değişiklik İncelemesi açılınca gösterilen sonuç |
 | Proje görünümleri | `Project views` | Proje Genel Bakışında görünümlere giden bölümün başlığı |
+| Değer Zinciri | `Value Chain` | Seçilen Proje Hedefinden gözlenen sonuca uzanan türetilmiş görünümün başlığı |
+| Hedefe bağlanmamış | `Not linked to goal` | Değer Zincirinde Hedefe katkı yolu olmayan ilgili kayıtların bölüm başlığı |
+| Erişilemeyen kayıt | `Unavailable record` | Değer Zincirinde içeriği gösterilemeyen ucun yer tutucusu |
 | Bağlayan ilişki türü | `Bound by {relation type}` | Değer Zinciri düğümünde bağın ilişki türünü gösteren etiket |
 | İlişkili bağ katkı sayılmaz | `A Related link does not count as a contribution to this goal.` | `Related` bağının Hedefe katkı sayılmadığını söyleyen not |
 | Bu boşluğu doldur | `Fill this gap` | Değer Zincirinde eksik veya çözülemeyen adımın yanındaki eylem |
