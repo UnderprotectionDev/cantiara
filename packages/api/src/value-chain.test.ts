@@ -52,7 +52,7 @@ describe("Value Chain derivation", () => {
       }),
     );
     expect(chain.branches.map((branch) => branch.id)).toEqual(["w1", "r1"]);
-    expect(chain.branches[0]?.children[0]?.why).toBe("Reached from Work w1.");
+    expect(chain.branches[0]?.children[0]?.why).toBe("Shown because: Related");
     expect(chain.branches[0]?.children[0]?.relation).toEqual({
       id: "w1>d1",
       label: "Related",
@@ -77,6 +77,35 @@ describe("Value Chain derivation", () => {
     );
     expect(chain.branches.map((branch) => branch.id)).toEqual(["r1"]);
     expect(chain.notLinked.map((item) => item.id).sort()).toEqual(["d2", "w2"]);
+  });
+
+  it("keeps the context of an unlinked Work visible under Not linked to goal", () => {
+    const chain = deriveValueChain(
+      facts({
+        associations: [
+          edge(w("w2"), { id: "r1", type: "Project Release" }, "Release scope"),
+        ],
+        edges: [
+          edge(G, w("w1")),
+          edge(G, { id: "r1", type: "Project Release" }),
+          edge(w("w2"), { id: "t1", type: "Test" }, "Planned Test Case target"),
+        ],
+        nodes: [
+          node("Work", "w1"),
+          node("Work", "w2"),
+          node("Test", "t1"),
+          node("Project Release", "r1"),
+        ],
+      }),
+    );
+    expect(chain.notLinked.map((item) => item.id).sort()).toEqual(["t1", "w2"]);
+    const attached = chain.notLinked.find((item) => item.id === "t1");
+    expect(attached?.reason).toBe(
+      "Attached to w2, which itself has no Contributes to Goal path from this goal.",
+    );
+    // The second hop never reaches further: a bound context piece is listed,
+    // its own neighbours are not traversed, and gaps stay on the chain.
+    expect(chain.gaps.map((gap) => gap.from.id)).toEqual(["w1", "w1", "w1"]);
   });
 
   it("keeps an unavailable end visible without its content", () => {

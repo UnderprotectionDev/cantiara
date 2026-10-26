@@ -191,7 +191,6 @@ function indexFacts(facts: ValueChainFacts, goalRef: ValueChainNodeRef) {
 function branchNode(
   index: ChainIndex,
   edge: ValueChainFactEdge,
-  parent: { title: string | null; type: ValueChainNodeType },
   trail: ReadonlySet<string>,
 ): ValueChainNode {
   const key = nodeRefKey(edge.child);
@@ -204,7 +203,7 @@ function branchNode(
   return {
     children: repeat
       ? []
-      : buildBranches(index, edge.child, title, new Set([...trail, key])),
+      : buildBranches(index, edge.child, new Set([...trail, key])),
     id: edge.child.id,
     relation: edge.relation,
     repeat,
@@ -212,23 +211,18 @@ function branchNode(
     title,
     type: edge.child.type,
     unavailable,
-    why: `Reached from ${parent.type} ${
-      parent.title ?? VALUE_CHAIN_UNAVAILABLE_LABEL
-    }.`,
+    why: `Shown because: ${edge.relation.label}`,
   };
 }
 
 function buildBranches(
   index: ChainIndex,
   parent: ValueChainNodeRef,
-  parentTitle: string | null,
   trail: ReadonlySet<string>,
 ): ValueChainNode[] {
   return (index.childrenOf.get(nodeRefKey(parent)) ?? [])
     .filter((edge) => !trail.has(nodeRefKey(edge.child)))
-    .map((edge) =>
-      branchNode(index, edge, { title: parentTitle, type: parent.type }, trail),
-    );
+    .map((edge) => branchNode(index, edge, trail));
 }
 
 function deriveGaps(
@@ -263,29 +257,74 @@ function deriveGaps(
   return gaps;
 }
 
+function notLinkedNode(
+  fact: ValueChainFactNode,
+  edge: ValueChainFactEdge,
+  reason: string,
+): ValueChainNotLinkedNode {
+  return {
+    id: fact.id,
+    reason,
+    relation: edge.relation,
+    status: fact.unavailable ? null : fact.status,
+    title: fact.unavailable ? null : fact.title,
+    type: fact.type,
+    unavailable: fact.unavailable,
+  };
+}
+
+/** The not-yet-listed neighbour ends of one anchor key, in edge order. */
+function unlistedNeighbours(
+  index: ChainIndex,
+  anchorKey: string,
+  listed: Set<string>,
+): Array<{ edge: ValueChainFactEdge; fact: ValueChainFactNode }> {
+  const found: Array<{ edge: ValueChainFactEdge; fact: ValueChainFactNode }> =
+    [];
+  for (const edge of index.neighboursOf.get(anchorKey) ?? []) {
+    for (const other of [edge.parent, edge.child]) {
+      const otherKey = nodeRefKey(other);
+      const fact = index.nodes.get(otherKey);
+      if (!fact || index.reached.has(otherKey) || listed.has(otherKey)) {
+        continue;
+      }
+      found.push({ edge, fact });
+    }
+  }
+  return found;
+}
+
 function deriveNotLinked(index: ChainIndex) {
   const notLinked: ValueChainNotLinkedNode[] = [];
   const listed = new Set<string>();
-  for (const key of index.reached) {
-    for (const edge of index.neighboursOf.get(key) ?? []) {
-      for (const other of [edge.parent, edge.child]) {
-        const otherKey = nodeRefKey(other);
-        const fact = index.nodes.get(otherKey);
-        if (!fact || index.reached.has(otherKey) || listed.has(otherKey)) {
-          continue;
+  const unlinkedWorks: string[] = [];
+  const collect = (keys: Iterable<string>, reason: () => string) => {
+    for (const key of keys) {
+      for (const { edge, fact } of unlistedNeighbours(index, key, listed)) {
+        listed.add(nodeRefKey(fact));
+        notLinked.push(notLinkedNode(fact, edge, reason()));
+        if (fact.type === "Work") {
+          unlinkedWorks.push(nodeRefKey(fact));
         }
-        listed.add(otherKey);
-        notLinked.push({
-          id: fact.id,
-          reason: `Related to a record in this chain, but no ${VALUE_CHAIN_CONTRIBUTES_LABEL} path reaches it.`,
-          relation: edge.relation,
-          status: fact.unavailable ? null : fact.status,
-          title: fact.unavailable ? null : fact.title,
-          type: fact.type,
-          unavailable: fact.unavailable,
-        });
       }
     }
+  };
+  // First hop: records bound to the chain without a contribution path.
+  collect(
+    index.reached,
+    () =>
+      `Related to a record in this chain, but no ${VALUE_CHAIN_CONTRIBUTES_LABEL} path reaches it.`,
+  );
+  // Second hop: the context of an unlinked Work (its Karar, evidence, tests)
+  // stays visible too; PRD 04 hides no related piece behind an unlinked Work.
+  for (const key of unlinkedWorks) {
+    const work = index.nodes.get(key);
+    const anchor = work?.title ?? VALUE_CHAIN_UNAVAILABLE_LABEL;
+    collect(
+      [key],
+      () =>
+        `Attached to ${anchor}, which itself has no ${VALUE_CHAIN_CONTRIBUTES_LABEL} path from this goal.`,
+    );
   }
   return notLinked;
 }
@@ -299,7 +338,6 @@ export function deriveValueChain(facts: ValueChainFacts): ValueChain {
   const branches = buildBranches(
     index,
     goalRef,
-    facts.goal.unavailable ? null : facts.goal.title,
     new Set([nodeRefKey(goalRef)]),
   );
   return {

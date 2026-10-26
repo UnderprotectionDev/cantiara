@@ -2,6 +2,7 @@
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
+import { evidenceBinding } from "@cantiara/db/schema/evidence";
 import {
   plannedTestCase,
   plannedTestCaseRelation,
@@ -13,6 +14,7 @@ import { projectGoalRelation } from "@cantiara/db/schema/project-goal-relation";
 import { projectRelease } from "@cantiara/db/schema/project-release";
 import { projectReleaseScope } from "@cantiara/db/schema/project-release-planning";
 import { workRelation } from "@cantiara/db/schema/relation";
+import { source, sourceVersion } from "@cantiara/db/schema/source";
 import { work } from "@cantiara/db/schema/work";
 import { count, eq } from "drizzle-orm";
 import {
@@ -35,6 +37,9 @@ suite("Value Chain PostgreSQL seam", () => {
   const goalId = crypto.randomUUID();
   const contributingWork = crypto.randomUUID();
   const strayWork = crypto.randomUUID();
+  const straySourceId = crypto.randomUUID();
+  const strayWorkTitle = "Stray";
+  const strayEvidenceTitle = "Stray evidence";
   const decisionId = crypto.randomUUID();
   const relatedDecision = crypto.randomUUID();
   const releaseId = crypto.randomUUID();
@@ -90,7 +95,7 @@ suite("Value Chain PostgreSQL seam", () => {
     });
     for (const [index, [id, title]] of [
       [contributingWork, "Contributing"],
-      [strayWork, "Stray"],
+      [strayWork, strayWorkTitle],
       [trashedWork, "Secret trashed"],
     ].entries()) {
       await db.insert(work).values({
@@ -222,14 +227,49 @@ suite("Value Chain PostgreSQL seam", () => {
     ).rejects.toThrow();
   });
 
-  test("a test appears only under the Work it targets, never under the Goal or a stray Work", async () => {
+  test("a test appears under the Work it targets, in the chain or under Not linked to goal", async () => {
     const onChain = await addPlannedTest(contributingWork, "Chain test");
     const onStray = await addPlannedTest(strayWork, "Stray test");
     const result = await chain();
     expect(result?.branches.map((b) => b.type)).not.toContain("Test");
     const branch = result?.branches.find((b) => b.id === contributingWork);
     expect(branch?.children.map((c) => c.id)).toContain(onChain);
-    expect(JSON.stringify(result)).not.toContain(onStray);
+    const unlinked = result?.notLinked.find((i) => i.id === onStray);
+    expect(unlinked).toMatchObject({ type: "Test" });
+    expect(unlinked?.reason).toContain(strayWorkTitle);
+  });
+
+  test("an unlinked Work's evidence stays visible under Not linked to goal", async () => {
+    if (!db) {
+      throw new Error("Test database required");
+    }
+    await db
+      .insert(source)
+      .values({ id: straySourceId, projectId, revision: 1 });
+    await db.insert(sourceVersion).values({
+      accessedAt: new Date(),
+      capturedContent: "x",
+      revision: 1,
+      sourceId: straySourceId,
+      title: strayEvidenceTitle,
+      url: "https://example.org/stray-evidence",
+    });
+    await db.insert(evidenceBinding).values({
+      actorId: accountId,
+      id: crypto.randomUUID(),
+      pin: {},
+      sourceProjectId: projectId,
+      sourceRecordId: straySourceId,
+      targetProjectId: projectId,
+      targetRecordId: strayWork,
+      targetRecordType: "Work",
+      workspaceId,
+    });
+    const result = await chain();
+    const unlinked = result?.notLinked.find((i) => i.id === straySourceId);
+    expect(unlinked).toMatchObject({ type: "Evidence" });
+    expect(unlinked?.title).toBe(strayEvidenceTitle);
+    expect(JSON.stringify(result?.branches)).not.toContain(straySourceId);
   });
 
   test("reading the chain writes no relation, record or status", async () => {

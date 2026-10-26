@@ -112,6 +112,21 @@ function unique(ids: readonly string[]) {
   return [...new Set(ids)];
 }
 
+/**
+ * Works that only an association names — sharing a reached Release's scope,
+ * `Related` to the Goal — are visible but not reached. Their own context is
+ * read like a chain Work's so nothing related hides behind them.
+ */
+function strayWorkIds(facts: Facts, chainWorkIds: string[]): string[] {
+  const chained = new Set(chainWorkIds);
+  return unique(
+    facts.associations
+      .flatMap((edge) => [edge.parent, edge.child])
+      .filter((ref) => ref.type === "Work" && !chained.has(ref.id))
+      .map((ref) => ref.id),
+  );
+}
+
 function inProject(
   table: { id: AnyPgColumn; projectId: AnyPgColumn },
   projectId: string,
@@ -122,7 +137,7 @@ function inProject(
 
 /** Records the Goal binds directly and the Work behind a contributing Milestone. */
 async function readContributors(
-  { database }: Scope,
+  { database, projectId }: Scope,
   facts: Facts,
   goalRef: ValueChainNodeRef,
   rows: GoalRelationRow[],
@@ -152,6 +167,7 @@ async function readContributors(
           and(
             eq(workRelation.kind, "Contributes to Milestone"),
             eq(workRelation.targetRecordType, "Milestone"),
+            eq(workRelation.targetProjectId, projectId),
             inArray(workRelation.targetRecordId, milestoneIds),
             isNull(workRelation.deletedAt),
           ),
@@ -239,19 +255,44 @@ async function readScopes(
   return releaseIds;
 }
 
-function relationTarget(row: typeof workRelation.$inferSelect) {
-  if (row.kind === "Origin") {
-    return "Problem or opportunity";
+/**
+ * The node type of a chain bind's target. The kind only names the relation;
+ * the stored target type names the record, so an `Origin` bind whose target is
+ * a Work resolves as a Work, never as an invented problem record. The chain
+ * reads Origin, Evidence and Karar binds; other kinds stay outside it.
+ */
+function relationTarget(
+  row: typeof workRelation.$inferSelect,
+): ValueChainNodeType | null {
+  const inChain =
+    row.kind === "Origin" ||
+    row.kind === "Evidence" ||
+    row.targetRecordType === "Decision";
+  if (!inChain) {
+    return null;
   }
-  if (row.kind === "Evidence") {
-    return "Evidence";
+  switch (row.targetRecordType) {
+    case "Assumption":
+    case "Decision":
+    case "Milestone":
+    case "Open Question":
+    case "Project Release":
+    case "Risk":
+    case "Work":
+      return row.targetRecordType;
+    default:
+      // A produced main record this view does not resolve: only its type shows.
+      return "Other record";
   }
-  return row.targetRecordType === "Decision" ? "Decision" : null;
 }
 
-/** Origin, evidence and Karar binds written on a chain Work. */
+/**
+ * Origin, evidence and Karar binds written on a read Work. The caller passes
+ * chain Works and unlinked Works alike; edges anchored at an unlinked Work
+ * never reach the Goal, they only feed the `Not linked to goal` second hop.
+ */
 async function readWorkRelations(
-  { database }: Scope,
+  { database, projectId }: Scope,
   facts: Facts,
   workIds: string[],
 ) {
@@ -261,6 +302,7 @@ async function readWorkRelations(
         .from(workRelation)
         .where(
           and(
+            eq(workRelation.targetProjectId, projectId),
             inArray(workRelation.sourceWorkId, workIds),
             isNull(workRelation.deletedAt),
           ),
@@ -297,7 +339,7 @@ async function readWorkRelations(
   return decisionIds;
 }
 
-/** Evidence bindings whose target is a chain Work or Karar. */
+/** Evidence bindings whose target is a read Work or Karar. */
 async function readEvidence(
   { database, projectId }: Scope,
   facts: Facts,
@@ -693,10 +735,19 @@ export function createDatabaseValueChain(database: Database): ValueChainAccess {
         goalRelations,
       );
       const releaseIds = await readScopes(scope, facts, direct);
-      const decisionIds = await readWorkRelations(scope, facts, direct.workIds);
-      await readEvidence(scope, facts, direct.workIds, decisionIds);
+      // An unlinked Work keeps its own Karar, evidence and test context
+      // visible: PRD 04 hides no related piece behind an unlinked Work. Its
+      // edges never reach the Goal, they only feed the `Not linked to goal`
+      // second hop. GitHub links stay read for chain Works only: the PRD's
+      // unlinked enumeration names Karar, evidence and tests, not GitHub.
+      const contextWorkIds = unique([
+        ...direct.workIds,
+        ...strayWorkIds(facts, direct.workIds),
+      ]);
+      const decisionIds = await readWorkRelations(scope, facts, contextWorkIds);
+      await readEvidence(scope, facts, contextWorkIds, decisionIds);
       await readGithub(scope, facts, direct.workIds);
-      await readTests(scope, facts, direct.workIds);
+      await readTests(scope, facts, contextWorkIds);
       await readObservations(scope, facts, releaseIds);
       readRelated(facts, goalRef, goalRelations);
       await resolveRecords(scope, facts);

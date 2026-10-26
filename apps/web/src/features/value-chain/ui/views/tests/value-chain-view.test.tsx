@@ -91,7 +91,7 @@ test("shows branches with why, source links, gaps and the unlinked section", () 
   const text = view.textContent ?? "";
   expect(text).toContain("Value Chain");
   expect(text).toContain("Not linked to goal (1)");
-  expect(text).toContain("Reached from Project Goal Reach founders.");
+  expect(text).toContain("Shown because: Contributes to Goal");
   expect(text).toContain("Bound by Contributes to Goal");
   expect(text).toContain(
     "A Related link does not count as a contribution to this goal.",
