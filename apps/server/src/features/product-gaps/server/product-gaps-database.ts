@@ -1,6 +1,16 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Link rows are inserted in their stored order.
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
 import {
+  MutationApplyFailedError,
+  MutationConflictError,
+  MutationStaleBaseRevisionError,
+  MutationTargetNotFoundError,
+} from "@cantiara/api/mutation-contract";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
+import {
   buildProductGapFollowUpPlan,
   isSameProductGapFollowUpPlan,
   type ParsedConfirmProductGapFollowUpInput,
@@ -36,16 +46,6 @@ import { work } from "@cantiara/db/schema/work";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { insertWorkWithKeyAllocation } from "../../evidence/server/evidence-record-creation";
 import type { FeedbackExecutor } from "../../feedback/server/feedback-database";
-import {
-  MutationApplyFailedError,
-  MutationConflictError,
-  MutationStaleBaseRevisionError,
-  MutationTargetNotFoundError,
-} from "../../mutation-and-undo/server/mutation-contract";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import {
   createProductGaps,
   ProductGapFollowUpStaleError,

@@ -12,7 +12,7 @@ import {
   archivedProjectId,
   createMemoryHarness,
   projectId,
-} from "../test-assessments-memory-store";
+} from "./test-assessments-memory-store";
 
 const contexts = [
   { id: "feature-1", kind: "Feature", label: "Checkout", projectId },

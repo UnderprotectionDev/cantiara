@@ -50,7 +50,7 @@ Kişisel erişim kabuğu Günlük Odak, Favoriler, Bildirim Merkezi ve Yeniden b
 - **What a good test is.** Tests observe Personal Shell through its public interface: open each of the four surfaces without losing current context, panel vs full page, Working Set add/reopen/session-end drop, membership non-writes, no panel restore after new session. They do not assert layout coordinates. Expected values are product rules (session-only set, open ≠ membership write).
 - **Seam (one).** Personal Shell — the product-facing personal access interface. Daily Focus, Favorites, Attention Signals, and reminders are collaborators whose membership APIs this suite must not call except as “unchanged” oracles.
 - **Modules under test.** Personal Shell only.
-- **Prior art.** No Vitest/Playwright suite yet. Contract tests at this seam. Evidence binds to [kişisel bağlam](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (session close/open E2E; Favorites add/remove remains a counterpart owned by 39).
+- **Prior art.** There is no suite for this spec yet; the nearest pattern is `apps/web/e2e/favorites.e2e.ts`, `apps/web/e2e/return-to-work.e2e.ts`. Contract tests at this seam. Evidence binds to [kişisel bağlam](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (session close/open E2E; Favorites add/remove remains a counterpart owned by 39).
 - **Required counterparts.** Set gone after session end; opening Favorites does not favorite; hosted Favorites/Daily Focus/center actions remain their owners; panel state absent on next session; canvas viewport APIs not written here; no Dış yüzey from the set.
 
 ## Out of Scope

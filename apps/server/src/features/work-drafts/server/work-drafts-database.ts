@@ -1,3 +1,8 @@
+import type {
+  MutationDatabaseExecutor,
+  MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
+import { createDatabaseMutationContract } from "@cantiara/api/mutation-contract-database";
 import type { ProjectShellAccess } from "@cantiara/api/project-shell";
 import {
   type WorkDraft,
@@ -8,12 +13,6 @@ import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
 import type { Database } from "@cantiara/db";
 import { workDraft } from "@cantiara/db/schema/work-draft";
 import { and, desc, eq, isNull } from "drizzle-orm";
-
-import type {
-  MutationDatabaseExecutor,
-  MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
-import { createDatabaseMutationContract } from "../../mutation-and-undo/server/mutation-contract-database";
 import {
   createWorkDrafts,
   isFinalizationReservationStale,

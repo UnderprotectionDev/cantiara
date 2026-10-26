@@ -15,7 +15,7 @@ import {
   createMemoryHarness,
   otherAccountId,
   projectId,
-} from "../github-integration-memory-store";
+} from "./github-integration-memory-store";
 
 const WRITE_MEMBER =
   /^(review|approve|merge|closeWork|completeWork|markReady)/i;

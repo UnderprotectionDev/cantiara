@@ -41,7 +41,7 @@ Bağlantı varken İş oluşturma formundaki değişiklikler kişisel `Draft` ol
 - **What a good test is.** Tests observe Work Drafts through its public interface: autosave while online; resume; not in search; timer does not delete; no Work activity event before `Create`; `Create` yields one Work and removes the Draft; second create from the same Draft impossible; disconnect shows last save + risk and no queue; reconnect does not hidden-replay; delete Draft does not delete Work. They do not assert debounce milliseconds as a product number (PRD gives no cadence). Expected values: not a main record; one Work per finalize.
 - **Seam (one).** Work Drafts — the product-facing Draft interface. Work create is an adapter. Playwright for Taslak is this seam through the UI. Capture Inbox must remain a counterpart (a Draft is not listed there).
 - **Modules under test.** Work Drafts only.
-- **Prior art.** Almost no Vitest/Playwright yet. First tests live at this seam. Evidence: [Taslak](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (synthetic: disconnect, recovery, time-advance).
+- **Prior art.** Existing seam tests: `apps/server/src/features/work-drafts/server/tests/work-drafts.test.ts`, `apps/server/src/features/work-drafts/server/tests/work-drafts-rpc.test.ts`, `apps/web/e2e/work-drafts.e2e.ts`. Evidence: [Taslak](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (synthetic: disconnect, recovery, time-advance).
 - **Required counterparts.** Not in Universal Search; not a Capture item; not two Works from one Draft; no local queue; reconnect does not hidden-replay; no Work activity event before `Create`.
 
 ## Out of Scope

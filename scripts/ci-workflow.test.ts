@@ -56,6 +56,7 @@ test("integration scheduling partitions every suite without sharing database wor
     "bun run db:test -- --no-file-parallelism --fsModuleCache",
     "bun run check-types",
     "bun run --cwd apps/web test -- --fsModuleCache",
+    "bun run --cwd packages/api test -- --fsModuleCache",
     "bunx vitest run scripts/ci-workflow.test.ts --fsModuleCache",
   ]) {
     expect(

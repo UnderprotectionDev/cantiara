@@ -5,6 +5,7 @@ import type {
   MutationPayload,
   MutationReceipt,
 } from "@cantiara/api/mutation-and-undo";
+import { MutationStaleBaseRevisionError } from "@cantiara/api/mutation-contract";
 import {
   featuresBoundToPrimarySpec,
   type PrimarySpecBinding,
@@ -26,8 +27,6 @@ import {
   specChangeReviewFollowUpPayloadSchema,
   specFollowUpOrigin,
 } from "@cantiara/api/spec-change-review-follow-up";
-
-import { MutationStaleBaseRevisionError } from "../../mutation-and-undo/server/mutation-contract";
 import {
   createSpecChangeReview,
   type SpecChangeReviewStore,

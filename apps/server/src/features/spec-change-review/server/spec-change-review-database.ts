@@ -1,3 +1,4 @@
+import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
 import {
   featuresBoundToPrimarySpec,
   type SpecChangeReviewSummary,
@@ -9,8 +10,6 @@ import { project } from "@cantiara/db/schema/project";
 import { specChangeReview } from "@cantiara/db/schema/spec-change-review";
 import { work } from "@cantiara/db/schema/work";
 import { and, desc, eq } from "drizzle-orm";
-
-import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 import type { SpecChangeReviewStore } from "./spec-change-review";
 import {
   readFollowUps,

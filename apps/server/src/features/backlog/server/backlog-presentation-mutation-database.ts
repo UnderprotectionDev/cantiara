@@ -4,12 +4,12 @@ import {
   saveBacklogPresentationInputSchema,
 } from "@cantiara/api/backlog";
 import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
-import { projectBacklogPresentation } from "@cantiara/db/schema/backlog";
-import { and, eq } from "drizzle-orm";
 import type {
   MutationDatabaseExecutor,
   MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
+} from "@cantiara/api/mutation-contract-database";
+import { projectBacklogPresentation } from "@cantiara/db/schema/backlog";
+import { and, eq } from "drizzle-orm";
 import { findOwnedBacklogProject } from "./backlog-owned-project";
 
 async function findPresentation(

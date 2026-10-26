@@ -2,6 +2,11 @@ import type {
   MutationPayload,
   MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
 import type {
   PrioritizationSession,
   PrioritizationSessionMutationContracts,
@@ -24,11 +29,6 @@ import {
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, eq, inArray } from "drizzle-orm";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 
 type SessionUpdateInput = Parameters<
   MutationDatabaseTargetAdapter<PrioritizationSessionMutationValue>["update"]

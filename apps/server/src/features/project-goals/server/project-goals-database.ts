@@ -1,4 +1,13 @@
 import {
+  MutationConflictError,
+  MutationStaleBaseRevisionError,
+  MutationTargetNotFoundError,
+} from "@cantiara/api/mutation-contract";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
+import {
   createProjectGoalInputSchema,
   ProjectGoalConflictError,
   type ProjectGoalRecord,
@@ -11,15 +20,6 @@ import {
 import type { Database } from "@cantiara/db";
 import { projectGoal } from "@cantiara/db/schema/project-goal";
 import { and, asc, eq } from "drizzle-orm";
-import {
-  MutationConflictError,
-  MutationStaleBaseRevisionError,
-  MutationTargetNotFoundError,
-} from "../../mutation-and-undo/server/mutation-contract";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 
 import { ownedProject } from "./project-goal-access";
 import { createDatabaseProjectGoalMembership } from "./project-goal-membership-database";

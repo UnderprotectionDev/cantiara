@@ -14,14 +14,13 @@ import {
   expect,
   test,
 } from "vitest";
-
-import { createGitHubAppDouble } from "../github-app-double";
 import { createGitHubAppGateway } from "../github-app-gateway";
 import {
   createGitHubSecrets,
   parseGitHubKeyRing,
 } from "../github-credential-envelope";
 import { createDatabaseGitHubIntegration } from "../github-integration-database";
+import { createGitHubAppDouble } from "./github-app-double";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;

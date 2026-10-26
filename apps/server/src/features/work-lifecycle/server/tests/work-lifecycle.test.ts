@@ -8,6 +8,11 @@ import type {
 } from "@cantiara/api/mutation-and-undo";
 import { canonicalizeMutationPayload } from "@cantiara/api/mutation-and-undo";
 import {
+  MutationStaleBaseRevisionError,
+  type MutationUndoPlan,
+  materializeMutationUndoMetadata,
+} from "@cantiara/api/mutation-contract";
+import {
   type CreateWorkMutationInput,
   WORK_TYPE_OPTIONS,
   type WorkLifecycleMutationContracts,
@@ -21,12 +26,6 @@ import {
   workChecklistItemSchema,
 } from "@cantiara/api/work-lifecycle";
 import { describe, expect, test, vi } from "vitest";
-
-import {
-  MutationStaleBaseRevisionError,
-  type MutationUndoPlan,
-  materializeMutationUndoMetadata,
-} from "../../../mutation-and-undo/server/mutation-contract";
 import type {
   WorkRelations,
   WorkRelationsMutationAdapter,

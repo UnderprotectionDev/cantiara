@@ -14,7 +14,7 @@ import {
   createMemoryHarness,
   fixtureSession,
   projectId,
-} from "../test-review-memory-store";
+} from "./test-review-memory-store";
 
 const SCENARIO: [string, number] = ["case-1", 2];
 const FORBIDDEN_MEMBER = /gap|handoff|assessment|delete|trash|archive/i;

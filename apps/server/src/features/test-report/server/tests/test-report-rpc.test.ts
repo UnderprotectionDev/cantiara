@@ -7,7 +7,7 @@ import {
   accountId,
   createMemoryHarness,
   projectId,
-} from "../test-report-memory-store";
+} from "./test-report-memory-store";
 
 const TEST_REPORT_PROCEDURE = /testreport|testsession/i;
 const REVIEW_OR_GATE =

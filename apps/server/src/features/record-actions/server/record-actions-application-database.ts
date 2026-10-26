@@ -10,6 +10,12 @@ import {
   type MutationPayload,
   type MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
+import { MutationUndoNotSupportedError } from "@cantiara/api/mutation-contract";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
 import {
   type ApplyRecordActionInput,
   type PreviewRecordActionInput,
@@ -39,15 +45,8 @@ import { recordAction } from "@cantiara/db/schema/record-action";
 import { workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
-
 import { assertValueMatchesDefinition } from "../../custom-fields/server/custom-fields";
 import { toCustomFieldDefinition } from "../../custom-fields/server/custom-fields-database";
-import { MutationUndoNotSupportedError } from "../../mutation-and-undo/server/mutation-contract";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import { toRecordAction } from "./record-action-database-mappers";
 
 type WorkDatabaseRecord = typeof work.$inferSelect;

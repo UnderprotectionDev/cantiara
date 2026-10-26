@@ -15,8 +15,6 @@ import type { ContactsAccess } from "@cantiara/api/contacts";
 import {
   type AccountPreferencesCompatibilityAccess,
   CONFIRM_GITHUB_IDENTITY_HANDOFF_EXCHANGE_PATH,
-  CONFIRM_GITHUB_IDENTITY_OPERATION_IDS,
-  TAURI_CONFIRM_GITHUB_IDENTITY_CALLBACK_URL,
 } from "@cantiara/api/context";
 import type {
   CustomFieldMutationContracts,
@@ -42,8 +40,6 @@ import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import {
   FILE_ATTACHMENT_UPLOAD_BODY_LIMIT,
   fileAttachmentAssetInputSchema,
-  fileAttachmentScopeSchema,
-  fileAttachmentStageInputSchema,
 } from "@cantiara/api/file-attachments";
 import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
 import type { GitHubIntegrationAccess } from "@cantiara/api/github-integration";
@@ -120,7 +116,6 @@ import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
 import type { WorkTemplatesAccess } from "@cantiara/api/work-templates";
 import type { WorkspaceOverviewAccess } from "@cantiara/api/workspace-overview";
-import { TAURI_AUTH_CALLBACK_URL } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
@@ -134,51 +129,69 @@ import {
 } from "evlog/better-auth";
 import { createFsDrain } from "evlog/fs";
 import { type EvlogVariables, evlog } from "evlog/hono";
-import type { Context as HonoContext } from "hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { ZodError, z } from "zod";
 import {
   type AccountAccessAuth,
   createContext,
   requestClientPlatform,
 } from "./context";
-import { requestClientIp } from "./features/account-access/server/client-ip";
+import { isRecoverableAuthPath } from "./features/account-access/server/auth-recovery-path";
 import { createCsrfProtectionMiddleware } from "./features/account-access/server/csrf-protection";
+import { addFreshGitHubConsent } from "./features/account-access/server/fresh-github-consent";
 import type { GitHubAvailability } from "./features/account-access/server/github-availability";
 import { sanitizeGitHubCallbackResponse } from "./features/account-access/server/github-callback-response";
 import {
   CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH,
-  CONFIRM_GITHUB_IDENTITY_FAILURE_CODE,
   CONFIRM_GITHUB_IDENTITY_START_PATH,
   type GitHubIdentityConfirmation,
 } from "./features/account-access/server/github-identity-confirmation";
+import {
+  authorizedPrincipal,
+  completeConfirmGitHubIdentity,
+  exchangeConfirmGitHubIdentityHandoff,
+  startConfirmGitHubIdentity,
+} from "./features/account-access/server/github-identity-confirmation-http";
 import type { AccountSessionAccessRuntime } from "./features/account-access/server/session-access";
 import { sanitizeProductSessionResponse } from "./features/account-access/server/session-response";
 import { sanitizeTauriCallbackResponse } from "./features/account-access/server/tauri-callback-response";
+import type { TauriSessionAccess } from "./features/account-access/server/tauri-session";
 import {
-  isTauriAuthCodeChallenge,
-  isTauriAuthCodeVerifier,
-  type TauriSessionAccess,
-} from "./features/account-access/server/tauri-session";
-import { WebCaptureError } from "./features/capture-triage/server/web-capture";
+  createTauriSignInStartResponse,
+  exchangeTauriCode,
+} from "./features/account-access/server/tauri-sign-in-http";
+import {
+  webCaptureErrorResponse,
+  webCaptureToken,
+  webCaptureUnauthorizedResponse,
+  webCaptureUnavailableResponse,
+} from "./features/capture-triage/server/web-capture-http";
+import {
+  fileAttachmentErrorResponse,
+  fileAttachmentUnauthorizedResponse,
+  fileAttachmentUnavailableResponse,
+  parseFileAttachmentStageForm,
+} from "./features/file-attachments/server/file-attachment-http";
 import type { GitHubWebhookInbox } from "./features/github-integration/server/github-webhook-inbox";
 import {
   GITHUB_WEBHOOK_PATH,
   handleGitHubWebhook,
 } from "./features/github-integration/server/github-webhook-route";
 import { youtubePlayerRoutes } from "./features/sources-and-freshness/server/youtube-player-page";
-import type { CreateSupportReferenceFailureOptions } from "./features/web-macos-client/server/support-reference";
+import {
+  decorateAndRecordSupportFailure,
+  errorStatus,
+  isClientShellPath,
+  requestSupportReferenceId,
+} from "./features/web-macos-client/server/support-failure-http";
 import {
   createDesktopApiUpdateRequiredResponse,
   createSupportFailureResponse,
   createSupportReferenceFailure,
-  decorateSupportFailureResponse,
   recordSupportFailure,
-  unwrapStandardRpcResponsePayload,
   wrapSupportFailureResponseForRpc,
 } from "./features/web-macos-client/server/support-reference";
-
+import { noStoreHeaders } from "./no-store-headers";
 export interface AppDependencies {
   accountPreferences: AccountPreferencesAccess;
   accountPreferencesCompatibility?: AccountPreferencesCompatibilityAccess;
@@ -274,499 +287,6 @@ export interface AppDependencies {
   workTemplates?: WorkTemplatesAccess;
 }
 
-function isRecoverableAuthPath(path: string) {
-  const authPath = path.startsWith("/api/auth/")
-    ? path.slice("/api/auth".length)
-    : path;
-  return (
-    authPath === "/sign-out" ||
-    authPath === "/callback/github" ||
-    authPath.startsWith("/sign-in/")
-  );
-}
-
-async function createTauriSignInStartResponse(
-  request: Request,
-  dependencies: {
-    auth: AccountAccessAuth;
-    tauriSessionAccess: TauriSessionAccess | undefined;
-  },
-) {
-  const codeChallenge = new URL(request.url).searchParams.get("code_challenge");
-  if (
-    !(
-      dependencies.tauriSessionAccess &&
-      codeChallenge &&
-      isTauriAuthCodeChallenge(codeChallenge)
-    )
-  ) {
-    const errorURL = new URL(TAURI_AUTH_CALLBACK_URL);
-    errorURL.searchParams.set("error", "sign_in_failed");
-    return Response.redirect(errorURL.href, 302);
-  }
-
-  const callbackURL = new URL(TAURI_AUTH_CALLBACK_URL);
-  callbackURL.searchParams.set("challenge", codeChallenge);
-
-  const authRequestHeaders = new Headers();
-  for (const header of ["user-agent", "x-forwarded-for"]) {
-    const value = request.headers.get(header);
-    if (value) {
-      authRequestHeaders.set(header, value);
-    }
-  }
-  authRequestHeaders.set("content-type", "application/json");
-
-  const response = await dependencies.auth.handler(
-    new Request(new URL("/api/auth/sign-in/social", request.url).href, {
-      body: JSON.stringify({
-        callbackURL: callbackURL.href,
-        errorCallbackURL: TAURI_AUTH_CALLBACK_URL,
-        provider: "github",
-      }),
-      headers: authRequestHeaders,
-      method: "POST",
-    }),
-  );
-  const location = response.headers.get("location");
-  if (!location) {
-    const errorURL = new URL(TAURI_AUTH_CALLBACK_URL);
-    errorURL.searchParams.set("error", "sign_in_failed");
-    return Response.redirect(errorURL.href, 302);
-  }
-
-  const headers = new Headers({ location });
-  const setCookie = response.headers.get("set-cookie");
-  if (setCookie) {
-    headers.set("set-cookie", setCookie);
-  }
-  return new Response(null, { headers, status: 302 });
-}
-
-const tauriCodeExchangeInputSchema = z.object({
-  code: z.string().min(1).max(512),
-  codeVerifier: z.string().refine(isTauriAuthCodeVerifier),
-});
-const confirmGitHubIdentityStartInputSchema = z.object({
-  operationId: z.enum(CONFIRM_GITHUB_IDENTITY_OPERATION_IDS),
-});
-const confirmGitHubIdentityHandoffInputSchema = z.object({
-  code: z.string().min(1).max(512),
-});
-
-async function exchangeTauriCode(
-  request: Request,
-  tauriSessionAccess: TauriSessionAccess | undefined,
-) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
-  }
-
-  const input = tauriCodeExchangeInputSchema.safeParse(body);
-  if (!input.success) {
-    return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
-  }
-  const { code, codeVerifier } = input.data;
-
-  const session = await tauriSessionAccess?.exchangeCode(code, codeVerifier);
-  if (!session) {
-    return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
-  }
-
-  return Response.json({
-    expiresAt: session.expiresAt.toISOString(),
-    token: session.token,
-  });
-}
-
-function noStoreHeaders() {
-  return {
-    "cache-control": "no-store",
-    pragma: "no-cache",
-    "referrer-policy": "no-referrer",
-    "x-content-type-options": "nosniff",
-  };
-}
-
-function confirmGitHubIdentityFailure(status = 400) {
-  return Response.json(
-    { code: CONFIRM_GITHUB_IDENTITY_FAILURE_CODE },
-    { headers: noStoreHeaders(), status },
-  );
-}
-
-function confirmGitHubIdentityCompletionResponse(
-  completion: {
-    callbackCode: string;
-    clientPlatform: "web" | "tauri";
-  },
-  corsOrigin: string,
-) {
-  if (completion.clientPlatform === "tauri") {
-    const callbackURL = new URL(TAURI_CONFIRM_GITHUB_IDENTITY_CALLBACK_URL);
-    callbackURL.searchParams.set("code", completion.callbackCode);
-    return new Response(null, {
-      headers: {
-        ...noStoreHeaders(),
-        location: callbackURL.href,
-      },
-      status: 302,
-    });
-  }
-
-  let targetOrigin: string;
-  try {
-    targetOrigin = new URL(corsOrigin).origin;
-  } catch {
-    return confirmGitHubIdentityFailure();
-  }
-
-  const message = JSON.stringify({
-    code: completion.callbackCode,
-    type: "cantiara.confirm-github-identity",
-  });
-  const serializedTargetOrigin = JSON.stringify(targetOrigin);
-  const body = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="referrer" content="no-referrer">
-    <title>Confirm GitHub Identity</title>
-  </head>
-  <body>
-    <p>Confirm GitHub Identity complete. You can return to Cantiara.</p>
-    <script>
-      const message = ${message};
-      const targetOrigin = ${serializedTargetOrigin};
-      if (window.opener) {
-        window.opener.postMessage(message, targetOrigin);
-        window.close();
-      }
-    </script>
-  </body>
-</html>`;
-  return new Response(body, {
-    headers: {
-      ...noStoreHeaders(),
-      "content-security-policy":
-        "default-src 'none'; script-src 'unsafe-inline'",
-      "content-type": "text/html; charset=UTF-8",
-    },
-  });
-}
-
-async function authorizedPrincipal(
-  request: Request,
-  dependencies: Pick<AppDependencies, "accountSessionAccess" | "auth">,
-) {
-  const session = await dependencies.auth.api.getSession({
-    headers: request.headers,
-    query: { disableRefresh: true },
-  });
-  if (!session) {
-    return null;
-  }
-
-  const principal = {
-    accountId: session.user.id,
-    sessionId: session.session.id,
-  };
-  return (await dependencies.accountSessionAccess.authorizeWrite(principal))
-    ? principal
-    : null;
-}
-
-async function recordConfirmGitHubIdentityFailure(
-  request: Request,
-  context: Parameters<typeof requestClientIp>[1],
-  dependencies: Pick<
-    AppDependencies,
-    | "accountSessionAccess"
-    | "auth"
-    | "githubIdentityConfirmation"
-    | "trustedProxyIps"
-  >,
-  state: string | null,
-) {
-  const confirmation = dependencies.githubIdentityConfirmation;
-  if (!confirmation) {
-    return;
-  }
-
-  let principal: Awaited<ReturnType<typeof authorizedPrincipal>> = null;
-  try {
-    principal = await authorizedPrincipal(request, dependencies);
-  } catch {
-    // A state-bound callback can still be recorded when the browser session is absent.
-  }
-  try {
-    await confirmation.recordFailure(
-      principal,
-      state ?? undefined,
-      requestClientIp(request, context, dependencies.trustedProxyIps),
-    );
-  } catch {
-    // Callback failures stay generic even when session or audit storage is unavailable.
-  }
-}
-
-async function startConfirmGitHubIdentity(
-  request: Request,
-  context: Parameters<typeof requestClientIp>[1],
-  dependencies: Pick<
-    AppDependencies,
-    | "accountSessionAccess"
-    | "auth"
-    | "githubIdentityConfirmation"
-    | "trustedProxyIps"
-  >,
-) {
-  if (!dependencies.githubIdentityConfirmation) {
-    return confirmGitHubIdentityFailure(404);
-  }
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return confirmGitHubIdentityFailure();
-  }
-
-  const startInput = confirmGitHubIdentityStartInputSchema.safeParse(body);
-  if (!startInput.success) {
-    return confirmGitHubIdentityFailure();
-  }
-  const { operationId } = startInput.data;
-
-  let principal: Awaited<ReturnType<typeof authorizedPrincipal>>;
-  try {
-    principal = await authorizedPrincipal(request, dependencies);
-  } catch {
-    return confirmGitHubIdentityFailure(401);
-  }
-  if (!principal) {
-    return confirmGitHubIdentityFailure(401);
-  }
-
-  try {
-    const result = await dependencies.githubIdentityConfirmation.start(
-      principal,
-      operationId,
-      requestClientIp(request, context, dependencies.trustedProxyIps),
-      requestClientPlatform(request),
-    );
-    return result
-      ? Response.json(result, { headers: noStoreHeaders() })
-      : confirmGitHubIdentityFailure();
-  } catch {
-    return confirmGitHubIdentityFailure();
-  }
-}
-
-async function exchangeConfirmGitHubIdentityHandoff(
-  request: Request,
-  context: Parameters<typeof requestClientIp>[1],
-  dependencies: Pick<
-    AppDependencies,
-    | "accountSessionAccess"
-    | "auth"
-    | "githubIdentityConfirmation"
-    | "trustedProxyIps"
-  >,
-) {
-  if (!dependencies.githubIdentityConfirmation) {
-    return confirmGitHubIdentityFailure(404);
-  }
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return confirmGitHubIdentityFailure();
-  }
-
-  const handoffInput = confirmGitHubIdentityHandoffInputSchema.safeParse(body);
-  if (!handoffInput.success) {
-    return confirmGitHubIdentityFailure();
-  }
-  const { code } = handoffInput.data;
-
-  let principal: Awaited<ReturnType<typeof authorizedPrincipal>>;
-  try {
-    principal = await authorizedPrincipal(request, dependencies);
-  } catch {
-    return confirmGitHubIdentityFailure(401);
-  }
-  if (!principal) {
-    return confirmGitHubIdentityFailure(401);
-  }
-
-  try {
-    const grant = await dependencies.githubIdentityConfirmation.exchange(
-      principal,
-      code,
-      requestClientIp(request, context, dependencies.trustedProxyIps),
-    );
-    return grant
-      ? Response.json({ grant }, { headers: noStoreHeaders() })
-      : confirmGitHubIdentityFailure();
-  } catch {
-    return confirmGitHubIdentityFailure();
-  }
-}
-
-async function completeConfirmGitHubIdentity(
-  request: Request,
-  context: Parameters<typeof requestClientIp>[1],
-  dependencies: Pick<
-    AppDependencies,
-    | "accountSessionAccess"
-    | "auth"
-    | "corsOrigin"
-    | "githubIdentityConfirmation"
-    | "trustedProxyIps"
-  >,
-) {
-  if (!dependencies.githubIdentityConfirmation) {
-    return confirmGitHubIdentityFailure(404);
-  }
-
-  const callbackURL = new URL(request.url);
-  const code = callbackURL.searchParams.get("code");
-  const state = callbackURL.searchParams.get("state");
-  if (
-    callbackURL.searchParams.has("error") ||
-    !code ||
-    !state ||
-    code.length > 512
-  ) {
-    await recordConfirmGitHubIdentityFailure(
-      request,
-      context,
-      dependencies,
-      state,
-    );
-    return confirmGitHubIdentityFailure();
-  }
-
-  try {
-    const completion = await dependencies.githubIdentityConfirmation.complete(
-      null,
-      { code, state },
-      requestClientIp(request, context, dependencies.trustedProxyIps),
-    );
-    return completion
-      ? confirmGitHubIdentityCompletionResponse(
-          completion,
-          dependencies.corsOrigin,
-        )
-      : confirmGitHubIdentityFailure();
-  } catch {
-    return confirmGitHubIdentityFailure();
-  }
-}
-
-async function addFreshGitHubConsent(
-  request: Request,
-  githubAvailability: AppDependencies["githubAvailability"],
-) {
-  if (
-    request.method !== "POST" ||
-    new URL(request.url).pathname !== "/api/auth/sign-in/social" ||
-    !githubAvailability.requiresFreshConsent()
-  ) {
-    return request;
-  }
-
-  try {
-    const body = (await request.clone().json()) as {
-      additionalParams?: Record<string, string>;
-      provider?: unknown;
-      [key: string]: unknown;
-    };
-    if (body.provider !== "github") {
-      return request;
-    }
-
-    const headers = new Headers(request.headers);
-    headers.delete("content-length");
-    return new Request(request, {
-      body: JSON.stringify({
-        ...body,
-        additionalParams: {
-          ...body.additionalParams,
-          prompt: "consent",
-        },
-      }),
-      headers,
-    });
-  } catch {
-    return request;
-  }
-}
-
-function requestSupportReferenceId(
-  context: HonoContext<EvlogVariables>,
-): string | undefined {
-  const { requestId } = context.get("log").getContext();
-  return typeof requestId === "string" ? requestId : undefined;
-}
-
-async function decorateAndRecordSupportFailure(
-  context: HonoContext<EvlogVariables>,
-  response: Response,
-  options: Pick<
-    CreateSupportReferenceFailureOptions,
-    "error" | "retryPolicy" | "writeOutcome"
-  > = {},
-) {
-  const requestId = requestSupportReferenceId(context);
-  const decorated = await decorateSupportFailureResponse(response, {
-    ...options,
-    requestId,
-  });
-
-  if (decorated.status >= 400) {
-    let payload: unknown;
-    try {
-      payload = await decorated.clone().json();
-    } catch {
-      payload = undefined;
-    }
-    payload = unwrapStandardRpcResponsePayload(payload);
-    const failure = createSupportReferenceFailure({
-      error: payload,
-      requestId,
-      supportReference:
-        decorated.headers.get(SUPPORT_REFERENCE_HEADER) ?? undefined,
-    });
-    recordSupportFailure(context.get("log"), failure);
-  }
-
-  return decorated;
-}
-
-function errorStatus(error: unknown) {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "status" in error &&
-    typeof error.status === "number" &&
-    error.status >= 400 &&
-    error.status <= 599
-  ) {
-    return error.status;
-  }
-  return 500;
-}
-
-function isClientShellPath(path: string) {
-  return path === "/rpc" || path.startsWith("/rpc/");
-}
-
 function isWebCaptureExtensionOrigin(origin: string) {
   return (
     origin.startsWith("chrome-extension://") ||
@@ -781,141 +301,6 @@ function resolveCorsOrigin(origin: string, allowedOrigins: readonly string[]) {
   if (allowedOrigins.includes(origin)) {
     return origin;
   }
-}
-
-function webCaptureToken(request: Request) {
-  const authorization = request.headers.get("authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    return null;
-  }
-  const token = authorization.slice("Bearer ".length).trim();
-  return token.length > 0 && token.length <= 512 ? token : null;
-}
-
-function webCaptureErrorResponse(error: unknown) {
-  if (error instanceof ZodError || error instanceof SyntaxError) {
-    return Response.json(
-      { code: "WEB_CAPTURE_INVALID_REQUEST" },
-      { headers: noStoreHeaders(), status: 400 },
-    );
-  }
-  if (error instanceof WebCaptureError) {
-    const status = {
-      WEB_CAPTURE_IDEMPOTENCY_CONFLICT: 409,
-      WEB_CAPTURE_LINK_NOT_FOUND: 401,
-      WEB_CAPTURE_LINK_REVOKED: 401,
-      WEB_CAPTURE_PAIRING_INVALID: 401,
-      WEB_CAPTURE_REAUTH_REQUIRED: 401,
-      WEB_CAPTURE_STAGING_UNAVAILABLE: 503,
-      WEB_CAPTURE_TARGET_NOT_FOUND: 404,
-    }[error.code];
-    return Response.json(
-      { code: error.code, message: error.message },
-      { headers: noStoreHeaders(), status },
-    );
-  }
-  return Response.json(
-    { code: "WEB_CAPTURE_UNAVAILABLE" },
-    { headers: noStoreHeaders(), status: 500 },
-  );
-}
-
-function webCaptureUnavailableResponse() {
-  return Response.json(
-    { code: "WEB_CAPTURE_UNAVAILABLE" },
-    { headers: noStoreHeaders(), status: 503 },
-  );
-}
-
-function webCaptureUnauthorizedResponse() {
-  return Response.json(
-    { code: "UNAUTHORIZED" },
-    { headers: noStoreHeaders(), status: 401 },
-  );
-}
-
-function fileAttachmentUnauthorizedResponse() {
-  return Response.json(
-    { code: "UNAUTHORIZED" },
-    { headers: noStoreHeaders(), status: 401 },
-  );
-}
-
-function fileAttachmentErrorResponse(error: unknown) {
-  if (error instanceof ZodError || error instanceof SyntaxError) {
-    return Response.json(
-      { code: "FILE_ATTACHMENT_INVALID_REQUEST" },
-      { headers: noStoreHeaders(), status: 400 },
-    );
-  }
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    typeof error.code === "string" &&
-    error.code.startsWith("FILE_ATTACHMENT_")
-  ) {
-    const status =
-      {
-        FILE_ATTACHMENT_ACCOUNT_NOT_FOUND: 404,
-        FILE_ATTACHMENT_IDEMPOTENCY_CONFLICT: 409,
-        FILE_ATTACHMENT_PREVIEW_UNAVAILABLE: 503,
-        FILE_ATTACHMENT_QUOTA_EXCEEDED: 412,
-        FILE_ATTACHMENT_REVISION_CONFLICT: 409,
-        FILE_ATTACHMENT_TARGET_NOT_FOUND: 404,
-        FILE_ATTACHMENT_UPLOAD_NOT_FOUND: 404,
-      }[error.code] ?? 400;
-    return Response.json(
-      {
-        code: error.code,
-        message:
-          "message" in error && typeof error.message === "string"
-            ? error.message
-            : "File Attachment request was rejected.",
-      },
-      { headers: noStoreHeaders(), status },
-    );
-  }
-  return Response.json(
-    { code: "FILE_ATTACHMENT_UNAVAILABLE" },
-    { headers: noStoreHeaders(), status: 500 },
-  );
-}
-
-function fileAttachmentUnavailableResponse() {
-  return Response.json(
-    { code: "FILE_ATTACHMENT_UNAVAILABLE" },
-    { headers: noStoreHeaders(), status: 503 },
-  );
-}
-
-async function parseFileAttachmentStageForm(request: Request) {
-  const form = await request.formData();
-  const file = form.get("file");
-  if (!(file instanceof File)) {
-    throw new ZodError([]);
-  }
-  const rawScope = form.get("scope");
-  const rawBaseRevision = form.get("baseRevision");
-  const rawAttachmentId = form.get("attachmentId");
-  const scope =
-    typeof rawScope === "string"
-      ? fileAttachmentScopeSchema.parse(JSON.parse(rawScope))
-      : undefined;
-  const input = fileAttachmentStageInputSchema.parse({
-    ...(scope ? { scope } : {}),
-    ...(typeof rawAttachmentId === "string"
-      ? { attachmentId: rawAttachmentId }
-      : {}),
-    ...(typeof rawBaseRevision === "string"
-      ? { baseRevision: Number(rawBaseRevision) }
-      : {}),
-    clientIdempotencyKey: form.get("clientIdempotencyKey"),
-    declaredMimeType: form.get("declaredMimeType") || file.type,
-    fileName: form.get("fileName") || file.name,
-    mode: form.get("mode"),
-  });
-  return { bytes: new Uint8Array(await file.arrayBuffer()), input };
 }
 
 export function createApp(dependencies: AppDependencies) {

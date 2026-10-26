@@ -11,16 +11,16 @@ import {
   documentSchema,
 } from "@cantiara/api/documents";
 import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+} from "@cantiara/api/mutation-contract-database";
 import type { Database } from "@cantiara/db";
 import { document, documentConflictDraft } from "@cantiara/db/schema/document";
 import { externalSurface } from "@cantiara/db/schema/external-surface";
 import { fileAttachment } from "@cantiara/db/schema/file-attachments";
 import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import { assertDocumentSectionAcyclic } from "./document-live-section-database";
 import {
   findOwnedDocument,

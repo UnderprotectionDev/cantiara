@@ -13,18 +13,17 @@ import {
   DocumentUnavailableError,
   documentSchema,
 } from "@cantiara/api/documents";
+import { MutationStaleBaseRevisionError } from "@cantiara/api/mutation-contract";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { documentTemplate } from "@cantiara/db/schema/document-template";
 import { project } from "@cantiara/db/schema/project";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
-
-import { MutationStaleBaseRevisionError } from "../../mutation-and-undo/server/mutation-contract";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import {
   findOwnedDocument,
   findOwnedProject,

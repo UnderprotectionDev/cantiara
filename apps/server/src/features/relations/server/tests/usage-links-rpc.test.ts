@@ -6,6 +6,11 @@ import {
   type MutationContract,
   type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
+import {
+  MutationConflictError,
+  MutationStaleBaseRevisionError,
+  MutationTargetNotFoundError,
+} from "@cantiara/api/mutation-contract";
 import type {
   UsageLink,
   UsageLinkMutationContracts,
@@ -16,11 +21,6 @@ import type {
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
-import {
-  MutationConflictError,
-  MutationStaleBaseRevisionError,
-  MutationTargetNotFoundError,
-} from "../../../mutation-and-undo/server/mutation-contract";
 
 const link: UsageLink = {
   createdAt: "2026-09-20T10:00:00.000Z",

@@ -23,12 +23,13 @@ import {
 } from "@cantiara/ui/components/radio-group";
 import { useForm, useStore } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
+import { usePanelFocus } from "../../hooks/use-panel-focus";
+import { errorText } from "../../lib/test-review-panel";
 import { allItems } from "../../lib/test-review-signal-lines";
 import type {
   TestReviewSignalActions,
   TestReviewSignalData,
 } from "../../lib/test-review-signal-types";
-import { errorText, usePanelFocus } from "../components/test-review-panel";
 
 interface FollowUpFormValues {
   mode: "existing" | "new";

@@ -1,4 +1,14 @@
 import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
+import {
+  MutationConflictError,
+  MutationStaleBaseRevisionError,
+  MutationTargetNotFoundError,
+} from "@cantiara/api/mutation-contract";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
 import { ProjectSourceRecordConflictError } from "@cantiara/api/project-source-records";
 import {
   openRiskSignal,
@@ -20,16 +30,6 @@ import {
   riskContextRelation,
 } from "@cantiara/db/schema/risk";
 import { and, asc, eq } from "drizzle-orm";
-import {
-  MutationConflictError,
-  MutationStaleBaseRevisionError,
-  MutationTargetNotFoundError,
-} from "../../mutation-and-undo/server/mutation-contract";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 
 export async function produceRiskSignal(
   executor: MutationDatabaseExecutor,

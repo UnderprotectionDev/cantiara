@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import type { GoalRelationChange } from "../../lib/goal-relation-selection";
-import { ProjectGoalMembershipView } from "./project-goal-membership-view";
+import { ProjectGoalMembershipView } from "./project-goal-membership-panel";
 
 export default function ProjectGoalMembership({
   projectId,

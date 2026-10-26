@@ -33,6 +33,12 @@ import {
   fingerprintMutationPayload,
   type MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
+import { MutationStaleBaseRevisionError } from "@cantiara/api/mutation-contract";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
 import {
   resolveProjectShellConfiguration,
   starterConfigurationSchema,
@@ -59,12 +65,6 @@ import {
   isNull,
   sql,
 } from "drizzle-orm";
-import { MutationStaleBaseRevisionError } from "../../mutation-and-undo/server/mutation-contract";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseDocumentDiscovery } from "../../record-discovery/server/document-discovery-database";
 import { openSpecChangeReviews } from "../../spec-change-review/server/spec-change-review-database";
 import { assertDocumentSectionAcyclic } from "./document-live-section-database";

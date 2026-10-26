@@ -4,8 +4,8 @@ import { Button } from "@cantiara/ui/components/button";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import type { FormEvent } from "react";
+import { usePanelFocus } from "../../hooks/use-panel-focus";
 import { closeSessionFormSchema } from "../../lib/test-review-forms";
-import { usePanelFocus } from "../components/test-review-panel";
 
 export default function CloseSessionForm({
   onCancel,

@@ -3,11 +3,11 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import { followUpWorkId } from "../../lib/test-review-panel";
 import {
   type TestReviewActions,
   TestReviewView,
 } from "../views/test-review-view";
-import { followUpWorkId } from "./test-review-panel";
 import type { TestReviewSignalActions } from "./test-review-signals";
 
 /** The Tests area's Test Review section; it gates and archives nothing. */

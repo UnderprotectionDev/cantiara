@@ -4,7 +4,7 @@ import { createRouterClient } from "@orpc/server";
 import { describe, expect, test } from "vitest";
 
 import { createReleaseEvidence } from "../release-evidence";
-import { createMemoryReleaseEvidence } from "../release-evidence-memory-store";
+import { createMemoryReleaseEvidence } from "./release-evidence-memory-store";
 
 const ACCOUNT = "account-1";
 const RELEASE_PROCEDURE = /release(evidence|checklist|openscope)/i;

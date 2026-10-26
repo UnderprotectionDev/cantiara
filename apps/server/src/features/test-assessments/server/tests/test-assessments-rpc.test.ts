@@ -7,7 +7,7 @@ import {
   accountId,
   createMemoryHarness,
   projectId,
-} from "../test-assessments-memory-store";
+} from "./test-assessments-memory-store";
 
 function setup(authenticated = true) {
   const { testAssessments } = createMemoryHarness([

@@ -10,9 +10,9 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm, useStore } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
+import { errorText } from "../../lib/test-review-panel";
 import { allItems, endLine } from "../../lib/test-review-signal-lines";
 import type { TestReviewSignalData } from "../../lib/test-review-signal-types";
-import { errorText } from "../components/test-review-panel";
 
 export default function TestReviewSupersedesForm({
   disabled,

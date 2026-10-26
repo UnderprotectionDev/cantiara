@@ -1,0 +1,69 @@
+import { Toaster } from "@cantiara/ui/components/sonner";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { HeadContent, Outlet, useMatches } from "@tanstack/react-router";
+import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import type { ReactNode } from "react";
+
+import Header from "@/components/header";
+import { ThemeProvider, useTheme } from "@/components/theme-provider";
+import { useFounderCommandPaletteSource } from "@/features/command-palette/hooks/use-command-palette-source";
+import { CommandPaletteProvider } from "@/features/command-palette/ui/components/command-palette";
+import { ContextRecordPreviewProvider } from "@/features/record-discovery/ui/components/context-record-preview";
+import { ClientShellProvider } from "@/features/web-macos-client/ui/components/client-shell";
+
+export default function AppRoot() {
+  return (
+    <>
+      <HeadContent />
+      <ClientShellProvider>
+        <ThemeProvider defaultTheme="dark">
+          <AppShell />
+        </ThemeProvider>
+      </ClientShellProvider>
+      <TanStackRouterDevtools position="bottom-left" />
+      <ReactQueryDevtools buttonPosition="bottom-right" position="bottom" />
+    </>
+  );
+}
+
+function AppShell() {
+  const { theme } = useTheme();
+  const isFounderContext = useMatches().some(
+    (match) => match.routeId === "/_auth",
+  );
+  const shellContent = (
+    <>
+      <Header />
+      <div className="min-h-0 overflow-auto" id="main-content" tabIndex={-1}>
+        <Outlet />
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      <div className="grid h-svh grid-rows-[auto_1fr]">
+        {isFounderContext ? (
+          <ContextRecordPreviewProvider>
+            <FounderCommandPaletteShell>
+              {shellContent}
+            </FounderCommandPaletteShell>
+          </ContextRecordPreviewProvider>
+        ) : (
+          shellContent
+        )}
+      </div>
+      <Toaster richColors theme={theme} />
+    </>
+  );
+}
+
+function FounderCommandPaletteShell({ children }: { children: ReactNode }) {
+  const commandPaletteSource = useFounderCommandPaletteSource();
+
+  return (
+    <CommandPaletteProvider source={commandPaletteSource}>
+      {children}
+    </CommandPaletteProvider>
+  );
+}

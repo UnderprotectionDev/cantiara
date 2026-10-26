@@ -1,4 +1,8 @@
 import {
+  createDatabaseMutationContract,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
+import {
   type Tag,
   type TagAssignment,
   type TagInlineRenameWriter,
@@ -19,11 +23,6 @@ import { project } from "@cantiara/db/schema/project";
 import { workspaceTag, workspaceTagAssignment } from "@cantiara/db/schema/tags";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import {
   createTags,
   TagNameConflictError,

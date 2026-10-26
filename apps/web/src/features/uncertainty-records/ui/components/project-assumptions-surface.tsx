@@ -6,7 +6,7 @@ import EvidenceFlowPanel from "@/features/evidence/ui/components/evidence-flow-p
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import type { AssumptionDraft } from "../forms/assumption-editor-form";
-import { ProjectAssumptionsView } from "./project-assumptions-view";
+import { ProjectAssumptionsView } from "./project-assumptions-panel";
 
 export default function ProjectAssumptionsSurface({
   projectId,

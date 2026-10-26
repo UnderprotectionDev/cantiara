@@ -14,6 +14,11 @@ import {
   type MutationPayload,
   type MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
+import type {
+  MutationDatabaseExecutor,
+  MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
+import { createDatabaseMutationContract } from "@cantiara/api/mutation-contract-database";
 import type { Database } from "@cantiara/db";
 import {
   captureInboxBulkView,
@@ -23,11 +28,6 @@ import {
 import { mutationTarget } from "@cantiara/db/schema/mutation";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import type {
-  MutationDatabaseExecutor,
-  MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
-import { createDatabaseMutationContract } from "../../mutation-and-undo/server/mutation-contract-database";
 import {
   type CaptureInboxCompletedOperation,
   CaptureInboxError,

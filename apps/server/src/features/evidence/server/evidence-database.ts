@@ -1,11 +1,11 @@
 import type { VersionPinnedEvidence } from "@cantiara/api/evidence";
+import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
 import {
   evidenceBinding,
   evidenceBindingHistory,
   recordOrigin,
 } from "@cantiara/db/schema/evidence";
 import { and, eq } from "drizzle-orm";
-import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 
 /** Caller validates and locks both owned ends in this same transaction. */
 export async function writeEvidenceBinding(

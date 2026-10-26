@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
-import { ProjectGoalMembershipView } from "../project-goal-membership-view";
+import { ProjectGoalMembershipView } from "../project-goal-membership-panel";
 import { ProjectGoalsView } from "../project-goals-view";
 
 vi.mock("@/components/app-link", () => ({

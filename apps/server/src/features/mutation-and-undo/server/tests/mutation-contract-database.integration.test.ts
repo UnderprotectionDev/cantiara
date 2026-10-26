@@ -3,6 +3,8 @@ import {
   accountPreferencesSchema,
   DEFAULT_ACCOUNT_PREFERENCES,
 } from "@cantiara/api/account-preferences";
+import { MutationUndoConflictError } from "@cantiara/api/mutation-contract";
+import { createDatabaseMutationContract } from "@cantiara/api/mutation-contract-database";
 import { createDb } from "@cantiara/db";
 import { accountPreferences, user } from "@cantiara/db/schema/auth";
 import {
@@ -12,10 +14,7 @@ import {
 } from "@cantiara/db/schema/mutation";
 import { and, eq } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
-
 import { accountPreferencesMutationTarget } from "../../../account-preferences/server/account-preferences-database";
-import { MutationUndoConflictError } from "../mutation-contract";
-import { createDatabaseMutationContract } from "../mutation-contract-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;

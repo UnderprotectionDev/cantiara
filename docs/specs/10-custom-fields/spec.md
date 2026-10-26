@@ -46,7 +46,7 @@ Proje bazlı özel alan tanımları yalnız kendi Projesinde yaşar. Desteklenen
 - **Seam (one).** Project Custom Fields — the product-facing definition/value interface. Configuration Mode is a host. Search/filter may be a thin API used later by Universal Search; this suite asserts the field is offered to search, not the full Search ranking. Playwright for Arama ve ilişki’s field matrix is this seam through the UI.
 - **UI copy at the seam.** The Configuration Mode editor exposes the labels `Custom field`, `Field name`, `Type`, `Options`, `Record types`, `Custom fields`, and `Add custom field`; the Playwright acceptance path checks these controls together with the closed type and binding catalogs.
 - **Modules under test.** Project Custom Fields only.
-- **Prior art.** Almost no Vitest/Playwright yet. First tests live at this seam. Evidence: [Arama ve ilişki](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (custom field type matrix; not Lookup/Formula; only selected types).
+- **Prior art.** Existing seam tests: `apps/server/src/features/custom-fields/server/tests/custom-fields.test.ts`, `apps/server/src/features/custom-fields/server/tests/custom-fields-rpc.test.ts`, `apps/server/src/features/custom-fields/server/tests/custom-fields-database.integration.test.ts`, `apps/web/e2e/custom-fields.e2e.ts`. Evidence: [Arama ve ilişki](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (custom field type matrix; not Lookup/Formula; only selected types).
 - **Required counterparts.** No Workspace-wide schema; no Lookup/Formula; no Session Test fields; no tag hierarchy; select options are not Workspace tags and this feature does not rename or merge tags (13).
 
 ## Out of Scope

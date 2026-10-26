@@ -8,7 +8,7 @@ import {
   ReleaseEvidenceReleaseNotFoundError,
   type ReleaseEvidenceSourceFacts,
 } from "../release-evidence";
-import { createMemoryReleaseEvidence } from "../release-evidence-memory-store";
+import { createMemoryReleaseEvidence } from "./release-evidence-memory-store";
 
 const ACCOUNT = "account-1";
 const ok = <T>(value: T) => ({ available: true as const, value });

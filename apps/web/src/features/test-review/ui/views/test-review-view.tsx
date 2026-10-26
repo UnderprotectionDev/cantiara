@@ -22,8 +22,9 @@ import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useState } from "react";
 import { accountDateTimeFormatter } from "@/features/account-preferences/lib/account-preferences-format";
+import { usePanelFocus } from "../../hooks/use-panel-focus";
 import type { TestResultEventDraft } from "../../lib/test-review-forms";
-import { errorText, usePanelFocus } from "../components/test-review-panel";
+import { errorText } from "../../lib/test-review-panel";
 import {
   type TestReviewSignalActions,
   type TestReviewSignalData,

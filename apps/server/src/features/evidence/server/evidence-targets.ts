@@ -1,4 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Closed target catalog, read sequentially.
+
+import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
 import type { SourceEvidenceTarget } from "@cantiara/api/source-evidence";
 import { assumption } from "@cantiara/db/schema/assumption";
 import { workspace } from "@cantiara/db/schema/auth";
@@ -9,7 +11,6 @@ import { project } from "@cantiara/db/schema/project";
 import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 
 const targets = {
   Work: work,

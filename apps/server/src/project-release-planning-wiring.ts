@@ -1,6 +1,6 @@
+import { mutationFailureKind } from "@cantiara/api/mutation-contract";
+import { createDatabaseMutationContract } from "@cantiara/api/mutation-contract-database";
 import type { Database } from "@cantiara/db";
-import { mutationFailureKind } from "./features/mutation-and-undo/server/mutation-contract";
-import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectReleasePlanning } from "./features/project-release-planning/server/project-release-planning-database";
 
 /**
