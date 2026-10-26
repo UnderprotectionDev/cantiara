@@ -1347,6 +1347,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ortam bağlantısı | `Environment link` | Proje Sürümüne bağlı dış ortam kaydı |
 | Sürüm durumu eylemleri | `Mark Published`, `Mark Cancelled` | `Published` ve `Cancelled` terminal durumlarına yalnız açık eylemle geçiş |
 | Üretim Olayı kaydet | `Record Production Incident` | Yeni Üretim Olayını başlık ve zamanla açma eylemi |
+| Üretim Olayı bağları | `Linked records`, `Link record`, `Remove link` | Üretim Olayına aynı Projenin Bug, GitHub PR, Proje Sürümü, Risk ve Kararını bağlama; bağlanan kaydın durumunu yazmaz |
+| Üretim Olayı Takip İşi | `Follow-up work`, `Create follow-up work`, `Preview`, `Preview changed` | Üretim Olayından yalnız önizleme sonrası onayla İş oluşturma; önizleme değişirse yeniden önizlenir, olay ve Bug yazılmaz |
 | GitHub bağlantı eylemleri | `Connect repository`, `Install GitHub App`, `Connect selected repositories`, `GitHub records` | Repository bağlama akışı ve bağlı salt okunur GitHub kayıtları |
 | GitHub eşitleme durumu | `Last synced`, `Last error`, `Retry after`, `Source not found` | Eşitleme sağlığı; `No access` erişim kaybını gösterir |
 | İlk bağlantı triage | `Skip triage`, `Preview Work to create` | Issue'lardan İş oluşturmayı atlama veya önizleme |

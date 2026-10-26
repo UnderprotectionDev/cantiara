@@ -1667,6 +1667,48 @@ describeDatabase(
       ).toBeNull();
     });
 
+    test("creating a Production Incident mints no Bug, Risk or Work and stays its own record", async () => {
+      if (!database) {
+        throw new Error("Database required");
+      }
+      const records = createDatabaseProjectSourceRecords(database);
+      const [, , , , incidentId] = sourceIds;
+      const created = await records.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "incident-no-side-effects",
+        detectedHow: "Customer email",
+        id: incidentId,
+        impact: "Checkout failed",
+        learning: null,
+        occurredAt: "2026-10-20T07:30:00.000Z",
+        projectId,
+        resolution: null,
+        rootCause: null,
+        sourceType: "Production Incident",
+        title: "Payments timeout",
+      });
+      expect(created).toMatchObject({
+        sourceType: "Production Incident",
+        status: "Open",
+      });
+      expect(
+        await database
+          .select({ id: workTable.id })
+          .from(workTable)
+          .where(eq(workTable.projectId, projectId)),
+      ).toEqual([]);
+      expect(
+        await database
+          .select({ id: risk.id })
+          .from(risk)
+          .where(eq(risk.projectId, projectId)),
+      ).toEqual([]);
+      expect(await records.find(accountId, "Risk", incidentId)).toBeNull();
+      expect(
+        await records.find(accountId, "Production Incident", incidentId),
+      ).toMatchObject({ id: incidentId });
+    });
+
     test("records source creation and explicit lifecycle transitions in mutation history", async () => {
       if (!database) {
         throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

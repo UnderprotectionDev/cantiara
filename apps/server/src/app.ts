@@ -68,6 +68,7 @@ import type {
   PriorityMetricsAccess,
 } from "@cantiara/api/priority-metrics";
 import type { ProductGapsAccess } from "@cantiara/api/product-gaps";
+import type { ProductionIncidentsAccess } from "@cantiara/api/production-incidents";
 import type { ProjectGoalsAccess } from "@cantiara/api/project-goals";
 import type { ProjectReleasePlanningAccess } from "@cantiara/api/project-release-planning";
 import type {
@@ -228,6 +229,7 @@ export interface AppDependencies {
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
   productGaps?: ProductGapsAccess;
+  productionIncidents?: ProductionIncidentsAccess;
   projectGoals?: ProjectGoalsAccess;
   projectReleasePlanning?: ProjectReleasePlanningAccess;
   projectShell?: ProjectShellAccess;
@@ -1265,6 +1267,7 @@ export function createApp(dependencies: AppDependencies) {
       projectShellMutationContracts: dependencies.projectShellMutationContracts,
       projectGoals: dependencies.projectGoals,
       projectReleasePlanning: dependencies.projectReleasePlanning,
+      productionIncidents: dependencies.productionIncidents,
       projectSourceRecords: dependencies.projectSourceRecords,
       documentEvidence: dependencies.documentEvidence,
       sourceEvidence: dependencies.sourceEvidence,

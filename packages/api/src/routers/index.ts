@@ -351,6 +351,15 @@ import {
   toolEscapeRecordSchema,
 } from "../product-gaps";
 import {
+  createProductionIncidentFollowUpInputSchema,
+  ProductionIncidentConflictError,
+  ProductionIncidentFollowUpStaleError,
+  previewProductionIncidentFollowUpInputSchema,
+  productionIncidentInputSchema,
+  productionIncidentsInputSchema,
+  setProductionIncidentLinkInputSchema,
+} from "../production-incidents";
+import {
   createProjectGoalInputSchema,
   ProjectGoalConflictError,
   projectGoalInputSchema,
@@ -4230,7 +4239,99 @@ async function projectReleasePlanningWrite<T>(
     throw error;
   }
 }
+function requireProductionIncidents(context: Context) {
+  if (!context.productionIncidents) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.productionIncidents;
+}
+async function productionIncidentWrite<T>(
+  targetId: string,
+  write: () => Promise<T | null>,
+): Promise<T> {
+  try {
+    const result = await write();
+    if (!result) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return result;
+  } catch (error) {
+    if (error instanceof ProductionIncidentFollowUpStaleError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: "PREVIEW_STALE", targetId },
+        defined: true,
+        message: "Preview changed",
+      });
+    }
+    if (error instanceof ProductionIncidentConflictError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: "CONFLICT", targetId },
+        defined: true,
+        message: "Conflict",
+      });
+    }
+    throw error;
+  }
+}
 export const appRouter = {
+  productionIncidents: protectedProcedure
+    .input(productionIncidentsInputSchema)
+    .handler(async ({ context, input }) => {
+      const overview = await requireProductionIncidents(context).overview(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!overview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return overview;
+    }),
+  productionIncidentDetail: protectedProcedure
+    .input(productionIncidentInputSchema)
+    .handler(async ({ context, input }) => {
+      const detail = await requireProductionIncidents(context).detail(
+        context.session.user.id,
+        input,
+      );
+      if (!detail) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return detail;
+    }),
+  previewProductionIncidentFollowUp: protectedProcedure
+    .input(previewProductionIncidentFollowUpInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireProductionIncidents(context).previewFollowUp(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return preview;
+    }),
+  createProductionIncidentFollowUp: protectedProcedure
+    .input(createProductionIncidentFollowUpInputSchema)
+    .handler(({ context, input }) =>
+      productionIncidentWrite(input.incidentId, () =>
+        requireProductionIncidents(context).createFollowUp(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setProductionIncidentLink: protectedProcedure
+    .input(setProductionIncidentLinkInputSchema)
+    .handler(({ context, input }) =>
+      productionIncidentWrite(input.incidentId, () =>
+        requireProductionIncidents(context).setLink(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
   projectReleases: protectedProcedure
     .input(projectReleasePlanningProjectInputSchema)
     .handler(async ({ context, input }) => {
