@@ -9,6 +9,7 @@ import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
 import { document } from "@cantiara/db/schema/document";
+import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { productionIncident } from "@cantiara/db/schema/production-incident";
 import { project } from "@cantiara/db/schema/project";
 import { projectMilestone } from "@cantiara/db/schema/project-milestone";
@@ -26,6 +27,7 @@ import {
   isNull,
   or,
   type SQL,
+  sql,
 } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
@@ -80,6 +82,65 @@ async function relatedIds(
       ),
     );
   return [...new Set(rows.map(({ id }) => id))];
+}
+
+/**
+ * The newest time each record's own history shows it entered its current
+ * status. Owners write full record snapshots as their history values
+ * (`{ milestone: ... }` / `{ projectRelease: ... }` with a `status`), so a
+ * later edit of a Reached milestone repeats the status; the transition is the
+ * row whose previous value's status differs. A Reached or Published story
+ * event is dated from that transition instead of a later unrelated edit
+ * (`updatedAt` stays the fallback when the history has no such entry).
+ */
+async function enteredCurrentStatusAt(
+  executor: Executor,
+  payloadKey: "milestone" | "projectRelease",
+  records: readonly { id: string; status: string }[],
+): Promise<Map<string, Date>> {
+  const idsByStatus = new Map<string, string[]>();
+  for (const { id, status } of records) {
+    const ids = idsByStatus.get(status);
+    if (ids) {
+      ids.push(id);
+    } else {
+      idsByStatus.set(status, [id]);
+    }
+  }
+  const nextStatus =
+    payloadKey === "milestone"
+      ? sql`(${mutationHistory.nextValue} -> 'milestone' ->> 'status')`
+      : sql`(${mutationHistory.nextValue} -> 'projectRelease' ->> 'status')`;
+  const previousStatus =
+    payloadKey === "milestone"
+      ? sql`(${mutationHistory.previousValue} -> 'milestone' ->> 'status')`
+      : sql`(${mutationHistory.previousValue} -> 'projectRelease' ->> 'status')`;
+  const batches = await Promise.all(
+    [...idsByStatus].map(([status, ids]) =>
+      executor
+        .select({
+          occurredAt: mutationHistory.occurredAt,
+          targetId: mutationHistory.targetId,
+        })
+        .from(mutationHistory)
+        .where(
+          and(
+            inArray(mutationHistory.targetId, ids),
+            sql`${nextStatus} = ${status} and ${previousStatus} is distinct from ${status}`,
+          ),
+        ),
+    ),
+  );
+  const enteredAt = new Map<string, Date>();
+  for (const rows of batches) {
+    for (const row of rows) {
+      const known = enteredAt.get(row.targetId);
+      if (!known || row.occurredAt > known) {
+        enteredAt.set(row.targetId, row.occurredAt);
+      }
+    }
+  }
+  return enteredAt;
 }
 
 async function readKinds(
@@ -227,27 +288,37 @@ async function readKinds(
     ),
   );
 
-  const milestones: Sourced =
+  const milestoneRows =
     milestoneScope === "none"
-      ? available([])
-      : available(
-          (
-            await executor
-              .select()
-              .from(projectMilestone)
-              .where(
-                and(
-                  eq(projectMilestone.projectId, projectId),
-                  inArray(projectMilestone.status, ["Reached", "Abandoned"]),
-                  milestoneScope,
-                ),
-              )
-              .orderBy(asc(projectMilestone.updatedAt))
-              .limit(MAX_EVENTS_PER_KIND)
-          ).map((row) =>
-            event("Milestone", row.id, row.title, row.updatedAt, row.status),
-          ),
-        );
+      ? []
+      : await executor
+          .select()
+          .from(projectMilestone)
+          .where(
+            and(
+              eq(projectMilestone.projectId, projectId),
+              inArray(projectMilestone.status, ["Reached", "Abandoned"]),
+              milestoneScope,
+            ),
+          )
+          .orderBy(asc(projectMilestone.updatedAt))
+          .limit(MAX_EVENTS_PER_KIND);
+  const milestoneEnteredAt = await enteredCurrentStatusAt(
+    executor,
+    "milestone",
+    milestoneRows,
+  );
+  const milestones: Sourced = available(
+    milestoneRows.map((row) =>
+      event(
+        "Milestone",
+        row.id,
+        row.title,
+        milestoneEnteredAt.get(row.id) ?? row.updatedAt,
+        row.status,
+      ),
+    ),
+  );
 
   const incidents: Sourced =
     incidentScope === "none"
@@ -302,36 +373,40 @@ async function readKinds(
         ),
       );
 
-  const releases: Sourced =
+  const releaseRows =
     releaseScope === "none"
-      ? available([])
-      : available(
-          (
-            await executor
-              .select()
-              .from(projectRelease)
-              .where(
-                and(
-                  eq(projectRelease.projectId, projectId),
-                  or(
-                    eq(projectRelease.status, "Published"),
-                    eq(projectRelease.status, "Cancelled"),
-                  ),
-                  releaseScope,
-                ),
-              )
-              .orderBy(asc(projectRelease.updatedAt))
-              .limit(MAX_EVENTS_PER_KIND)
-          ).map((row) =>
-            event(
-              "Project Release",
-              row.id,
-              row.versionLabel ? `${row.name} ${row.versionLabel}` : row.name,
-              row.updatedAt,
-              row.status,
+      ? []
+      : await executor
+          .select()
+          .from(projectRelease)
+          .where(
+            and(
+              eq(projectRelease.projectId, projectId),
+              or(
+                eq(projectRelease.status, "Published"),
+                eq(projectRelease.status, "Cancelled"),
+              ),
+              releaseScope,
             ),
-          ),
-        );
+          )
+          .orderBy(asc(projectRelease.updatedAt))
+          .limit(MAX_EVENTS_PER_KIND);
+  const releaseEnteredAt = await enteredCurrentStatusAt(
+    executor,
+    "projectRelease",
+    releaseRows,
+  );
+  const releases: Sourced = available(
+    releaseRows.map((row) =>
+      event(
+        "Project Release",
+        row.id,
+        row.versionLabel ? `${row.name} ${row.versionLabel}` : row.name,
+        releaseEnteredAt.get(row.id) ?? row.updatedAt,
+        row.status,
+      ),
+    ),
+  );
 
   return {
     "Code change": pending("GitHub history has not provided a story read yet."),
@@ -353,10 +428,12 @@ async function readKinds(
  * Reads only owner records that already exist: Decisions (made and withdrawn),
  * Documents, Screens, closed Work (with the closure reason of an abandonment),
  * Milestones that were reached or abandoned, Production Incidents, Validation
- * Records with a result, and Published or Cancelled Project Releases. Project
- * lifecycle changes and GitHub code changes have no owner history read yet, so
- * they are reported as unavailable instead of being invented. Nothing here
- * writes, and no field edit is selected.
+ * Records with a result, and Published or Cancelled Project Releases. A
+ * Milestone or Project Release event is dated from the owner's own Kayıt
+ * geçmişi transition into its current status, falling back to the record's
+ * updatedAt. Project lifecycle changes and GitHub code changes have no owner
+ * history read yet, so they are reported as unavailable instead of being
+ * invented. Nothing here writes, and no field edit is selected.
  */
 export function createDatabaseProjectHistorySources(
   database: Database,

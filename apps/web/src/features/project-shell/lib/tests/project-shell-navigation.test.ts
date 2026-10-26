@@ -55,6 +55,15 @@ describe("Project Shell Work navigation", () => {
       ),
     ).toBe("Technical Diagrams");
   });
+
+  test("round trips the always-reachable Project History surface", () => {
+    expect(ALWAYS_REACHABLE_SURFACES).toContain("Project History");
+    expect(navigationHash("Project History")).toBe("project-history");
+    expect(navigationSurfaceFromHash("project-history", [], [], [])).toBe(
+      "Project History",
+    );
+  });
+
   test("opens a Moodboard record under the Design area", () => {
     expect(
       navigationSurfaceFromHash("moodboard-board-1", ["Design"], [], []),
