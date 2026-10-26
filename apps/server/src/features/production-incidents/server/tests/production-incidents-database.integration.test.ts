@@ -132,6 +132,7 @@ suite("Production Incidents PostgreSQL seam", () => {
         name: "tidekit",
         shortCode: `I${accountId.slice(0, 8).toUpperCase()}`,
         starterConfiguration: "Blank Project",
+        workCount: 2,
         workspaceId,
       },
       {
@@ -139,6 +140,7 @@ suite("Production Incidents PostgreSQL seam", () => {
         name: "second",
         shortCode: `J${accountId.slice(0, 8).toUpperCase()}`,
         starterConfiguration: "Blank Project",
+        workCount: 1,
         workspaceId,
       },
       {
