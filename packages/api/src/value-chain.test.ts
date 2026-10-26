@@ -149,3 +149,14 @@ describe("Value Chain derivation", () => {
     ]);
   });
 });
+
+const WRITE_OR_VERDICT_NAME = /create|update|save|health|score|gate|publish/i;
+
+describe("Value Chain seam surface", () => {
+  it("exports no goal write, health or gate helper", async () => {
+    const exported = Object.keys(await import("./value-chain"));
+    expect(exported.filter((name) => WRITE_OR_VERDICT_NAME.test(name))).toEqual(
+      [],
+    );
+  });
+});

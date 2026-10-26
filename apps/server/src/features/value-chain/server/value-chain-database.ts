@@ -236,10 +236,7 @@ async function readScopes(
       );
     }
   }
-  return {
-    allWorkIds: unique([...direct.workIds, ...ofRelease.map((r) => r.workId)]),
-    releaseIds,
-  };
+  return releaseIds;
 }
 
 function relationTarget(row: typeof workRelation.$inferSelect) {
@@ -428,10 +425,9 @@ async function readGithub(
 async function readTests(
   { database, projectId }: Scope,
   facts: Facts,
-  chainWorkIds: string[],
-  allWorkIds: string[],
+  workIds: string[],
 ) {
-  const rows = allWorkIds.length
+  const rows = workIds.length
     ? await database
         .select({
           caseId: plannedTestCase.id,
@@ -455,7 +451,7 @@ async function readTests(
           and(
             eq(plannedTestCase.projectId, projectId),
             eq(plannedTestCaseRelation.targetType, "Work"),
-            inArray(plannedTestCaseRelation.targetId, allWorkIds),
+            inArray(plannedTestCaseRelation.targetId, workIds),
           ),
         )
     : [];
@@ -467,16 +463,14 @@ async function readTests(
       type: "Test",
       unavailable: null,
     });
-    const edge = bind(
-      { id: row.targetId, type: "Work" },
-      { id: row.caseId, type: "Test" },
-      row.relationId,
-      "Planned Test Case target",
+    facts.edges.push(
+      bind(
+        { id: row.targetId, type: "Work" },
+        { id: row.caseId, type: "Test" },
+        row.relationId,
+        "Planned Test Case target",
+      ),
     );
-    (chainWorkIds.includes(row.targetId)
-      ? facts.edges
-      : facts.associations
-    ).push(edge);
   }
 }
 
@@ -698,11 +692,11 @@ export function createDatabaseValueChain(database: Database): ValueChainAccess {
         goalRef,
         goalRelations,
       );
-      const { allWorkIds, releaseIds } = await readScopes(scope, facts, direct);
+      const releaseIds = await readScopes(scope, facts, direct);
       const decisionIds = await readWorkRelations(scope, facts, direct.workIds);
       await readEvidence(scope, facts, direct.workIds, decisionIds);
       await readGithub(scope, facts, direct.workIds);
-      await readTests(scope, facts, direct.workIds, allWorkIds);
+      await readTests(scope, facts, direct.workIds);
       await readObservations(scope, facts, releaseIds);
       readRelated(facts, goalRef, goalRelations);
       await resolveRecords(scope, facts);

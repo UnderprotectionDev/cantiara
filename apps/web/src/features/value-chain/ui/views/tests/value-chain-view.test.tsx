@@ -108,7 +108,10 @@ test("shows branches with why, source links, gaps and the unlinked section", () 
 test("renders no score, verdict or write control", () => {
   const view = render(deriveValueChain(facts));
   expect(view.textContent).not.toMatch(SCORE_OR_VERDICT);
-  expect(view.querySelectorAll("button, input, form").length).toBe(0);
+  expect(view.querySelectorAll("input, textarea, select, form").length).toBe(0);
+  expect(
+    [...view.querySelectorAll("button")].map((b) => b.textContent),
+  ).toEqual(["Fill this gap", "Fill this gap", "Fill this gap"]);
   expect(
     [...view.querySelectorAll("a")].some((a) =>
       WRITE_CONTROL.test(a.textContent ?? ""),
@@ -125,4 +128,21 @@ test("a deleted goal still shows what stays bound to it", () => {
   );
   expect(view.textContent).toContain("Permanently deleted");
   expect(view.textContent).toContain("Interview");
+});
+
+test("Fill this gap only offers navigation and says nothing is written", () => {
+  const view = render(deriveValueChain(facts));
+  const [first] = [...view.querySelectorAll("button")];
+  act(() => first?.click());
+  const text = view.textContent ?? "";
+  expect(text).toContain("Choose an existing record");
+  expect(text).toContain("Start a new record");
+  expect(text).toContain(
+    "Nothing is written until you save the relation in the owning feature. No other record changes status.",
+  );
+  const hrefs = [...view.querySelectorAll("a")].map((a) =>
+    a.getAttribute("href"),
+  );
+  expect(hrefs).toContain("/projects/p1#work-relations-w1");
+  expect(hrefs).toContain("/projects/p1#project-area-decisions");
 });

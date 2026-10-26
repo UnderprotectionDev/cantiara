@@ -2,6 +2,11 @@
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
+import {
+  plannedTestCase,
+  plannedTestCaseRelation,
+  plannedTestCaseVersion,
+} from "@cantiara/db/schema/planned-test";
 import { project } from "@cantiara/db/schema/project";
 import { projectGoal } from "@cantiara/db/schema/project-goal";
 import { projectGoalRelation } from "@cantiara/db/schema/project-goal-relation";
@@ -9,7 +14,7 @@ import { projectRelease } from "@cantiara/db/schema/project-release";
 import { projectReleaseScope } from "@cantiara/db/schema/project-release-planning";
 import { workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import {
   afterAll,
   afterEach,
@@ -171,5 +176,85 @@ suite("Value Chain PostgreSQL seam", () => {
         }),
       ).toBeNull();
     }
+  });
+
+  async function addPlannedTest(targetId: string, title: string) {
+    if (!db) {
+      throw new Error("Test database required");
+    }
+    const caseId = crypto.randomUUID();
+    const versionId = crypto.randomUUID();
+    await db.insert(plannedTestCase).values({ id: caseId, projectId });
+    await db.insert(plannedTestCaseVersion).values({
+      caseId,
+      changeKind: "Initial version",
+      expectedBehavior: "x",
+      id: versionId,
+      preconditions: "x",
+      purpose: "x",
+      scope: "x",
+      title,
+      version: 1,
+    });
+    await db.insert(plannedTestCaseRelation).values({
+      id: crypto.randomUUID(),
+      position: 0,
+      targetId,
+      targetType: "Work",
+      versionId,
+    });
+    return caseId;
+  }
+
+  test("a Related link never counts as a contribution", async () => {
+    const result = await chain();
+    const everyId = JSON.stringify(result?.branches);
+    expect(everyId).not.toContain(relatedDecision);
+    const related = result?.notLinked.find((i) => i.id === relatedDecision);
+    expect(related?.relation.label).toBe("Related");
+  });
+
+  test("a Karar cannot be stored as a contribution to the Goal", async () => {
+    await expect(
+      db
+        ?.insert(projectGoalRelation)
+        .values(goalRelation("Decision", decisionId)) ?? Promise.resolve(),
+    ).rejects.toThrow();
+  });
+
+  test("a test appears only under the Work it targets, never under the Goal or a stray Work", async () => {
+    const onChain = await addPlannedTest(contributingWork, "Chain test");
+    const onStray = await addPlannedTest(strayWork, "Stray test");
+    const result = await chain();
+    expect(result?.branches.map((b) => b.type)).not.toContain("Test");
+    const branch = result?.branches.find((b) => b.id === contributingWork);
+    expect(branch?.children.map((c) => c.id)).toContain(onChain);
+    expect(JSON.stringify(result)).not.toContain(onStray);
+  });
+
+  test("reading the chain writes no relation, record or status", async () => {
+    if (!db) {
+      throw new Error("Test database required");
+    }
+    const tables = [projectGoalRelation, workRelation, work, projectGoal];
+    const before = await Promise.all(
+      tables.map(async (table) => {
+        const [row] = await db.select({ n: count() }).from(table);
+        return row?.n;
+      }),
+    );
+    await chain();
+    const after = await Promise.all(
+      tables.map(async (table) => {
+        const [row] = await db.select({ n: count() }).from(table);
+        return row?.n;
+      }),
+    );
+    expect(after).toEqual(before);
+    const [goal] = await db
+      .select()
+      .from(projectGoal)
+      .where(eq(projectGoal.id, goalId));
+    expect(goal?.revision).toBe(1);
   });
 });

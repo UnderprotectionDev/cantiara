@@ -16,6 +16,12 @@ export const VALUE_CHAIN_RELATED_NOTE =
   "A Related link does not count as a contribution to this goal.";
 export const valueChainBoundByLabel = (relationType: string) =>
   `Bound by ${relationType}`;
+export const VALUE_CHAIN_FILL_GAP_LABEL = "Fill this gap";
+export const VALUE_CHAIN_CHOOSE_EXISTING_LABEL = "Choose an existing record";
+export const VALUE_CHAIN_START_NEW_LABEL = "Start a new record";
+export const VALUE_CHAIN_GAP_NOTE =
+  "Nothing is written until you save the relation in the owning feature. No other record changes status.";
+export const VALUE_CHAIN_OPEN_FAILED = "The record could not be opened.";
 export const VALUE_CHAIN_NOTE =
   "Derived from explicit records and relations. Nothing here is written, scored or inferred.";
 
