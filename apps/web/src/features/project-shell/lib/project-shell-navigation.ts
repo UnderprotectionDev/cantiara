@@ -10,6 +10,7 @@ export const ALWAYS_REACHABLE_SURFACES = [
   "Tags",
   "Smart Collection",
   "All Tools",
+  "Project History",
 ] as const;
 export const ALL_PROJECT_AREAS = PROJECT_AREA_OPTIONS;
 export const CONFIGURATION_HOST_GROUPS = ["Project", "Work"] as const;
@@ -105,6 +106,8 @@ export const DAILY_ACTION_MESSAGES: Record<DailyAction, string> = {
     "Planning remains outside Configuration Mode. Saved views are a separate Project configuration entry.",
 };
 
+/** The Project-level `Story Timeline` of `Project History`; never the landing surface. */
+export const PROJECT_HISTORY_HASH = "project-history";
 export const BACKLOG_HASH = "backlog";
 export const ROADMAP_HASH = "roadmap";
 const WORK_RELATIONS_HASH_PREFIX = "work-relations-";
@@ -243,6 +246,20 @@ export function documentRecordFromHash(
   }
 }
 
+/** The Work id of a `work-<id>` record hash, or null. */
+export function workRecordIdFromHash(hash: string) {
+  if (!isWorkRecordHash(hash)) {
+    return null;
+  }
+  try {
+    return (
+      decodeURIComponent(hash.slice(WORK_RECORD_HASH_PREFIX.length)) || null
+    );
+  } catch {
+    return null;
+  }
+}
+
 export function workRecordHref(projectId: string, workId: string) {
   return `/projects/${encodeURIComponent(projectId)}#${workRecordHash(workId)}`;
 }
@@ -279,6 +296,9 @@ export function navigationSurfaceFromHash(
   }
   if (hash === "tags") {
     return "Tags";
+  }
+  if (hash === PROJECT_HISTORY_HASH) {
+    return "Project History";
   }
   if (
     hash === "smart-collections" ||
@@ -363,6 +383,9 @@ export function navigationHash(surface: NavigationSurface) {
   }
   if (surface === "Tags") {
     return "tags";
+  }
+  if (surface === "Project History") {
+    return PROJECT_HISTORY_HASH;
   }
   if (surface === "Smart Collection") {
     return "smart-collections";

@@ -46,6 +46,7 @@ import type {
 } from "./priority-metrics";
 import type { ProductGapsAccess } from "./product-gaps";
 import type { ProjectGoalsAccess } from "./project-goals";
+import type { ProjectHistoryAccess } from "./project-history";
 import type { ProjectReleasePlanningAccess } from "./project-release-planning";
 import type {
   ProjectShellAccess,
@@ -217,6 +218,7 @@ export interface Context {
   priorityMetrics?: PriorityMetricsAccess;
   productGaps?: ProductGapsAccess;
   projectGoals?: ProjectGoalsAccess;
+  projectHistory?: ProjectHistoryAccess;
   projectReleasePlanning?: ProjectReleasePlanningAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;

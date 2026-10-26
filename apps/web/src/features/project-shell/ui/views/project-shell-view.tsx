@@ -10,15 +10,19 @@ import ProjectShellSurface, {
 export default function ProjectShellView({
   accountId,
   githubArea,
+  projectHistoryArea,
   projectId,
   releasesArea,
   releaseEvidenceArea,
+  workHistoryArea,
 }: {
   accountId?: string;
   githubArea?: ReactNode;
+  projectHistoryArea?: ReactNode;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
+  workHistoryArea?: (workId: string) => ReactNode;
 }) {
   const { accountPreferencesQuery, projectQuery, scopeTreeQuery } =
     useProjectShellData(accountId, projectId);
@@ -61,10 +65,12 @@ export default function ProjectShellView({
         accountId={accountId}
         githubArea={githubArea}
         project={projectQuery.data}
+        projectHistoryArea={projectHistoryArea}
         projectId={projectId}
         releaseEvidenceArea={releaseEvidenceArea}
         releasesArea={releasesArea}
         scopeTreeQuery={scopeTreeQuery}
+        workHistoryArea={workHistoryArea}
       />
     </main>
   );

@@ -1597,6 +1597,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | GitHub inceleme ve birleştirme notu | `Review and merge happen on GitHub.` | İnceleme ve birleştirmenin GitHub'da yapıldığını belirten not |
 | Öneriyi yok say | `Dismiss suggestion` | GitHub bağlama önerisini reddetme |
 | GitHub kaydını bağla / bağı kaldır | `Link GitHub record`, `Unlink GitHub record` | İş ile GitHub kaydı arasındaki bağı kurma ve kaldırma |
+| Proje Geçmişi | `Project History` | Hikâye ve etkinlik yüzeylerini birlikte taşıyan Proje geçmişi modülünün başlığı |
+| Gerçekleşen olayların zaman çizelgesi | `Story Timeline` | Proje veya Özellik türündeki İşte önemli gerçekleşmiş olayları kronolojik gösteren hikâye görünümü |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 
