@@ -9,15 +9,15 @@ import {
   updateBacklogOrderInputSchema,
 } from "@cantiara/api/backlog";
 import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
-import type { Database } from "@cantiara/db";
-import { projectBacklogOrder } from "@cantiara/db/schema/backlog";
-import { work } from "@cantiara/db/schema/work";
-import { and, asc, eq } from "drizzle-orm";
 import {
   createDatabaseMutationContract,
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
+} from "@cantiara/api/mutation-contract-database";
+import type { Database } from "@cantiara/db";
+import { projectBacklogOrder } from "@cantiara/db/schema/backlog";
+import { work } from "@cantiara/db/schema/work";
+import { and, asc, eq } from "drizzle-orm";
 import { isBacklogMember } from "./backlog-membership";
 import { applyBacklogOrder, normalizeBacklogOrder } from "./backlog-order";
 import { findOwnedBacklogProject } from "./backlog-owned-project";

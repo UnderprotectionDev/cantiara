@@ -1,4 +1,14 @@
 import {
+  MutationConflictError,
+  MutationStaleBaseRevisionError,
+  MutationTargetNotFoundError,
+} from "@cantiara/api/mutation-contract";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
+import {
   ProjectGoalConflictError,
   type ProjectGoalDetail,
   type ProjectGoalMembershipAccess,
@@ -20,16 +30,6 @@ import { workRelation } from "@cantiara/db/schema/relation";
 import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
-import {
-  MutationConflictError,
-  MutationStaleBaseRevisionError,
-  MutationTargetNotFoundError,
-} from "../../mutation-and-undo/server/mutation-contract";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import { ownedProject } from "./project-goal-access";
 
 type StoredRelation = typeof projectGoalRelation.$inferSelect;

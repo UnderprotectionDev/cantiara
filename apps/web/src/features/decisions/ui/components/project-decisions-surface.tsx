@@ -12,7 +12,7 @@ import {
   type DecisionDraft,
   type DecisionRecord,
   ProjectDecisionsView,
-} from "./project-decisions-view";
+} from "./project-decisions-panel";
 
 export default function ProjectDecisionsSurface({
   projectId,

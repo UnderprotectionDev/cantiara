@@ -14,7 +14,7 @@ import {
   createMemoryHarness,
   otherAccountId,
   projectId,
-} from "../github-integration-memory-store";
+} from "./github-integration-memory-store";
 
 const INSTALLATION = 900;
 const REPOSITORY = 11;

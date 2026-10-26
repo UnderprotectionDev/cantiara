@@ -11,7 +11,7 @@ import {
   type MemoryHarnessOptions,
   otherProjectId,
   projectId,
-} from "../test-report-memory-store";
+} from "./test-report-memory-store";
 
 const userCaller = {
   accountId,

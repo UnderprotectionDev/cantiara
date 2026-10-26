@@ -5,11 +5,10 @@ import {
   DEFAULT_ACCOUNT_PREFERENCES,
 } from "@cantiara/api/account-preferences";
 import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
+import type { MutationDatabaseTargetAdapter } from "@cantiara/api/mutation-contract-database";
 import type { Database } from "@cantiara/db";
 import { accountPreferences } from "@cantiara/db/schema/auth";
 import { and, eq, sql } from "drizzle-orm";
-
-import type { MutationDatabaseTargetAdapter } from "../../mutation-and-undo/server/mutation-contract-database";
 import {
   type AccountPreferencesStore,
   type AccountPreferencesWritableAccess,

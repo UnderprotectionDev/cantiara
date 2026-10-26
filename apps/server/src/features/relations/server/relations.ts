@@ -6,6 +6,11 @@ import type {
 } from "@cantiara/api/mutation-and-undo";
 import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
 import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
+import {
   type BlockingRelationHistoryEntry,
   type BlockingRelationStatus,
   type BrokenReferenceReason,
@@ -58,12 +63,6 @@ import {
 } from "@cantiara/db/schema/index";
 import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { and, asc, eq, inArray, isNull, ne, or } from "drizzle-orm";
-
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import { relationBlockingStatus } from "./relation-blocking-status";
 
 type WorkRecord = typeof work.$inferSelect;

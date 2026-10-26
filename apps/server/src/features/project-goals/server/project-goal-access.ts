@@ -1,7 +1,7 @@
+import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
 import { workspace } from "@cantiara/db/schema/auth";
 import { project } from "@cantiara/db/schema/project";
 import { and, eq } from "drizzle-orm";
-import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 
 export async function ownedProject(
   executor: MutationDatabaseExecutor,

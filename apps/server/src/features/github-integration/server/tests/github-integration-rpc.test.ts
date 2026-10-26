@@ -7,7 +7,7 @@ import {
   accountId,
   createMemoryHarness,
   projectId,
-} from "../github-integration-memory-store";
+} from "./github-integration-memory-store";
 
 function setup(authenticated = true) {
   const harness = createMemoryHarness();

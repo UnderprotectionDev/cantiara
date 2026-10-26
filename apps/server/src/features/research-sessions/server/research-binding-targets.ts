@@ -1,4 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: The fixed target catalog is read sequentially, without concurrent scans.
+
+import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
 import type {
   ResearchBindingPlan,
   ResearchBindingTargets,
@@ -14,7 +16,6 @@ import { work, workKeyAllocation } from "@cantiara/db/schema/work";
 import { ORPCError } from "@orpc/server";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { createFeedbackFromResearch } from "../../feedback/server/feedback-database";
-import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 
 export async function researchBindingTarget(
   executor: MutationDatabaseExecutor,

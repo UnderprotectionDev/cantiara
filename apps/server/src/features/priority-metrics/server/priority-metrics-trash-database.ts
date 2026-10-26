@@ -1,3 +1,4 @@
+import type { MutationIdempotencyKey } from "@cantiara/api/mutation-contract";
 import type { Database } from "@cantiara/db";
 import { auditRecord } from "@cantiara/db/schema/auth";
 import {
@@ -10,7 +11,6 @@ import { priorityMetricDefinition } from "@cantiara/db/schema/priority-metrics";
 import { securityEvent } from "@cantiara/db/schema/security-event";
 import type { SecurityEventDatabase } from "@cantiara/db/security-events";
 import { and, asc, eq, inArray, like, lte, ne, or } from "drizzle-orm";
-import type { MutationIdempotencyKey } from "../../mutation-and-undo/server/mutation-contract";
 
 export const PRIORITY_METRIC_PERMANENT_DELETE_EVENT_TYPE =
   "priority-metric.permanently-deleted";

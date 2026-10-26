@@ -42,7 +42,7 @@ import { orpc } from "@/utils/orpc";
 import {
   COPY_CONTEXT_AS_MARKDOWN_LABEL,
   createCopyContextAsMarkdownCommand,
-} from "./work-context-markdown";
+} from "../../lib/work-context-markdown";
 
 const WORK_CONTEXT_SECTION_ID_PATTERN = /[^a-z0-9]+/gi;
 

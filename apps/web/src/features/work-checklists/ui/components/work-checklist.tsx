@@ -10,8 +10,8 @@ import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
 import { useState } from "react";
 import { AppLink } from "@/components/app-link";
+import { resolveChecklistDrafts } from "../../lib/work-checklist-items";
 import { AddChecklistItemForm } from "../forms/add-checklist-item-form";
-import { resolveChecklistDrafts } from "./work-checklist-items";
 
 export default function WorkChecklist({
   checklist,

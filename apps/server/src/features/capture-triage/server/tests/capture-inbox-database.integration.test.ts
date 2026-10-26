@@ -1,4 +1,5 @@
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
+import { createDatabaseMutationContract } from "@cantiara/api/mutation-contract-database";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import {
@@ -14,8 +15,6 @@ import {
 } from "@cantiara/db/schema/mutation";
 import { and, eq, inArray } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
-
-import { createDatabaseMutationContract } from "../../../mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "../../../project-shell/server/project-shell-database";
 import { createDatabaseWorkLifecycle } from "../../../work-lifecycle/server/work-lifecycle-database";
 import {

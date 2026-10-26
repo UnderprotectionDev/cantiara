@@ -41,7 +41,7 @@
     "db:security:generate": "bun run --cwd packages/db db:security:generate",
     "db:security:migrate": "bun run --cwd packages/db db:security:migrate",
     "db:studio": "bun run --cwd packages/db db:studio",
-    "db:test": "vitest run packages/db/scripts scripts/dev-database-mode.test.ts scripts/local-dev-command.test.ts scripts/local-dev.test.ts scripts/development-session.test.ts",
+    "db:test": "vitest run packages/db/scripts apps/server/scripts/development-session.test.ts scripts/dev-database-mode.test.ts scripts/local-dev-command.test.ts scripts/local-dev.test.ts",
     "dev": "bun --env-file=apps/server/.env.local scripts/local-dev.ts",
     "dev:server": "bun --env-file=apps/server/.env.local scripts/local-dev.ts server",
     "dev:types": "tsc -b packages/api --watch",

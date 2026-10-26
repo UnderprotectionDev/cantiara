@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 
-import App from "./App.tsx";
+import { WebCaptureView } from "../../src/features/capture-triage/ui/views/web-capture-view";
 
 import "./style.css";
 
@@ -13,6 +13,6 @@ if (!rootElement) {
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <App />
+    <WebCaptureView />
   </React.StrictMode>,
 );

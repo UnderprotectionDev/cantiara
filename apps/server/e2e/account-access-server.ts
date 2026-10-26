@@ -2,6 +2,7 @@
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import { DESKTOP_API_PUBLISHED_AT } from "@cantiara/api/desktop-api-window";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
+import { createDatabaseMutationContract } from "@cantiara/api/mutation-contract-database";
 import { createAuthOptions } from "@cantiara/auth";
 import { createDb } from "@cantiara/db";
 import { account, session, user } from "@cantiara/db/schema/auth";
@@ -59,7 +60,6 @@ import { createDatabaseFocusPeriod } from "../src/features/focus-period/server/f
 import { createDatabaseMoodboardPersonalViews } from "../src/features/moodboards/server/moodboard-personal-views-database";
 import { createDatabaseMoodboards } from "../src/features/moodboards/server/moodboards-database";
 import { createDatabaseMoodboardMutationContracts } from "../src/features/moodboards/server/moodboards-mutation-database";
-import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabasePersonalReminders } from "../src/features/personal-reminders/server/personal-reminders-database";
 import { createDatabasePlannedTests } from "../src/features/planned-tests/server/planned-tests-database";
 import { createPrioritizationSessionsAccess } from "../src/features/prioritization-sessions/server/prioritization-sessions";

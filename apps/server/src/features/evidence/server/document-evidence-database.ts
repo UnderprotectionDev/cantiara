@@ -28,6 +28,15 @@ import {
   canonicalizeMutationPayload,
   type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
+import {
+  MutationConflictError,
+  MutationTargetNotFoundError,
+} from "@cantiara/api/mutation-contract";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
 import type { Database } from "@cantiara/db";
 import { assumption } from "@cantiara/db/schema/assumption";
 import { workspace } from "@cantiara/db/schema/auth";
@@ -44,15 +53,6 @@ import { project } from "@cantiara/db/schema/project";
 import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, eq, sql } from "drizzle-orm";
-import {
-  MutationConflictError,
-  MutationTargetNotFoundError,
-} from "../../mutation-and-undo/server/mutation-contract";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import { rethrowSourceError } from "../../sources-and-freshness/server/sources-database";
 import {
   reviewEvidenceBinding,

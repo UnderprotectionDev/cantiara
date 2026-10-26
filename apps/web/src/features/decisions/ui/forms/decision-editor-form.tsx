@@ -12,7 +12,7 @@ import {
 import type {
   DecisionDraft,
   DecisionRecord,
-} from "../components/project-decisions-view";
+} from "../components/project-decisions-panel";
 
 const FIELDS = [
   { name: "title", label: "Title", maxLength: 255, required: true },

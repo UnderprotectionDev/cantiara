@@ -4,6 +4,11 @@ import {
   type MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
 import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
+import {
   type CreateDocumentWorkBatchInput,
   type CreateDocumentWorkBatchPayload,
   createDocumentWorkBatchInputSchema,
@@ -38,11 +43,6 @@ import type {
   CustomFieldValueFinalization,
   CustomFieldValueFinalizationWriter,
 } from "../../custom-fields/server/custom-fields-mutation-database";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import {
   createDatabaseWorkRelations,
   type WorkRelationsMutationAdapter,

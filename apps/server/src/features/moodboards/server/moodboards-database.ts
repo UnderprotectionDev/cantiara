@@ -9,6 +9,7 @@ import {
   type MoodboardsAccess,
   moodboardSchema,
 } from "@cantiara/api/moodboards";
+import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import {
@@ -22,8 +23,6 @@ import {
 } from "@cantiara/db/schema/moodboard";
 import { project } from "@cantiara/db/schema/project";
 import { and, asc, desc, eq, inArray, type SQL } from "drizzle-orm";
-
-import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 
 export type MoodboardRecord = typeof moodboard.$inferSelect;
 

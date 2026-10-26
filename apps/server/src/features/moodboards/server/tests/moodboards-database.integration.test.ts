@@ -14,6 +14,7 @@ import {
   withVisualCaption,
   withVisualView,
 } from "@cantiara/api/moodboards";
+import { MutationStaleBaseRevisionError } from "@cantiara/api/mutation-contract";
 import { createDb } from "@cantiara/db";
 import { accountPreferences, user, workspace } from "@cantiara/db/schema/auth";
 import { completionEffectPreferences } from "@cantiara/db/schema/completion-effects";
@@ -41,8 +42,6 @@ import {
   expect,
   test,
 } from "vitest";
-
-import { MutationStaleBaseRevisionError } from "../../../mutation-and-undo/server/mutation-contract";
 import { createDatabaseMoodboardPersonalViews } from "../moodboard-personal-views-database";
 import { createDatabaseMoodboards } from "../moodboards-database";
 import { createDatabaseMoodboardMutationContracts } from "../moodboards-mutation-database";

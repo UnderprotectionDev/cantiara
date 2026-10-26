@@ -1,4 +1,9 @@
 import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
+import {
   type SpecChangeReviewMarkValue,
   type SpecChangeReviewMutationContracts,
   specChangeReviewMarkPayloadSchema,
@@ -11,12 +16,6 @@ import {
   specChangeReviewMark,
 } from "@cantiara/db/schema/spec-change-review";
 import { and, eq } from "drizzle-orm";
-
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import { toMark } from "./spec-change-review-candidates-database";
 import { createDatabaseFollowUpContract } from "./spec-change-review-follow-up-database";
 

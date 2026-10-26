@@ -12,7 +12,7 @@ import {
   createMemoryHarness,
   fixtureSession,
   projectId,
-} from "../test-review-memory-store";
+} from "./test-review-memory-store";
 
 const FORBIDDEN_NAME = /delete|archive|trash/i;
 const SECRET = "ghp_SuperSecretToken123";

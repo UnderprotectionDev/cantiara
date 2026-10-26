@@ -12,7 +12,7 @@ import { SupersessionSelectionForm } from "../forms/supersession-selection-form"
 import {
   DecisionSupersessionPreviewView,
   SupersessionRelationSummary,
-} from "./decision-supersession-view";
+} from "./decision-supersession-preview";
 
 export default function DecisionSupersessionControls({
   projectId,

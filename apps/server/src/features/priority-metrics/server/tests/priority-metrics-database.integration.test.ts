@@ -1,3 +1,4 @@
+import { MutationConflictError } from "@cantiara/api/mutation-contract";
 import { priorityMetricNameKey } from "@cantiara/api/priority-metrics";
 import { createDb } from "@cantiara/db";
 import { auditRecord, user, workspace } from "@cantiara/db/schema/auth";
@@ -17,7 +18,6 @@ import {
   test,
 } from "vitest";
 import { accountActorAlias } from "../../../account-access/server/github-identity-confirmation";
-import { MutationConflictError } from "../../../mutation-and-undo/server/mutation-contract";
 import { createDatabaseProjectShell } from "../../../project-shell/server/project-shell-database";
 import { PriorityMetricNameConflictError } from "../priority-metrics";
 import { createDatabasePriorityMetrics } from "../priority-metrics-database";

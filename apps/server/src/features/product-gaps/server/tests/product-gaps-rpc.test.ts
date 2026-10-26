@@ -6,7 +6,7 @@ import { describe, expect, test } from "vitest";
 import {
   accountId,
   createProductGapHarness,
-} from "../product-gaps-memory-store";
+} from "./product-gaps-memory-store";
 
 const PRODUCT_GAP_PROCEDURE = /product ?gap|tool ?escape/i;
 

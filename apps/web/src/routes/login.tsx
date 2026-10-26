@@ -1,11 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import GitHubSignIn from "@/features/account-access/ui/components/github-sign-in";
+import GitHubSignInView from "@/features/account-access/ui/views/github-sign-in-view";
 
 export const Route = createFileRoute("/login")({
-  component: RouteComponent,
+  component: GitHubSignInView,
 });
-
-function RouteComponent() {
-  return <GitHubSignIn />;
-}

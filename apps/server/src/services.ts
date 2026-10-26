@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
+import { createDatabaseMutationContract } from "@cantiara/api/mutation-contract-database";
 import { createAuth } from "@cantiara/auth";
 import { createDb, type Database } from "@cantiara/db";
 import { connectDisposable } from "@cantiara/db/disposable-connection";
@@ -72,7 +73,6 @@ import { createDatabaseMoodboardPersonalViews } from "./features/moodboards/serv
 import { createDatabaseMoodboardSnapshots } from "./features/moodboards/server/moodboard-snapshots-database";
 import { createDatabaseMoodboards } from "./features/moodboards/server/moodboards-database";
 import { createDatabaseMoodboardMutationContracts } from "./features/moodboards/server/moodboards-mutation-database";
-import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createPersonalReminderWorker } from "./features/personal-reminders/server/personal-reminder-worker";
 import { createDatabasePersonalReminders } from "./features/personal-reminders/server/personal-reminders-database";
 import { createDatabasePlannedTests } from "./features/planned-tests/server/planned-tests-database";

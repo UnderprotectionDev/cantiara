@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback } from "react";
 import { z } from "zod";
-import DailyFocusView from "@/features/daily-focus/ui/views/daily-focus-view";
-import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
+import DailyFocusPageView from "@/features/daily-focus/ui/views/daily-focus-page-view";
 
 export const Route = createFileRoute("/_auth/daily-focus")({
   validateSearch: (search) => {
@@ -17,27 +15,12 @@ export const Route = createFileRoute("/_auth/daily-focus")({
 
 function RouteComponent() {
   const { day, view } = Route.useSearch();
-  const navigate = Route.useNavigate();
   const { session } = Route.useRouteContext();
-  const selectDay = useCallback(
-    (selectedDay: string) => navigate({ search: { day: selectedDay } }),
-    [navigate],
-  );
-  const openCloseFocus = useCallback(
-    (selectedDay: string) =>
-      navigate({ search: { day: selectedDay, view: "close" } }),
-    [navigate],
-  );
   return (
-    <ClientShellContent>
-      <DailyFocusView
-        accountId={session.data?.user.id}
-        day={day}
-        onOpenCloseFocus={openCloseFocus}
-        onReturnToDailyFocus={selectDay}
-        onSelectDay={selectDay}
-        view={view}
-      />
-    </ClientShellContent>
+    <DailyFocusPageView
+      accountId={session.data?.user.id}
+      day={day}
+      view={view}
+    />
   );
 }

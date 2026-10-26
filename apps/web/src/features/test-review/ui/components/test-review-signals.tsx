@@ -8,6 +8,7 @@ import {
 } from "@cantiara/api/test-review-signals";
 import { Button } from "@cantiara/ui/components/button";
 import { useState } from "react";
+import { errorText } from "../../lib/test-review-panel";
 import { endLine } from "../../lib/test-review-signal-lines";
 import type {
   TestReviewSignalActions,
@@ -15,7 +16,6 @@ import type {
 } from "../../lib/test-review-signal-types";
 import TestReviewFollowUpForm from "../forms/test-review-follow-up-form";
 import TestReviewSupersedesForm from "../forms/test-review-supersedes-form";
-import { errorText } from "./test-review-panel";
 
 export type {
   TestReviewSignalActions,

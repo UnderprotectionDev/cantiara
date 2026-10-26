@@ -12,11 +12,11 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import type { FormEvent } from "react";
+import { usePanelFocus } from "../../hooks/use-panel-focus";
 import {
   type TestResultEventDraft,
   testResultEventFormSchema,
 } from "../../lib/test-review-forms";
-import { usePanelFocus } from "../components/test-review-panel";
 
 export default function TestResultEventForm({
   eventId,

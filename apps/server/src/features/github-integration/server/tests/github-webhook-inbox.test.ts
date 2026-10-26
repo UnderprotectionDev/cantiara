@@ -1,13 +1,12 @@
 import { describe, expect, test } from "vitest";
-
+import { createGitHubWebhookInbox } from "../github-webhook-inbox";
 import {
   accountId,
   createMemoryHarness,
   projectId,
   WEBHOOK_SECRET,
-} from "../github-integration-memory-store";
-import { createGitHubWebhookInbox } from "../github-webhook-inbox";
-import { createMemoryInboxStore } from "../github-webhook-inbox-memory-store";
+} from "./github-integration-memory-store";
+import { createMemoryInboxStore } from "./github-webhook-inbox-memory-store";
 
 const INSTALLATION = 900;
 const REPOSITORY = 11;

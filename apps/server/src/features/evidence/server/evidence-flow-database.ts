@@ -5,6 +5,7 @@ import {
   evidenceRoleSchema,
 } from "@cantiara/api/document-evidence";
 import { versionPinnedEvidenceSchema } from "@cantiara/api/evidence";
+import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
 import {
   researchSessionConsentGates,
   researchSessionRecordSchema,
@@ -17,7 +18,6 @@ import { project } from "@cantiara/db/schema/project";
 import { researchSession } from "@cantiara/db/schema/research-session";
 import { source, sourceVersion } from "@cantiara/db/schema/source";
 import { and, asc, eq } from "drizzle-orm";
-import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 import { evidenceProject, evidenceTarget } from "./evidence-targets";
 
 type Row = typeof evidenceBinding.$inferSelect;

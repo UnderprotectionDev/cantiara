@@ -1,6 +1,12 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Exact new file versions are validated and locked within the atomic session commit.
 
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
+import { MutationConflictError } from "@cantiara/api/mutation-contract";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
 import {
   confirmResearchSessionBindingInputSchema,
   previewResearchSessionBinding,
@@ -36,12 +42,6 @@ import {
 import { ORPCError } from "@orpc/server";
 import { and, asc, eq, lte } from "drizzle-orm";
 import { findFeedbackRecord } from "../../feedback/server/feedback-database";
-import { MutationConflictError } from "../../mutation-and-undo/server/mutation-contract";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import { commitResearchSessionBinding } from "./research-binding-commit";
 import {
   listResearchBindingTargets,

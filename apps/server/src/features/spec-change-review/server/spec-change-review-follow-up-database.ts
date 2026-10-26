@@ -1,4 +1,9 @@
 import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
+import {
   type SpecChangeReviewFollowUpValue,
   specChangeReviewFollowUpPayloadSchema,
   specFollowUpOrigin,
@@ -11,13 +16,7 @@ import {
   specChangeReviewFollowUp,
 } from "@cantiara/db/schema/spec-change-review";
 import { and, eq } from "drizzle-orm";
-
 import { insertConvertedRecord } from "../../evidence/server/evidence-record-creation";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import { toFollowUp } from "./spec-change-review-candidates-database";
 
 /** Locks the account's Project row of the review; the Work key is allocated under it. */

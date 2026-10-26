@@ -1,4 +1,15 @@
 import {
+  MutationApplyFailedError,
+  MutationConflictError,
+  MutationStaleBaseRevisionError,
+  MutationTargetNotFoundError,
+} from "@cantiara/api/mutation-contract";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
+import {
   createSourceInputSchema,
   SourceConflictError,
   type SourceRecord,
@@ -14,17 +25,6 @@ import { workspace } from "@cantiara/db/schema/auth";
 import { project } from "@cantiara/db/schema/project";
 import { source, sourceVersion } from "@cantiara/db/schema/source";
 import { and, asc, eq } from "drizzle-orm";
-import {
-  MutationApplyFailedError,
-  MutationConflictError,
-  MutationStaleBaseRevisionError,
-  MutationTargetNotFoundError,
-} from "../../mutation-and-undo/server/mutation-contract";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 
 export interface SourceMutationValue {
   record: SourceRecord | null;

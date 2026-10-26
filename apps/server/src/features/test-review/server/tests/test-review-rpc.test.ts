@@ -8,7 +8,7 @@ import {
   createMemoryHarness,
   fixtureSession,
   projectId,
-} from "../test-review-memory-store";
+} from "./test-review-memory-store";
 
 function setup(authenticated = true) {
   const { testReview } = createMemoryHarness([

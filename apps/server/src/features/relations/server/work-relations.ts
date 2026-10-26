@@ -1,3 +1,4 @@
+import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
 import type { BlockingRelationStatus } from "@cantiara/api/relations";
 import {
   SCOPE_TREE_RELATION_KIND_OPTIONS,
@@ -16,8 +17,6 @@ import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { project, work, workRelation } from "@cantiara/db/schema/index";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
-
-import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 import { relationBlockingStatus } from "./relation-blocking-status";
 import { describeWorkRecreateRelation } from "./work-recreate-relations";
 

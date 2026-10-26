@@ -8,6 +8,15 @@ import {
   type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 import {
+  MutationConflictError,
+  MutationTargetNotFoundError,
+} from "@cantiara/api/mutation-contract";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
+import {
   bindSourceEvidenceInputSchema,
   reviewSourceEvidenceInputSchema,
   type SourceEvidenceAccess,
@@ -32,15 +41,6 @@ import {
   evidenceTarget,
   listEvidenceTargets,
 } from "../../evidence/server/evidence-targets";
-import {
-  MutationConflictError,
-  MutationTargetNotFoundError,
-} from "../../mutation-and-undo/server/mutation-contract";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import { readRecord, rethrowSourceError } from "./sources-database";
 
 interface Selection {

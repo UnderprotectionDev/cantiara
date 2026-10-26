@@ -1,4 +1,5 @@
 import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
+import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
 import type {
   InstantiateWorkTemplateInput,
   ParsedCreateWorkTemplateInput,
@@ -23,10 +24,8 @@ import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { workTemplate } from "@cantiara/db/schema/work-template";
 import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
-
 import { assertValueMatchesDefinition } from "../../custom-fields/server/custom-fields";
 import { toCustomFieldDefinition } from "../../custom-fields/server/custom-fields-database";
-import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 import type { DatabaseWorkLifecycleAccess } from "../../work-lifecycle/server/work-lifecycle-database";
 
 type WorkTemplateRecord = typeof workTemplate.$inferSelect;

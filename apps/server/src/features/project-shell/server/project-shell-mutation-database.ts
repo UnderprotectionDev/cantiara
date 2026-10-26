@@ -1,4 +1,9 @@
 import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
 import type {
   ProjectProfile,
   ProjectShellMutationContracts,
@@ -14,12 +19,6 @@ import { workspace } from "@cantiara/db/schema/auth";
 import { priorityMetricDefinition } from "@cantiara/db/schema/priority-metrics";
 import { project, projectShortCode } from "@cantiara/db/schema/project";
 import { and, eq } from "drizzle-orm";
-
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import { starterPriorityMetricDefinitionValues } from "../../priority-metrics/server/priority-metrics-database";
 import {
   ProjectShortCodeConflictError,

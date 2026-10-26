@@ -46,7 +46,7 @@ Kurucu seçtiği Karar, Risk, Proje Sürümü, Belge, Üretim Olayı ve tamamlan
 - **What a good test is.** Tests observe Project Closure Summary through its public interface: source selection, preview of heading/link mapping, unsaved draft is not a Belge, save creates type `General` with Kökeni, source ana kayıtlar unchanged, no generated success prose, optional date comparison is neutral. They do not parse private markdown builders or assert Drizzle. Expected values are product rules (headings+links only, persist-on-save-only).
 - **Seam (one).** Project Closure Summary — the product-facing draft-and-save interface on a completing or abandoned Proje. Belge versioning after save is the documents module as collaborator.
 - **Modules under test.** Project Closure Summary only. Başlangıç iskeleti, Manuel Proje Güncellemesi, and sürüm notu are counterparts.
-- **Prior art.** No Vitest/Playwright suite yet. Contract tests at this seam. Evidence binds to [Dogfooding](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) and [Belge bütünlüğü](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari).
+- **Prior art.** There is no suite for this spec yet; the nearest pattern is `apps/server/src/features/project-release-planning/server/tests/project-release-planning-rpc.test.ts` (terminal results). Contract tests at this seam. Evidence binds to [Dogfooding](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) and [Belge bütünlüğü](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari).
 - **Required counterparts.** Unsaved draft absent from search/export; no success sentences in generated output; source ana kayıtlar unchanged by save; not a `Retrospective` starter skeleton; Proje status unchanged by save.
 
 ## Out of Scope

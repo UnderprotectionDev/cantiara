@@ -2,11 +2,11 @@ import {
   DocumentSectionCycleError,
   documentLiveDirectives,
 } from "@cantiara/api/documents";
+import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
 import { workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
 import { project } from "@cantiara/db/schema/project";
 import { eq, sql } from "drizzle-orm";
-import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 
 export async function assertDocumentSectionAcyclic(
   executor: MutationDatabaseExecutor,

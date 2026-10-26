@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
-
-import { createMemoryHarness } from "../github-integration-memory-store";
 import { handleGitHubWebhook } from "../github-webhook-route";
+import { createMemoryHarness } from "./github-integration-memory-store";
 
 function request(body: string, headers: Record<string, string>) {
   return new Request("https://api.example.test/api/github/webhook", {

@@ -11,7 +11,7 @@ import {
   createMemoryHarness,
   type MemoryHarnessOptions,
   projectId,
-} from "../test-report-memory-store";
+} from "./test-report-memory-store";
 
 const integration: VerifiedIntegration = {
   accountId,

@@ -1,4 +1,5 @@
 import type { DocumentEvidencePlan } from "@cantiara/api/document-evidence";
+import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
 import { assumption } from "@cantiara/db/schema/assumption";
 import { decision } from "@cantiara/db/schema/decision";
 import { openQuestion } from "@cantiara/db/schema/open-question";
@@ -6,7 +7,6 @@ import { project } from "@cantiara/db/schema/project";
 import { risk } from "@cantiara/db/schema/risk";
 import { work, workKeyAllocation } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
-import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 
 /** Record types a conversion can open; a Screen is never one of them. */
 export type ConvertedRecordType =

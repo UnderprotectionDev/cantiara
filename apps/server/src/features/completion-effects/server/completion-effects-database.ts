@@ -6,11 +6,10 @@ import {
   DEFAULT_COMPLETION_EFFECTS_PREFERENCES,
 } from "@cantiara/api/completion-effects";
 import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
+import type { MutationDatabaseTargetAdapter } from "@cantiara/api/mutation-contract-database";
 import type { Database } from "@cantiara/db";
 import { completionEffectPreferences } from "@cantiara/db/schema/completion-effects";
 import { and, eq } from "drizzle-orm";
-
-import type { MutationDatabaseTargetAdapter } from "../../mutation-and-undo/server/mutation-contract-database";
 
 type CompletionEffectPreferencesRecord =
   typeof completionEffectPreferences.$inferSelect;

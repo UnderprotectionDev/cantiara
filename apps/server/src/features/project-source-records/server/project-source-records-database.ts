@@ -7,6 +7,17 @@ import type {
   MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
 import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
+import {
+  MutationApplyFailedError,
+  MutationConflictError,
+  MutationStaleBaseRevisionError,
+  MutationTargetNotFoundError,
+} from "@cantiara/api/mutation-contract";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
 import { projectReleaseTransitionAllowed } from "@cantiara/api/project-release-planning";
 import {
   assumptionRecordSchema,
@@ -44,18 +55,6 @@ import { risk } from "@cantiara/db/schema/risk";
 import { validationRecord } from "@cantiara/db/schema/validation-record";
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
-
-import {
-  MutationApplyFailedError,
-  MutationConflictError,
-  MutationStaleBaseRevisionError,
-  MutationTargetNotFoundError,
-} from "../../mutation-and-undo/server/mutation-contract";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseDecisionSupersession } from "./decision-supersession-database";
 import {
   createDatabaseRiskSignals,

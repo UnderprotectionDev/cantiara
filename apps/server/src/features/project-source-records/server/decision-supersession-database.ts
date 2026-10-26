@@ -9,6 +9,16 @@ import {
 } from "@cantiara/api/decision-supersession";
 import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
 import {
+  MutationConflictError,
+  MutationStaleBaseRevisionError,
+  MutationTargetNotFoundError,
+} from "@cantiara/api/mutation-contract";
+import {
+  createDatabaseMutationContract,
+  type MutationDatabaseExecutor,
+  type MutationDatabaseTargetAdapter,
+} from "@cantiara/api/mutation-contract-database";
+import {
   decisionRecordSchema,
   ProjectSourceRecordConflictError,
 } from "@cantiara/api/project-source-records";
@@ -21,16 +31,6 @@ import { project } from "@cantiara/db/schema/project";
 import { usageLink, workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
-import {
-  MutationConflictError,
-  MutationStaleBaseRevisionError,
-  MutationTargetNotFoundError,
-} from "../../mutation-and-undo/server/mutation-contract";
-import {
-  createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
-  type MutationDatabaseTargetAdapter,
-} from "../../mutation-and-undo/server/mutation-contract-database";
 
 function conflict(projectId: string): never {
   throw new ProjectSourceRecordConflictError(projectId);

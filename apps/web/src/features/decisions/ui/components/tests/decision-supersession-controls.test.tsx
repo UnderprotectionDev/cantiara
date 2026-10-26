@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
-import { DecisionSupersessionPreviewView } from "../decision-supersession-view";
+import { DecisionSupersessionPreviewView } from "../decision-supersession-preview";
 
 const cancel = () => undefined;
 const confirm = () => Promise.resolve();

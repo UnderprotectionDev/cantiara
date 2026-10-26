@@ -9,13 +9,12 @@ import {
   gitHubRoutePermission,
 } from "@cantiara/api/github-integration";
 import { describe, expect, test } from "vitest";
-
+import { toWebhookEvents } from "../github-webhook-events";
 import {
   accountId,
   createMemoryHarness,
   projectId,
-} from "../github-integration-memory-store";
-import { toWebhookEvents } from "../github-webhook-events";
+} from "./github-integration-memory-store";
 
 const INSTALLATION = 900;
 const REPOSITORY = 11;

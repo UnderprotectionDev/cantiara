@@ -178,6 +178,8 @@ jobs:
         run: bun run check-types
       - name: Run web unit tests
         run: bun run --cwd apps/web test -- --fsModuleCache
+      - name: Run API unit tests
+        run: bun run --cwd packages/api test -- --fsModuleCache
 
   # Keep one worker per isolated database: requests within each shard share a
   # local client identity and rate-limit bucket. Run the reference-scale

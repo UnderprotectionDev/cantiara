@@ -1,3 +1,4 @@
+import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
 import {
   projectLifecycleStatusSchema,
   resolveProjectShellConfiguration,
@@ -8,8 +9,6 @@ import { workspace } from "@cantiara/db/schema/auth";
 import { priorityMetricDefinition } from "@cantiara/db/schema/priority-metrics";
 import { project, projectShortCode } from "@cantiara/db/schema/project";
 import { and, asc, eq } from "drizzle-orm";
-
-import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 import { starterPriorityMetricDefinitionValues } from "../../priority-metrics/server/priority-metrics-database";
 import {
   createProjectShell,

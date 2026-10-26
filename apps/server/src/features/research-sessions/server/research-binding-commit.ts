@@ -1,4 +1,6 @@
 import { canonicalizeMutationPayload } from "@cantiara/api/mutation-and-undo";
+import { MutationConflictError } from "@cantiara/api/mutation-contract";
+import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
 import {
   previewResearchSessionBinding,
   researchBindingPlanSchema,
@@ -9,8 +11,6 @@ import { researchSessionBindingPreview } from "@cantiara/db/schema/research-sess
 import { ORPCError } from "@orpc/server";
 import { and, eq } from "drizzle-orm";
 import { writeEvidenceBinding } from "../../evidence/server/evidence-database";
-import { MutationConflictError } from "../../mutation-and-undo/server/mutation-contract";
-import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 import {
   createResearchBindingTarget,
   researchBindingTarget,
