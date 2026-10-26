@@ -58,7 +58,9 @@ import type {
 } from "@cantiara/api/priority-metrics";
 import type { ProductGapsAccess } from "@cantiara/api/product-gaps";
 import type { ProductionIncidentsAccess } from "@cantiara/api/production-incidents";
+import type { ProjectActivityAccess } from "@cantiara/api/project-activity";
 import type { ProjectGoalsAccess } from "@cantiara/api/project-goals";
+import type { ProjectHistoryAccess } from "@cantiara/api/project-history";
 import type { ProjectReleasePlanningAccess } from "@cantiara/api/project-release-planning";
 import type {
   ProjectShellAccess,
@@ -158,7 +160,9 @@ export interface CreateContextOptions {
   priorityMetrics?: PriorityMetricsAccess;
   productGaps?: ProductGapsAccess;
   productionIncidents?: ProductionIncidentsAccess;
+  projectActivity?: ProjectActivityAccess;
   projectGoals?: ProjectGoalsAccess;
+  projectHistory?: ProjectHistoryAccess;
   projectReleasePlanning?: ProjectReleasePlanningAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
@@ -284,8 +288,10 @@ export async function createContext({
   gitHubIntegration,
   specChangeReview,
   specChangeReviewMutationContracts,
+  projectActivity,
   relations,
   releaseEvidence,
+  projectHistory,
   valueChain,
   tagMutationContracts,
   trustedProxyIps,
@@ -386,8 +392,10 @@ export async function createContext({
     gitHubIntegration,
     specChangeReview,
     specChangeReviewMutationContracts,
+    projectActivity,
     relations,
     releaseEvidence,
+    projectHistory,
     valueChain,
     auth: null,
     session,

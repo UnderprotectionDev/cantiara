@@ -1459,7 +1459,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yaşam döngüsü değişikliği | `Lifecycle change` | Proje Hikâyesi zaman çizelgesinde olay türü |
 | Kod değişikliği | `Code change` | Proje Hikâyesi zaman çizelgesinde olay türü |
 | Deney sonucu | `Experiment result` | Proje Hikâyesi zaman çizelgesinde olay türü |
-| Vazgeçme gerekçesi | `Abandonment rationale` | Vazgeçilen İşin Proje Hikâyesi olayındaki gerekçe etiketi |
+| Vazgeçme gerekçesi | `Abandonment rationale`, `Abandonment rationale: {text}` | Vazgeçilen İşin Proje Hikâyesi olayındaki gerekçe etiketi ve gerekçeli satır |
 | Kaynağa göre süz | `Filter by source`, `Any source` | Proje etkinlik akışında kaynak süzgeci ve tüm kaynakları kapsayan seçenek |
 | Olay türüne göre süz | `Filter by event type`, `Any event type` | Proje etkinlik akışında olay türü süzgeci ve tüm olay türlerini kapsayan seçenek |
 | Alan değişikliği | `Field change` | Etkinlik akışında olay türü süzgeci değeri |
@@ -1560,6 +1560,25 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Planlama: başlık | `Planning for <title>` | Test Açığının planlama bağlantıları dialogunun başlığı |
 | Kapsam kaynağı | `In scope through Work: <key>`, `Linked directly to this Project Release` | Test Özetinde Proje Sürümü delta satırının kapsam kaynağı |
 | Bu Release Evidence Pack değildir | `This is not the Release Evidence Pack.` | Test Özetinin Release Evidence Pack olmadığını söyleyen not |
+| Proje Etkinliği | `Project Activity` | Mevcut Kayıt geçmişinden türetilen filtrelenebilir atomik değişiklik görünümü |
+| Ne değişti? | `What changed?` | Proje Etkinliğinin cevapladığı soru etiketi |
+| Etkinlik filtreleri | `Source type`, `Event type`, `Apply filters`, `Clear filters` | Proje Etkinliğinin kaynak veya sistem türü ile olay türü filtre grupları ve eylemleri |
+| Eski değişiklikleri göster | `Show older changes` | Proje Etkinliğinde sonraki sayfayı yükleme |
+| Güvenlik redaksiyonu işareti | `Redacted for security. No content is shown.` | Proje Etkinliğinde redakte geçmiş satırının içeriksiz işareti |
+| Kaynak kapsamı | `Source coverage` | Proje Etkinliğinde kısmi veya eksik kaynakların nedenini listeleyen not |
+| Kayda atfedilmeyen geçmiş | `History not attributed to a Project record` | Proje Etkinliğinde bir Proje kaydına atfedilemeyen sahip geçmişini açan özet |
+| Her değişikliği göster / gizle | `Show each change`, `Hide each change` | Beş dakikalık sunum kümesindeki atomik satırları açıp kapatan düğme |
+| Kayıt geçmişi görünümü | `Record history`, `Older changes could not be loaded.` | Açık İş kaydının kendi Kayıt geçmişi bölümü ve daha eski değişiklikler yüklenemediğinde görünen uyarı |
+| Redakte değer satırı | `value redacted` | Proje Etkinliğinde gizli benzeri bir alanın değer yerine gösteren içeriksiz satırı |
+| Desteklenmeyen değer çifti | `changed (previous and next values are not shown for this field)` | Etkinlik akışında önceki–sonraki sunumu desteklenmeyen yapısal değerin satırı |
+| Süzgece uyan değişiklik yok | `No changes match these filters.` | Proje Etkinliğinde süzgeçlere uyan satır olmadığındaki boş durum |
+| Kaydın değişikliği yok | `No changes are recorded for this record yet.` | Kayıt geçmişi görünümünde henüz değişiklik olmadığındaki boş durum |
+| Yalnız en yeni geçmiş | `Only the newest history is read. Older changes are not listed.` | Proje Etkinliğinde kaynak penceresine ulaşıldığında gösterilen not |
+| Kaynak tesliminden | `from a source delivery` | Etkinlik satırında kökeni kaynak teslimi olan değişikliğin notu |
+| Önceki değişikliğin geri alınması | `undo of an earlier change` | Etkinlik satırında bir önceki değişikliğin geri alma girdisi olduğunun notu |
+| Etkinlik yükleme durumları | `Loading Project Activity…`, `Project Activity is unavailable.`, `Loading Record history…`, `Record history is unavailable.`, `Loading Story Timeline…`, `Story Timeline is unavailable.` | Proje geçmişi yüzeylerinin yükleme ve hata durumları |
+| Sunum kümesi başlığı | `<n> field changes`, `fields not shown` | Beş dakikalık sunum kümesinin satır sayısı başlığı ve alan adları gösterilmediğindeki özet |
+| Etkinlik erişilebilirlik adları | `Filter Project Activity`, `Previous and next values`, `Each change in <n> field changes` | Filtre formunun, önceki–sonraki değerler listesinin ve küme açılış listesinin erişilebilirlik adları |
 | Karar tarihi | `Decision date` | Karar kaydında kararın verildiği tarih alanı |
 | Yerine geçilen tarih | `Superseded on` | Yerine yeni Karar geçen Kararın tarih etiketi |
 | Geri çekilme tarihi | `Withdrawn on` | Geri çekilen Kararın tarih etiketi |
@@ -1614,6 +1633,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | GitHub inceleme ve birleştirme notu | `Review and merge happen on GitHub.` | İnceleme ve birleştirmenin GitHub'da yapıldığını belirten not |
 | Öneriyi yok say | `Dismiss suggestion` | GitHub bağlama önerisini reddetme |
 | GitHub kaydını bağla / bağı kaldır | `Link GitHub record`, `Unlink GitHub record` | İş ile GitHub kaydı arasındaki bağı kurma ve kaldırma |
+| Proje Geçmişi | `Project History` | Hikâye ve etkinlik yüzeylerini birlikte taşıyan Proje geçmişi modülünün başlığı |
+| Gerçekleşen olayların zaman çizelgesi | `Story Timeline` | Proje veya Özellik türündeki İşte önemli gerçekleşmiş olayları kronolojik gösteren hikâye görünümü |
+| Gerçekleşmiş olay yok | `No realized events yet.` | Story Timeline'da gösterilecek gerçekleşmiş olay olmadığında boş durum metni |
+| Hikâye olayı durumları | `Decided`, `Result recorded` | Story Timeline'da Karar olayının ve Deney/Doğrulama sonucu olayının durum etiketi |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 

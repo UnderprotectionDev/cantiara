@@ -3,6 +3,9 @@ import { useCallback } from "react";
 
 import GitHubIntegrationSurface from "@/features/github-integration/ui/components/github-integration-surface";
 import ProductionIncidentsView from "@/features/production-incidents/ui/views/production-incidents-view";
+import ProjectActivitySurface from "@/features/project-history/ui/components/project-activity-surface";
+import StoryTimelineSurface from "@/features/project-history/ui/components/story-timeline-surface";
+import WorkRecordHistorySurface from "@/features/project-history/ui/components/work-record-history-surface";
 import ProjectReleasesView from "@/features/project-release-planning/ui/views/project-releases-view";
 import ProjectShellView from "@/features/project-shell/ui/views/project-shell-view";
 import ReleaseEvidencePackSurface from "@/features/release-evidence/ui/components/release-evidence-pack-surface";
@@ -39,6 +42,17 @@ function RouteComponent() {
     [projectId],
   );
 
+  const workHistoryArea = useCallback(
+    (workId: string) => (
+      <WorkRecordHistorySurface
+        key={workId}
+        projectId={projectId}
+        workId={workId}
+      />
+    ),
+    [projectId],
+  );
+
   const valueChainArea = useCallback(
     (goalId: string) => (
       <ValueChainSurface goalId={goalId} key={goalId} projectId={projectId} />
@@ -53,10 +67,17 @@ function RouteComponent() {
         <GitHubIntegrationSurface key={projectId} projectId={projectId} />
       }
       productionArea={ProductionIncidentsView}
+      projectHistoryArea={
+        <>
+          <StoryTimelineSurface key={projectId} projectId={projectId} />
+          <ProjectActivitySurface key={projectId} projectId={projectId} />
+        </>
+      }
       projectId={projectId}
       releaseEvidenceArea={releaseEvidenceArea}
       releasesArea={ProjectReleasesView}
       valueChainArea={valueChainArea}
+      workHistoryArea={workHistoryArea}
     />
   );
 }

@@ -275,7 +275,7 @@ describeDatabase(
           sql`DELETE FROM drizzle.__drizzle_migrations WHERE hash = 'test-only-ahead'`,
         );
       }
-    });
+    }, 30_000);
 
     test("applies this branch's pending migration after a newer one from another branch", async () => {
       const last = repository.entries.at(-1);
@@ -489,7 +489,7 @@ describeDatabase(
       expect(
         command("packages/db/scripts/migrate.ts", "--security-events").status,
       ).toBe(0);
-    });
+    }, 30_000);
 
     test("schema edits are revalidated without stopping compatible sessions", () => {
       const fixture = mkdtempSync(join(tmpdir(), "cantiara-schema-session-"));

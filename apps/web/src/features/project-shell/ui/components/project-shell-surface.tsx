@@ -65,11 +65,13 @@ import {
   navigationHash,
   navigationSurfaceFromHash,
   PRIORITY_MAP_HASH,
+  PROJECT_HISTORY_HASH,
   projectSourceRecordFromHash,
   ROADMAP_HASH,
   SPEC_CHANGE_REVIEW_HASH,
   testGapRecordFromHash,
   workRecordHash,
+  workRecordIdFromHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
@@ -196,6 +198,16 @@ function projectTestsSurface(
         projectId={projectId}
       />
     </div>
+  ) : null;
+}
+
+/** The route composes `Project History`, so the shell never imports its `ui/`. */
+function projectHistorySurface(
+  activeHash: string,
+  projectHistoryArea?: ReactNode,
+) {
+  return projectHistoryArea && activeHash === PROJECT_HISTORY_HASH ? (
+    <div id={PROJECT_HISTORY_HASH}>{projectHistoryArea}</div>
   ) : null;
 }
 
@@ -462,11 +474,13 @@ function ProjectShellContent({
   accountFormattingPreferences,
   githubArea,
   project,
+  projectHistoryArea,
   productionArea,
   projectId,
   releasesArea,
   releaseEvidenceArea,
   scopeTreeQuery,
+  workHistoryArea,
   valueChainArea,
 }: {
   accountId?: string;
@@ -474,10 +488,12 @@ function ProjectShellContent({
   githubArea?: ReactNode;
   productionArea?: ProjectProductionArea;
   project: ProjectProfile;
+  projectHistoryArea?: ReactNode;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
   scopeTreeQuery: UseQueryResult<ScopeTree>;
+  workHistoryArea?: (workId: string) => ReactNode;
   valueChainArea?: (goalId: string) => ReactNode;
 }) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
@@ -618,6 +634,7 @@ function ProjectShellContent({
       projectId,
       releasesArea,
     ) ??
+    projectHistorySurface(activeHash, projectHistoryArea) ??
     projectProductionSurface(
       activeHash,
       accountFormattingPreferences,
@@ -697,6 +714,7 @@ function ProjectShellContent({
           initialWorkType={collectionWorkPrefill.smartCollectionWorkType}
           key={projectId}
           projectId={projectId}
+          workHistoryArea={workHistoryArea}
           workTypeWarning={collectionWorkTypeWarning}
         />
       );
@@ -843,6 +861,7 @@ function ProjectWorkSurface({
   configuration,
   initialWorkType,
   projectId,
+  workHistoryArea,
   workTypeWarning,
 }: {
   accountId?: string;
@@ -852,6 +871,7 @@ function ProjectWorkSurface({
   configuration: ProjectShellConfiguration;
   initialWorkType?: WorkType;
   projectId: string;
+  workHistoryArea?: (workId: string) => ReactNode;
   workTypeWarning?: (type: WorkType) => string | null;
 }) {
   const navigate = useNavigate();
@@ -862,6 +882,7 @@ function ProjectWorkSurface({
     useState<WorkStatusActionRequest | null>(null);
   const showSourceWork =
     isWorkRecordHash(activeHash) || isWorkRelationsHash(activeHash);
+  const sourceWorkId = workRecordIdFromHash(activeHash);
 
   function requestExplicitStatusAction(input: {
     status: WorkStatus;
@@ -969,6 +990,9 @@ function ProjectWorkSurface({
             </Suspense>
           </div>
         )}
+        {showSourceWork && sourceWorkId
+          ? workHistoryArea?.(sourceWorkId)
+          : null}
         <PrioritizationSurface projectId={projectId} />
       </div>
     );
