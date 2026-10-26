@@ -1670,6 +1670,14 @@ _Avoid_: genel belge sürümü, restore-point, sessiz son yazan kazanır
 Mevcut Kayıt geçmişinden türetilen, kaynak ve önceki–sonraki değerle incelenen atomik değişiklik görünümü; ürün hikâyesi veya Bildirim Merkezi değildir ([Proje Etkinliği](docs/prd/06-work-management-and-planning.md#proje-etkinliği)).
 _Avoid_: GitHub Activity, e-posta günlüğü, zaman çizelgesi hikâyesi, ikinci olay deposu
 
+**Proje Geçmişi**:
+Proje hikâyesini (gerçekleşen olayların zaman çizelgesi) ve atomik değişiklik izini (Proje Etkinliği) iki ayrı soruya cevap veren iki ayrı yüzey olarak taşıyan modül; tek feed değildir. UI: `Project History`.
+_Avoid_: Birleşik feed, Bildirim Merkezi, Proje genel bakışı
+
+**Gerçekleşen olayların zaman çizelgesi**:
+Proje veya Özellik türündeki İşte Karar, Belge, tasarım, İş, ulaşılan Kilometre Taşı, yaşam döngüsü değişikliği, kod değişikliği, Üretim Olayı, deney/doğrulama sonucu ve Proje Sürümü gibi önemli gerçekleşmiş olayları kronolojik dizen, alan düzeyi düzenlemeleri içermeyen ve her olayda kaynak ana kaydı açan hikâye görünümü; Dikkat sinyali üretmez ([gerçekleşen olayların zaman çizelgesi](docs/prd/06-work-management-and-planning.md#gerçekleşen-olayların-zaman-çizelgesi)). UI: `Story Timeline`, modül başlığı `Project History`.
+_Avoid_: Proje Etkinliği, Kapanış özeti, herkese açık gelişim akışı, otomatik başarı anlatısı, sürüm notu
+
 **Güvenli geri alma**:
 Ürünün ters işlemi deterministik hesaplayabildiği alan, ilişki, görünüm üstverisi ve atomik dönüşümlerde ilgisiz sonraki değişikliği sarmadan uygulanan geri alma ([değişiklik geçmişi](docs/prd/02-domain-model-and-lifecycle.md#değişiklik-geçmişi-aktör-ve-geri-alma)). UI: `Undo`.
 _Avoid_: Genel undo yığını, yayın geri alma, güvenlik redaksiyonunu geri alma

@@ -359,6 +359,10 @@ import {
   updateProjectGoalInputSchema,
 } from "../project-goals";
 import {
+  storyTimelineInputSchema,
+  storyTimelineSchema,
+} from "../project-history";
+import {
   ProjectReleasePlanningConflictError,
   projectReleasePlanningInputSchema,
   projectReleasePlanningProjectInputSchema,
@@ -1491,6 +1495,13 @@ function requireTestAssessments(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.testAssessments;
+}
+
+function requireProjectHistory(context: Context) {
+  if (!context.projectHistory) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectHistory;
 }
 
 function requireReleaseEvidence(context: Context) {
@@ -3545,6 +3556,21 @@ const TEST_ASSESSMENT_FAILURES: Record<string, PlannedTestFailure> = {
   TEST_ASSESSMENT_SOURCE_UNAVAILABLE: { message: null, status: "BAD_REQUEST" },
 };
 
+const PROJECT_HISTORY_FAILURES: Record<string, PlannedTestFailure> = {
+  PROJECT_HISTORY_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PROJECT_HISTORY_WORK_NOT_FEATURE: {
+    message: "Only a Feature has its own story.",
+    status: "BAD_REQUEST",
+  },
+  PROJECT_HISTORY_WORK_NOT_FOUND: {
+    message: "Work is unavailable.",
+    status: "NOT_FOUND",
+  },
+};
+
 const RELEASE_EVIDENCE_FAILURES: Record<string, PlannedTestFailure> = {
   RELEASE_EVIDENCE_CHECKLIST_FULL: { message: null, status: "BAD_REQUEST" },
   RELEASE_EVIDENCE_CHECKLIST_ITEM_NOT_FOUND: {
@@ -3645,6 +3671,32 @@ async function runTestAssessmentOperation<T>(
     }
     const failure = Object.hasOwn(TEST_ASSESSMENT_FAILURES, error.code)
       ? TEST_ASSESSMENT_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message:
+        failure.message ??
+        (error instanceof Error ? error.message : "Request refused."),
+    });
+  }
+}
+
+async function runProjectHistoryOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(PROJECT_HISTORY_FAILURES, error.code)
+      ? PROJECT_HISTORY_FAILURES[error.code]
       : undefined;
     if (!failure) {
       throw error;
@@ -7747,6 +7799,17 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runGitHubIntegrationOperation(() =>
         requireGitHubIntegration(context).dismissSignal(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectStoryTimeline: protectedProcedure
+    .input(storyTimelineInputSchema)
+    .output(storyTimelineSchema)
+    .handler(({ context, input }) =>
+      runProjectHistoryOperation(() =>
+        requireProjectHistory(context).storyTimeline(
           context.session.user.id,
           input,
         ),
