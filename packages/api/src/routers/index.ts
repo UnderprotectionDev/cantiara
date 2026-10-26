@@ -351,6 +351,10 @@ import {
   toolEscapeRecordSchema,
 } from "../product-gaps";
 import {
+  projectActivityInputSchema,
+  projectActivitySchema,
+} from "../project-activity";
+import {
   createProjectGoalInputSchema,
   ProjectGoalConflictError,
   projectGoalInputSchema,
@@ -1502,6 +1506,13 @@ function requireProjectHistory(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.projectHistory;
+}
+
+function requireProjectActivity(context: Context) {
+  if (!context.projectActivity) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectActivity;
 }
 
 function requireReleaseEvidence(context: Context) {
@@ -3567,6 +3578,10 @@ const PROJECT_HISTORY_FAILURES: Record<string, PlannedTestFailure> = {
   },
   PROJECT_HISTORY_WORK_NOT_FOUND: {
     message: "Work is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PROJECT_ACTIVITY_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
     status: "NOT_FOUND",
   },
 };
@@ -7813,6 +7828,14 @@ export const appRouter = {
           context.session.user.id,
           input,
         ),
+      ),
+    ),
+  projectActivity: protectedProcedure
+    .input(projectActivityInputSchema)
+    .output(projectActivitySchema)
+    .handler(({ context, input }) =>
+      runProjectHistoryOperation(() =>
+        requireProjectActivity(context).list(context.session.user.id, input),
       ),
     ),
   projectReleaseEvidencePack: protectedProcedure

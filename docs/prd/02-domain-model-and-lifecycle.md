@@ -1543,6 +1543,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Planlama: başlık | `Planning for <title>` | Test Açığının planlama bağlantıları dialogunun başlığı |
 | Kapsam kaynağı | `In scope through Work: <key>`, `Linked directly to this Project Release` | Test Özetinde Proje Sürümü delta satırının kapsam kaynağı |
 | Bu Release Evidence Pack değildir | `This is not the Release Evidence Pack.` | Test Özetinin Release Evidence Pack olmadığını söyleyen not |
+| Proje Etkinliği | `Project Activity` | Mevcut Kayıt geçmişinden türetilen filtrelenebilir atomik değişiklik görünümü |
+| Ne değişti? | `What changed?` | Proje Etkinliğinin cevapladığı soru etiketi |
+| Etkinlik filtreleri | `Source type`, `Event type`, `Apply filters`, `Clear filters` | Proje Etkinliğinin kaynak veya sistem türü ile olay türü filtre grupları ve eylemleri |
+| Eski değişiklikleri göster | `Show older changes` | Proje Etkinliğinde sonraki sayfayı yükleme |
+| Güvenlik redaksiyonu işareti | `Redacted for security. No content is shown.` | Proje Etkinliğinde redakte geçmiş satırının içeriksiz işareti |
 | Karar tarihi | `Decision date` | Karar kaydında kararın verildiği tarih alanı |
 | Yerine geçilen tarih | `Superseded on` | Yerine yeni Karar geçen Kararın tarih etiketi |
 | Geri çekilme tarihi | `Withdrawn on` | Geri çekilen Kararın tarih etiketi |
