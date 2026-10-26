@@ -13,7 +13,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
 import { NO_PROJECT_ACTIVITY_FILTERS } from "../../../lib/project-activity-filters";
-import { ProjectActivityView } from "../project-activity-view";
+import {
+  ProjectActivityView,
+  RecordActivityView,
+} from "../project-activity-view";
 
 vi.mock("@/components/app-link", () => ({
   AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
@@ -273,4 +276,46 @@ test("five-minute field changes form one accessible disclosure that lists every 
   expect(text).toContain("title: A → B");
   expect(text).toContain("title: B → C");
   expect(top[0]?.textContent).toContain("Status change");
+});
+
+test("a failed load-more is announced and the list stays", () => {
+  const view = render([entry({})], { hasMore: true, loadMoreFailed: true });
+  expect(view.querySelector("[role='alert']")?.textContent).toBe(
+    "Older changes could not be loaded.",
+  );
+  expect(view.textContent).toContain("Show older changes");
+});
+
+test("the record history shows the record's clustered entries", () => {
+  container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  act(() => {
+    root?.render(
+      <RecordActivityView
+        activity={activityOf([
+          entry({
+            id: "h1",
+            nextValue: { work: { title: "B" } },
+            previousValue: { work: { title: "A" } },
+          }),
+          entry({
+            id: "h2",
+            nextValue: { work: { title: "C" } },
+            occurredAt: "2026-05-01T10:02:00.000Z",
+            previousValue: { work: { title: "B" } },
+          }),
+        ])}
+        hasMore={false}
+        loadingMore={false}
+        loadMoreFailed={false}
+        onLoadMore={vi.fn()}
+        projectId="p1"
+      />,
+    );
+  });
+  expect(
+    container.querySelector("ol[aria-label='Record history']"),
+  ).not.toBeNull();
+  expect(container.textContent).toContain("2 field changes");
 });

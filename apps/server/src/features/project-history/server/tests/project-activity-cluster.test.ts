@@ -1,10 +1,10 @@
 import {
-  clusterProjectActivityRows,
   type ProjectActivityFacts,
   type ProjectActivityHistoryFact,
   projectActivityInputSchema,
   projectActivitySchema,
 } from "@cantiara/api/project-activity";
+import { clusterProjectActivityRows } from "@cantiara/api/project-activity-cluster";
 import {
   STORY_EVENT_KINDS,
   STORY_SOURCE_TYPES,
@@ -192,6 +192,46 @@ describe("Five-Minute Presentation Cluster", () => {
         .map((c) => c.actor.kind)
         .sort(),
     ).toEqual(["GitHub", "User"]);
+  });
+
+  test("different sources or deliveries never share a cluster", async () => {
+    const activity = await setup([
+      fact(0, { origin: SOURCE_ORIGIN }),
+      fact(1, { origin: { ...SOURCE_ORIGIN, sourceId: "source-2" } }),
+      fact(2, { origin: { ...SOURCE_ORIGIN, deliveryId: "delivery-2" } }),
+    ])();
+    expect(clusters(activity)).toHaveLength(0);
+    const same = await setup([
+      fact(0, { origin: SOURCE_ORIGIN }),
+      fact(1, { origin: SOURCE_ORIGIN }),
+    ])();
+    expect(clusters(same)).toHaveLength(1);
+  });
+
+  test("a filtered-out lifecycle row still closes a cluster; filters apply after clustering", async () => {
+    const history = [
+      fact(0, { next: { title: "B" } }),
+      fact(1, { next: { title: "C" }, previous: { title: "B" } }),
+      fact(2, { next: { status: "Done" }, previous: { status: "Todo" } }),
+      fact(3, { next: { title: "D" }, previous: { title: "C" } }),
+      fact(4, { next: { title: "E" }, previous: { title: "D" } }),
+    ];
+    const filtered = await setup(history)({ eventTypes: ["Field change"] });
+    const grouped = clusters(filtered);
+    expect(grouped).toHaveLength(2);
+    expect(grouped.map((cluster) => cluster.rows.length)).toEqual([2, 2]);
+    expect(filtered.rows).toHaveLength(4);
+    const unfiltered = await setup(history)();
+    expect(clusters(unfiltered)).toHaveLength(2);
+    const lone = await setup(history)({ eventTypes: ["Status change"] });
+    expect(lone.entries.map((entry) => entry.kind)).toEqual(["row"]);
+    const oneField = await setup([
+      fact(0, { next: { title: "B" } }),
+      fact(1, { next: { status: "Done" }, previous: { status: "Todo" } }),
+      fact(2, { next: { title: "C" }, previous: { title: "B" } }),
+    ])({ eventTypes: ["Field change"] });
+    expect(clusters(oneField)).toHaveLength(0);
+    expect(oneField.entries).toHaveLength(2);
   });
 
   test("does not cluster across records or across a human and a source origin", async () => {

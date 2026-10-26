@@ -1442,7 +1442,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yaşam döngüsü değişikliği | `Lifecycle change` | Proje Hikâyesi zaman çizelgesinde olay türü |
 | Kod değişikliği | `Code change` | Proje Hikâyesi zaman çizelgesinde olay türü |
 | Deney sonucu | `Experiment result` | Proje Hikâyesi zaman çizelgesinde olay türü |
-| Vazgeçme gerekçesi | `Abandonment rationale` | Vazgeçilen İşin Proje Hikâyesi olayındaki gerekçe etiketi |
+| Vazgeçme gerekçesi | `Abandonment rationale`, `Abandonment rationale: {text}` | Vazgeçilen İşin Proje Hikâyesi olayındaki gerekçe etiketi ve gerekçeli satır |
 | Kaynağa göre süz | `Filter by source`, `Any source` | Proje etkinlik akışında kaynak süzgeci ve tüm kaynakları kapsayan seçenek |
 | Olay türüne göre süz | `Filter by event type`, `Any event type` | Proje etkinlik akışında olay türü süzgeci ve tüm olay türlerini kapsayan seçenek |
 | Alan değişikliği | `Field change` | Etkinlik akışında olay türü süzgeci değeri |
@@ -1548,6 +1548,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Etkinlik filtreleri | `Source type`, `Event type`, `Apply filters`, `Clear filters` | Proje Etkinliğinin kaynak veya sistem türü ile olay türü filtre grupları ve eylemleri |
 | Eski değişiklikleri göster | `Show older changes` | Proje Etkinliğinde sonraki sayfayı yükleme |
 | Güvenlik redaksiyonu işareti | `Redacted for security. No content is shown.` | Proje Etkinliğinde redakte geçmiş satırının içeriksiz işareti |
+| Kaynak kapsamı | `Source coverage` | Proje Etkinliğinde kısmi veya eksik kaynakların nedenini listeleyen not |
+| Kayda atfedilmeyen geçmiş | `History not attributed to a Project record` | Proje Etkinliğinde bir Proje kaydına atfedilemeyen sahip geçmişini açan özet |
+| Her değişikliği göster / gizle | `Show each change`, `Hide each change` | Beş dakikalık sunum kümesindeki atomik satırları açıp kapatan düğme |
+| Kayıt geçmişi görünümü | `Record history`, `Older changes could not be loaded.` | Açık İş kaydının kendi Kayıt geçmişi bölümü ve daha eski değişiklikler yüklenemediğinde görünen uyarı |
 | Karar tarihi | `Decision date` | Karar kaydında kararın verildiği tarih alanı |
 | Yerine geçilen tarih | `Superseded on` | Yerine yeni Karar geçen Kararın tarih etiketi |
 | Geri çekilme tarihi | `Withdrawn on` | Geri çekilen Kararın tarih etiketi |
@@ -1604,6 +1608,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | GitHub kaydını bağla / bağı kaldır | `Link GitHub record`, `Unlink GitHub record` | İş ile GitHub kaydı arasındaki bağı kurma ve kaldırma |
 | Proje Geçmişi | `Project History` | Hikâye ve etkinlik yüzeylerini birlikte taşıyan Proje geçmişi modülünün başlığı |
 | Gerçekleşen olayların zaman çizelgesi | `Story Timeline` | Proje veya Özellik türündeki İşte önemli gerçekleşmiş olayları kronolojik gösteren hikâye görünümü |
+| Gerçekleşmiş olay yok | `No realized events yet.` | Story Timeline'da gösterilecek gerçekleşmiş olay olmadığında boş durum metni |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 

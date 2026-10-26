@@ -86,6 +86,27 @@ function toFact(
   };
 }
 
+type Executor = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/** Newest history of the Project's records in one owner table whose id is the target id. */
+function readOwned(
+  executor: Executor,
+  table: typeof document | typeof decision | typeof risk,
+  projectId: string,
+) {
+  return executor
+    .select({
+      history: mutationHistory,
+      label: table.title,
+      recordId: table.id,
+    })
+    .from(mutationHistory)
+    .innerJoin(table, eq(table.id, mutationHistory.targetId))
+    .where(eq(table.projectId, projectId))
+    .orderBy(desc(mutationHistory.occurredAt))
+    .limit(PROJECT_ACTIVITY_SOURCE_WINDOW);
+}
+
 export function createDatabaseProjectActivityStore(
   database: Database,
 ): ProjectActivityStore {
@@ -124,39 +145,9 @@ export function createDatabaseProjectActivityStore(
               .where(eq(work.projectId, projectId))
               .orderBy(...ordered)
               .limit(window),
-            executor
-              .select({
-                history: mutationHistory,
-                label: document.title,
-                recordId: document.id,
-              })
-              .from(mutationHistory)
-              .innerJoin(document, eq(document.id, mutationHistory.targetId))
-              .where(eq(document.projectId, projectId))
-              .orderBy(...ordered)
-              .limit(window),
-            executor
-              .select({
-                history: mutationHistory,
-                label: decision.title,
-                recordId: decision.id,
-              })
-              .from(mutationHistory)
-              .innerJoin(decision, eq(decision.id, mutationHistory.targetId))
-              .where(eq(decision.projectId, projectId))
-              .orderBy(...ordered)
-              .limit(window),
-            executor
-              .select({
-                history: mutationHistory,
-                label: risk.title,
-                recordId: risk.id,
-              })
-              .from(mutationHistory)
-              .innerJoin(risk, eq(risk.id, mutationHistory.targetId))
-              .where(eq(risk.projectId, projectId))
-              .orderBy(...ordered)
-              .limit(window),
+            readOwned(executor, document, projectId),
+            readOwned(executor, decision, projectId),
+            readOwned(executor, risk, projectId),
             executor
               .select({
                 history: mutationHistory,
@@ -188,31 +179,24 @@ export function createDatabaseProjectActivityStore(
         };
         const workLabel = (row: { label: string; recordKey: string }) =>
           `${row.recordKey} ${row.label}`;
-        for (const row of works) {
-          push(
-            toFact(
-              row.history,
-              {
-                label: workLabel(row),
-                recordId: row.recordId,
-                recordType: "Work",
-              },
-              false,
-            ),
-          );
-        }
-        for (const row of relations) {
-          push(
-            toFact(
-              row.history,
-              {
-                label: workLabel(row),
-                recordId: row.recordId,
-                recordType: "Work",
-              },
-              true,
-            ),
-          );
+        const withKey: [typeof works, boolean][] = [
+          [works, false],
+          [relations, true],
+        ];
+        for (const [rows, relation] of withKey) {
+          for (const row of rows) {
+            push(
+              toFact(
+                row.history,
+                {
+                  label: workLabel(row),
+                  recordId: row.recordId,
+                  recordType: "Work",
+                },
+                relation,
+              ),
+            );
+          }
         }
         const simple: [typeof documents, ProjectActivityRecordType][] = [
           [documents, "Document"],

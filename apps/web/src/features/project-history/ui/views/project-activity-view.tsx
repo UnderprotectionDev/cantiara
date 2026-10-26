@@ -12,14 +12,19 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { useCallback, useId, useState } from "react";
 import { AppLink } from "@/components/app-link";
-import type { ProjectActivityFilters } from "../../lib/project-activity-filters";
+import {
+  type ProjectActivityFilters,
+  projectActivityFiltersKey,
+} from "../../lib/project-activity-filters";
 import {
   activityActorText,
   activityTimeText,
   activityValueText,
 } from "../../lib/project-activity-format";
-import { projectActivitySourceHref } from "../../lib/project-activity-links";
+import { projectRecordHref } from "../../lib/project-record-links";
 import { ProjectActivityFilterForm } from "../forms/project-activity-filter-form";
+
+const RECORD_HISTORY_LABEL = "Record history";
 
 function ChangeLine({ change }: { change: ProjectActivityChange }) {
   const { values } = change;
@@ -65,13 +70,7 @@ function ActivityRow({
         {`${row.eventType} · ${row.source.recordType} · ${row.source.label}`}
       </p>
       <p className="text-muted-foreground text-sm">
-        <span>
-          {activityActorText(
-            row.actor.kind,
-            row.actor.actorId,
-            row.actor.authorizingUserId,
-          )}
-        </span>
+        <span>{activityActorText(row.actor)}</span>
         {" · "}
         <time dateTime={row.occurredAt}>
           {activityTimeText(row.occurredAt)}
@@ -92,7 +91,7 @@ function ActivityRow({
       <AppLink
         aria-label={`${PROJECT_ACTIVITY_OPEN_SOURCE_LABEL}: ${row.source.label}`}
         className="text-sm underline underline-offset-2"
-        href={projectActivitySourceHref(projectId, row.source)}
+        href={projectRecordHref(projectId, row.source)}
       >
         {PROJECT_ACTIVITY_OPEN_SOURCE_LABEL}
       </AppLink>
@@ -110,11 +109,7 @@ function ActivityCluster({
   const [open, setOpen] = useState(false);
   const listId = useId();
   const toggle = useCallback(() => setOpen((value) => !value), []);
-  const actor = activityActorText(
-    cluster.actor.kind,
-    cluster.actor.actorId,
-    cluster.actor.authorizingUserId,
-  );
+  const actor = activityActorText(cluster.actor);
   return (
     <li className="space-y-2 rounded-md border border-border/60 p-3">
       <p className="font-medium">
@@ -193,6 +188,7 @@ export function ProjectActivityView({
   activity,
   filters,
   hasMore,
+  loadMoreFailed = false,
   loadingMore,
   onApplyFilters,
   onLoadMore,
@@ -201,6 +197,7 @@ export function ProjectActivityView({
   activity: ProjectActivity;
   filters: ProjectActivityFilters;
   hasMore: boolean;
+  loadMoreFailed?: boolean;
   loadingMore: boolean;
   onApplyFilters: (filters: ProjectActivityFilters) => void;
   onLoadMore: () => void;
@@ -222,7 +219,7 @@ export function ProjectActivityView({
       </header>
       <ProjectActivityFilterForm
         filters={filters}
-        key={`${filters.sourceTypes.join()}|${filters.eventTypes.join()}`}
+        key={projectActivityFiltersKey(filters)}
         onApply={onApplyFilters}
       />
       {notes.length > 0 ? (
@@ -266,9 +263,33 @@ export function ProjectActivityView({
           projectId={projectId}
         />
       )}
+      <ShowOlderChanges
+        failed={loadMoreFailed}
+        hasMore={hasMore}
+        loading={loadingMore}
+        onLoadMore={onLoadMore}
+      />
+    </section>
+  );
+}
+
+function ShowOlderChanges({
+  failed,
+  hasMore,
+  loading,
+  onLoadMore,
+}: {
+  failed: boolean;
+  hasMore: boolean;
+  loading: boolean;
+  onLoadMore: () => void;
+}) {
+  return (
+    <>
+      {failed ? <p role="alert">Older changes could not be loaded.</p> : null}
       {hasMore ? (
         <Button
-          disabled={loadingMore}
+          disabled={loading}
           onClick={onLoadMore}
           type="button"
           variant="outline"
@@ -276,6 +297,49 @@ export function ProjectActivityView({
           Show older changes
         </Button>
       ) : null}
+    </>
+  );
+}
+
+/**
+ * The Kayıt geçmişi of one Work record: the same clustered derivation of
+ * `projectActivity`, narrowed to that record. Read-only.
+ */
+export function RecordActivityView({
+  activity,
+  hasMore,
+  loadMoreFailed,
+  loadingMore,
+  onLoadMore,
+  projectId,
+}: {
+  activity: ProjectActivity;
+  hasMore: boolean;
+  loadMoreFailed: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+  projectId: string;
+}) {
+  return (
+    <section aria-label={RECORD_HISTORY_LABEL} className="space-y-3">
+      <h3 className="font-medium text-lg">{RECORD_HISTORY_LABEL}</h3>
+      {activity.rows.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          No changes are recorded for this record yet.
+        </p>
+      ) : (
+        <ProjectActivityEntries
+          entries={activity.entries}
+          label={RECORD_HISTORY_LABEL}
+          projectId={projectId}
+        />
+      )}
+      <ShowOlderChanges
+        failed={loadMoreFailed}
+        hasMore={hasMore}
+        loading={loadingMore}
+        onLoadMore={onLoadMore}
+      />
     </section>
   );
 }

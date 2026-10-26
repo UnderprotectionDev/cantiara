@@ -7,6 +7,11 @@ import {
   type MutationUndoKind,
   mutationActorTypeSchema,
 } from "./mutation-and-undo";
+import {
+  compareProjectActivityRowsNewestFirst,
+  projectActivityEntriesOfRows,
+  withProjectActivityGroups,
+} from "./project-activity-cluster";
 
 /**
  * Project Activity seam (spec 68, Proje Etkinliği).
@@ -173,6 +178,12 @@ export const projectActivityRowSchema = z
     actor: projectActivityActorSchema,
     changes: z.array(projectActivityChangeSchema),
     eventType: projectActivityEventTypeSchema,
+    /**
+     * Presentation group: the id of the oldest row of the five-minute cluster
+     * this row belongs to (or its own id). Decided over the unfiltered
+     * sequence, so a filter never merges rows across a hidden boundary.
+     */
+    group: z.string(),
     id: z.string(),
     occurredAt: z.string(),
     origin: projectActivityOriginSchema,
@@ -294,8 +305,9 @@ const IGNORED_FIELDS = new Set([
   "statusChangedAt",
   "updatedAt",
 ]);
+/** Any key (field name or nested key) that may hold a secret, case-insensitive. */
 const SECRET_FIELD =
-  /secret|token|password|passphrase|credential|api[-_]?key|private[-_]?key|authorization/i;
+  /secret|token|password|passphrase|credential|authorization|cookie|api|key/i;
 const STATUS_FIELDS = new Set(["status", "life"]);
 const ARCHIVE_FIELDS = new Set(["archivedAt", "trashedAt", "deletedAt"]);
 const ARCHIVE_STATUS_VALUES = new Set(["Archived", "Trash"]);
@@ -381,12 +393,29 @@ function clip(value: string | null): {
   return { text: value, truncated: false };
 }
 
+/** True when a secret-like key appears anywhere inside a structured value. */
+function hasSecretKey(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some(hasSecretKey);
+  }
+  if (!isObject(value)) {
+    return false;
+  }
+  return Object.entries(value).some(
+    ([key, entry]) => SECRET_FIELD.test(key) || hasSecretKey(entry),
+  );
+}
+
 function changeFor(
   field: string,
   previous: Json | undefined,
   next: Json | undefined,
 ): ProjectActivityChange {
-  if (SECRET_FIELD.test(field)) {
+  if (
+    SECRET_FIELD.test(field) ||
+    hasSecretKey(previous) ||
+    hasSecretKey(next)
+  ) {
     return { field, values: { kind: "redacted" } };
   }
   if (
@@ -490,6 +519,7 @@ function toRow(fact: ProjectActivityHistoryFact): ProjectActivityRow {
     },
     changes,
     eventType: classify(fact, previous, next, changes),
+    group: fact.id,
     id: fact.id,
     occurredAt: fact.occurredAt,
     origin:
@@ -509,146 +539,6 @@ function toRow(fact: ProjectActivityHistoryFact): ProjectActivityRow {
       undoable: fact.undo !== undefined,
     },
   };
-}
-
-// ---------------------------------------------------------------------------
-// Five-minute presentation cluster
-// ---------------------------------------------------------------------------
-
-export const PROJECT_ACTIVITY_CLUSTER_WINDOW_MS = 5 * 60 * 1000;
-/** Undo kinds that are ordinary field boundaries; every other kind is structural. */
-const CLUSTERABLE_UNDO_KINDS = new Set<string | null>([null, "field"]);
-
-/**
- * Only an ordinary, non-redacted field edit may sit in a cluster. Create,
- * Status change, Archive, Relation and Automation event types, undo entries and
- * structural undo boundaries always stay their own row. (Comments, security
- * events and publications are not Kayıt geçmişi rows and never reach here.)
- */
-function isClusterable(row: ProjectActivityRow): boolean {
-  return (
-    row.eventType === "Field change" &&
-    !row.redacted &&
-    row.undo.of === null &&
-    CLUSTERABLE_UNDO_KINDS.has(row.undo.kind)
-  );
-}
-
-function clusterKey(row: ProjectActivityRow): string {
-  return JSON.stringify([
-    row.actor.kind,
-    row.actor.actorId,
-    row.origin.kind,
-    row.source.recordType,
-    row.source.recordId,
-  ]);
-}
-
-function compareNewestFirst(
-  left: ProjectActivityRow,
-  right: ProjectActivityRow,
-) {
-  return left.occurredAt === right.occurredAt
-    ? right.id.localeCompare(left.id)
-    : right.occurredAt.localeCompare(left.occurredAt);
-}
-
-function buildCluster(oldestFirst: ProjectActivityRow[]): ProjectActivityEntry {
-  const [first] = oldestFirst;
-  const last = oldestFirst.at(-1);
-  if (!(first && last) || oldestFirst.length < 2) {
-    throw new Error("A cluster needs at least two rows.");
-  }
-  return {
-    cluster: {
-      actor: first.actor,
-      fieldNames: [
-        ...new Set(
-          oldestFirst.flatMap((row) => row.changes.map((c) => c.field)),
-        ),
-      ],
-      from: first.occurredAt,
-      id: `cluster:${first.id}`,
-      origin: first.origin,
-      rows: [...oldestFirst].reverse(),
-      source: first.source,
-      to: last.occurredAt,
-    },
-    kind: "cluster",
-  };
-}
-
-function entryHead(entry: ProjectActivityEntry): ProjectActivityRow {
-  if (entry.kind === "row") {
-    return entry.row;
-  }
-  const [head] = entry.cluster.rows;
-  if (!head) {
-    throw new Error("A cluster needs at least two rows.");
-  }
-  return head;
-}
-
-/**
- * Pure, deterministic and clock-free: groups atomic rows into presentation
- * entries, newest first. Window rule: a row joins the open cluster when it is
- * at most five minutes after the PRECEDING row of that cluster (chaining). The
- * same actor kind, actor id, origin kind and source record are required; any
- * other row of the same record in between (another actor, a lifecycle change,
- * an undo) closes the cluster. Every atomic row is kept, in a cluster or alone.
- */
-export function clusterProjectActivityRows(
-  rows: readonly ProjectActivityRow[],
-): ProjectActivityEntry[] {
-  const oldestFirst = [...rows].sort((a, b) => compareNewestFirst(b, a));
-  const open = new Map<string, ProjectActivityRow[]>();
-  const done: ProjectActivityRow[][] = [];
-  const recordOf = (row: ProjectActivityRow) =>
-    `${row.source.recordType}:${row.source.recordId}`;
-  const close = (record: string) => {
-    const group = open.get(record);
-    if (group) {
-      done.push(group);
-      open.delete(record);
-    }
-  };
-  for (const row of oldestFirst) {
-    const record = recordOf(row);
-    const group = open.get(record);
-    const previous = group?.at(-1);
-    if (
-      group &&
-      previous &&
-      isClusterable(row) &&
-      clusterKey(row) === clusterKey(previous) &&
-      Date.parse(row.occurredAt) - Date.parse(previous.occurredAt) <=
-        PROJECT_ACTIVITY_CLUSTER_WINDOW_MS
-    ) {
-      group.push(row);
-      continue;
-    }
-    close(record);
-    if (isClusterable(row)) {
-      open.set(record, [row]);
-    } else {
-      done.push([row]);
-    }
-  }
-  for (const record of [...open.keys()]) {
-    close(record);
-  }
-  return done
-    .map((group): ProjectActivityEntry => {
-      const [only] = group;
-      if (group.length > 1) {
-        return buildCluster(group);
-      }
-      if (!only) {
-        throw new Error("Empty group.");
-      }
-      return { kind: "row", row: only };
-    })
-    .sort((a, b) => compareNewestFirst(entryHead(a), entryHead(b)));
 }
 
 function matchesSource(
@@ -724,27 +614,31 @@ export function deriveProjectActivity(
   facts: ProjectActivityFacts,
   input: ParsedProjectActivityInput,
 ): ProjectActivity {
-  const rows = facts.history
-    .map(toRow)
+  // Group over the unfiltered sequence of the scope first, so a row the
+  // filters hide (a Status change, an Archive, an undo) still closes a cluster.
+  const scoped = withProjectActivityGroups(
+    facts.history
+      .map(toRow)
+      .filter(
+        (row) =>
+          !input.sourceRecord ||
+          (row.source.recordType === input.sourceRecord.recordType &&
+            row.source.recordId === input.sourceRecord.recordId),
+      ),
+  );
+  const rows = scoped
     .filter(
       (row) =>
-        (!input.sourceRecord ||
-          (row.source.recordType === input.sourceRecord.recordType &&
-            row.source.recordId === input.sourceRecord.recordId)) &&
         matchesSource(row, input.sourceTypes) &&
         (input.eventTypes.length === 0 ||
           input.eventTypes.includes(row.eventType)),
     )
-    .sort((left, right) =>
-      left.occurredAt === right.occurredAt
-        ? right.id.localeCompare(left.id)
-        : right.occurredAt.localeCompare(left.occurredAt),
-    )
+    .sort(compareProjectActivityRowsNewestFirst)
     .filter((row) => afterCursor(row, input.cursor));
   const page = rows.slice(0, input.limit);
   const last = page.at(-1);
   return {
-    entries: clusterProjectActivityRows(page),
+    entries: projectActivityEntriesOfRows(page),
     nextCursor: rows.length > input.limit && last ? cursorOf(last) : null,
     projectId,
     rows: page,
