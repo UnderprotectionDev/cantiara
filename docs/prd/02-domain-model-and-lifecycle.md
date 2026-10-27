@@ -1496,6 +1496,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kişisel Wiki kopyası işaretçisi | `Use Copy Document on the Document to copy it to the Personal Wiki.` | Kayıt sonrası onayda mevcut `Copy Document` Belge kopyalama eylemine yönlendiren cümle |
 | Planlanan tarihi olan seçili kayıt yok | `No selected record has a planned date.` | Planlanan tarih geçmişinde karşılaştırılacak kayıt yoksa gösterilen durum |
 | Kapanış özeti isteği tamamlanamadı | `The request could not be completed. Try again.` | Taslak, kayıt veya tarih geçmişi okuması başarısız olunca gösterilen uyarı |
+| Kapanış Özeti Taslağı yüzeyi | `Closure Summary Draft` | Kapanış özeti taslağının kaynak seçimi, önizleme ve düzenleyici bölümlerinin ortak adı |
+| Başlık önizlemesi | `Heading preview` | Seçilen kaynakların hangi başlığa gireceğini gösteren önizleme listesi |
+| Kaynak seçilmedi | `No sources selected.` | Önizlemede hiç kaynak seçilmediğinde gösterilen durum |
+| Seçilecek kayıt yok | `No {heading} to select.` | Kaynak grubunda seçilebilir kayıt olmadığında gösterilen durum |
+| Kapanış Özeti Taslağı yükleniyor | `Loading Closure Summary Draft…` | Kapanış Özeti Taslağının kaynak listesi yüklenirken gösterilen durum |
+| Kapanış Özeti Taslağı kullanılamıyor | `Closure Summary Draft is unavailable.` | Kapanış Özeti Taslağının kaynak listesi okunamadığında gösterilen hata durumu |
 | Taslağı at | `Discard draft` | Kapanış özeti taslağını kaydetmeden atan eylem |
 | Etkilenen Belgeler yeni sürüm alır | `Affected Documents get a new version. Undo restores them together.` | Etiket yeniden adlandırma makbuzunda etkilenen Belgelerin sürümlü değiştiğini söyleyen satır |
 | Eşleşecek alan değişikliği yok | `No field change can make this record match.` | Sürükleme önizlemesi doğrudan alan eşitliği olmayan koşulda gösterilen metin |

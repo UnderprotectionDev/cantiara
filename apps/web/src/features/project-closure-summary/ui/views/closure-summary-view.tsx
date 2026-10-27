@@ -39,12 +39,14 @@ type Stage =
  * is the one explicit write; the optional `Planned date history` is a reading.
  */
 export function ClosureSummaryView({
+  formatDate,
   onDateHistory,
   onDraft,
   onSave,
   projectId,
   sources,
 }: {
+  formatDate: (value: string) => string;
   onDateHistory: (
     sources: ReturnType<typeof closureSummarySourcesOfSelection>,
   ) => Promise<ClosureSummaryDateComparison>;
@@ -201,7 +203,10 @@ export function ClosureSummaryView({
             pending={pending}
           />
           {comparison ? (
-            <ClosureSummaryDateHistory comparison={comparison} />
+            <ClosureSummaryDateHistory
+              comparison={comparison}
+              formatDate={formatDate}
+            />
           ) : null}
         </>
       ) : null}

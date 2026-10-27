@@ -87,6 +87,7 @@ function checkbox(view: HTMLElement, label: string) {
 const onSave = vi.fn((input: { title: string }) =>
   Promise.resolve({ id: "doc-1", title: input.title }),
 );
+const identityFormatDate = (value: string) => value;
 const onDateHistory = vi.fn(() =>
   Promise.resolve({
     note: "This is a reading of existing history. It is not a score." as const,
@@ -108,6 +109,7 @@ const onDateHistory = vi.fn(() =>
 function renderView() {
   return render(
     <ClosureSummaryView
+      formatDate={identityFormatDate}
       onDateHistory={onDateHistory as never}
       onDraft={onDraft as never}
       onSave={onSave as never}
@@ -199,8 +201,8 @@ test("the optional Planned date history is a neutral reading with no score", asy
   expect(text).toContain(
     "This is a reading of existing history. It is not a score.",
   );
-  expect(text).toContain("Moved");
-  expect(text).toContain("After target");
+  expect(text).toContain("2026-10-01 → 2026-10-10. Moved");
+  expect(text).toContain("After target (2026-10-12)");
   expect(onSave).not.toHaveBeenCalled();
 });
 
@@ -218,6 +220,7 @@ test("Planned date history is not offered without a Work source", async () => {
 test("offers nothing on a Project that is not completed or abandoned", () => {
   const rendered = render(
     <ClosureSummaryView
+      formatDate={identityFormatDate}
       onDateHistory={onDateHistory as never}
       onDraft={onDraft as never}
       onSave={onSave as never}

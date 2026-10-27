@@ -6,11 +6,14 @@ import {
 /**
  * Neutral date comparison: planned date history against the existing
  * completion event. Text only; it carries no score, health or colour verdict.
+ * Dates show in the Account `Date format` through the shared formatter.
  */
 export function ClosureSummaryDateHistory({
   comparison,
+  formatDate,
 }: {
   comparison: ClosureSummaryDateComparison;
+  formatDate: (value: string) => string;
 }) {
   return (
     <section
@@ -26,11 +29,11 @@ export function ClosureSummaryDateHistory({
             <li key={`${row.recordType}:${row.recordId}`}>
               <span className="font-medium">{row.label}</span>
               {": "}
-              {row.plannedDates.join(" → ")}
+              {row.plannedDates.map((date) => formatDate(date)).join(" → ")}
               {row.moved ? ". Moved" : ""}
               {". "}
               {row.reading}
-              {row.closedOn ? ` (${row.closedOn})` : ""}
+              {row.closedOn ? ` (${formatDate(row.closedOn)})` : ""}
             </li>
           ))}
         </ul>
