@@ -159,6 +159,7 @@ function createStore(database: Database): ProjectUpdatesStore {
         if (update.links.length > 0) {
           await executor.insert(projectUpdateLink).values(
             update.links.map((link) => ({
+              projectId: update.projectId,
               projectUpdateId: update.id,
               targetId: link.targetId,
               targetType: link.targetType,

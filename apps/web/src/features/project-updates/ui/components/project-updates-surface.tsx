@@ -81,13 +81,24 @@ export default function ProjectUpdatesSurface({
   if (updates.isPending || profile.isPending) {
     return <p role="status">Loading Project Updates…</p>;
   }
-  if (updates.isError || !updates.data || !liveSummary) {
+  // The snapshot freezes the summary blocks at save, so the four live source
+  // queries must be settled before the form can save an accurate snapshot.
+  const sourceQueries = [risks, decisions, milestones, goals];
+  if (sourceQueries.some((query) => query.isPending)) {
+    return <p role="status">Loading Project Updates…</p>;
+  }
+  const failedQueries = [updates, profile, ...sourceQueries].filter(
+    (query) => query.isError,
+  );
+  if (failedQueries.length > 0 || !updates.data || !liveSummary) {
     return (
       <div className="space-y-3">
         <p role="alert">Project Updates are unavailable.</p>
         <Button
           onClick={() => {
-            updates.refetch().catch(() => undefined);
+            for (const query of [updates, profile, ...sourceQueries]) {
+              query.refetch().catch(() => undefined);
+            }
           }}
           type="button"
           variant="outline"

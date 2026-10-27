@@ -49,6 +49,7 @@ export function ProjectUpdateReminderForm({
   reminder,
 }: ProjectUpdateReminderControls) {
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const form = useForm({
     defaultValues: {
       intervalDays: String(reminder.intervalDays),
@@ -69,9 +70,12 @@ export function ProjectUpdateReminderForm({
         return;
       }
       try {
+        setBusy(true);
         await onConfigure(parsed.data);
       } catch {
         setError("The reminder could not be saved. Retry.");
+      } finally {
+        setBusy(false);
       }
     },
   });
@@ -79,9 +83,12 @@ export function ProjectUpdateReminderForm({
   async function skip() {
     setError(null);
     try {
+      setBusy(true);
       await onSkip();
     } catch {
       setError("The reminder could not be skipped. Retry.");
+    } finally {
+      setBusy(false);
     }
   }
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -101,6 +108,7 @@ export function ProjectUpdateReminderForm({
         <div className="space-y-2" role="status">
           <p className="text-sm">{reminder.question}</p>
           <Button
+            disabled={busy}
             onClick={() => {
               skip().catch(() => undefined);
             }}
@@ -116,11 +124,7 @@ export function ProjectUpdateReminderForm({
           {error}
         </p>
       ) : null}
-      <form
-        aria-label={PROJECT_UPDATE_REMINDER_LABEL}
-        className="grid gap-3"
-        onSubmit={submit}
-      >
+      <form className="grid gap-3" onSubmit={submit}>
         <form.Field name="state">
           {(field) => (
             <fieldset className="grid gap-2">
@@ -196,7 +200,7 @@ export function ProjectUpdateReminderForm({
         <p className="text-muted-foreground text-sm">
           Optional. A reminder only opens this form; skipping it saves nothing.
         </p>
-        <Button type="submit" variant="outline">
+        <Button disabled={busy} type="submit" variant="outline">
           {SAVE_PROJECT_UPDATE_REMINDER_LABEL}
         </Button>
       </form>

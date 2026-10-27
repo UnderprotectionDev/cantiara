@@ -1,6 +1,6 @@
 {
-  "id": "382fef16-3939-4492-aad1-942558defb0e",
-  "prevId": "a61ddcda-6a76-4ec6-b2fe-cb30943e1d63",
+  "id": "96143834-cf57-47b6-b913-98f9ed2a10f2",
+  "prevId": "c910570a-7eab-41d3-9393-24815dfd8a90",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -19179,7 +19179,7 @@
         "id": {
           "name": "id",
           "type": "text",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true
         },
         "mark": {
@@ -19241,7 +19241,12 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "project_update_pk": {
+          "name": "project_update_pk",
+          "columns": ["project_id", "id"]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
@@ -19260,6 +19265,12 @@
       "name": "project_update_link",
       "schema": "",
       "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "project_update_id": {
           "name": "project_update_id",
           "type": "text",
@@ -19281,12 +19292,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "project_update_link_project_update_id_project_update_id_fk": {
-          "name": "project_update_link_project_update_id_project_update_id_fk",
+        "project_update_link_update_fk": {
+          "name": "project_update_link_update_fk",
           "tableFrom": "project_update_link",
           "tableTo": "project_update",
-          "columnsFrom": ["project_update_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": ["project_update_id", "project_id"],
+          "columnsTo": ["id", "project_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }

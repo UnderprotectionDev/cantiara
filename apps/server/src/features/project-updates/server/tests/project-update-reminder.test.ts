@@ -195,6 +195,39 @@ describe("Optional Project Update reminder", () => {
     expect(results.every((result) => result.status === "rejected")).toBe(true);
   });
 
+  test("skip on an archived Project leaves the plan untouched instead of stranding it", async () => {
+    const { access, reminders, store } = setup({ archived: true });
+    const plannedNextDueAt = new Date(START.valueOf() + 7 * DAY).toISOString();
+    await store.saveReminder({
+      intervalDays: 7,
+      nextDueAt: plannedNextDueAt,
+      personalReminderId: "planned-1",
+      projectId: "project-1",
+      question: "What changed this week?",
+      state: "Enabled",
+    });
+    const skipped = await access.skipReminder(ACCOUNT, "project-1");
+    expect(skipped).toMatchObject({
+      nextDueAt: plannedNextDueAt,
+      state: "Enabled",
+    });
+    expect(reminders.planned()).toEqual([]);
+  });
+
+  test("a save replans an Enabled reminder that lost its plan", async () => {
+    const { access, reminders, store } = setup();
+    await store.saveReminder({
+      ...settings,
+      nextDueAt: null,
+      personalReminderId: null,
+    });
+    await access.create(ACCOUNT, updateInput());
+    expect(reminders.planned()).toHaveLength(1);
+    expect((await access.reminder(ACCOUNT, "project-1"))?.nextDueAt).toBe(
+      new Date(START.valueOf() + 7 * DAY).toISOString(),
+    );
+  });
+
   test("another account or an archived Project plans nothing", async () => {
     const { access, reminders } = setup();
     expect(await access.configureReminder("other", settings)).toBeNull();

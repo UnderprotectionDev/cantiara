@@ -1,0 +1,1 @@
+ALTER TABLE "personal_reminder" ADD COLUMN "purpose" text;

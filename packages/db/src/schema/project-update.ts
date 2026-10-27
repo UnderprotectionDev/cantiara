@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -23,7 +24,7 @@ export const projectUpdate = pgTable(
   "project_update",
   {
     createdAt: timestamp("created_at").notNull(),
-    id: text("id").primaryKey(),
+    id: text("id").notNull(),
     mark: text("mark").notNull(),
     narrative: text("narrative").notNull(),
     projectId: text("project_id")
@@ -32,6 +33,12 @@ export const projectUpdate = pgTable(
     snapshot: jsonb("snapshot").notNull(),
   },
   (table) => [
+    // The id is unique per Project (the client's id for one save attempt), not
+    // globally: the same `updateId` in another Project is an independent save.
+    primaryKey({
+      columns: [table.projectId, table.id],
+      name: "project_update_pk",
+    }),
     index("project_update_project_created_at_idx").on(
       table.projectId,
       table.createdAt,
@@ -56,9 +63,9 @@ export const projectUpdate = pgTable(
 export const projectUpdateLink = pgTable(
   "project_update_link",
   {
-    projectUpdateId: text("project_update_id")
-      .notNull()
-      .references(() => projectUpdate.id, { onDelete: "cascade" }),
+    // Carries the Project so the parent foreign key is per Project below.
+    projectId: text("project_id").notNull(),
+    projectUpdateId: text("project_update_id").notNull(),
     targetId: text("target_id").notNull(),
     targetType: text("target_type").notNull(),
   },
@@ -67,6 +74,11 @@ export const projectUpdateLink = pgTable(
       columns: [table.projectUpdateId, table.targetType, table.targetId],
       name: "project_update_link_pk",
     }),
+    foreignKey({
+      columns: [table.projectUpdateId, table.projectId],
+      foreignColumns: [projectUpdate.id, projectUpdate.projectId],
+      name: "project_update_link_update_fk",
+    }).onDelete("cascade"),
     check(
       "project_update_link_target_type_check",
       sql`${table.targetType} in ('Risk', 'Decision', 'Milestone', 'Work')`,

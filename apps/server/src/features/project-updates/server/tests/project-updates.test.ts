@@ -86,6 +86,12 @@ describe("Manual Project Updates", () => {
     });
     expect(created?.links.map((link) => link.label)).toEqual(["Slip", "Alpha"]);
     expect(created?.links.every((link) => !link.unavailable)).toBe(true);
+    // Reads return the canonical link order the database store produces.
+    const overview = await access.overview(ACCOUNT, "project-1");
+    expect(overview?.updates[0]?.links.map((link) => link.label)).toEqual([
+      "Alpha",
+      "Slip",
+    ]);
   });
 
   test("freezes the summary blocks at the save moment", async () => {
@@ -158,6 +164,62 @@ describe("Manual Project Updates", () => {
     expect((await access.overview(ACCOUNT, "project-1"))?.updates).toHaveLength(
       1,
     );
+  });
+
+  test("replays a retried save even when the stored snapshot key order differs", async () => {
+    // The database store reads jsonb snapshots back with canonicalized object
+    // key order; the replay comparison must not depend on the client's order.
+    const { access, entries } = setup();
+    await access.create(
+      ACCOUNT,
+      input({
+        snapshot: {
+          blocks: [],
+          lifecycle: "Active",
+          purpose: null,
+          targetDate: null,
+        },
+      }),
+    );
+    const [stored] = entries;
+    expect(stored).toBeDefined();
+    if (stored) {
+      stored.snapshot = {
+        blocks: [],
+        // Deliberately different key order than the schema's field order.
+        targetDate: null,
+        purpose: null,
+        lifecycle: "Active",
+      };
+    }
+    await expect(
+      access.create(
+        ACCOUNT,
+        input({
+          snapshot: {
+            blocks: [],
+            lifecycle: "Active",
+            purpose: null,
+            targetDate: null,
+          },
+        }),
+      ),
+    ).resolves.toMatchObject({ id: "u1" });
+    expect(entries).toHaveLength(1);
+  });
+
+  test("the same client id in another Project is an independent save", async () => {
+    const { access, entries } = setup();
+    await access.create(ACCOUNT, input({ updateId: "u1" }));
+    const secondProject = createMemoryProjectUpdates({
+      accountId: ACCOUNT,
+      projects: new Map([["project-2", { records: new Map<string, never>() }]]),
+    });
+    const secondAccess = createProjectUpdates(secondProject.store, {});
+    await expect(
+      secondAccess.create(ACCOUNT, { ...input(), projectId: "project-2" }),
+    ).resolves.toMatchObject({ id: "u1" });
+    expect(entries).toHaveLength(1);
   });
 
   test("emits no live health judgment, only dated entries", async () => {

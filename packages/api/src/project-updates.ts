@@ -122,8 +122,9 @@ export const projectUpdatesInputSchema = z
   .strict();
 
 /**
- * One create is one append. `updateId` is the client's id for this attempt, so
- * retrying the same save is replayed instead of adding a second entry.
+ * One create is one append. `updateId` is the client's id for this attempt
+ * (unique per Project, not globally), so retrying the same save is replayed
+ * instead of adding a second entry.
  */
 export const createProjectUpdateInputSchema = z
   .object({

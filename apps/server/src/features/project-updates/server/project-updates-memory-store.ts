@@ -32,10 +32,24 @@ export function createMemoryProjectUpdates(options: {
         ) ?? null,
       ),
     insert: (update) => {
-      if (entries.some((entry) => entry.id === update.id)) {
+      if (
+        entries.some(
+          (entry) =>
+            entry.id === update.id && entry.projectId === update.projectId,
+        )
+      ) {
         return Promise.resolve(false);
       }
-      entries.push(structuredClone(update));
+      // Mirrors the database store: links are stored in their canonical
+      // `projectUpdateLinkKey` order, so reads do not depend on the store.
+      entries.push(
+        structuredClone({
+          ...update,
+          links: [...update.links].sort((a, b) =>
+            projectUpdateLinkKey(a).localeCompare(projectUpdateLinkKey(b)),
+          ),
+        }),
+      );
       return Promise.resolve(true);
     },
     linkFacts: (projectId, links: readonly ProjectUpdateLinkInput[]) => {

@@ -115,6 +115,50 @@ describeDatabase("Manual Project Updates PostgreSQL", () => {
     expect(later?.updates[1]?.snapshot).toEqual(snapshot);
   });
 
+  test("replays a retried save whose stored snapshot key order jsonb canonicalized", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const profile = await createDatabaseProjectShell(database).create(
+      accountId,
+      {
+        name: "Replay",
+        shortCode: "RPL",
+        starterConfiguration: "Blank Project",
+      },
+    );
+    const access = createDatabaseProjectUpdates(database, personalReminders);
+    const first = await access.create(accountId, {
+      links: [],
+      mark: "On Track",
+      narrative: "Replayed save.",
+      projectId: profile.id,
+      snapshot,
+      updateId: `u-${crypto.randomUUID()}`,
+    });
+    // The identical content sent with a different object key order is the
+    // same save: jsonb reordered the stored snapshot, not the content.
+    const replayed = await access.create(accountId, {
+      links: [],
+      mark: "On Track",
+      narrative: "Replayed save.",
+      projectId: profile.id,
+      snapshot: {
+        blocks: [],
+        lifecycle: "Active",
+        purpose: null,
+        targetDate: null,
+      },
+      updateId: first?.id ?? "",
+    });
+    expect(replayed?.savedAt).toBe(first?.savedAt);
+    const rows = await database
+      .select({ id: projectUpdate.id })
+      .from(projectUpdate)
+      .where(eq(projectUpdate.projectId, profile.id));
+    expect(rows).toHaveLength(1);
+  });
+
   test("keeps updates readable and takes none in an archived Project", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

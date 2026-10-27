@@ -105,6 +105,27 @@ export interface ProjectUpdatesStore {
   saveReminder: (reminder: StoredProjectUpdateReminder) => Promise<void>;
 }
 
+/**
+ * Order-insensitive serialization for the replay comparison. PostgreSQL jsonb
+ * canonicalizes object key order, so a stored snapshot read back never has the
+ * exact key order the client sent; raw `JSON.stringify` would report identical
+ * content as different. Arrays keep their order (the blocks lists it as shown).
+ */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(canonical).join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value).sort(([a], [b]) =>
+      a.localeCompare(b),
+    );
+    return `{${entries
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
 function sameContent(
   stored: StoredProjectUpdate,
   input: CreateProjectUpdateInput,
@@ -114,13 +135,33 @@ function sameContent(
   return (
     stored.mark === input.mark &&
     stored.narrative === input.narrative &&
-    JSON.stringify(stored.snapshot) === JSON.stringify(input.snapshot) &&
+    canonical(stored.snapshot) === canonical(input.snapshot) &&
     JSON.stringify(keys(stored.links)) === JSON.stringify(keys(input.links))
   );
 }
 
 function newestFirst(a: StoredProjectUpdate, b: StoredProjectUpdate) {
   return b.savedAt.localeCompare(a.savedAt) || b.id.localeCompare(a.id);
+}
+
+/** A racing id must be the identical retried save; anything else conflicts. */
+function savedContent(
+  stored: StoredProjectUpdate | null,
+  input: CreateProjectUpdateInput,
+) {
+  if (!(stored && sameContent(stored, input))) {
+    throw new ProjectUpdateConflictError(input.updateId);
+  }
+  return stored;
+}
+
+async function replayOrNull(
+  store: ProjectUpdatesStore,
+  projectId: string,
+  stored: StoredProjectUpdate,
+): Promise<ProjectUpdate | null> {
+  const [update] = await toUpdates(store, projectId, [stored]);
+  return update ?? null;
 }
 
 async function toUpdates(
@@ -188,14 +229,11 @@ export function createProjectUpdates(
     };
   }
 
-  /** Cancels the old plan, then plans the next one `intervalDays` from now. */
+  /** Plans the next one `intervalDays` from now, then cancels the old plan. */
   async function plan(
     accountId: string,
     settings: StoredProjectUpdateReminder,
   ): Promise<StoredProjectUpdateReminder> {
-    if (settings.personalReminderId) {
-      await scheduler().cancel(accountId, settings.personalReminderId);
-    }
     const fireAt = new Date(now().valueOf() + settings.intervalDays * DAY_MS);
     const planned =
       settings.state === "Enabled"
@@ -206,17 +244,33 @@ export function createProjectUpdates(
       nextDueAt: planned ? fireAt.toISOString() : null,
       personalReminderId: planned?.id ?? null,
     };
+    // The stored settings point at the new plan before the old reminder is
+    // cancelled: a failure in between leaves at most one stale reminder that
+    // fires once, instead of an `Enabled` setting that never plans again.
     await store.saveReminder(next);
+    if (
+      settings.personalReminderId &&
+      settings.personalReminderId !== planned?.id
+    ) {
+      await scheduler().cancel(accountId, settings.personalReminderId);
+    }
     return next;
   }
 
-  /** An explicit save answers a fired reminder, so the next one is planned. */
+  /**
+   * An explicit save answers a fired reminder, so the next one is planned. A
+   * save in the rare state of an `Enabled` reminder without a live plan also
+   * replans, so a failed earlier plan cannot leave the reminder silent.
+   */
   async function answerDueReminder(accountId: string, projectId: string) {
     const current = await store.reminder(projectId);
-    if (
-      current?.state === "Enabled" &&
-      (await scheduler().acknowledge(accountId, projectId)) > 0
-    ) {
+    if (current?.state !== "Enabled") {
+      return;
+    }
+    const answered = await scheduler().acknowledge(accountId, projectId);
+    const hasPlan =
+      current.personalReminderId !== null && current.nextDueAt !== null;
+    if (answered > 0 || !hasPlan) {
       await plan(accountId, current);
     }
   }
@@ -271,17 +325,22 @@ export function createProjectUpdates(
       const { projectId } = projectUpdatesInputSchema.parse({
         projectId: rawProjectId,
       });
-      if (!(await store.project(accountId, projectId))) {
+      const owned = await store.project(accountId, projectId);
+      if (!owned) {
         return null;
       }
       // Skipping acknowledges the nudge and plans the next one; it never
-      // appends a Project Update.
+      // appends a Project Update. On an archived Project Personal Reminders
+      // takes no new reminder, so the existing plan is left untouched
+      // instead of being replaced by a silent `Enabled` without one.
       await scheduler().acknowledge(accountId, projectId);
       const current = await store.reminder(projectId);
       return view(
         accountId,
         projectId,
-        current?.state === "Enabled" ? await plan(accountId, current) : current,
+        current?.state === "Enabled" && !owned.archived
+          ? await plan(accountId, current)
+          : current,
       );
     },
 
@@ -294,11 +353,13 @@ export function createProjectUpdates(
       const existing = await store.find(input.projectId, input.updateId);
       if (existing) {
         // The same save retried is replayed; a different one never rewrites it.
-        if (!sameContent(existing, input)) {
-          throw new ProjectUpdateConflictError(input.updateId);
-        }
-        const [replayed] = await toUpdates(store, input.projectId, [existing]);
-        return replayed ?? null;
+        const replayed = await replayOrNull(
+          store,
+          input.projectId,
+          savedContent(existing, input),
+        );
+        await answerDueReminder(accountId, input.projectId);
+        return replayed;
       }
       if (owned.archived) {
         throw new ProjectUpdateReadOnlyError(input.projectId);
@@ -320,7 +381,15 @@ export function createProjectUpdates(
         snapshot: input.snapshot,
       };
       if (!(await store.insert(stored))) {
-        throw new ProjectUpdateConflictError(input.updateId);
+        // Only the Project's own PK race can fail here; the racing entry is
+        // either the same retried save (replayed) or a different one.
+        const raced = savedContent(
+          await store.find(input.projectId, input.updateId),
+          input,
+        );
+        const replayed = await replayOrNull(store, input.projectId, raced);
+        await answerDueReminder(accountId, input.projectId);
+        return replayed;
       }
       await answerDueReminder(accountId, input.projectId);
       const [created] = await toUpdates(store, input.projectId, [stored]);
