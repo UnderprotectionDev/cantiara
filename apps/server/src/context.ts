@@ -3,6 +3,7 @@ import type {
   AccountPreferencesAccess,
 } from "@cantiara/api/account-preferences";
 import type { AttentionSignalsAccess } from "@cantiara/api/attention-signals";
+import type { PublicRoadmapReviewAccess } from "@cantiara/api/attention-signals-public-roadmap";
 import type {
   BacklogAccess,
   BacklogMutationContracts,
@@ -170,6 +171,7 @@ export interface CreateContextOptions {
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
   projectWall?: ProjectWallAccess;
+  publicRoadmapReview?: PublicRoadmapReviewAccess;
   recordActions?: RecordActionsAccess;
   recordTable?: RecordTableAccess;
   relations?: RelationsAccess;
@@ -293,6 +295,7 @@ export async function createContext({
   projectActivity,
   relations,
   attentionSignals,
+  publicRoadmapReview,
   releaseEvidence,
   projectHistory,
   valueChain,
@@ -398,6 +401,7 @@ export async function createContext({
     projectActivity,
     relations,
     attentionSignals,
+    publicRoadmapReview,
     releaseEvidence,
     projectHistory,
     valueChain,

@@ -6,7 +6,7 @@ import type {
   OpenAttentionSignalOutput,
 } from "@cantiara/api/attention-signals";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import NotificationCenterList from "./notification-center-list";
@@ -25,6 +25,19 @@ export default function NotificationCenterSurface() {
     queryClient.invalidateQueries({
       queryKey: orpc.notificationCenter.queryOptions().queryKey,
     });
+  // The rule of `public-roadmap-review-due` runs on opening the center; reread when it emitted.
+  useEffect(() => {
+    client
+      .refreshPublicRoadmapReviewSignals()
+      .then((result) =>
+        result.emitted > 0
+          ? queryClient.invalidateQueries({
+              queryKey: orpc.notificationCenter.queryOptions().queryKey,
+            })
+          : undefined,
+      )
+      .catch(() => undefined);
+  }, [queryClient]);
   const mark = useMutation({
     mutationFn: (variables: Parameters<typeof client.markNotification>[0]) =>
       runOnlineOnlyWrite(() => client.markNotification(variables)),

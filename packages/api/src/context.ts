@@ -7,6 +7,7 @@ import type {
   Appearance,
 } from "./account-preferences";
 import type { AttentionSignalsAccess } from "./attention-signals";
+import type { PublicRoadmapReviewAccess } from "./attention-signals-public-roadmap";
 import type { BacklogAccess, BacklogMutationContracts } from "./backlog";
 import type { CaptureInboxAccess } from "./capture-triage";
 import type {
@@ -231,6 +232,7 @@ export interface Context {
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
   projectWall?: ProjectWallAccess;
+  publicRoadmapReview?: PublicRoadmapReviewAccess;
   recordActions?: RecordActionsAccess;
   recordTable?: RecordTableAccess;
   relations?: RelationsAccess;

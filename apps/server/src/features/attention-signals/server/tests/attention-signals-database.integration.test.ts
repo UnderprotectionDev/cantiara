@@ -1,9 +1,11 @@
 import { createDb } from "@cantiara/db";
 import { attentionSignal } from "@cantiara/db/schema/attention-signals";
-import { user } from "@cantiara/db/schema/auth";
+import { user, workspace } from "@cantiara/db/schema/auth";
+import { project } from "@cantiara/db/schema/project";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, test } from "vitest";
 import { createDatabaseAttentionSignals } from "../attention-signals-database";
+import { createDatabasePublicRoadmapReview } from "../public-roadmap-review-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
@@ -133,5 +135,41 @@ describeDatabase("Attention Signals PostgreSQL seam", () => {
     const row = action?.groups[0]?.signals[0];
     expect(row?.tombstone).toBe(true);
     expect(row?.reason).not.toContain("Private text");
+  });
+
+  test("the public Roadmap review interval is stored per Project and clears to silence", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const workspaceId = `ws-${accountId}`;
+    const projectId = `pr-${accountId}`;
+    await database
+      .insert(workspace)
+      .values({ id: workspaceId, ownerAccountId: accountId });
+    await database.insert(project).values({
+      id: projectId,
+      name: "Attention Project",
+      shortCode: `AT${accountId.slice(-5).toUpperCase()}`,
+      starterConfiguration: "Blank Project",
+      workspaceId,
+    });
+    const review = createDatabasePublicRoadmapReview(
+      database,
+      createDatabaseAttentionSignals(database, ports),
+    );
+    expect(await review.interval(accountId, { projectId })).toEqual({
+      days: null,
+      projectId,
+    });
+    await review.setInterval(accountId, { days: 45, projectId });
+    expect((await review.interval(accountId, { projectId })).days).toBe(45);
+    await expect(review.refresh(accountId)).resolves.toEqual({ emitted: 0 });
+    await review.setInterval(accountId, { days: null, projectId });
+    expect((await review.interval(accountId, { projectId })).days).toBeNull();
+    await expect(
+      review.setInterval("someone-else", { days: 30, projectId }),
+    ).rejects.toMatchObject({
+      code: "PUBLIC_ROADMAP_REVIEW_PROJECT_NOT_FOUND",
+    });
   });
 });

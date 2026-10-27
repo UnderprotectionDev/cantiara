@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   check,
   index,
+  integer,
   pgTable,
   text,
   timestamp,
@@ -9,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+import { project } from "./project";
 
 /**
  * Notification Center signal (Hesap-owned). The source ids are origin
@@ -80,5 +82,27 @@ export const attentionSignalFollowUp = pgTable(
   (table) => [
     uniqueIndex("attention_signal_follow_up_work_uidx").on(table.workId),
     index("attention_signal_follow_up_signal_idx").on(table.signalRowId),
+  ],
+);
+
+/**
+ * The founder's optional public Roadmap review interval of one Project. No row
+ * means no interval and so no `public-roadmap-review-due` signal; there is no
+ * default. It stores the number of days only, never a status or snapshot.
+ */
+export const projectPublicRoadmapReview = pgTable(
+  "project_public_roadmap_review",
+  {
+    intervalDays: integer("interval_days").notNull(),
+    projectId: text("project_id")
+      .primaryKey()
+      .references(() => project.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "project_public_roadmap_review_days_check",
+      sql`${table.intervalDays} between 7 and 180`,
+    ),
   ],
 );

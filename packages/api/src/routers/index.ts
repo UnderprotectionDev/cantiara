@@ -18,6 +18,12 @@ import {
   previewAttentionFollowUpInputSchema,
 } from "../attention-signals";
 import {
+  publicRoadmapReviewIntervalSchema,
+  publicRoadmapReviewTargetSchema,
+  refreshPublicRoadmapReviewOutputSchema,
+  setPublicRoadmapReviewIntervalInputSchema,
+} from "../attention-signals-public-roadmap";
+import {
   projectBacklogInputSchema,
   saveBacklogPresentationInputSchema,
   saveBacklogPresentationMutationInputSchema,
@@ -1541,6 +1547,13 @@ function requireValueChain(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.valueChain;
+}
+
+function requirePublicRoadmapReview(context: Context) {
+  if (!context.publicRoadmapReview) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.publicRoadmapReview;
 }
 
 function requireAttentionSignals(context: Context) {
@@ -3635,6 +3648,14 @@ const ATTENTION_SIGNAL_FAILURES: Record<string, PlannedTestFailure> = {
     status: "NOT_FOUND",
   },
   ATTENTION_FOLLOW_UP_STALE: { message: null, status: "PRECONDITION_FAILED" },
+  PUBLIC_ROADMAP_REVIEW_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PUBLIC_ROADMAP_REVIEW_PROJECT_READ_ONLY: {
+    message: "Archived Projects are read-only.",
+    status: "BAD_REQUEST",
+  },
   ATTENTION_SIGNAL_NOT_FOUND: {
     message: "Notification is unavailable.",
     status: "NOT_FOUND",
@@ -8027,6 +8048,35 @@ export const appRouter = {
     .output(notificationCenterSchema)
     .handler(({ context }) =>
       requireAttentionSignals(context).center(context.session.user.id),
+    ),
+  projectPublicRoadmapReviewInterval: protectedProcedure
+    .input(publicRoadmapReviewTargetSchema)
+    .output(publicRoadmapReviewIntervalSchema)
+    .handler(({ context, input }) =>
+      runAttentionSignalOperation(() =>
+        requirePublicRoadmapReview(context).interval(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setPublicRoadmapReviewInterval: protectedProcedure
+    .input(setPublicRoadmapReviewIntervalInputSchema)
+    .output(publicRoadmapReviewIntervalSchema)
+    .handler(({ context, input }) =>
+      runAttentionSignalOperation(() =>
+        requirePublicRoadmapReview(context).setInterval(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  refreshPublicRoadmapReviewSignals: protectedProcedure
+    .output(refreshPublicRoadmapReviewOutputSchema)
+    .handler(({ context }) =>
+      runAttentionSignalOperation(() =>
+        requirePublicRoadmapReview(context).refresh(context.session.user.id),
+      ),
     ),
   markNotification: protectedProcedure
     .input(markAttentionSignalInputSchema)
