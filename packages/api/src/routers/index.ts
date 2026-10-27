@@ -364,6 +364,12 @@ import {
   projectActivitySchema,
 } from "../project-activity";
 import {
+  closureSummaryDraftInputSchema,
+  closureSummaryDraftSchema,
+  closureSummarySourcesInputSchema,
+  closureSummarySourcesSchema,
+} from "../project-closure-summary";
+import {
   createProjectGoalInputSchema,
   ProjectGoalConflictError,
   projectGoalInputSchema,
@@ -1523,6 +1529,13 @@ function requireProjectActivity(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.projectActivity;
+}
+
+function requireProjectClosureSummary(context: Context) {
+  if (!context.projectClosureSummary) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectClosureSummary;
 }
 
 function requireValueChain(context: Context) {
@@ -3603,6 +3616,21 @@ const PROJECT_HISTORY_FAILURES: Record<string, PlannedTestFailure> = {
   },
 };
 
+const PROJECT_CLOSURE_SUMMARY_FAILURES: Record<string, PlannedTestFailure> = {
+  PROJECT_CLOSURE_SUMMARY_PROJECT_NOT_CLOSED: {
+    message: "The Project is neither completed nor abandoned.",
+    status: "PRECONDITION_FAILED",
+  },
+  PROJECT_CLOSURE_SUMMARY_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PROJECT_CLOSURE_SUMMARY_SOURCE_NOT_FOUND: {
+    message: "A selected source is unavailable.",
+    status: "BAD_REQUEST",
+  },
+};
+
 const RELEASE_EVIDENCE_FAILURES: Record<string, PlannedTestFailure> = {
   RELEASE_EVIDENCE_CHECKLIST_FULL: { message: null, status: "BAD_REQUEST" },
   RELEASE_EVIDENCE_CHECKLIST_ITEM_NOT_FOUND: {
@@ -3729,6 +3757,32 @@ async function runProjectHistoryOperation<T>(
     }
     const failure = Object.hasOwn(PROJECT_HISTORY_FAILURES, error.code)
       ? PROJECT_HISTORY_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message:
+        failure.message ??
+        (error instanceof Error ? error.message : "Request refused."),
+    });
+  }
+}
+
+async function runProjectClosureSummaryOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(PROJECT_CLOSURE_SUMMARY_FAILURES, error.code)
+      ? PROJECT_CLOSURE_SUMMARY_FAILURES[error.code]
       : undefined;
     if (!failure) {
       throw error;
@@ -7945,6 +7999,28 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runProjectHistoryOperation(() =>
         requireProjectActivity(context).list(context.session.user.id, input),
+      ),
+    ),
+  projectClosureSummarySources: protectedProcedure
+    .input(closureSummarySourcesInputSchema)
+    .output(closureSummarySourcesSchema)
+    .handler(({ context, input }) =>
+      runProjectClosureSummaryOperation(() =>
+        requireProjectClosureSummary(context).sources(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectClosureSummaryDraft: protectedProcedure
+    .input(closureSummaryDraftInputSchema)
+    .output(closureSummaryDraftSchema)
+    .handler(({ context, input }) =>
+      runProjectClosureSummaryOperation(() =>
+        requireProjectClosureSummary(context).draft(
+          context.session.user.id,
+          input,
+        ),
       ),
     ),
   projectValueChain: protectedProcedure
