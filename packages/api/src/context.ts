@@ -6,6 +6,7 @@ import type {
   AccountPreferencesSnapshot,
   Appearance,
 } from "./account-preferences";
+import type { AttentionSignalsAccess } from "./attention-signals";
 import type { BacklogAccess, BacklogMutationContracts } from "./backlog";
 import type { CaptureInboxAccess } from "./capture-triage";
 import type {
@@ -183,6 +184,7 @@ export interface Context {
   accountPreferences: AccountPreferencesAccess;
   accountPreferencesCompatibility?: AccountPreferencesCompatibilityAccess;
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
+  attentionSignals?: AttentionSignalsAccess;
   auth: null;
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;

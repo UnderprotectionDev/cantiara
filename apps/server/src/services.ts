@@ -22,6 +22,7 @@ import {
   accountPreferencesMutationTarget,
   createDatabaseAccountPreferences,
 } from "./features/account-preferences/server/account-preferences-database";
+import { createDatabaseAttentionSignals } from "./features/attention-signals/server/attention-signals-database";
 import { createBacklogAccess } from "./features/backlog/server/backlog";
 import { createDatabaseBacklog } from "./features/backlog/server/backlog-database";
 import { createDatabaseBacklogMutationContracts } from "./features/backlog/server/backlog-mutation-database";
@@ -289,6 +290,7 @@ export const prioritizationSessionMutationContracts =
   createDatabasePrioritizationSessionMutationContracts(db);
 export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
+export const attentionSignals = createDatabaseAttentionSignals(db);
 export const releaseEvidence = createDatabaseReleaseEvidence(db);
 export const projectHistory = createDatabaseProjectHistory(db);
 export const projectActivity = createProjectActivity(

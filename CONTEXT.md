@@ -471,7 +471,7 @@ Proje bazında isteğe bağlı gün sayısı; yoksa üretilmez, varsa eşiği a�
 _Avoid_: stuck, varsayılan Dikkat sinyali, sağlık puanı, performans puanı
 
 **Birleşik Bildirim Merkezi**:
-Kapalı registrydeki dikkat sinyallerini Eylem Gerekiyor ve Bilgi Akışı olarak toplayan merkez; bildirimi okumak kaynak sorunu çözmez ([Birleşik Bildirim Merkezi](docs/prd/04-workspace-and-projects.md#birleşik-bildirim-merkezi)).
+Kapalı registrydeki dikkat sinyallerini Eylem Gerekiyor ve Bilgi Akışı olarak toplayan merkez; bildirimi okumak kaynak sorunu çözmez ([Birleşik Bildirim Merkezi](docs/prd/04-workspace-and-projects.md#birleşik-bildirim-merkezi)). UI: `Notification Center`, `Action Required`, `Information Flow`.
 _Avoid_: E-posta ürünü, Geri Bildirim feed'i, serbest bildirim
 
 **Favori**:

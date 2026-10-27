@@ -6,6 +6,7 @@ import {
   accountPreferencesSchema,
   appearanceSchema,
 } from "../account-preferences";
+import { notificationCenterSchema } from "../attention-signals";
 import {
   projectBacklogInputSchema,
   saveBacklogPresentationInputSchema,
@@ -1530,6 +1531,13 @@ function requireValueChain(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.valueChain;
+}
+
+function requireAttentionSignals(context: Context) {
+  if (!context.attentionSignals) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.attentionSignals;
 }
 
 function requireReleaseEvidence(context: Context) {
@@ -7959,6 +7967,11 @@ export const appRouter = {
       }
       return chain;
     }),
+  notificationCenter: protectedProcedure
+    .output(notificationCenterSchema)
+    .handler(({ context }) =>
+      requireAttentionSignals(context).center(context.session.user.id),
+    ),
   projectReleaseEvidencePack: protectedProcedure
     .input(releaseEvidencePackInputSchema)
     .output(releaseEvidencePackSchema)

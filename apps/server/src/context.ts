@@ -2,6 +2,7 @@ import type {
   AccountPreferences,
   AccountPreferencesAccess,
 } from "@cantiara/api/account-preferences";
+import type { AttentionSignalsAccess } from "@cantiara/api/attention-signals";
 import type {
   BacklogAccess,
   BacklogMutationContracts,
@@ -124,6 +125,7 @@ export interface CreateContextOptions {
   accountPreferencesCompatibility?: AccountPreferencesCompatibilityAccess;
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   accountSessionAccess: AccountSessionAccessRuntime;
+  attentionSignals?: AttentionSignalsAccess;
   auth: AccountAccessAuth;
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
@@ -290,6 +292,7 @@ export async function createContext({
   specChangeReviewMutationContracts,
   projectActivity,
   relations,
+  attentionSignals,
   releaseEvidence,
   projectHistory,
   valueChain,
@@ -394,6 +397,7 @@ export async function createContext({
     specChangeReviewMutationContracts,
     projectActivity,
     relations,
+    attentionSignals,
     releaseEvidence,
     projectHistory,
     valueChain,

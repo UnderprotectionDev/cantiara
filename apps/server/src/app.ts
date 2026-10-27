@@ -2,6 +2,7 @@ import type {
   AccountPreferences,
   AccountPreferencesAccess,
 } from "@cantiara/api/account-preferences";
+import type { AttentionSignalsAccess } from "@cantiara/api/attention-signals";
 import type {
   BacklogAccess,
   BacklogMutationContracts,
@@ -201,6 +202,7 @@ export interface AppDependencies {
   accountPreferencesCompatibility?: AccountPreferencesCompatibilityAccess;
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   accountSessionAccess: AccountSessionAccessRuntime;
+  attentionSignals?: AttentionSignalsAccess;
   auth: AccountAccessAuth;
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
@@ -692,6 +694,7 @@ export function createApp(dependencies: AppDependencies) {
         dependencies.specChangeReviewMutationContracts,
       relations: dependencies.relations,
       projectActivity: dependencies.projectActivity,
+      attentionSignals: dependencies.attentionSignals,
       releaseEvidence: dependencies.releaseEvidence,
       projectHistory: dependencies.projectHistory,
       valueChain: dependencies.valueChain,
