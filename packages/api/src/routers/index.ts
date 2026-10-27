@@ -7,6 +7,23 @@ import {
   appearanceSchema,
 } from "../account-preferences";
 import {
+  attentionFollowUpPreviewSchema,
+  attentionFollowUpResultSchema,
+  attentionSignalSchema,
+  attentionSignalTargetSchema,
+  createAttentionFollowUpInputSchema,
+  markAttentionSignalInputSchema,
+  notificationCenterSchema,
+  openAttentionSignalOutputSchema,
+  previewAttentionFollowUpInputSchema,
+} from "../attention-signals";
+import {
+  publicRoadmapReviewIntervalSchema,
+  publicRoadmapReviewTargetSchema,
+  refreshPublicRoadmapReviewOutputSchema,
+  setPublicRoadmapReviewIntervalInputSchema,
+} from "../attention-signals-public-roadmap";
+import {
   projectBacklogInputSchema,
   saveBacklogPresentationInputSchema,
   saveBacklogPresentationMutationInputSchema,
@@ -1549,6 +1566,20 @@ function requireValueChain(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.valueChain;
+}
+
+function requirePublicRoadmapReview(context: Context) {
+  if (!context.publicRoadmapReview) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.publicRoadmapReview;
+}
+
+function requireAttentionSignals(context: Context) {
+  if (!context.attentionSignals) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.attentionSignals;
 }
 
 function requireReleaseEvidence(context: Context) {
@@ -3622,6 +3653,34 @@ const PROJECT_HISTORY_FAILURES: Record<string, PlannedTestFailure> = {
   },
 };
 
+const ATTENTION_SIGNAL_FAILURES: Record<string, PlannedTestFailure> = {
+  ATTENTION_FOLLOW_UP_ATTEMPT_CONFLICT: {
+    message: null,
+    status: "PRECONDITION_FAILED",
+  },
+  ATTENTION_FOLLOW_UP_PROJECT_REQUIRED: {
+    message: null,
+    status: "BAD_REQUEST",
+  },
+  ATTENTION_FOLLOW_UP_PROJECT_UNAVAILABLE: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  ATTENTION_FOLLOW_UP_STALE: { message: null, status: "PRECONDITION_FAILED" },
+  PUBLIC_ROADMAP_REVIEW_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PUBLIC_ROADMAP_REVIEW_PROJECT_READ_ONLY: {
+    message: "Archived Projects are read-only.",
+    status: "BAD_REQUEST",
+  },
+  ATTENTION_SIGNAL_NOT_FOUND: {
+    message: "Notification is unavailable.",
+    status: "NOT_FOUND",
+  },
+};
+
 const PROJECT_CLOSURE_SUMMARY_FAILURES: Record<string, PlannedTestFailure> = {
   PROJECT_CLOSURE_SUMMARY_PROJECT_NOT_CLOSED: {
     message: "The Project is neither completed nor abandoned.",
@@ -3763,6 +3822,32 @@ async function runProjectHistoryOperation<T>(
     }
     const failure = Object.hasOwn(PROJECT_HISTORY_FAILURES, error.code)
       ? PROJECT_HISTORY_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message:
+        failure.message ??
+        (error instanceof Error ? error.message : "Request refused."),
+    });
+  }
+}
+
+async function runAttentionSignalOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(ATTENTION_SIGNAL_FAILURES, error.code)
+      ? ATTENTION_SIGNAL_FAILURES[error.code]
       : undefined;
     if (!failure) {
       throw error;
@@ -8112,6 +8197,78 @@ export const appRouter = {
       }
       return chain;
     }),
+  notificationCenter: protectedProcedure
+    .output(notificationCenterSchema)
+    .handler(({ context }) =>
+      requireAttentionSignals(context).center(context.session.user.id),
+    ),
+  projectPublicRoadmapReviewInterval: protectedProcedure
+    .input(publicRoadmapReviewTargetSchema)
+    .output(publicRoadmapReviewIntervalSchema)
+    .handler(({ context, input }) =>
+      runAttentionSignalOperation(() =>
+        requirePublicRoadmapReview(context).interval(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setPublicRoadmapReviewInterval: protectedProcedure
+    .input(setPublicRoadmapReviewIntervalInputSchema)
+    .output(publicRoadmapReviewIntervalSchema)
+    .handler(({ context, input }) =>
+      runAttentionSignalOperation(() =>
+        requirePublicRoadmapReview(context).setInterval(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  refreshPublicRoadmapReviewSignals: protectedProcedure
+    .output(refreshPublicRoadmapReviewOutputSchema)
+    .handler(({ context }) =>
+      runAttentionSignalOperation(() =>
+        requirePublicRoadmapReview(context).refresh(context.session.user.id),
+      ),
+    ),
+  markNotification: protectedProcedure
+    .input(markAttentionSignalInputSchema)
+    .output(attentionSignalSchema)
+    .handler(({ context, input }) =>
+      runAttentionSignalOperation(() =>
+        requireAttentionSignals(context).mark(context.session.user.id, input),
+      ),
+    ),
+  openNotification: protectedProcedure
+    .input(attentionSignalTargetSchema)
+    .output(openAttentionSignalOutputSchema)
+    .handler(({ context, input }) =>
+      runAttentionSignalOperation(() =>
+        requireAttentionSignals(context).open(context.session.user.id, input),
+      ),
+    ),
+  previewNotificationFollowUp: protectedProcedure
+    .input(previewAttentionFollowUpInputSchema)
+    .output(attentionFollowUpPreviewSchema)
+    .handler(({ context, input }) =>
+      runAttentionSignalOperation(() =>
+        requireAttentionSignals(context).previewFollowUp(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  createNotificationFollowUp: protectedProcedure
+    .input(createAttentionFollowUpInputSchema)
+    .output(attentionFollowUpResultSchema)
+    .handler(({ context, input }) =>
+      runAttentionSignalOperation(() =>
+        requireAttentionSignals(context).createFollowUp(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
   projectReleaseEvidencePack: protectedProcedure
     .input(releaseEvidencePackInputSchema)
     .output(releaseEvidencePackSchema)

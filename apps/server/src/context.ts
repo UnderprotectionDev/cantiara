@@ -2,6 +2,8 @@ import type {
   AccountPreferences,
   AccountPreferencesAccess,
 } from "@cantiara/api/account-preferences";
+import type { AttentionSignalsAccess } from "@cantiara/api/attention-signals";
+import type { PublicRoadmapReviewAccess } from "@cantiara/api/attention-signals-public-roadmap";
 import type {
   BacklogAccess,
   BacklogMutationContracts,
@@ -125,6 +127,7 @@ export interface CreateContextOptions {
   accountPreferencesCompatibility?: AccountPreferencesCompatibilityAccess;
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   accountSessionAccess: AccountSessionAccessRuntime;
+  attentionSignals?: AttentionSignalsAccess;
   auth: AccountAccessAuth;
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
@@ -170,6 +173,7 @@ export interface CreateContextOptions {
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
   projectWall?: ProjectWallAccess;
+  publicRoadmapReview?: PublicRoadmapReviewAccess;
   recordActions?: RecordActionsAccess;
   recordTable?: RecordTableAccess;
   relations?: RelationsAccess;
@@ -292,6 +296,8 @@ export async function createContext({
   specChangeReviewMutationContracts,
   projectActivity,
   relations,
+  attentionSignals,
+  publicRoadmapReview,
   releaseEvidence,
   projectHistory,
   projectClosureSummary,
@@ -397,6 +403,8 @@ export async function createContext({
     specChangeReviewMutationContracts,
     projectActivity,
     relations,
+    attentionSignals,
+    publicRoadmapReview,
     releaseEvidence,
     projectHistory,
     projectClosureSummary,

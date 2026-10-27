@@ -1,0 +1,123 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Row actions close over the signal they act on.
+
+import type {
+  AttentionFollowUpPreview,
+  AttentionSignal,
+  OpenAttentionSignalOutput,
+} from "@cantiara/api/attention-signals";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { client, orpc } from "@/utils/orpc";
+import NotificationCenterList from "./notification-center-list";
+
+export default function NotificationCenterSurface() {
+  const queryClient = useQueryClient();
+  const center = useQuery(orpc.notificationCenter.queryOptions());
+  const [opened, setOpened] = useState<{
+    output: OpenAttentionSignalOutput;
+    signalRowId: string;
+  } | null>(null);
+  const [preview, setPreview] = useState<AttentionFollowUpPreview | null>(null);
+  const [attempt, setAttempt] = useState(() => crypto.randomUUID());
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const errorMessage = (caught: unknown) =>
+    caught instanceof Error && caught.message
+      ? caught.message
+      : "The action could not be completed.";
+  const refresh = () =>
+    queryClient.invalidateQueries({
+      queryKey: orpc.notificationCenter.queryOptions().queryKey,
+    });
+  // The rule of `public-roadmap-review-due` runs on opening the center; reread when it emitted.
+  useEffect(() => {
+    client
+      .refreshPublicRoadmapReviewSignals()
+      .then((result) =>
+        result.emitted > 0
+          ? queryClient.invalidateQueries({
+              queryKey: orpc.notificationCenter.queryOptions().queryKey,
+            })
+          : undefined,
+      )
+      .catch(() => undefined);
+  }, [queryClient]);
+  const mark = useMutation({
+    mutationFn: (variables: Parameters<typeof client.markNotification>[0]) =>
+      runOnlineOnlyWrite(() => client.markNotification(variables)),
+    onSuccess: () => {
+      setError(null);
+      return refresh();
+    },
+    onError: (caught) => setError(errorMessage(caught)),
+  });
+  const open = useMutation({
+    mutationFn: (signal: AttentionSignal) =>
+      runOnlineOnlyWrite(() =>
+        client.openNotification({ signalRowId: signal.id }),
+      ).then((output) => ({ output, signalRowId: signal.id })),
+    onSuccess: (result) => {
+      setError(null);
+      return setOpened(result);
+    },
+    onError: (caught) => setError(errorMessage(caught)),
+  });
+  const previewFollowUp = useMutation({
+    mutationFn: (signal: AttentionSignal) =>
+      runOnlineOnlyWrite(() =>
+        client.previewNotificationFollowUp({ signalRowId: signal.id }),
+      ),
+    onSuccess: (result) => {
+      setAttempt(crypto.randomUUID());
+      setMessage(null);
+      setError(null);
+      setPreview(result);
+    },
+    onError: (caught) => setError(errorMessage(caught)),
+  });
+  const createFollowUp = useMutation({
+    mutationFn: (signal: AttentionSignal) =>
+      runOnlineOnlyWrite(() =>
+        client.createNotificationFollowUp({
+          attemptId: attempt,
+          fingerprint: preview?.fingerprint ?? "",
+          signalRowId: signal.id,
+        }),
+      ),
+    onSuccess: async (result) => {
+      setPreview(null);
+      setError(null);
+      setMessage(
+        result.created
+          ? "Follow-up work created. The notification stays open."
+          : "Follow-up work already exists for this attempt.",
+      );
+      await refresh();
+    },
+    onError: (caught) => setError(errorMessage(caught)),
+  });
+  if (center.isPending) {
+    return <p>Loading Notification Center…</p>;
+  }
+  if (!center.data) {
+    return <p role="alert">Notification Center could not be loaded.</p>;
+  }
+  return (
+    <>
+      {error ? <p role="alert">{error}</p> : null}
+      {message ? <p role="status">{message}</p> : null}
+      <NotificationCenterList
+        actions={{
+          onCreateFollowUp: (signal) => createFollowUp.mutate(signal),
+          onMark: (signal, markValue) =>
+            mark.mutate({ mark: markValue, signalRowId: signal.id }),
+          onOpen: (signal) => open.mutate(signal),
+          onPreviewFollowUp: (signal) => previewFollowUp.mutate(signal),
+        }}
+        center={center.data}
+        panels={{ opened, preview }}
+      />
+    </>
+  );
+}

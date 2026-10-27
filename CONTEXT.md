@@ -470,8 +470,12 @@ _Avoid_: oturum süresi, Denetim kaydı, Dış yüzey yayını
 Proje bazında isteğe bağlı gün sayısı; yoksa üretilmez, varsa eşiği aşan aktif İşler `Long in the same status` gerekçeli nötr Çalışmaya Dön adayı ve hazır Akıllı Koleksiyon üyesidir ([Çalışmaya Dön](docs/prd/04-workspace-and-projects.md#çalışmaya-dön-özeti)). UI: `Long in the same status`.
 _Avoid_: stuck, varsayılan Dikkat sinyali, sağlık puanı, performans puanı
 
+**Yayın gözden geçirme aralığı**:
+Proje bazında isteğe bağlı 7–180 tam gün aralığı; yoksa `public-roadmap-review-due` sinyali üretilmez, varsa son Onaylı snapshot revizyonu aralığı aşan aktif ve herkese açık etiketli yol haritası kaydı sinyal üretir ve yeni bir revizyon aralığı yeniden başlatır; iç durum, herkese açık etiket veya snapshot yazmaz ([dikkat sinyali kayıtları](docs/prd/04-workspace-and-projects.md#dikkat-sinyali-kayitlari)). UI: `Review interval (days)`, `Save interval`, `Public Roadmap review`.
+_Avoid_: zamanlayıcı, varsayılan gün sayısı, sağlık hükmü, e-posta hatırlatması
+
 **Birleşik Bildirim Merkezi**:
-Kapalı registrydeki dikkat sinyallerini Eylem Gerekiyor ve Bilgi Akışı olarak toplayan merkez; bildirimi okumak kaynak sorunu çözmez ([Birleşik Bildirim Merkezi](docs/prd/04-workspace-and-projects.md#birleşik-bildirim-merkezi)).
+Kapalı registrydeki dikkat sinyallerini Eylem Gerekiyor ve Bilgi Akışı olarak toplayan merkez; bildirimi okumak kaynak sorunu çözmez ([Birleşik Bildirim Merkezi](docs/prd/04-workspace-and-projects.md#birleşik-bildirim-merkezi)). UI: `Notification Center`, `Action Required`, `Information Flow`, `Look again`.
 _Avoid_: E-posta ürünü, Geri Bildirim feed'i, serbest bildirim
 
 **Favori**:

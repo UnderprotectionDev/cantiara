@@ -2,6 +2,8 @@ import type {
   AccountPreferences,
   AccountPreferencesAccess,
 } from "@cantiara/api/account-preferences";
+import type { AttentionSignalsAccess } from "@cantiara/api/attention-signals";
+import type { PublicRoadmapReviewAccess } from "@cantiara/api/attention-signals-public-roadmap";
 import type {
   BacklogAccess,
   BacklogMutationContracts,
@@ -202,6 +204,7 @@ export interface AppDependencies {
   accountPreferencesCompatibility?: AccountPreferencesCompatibilityAccess;
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   accountSessionAccess: AccountSessionAccessRuntime;
+  attentionSignals?: AttentionSignalsAccess;
   auth: AccountAccessAuth;
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
@@ -255,6 +258,7 @@ export interface AppDependencies {
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
   projectWall?: ProjectWallAccess;
+  publicRoadmapReview?: PublicRoadmapReviewAccess;
   recordActions?: RecordActionsAccess;
   recordTable?: RecordTableAccess;
   redactSecrets: (value: unknown) => unknown;
@@ -694,6 +698,8 @@ export function createApp(dependencies: AppDependencies) {
         dependencies.specChangeReviewMutationContracts,
       relations: dependencies.relations,
       projectActivity: dependencies.projectActivity,
+      attentionSignals: dependencies.attentionSignals,
+      publicRoadmapReview: dependencies.publicRoadmapReview,
       releaseEvidence: dependencies.releaseEvidence,
       projectHistory: dependencies.projectHistory,
       projectClosureSummary: dependencies.projectClosureSummary,
