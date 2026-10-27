@@ -47,6 +47,7 @@ import type {
 import type { ProductGapsAccess } from "./product-gaps";
 import type { ProductionIncidentsAccess } from "./production-incidents";
 import type { ProjectActivityAccess } from "./project-activity";
+import type { ProjectClosureSummaryAccess } from "./project-closure-summary";
 import type { ProjectGoalsAccess } from "./project-goals";
 import type { ProjectHistoryAccess } from "./project-history";
 import type { ProjectReleasePlanningAccess } from "./project-release-planning";
@@ -222,6 +223,7 @@ export interface Context {
   productGaps?: ProductGapsAccess;
   productionIncidents?: ProductionIncidentsAccess;
   projectActivity?: ProjectActivityAccess;
+  projectClosureSummary?: ProjectClosureSummaryAccess;
   projectGoals?: ProjectGoalsAccess;
   projectHistory?: ProjectHistoryAccess;
   projectReleasePlanning?: ProjectReleasePlanningAccess;
