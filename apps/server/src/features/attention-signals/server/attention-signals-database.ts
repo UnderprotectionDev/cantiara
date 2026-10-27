@@ -10,7 +10,7 @@ import { document } from "@cantiara/db/schema/document";
 import { project } from "@cantiara/db/schema/project";
 import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import {
   type AttentionSignalStore,
@@ -221,11 +221,14 @@ async function deletedKeysForKind(
     return [];
   }
   if (kind === "Work") {
-    const trashed = await database
-      .select({ id: work.id })
+    const rows = await database
+      .select({ id: work.id, trashedAt: work.trashedAt })
       .from(work)
-      .where(and(inArray(work.id, ids), isNotNull(work.trashedAt)));
-    return trashed.map((row) => `Work:${row.id}`);
+      .where(inArray(work.id, ids));
+    const live = new Set(
+      rows.filter((row) => !row.trashedAt).map((row) => row.id),
+    );
+    return ids.filter((id) => !live.has(id)).map((id) => `Work:${id}`);
   }
   const table = RECORD_TABLES[kind as keyof typeof RECORD_TABLES];
   const present = await database
