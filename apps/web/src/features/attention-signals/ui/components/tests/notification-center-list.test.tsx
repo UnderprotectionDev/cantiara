@@ -62,7 +62,7 @@ describe("Notification Center list", () => {
       "Open source",
       "Mark read",
       "Close",
-      "Preview Follow-up Work",
+      "Create Follow-up Work",
     ]) {
       expect(html).toContain(label);
     }
@@ -108,6 +108,6 @@ describe("Notification Center list", () => {
     expect(html).toContain("can no longer be found");
     expect(html).toContain("Origin: Notification e1");
     expect(html).toContain("The notification stays open");
-    expect(html).toContain("Create Follow-up Work");
+    expect(html).toContain("Apply");
   });
 });

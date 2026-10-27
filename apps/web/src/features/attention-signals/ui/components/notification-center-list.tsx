@@ -79,7 +79,7 @@ function PreviewPanel({
         The notification stays open and the source is not changed.
       </p>
       <Button onClick={() => onCreate(signal)} size="sm" type="button">
-        Create Follow-up Work
+        Apply
       </Button>
     </section>
   );
@@ -98,6 +98,9 @@ function SignalRow({
     <li className="grid gap-1 text-sm">
       <div className="flex flex-wrap items-baseline gap-x-2">
         <code>{signal.signalId}</code>
+        {signal.signalId === "review-later" ? (
+          <span className="font-medium">Look again</span>
+        ) : null}
         <span>{signal.reason}</span>
         <time className="text-muted-foreground" dateTime={signal.occurredAt}>
           {signal.occurredAt}
@@ -140,7 +143,7 @@ function SignalRow({
             type="button"
             variant="outline"
           >
-            Preview Follow-up Work
+            Create Follow-up Work
           </Button>
         </div>
       ) : null}
