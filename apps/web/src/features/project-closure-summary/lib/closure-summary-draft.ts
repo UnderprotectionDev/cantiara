@@ -1,4 +1,5 @@
 import {
+  CLOSURE_SUMMARY_SOURCE_TYPES,
   type ClosureSummarySection,
   type ClosureSummarySourceRef,
   renderClosureSummaryMarkdown,
@@ -25,14 +26,7 @@ export function closureSummarySourcesOfSelection(
   return keys.flatMap((key) => {
     const separator = key.indexOf(":");
     const parsed = z
-      .enum([
-        "Decision",
-        "Risk",
-        "Project Release",
-        "Document",
-        "Production Incident",
-        "Work",
-      ])
+      .enum(CLOSURE_SUMMARY_SOURCE_TYPES)
       .safeParse(key.slice(0, separator));
     return parsed.success
       ? [{ recordId: key.slice(separator + 1), recordType: parsed.data }]

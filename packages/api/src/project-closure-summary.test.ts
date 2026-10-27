@@ -6,7 +6,9 @@ import {
   closureSummaryDraftInputSchema,
   deriveClosureSummaryPreview,
   groupClosureSummaryCandidates,
+  PROJECT_CLOSURE_SUMMARY_LABEL,
   renderClosureSummaryMarkdown,
+  saveClosureSummaryInputSchema,
 } from "./project-closure-summary";
 
 const DRAFT_LINE = /^(## [A-Za-z ]+|- \[.*\]\(\S+\))$/;
@@ -94,5 +96,22 @@ describe("Project Closure Summary contract", () => {
         summary: "A great success",
       }).success,
     ).toBe(false);
+  });
+
+  test("save defaults the title only when omitted and rejects a blank one", () => {
+    const base = {
+      baseRevision: 0,
+      body: "",
+      clientIdempotencyKey: "k1",
+      projectId: "p1",
+    };
+    expect(saveClosureSummaryInputSchema.parse(base).title).toBe(
+      PROJECT_CLOSURE_SUMMARY_LABEL,
+    );
+    for (const title of ["", "   "]) {
+      expect(
+        saveClosureSummaryInputSchema.safeParse({ ...base, title }).success,
+      ).toBe(false);
+    }
   });
 });

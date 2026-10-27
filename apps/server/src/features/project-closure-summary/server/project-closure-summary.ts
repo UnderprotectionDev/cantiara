@@ -86,6 +86,13 @@ export function createProjectClosureSummary(
     return status;
   }
 
+  async function requireClosedProject(accountId: string, projectId: string) {
+    const status = await statusOf(accountId, projectId);
+    if (!isClosureSummaryProjectStatus(status)) {
+      throw new ProjectClosureSummaryProjectNotClosedError(projectId);
+    }
+  }
+
   async function selectedCandidates(
     accountId: string,
     projectId: string,
@@ -108,10 +115,7 @@ export function createProjectClosureSummary(
   return {
     async dateComparison(accountId, rawInput) {
       const input = closureSummaryDateComparisonInputSchema.parse(rawInput);
-      const status = await statusOf(accountId, input.projectId);
-      if (!isClosureSummaryProjectStatus(status)) {
-        throw new ProjectClosureSummaryProjectNotClosedError(input.projectId);
-      }
+      await requireClosedProject(accountId, input.projectId);
       const selected = await selectedCandidates(
         accountId,
         input.projectId,
@@ -129,18 +133,12 @@ export function createProjectClosureSummary(
       );
     },
     async saveTarget(accountId, projectId) {
-      const status = await statusOf(accountId, projectId);
-      if (!isClosureSummaryProjectStatus(status)) {
-        throw new ProjectClosureSummaryProjectNotClosedError(projectId);
-      }
+      await requireClosedProject(accountId, projectId);
       return { projectId };
     },
     async draft(accountId, rawInput) {
       const input = closureSummaryDraftInputSchema.parse(rawInput);
-      const status = await statusOf(accountId, input.projectId);
-      if (!isClosureSummaryProjectStatus(status)) {
-        throw new ProjectClosureSummaryProjectNotClosedError(input.projectId);
-      }
+      await requireClosedProject(accountId, input.projectId);
       const selected = await selectedCandidates(
         accountId,
         input.projectId,

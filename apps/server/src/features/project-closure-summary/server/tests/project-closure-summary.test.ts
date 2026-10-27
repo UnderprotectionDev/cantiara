@@ -170,6 +170,17 @@ describe("neutral date comparison", () => {
     });
   });
 
+  test("a cleared planned date does not compare against a stale previous date", () => {
+    const rows = read([
+      fact({
+        closedAt: "2026-10-12T10:00:00Z",
+        currentTargetDate: null,
+        targetDates: ["2026-10-01", "2026-10-10"],
+      }),
+    ]);
+    expect(rows).toEqual([]);
+  });
+
   test("the seam reads only the selected records", async () => {
     const access = createProjectClosureSummary(
       createMemoryProjectClosureSummary({

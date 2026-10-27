@@ -43,7 +43,12 @@ export const CLOSURE_SUMMARY_PROJECT_STATUSES = [
   "Abandoned",
 ] as const;
 
-export function isClosureSummaryProjectStatus(status: string): boolean {
+export type ClosureSummaryProjectStatus =
+  (typeof CLOSURE_SUMMARY_PROJECT_STATUSES)[number];
+
+export function isClosureSummaryProjectStatus(
+  status: string,
+): status is ClosureSummaryProjectStatus {
   return (CLOSURE_SUMMARY_PROJECT_STATUSES as readonly string[]).includes(
     status,
   );
@@ -253,8 +258,8 @@ export function closureSummaryLocalDate(instant: string, timeZone: string) {
 }
 
 /**
- * Reads existing history only. A record with no planned date is omitted (there
- * is nothing to compare). `moved` is true when the planned date changed from
+ * Reads existing history only. A record with no current planned date (never set or
+ * cleared) is omitted: there is nothing to compare. `moved` is true when the planned date changed from
  * one date to another. The reading compares the current planned date with the
  * Account-zone date of the completion or closure event; an event-less record
  * reads `Still open`.
@@ -268,7 +273,8 @@ export function deriveClosureSummaryDateComparison(
     const plannedDates = fact.targetDates.filter(
       (date, index, all) => index === 0 || date !== all[index - 1],
     );
-    const target = fact.currentTargetDate ?? plannedDates.at(-1) ?? null;
+    // A cleared planned date is no planned date: never fall back to history.
+    const target = fact.currentTargetDate;
     if (target === null) {
       return [];
     }
