@@ -1,14 +1,18 @@
-import type { ClosureSummaryCandidate } from "@cantiara/api/project-closure-summary";
+import type {
+  ClosureSummaryCandidate,
+  ClosureSummaryDateFacts,
+} from "@cantiara/api/project-closure-summary";
 import type { Database } from "@cantiara/db";
-import { workspace } from "@cantiara/db/schema/auth";
+import { accountPreferences, workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
 import { document } from "@cantiara/db/schema/document";
+import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { productionIncident } from "@cantiara/db/schema/production-incident";
 import { project } from "@cantiara/db/schema/project";
 import { projectRelease } from "@cantiara/db/schema/project-release";
 import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import {
   createProjectClosureSummary,
@@ -16,6 +20,8 @@ import {
 } from "./project-closure-summary";
 
 const MAX_CANDIDATES_PER_TYPE = 500;
+const DEFAULT_TIME_ZONE = "Europe/Istanbul";
+const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Reads only owner records that already exist and only for a Project the
@@ -27,6 +33,83 @@ export function createDatabaseProjectClosureSummarySources(
   database: Database,
 ): ProjectClosureSummarySources {
   return {
+    // Reads the planned target dates the Work's own Kayıt geçmişi recorded and
+    // the Work's closure event. No date is written or stored.
+    dateFacts: async (accountId, projectId, records) => {
+      const workIds = records
+        .filter((record) => record.recordType === "Work")
+        .map((record) => record.recordId);
+      const [preferences] = await database
+        .select({ timeZone: accountPreferences.timeZone })
+        .from(accountPreferences)
+        .where(eq(accountPreferences.accountId, accountId));
+      const timeZone = preferences?.timeZone ?? DEFAULT_TIME_ZONE;
+      if (workIds.length === 0) {
+        return { facts: [], timeZone };
+      }
+      const previousTarget = sql<
+        string | null
+      >`(${mutationHistory.previousValue} -> 'work' ->> 'targetDate')`;
+      const nextTarget = sql<
+        string | null
+      >`(${mutationHistory.nextValue} -> 'work' ->> 'targetDate')`;
+      const [works, changes] = await Promise.all([
+        database
+          .select({
+            id: work.id,
+            statusChangedAt: work.statusChangedAt,
+            targetDate: work.targetDate,
+          })
+          .from(work)
+          .where(
+            and(
+              eq(work.projectId, projectId),
+              inArray(work.id, workIds),
+              eq(work.status, "Closed"),
+              eq(work.closureResult, "Completed"),
+            ),
+          ),
+        database
+          .select({
+            next: nextTarget,
+            previous: previousTarget,
+            targetId: mutationHistory.targetId,
+          })
+          .from(mutationHistory)
+          .where(
+            and(
+              inArray(mutationHistory.targetId, workIds),
+              sql`${previousTarget} is distinct from ${nextTarget}`,
+            ),
+          )
+          .orderBy(asc(mutationHistory.occurredAt)),
+      ]);
+      const datesOf = new Map<string, string[]>();
+      for (const change of changes) {
+        const dates = datesOf.get(change.targetId) ?? [];
+        for (const date of [
+          dates.length === 0 ? change.previous : null,
+          change.next,
+        ]) {
+          if (date && LOCAL_DATE.test(date)) {
+            dates.push(date);
+          }
+        }
+        datesOf.set(change.targetId, dates);
+      }
+      const labelOf = new Map(
+        records.map((record) => [record.recordId, record.label]),
+      );
+      const facts: ClosureSummaryDateFacts[] = works.map((row) => ({
+        closedAt: row.statusChangedAt.toISOString(),
+        currentTargetDate: row.targetDate,
+        label: labelOf.get(row.id) ?? row.id,
+        recordId: row.id,
+        recordType: "Work",
+        targetDates: datesOf.get(row.id) ?? [],
+      }));
+      return { facts, timeZone };
+    },
     candidates: (_accountId, projectId) =>
       database.transaction(async (executor) => {
         const [decisions, risks, releases, documents, incidents, works] =

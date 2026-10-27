@@ -108,6 +108,7 @@ import {
   documentTransferInputSchema as wikiDocumentTransferInputSchema,
 } from "../document-transfers";
 import {
+  createDocumentInputSchema,
   createDocumentMutationInputSchema,
   DocumentConflictDraftError,
   DocumentHierarchyError,
@@ -364,10 +365,15 @@ import {
   projectActivitySchema,
 } from "../project-activity";
 import {
+  CLOSURE_SUMMARY_DOCUMENT_TYPE,
+  closureSummaryDateComparisonInputSchema,
+  closureSummaryDateComparisonSchema,
   closureSummaryDraftInputSchema,
   closureSummaryDraftSchema,
   closureSummarySourcesInputSchema,
   closureSummarySourcesSchema,
+  saveClosureSummaryInputSchema,
+  saveClosureSummaryResultSchema,
 } from "../project-closure-summary";
 import {
   createProjectGoalInputSchema,
@@ -3769,6 +3775,60 @@ async function runProjectHistoryOperation<T>(
         failure.message ??
         (error instanceof Error ? error.message : "Request refused."),
     });
+  }
+}
+
+/**
+ * Explicit `Save as Document`: the Documents create path of the Mutation
+ * Contract writes one `General` Project Document in the source Project (its
+ * Kökeni). The closure module only checks that the Project is completed or
+ * abandoned; it writes nothing, and no Project, source record or lifecycle
+ * status is touched.
+ */
+async function saveProjectClosureSummaryDocument(
+  context: Context & { session: NonNullable<Context["session"]> },
+  input: z.infer<typeof saveClosureSummaryInputSchema>,
+) {
+  const accountId = context.session.user.id;
+  const { baseRevision, clientIdempotencyKey, ...fields } = input;
+  await runProjectClosureSummaryOperation(() =>
+    requireProjectClosureSummary(context).saveTarget(
+      accountId,
+      input.projectId,
+    ),
+  );
+  const payload = createDocumentInputSchema.parse({
+    ...fields,
+    type: CLOSURE_SUMMARY_DOCUMENT_TYPE,
+  });
+  const mutation = requireDocumentMutationContracts(context).create(accountId);
+  try {
+    const receipt = await mutation.mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision,
+        clientIdempotencyKey,
+        kind: "human",
+        payload,
+        targetId: clientIdempotencyKey,
+      },
+      ({ committedAt, currentRevision }) =>
+        ({
+          document: documentSchema.parse({
+            ...payload,
+            createdAt: committedAt,
+            id: crypto.randomUUID(),
+            revision: currentRevision + 1,
+            updatedAt: committedAt,
+          }),
+        }) satisfies DocumentMutationValue,
+    );
+    if (!receipt.nextValue.document) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return receipt.nextValue.document;
+  } catch (error) {
+    rethrowDocumentMutationError(error, clientIdempotencyKey);
   }
 }
 
@@ -8022,6 +8082,23 @@ export const appRouter = {
           input,
         ),
       ),
+    ),
+  projectClosureSummaryDateComparison: protectedProcedure
+    .input(closureSummaryDateComparisonInputSchema)
+    .output(closureSummaryDateComparisonSchema)
+    .handler(({ context, input }) =>
+      runProjectClosureSummaryOperation(() =>
+        requireProjectClosureSummary(context).dateComparison(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  saveProjectClosureSummary: protectedProcedure
+    .input(saveClosureSummaryInputSchema)
+    .output(saveClosureSummaryResultSchema)
+    .handler(({ context, input }) =>
+      saveProjectClosureSummaryDocument(context, input),
     ),
   projectValueChain: protectedProcedure
     .input(valueChainInputSchema)

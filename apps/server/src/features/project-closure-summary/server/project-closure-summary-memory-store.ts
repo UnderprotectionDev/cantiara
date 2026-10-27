@@ -1,4 +1,7 @@
-import type { ClosureSummaryCandidate } from "@cantiara/api/project-closure-summary";
+import type {
+  ClosureSummaryCandidate,
+  ClosureSummaryDateFacts,
+} from "@cantiara/api/project-closure-summary";
 
 import type { ProjectClosureSummarySources } from "./project-closure-summary";
 
@@ -11,10 +14,30 @@ export function createMemoryProjectClosureSummary(options: {
   accountId: string;
   projects: Map<
     string,
-    { candidates: ClosureSummaryCandidate[]; status: string }
+    {
+      candidates: ClosureSummaryCandidate[];
+      dateFacts?: ClosureSummaryDateFacts[];
+      status: string;
+    }
   >;
+  timeZone?: string;
 }): ProjectClosureSummarySources {
   return {
+    dateFacts: (accountId, projectId, records) =>
+      Promise.resolve({
+        facts:
+          accountId === options.accountId
+            ? (options.projects.get(projectId)?.dateFacts ?? []).filter(
+                (fact) =>
+                  records.some(
+                    (record) =>
+                      record.recordId === fact.recordId &&
+                      record.recordType === fact.recordType,
+                  ),
+              )
+            : [],
+        timeZone: options.timeZone ?? "UTC",
+      }),
     candidates: (accountId, projectId) =>
       Promise.resolve(
         accountId === options.accountId

@@ -84,10 +84,33 @@ function checkbox(view: HTMLElement, label: string) {
   return control;
 }
 
+const onSave = vi.fn((input: { title: string }) =>
+  Promise.resolve({ id: "doc-1", title: input.title }),
+);
+const onDateHistory = vi.fn(() =>
+  Promise.resolve({
+    note: "This is a reading of existing history. It is not a score." as const,
+    projectId: "p1",
+    rows: [
+      {
+        closedOn: "2026-10-12",
+        label: "TID-2 Offline queue",
+        moved: true,
+        plannedDates: ["2026-10-01", "2026-10-10"],
+        reading: "After target" as const,
+        recordId: "w1",
+        recordType: "Work" as const,
+      },
+    ],
+  }),
+);
+
 function renderView() {
   return render(
     <ClosureSummaryView
+      onDateHistory={onDateHistory as never}
       onDraft={onDraft as never}
+      onSave={onSave as never}
       projectId="p1"
       sources={sources()}
     />,
@@ -100,6 +123,8 @@ afterEach(() => {
   root = null;
   host = null;
   onDraft.mockClear();
+  onSave.mockClear();
+  onDateHistory.mockClear();
 });
 
 test("shows the heading, the draft note and labelled source groups", () => {
@@ -135,17 +160,67 @@ test("generates an editable headings-and-links draft and discards it", async () 
   expect(editor?.value).toBe(
     "## Decisions\n\n- [Use SQLite](/projects/p1#source-decision-d1)",
   );
-  expect(rendered.textContent).not.toContain("Save as Document");
+  // Generating is not saving: nothing was written.
+  expect(onSave).not.toHaveBeenCalled();
 
   await click(button(rendered, "Discard draft"));
   expect(rendered.querySelector("textarea")).toBeNull();
   expect(rendered.textContent).toContain("Select sources");
+  expect(onSave).not.toHaveBeenCalled();
+});
+
+test("Save as Document writes once with the default title and shows the Document", async () => {
+  const rendered = renderView();
+  await click(checkbox(rendered, "Use SQLite"));
+  await click(button(rendered, "Generate draft"));
+  const title = rendered.querySelector<HTMLInputElement>("input");
+  expect(title?.value).toBe("Project Closure Summary");
+  await click(button(rendered, "Save as Document"));
+  expect(onSave).toHaveBeenCalledTimes(1);
+  expect(onSave.mock.calls[0]?.[0]).toMatchObject({
+    body: "## Decisions\n\n- [Use SQLite](/projects/p1#source-decision-d1)",
+    title: "Project Closure Summary",
+  });
+  expect(rendered.textContent).toContain(
+    "Project Closure Summary saved as a Document.",
+  );
+  expect(rendered.querySelector("a")?.getAttribute("href")).toContain("doc-1");
+});
+
+test("the optional Planned date history is a neutral reading with no score", async () => {
+  const rendered = renderView();
+  await click(checkbox(rendered, "TID-2 Offline queue"));
+  await click(button(rendered, "Generate draft"));
+  expect(rendered.textContent).not.toContain("It is not a score.");
+  await click(button(rendered, "Planned date history"));
+  const text = rendered.querySelector(
+    "section[aria-label='Planned date history']",
+  )?.textContent;
+  expect(text).toContain(
+    "This is a reading of existing history. It is not a score.",
+  );
+  expect(text).toContain("Moved");
+  expect(text).toContain("After target");
+  expect(onSave).not.toHaveBeenCalled();
+});
+
+test("Planned date history is not offered without a Work source", async () => {
+  const rendered = renderView();
+  await click(checkbox(rendered, "Use SQLite"));
+  await click(button(rendered, "Generate draft"));
+  expect(
+    [...rendered.querySelectorAll("button")].some(
+      (candidate) => candidate.textContent === "Planned date history",
+    ),
+  ).toBe(false);
 });
 
 test("offers nothing on a Project that is not completed or abandoned", () => {
   const rendered = render(
     <ClosureSummaryView
+      onDateHistory={onDateHistory as never}
       onDraft={onDraft as never}
+      onSave={onSave as never}
       projectId="p1"
       sources={sources(false)}
     />,
