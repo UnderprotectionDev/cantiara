@@ -66,6 +66,7 @@ import {
   navigationSurfaceFromHash,
   PRIORITY_MAP_HASH,
   PROJECT_HISTORY_HASH,
+  PROJECT_UPDATES_HASH,
   projectSourceRecordFromHash,
   ROADMAP_HASH,
   SPEC_CHANGE_REVIEW_HASH,
@@ -198,6 +199,16 @@ function projectTestsSurface(
         projectId={projectId}
       />
     </div>
+  ) : null;
+}
+
+/** The route composes `Project Updates`, so the shell never imports its `ui/`. */
+function projectUpdatesSurface(
+  activeHash: string,
+  projectUpdatesArea?: ReactNode,
+) {
+  return projectUpdatesArea && activeHash === PROJECT_UPDATES_HASH ? (
+    <div id={PROJECT_UPDATES_HASH}>{projectUpdatesArea}</div>
   ) : null;
 }
 
@@ -475,6 +486,7 @@ function ProjectShellContent({
   githubArea,
   project,
   projectHistoryArea,
+  projectUpdatesArea,
   productionArea,
   projectId,
   releasesArea,
@@ -489,6 +501,7 @@ function ProjectShellContent({
   productionArea?: ProjectProductionArea;
   project: ProjectProfile;
   projectHistoryArea?: ReactNode;
+  projectUpdatesArea?: ReactNode;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
@@ -635,6 +648,7 @@ function ProjectShellContent({
       releasesArea,
     ) ??
     projectHistorySurface(activeHash, projectHistoryArea) ??
+    projectUpdatesSurface(activeHash, projectUpdatesArea) ??
     projectProductionSurface(
       activeHash,
       accountFormattingPreferences,

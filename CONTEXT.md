@@ -443,7 +443,8 @@ Proje kabuğunda adlandırılmış İş görünümü; günlük planlama eylemi v
 _Avoid_: Planning, ikinci Backlog, klasör üyeliği
 
 **Manuel Proje Güncellemesi**:
-Kurucunun tarihli öznel sağlık işareti, kısa anlatı ve o anki özet snapshot'ıyla kaydettiği Proje yardımcı varlığı; güncel otomatik sağlık hükmü değildir ([Manuel Proje Güncellemeleri](docs/prd/04-workspace-and-projects.md#manuel-proje-güncellemeleri)).
+Kurucunun tarihli öznel sağlık işareti, kısa anlatı ve o anki özet snapshot'ıyla kaydettiği Proje yardımcı varlığı; güncel otomatik sağlık hükmü değildir ([Manuel Proje Güncellemeleri](docs/prd/04-workspace-and-projects.md#manuel-proje-güncellemeleri)). Kayıt yalnız eklenir: kaydedilmiş işaret, anlatı ve snapshot yerinde yeniden yazılmaz, sonraki hüküm yeni tarihli girdidir; bağlı Risk, Karar, Kilometre Taşı veya İş canlı kalır ve `Open source record` ile açılır.
+UI: `Project Update`, `Project Updates`, `Create Project Update`, `Open source record`; işaretler `On Track`, `At Risk`, `Off Track`.
 _Avoid_: Canlı sağlık skoru, Mission Control, Proje genel bakışı
 
 **Kişisel erişim kabuğu**:

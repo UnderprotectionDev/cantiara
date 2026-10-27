@@ -11,6 +11,7 @@ export const ALWAYS_REACHABLE_SURFACES = [
   "Smart Collection",
   "All Tools",
   "Project History",
+  "Project Updates",
 ] as const;
 export const ALL_PROJECT_AREAS = PROJECT_AREA_OPTIONS;
 export const CONFIGURATION_HOST_GROUPS = ["Project", "Work"] as const;
@@ -108,6 +109,8 @@ export const DAILY_ACTION_MESSAGES: Record<DailyAction, string> = {
 
 /** The Project-level `Story Timeline` of `Project History`; never the landing surface. */
 export const PROJECT_HISTORY_HASH = "project-history";
+/** The Manual Project Updates chronology (`Project Update` entries); never the landing surface. */
+export const PROJECT_UPDATES_HASH = "project-updates";
 export const BACKLOG_HASH = "backlog";
 export const ROADMAP_HASH = "roadmap";
 const WORK_RELATIONS_HASH_PREFIX = "work-relations-";
@@ -303,6 +306,9 @@ export function navigationSurfaceFromHash(
   if (hash === PROJECT_HISTORY_HASH) {
     return "Project History";
   }
+  if (hash === PROJECT_UPDATES_HASH) {
+    return "Project Updates";
+  }
   if (
     hash === "smart-collections" ||
     hash.startsWith("smart-collection-view-")
@@ -389,6 +395,9 @@ export function navigationHash(surface: NavigationSurface) {
   }
   if (surface === "Project History") {
     return PROJECT_HISTORY_HASH;
+  }
+  if (surface === "Project Updates") {
+    return PROJECT_UPDATES_HASH;
   }
   if (surface === "Smart Collection") {
     return "smart-collections";

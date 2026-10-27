@@ -1226,6 +1226,13 @@
       "when": 1793004832971,
       "tag": "0174_jazzy_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1793084968588,
+      "tag": "0175_loose_ultragirl",
+      "breakpoints": true
     }
   ]
 }

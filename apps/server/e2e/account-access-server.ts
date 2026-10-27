@@ -76,6 +76,7 @@ import { createDatabaseProjectHistory } from "../src/features/project-history/se
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "../src/features/project-source-records/server/project-source-records-database";
+import { createDatabaseProjectUpdates } from "../src/features/project-updates/server/project-updates-database";
 import { createDatabaseRecordActions } from "../src/features/record-actions/server/record-actions-database";
 import { createDatabaseRecordTable } from "../src/features/record-discovery/server/record-table-database";
 import { createDatabaseUniversalSearch } from "../src/features/record-discovery/server/universal-search-database";
@@ -404,6 +405,7 @@ const app = createApp({
     createDatabaseProjectActivityStore(database),
   ),
   projectHistory: createDatabaseProjectHistory(database),
+  projectUpdates: createDatabaseProjectUpdates(database),
   priorityMetricMutationContracts,
   priorityMetrics,
   projectShell,

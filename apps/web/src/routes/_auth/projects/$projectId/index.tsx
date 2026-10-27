@@ -8,6 +8,7 @@ import StoryTimelineSurface from "@/features/project-history/ui/components/story
 import WorkRecordHistorySurface from "@/features/project-history/ui/components/work-record-history-surface";
 import ProjectReleasesView from "@/features/project-release-planning/ui/views/project-releases-view";
 import ProjectShellView from "@/features/project-shell/ui/views/project-shell-view";
+import ProjectUpdatesSurface from "@/features/project-updates/ui/components/project-updates-surface";
 import ReleaseEvidencePackSurface from "@/features/release-evidence/ui/components/release-evidence-pack-surface";
 import { smartCollectionWorkPrefillFromSearch } from "@/features/smart-collections/lib/smart-collection-work-prefill";
 import ValueChainSurface from "@/features/value-chain/ui/components/value-chain-surface";
@@ -74,6 +75,9 @@ function RouteComponent() {
         </>
       }
       projectId={projectId}
+      projectUpdatesArea={
+        <ProjectUpdatesSurface key={projectId} projectId={projectId} />
+      }
       releaseEvidenceArea={releaseEvidenceArea}
       releasesArea={ProjectReleasesView}
       valueChainArea={valueChainArea}

@@ -32,6 +32,7 @@ export * from "./project-goal-relation";
 export * from "./project-milestone";
 export * from "./project-release";
 export * from "./project-release-planning";
+export * from "./project-update";
 export * from "./project-wall";
 export * from "./record-action";
 export * from "./relation";

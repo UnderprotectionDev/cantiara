@@ -409,6 +409,13 @@ import {
   updateProjectSourceRecordInputSchema,
 } from "../project-source-records";
 import {
+  createProjectUpdateInputSchema,
+  ProjectUpdateConflictError,
+  ProjectUpdateLinkError,
+  ProjectUpdateReadOnlyError,
+  projectUpdatesInputSchema,
+} from "../project-updates";
+import {
   addProjectWallCardInputSchema,
   createProjectWallFromSkeletonInputSchema,
   createProjectWallGroupInputSchema,
@@ -4342,7 +4349,68 @@ async function productionIncidentWrite<T>(
     throw error;
   }
 }
+function requireProjectUpdates(context: Context) {
+  if (!context.projectUpdates) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectUpdates;
+}
+async function projectUpdateWrite<T>(
+  targetId: string,
+  write: () => Promise<T | null>,
+): Promise<T> {
+  try {
+    const result = await write();
+    if (!result) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return result;
+  } catch (error) {
+    if (error instanceof ProjectUpdateConflictError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: "CONFLICT", targetId },
+        defined: true,
+        message: "Conflict",
+      });
+    }
+    if (error instanceof ProjectUpdateReadOnlyError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: "PROJECT_READ_ONLY", targetId },
+        defined: true,
+        message: "Project is archived",
+      });
+    }
+    if (error instanceof ProjectUpdateLinkError) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        message: error.message,
+      });
+    }
+    throw error;
+  }
+}
 export const appRouter = {
+  projectUpdates: protectedProcedure
+    .input(projectUpdatesInputSchema)
+    .handler(async ({ context, input }) => {
+      const overview = await requireProjectUpdates(context).overview(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!overview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return overview;
+    }),
+  createProjectUpdate: protectedProcedure
+    .input(createProjectUpdateInputSchema)
+    .handler(({ context, input }) =>
+      projectUpdateWrite(input.updateId, () =>
+        requireProjectUpdates(context).create(context.session.user.id, input),
+      ),
+    ),
   productionIncidents: protectedProcedure
     .input(productionIncidentsInputSchema)
     .handler(async ({ context, input }) => {
