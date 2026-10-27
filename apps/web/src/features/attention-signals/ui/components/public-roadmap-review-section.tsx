@@ -6,7 +6,7 @@ import PublicRoadmapReviewSurface from "./public-roadmap-review-surface";
 export default function PublicRoadmapReviewSection() {
   const projects = useQuery(orpc.projects.queryOptions());
   const active = (projects.data ?? []).filter(
-    (item) => item.status === "Active" || item.status === "Pending",
+    (item) => item.status === "Active",
   );
   if (active.length === 0) {
     return null;

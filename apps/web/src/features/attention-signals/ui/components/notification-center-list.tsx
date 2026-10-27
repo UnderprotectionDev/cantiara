@@ -8,12 +8,40 @@ import type {
   OpenAttentionSignalOutput,
 } from "@cantiara/api/attention-signals";
 import { Button } from "@cantiara/ui/components/button";
+import { AppLink } from "@/components/app-link";
+import {
+  documentRecordHash,
+  projectSourceRecordHash,
+  workRecordHash,
+} from "@/features/project-shell/lib/project-shell-navigation";
 
 function signalState(signal: AttentionSignal) {
   if (signal.closedAt) {
     return "Closed";
   }
   return signal.readAt ? "Read" : "Unread";
+}
+
+/** Where the signal's main source opens: no link when the record kind is unknown here. */
+export function signalSourceHref(signal: AttentionSignal) {
+  if (!signal.projectId || signal.tombstone) {
+    return null;
+  }
+  const base = `/projects/${encodeURIComponent(signal.projectId)}#`;
+  switch (signal.group.kind) {
+    case "Work":
+      return `${base}${workRecordHash(signal.group.id)}`;
+    case "Feature":
+      return `${base}${workRecordHash(signal.group.id)}`;
+    case "Risk":
+      return `${base}${projectSourceRecordHash("Risk", signal.group.id)}`;
+    case "Decision":
+      return `${base}${projectSourceRecordHash("Decision", signal.group.id)}`;
+    case "Document":
+      return `${base}${documentRecordHash(signal.group.id)}`;
+    default:
+      return null;
+  }
 }
 
 export interface NotificationCenterActions {
@@ -33,21 +61,33 @@ export interface NotificationCenterPanels {
 
 function OpenedPanel({
   opened,
+  signal,
 }: {
   opened: NonNullable<NotificationCenterPanels["opened"]>;
+  signal: AttentionSignal;
 }) {
   const { output } = opened;
-  if (output.outcome === "event") {
+  if (output.outcome === "tombstone") {
     return (
       <p className="text-sm" role="status">
-        Opened event {output.eventId} on {output.group.kind} {output.group.id}.
+        {output.explanation}
       </p>
     );
   }
+  const href = signalSourceHref(signal);
   return (
-    <p className="text-sm" role="status">
-      {output.explanation}
-    </p>
+    <div className="grid gap-1 text-sm" role="status">
+      <p>
+        {output.outcome === "event"
+          ? `Source event ${output.eventId} is available on ${output.group.kind} ${output.group.id}.`
+          : output.explanation}
+      </p>
+      {href ? (
+        <AppLink className="underline underline-offset-2" href={href}>
+          Open source record
+        </AppLink>
+      ) : null}
+    </div>
   );
 }
 
@@ -125,7 +165,7 @@ function SignalRow({
             type="button"
             variant="outline"
           >
-            {signal.readAt ? "Mark unread" : "Mark read"}
+            {signal.readAt ? "Mark as unread" : "Mark as read"}
           </Button>
           <Button
             onClick={() =>
@@ -148,7 +188,7 @@ function SignalRow({
         </div>
       ) : null}
       {panels.opened?.signalRowId === signal.id ? (
-        <OpenedPanel opened={panels.opened} />
+        <OpenedPanel opened={panels.opened} signal={signal} />
       ) : null}
       {actions && panels.preview?.signalRowId === signal.id ? (
         <PreviewPanel
@@ -181,7 +221,7 @@ function SectionView({
       </summary>
       {section.groups.length === 0 ? (
         <p className="px-3 pb-3 text-muted-foreground text-sm">
-          No signals in {section.section}.
+          No signals in this section.
         </p>
       ) : (
         <ul className="grid gap-3 px-3 pb-3">

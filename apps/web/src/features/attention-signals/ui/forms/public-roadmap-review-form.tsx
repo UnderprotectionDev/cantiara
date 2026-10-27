@@ -51,13 +51,13 @@ export default function PublicRoadmapReviewForm({
             value.trim() === "" ||
             publicRoadmapReviewDaysSchema.safeParse(Number(value)).success
               ? undefined
-              : `Enter a whole number of days from ${PUBLIC_ROADMAP_REVIEW_MIN_DAYS} to ${PUBLIC_ROADMAP_REVIEW_MAX_DAYS}, or leave it empty.`,
+              : `Enter a whole number of days from ${PUBLIC_ROADMAP_REVIEW_MIN_DAYS} to ${PUBLIC_ROADMAP_REVIEW_MAX_DAYS}.`,
         }}
       >
         {(field) => (
           <div className="grid gap-1">
             <label className="text-sm" htmlFor={inputId}>
-              Public Roadmap review interval (days)
+              Review interval (days)
             </label>
             <Input
               disabled={disabled}

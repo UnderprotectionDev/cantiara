@@ -21,6 +21,11 @@ export default function NotificationCenterSurface() {
   const [preview, setPreview] = useState<AttentionFollowUpPreview | null>(null);
   const [attempt, setAttempt] = useState(() => crypto.randomUUID());
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const errorMessage = (caught: unknown) =>
+    caught instanceof Error && caught.message
+      ? caught.message
+      : "The action could not be completed.";
   const refresh = () =>
     queryClient.invalidateQueries({
       queryKey: orpc.notificationCenter.queryOptions().queryKey,
@@ -41,14 +46,22 @@ export default function NotificationCenterSurface() {
   const mark = useMutation({
     mutationFn: (variables: Parameters<typeof client.markNotification>[0]) =>
       runOnlineOnlyWrite(() => client.markNotification(variables)),
-    onSuccess: refresh,
+    onSuccess: () => {
+      setError(null);
+      return refresh();
+    },
+    onError: (caught) => setError(errorMessage(caught)),
   });
   const open = useMutation({
     mutationFn: (signal: AttentionSignal) =>
       runOnlineOnlyWrite(() =>
         client.openNotification({ signalRowId: signal.id }),
       ).then((output) => ({ output, signalRowId: signal.id })),
-    onSuccess: setOpened,
+    onSuccess: (result) => {
+      setError(null);
+      return setOpened(result);
+    },
+    onError: (caught) => setError(errorMessage(caught)),
   });
   const previewFollowUp = useMutation({
     mutationFn: (signal: AttentionSignal) =>
@@ -58,8 +71,10 @@ export default function NotificationCenterSurface() {
     onSuccess: (result) => {
       setAttempt(crypto.randomUUID());
       setMessage(null);
+      setError(null);
       setPreview(result);
     },
+    onError: (caught) => setError(errorMessage(caught)),
   });
   const createFollowUp = useMutation({
     mutationFn: (signal: AttentionSignal) =>
@@ -70,11 +85,17 @@ export default function NotificationCenterSurface() {
           signalRowId: signal.id,
         }),
       ),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       setPreview(null);
-      setMessage("Follow-up work created. The notification stays open.");
+      setError(null);
+      setMessage(
+        result.created
+          ? "Follow-up work created. The notification stays open."
+          : "Follow-up work already exists for this attempt.",
+      );
       await refresh();
     },
+    onError: (caught) => setError(errorMessage(caught)),
   });
   if (center.isPending) {
     return <p>Loading Notification Center…</p>;
@@ -84,6 +105,7 @@ export default function NotificationCenterSurface() {
   }
   return (
     <>
+      {error ? <p role="alert">{error}</p> : null}
       {message ? <p role="status">{message}</p> : null}
       <NotificationCenterList
         actions={{

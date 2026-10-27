@@ -19,19 +19,19 @@ export function createMemoryAttentionSignalStore() {
       if (prior) {
         return Promise.resolve(
           prior.signalRowId === commit.signal.id
-            ? { created: false, workId: prior.workId }
-            : null,
+            ? { outcome: "duplicate", workId: prior.workId }
+            : { outcome: "attemptConflict" },
         );
       }
       if (!commit.signal.projectId) {
-        return Promise.resolve(null);
+        return Promise.resolve({ outcome: "projectUnavailable" });
       }
       followUps.set(commit.attemptId, {
         signalRowId: commit.signal.id,
         title: commit.plan.title,
         workId: commit.workId,
       });
-      return Promise.resolve({ created: true, workId: commit.workId });
+      return Promise.resolve({ outcome: "created", workId: commit.workId });
     },
     find: (accountId, signalRowId) =>
       Promise.resolve(

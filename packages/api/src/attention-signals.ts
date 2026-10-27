@@ -309,7 +309,9 @@ export type PreviewAttentionFollowUpInput = z.input<
   typeof previewAttentionFollowUpInputSchema
 >;
 
-/** One apply per attempt id: a retry returns the same İş, never a second. */
+/** One apply per attempt id: a retry returns the same İş, never a second. A fresh preview
+ * mints a fresh attempt, so applying twice through two previews is the founder's explicit
+ * second follow-up; multiples from one notification are never implicit. */
 export const createAttentionFollowUpInputSchema = z
   .object({
     attemptId: identity,

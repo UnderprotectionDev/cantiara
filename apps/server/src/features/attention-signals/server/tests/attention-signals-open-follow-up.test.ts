@@ -150,6 +150,32 @@ describe("opening the exact source event", () => {
 });
 
 describe("Create Follow-up Work", () => {
+  test("centers batch source existence through the resolver's records member", async () => {
+    const harness = createMemoryAttentionSignalStore();
+    let recordCalls = 0;
+    let batchedKeys: string[] = [];
+    const access = createAttentionSignals(harness.store, {
+      resolver: {
+        event: () => Promise.resolve("unresolved"),
+        record: () => {
+          recordCalls += 1;
+          return Promise.resolve("present");
+        },
+        records: (_accountId, groups) => {
+          batchedKeys = groups.map((group) => `${group.kind}:${group.id}`);
+          return Promise.resolve(new Set(batchedKeys));
+        },
+      },
+    });
+    await access.emit(ACCOUNT, event());
+    const [action] = (await access.center(ACCOUNT)).sections;
+    const row = action?.groups[0]?.signals[0];
+    expect(row?.tombstone).toBe(true);
+    expect(row?.reason).toBe("The source record was deleted.");
+    expect(recordCalls).toBe(0);
+    expect(batchedKeys).toEqual(["Work:work-1"]);
+  });
+
   test("previews the İş and its Kökeni relations before anything is created", async () => {
     const { access, followUps, source } = setup();
     const { signal } = await access.emit(ACCOUNT, event());
@@ -223,6 +249,31 @@ describe("Create Follow-up Work", () => {
       access.previewFollowUp(ACCOUNT, { signalRowId: signal.id }),
     ).rejects.toMatchObject({ code: "ATTENTION_FOLLOW_UP_PROJECT_REQUIRED" });
     expect(followUps.size).toBe(0);
+  });
+
+  test("an attempt bound to another notification is refused, not a fake Project error", async () => {
+    const { access, followUps } = setup();
+    const first = await access.emit(ACCOUNT, event());
+    const firstPreview = await access.previewFollowUp(ACCOUNT, {
+      signalRowId: first.signal.id,
+    });
+    await access.createFollowUp(ACCOUNT, {
+      attemptId: "attempt-1",
+      fingerprint: firstPreview.fingerprint,
+      signalRowId: first.signal.id,
+    });
+    const other = await access.emit(ACCOUNT, event({ eventId: "comment-11" }));
+    const otherPreview = await access.previewFollowUp(ACCOUNT, {
+      signalRowId: other.signal.id,
+    });
+    await expect(
+      access.createFollowUp(ACCOUNT, {
+        attemptId: "attempt-1",
+        fingerprint: otherPreview.fingerprint,
+        signalRowId: other.signal.id,
+      }),
+    ).rejects.toMatchObject({ code: "ATTENTION_FOLLOW_UP_ATTEMPT_CONFLICT" });
+    expect(followUps.size).toBe(1);
   });
 
   test("a deleted source previews a plan with no source relation and no quoted text", async () => {

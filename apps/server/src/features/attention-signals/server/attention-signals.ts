@@ -101,16 +101,24 @@ export interface AttentionFollowUpCommit {
   workId: string;
 }
 
+export interface AttentionFollowUpCommitted {
+  outcome: "attemptConflict" | "created" | "duplicate" | "projectUnavailable";
+  workId?: string;
+}
+
 export interface AttentionSignalStore {
   /**
    * Commits the one İş and its receipt atomically under the Project lock.
-   * The same attempt id returns the first İş. `null` means the Project is
-   * not the account's or is archived.
+   * The same attempt id returns the first İş as `duplicate`; an attempt id
+   * already bound to another notification is `attemptConflict`, and a Project
+   * that is not the account's or is archived is `projectUnavailable`. A
+   * further apply through a fresh preview minted a fresh attempt: that is an
+   * explicit second follow-up, never an implicit one.
    */
   commitFollowUp: (
     accountId: string,
     commit: AttentionFollowUpCommit,
-  ) => Promise<{ created: boolean; workId: string } | null>;
+  ) => Promise<AttentionFollowUpCommitted>;
   find: (
     accountId: string,
     signalRowId: string,
@@ -135,6 +143,9 @@ export interface AttentionSignalStore {
 /**
  * Read-only port to the source owners. It answers only whether the record and
  * the exact event still resolve; it returns no content and has no write.
+ * `records` is the optional batch form of `record`: it returns the set of
+ * deleted `kind:id` group keys. Without it the caller falls back to one
+ * `record` call per group.
  */
 export interface AttentionSourceResolver {
   event: (
@@ -145,6 +156,10 @@ export interface AttentionSourceResolver {
     accountId: string,
     group: StoredAttentionSignal["group"],
   ) => Promise<"deleted" | "present">;
+  records?: (
+    accountId: string,
+    groups: readonly StoredAttentionSignal["group"][],
+  ) => Promise<ReadonlySet<string>>;
 }
 
 /** Without a producer resolver nothing is claimed: records exist, events do not resolve. */
@@ -204,14 +219,20 @@ export function createAttentionSignals(
       const groups = new Map(
         stored.map((row) => [sourceGroupKey(row.group), row.group]),
       );
-      const deleted = new Set<string>();
-      await Promise.all(
-        [...groups].map(async ([key, group]) => {
-          if ((await resolver.record(accountId, group)) === "deleted") {
-            deleted.add(key);
-          }
-        }),
-      );
+      let deleted: ReadonlySet<string>;
+      if (resolver.records) {
+        deleted = await resolver.records(accountId, [...groups.values()]);
+      } else {
+        const found = new Set<string>();
+        await Promise.all(
+          [...groups].map(async ([key, group]) => {
+            if ((await resolver.record(accountId, group)) === "deleted") {
+              found.add(key);
+            }
+          }),
+        );
+        deleted = found;
+      }
       return deriveNotificationCenter(stored, deleted);
     },
 
@@ -233,12 +254,19 @@ export function createAttentionSignals(
         signal: stored,
         workId: createId(),
       });
-      if (!committed) {
+      if (committed.outcome === "attemptConflict") {
+        throw new AttentionFollowUpAttemptConflictError();
+      }
+      if (committed.outcome === "projectUnavailable") {
         throw new AttentionFollowUpProjectUnavailableError();
       }
       // The signal is returned exactly as it was: the apply neither reads,
       // closes nor otherwise marks it, and the source is not written.
-      return { created: committed.created, signal, workId: committed.workId };
+      return {
+        created: committed.outcome === "created",
+        signal,
+        workId: committed.workId ?? "",
+      };
     },
 
     async emit(accountId, rawInput: EmitAttentionSignalInput) {

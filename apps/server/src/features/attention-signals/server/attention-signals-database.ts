@@ -10,7 +10,7 @@ import { document } from "@cantiara/db/schema/document";
 import { project } from "@cantiara/db/schema/project";
 import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 
 import {
   type AttentionSignalStore,
@@ -67,12 +67,12 @@ export function createDatabaseAttentionSignalStore(
         if (prior) {
           return prior.accountId === accountId &&
             prior.signalRowId === commit.signal.id
-            ? { created: false, workId: prior.workId }
-            : null;
+            ? { outcome: "duplicate", workId: prior.workId }
+            : { outcome: "attemptConflict" };
         }
         const { projectId } = commit.signal;
         if (!projectId) {
-          return null;
+          return { outcome: "projectUnavailable" };
         }
         const [owned] = await executor
           .select({ project })
@@ -87,7 +87,7 @@ export function createDatabaseAttentionSignalStore(
           .limit(1)
           .for("update", { of: project });
         if (!owned || owned.project.archivedAt) {
-          return null;
+          return { outcome: "projectUnavailable" };
         }
         const committedAt = new Date();
         await ports.insertWork(executor, owned.project, {
@@ -114,7 +114,7 @@ export function createDatabaseAttentionSignalStore(
           sourceGroupKind: source?.kind ?? null,
           workId: commit.workId,
         });
-        return { created: true, workId: commit.workId };
+        return { outcome: "created", workId: commit.workId };
       });
     },
 
@@ -209,9 +209,38 @@ const RECORD_TABLES = {
 } as const;
 
 /**
+ * Existence for one known record kind over a batch of ids: the ids that are
+ * missing, or for Work trashed, as `kind:id` keys. Unknown kinds report present.
+ */
+async function deletedKeysForKind(
+  database: Database,
+  kind: string,
+  ids: string[],
+): Promise<string[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+  if (kind === "Work") {
+    const trashed = await database
+      .select({ id: work.id })
+      .from(work)
+      .where(and(inArray(work.id, ids), isNotNull(work.trashedAt)));
+    return trashed.map((row) => `Work:${row.id}`);
+  }
+  const table = RECORD_TABLES[kind as keyof typeof RECORD_TABLES];
+  const present = await database
+    .select({ id: table.id })
+    .from(table)
+    .where(inArray(table.id, ids));
+  const found = new Set(present.map((row) => row.id));
+  return ids.filter((id) => !found.has(id)).map((id) => `${kind}:${id}`);
+}
+
+/**
  * Existence-only resolver over the owner tables this slice can read. A kind it
  * does not know is reported present; events resolve only for a producer that
- * supplies its own event resolver. It reads no content.
+ * supplies its own event resolver. It reads no content. `records` is the batch
+ * form: one existence query per known kind, never one per group.
  */
 export function createDatabaseSourceResolver(
   database: Database,
@@ -220,6 +249,20 @@ export function createDatabaseSourceResolver(
 ): AttentionSourceResolver {
   return {
     event: events,
+    async records(_accountId, groups) {
+      const idsByKind = new Map<string, string[]>();
+      for (const group of groups) {
+        const ids = idsByKind.get(group.kind) ?? [];
+        ids.push(group.id);
+        idsByKind.set(group.kind, ids);
+      }
+      const deleted = await Promise.all(
+        [...idsByKind]
+          .filter(([kind]) => Object.hasOwn(RECORD_TABLES, kind))
+          .map(([kind, ids]) => deletedKeysForKind(database, kind, ids)),
+      );
+      return new Set(deleted.flat());
+    },
     async record(_accountId, group) {
       if (!Object.hasOwn(RECORD_TABLES, group.kind)) {
         return "present";
