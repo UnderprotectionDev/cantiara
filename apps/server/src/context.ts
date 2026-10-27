@@ -61,6 +61,7 @@ import type {
 import type { ProductGapsAccess } from "@cantiara/api/product-gaps";
 import type { ProductionIncidentsAccess } from "@cantiara/api/production-incidents";
 import type { ProjectActivityAccess } from "@cantiara/api/project-activity";
+import type { ProjectClosureSummaryAccess } from "@cantiara/api/project-closure-summary";
 import type { ProjectGoalsAccess } from "@cantiara/api/project-goals";
 import type { ProjectHistoryAccess } from "@cantiara/api/project-history";
 import type { ProjectReleasePlanningAccess } from "@cantiara/api/project-release-planning";
@@ -164,6 +165,7 @@ export interface CreateContextOptions {
   productGaps?: ProductGapsAccess;
   productionIncidents?: ProductionIncidentsAccess;
   projectActivity?: ProjectActivityAccess;
+  projectClosureSummary?: ProjectClosureSummaryAccess;
   projectGoals?: ProjectGoalsAccess;
   projectHistory?: ProjectHistoryAccess;
   projectReleasePlanning?: ProjectReleasePlanningAccess;
@@ -298,6 +300,7 @@ export async function createContext({
   publicRoadmapReview,
   releaseEvidence,
   projectHistory,
+  projectClosureSummary,
   valueChain,
   tagMutationContracts,
   trustedProxyIps,
@@ -404,6 +407,7 @@ export async function createContext({
     publicRoadmapReview,
     releaseEvidence,
     projectHistory,
+    projectClosureSummary,
     valueChain,
     auth: null,
     session,

@@ -125,6 +125,7 @@ import {
   documentTransferInputSchema as wikiDocumentTransferInputSchema,
 } from "../document-transfers";
 import {
+  createDocumentInputSchema,
   createDocumentMutationInputSchema,
   DocumentConflictDraftError,
   DocumentHierarchyError,
@@ -380,6 +381,17 @@ import {
   projectActivityInputSchema,
   projectActivitySchema,
 } from "../project-activity";
+import {
+  CLOSURE_SUMMARY_DOCUMENT_TYPE,
+  closureSummaryDateComparisonInputSchema,
+  closureSummaryDateComparisonSchema,
+  closureSummaryDraftInputSchema,
+  closureSummaryDraftSchema,
+  closureSummarySourcesInputSchema,
+  closureSummarySourcesSchema,
+  saveClosureSummaryInputSchema,
+  saveClosureSummaryResultSchema,
+} from "../project-closure-summary";
 import {
   createProjectGoalInputSchema,
   ProjectGoalConflictError,
@@ -1540,6 +1552,13 @@ function requireProjectActivity(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.projectActivity;
+}
+
+function requireProjectClosureSummary(context: Context) {
+  if (!context.projectClosureSummary) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectClosureSummary;
 }
 
 function requireValueChain(context: Context) {
@@ -3662,6 +3681,21 @@ const ATTENTION_SIGNAL_FAILURES: Record<string, PlannedTestFailure> = {
   },
 };
 
+const PROJECT_CLOSURE_SUMMARY_FAILURES: Record<string, PlannedTestFailure> = {
+  PROJECT_CLOSURE_SUMMARY_PROJECT_NOT_CLOSED: {
+    message: "The Project is neither completed nor abandoned.",
+    status: "PRECONDITION_FAILED",
+  },
+  PROJECT_CLOSURE_SUMMARY_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PROJECT_CLOSURE_SUMMARY_SOURCE_NOT_FOUND: {
+    message: "A selected source is unavailable.",
+    status: "BAD_REQUEST",
+  },
+};
+
 const RELEASE_EVIDENCE_FAILURES: Record<string, PlannedTestFailure> = {
   RELEASE_EVIDENCE_CHECKLIST_FULL: { message: null, status: "BAD_REQUEST" },
   RELEASE_EVIDENCE_CHECKLIST_ITEM_NOT_FOUND: {
@@ -3814,6 +3848,86 @@ async function runAttentionSignalOperation<T>(
     }
     const failure = Object.hasOwn(ATTENTION_SIGNAL_FAILURES, error.code)
       ? ATTENTION_SIGNAL_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message:
+        failure.message ??
+        (error instanceof Error ? error.message : "Request refused."),
+    });
+  }
+}
+
+/**
+ * Explicit `Save as Document`: the Documents create path of the Mutation
+ * Contract writes one `General` Project Document in the source Project (its
+ * Kökeni). The closure module only checks that the Project is completed or
+ * abandoned; it writes nothing, and no Project, source record or lifecycle
+ * status is touched.
+ */
+async function saveProjectClosureSummaryDocument(
+  context: Context & { session: NonNullable<Context["session"]> },
+  input: z.infer<typeof saveClosureSummaryInputSchema>,
+) {
+  const accountId = context.session.user.id;
+  const { baseRevision, clientIdempotencyKey, ...fields } = input;
+  await runProjectClosureSummaryOperation(() =>
+    requireProjectClosureSummary(context).saveTarget(
+      accountId,
+      input.projectId,
+    ),
+  );
+  const payload = createDocumentInputSchema.parse({
+    ...fields,
+    type: CLOSURE_SUMMARY_DOCUMENT_TYPE,
+  });
+  const mutation = requireDocumentMutationContracts(context).create(accountId);
+  try {
+    const receipt = await mutation.mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision,
+        clientIdempotencyKey,
+        kind: "human",
+        payload,
+        targetId: clientIdempotencyKey,
+      },
+      ({ committedAt, currentRevision }) =>
+        ({
+          document: documentSchema.parse({
+            ...payload,
+            createdAt: committedAt,
+            id: crypto.randomUUID(),
+            revision: currentRevision + 1,
+            updatedAt: committedAt,
+          }),
+        }) satisfies DocumentMutationValue,
+    );
+    if (!receipt.nextValue.document) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return receipt.nextValue.document;
+  } catch (error) {
+    rethrowDocumentMutationError(error, clientIdempotencyKey);
+  }
+}
+
+async function runProjectClosureSummaryOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(PROJECT_CLOSURE_SUMMARY_FAILURES, error.code)
+      ? PROJECT_CLOSURE_SUMMARY_FAILURES[error.code]
       : undefined;
     if (!failure) {
       throw error;
@@ -8031,6 +8145,45 @@ export const appRouter = {
       runProjectHistoryOperation(() =>
         requireProjectActivity(context).list(context.session.user.id, input),
       ),
+    ),
+  projectClosureSummarySources: protectedProcedure
+    .input(closureSummarySourcesInputSchema)
+    .output(closureSummarySourcesSchema)
+    .handler(({ context, input }) =>
+      runProjectClosureSummaryOperation(() =>
+        requireProjectClosureSummary(context).sources(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectClosureSummaryDraft: protectedProcedure
+    .input(closureSummaryDraftInputSchema)
+    .output(closureSummaryDraftSchema)
+    .handler(({ context, input }) =>
+      runProjectClosureSummaryOperation(() =>
+        requireProjectClosureSummary(context).draft(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectClosureSummaryDateComparison: protectedProcedure
+    .input(closureSummaryDateComparisonInputSchema)
+    .output(closureSummaryDateComparisonSchema)
+    .handler(({ context, input }) =>
+      runProjectClosureSummaryOperation(() =>
+        requireProjectClosureSummary(context).dateComparison(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  saveProjectClosureSummary: protectedProcedure
+    .input(saveClosureSummaryInputSchema)
+    .output(saveClosureSummaryResultSchema)
+    .handler(({ context, input }) =>
+      saveProjectClosureSummaryDocument(context, input),
     ),
   projectValueChain: protectedProcedure
     .input(valueChainInputSchema)
