@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  documentBodySchema,
+  documentSchema,
+  documentTitleSchema,
+} from "./documents";
+import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 
 /**
  * Project Closure Summary seam, Closure Summary Draft (spec 70, Kapanış özeti
@@ -20,6 +26,14 @@ export const CLOSURE_SUMMARY_SELECT_SOURCES_LABEL = "Select sources" as const;
 export const CLOSURE_SUMMARY_PREVIEW_LABEL = "Preview headings" as const;
 export const CLOSURE_SUMMARY_GENERATE_LABEL = "Generate draft" as const;
 export const CLOSURE_SUMMARY_DISCARD_LABEL = "Discard draft" as const;
+export const CLOSURE_SUMMARY_SAVE_LABEL = "Save as Document" as const;
+export const CLOSURE_SUMMARY_DOCUMENT_TYPE = "General" as const;
+export const CLOSURE_SUMMARY_DATE_HISTORY_LABEL =
+  "Planned date history" as const;
+export const CLOSURE_SUMMARY_DATE_NOTE =
+  "This is a reading of existing history. It is not a score." as const;
+/** Existing Documents transfer label; the Personal Wiki copy reuses it. */
+export const CLOSURE_SUMMARY_WIKI_COPY_LABEL = "Copy Document" as const;
 export const CLOSURE_SUMMARY_DRAFT_NOTE =
   "The draft contains only headings and links to your records. It writes no conclusions." as const;
 
@@ -147,13 +161,172 @@ export const closureSummaryDraftSchema = z
   .strict();
 export type ClosureSummaryDraft = z.infer<typeof closureSummaryDraftSchema>;
 
+/**
+ * Explicit save. The Document is created through the Documents create path
+ * (type `General`, scope = the source Project, which is the Document's
+ * Kökeni); there is no closure store. The envelope is the Mutation Contract
+ * envelope, so a retry with the same key is idempotent.
+ */
+export const saveClosureSummaryInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    body: documentBodySchema,
+    projectId: identifierSchema,
+    title: documentTitleSchema.default(PROJECT_CLOSURE_SUMMARY_LABEL),
+  })
+  .strict();
+export type SaveClosureSummaryInput = z.infer<
+  typeof saveClosureSummaryInputSchema
+>;
+export const saveClosureSummaryResultSchema = documentSchema;
+
+// ---------------------------------------------------------------------------
+// Optional neutral date comparison (a reading of existing history)
+// ---------------------------------------------------------------------------
+
+export const CLOSURE_SUMMARY_DATE_READINGS = [
+  "Before target",
+  "On target",
+  "After target",
+  "Still open",
+] as const;
+export type ClosureSummaryDateReading =
+  (typeof CLOSURE_SUMMARY_DATE_READINGS)[number];
+
+const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+/** What an owner record's own history says; the input of the pure reading. */
+export const closureSummaryDateFactsSchema = z
+  .object({
+    /** When the record was completed or closed, from its own history. */
+    closedAt: z.string().nullable(),
+    /** The record's current planned target date. */
+    currentTargetDate: isoDateSchema.nullable(),
+    label: z.string(),
+    recordId: z.string(),
+    recordType: z.enum(CLOSURE_SUMMARY_SOURCE_TYPES),
+    /** Every planned target date the record held, oldest first. */
+    targetDates: z.array(isoDateSchema),
+  })
+  .strict();
+export type ClosureSummaryDateFacts = z.infer<
+  typeof closureSummaryDateFactsSchema
+>;
+
+/** One neutral row. No score, health, severity or actual-date field exists. */
+export const closureSummaryDateRowSchema = z
+  .object({
+    closedOn: isoDateSchema.nullable(),
+    label: z.string(),
+    moved: z.boolean(),
+    plannedDates: z.array(isoDateSchema),
+    reading: z.enum(CLOSURE_SUMMARY_DATE_READINGS),
+    recordId: z.string(),
+    recordType: z.enum(CLOSURE_SUMMARY_SOURCE_TYPES),
+  })
+  .strict();
+export type ClosureSummaryDateRow = z.infer<typeof closureSummaryDateRowSchema>;
+
+export const closureSummaryDateComparisonSchema = z
+  .object({
+    note: z.literal(CLOSURE_SUMMARY_DATE_NOTE),
+    projectId: z.string(),
+    rows: z.array(closureSummaryDateRowSchema),
+  })
+  .strict();
+export type ClosureSummaryDateComparison = z.infer<
+  typeof closureSummaryDateComparisonSchema
+>;
+
+export const closureSummaryDateComparisonInputSchema =
+  closureSummaryDraftInputSchema;
+export type ClosureSummaryDateComparisonInput = ClosureSummaryDraftInput;
+
+/** `YYYY-MM-DD` of an instant in the Account's time zone. */
+export function closureSummaryLocalDate(instant: string, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone,
+    year: "numeric",
+  }).format(new Date(instant));
+  return parts;
+}
+
+/**
+ * Reads existing history only. A record with no planned date is omitted (there
+ * is nothing to compare). `moved` is true when the planned date changed from
+ * one date to another. The reading compares the current planned date with the
+ * Account-zone date of the completion or closure event; an event-less record
+ * reads `Still open`.
+ */
+export function deriveClosureSummaryDateComparison(
+  projectId: string,
+  facts: readonly ClosureSummaryDateFacts[],
+  timeZone: string,
+): ClosureSummaryDateComparison {
+  const rows = facts.flatMap((fact): ClosureSummaryDateRow[] => {
+    const plannedDates = fact.targetDates.filter(
+      (date, index, all) => index === 0 || date !== all[index - 1],
+    );
+    const target = fact.currentTargetDate ?? plannedDates.at(-1) ?? null;
+    if (target === null) {
+      return [];
+    }
+    const closedOn = fact.closedAt
+      ? closureSummaryLocalDate(fact.closedAt, timeZone)
+      : null;
+    let reading: ClosureSummaryDateReading = "Still open";
+    if (closedOn !== null) {
+      if (closedOn < target) {
+        reading = "Before target";
+      } else if (closedOn === target) {
+        reading = "On target";
+      } else {
+        reading = "After target";
+      }
+    }
+    return [
+      {
+        closedOn,
+        label: fact.label,
+        moved: plannedDates.length > 1,
+        plannedDates,
+        reading,
+        recordId: fact.recordId,
+        recordType: fact.recordType,
+      },
+    ];
+  });
+  return {
+    note: CLOSURE_SUMMARY_DATE_NOTE,
+    projectId,
+    rows: rows.sort(
+      (a, b) =>
+        a.label.localeCompare(b.label) || a.recordId.localeCompare(b.recordId),
+    ),
+  };
+}
+
 /** Read-only access; the contract has no write member. */
 export interface ProjectClosureSummaryAccess {
+  /** Optional neutral reading of the selected records' planned date history. */
+  dateComparison: (
+    accountId: string,
+    input: ClosureSummaryDateComparisonInput,
+  ) => Promise<ClosureSummaryDateComparison>;
   /** Preview and generate share this read: nothing is persisted. */
   draft: (
     accountId: string,
     input: ClosureSummaryDraftInput,
   ) => Promise<ClosureSummaryDraft>;
+  /**
+   * Resolves the Project a save would be scoped to; refuses a Project the
+   * account does not own or that is not completed or abandoned. Writes nothing.
+   */
+  saveTarget: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<{ projectId: string }>;
   sources: (
     accountId: string,
     input: ClosureSummarySourcesInput,

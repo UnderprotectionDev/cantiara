@@ -1,7 +1,10 @@
 import {
   type ClosureSummaryCandidate,
+  type ClosureSummaryDateFacts,
+  closureSummaryDateComparisonInputSchema,
   closureSummaryDraftInputSchema,
   closureSummarySourcesInputSchema,
+  deriveClosureSummaryDateComparison,
   deriveClosureSummaryPreview,
   groupClosureSummaryCandidates,
   isClosureSummaryProjectStatus,
@@ -13,7 +16,9 @@ import {
  * is derived live from the owner records behind the read-only
  * `ProjectClosureSummarySources` port. This module has no write path: it
  * persists no Belge, no search or export item and no closure record, and it
- * writes no commentary, result or success sentence.
+ * writes no commentary, result or success sentence. Saving is the Documents
+ * create path (router `saveProjectClosureSummary`); this module only checks
+ * through `saveTarget` that the Project may be saved for.
  */
 
 export class ProjectClosureSummaryProjectNotFoundError extends Error {
@@ -52,6 +57,17 @@ export interface ProjectClosureSummarySources {
     accountId: string,
     projectId: string,
   ) => Promise<ClosureSummaryCandidate[]>;
+  /**
+   * Existing history of the given records: the planned target dates each held
+   * (oldest first), the current one and the completion event, plus the
+   * Account time zone the dates are read in. Read-only; no actual date is
+   * stored anywhere.
+   */
+  dateFacts: (
+    accountId: string,
+    projectId: string,
+    records: readonly ClosureSummaryCandidate[],
+  ) => Promise<{ facts: ClosureSummaryDateFacts[]; timeZone: string }>;
   /** The Project lifecycle status, or null when the account owns no such Project. */
   projectStatus: (
     accountId: string,
@@ -70,25 +86,66 @@ export function createProjectClosureSummary(
     return status;
   }
 
+  async function selectedCandidates(
+    accountId: string,
+    projectId: string,
+    refs: readonly { recordId: string; recordType: string }[],
+  ) {
+    const candidates = await sources.candidates(accountId, projectId);
+    return refs.map((ref) => {
+      const found = candidates.find(
+        (candidate) =>
+          candidate.recordType === ref.recordType &&
+          candidate.recordId === ref.recordId,
+      );
+      if (!found) {
+        throw new ProjectClosureSummarySourceNotFoundError(ref.recordId);
+      }
+      return found;
+    });
+  }
+
   return {
+    async dateComparison(accountId, rawInput) {
+      const input = closureSummaryDateComparisonInputSchema.parse(rawInput);
+      const status = await statusOf(accountId, input.projectId);
+      if (!isClosureSummaryProjectStatus(status)) {
+        throw new ProjectClosureSummaryProjectNotClosedError(input.projectId);
+      }
+      const selected = await selectedCandidates(
+        accountId,
+        input.projectId,
+        input.sources,
+      );
+      const { facts, timeZone } = await sources.dateFacts(
+        accountId,
+        input.projectId,
+        selected,
+      );
+      return deriveClosureSummaryDateComparison(
+        input.projectId,
+        facts,
+        timeZone,
+      );
+    },
+    async saveTarget(accountId, projectId) {
+      const status = await statusOf(accountId, projectId);
+      if (!isClosureSummaryProjectStatus(status)) {
+        throw new ProjectClosureSummaryProjectNotClosedError(projectId);
+      }
+      return { projectId };
+    },
     async draft(accountId, rawInput) {
       const input = closureSummaryDraftInputSchema.parse(rawInput);
       const status = await statusOf(accountId, input.projectId);
       if (!isClosureSummaryProjectStatus(status)) {
         throw new ProjectClosureSummaryProjectNotClosedError(input.projectId);
       }
-      const candidates = await sources.candidates(accountId, input.projectId);
-      const selected = input.sources.map((ref) => {
-        const found = candidates.find(
-          (candidate) =>
-            candidate.recordType === ref.recordType &&
-            candidate.recordId === ref.recordId,
-        );
-        if (!found) {
-          throw new ProjectClosureSummarySourceNotFoundError(ref.recordId);
-        }
-        return found;
-      });
+      const selected = await selectedCandidates(
+        accountId,
+        input.projectId,
+        input.sources,
+      );
       return deriveClosureSummaryPreview(input.projectId, selected);
     },
     async sources(accountId, rawInput) {
