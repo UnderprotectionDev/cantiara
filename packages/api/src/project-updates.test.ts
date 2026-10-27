@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import { PROJECT_OVERVIEW_MODULE_NAMES } from "./project-overview";
 import {
   CREATE_PROJECT_UPDATE_LABEL,
+  configureProjectUpdateReminderInputSchema,
   createProjectUpdateInputSchema,
   PROJECT_UPDATE_LABEL,
   PROJECT_UPDATE_MARKS,
@@ -90,5 +91,40 @@ describe("Project Update contract", () => {
         WORKSPACE_JUDGMENT.test(name),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("Project Update reminder contract", () => {
+  const reminder = {
+    intervalDays: 14,
+    projectId: "p1",
+    question: "How is this Project going?",
+    state: "Enabled",
+  };
+
+  test("accepts enabled, paused and disabled with a question and interval", () => {
+    for (const state of ["Enabled", "Paused", "Disabled"]) {
+      expect(
+        configureProjectUpdateReminderInputSchema.parse({ ...reminder, state })
+          .state,
+      ).toBe(state);
+    }
+  });
+
+  test("requires a question and a bounded interval, and carries no cadence rule or score", () => {
+    for (const bad of [
+      { question: " " },
+      { intervalDays: 0 },
+      { intervalDays: 400 },
+      { state: "Overdue" },
+      { required: true },
+    ]) {
+      expect(
+        configureProjectUpdateReminderInputSchema.safeParse({
+          ...reminder,
+          ...bad,
+        }).success,
+      ).toBe(false);
+    }
   });
 });

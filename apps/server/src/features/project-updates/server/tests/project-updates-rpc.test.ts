@@ -4,7 +4,10 @@ import { createRouterClient } from "@orpc/server";
 import { describe, expect, test } from "vitest";
 
 import { createProjectUpdates } from "../project-updates";
-import { createMemoryProjectUpdates } from "../project-updates-memory-store";
+import {
+  createMemoryProjectUpdates,
+  createMemoryReminderScheduler,
+} from "../project-updates-memory-store";
 
 const ACCOUNT = "account-1";
 const UPDATE_PROCEDURE = /project.?update/i;
@@ -42,7 +45,9 @@ function setup(authenticated = true, archived = false) {
     ]),
   });
   const context = {
-    projectUpdates: createProjectUpdates(harness.store),
+    projectUpdates: createProjectUpdates(harness.store, {
+      reminders: createMemoryReminderScheduler().scheduler,
+    }),
     session: authenticated
       ? { session: { id: "session" }, user: { id: ACCOUNT } }
       : null,
@@ -51,13 +56,16 @@ function setup(authenticated = true, archived = false) {
 }
 
 describe("Manual Project Updates RPC seam", () => {
-  test("exposes only a read and a create, no rewrite or removal", () => {
+  test("exposes a read, a create and the optional reminder, no rewrite or removal", () => {
     const procedures = Object.keys(appRouter).filter((name) =>
       UPDATE_PROCEDURE.test(name),
     );
     expect(procedures.sort()).toEqual([
+      "configureProjectUpdateReminder",
       "createProjectUpdate",
+      "projectUpdateReminder",
       "projectUpdates",
+      "skipProjectUpdateReminder",
     ]);
     expect(procedures.some((name) => REWRITE_PROCEDURE.test(name))).toBe(false);
   });
@@ -68,6 +76,30 @@ describe("Manual Project Updates RPC seam", () => {
     const overview = await client.projectUpdates({ projectId: "project-1" });
     expect(overview.updates.map((update) => update.mark)).toEqual(["At Risk"]);
     expect(overview.updates[0]?.links[0]?.label).toBe("Slip");
+  });
+
+  test("configures and skips the reminder for the signed-in account without writing an update", async () => {
+    const client = setup();
+    const configured = await client.configureProjectUpdateReminder({
+      intervalDays: 14,
+      projectId: "project-1",
+      question: "How is it going?",
+      state: "Enabled",
+    });
+    expect(configured.state).toBe("Enabled");
+    expect(
+      (await client.projectUpdateReminder({ projectId: "project-1" })).question,
+    ).toBe("How is it going?");
+    await client.skipProjectUpdateReminder({ projectId: "project-1" });
+    expect(
+      (await client.projectUpdates({ projectId: "project-1" })).updates,
+    ).toEqual([]);
+    await expect(
+      client.skipProjectUpdateReminder({ projectId: "other" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      setup(false).projectUpdateReminder({ projectId: "project-1" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   test("refuses a signed-out caller, another Project and a rewrite", async () => {

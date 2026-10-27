@@ -12,6 +12,10 @@ import {
   ProjectUpdateForm,
   type ProjectUpdateFormSubmit,
 } from "../forms/project-update-form";
+import {
+  type ProjectUpdateReminderControls,
+  ProjectUpdateReminderForm,
+} from "../forms/project-update-reminder-form";
 
 /**
  * Project Updates: the live summary blocks, the form that freezes them at
@@ -25,6 +29,7 @@ export function ProjectUpdatesView({
   onCreate,
   projectId,
   readOnly,
+  reminder,
   updates,
 }: {
   candidates: readonly ProjectUpdateLinkCandidate[];
@@ -33,6 +38,8 @@ export function ProjectUpdatesView({
   onCreate: (values: ProjectUpdateFormSubmit) => Promise<unknown>;
   projectId: string;
   readOnly: boolean;
+  /** The optional reminder; absent until it has loaded. */
+  reminder?: ProjectUpdateReminderControls;
   updates: readonly ProjectUpdate[];
 }) {
   return (
@@ -56,6 +63,7 @@ export function ProjectUpdatesView({
             </p>
             <ProjectUpdateSummary snapshot={liveSummary} />
           </section>
+          {reminder ? <ProjectUpdateReminderForm {...reminder} /> : null}
           <ProjectUpdateForm candidates={candidates} onSubmit={onCreate} />
         </>
       )}

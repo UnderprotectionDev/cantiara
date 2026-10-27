@@ -1,3 +1,4 @@
+import type { PersonalRemindersAccess } from "@cantiara/api/personal-reminders";
 import {
   type ProjectUpdateLinkInput,
   type ProjectUpdateLinkType,
@@ -12,6 +13,7 @@ import { projectMilestone } from "@cantiara/db/schema/project-milestone";
 import {
   projectUpdate,
   projectUpdateLink,
+  projectUpdateReminder,
 } from "@cantiara/db/schema/project-update";
 import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
@@ -19,9 +21,11 @@ import { and, eq, inArray } from "drizzle-orm";
 import {
   createProjectUpdates,
   type ProjectUpdateLinkFact,
+  type ProjectUpdateReminderScheduler,
   type ProjectUpdatesStore,
   projectUpdateLinkKey,
   type StoredProjectUpdate,
+  type StoredProjectUpdateReminder,
 } from "./project-updates";
 
 /** Reads of the Project's records by link type; one query per type. */
@@ -189,6 +193,41 @@ function createStore(database: Database): ProjectUpdatesStore {
       return storedOf(database, rows);
     },
 
+    async reminder(projectId) {
+      const [row] = await database
+        .select()
+        .from(projectUpdateReminder)
+        .where(eq(projectUpdateReminder.projectId, projectId))
+        .limit(1);
+      return row
+        ? {
+            intervalDays: row.intervalDays,
+            nextDueAt: row.nextDueAt?.toISOString() ?? null,
+            personalReminderId: row.personalReminderId,
+            projectId: row.projectId,
+            question: row.question,
+            state: row.state as StoredProjectUpdateReminder["state"],
+          }
+        : null;
+    },
+
+    async saveReminder(reminder) {
+      const values = {
+        intervalDays: reminder.intervalDays,
+        nextDueAt: reminder.nextDueAt ? new Date(reminder.nextDueAt) : null,
+        personalReminderId: reminder.personalReminderId,
+        question: reminder.question,
+        state: reminder.state,
+      };
+      await database
+        .insert(projectUpdateReminder)
+        .values({ ...values, projectId: reminder.projectId })
+        .onConflictDoUpdate({
+          set: values,
+          target: projectUpdateReminder.projectId,
+        });
+    },
+
     async project(accountId, projectId) {
       const [row] = await database
         .select({ archivedAt: project.archivedAt })
@@ -243,8 +282,65 @@ async function storedOf(
   }));
 }
 
+/**
+ * Plans the update reminder through Personal Reminders: one `Remind me` on the
+ * Project with the `Create Project Update` purpose, so the fired
+ * `personal-reminder` signal opens `Project Updates`. No signal id is added.
+ */
+export function createPersonalReminderUpdateScheduler(
+  personalReminders: PersonalRemindersAccess,
+): ProjectUpdateReminderScheduler {
+  const isUpdateSignal = (
+    signal: Awaited<ReturnType<PersonalRemindersAccess["listSignals"]>>[number],
+    projectId: string,
+  ) =>
+    signal.signalType === "personal-reminder" &&
+    signal.sourceRecordType === "Project" &&
+    signal.sourceRecordId === projectId &&
+    signal.sourcePath.endsWith("#project-updates") &&
+    signal.dismissedAt === null;
+  return {
+    async acknowledge(accountId, projectId) {
+      const open = (await personalReminders.listSignals(accountId)).filter(
+        (signal) => isUpdateSignal(signal, projectId),
+      );
+      await Promise.all(
+        open.map((signal) =>
+          personalReminders.dismissSignal(accountId, signal.signalId),
+        ),
+      );
+      return open.length;
+    },
+    async cancel(accountId, reminderId) {
+      await personalReminders.cancel(accountId, reminderId, {
+        action: "Remind me",
+        sourceRecordType: "Project",
+      });
+    },
+    async openCount(accountId, projectId) {
+      return (await personalReminders.listSignals(accountId)).filter((signal) =>
+        isUpdateSignal(signal, projectId),
+      ).length;
+    },
+    async schedule(accountId, projectId, fireAt) {
+      const reminder = await personalReminders.create(accountId, {
+        action: "Remind me",
+        clientIdempotencyKey: `project-update-reminder:${projectId}:${crypto.randomUUID()}`,
+        fireAt: fireAt.toISOString(),
+        purpose: "Create Project Update",
+        sourceRecordId: projectId,
+        sourceRecordType: "Project",
+      });
+      return reminder ? { id: reminder.id } : null;
+    },
+  };
+}
+
 export function createDatabaseProjectUpdates(
   database: Database,
+  personalReminders: PersonalRemindersAccess,
 ): ProjectUpdatesAccess {
-  return createProjectUpdates(createStore(database));
+  return createProjectUpdates(createStore(database), {
+    reminders: createPersonalReminderUpdateScheduler(personalReminders),
+  });
 }

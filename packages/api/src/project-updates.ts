@@ -8,8 +8,10 @@ import { z } from "zod";
  *
  * The seam is append-only: it has a read and a create, and no operation that
  * rewrites or removes a saved entry. It has no health score, no aggregate, no
- * "current" judgment, no Mission Control summary, no draft and no reminder
- * (reminders are a later ticket). Linked records stay live; their label and
+ * "current" judgment, no Mission Control summary and no draft. An optional
+ * per-Project reminder (#471) only asks the founder to open the same form: it
+ * is produced by Personal Reminders as a `personal-reminder` signal, never
+ * writes an update, and has no required cadence. Linked records stay live; their label and
  * status are read at request time and are never copied into the snapshot as a
  * new source of truth.
  */
@@ -18,6 +20,14 @@ export const PROJECT_UPDATE_LABEL = "Project Update";
 export const PROJECT_UPDATES_LABEL = "Project Updates";
 export const CREATE_PROJECT_UPDATE_LABEL = "Create Project Update";
 export const PROJECT_UPDATE_OPEN_SOURCE_LABEL = "Open source record";
+
+export const PROJECT_UPDATE_REMINDER_LABEL = "Update reminder";
+export const SAVE_PROJECT_UPDATE_REMINDER_LABEL = "Save reminder";
+export const SKIP_PROJECT_UPDATE_REMINDER_LABEL = "Skip reminder";
+export const PROJECT_UPDATE_REMINDER_QUESTION_LABEL = "Reflection question";
+export const PROJECT_UPDATE_REMINDER_INTERVAL_LABEL = "Interval (days)";
+export const DEFAULT_PROJECT_UPDATE_REMINDER_QUESTION =
+  "How is this Project going?";
 
 export const PROJECT_UPDATE_MARKS = [
   "On Track",
@@ -159,6 +169,53 @@ export interface ProjectUpdatesOverview {
   updates: ProjectUpdate[];
 }
 
+export const PROJECT_UPDATE_REMINDER_STATES = [
+  "Enabled",
+  "Paused",
+  "Disabled",
+] as const;
+export const projectUpdateReminderStateSchema = z.enum(
+  PROJECT_UPDATE_REMINDER_STATES,
+);
+export type ProjectUpdateReminderState = z.infer<
+  typeof projectUpdateReminderStateSchema
+>;
+
+export const PROJECT_UPDATE_REMINDER_QUESTION_MAX = 200;
+export const PROJECT_UPDATE_REMINDER_INTERVAL_MAX_DAYS = 365;
+
+/** The founder's choice; there is no required cadence, so `Disabled` is the default. */
+export const configureProjectUpdateReminderInputSchema = z
+  .object({
+    intervalDays: z
+      .number()
+      .int()
+      .min(1)
+      .max(PROJECT_UPDATE_REMINDER_INTERVAL_MAX_DAYS),
+    projectId: identifier,
+    question: z
+      .string()
+      .trim()
+      .min(1)
+      .max(PROJECT_UPDATE_REMINDER_QUESTION_MAX),
+    state: projectUpdateReminderStateSchema,
+  })
+  .strict();
+export type ConfigureProjectUpdateReminderInput = z.infer<
+  typeof configureProjectUpdateReminderInputSchema
+>;
+
+export interface ProjectUpdateReminder {
+  /** A fired reminder the founder has neither skipped nor answered yet. */
+  due: boolean;
+  intervalDays: number;
+  /** When the next reminder is planned; `null` unless `Enabled` and planned. */
+  nextDueAt: string | null;
+  projectId: string;
+  question: string;
+  state: ProjectUpdateReminderState;
+}
+
 export class ProjectUpdateConflictError extends Error {
   readonly code = "PROJECT_UPDATE_CONFLICT" as const;
 
@@ -191,6 +248,11 @@ export class ProjectUpdateLinkError extends Error {
 }
 
 export interface ProjectUpdatesAccess {
+  /** Enable, pause or disable the reminder and edit its question and interval. */
+  configureReminder: (
+    accountId: string,
+    input: ConfigureProjectUpdateReminderInput,
+  ) => Promise<ProjectUpdateReminder | null>;
   /** Appends one entry; `null` when the Project is not the account's. */
   create: (
     accountId: string,
@@ -201,4 +263,14 @@ export interface ProjectUpdatesAccess {
     accountId: string,
     projectId: string,
   ) => Promise<ProjectUpdatesOverview | null>;
+  /** The reminder settings, or `null` when the Project is not the account's. */
+  reminder: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<ProjectUpdateReminder | null>;
+  /** Acknowledges a due reminder and plans the next one. Writes no update. */
+  skipReminder: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<ProjectUpdateReminder | null>;
 }

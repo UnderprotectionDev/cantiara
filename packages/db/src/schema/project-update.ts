@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -69,6 +70,45 @@ export const projectUpdateLink = pgTable(
     check(
       "project_update_link_target_type_check",
       sql`${table.targetType} in ('Risk', 'Decision', 'Milestone', 'Work')`,
+    ),
+  ],
+);
+
+/**
+ * The optional per-Project reminder settings (spec 69 #471). One row per
+ * Project, editable in place: it is a preference, not a saved update. The row
+ * only plans a Personal Reminders `Remind me` (`personal_reminder_id`, no
+ * foreign key: the reminder is cancelled or replaced by the product) and never
+ * writes a `project_update`.
+ */
+export const projectUpdateReminder = pgTable(
+  "project_update_reminder",
+  {
+    intervalDays: integer("interval_days").notNull(),
+    nextDueAt: timestamp("next_due_at"),
+    personalReminderId: text("personal_reminder_id"),
+    projectId: text("project_id")
+      .primaryKey()
+      .references(() => project.id, { onDelete: "cascade" }),
+    question: text("question").notNull(),
+    state: text("state").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "project_update_reminder_state_check",
+      sql`${table.state} in ('Enabled', 'Paused', 'Disabled')`,
+    ),
+    check(
+      "project_update_reminder_interval_check",
+      sql`${table.intervalDays} between 1 and 365`,
+    ),
+    check(
+      "project_update_reminder_question_check",
+      sql`length(btrim(${table.question})) between 1 and 200`,
     ),
   ],
 );

@@ -21,6 +21,18 @@ export const PERSONAL_REMINDER_CONDITIONAL_SOURCE_TYPES = [
   "Production Incident",
 ] as const satisfies readonly PersonalReminderSourceType[];
 
+/**
+ * What a Project-owned repeating reminder asks the founder to do. The only
+ * purpose is the Manual Project Updates one (spec 69 #471): it changes where
+ * the fired signal opens (the `Project Updates` form), not which signal id is
+ * produced.
+ */
+export const PERSONAL_REMINDER_PURPOSES = ["Create Project Update"] as const;
+export const personalReminderPurposeSchema = z.enum(PERSONAL_REMINDER_PURPOSES);
+export type PersonalReminderPurpose = z.infer<
+  typeof personalReminderPurposeSchema
+>;
+
 export const PERSONAL_REMINDER_ACTIONS = ["Remind me", "Review Later"] as const;
 
 export const PERSONAL_REMINDER_CONDITIONS = [
@@ -70,11 +82,23 @@ export const createPersonalReminderInputSchema = z
     clientIdempotencyKey: identifierSchema,
     condition: personalReminderConditionSchema.default("In any case"),
     fireAt: z.iso.datetime({ offset: true }),
+    purpose: personalReminderPurposeSchema.optional(),
     sectionId: identifierSchema.optional(),
     sourceRecordId: identifierSchema,
     sourceRecordType: personalReminderSourceTypeSchema,
   })
   .strict()
+  .refine(
+    (input) =>
+      input.purpose === undefined ||
+      (input.action === "Remind me" &&
+        input.sourceRecordType === "Project" &&
+        input.condition === "In any case"),
+    {
+      message: "Only an unconditional Remind me on a Project has a purpose.",
+      path: ["purpose"],
+    },
+  )
   .refine(
     (input) =>
       input.action === "Review Later" || input.condition === "In any case",
@@ -137,6 +161,7 @@ export const personalReminderSchema = z
     fireAt: z.iso.datetime(),
     fireNote: z.string().nullable(),
     id: identifierSchema,
+    purpose: personalReminderPurposeSchema.nullable().optional(),
     sectionId: identifierSchema.nullable().optional(),
     sourceProjectId: identifierSchema.nullable(),
     sourceRecordId: identifierSchema,

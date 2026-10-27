@@ -26,9 +26,13 @@ export function useCreateProjectUpdate() {
       attempt.current = null;
       return saved;
     } finally {
-      await queryClient.invalidateQueries({
-        queryKey: orpc.projectUpdates.key(),
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: orpc.projectUpdates.key() }),
+        // A save answers a due reminder on the server, so it is read again.
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectUpdateReminder.key(),
+        }),
+      ]);
     }
   };
 }

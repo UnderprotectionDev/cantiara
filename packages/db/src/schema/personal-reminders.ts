@@ -24,6 +24,7 @@ export const personalReminder = pgTable(
     fireAt: timestamp("fire_at").notNull(),
     fireNote: text("fire_note"),
     id: text("id").primaryKey(),
+    purpose: text("purpose"),
     sectionId: text("section_id"),
     sourceProjectId: text("source_project_id"),
     sourceRecordId: text("source_record_id").notNull(),

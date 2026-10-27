@@ -409,6 +409,7 @@ import {
   updateProjectSourceRecordInputSchema,
 } from "../project-source-records";
 import {
+  configureProjectUpdateReminderInputSchema,
   createProjectUpdateInputSchema,
   ProjectUpdateConflictError,
   ProjectUpdateLinkError,
@@ -4409,6 +4410,38 @@ export const appRouter = {
     .handler(({ context, input }) =>
       projectUpdateWrite(input.updateId, () =>
         requireProjectUpdates(context).create(context.session.user.id, input),
+      ),
+    ),
+  projectUpdateReminder: protectedProcedure
+    .input(projectUpdatesInputSchema)
+    .handler(async ({ context, input }) => {
+      const reminder = await requireProjectUpdates(context).reminder(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!reminder) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return reminder;
+    }),
+  configureProjectUpdateReminder: protectedProcedure
+    .input(configureProjectUpdateReminderInputSchema)
+    .handler(({ context, input }) =>
+      projectUpdateWrite(input.projectId, () =>
+        requireProjectUpdates(context).configureReminder(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  skipProjectUpdateReminder: protectedProcedure
+    .input(projectUpdatesInputSchema)
+    .handler(({ context, input }) =>
+      projectUpdateWrite(input.projectId, () =>
+        requireProjectUpdates(context).skipReminder(
+          context.session.user.id,
+          input.projectId,
+        ),
       ),
     ),
   productionIncidents: protectedProcedure

@@ -3,9 +3,10 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { ProjectOverviewSources } from "@cantiara/api/project-overview";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { orpc } from "@/utils/orpc";
+import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { client, orpc } from "@/utils/orpc";
 import { useCreateProjectUpdate } from "../../hooks/use-create-project-update";
 import {
   buildProjectUpdateSnapshot,
@@ -32,7 +33,13 @@ export default function ProjectUpdatesSurface({
   const milestones = useQuery(orpc.projectMilestones.queryOptions({ input }));
   const goals = useQuery(orpc.projectGoals.queryOptions({ input }));
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
+  const reminder = useQuery(orpc.projectUpdateReminder.queryOptions({ input }));
+  const queryClient = useQueryClient();
   const create = useCreateProjectUpdate();
+  const refreshReminder = () =>
+    queryClient.invalidateQueries({
+      queryKey: orpc.projectUpdateReminder.key(),
+    });
 
   const sources = useMemo<ProjectOverviewSources>(
     () => ({
@@ -101,6 +108,28 @@ export default function ProjectUpdatesSurface({
       }
       projectId={projectId}
       readOnly={overview.readOnly}
+      reminder={
+        reminder.data
+          ? {
+              onConfigure: async (values) => {
+                await runOnlineOnlyWrite(() =>
+                  client.configureProjectUpdateReminder({
+                    ...values,
+                    projectId,
+                  }),
+                );
+                await refreshReminder();
+              },
+              onSkip: async () => {
+                await runOnlineOnlyWrite(() =>
+                  client.skipProjectUpdateReminder({ projectId }),
+                );
+                await refreshReminder();
+              },
+              reminder: reminder.data,
+            }
+          : undefined
+      }
       updates={overview.updates}
     />
   );

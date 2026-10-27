@@ -326,3 +326,35 @@ describe("Personal Reminders RPC", () => {
     ).toBe(false);
   });
 });
+
+describe("Project Update reminder purpose", () => {
+  const base = {
+    action: "Remind me",
+    clientIdempotencyKey: "key-1",
+    fireAt: "2026-09-28T11:00:00.000Z",
+    sourceRecordId: "project-1",
+    sourceRecordType: "Project",
+  };
+
+  test("only an unconditional Remind me on a Project can carry the purpose", () => {
+    expect(
+      createPersonalReminderInputSchema.safeParse({
+        ...base,
+        purpose: "Create Project Update",
+      }).success,
+    ).toBe(true);
+    for (const bad of [
+      { action: "Review Later" },
+      { sourceRecordType: "Work" },
+      { purpose: "Something else" },
+    ]) {
+      expect(
+        createPersonalReminderInputSchema.safeParse({
+          ...base,
+          purpose: "Create Project Update",
+          ...bad,
+        }).success,
+      ).toBe(false);
+    }
+  });
+});

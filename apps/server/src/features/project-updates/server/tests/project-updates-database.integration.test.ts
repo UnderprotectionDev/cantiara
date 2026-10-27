@@ -1,3 +1,4 @@
+import type { PersonalRemindersAccess } from "@cantiara/api/personal-reminders";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { project } from "@cantiara/db/schema/project";
@@ -24,6 +25,8 @@ const snapshot = {
   purpose: null,
   targetDate: null,
 };
+
+const personalReminders = {} as PersonalRemindersAccess;
 
 describeDatabase("Manual Project Updates PostgreSQL", () => {
   const database = databaseUrl
@@ -65,7 +68,7 @@ describeDatabase("Manual Project Updates PostgreSQL", () => {
     await database
       .insert(risk)
       .values({ id: riskId, projectId: profile.id, title: "Slip" });
-    const access = createDatabaseProjectUpdates(database);
+    const access = createDatabaseProjectUpdates(database, personalReminders);
     const base = {
       links: [{ targetId: riskId, targetType: "Risk" as const }],
       narrative: "Scope grew.",
@@ -124,7 +127,7 @@ describeDatabase("Manual Project Updates PostgreSQL", () => {
         starterConfiguration: "Blank Project",
       },
     );
-    const access = createDatabaseProjectUpdates(database);
+    const access = createDatabaseProjectUpdates(database, personalReminders);
     await access.create(accountId, {
       links: [],
       mark: "On Track",

@@ -94,7 +94,6 @@ import { createDatabaseProjectHistory } from "./features/project-history/server/
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "./features/project-source-records/server/project-source-records-database";
-import { createDatabaseProjectUpdates } from "./features/project-updates/server/project-updates-database";
 import { createDatabaseProjectWall } from "./features/project-wall/server/project-wall-database";
 import { playwrightProjectWallSnapshotRenderer } from "./features/project-wall/server/project-wall-snapshot-render";
 import { createDatabaseRecordActions } from "./features/record-actions/server/record-actions-database";
@@ -156,6 +155,7 @@ import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/s
 import { createMaintenanceWorker } from "./maintenance-worker";
 import { createProductionIncidents } from "./production-incidents-wiring";
 import { createProjectReleasePlanning } from "./project-release-planning-wiring";
+import { createProjectUpdatesService } from "./project-updates-wiring";
 
 const db = createDb(env);
 export const documents = createDatabaseDocuments(db);
@@ -292,7 +292,10 @@ export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
 export const releaseEvidence = createDatabaseReleaseEvidence(db);
 export const projectHistory = createDatabaseProjectHistory(db);
-export const projectUpdates = createDatabaseProjectUpdates(db);
+export const projectUpdates = createProjectUpdatesService(
+  db,
+  personalReminders,
+);
 export const projectActivity = createProjectActivity(
   createDatabaseProjectActivityStore(db),
 );
