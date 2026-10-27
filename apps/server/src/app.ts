@@ -2,6 +2,8 @@ import type {
   AccountPreferences,
   AccountPreferencesAccess,
 } from "@cantiara/api/account-preferences";
+import type { AttentionSignalsAccess } from "@cantiara/api/attention-signals";
+import type { PublicRoadmapReviewAccess } from "@cantiara/api/attention-signals-public-roadmap";
 import type {
   BacklogAccess,
   BacklogMutationContracts,
@@ -66,6 +68,7 @@ import type {
 import type { ProductGapsAccess } from "@cantiara/api/product-gaps";
 import type { ProductionIncidentsAccess } from "@cantiara/api/production-incidents";
 import type { ProjectActivityAccess } from "@cantiara/api/project-activity";
+import type { ProjectClosureSummaryAccess } from "@cantiara/api/project-closure-summary";
 import type { ProjectGoalsAccess } from "@cantiara/api/project-goals";
 import type { ProjectHistoryAccess } from "@cantiara/api/project-history";
 import type { ProjectReleasePlanningAccess } from "@cantiara/api/project-release-planning";
@@ -202,6 +205,7 @@ export interface AppDependencies {
   accountPreferencesCompatibility?: AccountPreferencesCompatibilityAccess;
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   accountSessionAccess: AccountSessionAccessRuntime;
+  attentionSignals?: AttentionSignalsAccess;
   auth: AccountAccessAuth;
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
@@ -247,6 +251,7 @@ export interface AppDependencies {
   productGaps?: ProductGapsAccess;
   productionIncidents?: ProductionIncidentsAccess;
   projectActivity?: ProjectActivityAccess;
+  projectClosureSummary?: ProjectClosureSummaryAccess;
   projectGoals?: ProjectGoalsAccess;
   projectHistory?: ProjectHistoryAccess;
   projectReleasePlanning?: ProjectReleasePlanningAccess;
@@ -255,6 +260,7 @@ export interface AppDependencies {
   projectSourceRecords?: ProjectSourceRecordsAccess;
   projectUpdates?: ProjectUpdatesAccess;
   projectWall?: ProjectWallAccess;
+  publicRoadmapReview?: PublicRoadmapReviewAccess;
   recordActions?: RecordActionsAccess;
   recordTable?: RecordTableAccess;
   redactSecrets: (value: unknown) => unknown;
@@ -694,9 +700,12 @@ export function createApp(dependencies: AppDependencies) {
         dependencies.specChangeReviewMutationContracts,
       relations: dependencies.relations,
       projectActivity: dependencies.projectActivity,
+      attentionSignals: dependencies.attentionSignals,
+      publicRoadmapReview: dependencies.publicRoadmapReview,
       releaseEvidence: dependencies.releaseEvidence,
       projectHistory: dependencies.projectHistory,
       projectUpdates: dependencies.projectUpdates,
+      projectClosureSummary: dependencies.projectClosureSummary,
       valueChain: dependencies.valueChain,
       trustedProxyIps: dependencies.trustedProxyIps,
       usageLinkMutationContracts: dependencies.usageLinkMutationContracts,

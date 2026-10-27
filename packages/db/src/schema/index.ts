@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noBarrelFile: Database schema exports are the package's intentional public schema boundary.
 
 export * from "./assumption";
+export * from "./attention-signals";
 export * from "./auth";
 export * from "./backlog";
 export * from "./capture-triage";

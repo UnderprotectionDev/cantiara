@@ -32,6 +32,7 @@ CREATE TABLE "project_update_reminder" (
 	CONSTRAINT "project_update_reminder_question_check" CHECK (length(btrim("project_update_reminder"."question")) between 1 and 200)
 );
 --> statement-breakpoint
+ALTER TABLE "personal_reminder" ADD COLUMN "purpose" text;--> statement-breakpoint
 ALTER TABLE "project_update" ADD CONSTRAINT "project_update_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_update_link" ADD CONSTRAINT "project_update_link_update_fk" FOREIGN KEY ("project_update_id","project_id") REFERENCES "public"."project_update"("id","project_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_update_reminder" ADD CONSTRAINT "project_update_reminder_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

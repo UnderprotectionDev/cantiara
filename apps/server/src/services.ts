@@ -22,6 +22,8 @@ import {
   accountPreferencesMutationTarget,
   createDatabaseAccountPreferences,
 } from "./features/account-preferences/server/account-preferences-database";
+import { createDatabaseAttentionSignals } from "./features/attention-signals/server/attention-signals-database";
+import { createDatabasePublicRoadmapReview } from "./features/attention-signals/server/public-roadmap-review-database";
 import { createBacklogAccess } from "./features/backlog/server/backlog";
 import { createDatabaseBacklog } from "./features/backlog/server/backlog-database";
 import { createDatabaseBacklogMutationContracts } from "./features/backlog/server/backlog-mutation-database";
@@ -87,6 +89,7 @@ import {
   createDatabasePriorityMetricTrashMaintenance,
 } from "./features/priority-metrics/server/priority-metrics-trash-database";
 import { createDatabaseProductGaps } from "./features/product-gaps/server/product-gaps-database";
+import { createDatabaseProjectClosureSummary } from "./features/project-closure-summary/server/project-closure-summary-database";
 import { createDatabaseProjectGoals } from "./features/project-goals/server/project-goals-database";
 import { createProjectActivity } from "./features/project-history/server/project-activity";
 import { createDatabaseProjectActivityStore } from "./features/project-history/server/project-activity-database";
@@ -290,6 +293,19 @@ export const prioritizationSessionMutationContracts =
   createDatabasePrioritizationSessionMutationContracts(db);
 export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
+export const attentionSignals = createDatabaseAttentionSignals(db, {
+  // The one Work insertion boundary also used by `Create work and link`.
+  insertWork: (executor, owner, input) =>
+    insertWorkWithKeyAllocation(
+      executor as Parameters<typeof insertWorkWithKeyAllocation>[0],
+      owner,
+      input,
+    ),
+});
+export const publicRoadmapReview = createDatabasePublicRoadmapReview(
+  db,
+  attentionSignals,
+);
 export const releaseEvidence = createDatabaseReleaseEvidence(db);
 export const projectHistory = createDatabaseProjectHistory(db);
 export const projectUpdates = createProjectUpdatesService(
@@ -299,6 +315,7 @@ export const projectUpdates = createProjectUpdatesService(
 export const projectActivity = createProjectActivity(
   createDatabaseProjectActivityStore(db),
 );
+export const projectClosureSummary = createDatabaseProjectClosureSummary(db);
 export const valueChain = createDatabaseValueChain(db);
 export const projectWall = createDatabaseProjectWall(db, relations, {
   collections: smartCollections,

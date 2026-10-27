@@ -1,5 +1,5 @@
 {
-  "id": "c910570a-7eab-41d3-9393-24815dfd8a90",
+  "id": "a4940f40-3267-4ade-a5a0-cae012db73f3",
   "prevId": "093d806f-39bc-4a2d-82f7-26a1998026ea",
   "version": "7",
   "dialect": "postgresql",
@@ -12190,6 +12190,174 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.attention_signal": {
+      "name": "attention_signal",
+      "schema": "",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "group_kind": {
+          "name": "group_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "read_at": {
+          "name": "read_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signal_id": {
+          "name": "signal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "attention_signal_identity_uidx": {
+          "name": "attention_signal_identity_uidx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "signal_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "attention_signal_account_group_idx": {
+          "name": "attention_signal_account_group_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "group_kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "group_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "attention_signal_account_id_user_id_fk": {
+          "name": "attention_signal_account_id_user_id_fk",
+          "tableFrom": "attention_signal",
+          "tableTo": "user",
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "attention_signal_signal_id_check": {
+          "name": "attention_signal_signal_id_check",
+          "value": "\"attention_signal\".\"signal_id\" in ('due-date', 'reappear-date', 'personal-reminder', 'review-later', 'open-risk', 'work-blocked', 'source-version-in-use', 'external-run-returned', 'release-observation-missing', 'github-check-failed', 'work-pr-status-conflict', 'unlinked-open-pr', 'published-release-open-scope', 'automation-failed', 'public-roadmap-review-due', 'unreviewed-test-report', 'test-result-conflict', 'handoff-result-after-cancel', 'smart-collection-entry', 'github-activity')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.project_github_attention_signal": {
       "name": "project_github_attention_signal",
       "schema": "",
@@ -19162,237 +19330,6 @@
         "production_incident_link_revision_check": {
           "name": "production_incident_link_revision_check",
           "value": "\"production_incident_link\".\"revision\" >= 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.project_update": {
-      "name": "project_update",
-      "schema": "",
-      "columns": {
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mark": {
-          "name": "mark",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "narrative": {
-          "name": "narrative",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "snapshot": {
-          "name": "snapshot",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "project_update_project_created_at_idx": {
-          "name": "project_update_project_created_at_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "project_update_project_id_project_id_fk": {
-          "name": "project_update_project_id_project_id_fk",
-          "tableFrom": "project_update",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "project_update_pk": {
-          "name": "project_update_pk",
-          "columns": ["project_id", "id"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "project_update_mark_check": {
-          "name": "project_update_mark_check",
-          "value": "\"project_update\".\"mark\" in ('On Track', 'At Risk', 'Off Track')"
-        },
-        "project_update_narrative_check": {
-          "name": "project_update_narrative_check",
-          "value": "length(btrim(\"project_update\".\"narrative\")) between 1 and 1000"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.project_update_link": {
-      "name": "project_update_link",
-      "schema": "",
-      "columns": {
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_update_id": {
-          "name": "project_update_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_id": {
-          "name": "target_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_type": {
-          "name": "target_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "project_update_link_update_fk": {
-          "name": "project_update_link_update_fk",
-          "tableFrom": "project_update_link",
-          "tableTo": "project_update",
-          "columnsFrom": ["project_update_id", "project_id"],
-          "columnsTo": ["id", "project_id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "project_update_link_pk": {
-          "name": "project_update_link_pk",
-          "columns": ["project_update_id", "target_type", "target_id"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "project_update_link_target_type_check": {
-          "name": "project_update_link_target_type_check",
-          "value": "\"project_update_link\".\"target_type\" in ('Risk', 'Decision', 'Milestone', 'Work')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.project_update_reminder": {
-      "name": "project_update_reminder",
-      "schema": "",
-      "columns": {
-        "interval_days": {
-          "name": "interval_days",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "next_due_at": {
-          "name": "next_due_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "personal_reminder_id": {
-          "name": "personal_reminder_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "question": {
-          "name": "question",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "project_update_reminder_project_id_project_id_fk": {
-          "name": "project_update_reminder_project_id_project_id_fk",
-          "tableFrom": "project_update_reminder",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "project_update_reminder_state_check": {
-          "name": "project_update_reminder_state_check",
-          "value": "\"project_update_reminder\".\"state\" in ('Enabled', 'Paused', 'Disabled')"
-        },
-        "project_update_reminder_interval_check": {
-          "name": "project_update_reminder_interval_check",
-          "value": "\"project_update_reminder\".\"interval_days\" between 1 and 365"
-        },
-        "project_update_reminder_question_check": {
-          "name": "project_update_reminder_question_check",
-          "value": "length(btrim(\"project_update_reminder\".\"question\")) between 1 and 200"
         }
       },
       "isRLSEnabled": false

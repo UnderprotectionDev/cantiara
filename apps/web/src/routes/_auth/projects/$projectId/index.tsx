@@ -3,6 +3,7 @@ import { useCallback } from "react";
 
 import GitHubIntegrationSurface from "@/features/github-integration/ui/components/github-integration-surface";
 import ProductionIncidentsView from "@/features/production-incidents/ui/views/production-incidents-view";
+import ClosureSummarySurface from "@/features/project-closure-summary/ui/components/closure-summary-surface";
 import ProjectActivitySurface from "@/features/project-history/ui/components/project-activity-surface";
 import StoryTimelineSurface from "@/features/project-history/ui/components/story-timeline-surface";
 import WorkRecordHistorySurface from "@/features/project-history/ui/components/work-record-history-surface";
@@ -72,6 +73,7 @@ function RouteComponent() {
         <>
           <StoryTimelineSurface key={projectId} projectId={projectId} />
           <ProjectActivitySurface key={projectId} projectId={projectId} />
+          <ClosureSummarySurface key={projectId} projectId={projectId} />
         </>
       }
       projectId={projectId}

@@ -395,7 +395,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Seçili gün (Birleşik Takvim) | `Selected day` | Birleşik Takvim `/calendar` `calendarDay` sorgusu; Gün yalnız o günün konumları, Hafta o günü içeren hesap haftası, Ay o günün ayı, Agenda o ayın konumlarını kronolojik yoğun listede. Günlük Odak üyelik günü değildir |
 | Günlük Odakta İş yok | `No Work in Daily Focus for this day.` | Seçili günde üyelik olmadığında boş durum |
 | Odağı kapat | `Close focus` | Günlük Odak’ta seçili gün için isteğe bağlı sakin kapanış görünümü; açık İşi kapatmaz |
-| Hâlâ açık | `Still open` | Kapanış görünümünde Günlük Odak’ta açık kalan İşler grubu |
+| Hâlâ açık | `Still open` | Kapanış görünümünde Günlük Odak’ta açık kalan İşler grubu; Planlanan tarih geçmişinde tamamlanma olayı olmayan kayıt değeri |
 | Bugün ne oldu? | `What happened today?` | Seçili profil günündeki türetilmiş önemli olaylar; Daily Note veya ikinci olay geçmişi değildir |
 | Bugün önemli olay yok | `No notable events for this day.` | Seçili profil gününde desteklenen önemli olay olmadığında boş durum |
 | Karar kaydı olayı | `Recorded` | `What happened today?` içinde kaynak Kararın oluşturulduğu günü gösterir |
@@ -1365,10 +1365,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İçe aktarma kararı | `Update existing`, `Skip`, `Resolve conflict` | Kararlı köken eşleşmesinde seçenekler |
 | Boş sinyal bölümü | `No signals in this section.` | Bildirim Merkezi bölümü boşken; her şey yolunda iddiası taşımaz |
 | Yeniden bak boş durumu | `Nothing to look at again.` | `Look again` yüzeyi boşken |
+| Yeniden bak yüzeyi | `Look again` | `review-later` kaynak grubunu listeleyen yüzeyin adı |
 | Çalışma Oturumu kümesi açıklaması | `Held for this session only.` | `Active Working Set` kalıcı olmadığını söyler |
 | Hesap adı uyuşmazlığı | `The name does not match.` | Hesabı kapatma ve silme onayında yazılan ad uyuşmadığında |
 | Dış yüzey dizin eylemleri | `Open source`, `Review diff`, `Change expiry`, `Reactivate`, `Revoke`, `Unpublish` | Shares and Publications satır eylemleri; durum ve yüzey türüne göre görünür |
-| Yayın gözden geçirme aralığı | `Review interval (days)`, `Enter a whole number of days from 7 to 180.` | `public-roadmap-review-due` sinyali için isteğe bağlı gün aralığı |
+| Yayın gözden geçirme aralığı | `Review interval (days)`, `Save interval`, `Public Roadmap review`, `Enter a whole number of days from 7 to 180.`, `The interval was not saved.` | Notification Center'ın `Public Roadmap review` bölümündeki isteğe bağlı gün aralığı; `public-roadmap-review-due` sinyalini türetir |
 | YouTube yükleme | `Load YouTube`, `Loading YouTube contacts a third-party server.` | Tıklayınca yüklenen YouTube kartı ve gizlilik uyarısı |
 | Dondurulmuş canlı blok etiketi | `Snapshot`, `As of` | Ziyaretçi yüzeyinde onaylı snapshot kaynağı ve tarihi |
 | Ziyaretçi alt bilgisi | `This page is read-only.` | Herkese açık yüzeyde salt okunur olduğunu söyleyen tek satır |
@@ -1382,6 +1383,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Etkin Çalışma Setine ekle / çıkar | `Add to Active Working Set`, `Remove from Active Working Set` | İş ve Belge kayıt başlığının taşma menüsünde Etkin Çalışma Setine üye ekleme ve çıkarma eylemleri |
 | Tepsiyi göster | `Show tray` | Küçültülmüş Etkin Çalışma Seti tepsisinin yeniden açma tetiği |
 | Okundu işaretle / okunmadı işaretle | `Mark as read`, `Mark as unread` | Bildirim Merkezi satırında okundu işaretleme ve geri alma eylemleri |
+| Bildirim kapatma ve yeniden açma | `Close`, `Reopen` | Bildirim Merkezi satırında kapama ve yeniden açma eylemleri |
+| Bildirim eylemi sonuçları | `Follow-up work created. The notification stays open.`, `Follow-up work already exists for this attempt.`, `The action could not be completed.`, `The follow-up preview changed; preview it again.`, `That attempt already created work for a different notification.`, `Project is unavailable.`, `Notification is unavailable.`, `Archived Projects are read-only.` | Bildirim Merkezi satır eylemlerinin uygulanma sonuçları ve hata metinleri |
 | Kişiler'i aç | `Open Contacts` | Komut paletinde Kişiler yüzeyini açan komut |
 | Kişiler | `Contacts` | Kişi ve Şirket yüzeyinin gezinti etiketi; `More` altında yer alır |
 | Canlı blok sınırı doldu | `Live block limit reached. Remove one to add another.` | Canlı blok üst sınırına ulaşılınca `Add live block` yanında gösterilen sessiz satır |
@@ -1493,6 +1496,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Hedeften sonra | `After target` | Planlanan tarih geçmişinde hedeften sonra biten değer |
 | Geçmiş okumasıdır, puan değildir | `This is a reading of existing history. It is not a score.` | Planlanan tarih geçmişi notu |
 | Belge olarak kaydet | `Save as Document` | Kapanış özetini `General` Belge olarak kaydeden eylem |
+| Kapanış özeti Belge olarak kaydedildi | `Project Closure Summary saved as a Document.` | Açık kayıttan sonra gösterilen onay; Belgeye bağlantı verir |
+| Kişisel Wiki kopyası işaretçisi | `Use Copy Document on the Document to copy it to the Personal Wiki.` | Kayıt sonrası onayda mevcut `Copy Document` Belge kopyalama eylemine yönlendiren cümle |
+| Planlanan tarihi olan seçili kayıt yok | `No selected record has a planned date.` | Planlanan tarih geçmişinde karşılaştırılacak kayıt yoksa gösterilen durum |
+| Kapanış özeti isteği tamamlanamadı | `The request could not be completed. Try again.` | Taslak, kayıt veya tarih geçmişi okuması başarısız olunca gösterilen uyarı |
+| Kapanış Özeti Taslağı yüzeyi | `Closure Summary Draft` | Kapanış özeti taslağının kaynak seçimi, önizleme ve düzenleyici bölümlerinin ortak adı |
+| Başlık önizlemesi | `Heading preview` | Seçilen kaynakların hangi başlığa gireceğini gösteren önizleme listesi |
+| Kaynak seçilmedi | `No sources selected.` | Önizlemede hiç kaynak seçilmediğinde gösterilen durum |
+| Seçilecek kayıt yok | `No {heading} to select.` | Kaynak grubunda seçilebilir kayıt olmadığında gösterilen durum |
+| Kapanış Özeti Taslağı yükleniyor | `Loading Closure Summary Draft…` | Kapanış Özeti Taslağının kaynak listesi yüklenirken gösterilen durum |
+| Kapanış Özeti Taslağı kullanılamıyor | `Closure Summary Draft is unavailable.` | Kapanış Özeti Taslağının kaynak listesi okunamadığında gösterilen hata durumu |
 | Taslağı at | `Discard draft` | Kapanış özeti taslağını kaydetmeden atan eylem |
 | Etkilenen Belgeler yeni sürüm alır | `Affected Documents get a new version. Undo restores them together.` | Etiket yeniden adlandırma makbuzunda etkilenen Belgelerin sürümlü değiştiğini söyleyen satır |
 | Eşleşecek alan değişikliği yok | `No field change can make this record match.` | Sürükleme önizlemesi doğrudan alan eşitliği olmayan koşulda gösterilen metin |
