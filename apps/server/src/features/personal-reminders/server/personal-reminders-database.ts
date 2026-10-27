@@ -132,6 +132,7 @@ function toPersonalReminder(record: PersonalReminderRecord): PersonalReminder {
     fireAt: record.fireAt.toISOString(),
     fireNote: record.fireNote,
     id: record.id,
+    purpose: record.purpose,
     sectionId: record.sectionId,
     sourceProjectId: record.sourceProjectId,
     sourceRecordId: record.sourceRecordId,
@@ -139,6 +140,15 @@ function toPersonalReminder(record: PersonalReminderRecord): PersonalReminder {
     status: record.status,
     triggeredAt: record.triggeredAt?.toISOString() ?? null,
   });
+}
+
+function missingDocumentSection(
+  documentBody: string | null | undefined,
+  sectionId: string | undefined,
+) {
+  return Boolean(
+    sectionId && !documentSectionById(documentBody ?? "", sectionId),
+  );
 }
 
 function pendingRescheduleRetry(
@@ -552,7 +562,10 @@ function reminderSourcePath(reminder: PersonalReminderRecord) {
   const sourceRecordType = sourceRecordTypeOf(reminder);
   const sourceId = encodeURIComponent(reminder.sourceRecordId);
   if (sourceRecordType === "Project") {
-    return `/projects/${sourceId}`;
+    // A Project update reminder opens the existing Project Updates form.
+    return reminder.purpose === "Create Project Update"
+      ? `/projects/${sourceId}#project-updates`
+      : `/projects/${sourceId}`;
   }
   const projectPath = reminder.sourceProjectId
     ? `/projects/${encodeURIComponent(reminder.sourceProjectId)}`
@@ -792,12 +805,10 @@ export function createDatabasePersonalReminders(
         input.sourceRecordId,
         input.sectionId !== undefined,
       );
-      if (!source || source.projectArchivedAt) {
-        return null;
-      }
       if (
-        input.sectionId &&
-        !documentSectionById(source.documentBody ?? "", input.sectionId)
+        !source ||
+        source.projectArchivedAt ||
+        missingDocumentSection(source.documentBody, input.sectionId)
       ) {
         return null;
       }
@@ -811,6 +822,7 @@ export function createDatabasePersonalReminders(
           condition: input.condition ?? "In any case",
           fireAt,
           id: `reminder-${newId()}`,
+          purpose: input.purpose ?? null,
           sectionId: input.sectionId ?? null,
           sourceProjectId: source.projectId,
           sourceRecordId: source.sourceRecordId,
@@ -1079,6 +1091,7 @@ function matchesCreateRequest(
     record.sourceRecordId === input.sourceRecordId &&
     record.condition === (input.condition ?? "In any case") &&
     record.sectionId === (input.sectionId ?? null) &&
+    record.purpose === (input.purpose ?? null) &&
     record.fireAt.valueOf() === new Date(input.fireAt).valueOf()
   );
 }

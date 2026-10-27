@@ -244,6 +244,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Listeyi kaydet | `Save list` | Çapraz Proje listesi koşullarını ve görünümünü kaydetme |
 | Yeni liste | `New list` | Kaydedilmiş çapraz Proje listesi oluşturma formunu açma |
 | Daha fazla | `More` | Kişisel kabuk çubuğunda Capture, Daily Focus ve Projects dışındaki yüzeyleri gruplayan menü |
+| Manuel Proje Güncellemesi | `Project Update`, `Create Project Update`, `On Track`, `At Risk`, `Off Track`, `Open source record`, `Update reminder`, `Reflection question`, `Interval (days)`, `Save reminder`, `Skip reminder`, `Enabled`, `Paused`, `Disabled`, `Lifecycle`, `Purpose`, `Target date`, `None`, `Retry` | Kurucunun tarihli öznel işareti, kısa anlatısı ve kayıt anı özet snapshot'ı; yalnız eklenir, yerinde yeniden yazılmaz, canlı sağlık hükmü veya skor değildir |
 | Son bildirilen sağlık | `Last reported health` | Son Manuel Proje Güncellemesinin tarihiyle gösterilen sağlık işareti; güncel Project health alanı değildir |
 | Üyelik koşullardan gelir | `Membership comes from list conditions.` | Sürükleyerek liste üyesi eklenemeyeceğini söyleyen metin |
 | Liste adı | `List name` | Kaydedilmiş çapraz Proje listesinin kullanıcı tarafından verilen adı |

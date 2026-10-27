@@ -103,6 +103,7 @@ import { createWorkContextAccess } from "../src/features/work-context/server/wor
 import { createDatabaseWorkDrafts } from "../src/features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
 import { createDatabaseWorkTemplates } from "../src/features/work-templates/server/work-templates-database";
+import { createProjectUpdatesService } from "../src/project-updates-wiring";
 import {
   deleteStaleFavoriteSource,
   prepareFavoritesFixture,
@@ -404,6 +405,7 @@ const app = createApp({
     createDatabaseProjectActivityStore(database),
   ),
   projectHistory: createDatabaseProjectHistory(database),
+  projectUpdates: createProjectUpdatesService(database, personalReminders),
   priorityMetricMutationContracts,
   priorityMetrics,
   projectShell,

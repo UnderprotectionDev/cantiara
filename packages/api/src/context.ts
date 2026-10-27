@@ -58,6 +58,7 @@ import type {
   ProjectShellMutationContracts,
 } from "./project-shell";
 import type { ProjectSourceRecordsAccess } from "./project-source-records";
+import type { ProjectUpdatesAccess } from "./project-updates";
 import type { ProjectWallAccess } from "./project-wall";
 import type { RecordActionsAccess } from "./record-actions";
 import type {
@@ -233,6 +234,7 @@ export interface Context {
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
+  projectUpdates?: ProjectUpdatesAccess;
   projectWall?: ProjectWallAccess;
   publicRoadmapReview?: PublicRoadmapReviewAccess;
   recordActions?: RecordActionsAccess;

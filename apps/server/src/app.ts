@@ -77,6 +77,7 @@ import type {
   ProjectShellMutationContracts,
 } from "@cantiara/api/project-shell";
 import type { ProjectSourceRecordsAccess } from "@cantiara/api/project-source-records";
+import type { ProjectUpdatesAccess } from "@cantiara/api/project-updates";
 import type { ProjectWallAccess } from "@cantiara/api/project-wall";
 import type { RecordActionsAccess } from "@cantiara/api/record-actions";
 import type {
@@ -257,6 +258,7 @@ export interface AppDependencies {
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
+  projectUpdates?: ProjectUpdatesAccess;
   projectWall?: ProjectWallAccess;
   publicRoadmapReview?: PublicRoadmapReviewAccess;
   recordActions?: RecordActionsAccess;
@@ -702,6 +704,7 @@ export function createApp(dependencies: AppDependencies) {
       publicRoadmapReview: dependencies.publicRoadmapReview,
       releaseEvidence: dependencies.releaseEvidence,
       projectHistory: dependencies.projectHistory,
+      projectUpdates: dependencies.projectUpdates,
       projectClosureSummary: dependencies.projectClosureSummary,
       valueChain: dependencies.valueChain,
       trustedProxyIps: dependencies.trustedProxyIps,

@@ -158,6 +158,7 @@ import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/s
 import { createMaintenanceWorker } from "./maintenance-worker";
 import { createProductionIncidents } from "./production-incidents-wiring";
 import { createProjectReleasePlanning } from "./project-release-planning-wiring";
+import { createProjectUpdatesService } from "./project-updates-wiring";
 
 const db = createDb(env);
 export const documents = createDatabaseDocuments(db);
@@ -307,6 +308,10 @@ export const publicRoadmapReview = createDatabasePublicRoadmapReview(
 );
 export const releaseEvidence = createDatabaseReleaseEvidence(db);
 export const projectHistory = createDatabaseProjectHistory(db);
+export const projectUpdates = createProjectUpdatesService(
+  db,
+  personalReminders,
+);
 export const projectActivity = createProjectActivity(
   createDatabaseProjectActivityStore(db),
 );
