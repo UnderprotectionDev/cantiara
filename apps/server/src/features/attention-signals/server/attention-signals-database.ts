@@ -1,12 +1,42 @@
 import type { StoredAttentionSignal } from "@cantiara/api/attention-signals";
 import type { Database } from "@cantiara/db";
-import { attentionSignal } from "@cantiara/db/schema/attention-signals";
+import {
+  attentionSignal,
+  attentionSignalFollowUp,
+} from "@cantiara/db/schema/attention-signals";
+import { workspace } from "@cantiara/db/schema/auth";
+import { decision } from "@cantiara/db/schema/decision";
+import { document } from "@cantiara/db/schema/document";
+import { project } from "@cantiara/db/schema/project";
+import { risk } from "@cantiara/db/schema/risk";
+import { work } from "@cantiara/db/schema/work";
 import { and, eq } from "drizzle-orm";
 
 import {
   type AttentionSignalStore,
+  type AttentionSourceResolver,
   createAttentionSignals,
 } from "./attention-signals";
+
+type Executor = Pick<Database, "insert" | "select" | "update">;
+
+/** Inserts the one follow-up Work under the locked Project; wired by the server root. */
+export interface AttentionFollowUpPorts {
+  insertWork: (
+    executor: Executor,
+    owner: typeof project.$inferSelect,
+    input: {
+      committedAt: Date;
+      description: string;
+      idempotencyKey: string;
+      originOwnerRecordId: string;
+      payloadFingerprint: string;
+      title: string;
+      type: string;
+      workId: string;
+    },
+  ) => Promise<string>;
+}
 
 const toStored = (
   row: typeof attentionSignal.$inferSelect,
@@ -25,8 +55,82 @@ const toStored = (
 
 export function createDatabaseAttentionSignalStore(
   database: Database,
+  ports: AttentionFollowUpPorts,
 ): AttentionSignalStore {
   return {
+    async commitFollowUp(accountId, commit) {
+      return await database.transaction(async (executor) => {
+        const [prior] = await executor
+          .select()
+          .from(attentionSignalFollowUp)
+          .where(eq(attentionSignalFollowUp.attemptId, commit.attemptId));
+        if (prior) {
+          return prior.accountId === accountId &&
+            prior.signalRowId === commit.signal.id
+            ? { created: false, workId: prior.workId }
+            : null;
+        }
+        const { projectId } = commit.signal;
+        if (!projectId) {
+          return null;
+        }
+        const [owned] = await executor
+          .select({ project })
+          .from(project)
+          .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+          .where(
+            and(
+              eq(project.id, projectId),
+              eq(workspace.ownerAccountId, accountId),
+            ),
+          )
+          .limit(1)
+          .for("update", { of: project });
+        if (!owned || owned.project.archivedAt) {
+          return null;
+        }
+        const committedAt = new Date();
+        await ports.insertWork(executor, owned.project, {
+          committedAt,
+          description: commit.plan.description,
+          idempotencyKey: `attention-follow-up:${commit.attemptId}`,
+          originOwnerRecordId: commit.signal.id,
+          payloadFingerprint: commit.fingerprint,
+          title: commit.plan.title,
+          type: commit.plan.type,
+          workId: commit.workId,
+        });
+        const source = commit.plan.relations.find(
+          (relation) => relation.kind !== "Notification",
+        );
+        await executor.insert(attentionSignalFollowUp).values({
+          accountId,
+          attemptId: commit.attemptId,
+          createdAt: committedAt,
+          fingerprint: commit.fingerprint,
+          projectId,
+          signalRowId: commit.signal.id,
+          sourceGroupId: source?.id ?? null,
+          sourceGroupKind: source?.kind ?? null,
+          workId: commit.workId,
+        });
+        return { created: true, workId: commit.workId };
+      });
+    },
+
+    async find(accountId, signalRowId) {
+      const [row] = await database
+        .select()
+        .from(attentionSignal)
+        .where(
+          and(
+            eq(attentionSignal.accountId, accountId),
+            eq(attentionSignal.id, signalRowId),
+          ),
+        );
+      return row ? toStored(row) : null;
+    },
+
     async insertIfAbsent(accountId, signal) {
       const [inserted] = await database
         .insert(attentionSignal)
@@ -73,9 +177,81 @@ export function createDatabaseAttentionSignalStore(
         .where(eq(attentionSignal.accountId, accountId));
       return rows.map(toStored);
     },
+
+    async setMarks(accountId, signalRowId, marks) {
+      const [row] = await database
+        .update(attentionSignal)
+        .set({
+          ...(marks.closedAt === undefined
+            ? {}
+            : { closedAt: marks.closedAt ? new Date(marks.closedAt) : null }),
+          ...(marks.readAt === undefined
+            ? {}
+            : { readAt: marks.readAt ? new Date(marks.readAt) : null }),
+        })
+        .where(
+          and(
+            eq(attentionSignal.accountId, accountId),
+            eq(attentionSignal.id, signalRowId),
+          ),
+        )
+        .returning();
+      return row ? toStored(row) : null;
+    },
   };
 }
 
-export function createDatabaseAttentionSignals(database: Database) {
-  return createAttentionSignals(createDatabaseAttentionSignalStore(database));
+const RECORD_TABLES = {
+  Decision: decision,
+  Document: document,
+  Risk: risk,
+  Work: work,
+} as const;
+
+/**
+ * Existence-only resolver over the owner tables this slice can read. A kind it
+ * does not know is reported present; events resolve only for a producer that
+ * supplies its own event resolver. It reads no content.
+ */
+export function createDatabaseSourceResolver(
+  database: Database,
+  events: AttentionSourceResolver["event"] = () =>
+    Promise.resolve("unresolved"),
+): AttentionSourceResolver {
+  return {
+    event: events,
+    async record(_accountId, group) {
+      if (!Object.hasOwn(RECORD_TABLES, group.kind)) {
+        return "present";
+      }
+      const table = RECORD_TABLES[group.kind as keyof typeof RECORD_TABLES];
+      const [row] = await database
+        .select({ id: table.id })
+        .from(table)
+        .where(eq(table.id, group.id))
+        .limit(1);
+      if (!row) {
+        return "deleted";
+      }
+      if (group.kind === "Work") {
+        const [trashed] = await database
+          .select({ trashedAt: work.trashedAt })
+          .from(work)
+          .where(eq(work.id, group.id))
+          .limit(1);
+        return trashed?.trashedAt ? "deleted" : "present";
+      }
+      return "present";
+    },
+  };
+}
+
+export function createDatabaseAttentionSignals(
+  database: Database,
+  ports: AttentionFollowUpPorts,
+) {
+  return createAttentionSignals(
+    createDatabaseAttentionSignalStore(database, ports),
+    { resolver: createDatabaseSourceResolver(database) },
+  );
 }

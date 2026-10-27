@@ -45,4 +45,69 @@ describe("Notification Center list", () => {
     expect(html).toContain("does not claim to show everything");
     expect(html).not.toMatch(SAVED_QUEUE);
   });
+
+  test("offers open, read, close and a follow-up preview, and no Saved queue", () => {
+    const html = renderToStaticMarkup(
+      <NotificationCenterList
+        actions={{
+          onCreateFollowUp: () => undefined,
+          onMark: () => undefined,
+          onOpen: () => undefined,
+          onPreviewFollowUp: () => undefined,
+        }}
+        center={deriveNotificationCenter([stored("work-blocked", "e1")])}
+      />,
+    );
+    for (const label of [
+      "Open source",
+      "Mark read",
+      "Close",
+      "Preview Follow-up Work",
+    ]) {
+      expect(html).toContain(label);
+    }
+    expect(html).not.toMatch(SAVED_QUEUE);
+  });
+
+  test("explains a missing exact event and shows the follow-up preview before apply", () => {
+    const center = deriveNotificationCenter([stored("work-blocked", "e1")]);
+    const signal = center.sections[0]?.groups[0]?.signals[0];
+    const html = renderToStaticMarkup(
+      <NotificationCenterList
+        actions={{
+          onCreateFollowUp: () => undefined,
+          onMark: () => undefined,
+          onOpen: () => undefined,
+          onPreviewFollowUp: () => undefined,
+        }}
+        center={center}
+        panels={{
+          opened: {
+            output: {
+              explanation: "The exact source event e1 can no longer be found.",
+              group: { id: "work-1", kind: "Work" },
+              missingEventId: "e1",
+              outcome: "record",
+            },
+            signalRowId: signal?.id ?? "",
+          },
+          preview: {
+            fingerprint: "f",
+            relations: [{ id: "e1", kind: "Notification", relation: "Origin" }],
+            signalRowId: signal?.id ?? "",
+            work: {
+              description: "",
+              projectId: "project-1",
+              title: "Follow up: x",
+              type: "Task",
+            },
+          },
+        }}
+      />,
+    );
+    expect(html).toContain("can no longer be found");
+    expect(html).toContain("Origin: Notification e1");
+    expect(html).toContain("The notification stays open");
+    expect(html).toContain("Create Follow-up Work");
+  });
 });

@@ -118,6 +118,8 @@ export type ParsedEmitAttentionSignalInput = z.output<
 >;
 
 export const attentionSignalSchema = z.object({
+  /** The source record was deleted: the reason is replaced, never shown. */
+  tombstone: z.boolean(),
   closedAt: z.iso.datetime().nullable(),
   eventId: z.string(),
   group: attentionSourceGroupSchema,
@@ -165,17 +167,22 @@ export type EmitAttentionSignalOutput = z.infer<
 /** Stored row; the section and class are derived from the registry, not kept. */
 export type StoredAttentionSignal = Omit<
   AttentionSignal,
-  "presentation" | "section"
+  "presentation" | "section" | "tombstone"
 >;
+
+export const ATTENTION_TOMBSTONE_REASON = "The source record was deleted.";
 
 export function toAttentionSignal(
   stored: StoredAttentionSignal,
+  tombstone = false,
 ): AttentionSignal {
   const presentation = attentionPresentationClass(stored.signalId);
   return {
     ...stored,
     presentation,
+    reason: tombstone ? ATTENTION_TOMBSTONE_REASON : stored.reason,
     section: attentionSectionForClass(presentation),
+    tombstone,
   };
 }
 
@@ -189,13 +196,19 @@ export const sourceGroupKey = (group: AttentionSourceGroup) =>
  */
 export function deriveNotificationCenter(
   stored: readonly StoredAttentionSignal[],
+  deletedGroups: ReadonlySet<string> = new Set(),
 ): NotificationCenter {
   const byTime = (a: AttentionSignal, b: AttentionSignal) =>
     b.occurredAt.localeCompare(a.occurredAt) || a.id.localeCompare(b.id);
   return {
     sections: ATTENTION_SECTIONS.map((section) => {
       const groups = new Map<string, AttentionSourceGroupView>();
-      for (const signal of stored.map(toAttentionSignal).sort(byTime)) {
+      const signals = stored
+        .map((row) =>
+          toAttentionSignal(row, deletedGroups.has(sourceGroupKey(row.group))),
+        )
+        .sort(byTime);
+      for (const signal of signals) {
         if (signal.section !== section) {
           continue;
         }
@@ -216,11 +229,158 @@ export function deriveNotificationCenter(
   };
 }
 
+export const attentionSignalTargetSchema = z
+  .object({ signalRowId: identity })
+  .strict();
+export type AttentionSignalTarget = z.infer<typeof attentionSignalTargetSchema>;
+
+/** Read and closed marks are attention state only; the source is not written. */
+export const markAttentionSignalInputSchema = z
+  .object({
+    mark: z.enum(["read", "unread", "closed", "reopened"]),
+    signalRowId: identity,
+  })
+  .strict();
+export type MarkAttentionSignalInput = z.infer<
+  typeof markAttentionSignalInputSchema
+>;
+
+/**
+ * The result of opening a signal. `event` opens the exact source event in
+ * visible context; `record` opens the record and explains the missing exact
+ * target without retargeting; `tombstone` opens nothing and leaks no content.
+ */
+export const openAttentionSignalOutputSchema = z.discriminatedUnion("outcome", [
+  z.object({
+    eventId: z.string(),
+    group: attentionSourceGroupSchema,
+    outcome: z.literal("event"),
+    targetId: z.string(),
+  }),
+  z.object({
+    explanation: z.string(),
+    group: attentionSourceGroupSchema,
+    missingEventId: z.string(),
+    outcome: z.literal("record"),
+  }),
+  z.object({
+    explanation: z.string(),
+    outcome: z.literal("tombstone"),
+  }),
+]);
+export type OpenAttentionSignalOutput = z.infer<
+  typeof openAttentionSignalOutputSchema
+>;
+
+export const ATTENTION_FOLLOW_UP_WORK_TYPES = [
+  "Task",
+  "Bug",
+  "Research",
+] as const;
+
+export const attentionFollowUpRelationSchema = z.object({
+  id: z.string(),
+  kind: z.string(),
+  relation: z.literal("Origin"),
+});
+
+export const attentionFollowUpPreviewSchema = z.object({
+  fingerprint: z.string(),
+  relations: z.array(attentionFollowUpRelationSchema),
+  signalRowId: z.string(),
+  work: z.object({
+    description: z.string(),
+    projectId: z.string(),
+    title: z.string(),
+    type: z.enum(ATTENTION_FOLLOW_UP_WORK_TYPES),
+  }),
+});
+export type AttentionFollowUpPreview = z.infer<
+  typeof attentionFollowUpPreviewSchema
+>;
+
+export const previewAttentionFollowUpInputSchema = z
+  .object({
+    signalRowId: identity,
+    workType: z.enum(ATTENTION_FOLLOW_UP_WORK_TYPES).default("Task"),
+  })
+  .strict();
+export type PreviewAttentionFollowUpInput = z.input<
+  typeof previewAttentionFollowUpInputSchema
+>;
+
+/** One apply per attempt id: a retry returns the same İş, never a second. */
+export const createAttentionFollowUpInputSchema = z
+  .object({
+    attemptId: identity,
+    fingerprint: identity,
+    signalRowId: identity,
+    workType: z.enum(ATTENTION_FOLLOW_UP_WORK_TYPES).default("Task"),
+  })
+  .strict();
+export type CreateAttentionFollowUpInput = z.input<
+  typeof createAttentionFollowUpInputSchema
+>;
+
+export const attentionFollowUpResultSchema = z.object({
+  created: z.boolean(),
+  signal: attentionSignalSchema,
+  workId: z.string(),
+});
+export type AttentionFollowUpResult = z.infer<
+  typeof attentionFollowUpResultSchema
+>;
+
+/**
+ * The İş a `Create Follow-up Work` apply would create, with its Kökeni
+ * relations. Pure: the preview and the apply derive the same plan, so a
+ * changed signal makes the previewed fingerprint stale. A deleted source adds
+ * no source relation and quotes no content.
+ */
+export function buildAttentionFollowUpPlan(
+  signal: AttentionSignal,
+  workType: (typeof ATTENTION_FOLLOW_UP_WORK_TYPES)[number],
+) {
+  const title = signal.tombstone
+    ? "Follow up on a deleted source"
+    : `Follow up: ${signal.reason}`.slice(0, 200);
+  const description = signal.tombstone
+    ? ""
+    : `Follow-up for ${signal.signalId} on ${signal.group.kind} ${signal.group.id}.`;
+  const relations: z.infer<typeof attentionFollowUpRelationSchema>[] = [
+    { id: signal.id, kind: "Notification", relation: "Origin" },
+  ];
+  if (!signal.tombstone) {
+    relations.push({
+      id: signal.group.id,
+      kind: signal.group.kind,
+      relation: "Origin",
+    });
+  }
+  return { description, relations, title, type: workType };
+}
+
 export interface AttentionSignalsAccess {
   center: (accountId: string) => Promise<NotificationCenter>;
+  createFollowUp: (
+    accountId: string,
+    input: CreateAttentionFollowUpInput,
+  ) => Promise<AttentionFollowUpResult>;
   /** Producer-side gate: rejects unregistered ids and dedupes event + target. */
   emit: (
     accountId: string,
     input: EmitAttentionSignalInput,
   ) => Promise<EmitAttentionSignalOutput>;
+  mark: (
+    accountId: string,
+    input: MarkAttentionSignalInput,
+  ) => Promise<AttentionSignal>;
+  open: (
+    accountId: string,
+    input: AttentionSignalTarget,
+  ) => Promise<OpenAttentionSignalOutput>;
+  previewFollowUp: (
+    accountId: string,
+    input: PreviewAttentionFollowUpInput,
+  ) => Promise<AttentionFollowUpPreview>;
 }

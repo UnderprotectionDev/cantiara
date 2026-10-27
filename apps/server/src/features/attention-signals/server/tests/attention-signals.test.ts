@@ -12,9 +12,11 @@ const ACCOUNT = "account-1";
 function setup() {
   const harness = createMemoryAttentionSignalStore();
   let sequence = 0;
-  const access = createAttentionSignals(harness.store, () => {
-    sequence += 1;
-    return `sig-${sequence}`;
+  const access = createAttentionSignals(harness.store, {
+    createId: () => {
+      sequence += 1;
+      return `sig-${sequence}`;
+    },
   });
   return { ...harness, access };
 }

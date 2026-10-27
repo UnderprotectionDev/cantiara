@@ -290,7 +290,15 @@ export const prioritizationSessionMutationContracts =
   createDatabasePrioritizationSessionMutationContracts(db);
 export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
-export const attentionSignals = createDatabaseAttentionSignals(db);
+export const attentionSignals = createDatabaseAttentionSignals(db, {
+  // The one Work insertion boundary also used by `Create work and link`.
+  insertWork: (executor, owner, input) =>
+    insertWorkWithKeyAllocation(
+      executor as Parameters<typeof insertWorkWithKeyAllocation>[0],
+      owner,
+      input,
+    ),
+});
 export const releaseEvidence = createDatabaseReleaseEvidence(db);
 export const projectHistory = createDatabaseProjectHistory(db);
 export const projectActivity = createProjectActivity(

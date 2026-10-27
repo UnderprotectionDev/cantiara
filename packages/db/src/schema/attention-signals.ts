@@ -53,3 +53,32 @@ export const attentionSignal = pgTable(
     ),
   ],
 );
+
+/**
+ * `Create Follow-up Work` receipt. One row per apply attempt: the attempt id is
+ * the key, so a retry returns the same İş instead of a second one. The Work
+ * carries the signal as its Kökeni owner; the source reference is kept here as
+ * origin only, and the signal and the source are never written by an apply.
+ */
+export const attentionSignalFollowUp = pgTable(
+  "attention_signal_follow_up",
+  {
+    accountId: text("account_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    attemptId: text("attempt_id").primaryKey(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    projectId: text("project_id").notNull(),
+    signalRowId: text("signal_row_id")
+      .notNull()
+      .references(() => attentionSignal.id, { onDelete: "cascade" }),
+    sourceGroupId: text("source_group_id"),
+    sourceGroupKind: text("source_group_kind"),
+    workId: text("work_id").notNull(),
+  },
+  (table) => [
+    uniqueIndex("attention_signal_follow_up_work_uidx").on(table.workId),
+    index("attention_signal_follow_up_signal_idx").on(table.signalRowId),
+  ],
+);

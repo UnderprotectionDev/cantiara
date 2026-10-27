@@ -8,6 +8,11 @@ import { createDatabaseAttentionSignals } from "../attention-signals-database";
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
 
+// The Work insertion boundary belongs to the Work owner; these cases never reach it.
+const ports = {
+  insertWork: () => Promise.reject(new Error("insertWork is not used here.")),
+};
+
 describeDatabase("Attention Signals PostgreSQL seam", () => {
   const database = databaseUrl
     ? createDb({ DATABASE_URL: databaseUrl })
@@ -47,7 +52,7 @@ describeDatabase("Attention Signals PostgreSQL seam", () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
     }
-    const access = createDatabaseAttentionSignals(database);
+    const access = createDatabaseAttentionSignals(database, ports);
     const first = await access.emit(accountId, input());
     const retry = await access.emit(accountId, input());
     expect(first.outcome).toBe("created");
@@ -64,7 +69,7 @@ describeDatabase("Attention Signals PostgreSQL seam", () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
     }
-    const access = createDatabaseAttentionSignals(database);
+    const access = createDatabaseAttentionSignals(database, ports);
     await expect(
       access.emit(accountId, input({ signalId: "free-form" })),
     ).rejects.toMatchObject({ code: "ATTENTION_SIGNAL_NOT_REGISTERED" });
@@ -81,5 +86,52 @@ describeDatabase("Attention Signals PostgreSQL seam", () => {
         targetId: "t",
       }),
     ).rejects.toThrow();
+  });
+
+  test("read and closed marks write only the signal row and reopen cleanly", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const access = createDatabaseAttentionSignals(database, ports);
+    const { signal } = await access.emit(accountId, input());
+    const read = await access.mark(accountId, {
+      mark: "read",
+      signalRowId: signal.id,
+    });
+    expect(read.readAt).not.toBeNull();
+    expect(read.closedAt).toBeNull();
+    const closed = await access.mark(accountId, {
+      mark: "closed",
+      signalRowId: signal.id,
+    });
+    expect(closed.closedAt).not.toBeNull();
+    const reopened = await access.mark(accountId, {
+      mark: "reopened",
+      signalRowId: signal.id,
+    });
+    expect(reopened.closedAt).toBeNull();
+    await expect(
+      access.mark("someone-else", { mark: "read", signalRowId: signal.id }),
+    ).rejects.toMatchObject({ code: "ATTENTION_SIGNAL_NOT_FOUND" });
+  });
+
+  test("a deleted Work source shows a tombstone without the producer's text", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const access = createDatabaseAttentionSignals(database, ports);
+    await access.emit(
+      accountId,
+      input({
+        group: { id: `missing-work-${accountId}`, kind: "Work" },
+        reason: "Private text of a deleted record.",
+        signalId: "work-blocked",
+        targetId: "t-1",
+      }),
+    );
+    const [action] = (await access.center(accountId)).sections;
+    const row = action?.groups[0]?.signals[0];
+    expect(row?.tombstone).toBe(true);
+    expect(row?.reason).not.toContain("Private text");
   });
 });
