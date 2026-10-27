@@ -87,6 +87,7 @@ import {
   createDatabasePriorityMetricTrashMaintenance,
 } from "./features/priority-metrics/server/priority-metrics-trash-database";
 import { createDatabaseProductGaps } from "./features/product-gaps/server/product-gaps-database";
+import { createDatabaseProjectClosureSummary } from "./features/project-closure-summary/server/project-closure-summary-database";
 import { createDatabaseProjectGoals } from "./features/project-goals/server/project-goals-database";
 import { createProjectActivity } from "./features/project-history/server/project-activity";
 import { createDatabaseProjectActivityStore } from "./features/project-history/server/project-activity-database";
@@ -294,6 +295,7 @@ export const projectHistory = createDatabaseProjectHistory(db);
 export const projectActivity = createProjectActivity(
   createDatabaseProjectActivityStore(db),
 );
+export const projectClosureSummary = createDatabaseProjectClosureSummary(db);
 export const valueChain = createDatabaseValueChain(db);
 export const projectWall = createDatabaseProjectWall(db, relations, {
   collections: smartCollections,
