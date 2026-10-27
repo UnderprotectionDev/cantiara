@@ -1,12 +1,14 @@
-import type { ProjectUpdateLinkInput } from "@cantiara/api/project-updates";
-
 import {
-  type ProjectUpdateLinkFact,
-  type ProjectUpdateReminderScheduler,
-  type ProjectUpdatesStore,
+  type ProjectUpdateLinkInput,
   projectUpdateLinkKey,
-  type StoredProjectUpdate,
-  type StoredProjectUpdateReminder,
+} from "@cantiara/api/project-updates";
+
+import type {
+  ProjectUpdateLinkFact,
+  ProjectUpdateReminderScheduler,
+  ProjectUpdatesStore,
+  StoredProjectUpdate,
+  StoredProjectUpdateReminder,
 } from "./project-updates";
 
 /**

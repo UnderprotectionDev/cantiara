@@ -7,7 +7,8 @@ import { z } from "zod";
  * read-only snapshot of the summary blocks the founder saw when saving.
  *
  * The seam is append-only: it has a read and a create, and no operation that
- * rewrites or removes a saved entry. It has no health score, no aggregate, no
+ * rewrites or removes a saved entry. Its reminder members (`configureReminder`,
+ * `reminder`, `skipReminder`) read and save a per-Project preference, never an entry. It has no health score, no aggregate, no
  * "current" judgment, no Mission Control summary and no draft. An optional
  * per-Project reminder (#471) only asks the founder to open the same form: it
  * is produced by Personal Reminders as a `personal-reminder` signal, never
@@ -111,6 +112,11 @@ export type ProjectUpdateLinkInput = z.infer<
   typeof projectUpdateLinkInputSchema
 >;
 
+/** The one identity of a linked record, shared by the schema, server and web. */
+export function projectUpdateLinkKey(link: ProjectUpdateLinkInput) {
+  return `${link.targetType}:${link.targetId}`;
+}
+
 export const projectUpdatesInputSchema = z
   .object({ projectId: identifier })
   .strict();
@@ -126,8 +132,7 @@ export const createProjectUpdateInputSchema = z
       .max(PROJECT_UPDATE_LINKS_MAX)
       .refine(
         (links) =>
-          new Set(links.map((link) => `${link.targetType}:${link.targetId}`))
-            .size === links.length,
+          new Set(links.map(projectUpdateLinkKey)).size === links.length,
         "Each record is linked once.",
       ),
     mark: projectUpdateMarkSchema,
@@ -182,6 +187,7 @@ export type ProjectUpdateReminderState = z.infer<
 >;
 
 export const PROJECT_UPDATE_REMINDER_QUESTION_MAX = 200;
+export const PROJECT_UPDATE_REMINDER_INTERVAL_MIN_DAYS = 1;
 export const PROJECT_UPDATE_REMINDER_INTERVAL_MAX_DAYS = 365;
 
 /** The founder's choice; there is no required cadence, so `Disabled` is the default. */
@@ -190,7 +196,7 @@ export const configureProjectUpdateReminderInputSchema = z
     intervalDays: z
       .number()
       .int()
-      .min(1)
+      .min(PROJECT_UPDATE_REMINDER_INTERVAL_MIN_DAYS)
       .max(PROJECT_UPDATE_REMINDER_INTERVAL_MAX_DAYS),
     projectId: identifier,
     question: z

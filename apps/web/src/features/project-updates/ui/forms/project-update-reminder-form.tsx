@@ -4,6 +4,7 @@ import {
   configureProjectUpdateReminderInputSchema,
   PROJECT_UPDATE_REMINDER_INTERVAL_LABEL,
   PROJECT_UPDATE_REMINDER_INTERVAL_MAX_DAYS,
+  PROJECT_UPDATE_REMINDER_INTERVAL_MIN_DAYS,
   PROJECT_UPDATE_REMINDER_LABEL,
   PROJECT_UPDATE_REMINDER_QUESTION_LABEL,
   PROJECT_UPDATE_REMINDER_QUESTION_MAX,
@@ -62,7 +63,9 @@ export function ProjectUpdateReminderForm({
         state: value.state,
       });
       if (!parsed.success) {
-        setError("Write a question and an interval of 1 to 365 days.");
+        setError(
+          `Write a question and an interval of ${PROJECT_UPDATE_REMINDER_INTERVAL_MIN_DAYS} to ${PROJECT_UPDATE_REMINDER_INTERVAL_MAX_DAYS} days.`,
+        );
         return;
       }
       try {
@@ -180,7 +183,7 @@ export function ProjectUpdateReminderForm({
               <Input
                 id="project-update-reminder-interval"
                 max={PROJECT_UPDATE_REMINDER_INTERVAL_MAX_DAYS}
-                min={1}
+                min={PROJECT_UPDATE_REMINDER_INTERVAL_MIN_DAYS}
                 onBlur={field.handleBlur}
                 onChange={(event) => field.handleChange(event.target.value)}
                 required

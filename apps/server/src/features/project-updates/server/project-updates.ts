@@ -14,12 +14,14 @@ import {
   type ProjectUpdateReminderState,
   type ProjectUpdateSnapshot,
   type ProjectUpdatesAccess,
+  projectUpdateLinkKey,
   projectUpdatesInputSchema,
 } from "@cantiara/api/project-updates";
 
 /**
  * Manual Project Updates behavior (spec 69). Every save appends one entry; the
- * store port has no member that rewrites or removes one, so a saved mark,
+ * store port has no member that rewrites or removes an entry (`saveReminder`
+ * replaces only the reminder preference, a setting), so a saved mark,
  * narrative and snapshot cannot change. The behavior derives no health, score
  * or "current" judgment: it only returns the dated entries, newest first.
  */
@@ -101,10 +103,6 @@ export interface ProjectUpdatesStore {
   reminder: (projectId: string) => Promise<StoredProjectUpdateReminder | null>;
   /** Replaces the Project's reminder preference (a setting, not an update). */
   saveReminder: (reminder: StoredProjectUpdateReminder) => Promise<void>;
-}
-
-export function projectUpdateLinkKey(link: ProjectUpdateLinkInput) {
-  return `${link.targetType}:${link.targetId}`;
 }
 
 function sameContent(

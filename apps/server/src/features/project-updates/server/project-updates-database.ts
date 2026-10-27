@@ -3,6 +3,7 @@ import {
   type ProjectUpdateLinkInput,
   type ProjectUpdateLinkType,
   type ProjectUpdatesAccess,
+  projectUpdateLinkKey,
   projectUpdateSnapshotSchema,
 } from "@cantiara/api/project-updates";
 import type { Database } from "@cantiara/db";
@@ -23,7 +24,6 @@ import {
   type ProjectUpdateLinkFact,
   type ProjectUpdateReminderScheduler,
   type ProjectUpdatesStore,
-  projectUpdateLinkKey,
   type StoredProjectUpdate,
   type StoredProjectUpdateReminder,
 } from "./project-updates";
