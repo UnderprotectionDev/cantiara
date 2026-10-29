@@ -11,6 +11,7 @@ import {
   type BuildInPublicMapRow,
   type BuildInPublicMetadata,
   type BuildInPublicPlaceholderFinding,
+  type BuildInPublicPlanChange,
   type BuildInPublicPreview,
   type BuildInPublicSettings,
   type BuildInPublicSnapshot,
@@ -20,8 +21,10 @@ import {
   type BuildInPublicWorkCopy,
   DEFAULT_PUBLIC_STATUS_MAP,
   type DueDatePresentation,
+  feedEventOf,
   LABEL_REQUIRED_MESSAGE,
   METADATA_ITEM_ID,
+  planChangesBetween,
   presentDueDate,
   publicStatusKeyOf,
   RELEASED_LABEL,
@@ -537,6 +540,57 @@ function snapshotWorks(
     });
 }
 
+/**
+ * The plan changes if every approvable item were approved: the offer of
+ * `Explain the change`. A blocked item never leaves, so it never counts.
+ */
+function projectedPlanChanges(
+  preview: BuildInPublicPreview,
+  latest: BuildInPublicLatest | null,
+  works: BuildInPublicWorkFact[],
+): BuildInPublicPlanChange[] {
+  if (!latest) {
+    return [];
+  }
+  const approvable = new Set(
+    preview.items.filter((item) => !item.blocker).map((item) => item.id),
+  );
+  const roadmap = snapshotWorks(
+    preview,
+    leavingItemIds(preview, approvable),
+    works,
+    latest.snapshot,
+  );
+  return planChangesBetween(latest.snapshot.roadmap, roadmap);
+}
+
+/**
+ * The note belongs to a publish that changes the plan reading and, like any
+ * approved text, may not carry an unresolved placeholder unconfirmed.
+ */
+function assertExplanation(input: {
+  explanation: string | null;
+  previous: BuildInPublicSnapshot | undefined;
+  publishAnyway: boolean;
+  roadmap: BuildInPublicSnapshotWork[];
+}) {
+  if (!input.explanation) {
+    return;
+  }
+  const planChanged =
+    !!input.previous &&
+    planChangesBetween(input.previous.roadmap, input.roadmap).length > 0;
+  if (!planChanged) {
+    throw new BuildInPublicError("BUILD_IN_PUBLIC_EXPLANATION_UNAVAILABLE");
+  }
+  if (
+    unresolvedPlaceholders(input.explanation).length > 0 &&
+    !input.publishAnyway
+  ) {
+    throw new BuildInPublicError("BUILD_IN_PUBLIC_PLACEHOLDERS_UNRESOLVED");
+  }
+}
+
 function assertApprovable(
   preview: BuildInPublicPreview,
   leaving: ReadonlySet<string>,
@@ -728,9 +782,11 @@ export function createBuildInPublic(
       metadata,
       notice: BUILD_IN_PUBLIC_NOTICE,
       placeholders,
+      planChanges: [],
       projectId,
       written: false,
     };
+    preview.planChanges = projectedPlanChanges(preview, latest, works);
     return {
       frozenOn,
       latest,
@@ -864,19 +920,38 @@ export function createBuildInPublic(
         previous: latest?.snapshot.members ?? [],
         sources,
       });
+      const approvedAt = now().toISOString();
+      const roadmap = snapshotWorks(preview, leaving, works, latest?.snapshot);
+      const feed = latest?.snapshot.feed ?? [];
+      const explanation = input.approval.explanation?.trim() || null;
+      assertExplanation({
+        explanation,
+        previous: latest?.snapshot,
+        publishAnyway: input.approval.publishAnyway,
+        roadmap,
+      });
+      const event = feedEventOf({
+        approvedAt,
+        eventNumber: feed.length + 1,
+        explanation,
+        members,
+        previous: latest?.snapshot,
+        roadmap,
+      });
       const snapshot: BuildInPublicSnapshot = {
-        approvedAt: now().toISOString(),
+        approvedAt,
         featured: featuredOf(
           input.approval.featured,
           latest?.snapshot,
           members,
           now(),
         ),
+        feed: event ? [...feed, event] : feed,
         kind: "Build in Public",
         members,
         metadata: snapshotMetadata,
         projectId: input.projectId,
-        roadmap: snapshotWorks(preview, leaving, works, latest?.snapshot),
+        roadmap,
       };
       return store.publish({
         projectId: input.projectId,

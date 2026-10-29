@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import {
   BUILD_IN_PUBLIC_UI_LABELS,
+  type BuildInPublicFeedChange,
+  type BuildInPublicFeedEvent,
   type BuildInPublicSnapshot,
   type BuildInPublicSnapshotMember,
   type BuildInPublicSnapshotWall,
@@ -103,7 +105,7 @@ function workHtml(context: Context, work: BuildInPublicSnapshotWork) {
       assetLink(context, work.memberId, index, file.name, file.version),
     )
     .join("");
-  return `<li><article><h3>${escapeHtml(work.title)}</h3><p class="label"><span>${escapeHtml(BUILD_IN_PUBLIC_UI_LABELS.publicStatusLabel)}: </span>${escapeHtml(work.publicStatusLabel)}</p>${work.dueLabel ? `<p class="due">${escapeHtml(work.dueLabel)}</p>` : ""}${work.summary ? `<p>${escapeHtml(work.summary)}</p>` : ""}${files ? `<ul>${files}</ul>` : ""}${work.embeds.map((embed) => youtubeCard(context, embed.url)).join("")}</article></li>`;
+  return `<li><article id="${escapeHtml(work.memberId)}"><h3>${escapeHtml(work.title)}</h3><p class="label"><span>${escapeHtml(BUILD_IN_PUBLIC_UI_LABELS.publicStatusLabel)}: </span>${escapeHtml(work.publicStatusLabel)}</p>${work.dueLabel ? `<p class="due">${escapeHtml(work.dueLabel)}</p>` : ""}${work.summary ? `<p>${escapeHtml(work.summary)}</p>` : ""}${files ? `<ul>${files}</ul>` : ""}${work.embeds.map((embed) => youtubeCard(context, embed.url)).join("")}</article></li>`;
 }
 
 function wallHtml(
@@ -160,7 +162,49 @@ function memberHtml(context: Context, member: BuildInPublicSnapshotMember) {
         `<dt>${escapeHtml(field.name)}</dt><dd>${escapeHtml(field.value)}</dd>`,
     )
     .join("");
-  return `<li><article><p class="kind">${escapeHtml(member.kind)}${member.date ? ` · ${escapeHtml(member.date)}` : ""}</p><h3>${escapeHtml(member.title)}</h3>${fields ? `<dl>${fields}</dl>` : ""}${member.wall ? wallHtml(context, member, member.wall) : ""}</article></li>`;
+  return `<li><article id="${escapeHtml(member.memberId)}"><p class="kind">${escapeHtml(member.kind)}${member.date ? ` · ${escapeHtml(member.date)}` : ""}</p><h3>${escapeHtml(member.title)}</h3>${fields ? `<dl>${fields}</dl>` : ""}${member.wall ? wallHtml(context, member, member.wall) : ""}</article></li>`;
+}
+
+/**
+ * One change of an approved publish event. It links only to the same surface's
+ * own snapshot entry (an opaque id), never to a source record, and only while
+ * that entry is still in the revision being shown.
+ */
+function feedChangeHtml(
+  context: Context,
+  snapshot: BuildInPublicSnapshot,
+  change: BuildInPublicFeedChange,
+) {
+  let target: string | null = null;
+  if (snapshot.roadmap.some((work) => work.memberId === change.memberId)) {
+    target = `${buildInPublicPath(context.surfaceId, context.slug, "roadmap")}#${change.memberId}`;
+  } else if (
+    (snapshot.members ?? []).some(
+      (member) => member.memberId === change.memberId,
+    )
+  ) {
+    target = `${buildInPublicPath(context.surfaceId, context.slug, "project")}#${change.memberId}`;
+  }
+  const title = target ? link(target, change.title) : escapeHtml(change.title);
+  if (change.kind === "Record published") {
+    return `<li><span class="kind">Published ${escapeHtml(change.recordKind ?? "record")}${change.date ? ` · ${escapeHtml(change.date)}` : ""}</span> ${title}</li>`;
+  }
+  const values =
+    change.kind === "Entered Roadmap" || change.kind === "Left Roadmap"
+      ? escapeHtml(change.to ?? change.from ?? "")
+      : `${escapeHtml(change.from ?? "None")} to ${escapeHtml(change.to ?? "None")}`;
+  return `<li><span class="kind">${escapeHtml(change.kind)}</span> ${title}: ${values}</li>`;
+}
+
+function feedEventHtml(
+  context: Context,
+  snapshot: BuildInPublicSnapshot,
+  event: BuildInPublicFeedEvent,
+) {
+  const note = event.explanation
+    ? `<blockquote><p class="kind">Founder note</p><p>${escapeHtml(event.explanation)}</p></blockquote>`
+    : "";
+  return `<li><article id="${escapeHtml(event.eventId)}"><p class="kind">${escapeHtml(event.publishedAt.slice(0, 10))}</p><ul>${event.changes.map((change) => feedChangeHtml(context, snapshot, change)).join("")}</ul>${note}</article></li>`;
 }
 
 function pager<T>(items: T[], context: Context, view: BuildInPublicView) {
@@ -195,6 +239,16 @@ function body(
       })
       .join("");
     return { copy: views.roadmap.copy, html: `${sections}${nav}` };
+  }
+  if (view === "feed") {
+    const { items, nav } = pager(views.feed.events, context, "feed");
+    return {
+      copy: views.feed.copy,
+      html:
+        items.length > 0
+          ? `<ol class="feed">${items.map((event) => feedEventHtml(context, snapshot, event)).join("")}</ol>${nav}`
+          : "<p>No approved updates yet.</p>",
+    };
   }
   if (view === "changelog") {
     const { items, nav } = pager(views.changelog.entries, context, "changelog");
@@ -240,7 +294,7 @@ export function renderBuildInPublicPage(
   );
   const at = (view: BuildInPublicView) =>
     buildInPublicPath(input.surfaceId, input.slug, view);
-  const nav = `<nav aria-label="Build in Public">${link(at("project"), "Project")} ${link(at("roadmap"), "Roadmap")} ${link(at("changelog"), "Changelog")}</nav>`;
+  const nav = `<nav aria-label="Build in Public">${link(at("project"), "Project")} ${link(at("roadmap"), "Roadmap")} ${link(at("changelog"), "Changelog")} ${link(at("feed"), BUILD_IN_PUBLIC_UI_LABELS.developmentFeed)}</nav>`;
   const owner = input.owner
     ? `<nav aria-label="Owner controls">${link(input.owner.sourceHref, BUILD_IN_PUBLIC_UI_LABELS.openSourceRecord)} ${link(input.owner.diffHref, BUILD_IN_PUBLIC_UI_LABELS.reviewPublishDiff)}</nav>`
     : "";

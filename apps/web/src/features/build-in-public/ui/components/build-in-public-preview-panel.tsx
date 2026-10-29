@@ -5,10 +5,12 @@ import {
   BUILD_IN_PUBLIC_UI_LABELS,
   type BuildInPublicItem,
   type BuildInPublicPreview,
+  MAX_EXPLANATION_LENGTH,
 } from "@cantiara/api/build-in-public";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
+import { Textarea } from "@cantiara/ui/components/textarea";
 import { useState } from "react";
 import { DateTimePicker } from "@/components/date-picker";
 import {
@@ -114,6 +116,7 @@ export function BuildInPublicPreviewPanel({
   // Featuring is off unless a record and an end time are both chosen.
   const [featuredRecord, setFeaturedRecord] = useState("");
   const [featuredUntil, setFeaturedUntil] = useState("");
+  const [explanation, setExplanation] = useState("");
   if (approvedFor !== preview.fingerprint) {
     // A changed preview never inherits approvals given to an earlier one.
     setApprovedFor(preview.fingerprint);
@@ -121,6 +124,7 @@ export function BuildInPublicPreviewPanel({
     setPublishAnyway(false);
     setFeaturedRecord("");
     setFeaturedUntil("");
+    setExplanation("");
   }
   const candidates = featureCandidates(preview, approved);
   const endsAt = featuredEndsAt(featuredUntil);
@@ -194,6 +198,32 @@ export function BuildInPublicPreviewPanel({
         </section>
       ) : null}
 
+      {preview.planChanges.length > 0 ? (
+        <section aria-labelledby="bip-explain" className="grid gap-2">
+          <h3 id="bip-explain">{BUILD_IN_PUBLIC_UI_LABELS.explainTheChange}</h3>
+          <p>
+            This publish changes what visitors read of the plan. Optional: write
+            your own note for the Development feed. Nothing is generated.
+          </p>
+          <ul className="grid gap-1">
+            {preview.planChanges.map((change) => (
+              <li key={`${change.memberId}:${change.kind}`}>
+                {`${change.title}: ${change.kind} (${change.from ?? "None"} to ${change.to ?? "None"})`}
+              </li>
+            ))}
+          </ul>
+          <label htmlFor="bip-explanation">
+            {BUILD_IN_PUBLIC_UI_LABELS.explainTheChange}
+          </label>
+          <Textarea
+            id="bip-explanation"
+            maxLength={MAX_EXPLANATION_LENGTH}
+            onChange={(event) => setExplanation(event.target.value)}
+            value={explanation}
+          />
+        </section>
+      ) : null}
+
       <section aria-labelledby="bip-featured" className="grid gap-2">
         <h3 id="bip-featured">Featured record</h3>
         <p>
@@ -228,7 +258,13 @@ export function BuildInPublicPreviewPanel({
         disabled={blocked || publishing}
         onClick={() =>
           onApprove(
-            buildApproval(preview, approved, publishAnyway, featuredChoice),
+            buildApproval(
+              preview,
+              approved,
+              publishAnyway,
+              featuredChoice,
+              explanation,
+            ),
           )
         }
         type="button"

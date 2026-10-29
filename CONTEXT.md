@@ -1290,6 +1290,10 @@ _Avoid_: Ziyaretçi yönetim çubuğu, görüntülenme paneli, yönetici modu
 Build in Public yüzeyinin Çalışma Alanında benzersiz okunabilir adresidir; değişiklik uygulanmadan eski adresten yeni kanonik adrese yönlenecek redirect önizlenir ve ayrıca onaylanır, redirect yalnız yüzey herkese açıkken çalışır, yayından kaldırmada ölür ve özel içeriğe yönlendirmez; slug'ın varlığı indekslemeyi kendiliğinden açmaz. UI: `Slug`, `Enable indexing`, `Disable indexing`, `Unpublish`.
 _Avoid_: Kısa bağlantı, özel alan adı, SEO anahtar kelimesi
 
+**Onaylı gelişim akışı**:
+Build in Public yüzeyinin, aynı Onaylı snapshot revizyonunun içinde taşınan ve yalnız kurucunun onayladığı tarihsel yayın olaylarını (onaylı Roadmap farkları: etiket, gösterilen tarih, Roadmap kapsamına giriş-çıkış; yeni onaylanan kayıtlar) en yeni önce listeleyen görünümüdür; Proje Etkinliği dökümü değildir, kaynak kayıt açılmaz, yalnız aynı yüzeyin opak snapshot girdisine bağlanır, abonelik, yorum ve oy yoktur. Kurucunun isteğe bağlı `Explain the change` notu tam önceki ve yeni herkese açık değerlerle aynı yayın olayına bağlanır; yalnız yayın bir etiketi, gösterilen tarihi veya Roadmap kapsamını değiştirdiğinde sunulur, ürün tarafından üretilmez, zorunlu değildir ve ikinci plan doğruluk kaynağı olmaz. UI: `Development feed`, `Explain the change`.
+_Avoid_: Proje Etkinliği, Geri Bildirim feed'i, Bildirim Merkezi, otomatik blog, akış aboneliği, üretilmiş değişiklik açıklaması
+
 **Güvenlik nedeniyle redakte edilmiş kanıt**:
 Değişmez sürüm manifestini yeniden yazmadan hassas içeriği [kaldırılmış kanıtın](docs/prd/10-testing-and-validation.md#düzeltme-geri-çekme-ve-güvenlik-redaksiyonu) erişilemez durumu; yeni bir sürümün kabul kanıtı olarak yeniden kullanılamaz.
 _Avoid_: Temizlenmiş kanıt sürümü, erişilebilir şifreli özgün, geçerli devredilmiş kanıt

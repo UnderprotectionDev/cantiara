@@ -44,6 +44,7 @@ const preview: BuildInPublicPreview = {
   metadata: { summary: null, title: "Board" },
   notice: "",
   placeholders: [],
+  planChanges: [],
   projectId: "p",
   written: false,
 };
