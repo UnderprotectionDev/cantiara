@@ -1383,6 +1383,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Tekrar bak öğeleri yükleniyor | `Loading Look again items…` | Tekrar bak listesi yüklenirken gösterilen durum metni |
 | Tekrar bak öğeleri kullanılamıyor | `Look again items are unavailable.` | Tekrar bak listesi alınamadığında gösterilen hata metni |
 | Etkin Çalışma Setine ekle / çıkar | `Add to Active Working Set`, `Remove from Active Working Set` | İş ve Belge kayıt başlığının taşma menüsünde Etkin Çalışma Setine üye ekleme ve çıkarma eylemleri |
+| Etkin Çalışma Seti tepsi başlığı | `Active Working Set` | Oturum boyunca tutulan İş ve Belge tepsisinin başlığı; tepsi boşken hiç görünmez |
+| Tepsiyi daralt | `Collapse` | Etkin Çalışma Seti tepsisini üyeleri koruyarak tek düğmeye daraltan görünür eylem |
 | Tepsiyi göster | `Show tray` | Küçültülmüş Etkin Çalışma Seti tepsisinin yeniden açma tetiği |
 | Okundu işaretle / okunmadı işaretle | `Mark as read`, `Mark as unread` | Bildirim Merkezi satırında okundu işaretleme ve geri alma eylemleri |
 | Bildirim kapatma ve yeniden açma | `Close`, `Reopen` | Bildirim Merkezi satırında kapama ve yeniden açma eylemleri |
