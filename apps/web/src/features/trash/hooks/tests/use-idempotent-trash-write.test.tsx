@@ -11,9 +11,13 @@ vi.mock("@/features/web-macos-client/store/client-shell", () => ({
 }));
 vi.mock("@/utils/orpc", () => ({
   orpc: {
+    customFields: { key: () => ["custom-fields"] },
+    documentTemplates: { key: () => ["document-templates"] },
     projectDecisions: { key: () => ["decisions"] },
     projectRisks: { key: () => ["risks"] },
     trash: { key: () => ["trash"] },
+    workAutomationRules: { key: () => ["automation-rules"] },
+    workTemplates: { key: () => ["work-templates"] },
   },
 }));
 
@@ -94,6 +98,10 @@ describe("useIdempotentTrashWrite", () => {
       ["trash"],
       ["risks"],
       ["decisions"],
+      ["custom-fields"],
+      ["work-templates"],
+      ["automation-rules"],
+      ["document-templates"],
     ]);
   });
 });

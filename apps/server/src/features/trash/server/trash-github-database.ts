@@ -40,10 +40,17 @@ export const trashGithubExternalRecordAdapter: TrashRecordAdapter = {
         }
       : null;
   },
-  async erase(executor, recordId) {
+  async erase(executor, recordId, options) {
     const [deleted] = await executor
       .delete(githubExternalRecord)
-      .where(eq(githubExternalRecord.id, recordId))
+      .where(
+        and(
+          eq(githubExternalRecord.id, recordId),
+          options?.requireTrashed
+            ? isNotNull(githubExternalRecord.trashedAt)
+            : undefined,
+        ),
+      )
       .returning({
         githubId: githubExternalRecord.githubId,
         kind: githubExternalRecord.kind,

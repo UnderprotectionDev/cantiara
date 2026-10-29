@@ -39,10 +39,17 @@ export const trashTestSessionAdapter: TrashRecordAdapter = {
         }
       : null;
   },
-  async erase(executor, recordId) {
+  async erase(executor, recordId, options) {
     const deleted = await executor
       .delete(testSession)
-      .where(eq(testSession.id, recordId))
+      .where(
+        and(
+          eq(testSession.id, recordId),
+          options?.requireTrashed
+            ? isNotNull(testSession.trashedAt)
+            : undefined,
+        ),
+      )
       .returning({ id: testSession.id });
     return deleted.length > 0 ? {} : null;
   },

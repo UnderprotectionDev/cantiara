@@ -76,10 +76,17 @@ function configurationAdapter(
           }
         : null;
     },
-    async erase(executor, recordId) {
+    async erase(executor, recordId, eraseOptions) {
       const deleted = await executor
         .delete(table)
-        .where(eq(table.id, recordId))
+        .where(
+          and(
+            eq(table.id, recordId),
+            eraseOptions?.requireTrashed
+              ? isNotNull(table.trashedAt)
+              : undefined,
+          ),
+        )
         .returning({ id: table.id });
       return deleted.length > 0 ? {} : null;
     },

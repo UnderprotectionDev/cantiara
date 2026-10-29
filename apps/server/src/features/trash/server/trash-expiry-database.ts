@@ -145,8 +145,13 @@ async function eraseRecord(
   kind: TrashRecordKind,
   recordId: string,
   at: Date,
+  options: { requireTrashed?: boolean } = {},
 ) {
-  const erased = await trashRecordAdapters[kind].erase(executor, recordId);
+  const erased = await trashRecordAdapters[kind].erase(
+    executor,
+    recordId,
+    options,
+  );
   if (!erased) {
     return false;
   }
@@ -184,6 +189,18 @@ async function writeAudit(
       type: event.type,
     })
     .onConflictDoNothing({ target: auditRecord.id });
+}
+
+/**
+ * One record row left the recoverable window between the entry lock and the
+ * record row lock (a concurrent restore re-stamped it, or it is gone). The
+ * whole erase unit must go or stay, so the caller rolls the transaction back.
+ */
+class TrashRecordNotTrashedError extends Error {
+  constructor() {
+    super("trash record is no longer waiting in Trash");
+    this.name = "TrashRecordNotTrashedError";
+  }
 }
 
 /** The replay history grouped by record kind, then by record id (last event wins). */
@@ -293,40 +310,55 @@ export function createDatabaseTrashExpiry(
     },
 
     async erase(unit, events) {
-      return await database.transaction(async (transaction) => {
-        const current = await transaction
-          .select({ id: trashEntry.id })
-          .from(trashEntry)
-          .where(
+      try {
+        return await database.transaction(async (transaction) => {
+          const current = await transaction
+            .select({ id: trashEntry.id })
+            .from(trashEntry)
+            .where(
+              inArray(
+                trashEntry.id,
+                unit.map(({ id }) => id),
+              ),
+            )
+            .for("update");
+          if (current.length !== unit.length) {
+            return false;
+          }
+          for (const entry of unit) {
+            // biome-ignore lint/performance/noAwaitInLoops: Records of one unit are erased inside one transaction, in order.
+            const erased = await eraseRecord(
+              transaction,
+              entry.recordKind,
+              entry.recordId,
+              new Date(events[0]?.occurredAt ?? Date.now()),
+              // The row deletes only while it is still stamped, so a restore
+              // that wins the race makes this erase fail with nothing written.
+              { requireTrashed: true },
+            );
+            if (!erased) {
+              throw new TrashRecordNotTrashedError();
+            }
+          }
+          await transaction.delete(trashEntry).where(
             inArray(
               trashEntry.id,
               unit.map(({ id }) => id),
             ),
-          )
-          .for("update");
-        if (current.length !== unit.length) {
+          );
+          await Promise.all(
+            events.map((event) => writeAudit(transaction, event)),
+          );
+          return true;
+        });
+      } catch (error) {
+        // A record that left Trash mid-erase is a skipped unit, not a failure:
+        // the entries keep their clock and the next sweep retries what remains.
+        if (error instanceof TrashRecordNotTrashedError) {
           return false;
         }
-        for (const entry of unit) {
-          // biome-ignore lint/performance/noAwaitInLoops: Records of one unit are erased inside one transaction, in order.
-          await eraseRecord(
-            transaction,
-            entry.recordKind,
-            entry.recordId,
-            new Date(events[0]?.occurredAt ?? Date.now()),
-          );
-        }
-        await transaction.delete(trashEntry).where(
-          inArray(
-            trashEntry.id,
-            unit.map(({ id }) => id),
-          ),
-        );
-        await Promise.all(
-          events.map((event) => writeAudit(transaction, event)),
-        );
-        return true;
-      });
+        throw error;
+      }
     },
 
     async eraseResurrected(history) {

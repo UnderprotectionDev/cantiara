@@ -32,6 +32,14 @@ export function useIdempotentTrashWrite() {
         queryClient.invalidateQueries({
           queryKey: orpc.projectDecisions.key(),
         }),
+        queryClient.invalidateQueries({ queryKey: orpc.customFields.key() }),
+        queryClient.invalidateQueries({ queryKey: orpc.workTemplates.key() }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.workAutomationRules.key(),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.documentTemplates.key(),
+        }),
       ]);
     }
   };

@@ -32,6 +32,7 @@ export interface TrashRecordAdapter {
   erase: (
     executor: TrashRecordExecutor,
     recordId: string,
+    options?: { requireTrashed?: boolean },
   ) => Promise<{ githubTombstone?: GithubTombstoneInput } | null>;
   /** Ids among `recordIds` that still exist (an old backup may bring one back). */
   existing: (
@@ -101,10 +102,15 @@ function adapterFor(table: TrashableTable): TrashRecordAdapter {
           }
         : null;
     },
-    async erase(executor, recordId) {
+    async erase(executor, recordId, options) {
       const deleted = await executor
         .delete(table)
-        .where(eq(table.id, recordId))
+        .where(
+          and(
+            eq(table.id, recordId),
+            options?.requireTrashed ? isNotNull(table.trashedAt) : undefined,
+          ),
+        )
         .returning({ id: table.id });
       return deleted.length > 0 ? {} : null;
     },
@@ -179,10 +185,17 @@ const externalSurfaceAdapter: TrashRecordAdapter = {
         }
       : null;
   },
-  async erase(executor, recordId) {
+  async erase(executor, recordId, options) {
     const deleted = await executor
       .delete(externalSurface)
-      .where(eq(externalSurface.id, recordId))
+      .where(
+        and(
+          eq(externalSurface.id, recordId),
+          options?.requireTrashed
+            ? isNotNull(externalSurface.trashedAt)
+            : undefined,
+        ),
+      )
       .returning({ id: externalSurface.id });
     return deleted.length > 0 ? {} : null;
   },
