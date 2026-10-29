@@ -94,6 +94,7 @@ import type { TestReviewAccess } from "./test-review";
 import type { UserFlowAccess } from "./user-flow";
 import type { ValueChainAccess } from "./value-chain";
 import type { WebCaptureAccess } from "./web-capture";
+import type { WikiPublishingAccess } from "./wiki-publishing";
 import type { WorkAutomationAccess } from "./work-automation";
 import type { WorkContextAccess } from "./work-context";
 import type { WorkDraftsAccess } from "./work-drafts";
@@ -272,6 +273,7 @@ export interface Context {
   userFlow?: UserFlowAccess;
   valueChain?: ValueChainAccess;
   webCapture?: WebCaptureAccess;
+  wikiPublishing?: WikiPublishingAccess;
   workAutomation?: WorkAutomationAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;

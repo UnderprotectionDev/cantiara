@@ -28,6 +28,8 @@ export const externalSurface = pgTable(
       onDelete: "set null",
     }),
     cancelledAt: timestamp("cancelled_at"),
+    // Explicit founder action only; default noindex. Metadata never sets it.
+    indexingEnabled: boolean("indexing_enabled").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     /** Link Sharing only: the shared main record; null for other surfaces. */
     rootId: text("root_id"),

@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
-
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
+import {
+  createExternalSurfaceAccess,
+  createMemoryExternalSurfaceResponseCache,
+} from "@cantiara/api/external-surface-access";
+import { createDatabaseExternalSurfaceStateReader } from "@cantiara/api/external-surface-access-database";
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
 import { createDatabaseMutationContract } from "@cantiara/api/mutation-contract-database";
 import { createAuth } from "@cantiara/auth";
@@ -154,6 +158,12 @@ import { createDatabaseTestReview } from "./features/test-review/server/test-rev
 import { createDatabaseUserFlow } from "./features/user-flow/server/user-flow-database";
 import { createDatabaseValueChain } from "./features/value-chain/server/value-chain-database";
 import {
+  createDatabaseWikiPublicAssets,
+  createDatabaseWikiPublicSnapshots,
+  createDatabaseWikiPublishing,
+} from "./features/wiki-publishing/server/wiki-publishing-database";
+import { createWikiPublicRoutes } from "./features/wiki-publishing/server/wiki-publishing-http";
+import {
   createDatabaseWorkAutomation,
   type WorkAutomationWorkCreation,
 } from "./features/work-automation/server/work-automation-database";
@@ -302,6 +312,12 @@ export const prioritizationSessions = createPrioritizationSessionsAccess(
 );
 export const prioritizationSessionMutationContracts =
   createDatabasePrioritizationSessionMutationContracts(db);
+export const wikiPublishing = createDatabaseWikiPublishing(db, {
+  documents,
+  projectSourceRecords,
+  smartCollections,
+  technicalDiagrams,
+});
 export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
 export const attentionSignals = createDatabaseAttentionSignals(db, {
@@ -555,6 +571,14 @@ const fileAttachmentService = fileAttachmentObjectStore
   : undefined;
 processFileAttachmentPreview = fileAttachmentService?.processPreview;
 export const fileAttachments = fileAttachmentService?.access;
+export const wikiPublicPages = createWikiPublicRoutes({
+  access: createExternalSurfaceAccess({
+    cache: createMemoryExternalSurfaceResponseCache(),
+    reader: createDatabaseExternalSurfaceStateReader(db),
+  }),
+  assets: createDatabaseWikiPublicAssets(db, fileAttachments),
+  snapshots: createDatabaseWikiPublicSnapshots(db),
+});
 export const moodboardSnapshots = createDatabaseMoodboardSnapshots(db, {
   objectStore: fileAttachmentObjectStore,
 });

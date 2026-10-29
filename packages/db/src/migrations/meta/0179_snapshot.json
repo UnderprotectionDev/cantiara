@@ -1,5 +1,5 @@
 {
-  "id": "51286a3f-9fcb-4f17-acc4-4bd0217dce4c",
+  "id": "657183c4-4985-48ac-81be-dd936f07bcdd",
   "prevId": "7eccf119-3dc3-4d46-8aa1-3c2606a43a76",
   "version": "7",
   "dialect": "postgresql",
@@ -3632,30 +3632,19 @@
           "primaryKey": false,
           "notNull": false
         },
+        "indexing_enabled": {
+          "name": "indexing_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "root_id": {
-          "name": "root_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "root_kind": {
-          "name": "root_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "surface_kind": {
-          "name": "surface_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
@@ -3728,43 +3717,9 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "approval_fingerprint": {
-          "name": "approval_fingerprint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "approval_id": {
-          "name": "approval_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "placeholders_acknowledged": {
-          "name": "placeholders_acknowledged",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         }
       },
       "indexes": {
-        "external_surface_snapshot_revision_approval_uidx": {
-          "name": "external_surface_snapshot_revision_approval_uidx",
-          "columns": [
-            {
-              "expression": "approval_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "external_surface_snapshot_revision_uidx": {
           "name": "external_surface_snapshot_revision_uidx",
           "columns": [

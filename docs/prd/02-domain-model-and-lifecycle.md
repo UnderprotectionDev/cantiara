@@ -1366,6 +1366,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Boş sinyal bölümü | `No signals in this section.` | Bildirim Merkezi bölümü boşken; her şey yolunda iddiası taşımaz |
 | Yeniden bak boş durumu | `Nothing to look at again.` | `Look again` yüzeyi boşken |
 | Yeniden bak yüzeyi | `Look again` | `review-later` kaynak grubunu listeleyen yüzeyin adı |
+| Kişisel erişim kabuğu tetikleyicisi | `Personal` | Üst çubuktaki, Günlük Odak, Favoriler, Birleşik Bildirim Merkezi ve Yeniden bak geçici panelini açan düğme; panelin başlığı seçili yüzeyin adıdır |
+| Kişisel erişim kabuğu açıklaması | `Personal surfaces open above your current work.` | Panel altındaki Proje, kayıt ve kaynak görünüm konumunun korunduğunu söyler |
 | Çalışma Oturumu kümesi açıklaması | `Held for this session only.` | `Active Working Set` kalıcı olmadığını söyler |
 | Hesap adı uyuşmazlığı | `The name does not match.` | Hesabı kapatma ve silme onayında yazılan ad uyuşmadığında |
 | Dış yüzey dizin eylemleri | `Open source`, `Review diff`, `Change expiry`, `Reactivate`, `Revoke`, `Unpublish` | Shares and Publications satır eylemleri; durum ve yüzey türüne göre görünür |
@@ -1381,6 +1383,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Tekrar bak öğeleri yükleniyor | `Loading Look again items…` | Tekrar bak listesi yüklenirken gösterilen durum metni |
 | Tekrar bak öğeleri kullanılamıyor | `Look again items are unavailable.` | Tekrar bak listesi alınamadığında gösterilen hata metni |
 | Etkin Çalışma Setine ekle / çıkar | `Add to Active Working Set`, `Remove from Active Working Set` | İş ve Belge kayıt başlığının taşma menüsünde Etkin Çalışma Setine üye ekleme ve çıkarma eylemleri |
+| Etkin Çalışma Seti tepsi başlığı | `Active Working Set` | Oturum boyunca tutulan İş ve Belge tepsisinin başlığı; tepsi boşken hiç görünmez |
+| Tepsiyi daralt | `Collapse` | Etkin Çalışma Seti tepsisini üyeleri koruyarak tek düğmeye daraltan görünür eylem |
 | Tepsiyi göster | `Show tray` | Küçültülmüş Etkin Çalışma Seti tepsisinin yeniden açma tetiği |
 | Okundu işaretle / okunmadı işaretle | `Mark as read`, `Mark as unread` | Bildirim Merkezi satırında okundu işaretleme ve geri alma eylemleri |
 | Bildirim kapatma ve yeniden açma | `Close`, `Reopen` | Bildirim Merkezi satırında kapama ve yeniden açma eylemleri |

@@ -1,9 +1,9 @@
 import { Link, useMatches } from "@tanstack/react-router";
+import PersonalShellHost from "@/components/personal-shell-host";
 import {
   CommandPaletteQuickActions,
   CommandPaletteTrigger,
 } from "@/features/command-palette/ui/components/command-palette";
-import FavoritesPanel from "@/features/favorites/ui/components/favorites-panel";
 import DocumentDiscovery from "@/features/record-discovery/ui/components/document-discovery";
 
 import { ModeToggle } from "./mode-toggle";
@@ -67,7 +67,7 @@ export default function Header() {
               <CommandPaletteQuickActions />
             </div>
             <CommandPaletteTrigger />
-            <FavoritesPanel />
+            <PersonalShellHost />
             <DocumentDiscovery />
             <ModeToggle />
             <UserMenu />

@@ -22,6 +22,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
 import { useSelector } from "@tanstack/react-store";
 import { useEffect, useRef, useState } from "react";
+import ActiveWorkingSetControl from "@/components/active-working-set-control";
 import FavoriteControl from "@/components/favorite-control";
 import WorkStatusForm, {
   type WorkStatusActionRequest,
@@ -302,6 +303,15 @@ export default function ProjectWorkList({
                   />
                   <WorkReviewLaterControl work={work} />
                   <WorkNotNowControl work={work} />
+                  <ActiveWorkingSetControl
+                    archived={work.archivedAt !== null}
+                    member={{
+                      id: work.id,
+                      kind: "Work",
+                      label: `${work.key} ${work.title}`,
+                      projectId,
+                    }}
+                  />
                 </div>
               </div>
               <WorkContextCard

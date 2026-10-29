@@ -1,6 +1,6 @@
 {
-  "id": "ab89992b-45c3-4999-9d21-7a66b1e9de92",
-  "prevId": "4697f8e9-e3bf-4615-a06b-bc576d8d6249",
+  "id": "4697f8e9-e3bf-4615-a06b-bc576d8d6249",
+  "prevId": "51286a3f-9fcb-4f17-acc4-4bd0217dce4c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3670,17 +3670,18 @@
           "primaryKey": false,
           "notNull": false
         },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "token_hash": {
           "name": "token_hash",
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "indexing_enabled": {
+          "name": "indexing_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {

@@ -21,7 +21,8 @@ test("Favorites recovers source access from a refreshed list while the panel sta
   await context.addCookies([setup.cookie]);
   await page.goto(`/projects/${setup.projectId}`);
   const sourceUrl = page.url();
-  await page.getByRole("button", { name: "Favorites", exact: true }).click();
+  await page.getByRole("button", { name: "Personal", exact: true }).click();
+  await page.getByRole("tab", { name: "Favorites", exact: true }).click();
   const list = page.getByRole("dialog", { name: "Favorites", exact: true });
   const open = list.getByRole("button", {
     name: "Open source record: Favorite Document",
@@ -201,7 +202,8 @@ test("the shell opens Favorites and its original source without writing membersh
     .getByRole("link", { name: "Favorites Source Project", exact: true })
     .click();
   const sourceUrl = page.url();
-  await page.getByRole("button", { name: "Favorites", exact: true }).click();
+  await page.getByRole("button", { name: "Personal", exact: true }).click();
+  await page.getByRole("tab", { name: "Favorites", exact: true }).click();
   await expect(
     page.getByRole("dialog", { name: "Favorites", exact: true }),
   ).toContainText("No Favorites yet.");
@@ -222,7 +224,8 @@ test("the shell opens Favorites and its original source without writing membersh
       writes.push(outgoingRequest.url());
     }
   });
-  await page.getByRole("button", { name: "Favorites", exact: true }).click();
+  await page.getByRole("button", { name: "Personal", exact: true }).click();
+  await page.getByRole("tab", { name: "Favorites", exact: true }).click();
   const favorites = page.getByRole("dialog", {
     name: "Favorites",
     exact: true,
@@ -257,7 +260,8 @@ test("the shell opens Favorites and its original source without writing membersh
     }),
   ).toBeEnabled();
   expect(page.url().split("#")[0]).toBe(sourceUrl.split("#")[0]);
-  await page.getByRole("button", { name: "Favorites", exact: true }).click();
+  await page.getByRole("button", { name: "Personal", exact: true }).click();
+  await page.getByRole("tab", { name: "Favorites", exact: true }).click();
   await expect(
     favorites.getByRole("button", {
       name: "Open source record: Favorites Source Project",
@@ -267,7 +271,8 @@ test("the shell opens Favorites and its original source without writing membersh
   expect(writes).toEqual([]);
   await page.keyboard.press("Escape");
   await page.route("**/rpc/favoritesList", (route) => route.abort());
-  await page.getByRole("button", { name: "Favorites", exact: true }).click();
+  await page.getByRole("button", { name: "Personal", exact: true }).click();
+  await page.getByRole("tab", { name: "Favorites", exact: true }).click();
   await expect(favorites.getByRole("alert")).toHaveText(
     "Favorites are unavailable.",
   );
@@ -309,7 +314,8 @@ test("Favorites opens every supported source and shows broken targets without pr
     ],
   ];
   for (const [title, href] of cases) {
-    await page.getByRole("button", { name: "Favorites", exact: true }).click();
+    await page.getByRole("button", { name: "Personal", exact: true }).click();
+    await page.getByRole("tab", { name: "Favorites", exact: true }).click();
     const list = page.getByRole("dialog", { name: "Favorites", exact: true });
     await expect(list).toContainText("Permanently deleted");
     await expect(list).toContainText("No access");
@@ -345,7 +351,8 @@ test("Favorites opens every supported source and shows broken targets without pr
     expect(page.url()).toBe(sourceUrl);
     await page.keyboard.press("Escape");
   }
-  await page.getByRole("button", { name: "Favorites", exact: true }).click();
+  await page.getByRole("button", { name: "Personal", exact: true }).click();
+  await page.getByRole("tab", { name: "Favorites", exact: true }).click();
   const list = page.getByRole("dialog", { name: "Favorites", exact: true });
   await expect(
     list.getByRole("button", {
@@ -403,7 +410,8 @@ test("Favorites opens every supported source and shows broken targets without pr
     } else {
       await expect(page.locator("html")).not.toHaveClass(darkThemePattern);
     }
-    await page.getByRole("button", { name: "Favorites", exact: true }).click();
+    await page.getByRole("button", { name: "Personal", exact: true }).click();
+    await page.getByRole("tab", { name: "Favorites", exact: true }).click();
     await expect(list).toBeVisible();
     // Contrast must be measured after the Sheet's opacity and color transitions settle.
     await page.evaluate(async () => {

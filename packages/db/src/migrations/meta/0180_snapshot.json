@@ -1,6 +1,6 @@
 {
-  "id": "4697f8e9-e3bf-4615-a06b-bc576d8d6249",
-  "prevId": "51286a3f-9fcb-4f17-acc4-4bd0217dce4c",
+  "id": "51286a3f-9fcb-4f17-acc4-4bd0217dce4c",
+  "prevId": "657183c4-4985-48ac-81be-dd936f07bcdd",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3657,43 +3657,15 @@
           "primaryKey": false,
           "notNull": false
         },
-        "access_epoch": {
-          "name": "access_epoch",
-          "type": "integer",
+        "indexing_enabled": {
+          "name": "indexing_enabled",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
-          "default": 0
-        },
-        "password_hash": {
-          "name": "password_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
+          "default": false
         }
       },
-      "indexes": {
-        "external_surface_token_hash_uidx": {
-          "name": "external_surface_token_hash_uidx",
-          "columns": [
-            {
-              "expression": "token_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "external_surface_workspace_id_workspace_id_fk": {
           "name": "external_surface_workspace_id_workspace_id_fk",
@@ -3842,149 +3814,6 @@
           "value": "\"external_surface_snapshot_revision\".\"revision\" > 0"
         }
       },
-      "isRLSEnabled": false
-    },
-    "public.link_share_gate_attempt": {
-      "name": "link_share_gate_attempt",
-      "schema": "",
-      "columns": {
-        "key": {
-          "name": "key",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "failures": {
-          "name": "failures",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_attempt_at": {
-          "name": "last_attempt_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "locked_until": {
-          "name": "locked_until",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "link_share_gate_attempt_last_attempt_idx": {
-          "name": "link_share_gate_attempt_last_attempt_idx",
-          "columns": [
-            {
-              "expression": "last_attempt_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.link_share_visitor_session": {
-      "name": "link_share_visitor_session",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "surface_id": {
-          "name": "surface_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "secret_hash": {
-          "name": "secret_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "access_epoch": {
-          "name": "access_epoch",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "link_share_visitor_session_surface_idx": {
-          "name": "link_share_visitor_session_surface_idx",
-          "columns": [
-            {
-              "expression": "surface_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "link_share_visitor_session_expires_idx": {
-          "name": "link_share_visitor_session_expires_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "link_share_visitor_session_surface_id_external_surface_id_fk": {
-          "name": "link_share_visitor_session_surface_id_external_surface_id_fk",
-          "tableFrom": "link_share_visitor_session",
-          "tableTo": "external_surface",
-          "columnsFrom": ["surface_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.document_template": {

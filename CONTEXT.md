@@ -1242,6 +1242,26 @@ _Avoid_: Snapshot, yayın sürümü
 Bir Dış yüzeyde belirli bir onay anında gösterilmesine izin verilen kesin sürüm manifestinin değişmez ve [Dış yüzeyden bağımsız yaşayamayan revizyonu](docs/adr/0001-dis-yuzey-ve-snapshot-kimligi.md).
 _Avoid_: Paylaşım bağlantısı, canlı görünüm, Dış yüzey
 
+**Tekil Wiki yayını**:
+Kurucunun tek bir Kişisel Wiki Belgesini kapalı dünya önizlemesi ve gömü başına onayla, Proje Build in Public yüzeyinden bağımsız herkese açık bir [Dış yüzey ve Onaylı snapshot revizyonu](docs/prd/14-sharing-and-public-publishing.md#tekil-wiki-belgesi-yayınlama) olarak yayımlamasıdır; onaylanmayan çocuk belge, geri bağlantı, ek, satır içi referans ve canlı blok çıkmaz, onaylı canlı bloklar kaynak ve tarih etiketli salt okunur snapshot olur. UI: `Publish Wiki Document`.
+_Avoid_: Wiki kopyası, bilgi tabanı, canlı Wiki, Proje Build in Public, Bağlantıyla sınırlı salt okunur paylaşım
+
+**Yine de yayımla/paylaş onayı**:
+Önizlemede listelenen çözülmemiş `{{alan_adı}}` yer tutucularına rağmen sürdürmek için kapsam onayından ayrı verilen açık kullanıcı onayı; kapsam veya gizlilik onayı bunu vermiş sayılmaz. UI: `Publish/share anyway`.
+_Avoid_: Örtük yer tutucu onayı, zorunlu alan kapısı, tamamlama puanı
+
+**Dış yüzey erişim doğrulayıcısı**:
+Her herkese açık sayfa, asset ve byte-range isteğinde Dış yüzeyin güncel durumunu cache'den önce okuyan, iptal veya bilinmeyen yüzey için gövdesiz `410 Gone` ve `noindex` dönen, ham R2/CDN adresi açıklamayan ve Tekil Wiki yayını, Bağlantıyla sınırlı paylaşım ile Build in Public'in [ortak kullandığı](docs/adr/0002-dis-erisim-guvenlik-siniri.md) tek erişim modülüdür; özellik başına ayrı politika değildir.
+_Avoid_: Cache purge, CDN kuralı, özellik başına erişim politikası
+
+**Wiki yayından kaldırma**:
+Kurucunun Tekil Wiki yayınının Dış yüzeyini terminal olarak iptal etmesidir; URL hemen `410 Gone` olur ve yeniden kullanılmaz, yeniden yayın yeni Dış yüzey doğurur; üçüncü taraf kopyaların geri alınabileceği vaat edilmez. UI: `Unpublish`.
+_Avoid_: Gizleme, taslağa alma, süre dolumu, yönlendirme
+
+**Wiki indeksleme izni**:
+Tekil Wiki sayfasının varsayılan `noindex` durumunu yalnız kurucunun açık eylemiyle ve üçüncü taraf kopyaların tam geri alınamayacağı uyarısını onaylayarak kaldırmasıdır; üstveri (özet, slug, başlık) varlığı bunu kendiliğinden açmaz. UI: `Enable indexing`, `Disable indexing`.
+_Avoid_: SEO etkinleştirme, otomatik indeksleme, sitemap kaydı
+
 **Herkese açık durum etiketi**:
 Bir İşin iç İş akışı durumunu değiştirmeden yalnız herkese açık Roadmap sunumunda gösterilen Proje bazlı ziyaretçi etiketi ([eşleme sözleşmesi](docs/prd/14-sharing-and-public-publishing.md#iç-durumların-herkese-açık-sunumu)).
 _Avoid_: İş akışı durumu, ikinci herkese açık İş, otomatik yayın kararı

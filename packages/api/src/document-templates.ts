@@ -51,7 +51,8 @@ function textPlaceholderRanges(text: string, offset: number) {
     }));
 }
 
-function placeholderRanges(body: string) {
+/** Unresolved `{{field_name}}` matches outside code fences and code spans. */
+export function placeholderRanges(body: string) {
   const ranges: { name: string; start: number; end: number }[] = [];
   let fence: string | null = null;
   let offset = 0;
