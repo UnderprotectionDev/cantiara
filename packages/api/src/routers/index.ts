@@ -162,8 +162,10 @@ import {
   startExternalExecutionHandoffMutationInputSchema,
 } from "../external-handoffs";
 import {
+  ExternalSurfaceManagementStateError,
   externalSurfaceManagementUnavailable,
   listExternalSurfacesInputSchema,
+  removeExternalSurfaceInputSchema,
 } from "../external-surface-management";
 import {
   FavoriteSourceUnavailableError,
@@ -4662,6 +4664,36 @@ function requireExternalSurfaceManagement(context: Context) {
   return context.externalSurfaceManagement;
 }
 export const appRouter = {
+  removeExternalSurface: protectedProcedure
+    .input(removeExternalSurfaceInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        // Link errors map through the Link Sharing write; Wiki errors through its own.
+        return await linkSharingWrite(input.surfaceId, async () => {
+          try {
+            return await requireExternalSurfaceManagement(context).remove(
+              context.session.user.id,
+              input,
+            );
+          } catch (error) {
+            if (error instanceof ExternalSurfaceManagementStateError) {
+              throw new ORPCError("CONFLICT", {
+                cause: error,
+                data: { code: error.code, targetId: input.surfaceId },
+                defined: true,
+                message: error.message,
+              });
+            }
+            return rethrowWikiPublishingError(error);
+          }
+        });
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        return rethrowWikiPublishingError(error);
+      }
+    }),
   listExternalSurfaces: protectedProcedure
     .input(listExternalSurfacesInputSchema)
     .handler(async ({ context, input }) => {

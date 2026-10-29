@@ -25,6 +25,16 @@ function accessLabel(row: SurfaceRow) {
   return parts.join(" · ");
 }
 
+function purgeLabel(purge: NonNullable<SurfaceRow["purge"]>) {
+  if (purge.status === "Done") {
+    return "Cache and index purge done";
+  }
+  if (purge.status === "Retrying") {
+    return `Cache and index purge retrying (attempt ${purge.attempts}, next ${purge.nextAttemptAt})`;
+  }
+  return "Cache and index purge requested";
+}
+
 function ActionLink({
   action,
   row,
@@ -130,6 +140,9 @@ export function SharesAndPublicationsView({
                     ) : null}
                     {row.redaction === "Redacted" ? (
                       <Badge variant="outline">Redacted</Badge>
+                    ) : null}
+                    {row.purge ? (
+                      <Badge variant="outline">{purgeLabel(row.purge)}</Badge>
                     ) : null}
                     {row.frozenDetached ? (
                       <Badge variant="outline">Frozen · source detached</Badge>

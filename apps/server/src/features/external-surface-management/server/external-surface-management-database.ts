@@ -6,7 +6,7 @@ import {
   externalSurfaceSnapshotRevision,
 } from "@cantiara/db/schema/external-surface";
 import { project } from "@cantiara/db/schema/project";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type {
   SurfaceDirectoryStore,
   SurfaceRecord,
@@ -21,6 +21,29 @@ export function createDatabaseSurfaceDirectory(
   database: Database,
 ): SurfaceDirectoryStore {
   return {
+    async cancelDetached(accountId, surfaceId) {
+      const [owned] = await database
+        .select({ id: workspace.id })
+        .from(workspace)
+        .where(eq(workspace.ownerAccountId, accountId))
+        .limit(1);
+      if (!owned) {
+        return false;
+      }
+      const rows = await database
+        .update(externalSurface)
+        .set({ cancelledAt: new Date() })
+        .where(
+          and(
+            eq(externalSurface.id, surfaceId),
+            eq(externalSurface.workspaceId, owned.id),
+            isNull(externalSurface.cancelledAt),
+          ),
+        )
+        .returning({ id: externalSurface.id });
+      return rows.length > 0;
+    },
+
     async records(accountId, scope) {
       const [owned] = await database
         .select({ id: workspace.id })

@@ -2,6 +2,7 @@ import type {
   SurfaceDirectoryStore,
   SurfaceRecord,
 } from "../external-surface-management";
+import type { PurgeRecord, SurfacePurgeStore } from "../external-surface-purge";
 
 export const ACCOUNT = "account-1";
 export const PROJECT = "project-1";
@@ -78,6 +79,14 @@ export function memoryDirectory(
   owner = ACCOUNT,
 ): SurfaceDirectoryStore {
   return {
+    cancelDetached: (accountId, surfaceId) => {
+      const found = records.find((record) => record.surfaceId === surfaceId);
+      if (accountId !== owner || !found || found.cancelledAt) {
+        return Promise.resolve(false);
+      }
+      found.cancelledAt = new Date();
+      return Promise.resolve(true);
+    },
     records: (accountId, scope) => {
       if (accountId !== owner) {
         return Promise.resolve([]);
@@ -88,5 +97,50 @@ export function memoryDirectory(
           : records,
       );
     },
+  };
+}
+
+/** In-memory purge requests: a removed surface gets one `Pending` request. */
+export function memoryPurgeStore(removed: () => string[]): SurfacePurgeStore & {
+  records: Map<string, PurgeRecord>;
+} {
+  const records = new Map<string, PurgeRecord>();
+  return {
+    due: (now, limit) =>
+      Promise.resolve(
+        [...records.values()]
+          .filter(
+            (record) =>
+              record.status !== "Done" &&
+              record.nextAttemptAt.getTime() <= now.getTime(),
+          )
+          .slice(0, limit),
+      ),
+    ensure: (surfaceId) => {
+      for (const id of removed()) {
+        if ((!surfaceId || surfaceId === id) && !records.has(id)) {
+          records.set(id, {
+            attempts: 0,
+            completedAt: null,
+            nextAttemptAt: new Date(0),
+            status: "Pending",
+            surfaceId: id,
+          });
+        }
+      }
+      return Promise.resolve();
+    },
+    records,
+    save: (record) => {
+      records.set(record.surfaceId, record);
+      return Promise.resolve();
+    },
+    statuses: (ids) =>
+      Promise.resolve(
+        ids.flatMap((id) => {
+          const found = records.get(id);
+          return found ? [found] : [];
+        }),
+      ),
   };
 }

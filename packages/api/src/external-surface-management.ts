@@ -67,6 +67,22 @@ export const surfaceSourceSchema = z.object({
 });
 export type SurfaceSource = z.infer<typeof surfaceSourceSchema>;
 
+/** `Pending` and `Retrying` are visible; `Done` means the cache and index request completed. */
+export const PURGE_STATUSES = ["Pending", "Retrying", "Done"] as const;
+export type PurgeStatus = (typeof PURGE_STATUSES)[number];
+
+/**
+ * The product-controlled cache and index purge request of a removed surface.
+ * It is hygiene, never the barrier: the URL answers `410 Gone` whatever this
+ * says, and it promises nothing about copies a third party already holds.
+ */
+export const purgeRequestSchema = z.object({
+  attempts: z.number().int().nonnegative(),
+  nextAttemptAt: z.string().nullable(),
+  status: z.enum(PURGE_STATUSES),
+});
+export type PurgeRequest = z.infer<typeof purgeRequestSchema>;
+
 export const surfaceRowSchema = z.object({
   actions: z.array(z.enum(SURFACE_ACTIONS)),
   /** Optional Bağlantı süre dolumu as an ISO instant. */
@@ -82,6 +98,8 @@ export const surfaceRowSchema = z.object({
   /** Whether a Link password gates the surface; never the password. */
   passwordProtected: z.boolean(),
   projectId: z.string().nullable(),
+  /** Only a `Revoked` row has one. */
+  purge: purgeRequestSchema.nullable(),
   /** `Redacted` hides that the removed value ever existed here; the value is never present. */
   redaction: z.enum(["None", "Redacted"]),
   revision: z.number().int().nonnegative(),
@@ -97,12 +115,42 @@ export const surfaceDirectorySchema = z.object({
 });
 export type SurfaceDirectory = z.infer<typeof surfaceDirectorySchema>;
 
+/** `Revoke / Unpublish`: the same terminal transition Link Sharing and Wiki Publishing own. */
+export const removeExternalSurfaceInputSchema = z
+  .object({ surfaceId: identifier })
+  .strict();
+export type RemoveExternalSurfaceInput = z.infer<
+  typeof removeExternalSurfaceInputSchema
+>;
+
+export const removedSurfaceSchema = z.object({
+  purge: purgeRequestSchema,
+  status: z.literal(REVOKED_LABEL),
+  surfaceId: z.string(),
+});
+export type RemovedSurface = z.infer<typeof removedSurfaceSchema>;
+
+/** The surface cannot be removed from the directory (for example Build in Public before its own surface exists). */
+export class ExternalSurfaceManagementStateError extends Error {
+  readonly code = "EXTERNAL_SURFACE_STATE_INVALID" as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "ExternalSurfaceManagementStateError";
+  }
+}
+
 export interface ExternalSurfaceManagementAccess {
   /** Every Dış yüzey of the account's Çalışma Alanı (or one Project), newest approval first. */
   list: (
     accountId: string,
     input: ListExternalSurfacesInput,
   ) => Promise<SurfaceDirectory | null>;
+  /** Removing an already removed surface changes nothing and returns its purge state. */
+  remove: (
+    accountId: string,
+    input: RemoveExternalSurfaceInput,
+  ) => Promise<RemovedSurface | null>;
 }
 
 export function externalSurfaceManagementUnavailable(): never {

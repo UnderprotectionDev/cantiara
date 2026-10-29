@@ -3,7 +3,9 @@ import {
   CHANGE_EXPIRY_LABEL,
   EXPIRED_LABEL,
   type ExternalSurfaceManagementAccess,
+  ExternalSurfaceManagementStateError,
   OPEN_SOURCE_LABEL,
+  type PurgeRequest,
   REVIEW_DIFF_LABEL,
   REVOKE_UNPUBLISH_LABEL,
   REVOKED_LABEL,
@@ -12,6 +14,7 @@ import {
   type SurfaceStatus,
   type SurfaceVisibilityKind,
 } from "@cantiara/api/external-surface-management";
+import type { SurfacePurges } from "./external-surface-purge";
 
 /** One stored Dış yüzey with the latest approved revision; no secret ever reaches it. */
 export interface SurfaceRecord {
@@ -32,6 +35,12 @@ export interface SurfaceRecord {
 }
 
 export interface SurfaceDirectoryStore {
+  /**
+   * The same terminal `cancelled_at` write the Wiki store performs, for a Wiki
+   * surface whose Document is gone and so has no `unpublish` path; false when
+   * the surface is not the account's or is already cancelled.
+   */
+  cancelDetached: (accountId: string, surfaceId: string) => Promise<boolean>;
   /** The account's surfaces (all of them, or one Project's); `null` when the Project is not the account's. */
   records: (
     accountId: string,
@@ -51,8 +60,23 @@ export interface SurfaceDirectoryPorts {
     record: SurfaceRecord,
   ) => Promise<LinkSourceState | null>;
   now?: () => Date;
+  /** The cache and index purge requests of removed surfaces. */
+  purges: SurfacePurges;
+  /** Link Sharing `Revoke`: the shared terminal transition; null when not the account's. */
+  revokeLink: (accountId: string, surfaceId: string) => Promise<unknown | null>;
   store: SurfaceDirectoryStore;
+  /** Wiki Publishing `Unpublish` of the Document's active surface. */
+  unpublishWiki: (
+    accountId: string,
+    documentId: string,
+  ) => Promise<unknown | null>;
 }
+
+const PENDING: PurgeRequest = {
+  attempts: 0,
+  nextAttemptAt: null,
+  status: "Pending",
+};
 
 interface SnapshotFacts {
   approvedAt: string | null;
@@ -203,6 +227,11 @@ export function createExternalSurfaceManagement(
         return null;
       }
       const moment = now();
+      const purges = await ports.purges.status(
+        records
+          .filter((record) => record.cancelledAt)
+          .map((record) => record.surfaceId),
+      );
       const rows: SurfaceRow[] = await Promise.all(
         records.map(async (record) => {
           const visibility = visibilityOf(record);
@@ -224,6 +253,9 @@ export function createExternalSurfaceManagement(
             lastApprovedAt: approvedAt ?? null,
             passwordProtected: record.passwordProtected,
             projectId: record.projectId,
+            purge: record.cancelledAt
+              ? (purges.get(record.surfaceId) ?? PENDING)
+              : null,
             redaction: facts.redacted ? "Redacted" : "None",
             revision: record.revision?.number ?? 0,
             source: sourceOf(record, facts),
@@ -239,5 +271,40 @@ export function createExternalSurfaceManagement(
         ),
       };
     },
+
+    async remove(accountId, input) {
+      const records = await ports.store.records(accountId, {});
+      const record = records?.find(
+        (entry) => entry.surfaceId === input.surfaceId,
+      );
+      if (!record) {
+        return null;
+      }
+      if (!record.cancelledAt) {
+        const removed = await terminate(record, accountId);
+        if (!removed) {
+          return null;
+        }
+      }
+      // Hygiene only: a failed purge is retried and never reopens the URL.
+      const purge = await ports.purges.request(record.surfaceId);
+      return { purge, status: REVOKED_LABEL, surfaceId: record.surfaceId };
+    },
   };
+
+  /** The shared lifecycle of each kind; the directory has no softer revoke of its own. */
+  async function terminate(record: SurfaceRecord, accountId: string) {
+    const visibility = visibilityOf(record);
+    if (visibility === "Link") {
+      return await ports.revokeLink(accountId, record.surfaceId);
+    }
+    if (visibility === "Wiki") {
+      return record.documentId
+        ? await ports.unpublishWiki(accountId, record.documentId)
+        : await ports.store.cancelDetached(accountId, record.surfaceId);
+    }
+    throw new ExternalSurfaceManagementStateError(
+      "Build in Public is removed from its own surface.",
+    );
+  }
 }

@@ -18,6 +18,7 @@ const base: SurfaceRow = {
   lastApprovedAt: "2026-01-02T00:00:00Z",
   passwordProtected: true,
   projectId: "p1",
+  purge: null,
   redaction: "None",
   revision: 1,
   source: { id: "d1", kind: "Document", projectId: "p1", title: "Plan" },

@@ -8,10 +8,12 @@ import {
   type LinkSourceState,
   type SurfaceRecord,
 } from "../external-surface-management";
+import { createSurfacePurges } from "../external-surface-purge";
 import {
   ACCOUNT,
   buildInPublicSurface,
   memoryDirectory,
+  memoryPurgeStore,
   PROJECT,
   surface,
   wikiSurface,
@@ -45,7 +47,13 @@ function setup(
   const access = createExternalSurfaceManagement({
     linkSource: (_accountId, record) => Promise.resolve(linkSource(record)),
     now: () => NOW,
+    purges: createSurfacePurges({
+      store: memoryPurgeStore(() => []),
+      targets: [],
+    }),
+    revokeLink: () => Promise.resolve(null),
     store: memoryDirectory(records),
+    unpublishWiki: () => Promise.resolve(null),
   });
   const context = {
     externalSurfaceManagement: access,
