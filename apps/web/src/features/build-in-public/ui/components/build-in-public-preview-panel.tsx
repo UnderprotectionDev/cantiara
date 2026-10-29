@@ -8,12 +8,17 @@ import {
 } from "@cantiara/api/build-in-public";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
+import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useState } from "react";
+import { DateTimePicker } from "@/components/date-picker";
 import {
   buildApproval,
+  featureCandidates,
+  featuredEndsAt,
   groupedItems,
   initialApproved,
   leavingPlaceholders,
+  memberRecordId,
   toggledItem,
   unlabeledWorks,
 } from "../../lib/build-in-public-approval";
@@ -29,6 +34,9 @@ function ItemDetails({ item }: { item: BuildInPublicItem }) {
   return (
     <span className="grid gap-0.5">
       <span>{item.title}</span>
+      {item.kind === "Project member" ? (
+        <span>{`Shown in the public Project view as ${item.memberKind ?? "record"}`}</span>
+      ) : null}
       {item.kind === "Roadmap Work" ? (
         <span>
           {`${BUILD_IN_PUBLIC_UI_LABELS.publicStatusLabel}: ${item.publicStatusLabel ?? "None"} (from ${item.internalStatus ?? "unknown"}, ${item.labelSource ?? "unmapped"})`}
@@ -103,19 +111,30 @@ export function BuildInPublicPreviewPanel({
   );
   const [publishAnyway, setPublishAnyway] = useState(false);
   const [approvedFor, setApprovedFor] = useState(preview.fingerprint);
+  // Featuring is off unless a record and an end time are both chosen.
+  const [featuredRecord, setFeaturedRecord] = useState("");
+  const [featuredUntil, setFeaturedUntil] = useState("");
   if (approvedFor !== preview.fingerprint) {
     // A changed preview never inherits approvals given to an earlier one.
     setApprovedFor(preview.fingerprint);
     setApproved(initialApproved(preview));
     setPublishAnyway(false);
+    setFeaturedRecord("");
+    setFeaturedUntil("");
   }
+  const candidates = featureCandidates(preview, approved);
+  const endsAt = featuredEndsAt(featuredUntil);
+  const featuredChoice =
+    featuredRecord && endsAt ? { endsAt, recordId: featuredRecord } : undefined;
+  const featuredIncomplete = Boolean(featuredRecord) !== Boolean(endsAt);
   const placeholders = leavingPlaceholders(preview, approved);
   const unlabeled = unlabeledWorks(preview, approved);
   const blocked =
     !enabled ||
     unlabeled.length > 0 ||
     (placeholders.length > 0 && !publishAnyway) ||
-    approved.size === 0;
+    approved.size === 0 ||
+    featuredIncomplete;
 
   return (
     <section aria-labelledby="bip-preview-title" className="grid gap-3">
@@ -175,10 +194,42 @@ export function BuildInPublicPreviewPanel({
         </section>
       ) : null}
 
+      <section aria-labelledby="bip-featured" className="grid gap-2">
+        <h3 id="bip-featured">Featured record</h3>
+        <p>
+          Off by default. One approved Project Release or Decision stays on top
+          of the Project view until the end time, then returns to its place.
+        </p>
+        <label htmlFor="bip-featured-record">Record</label>
+        <NativeSelect
+          id="bip-featured-record"
+          onChange={(event) => setFeaturedRecord(event.target.value)}
+          value={featuredRecord}
+        >
+          <option value="">Not featured</option>
+          {candidates.map((candidate) => (
+            <option key={candidate.id} value={memberRecordId(candidate)}>
+              {candidate.title}
+            </option>
+          ))}
+        </NativeSelect>
+        <DateTimePicker
+          ariaLabel="Featured until"
+          disabled={!featuredRecord}
+          onChange={setFeaturedUntil}
+          value={featuredUntil}
+        />
+        {featuredIncomplete ? (
+          <p role="alert">Choose both a record and an end time.</p>
+        ) : null}
+      </section>
+
       <Button
         disabled={blocked || publishing}
         onClick={() =>
-          onApprove(buildApproval(preview, approved, publishAnyway))
+          onApprove(
+            buildApproval(preview, approved, publishAnyway, featuredChoice),
+          )
         }
         type="button"
       >

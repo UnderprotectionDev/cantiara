@@ -1289,6 +1289,13 @@
       "when": 1793272016698,
       "tag": "0183_yellow_nighthawk",
       "breakpoints": true
+    },
+    {
+      "idx": 184,
+      "version": "7",
+      "when": 1793273290057,
+      "tag": "0184_puzzling_tarot",
+      "breakpoints": true
     }
   ]
 }

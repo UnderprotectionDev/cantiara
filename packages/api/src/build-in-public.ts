@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { BuildInPublicPublicationAccess } from "./build-in-public-publication";
 import { placeholderRanges } from "./document-templates";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 
@@ -8,13 +9,19 @@ const identifierSchema = z.string().trim().min(1).max(255);
 export const BUILD_IN_PUBLIC_UI_LABELS = {
   buildInPublic: "Build in Public",
   completed: "Completed",
+  disableIndexing: "Disable indexing",
+  enableIndexing: "Enable indexing",
   inProgress: "In Progress",
+  liveExternalSource: "Live external source",
+  openSourceRecord: "Open source record",
   planned: "Planned",
   publicStatusLabel: "Public Status Label",
   publicSummary: "Public summary",
   publicTitle: "Public title",
   publishAnyway: "Publish/share anyway",
   released: "Released",
+  reviewPublishDiff: "Review publish diff",
+  unpublish: "Unpublish",
   unpublishedChanges: "Unpublished changes",
 } as const;
 
@@ -150,7 +157,56 @@ export interface BuildInPublicSettings {
   statusMap: BuildInPublicMapRow[];
 }
 
+/** How the internal target date is shown; there is no second public date field. */
+export const DUE_DATE_PRESENTATIONS = [
+  "Full date",
+  "Month",
+  "Quarter",
+  "Hidden",
+] as const;
+export type DueDatePresentation = (typeof DUE_DATE_PRESENTATIONS)[number];
+
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/u;
+
+/**
+ * The public reading of the internal target date. Derived on every call from
+ * the one internal date; a coarser presentation never carries the finer value.
+ */
+export function presentDueDate(
+  date: string | null | undefined,
+  presentation: DueDatePresentation,
+): string | null {
+  const match = date ? ISO_DATE.exec(date) : null;
+  const month = match ? Number(match[2]) : 0;
+  if (!match || presentation === "Hidden" || month < 1 || month > 12) {
+    return null;
+  }
+  const [, year = "", , day = ""] = match;
+  const monthName = MONTH_NAMES[month - 1] ?? "";
+  if (presentation === "Full date") {
+    return `${Number(day)} ${monthName} ${year}`;
+  }
+  return presentation === "Month"
+    ? `${monthName} ${year}`
+    : `Q${Math.ceil(month / 3)} ${year}`;
+}
+
 export interface BuildInPublicWorkCopy {
+  dueDatePresentation: DueDatePresentation;
   publicStatusLabel: string | null;
   publicSummary: string | null;
   publicTitle: string | null;
@@ -184,6 +240,7 @@ const optionalTextSchema = (max: number) =>
 
 export const setBuildInPublicWorkCopyInputSchema = humanMutationEnvelopeSchema
   .extend({
+    dueDatePresentation: z.enum(DUE_DATE_PRESENTATIONS).default("Hidden"),
     projectId: identifierSchema,
     publicStatusLabel: publicStatusLabelSchema.nullable(),
     publicSummary: optionalTextSchema(300),
@@ -202,8 +259,36 @@ export const BUILD_IN_PUBLIC_ITEM_KINDS = [
   "File Attachment",
   "YouTube video",
   "Metadata",
+  "Project member",
+  "Wall part",
 ] as const;
 export type BuildInPublicItemKind = (typeof BUILD_IN_PUBLIC_ITEM_KINDS)[number];
+
+/** Records the public Proje view can list besides Roadmap Works. */
+export const BUILD_IN_PUBLIC_MEMBER_KINDS = [
+  "Document",
+  "Design",
+  "Decision",
+  "Project Release",
+  "Project Wall",
+] as const;
+export type BuildInPublicMemberKind =
+  (typeof BUILD_IN_PUBLIC_MEMBER_KINDS)[number];
+
+/** Each part of a selected Project Wall is its own approval item. */
+export const WALL_PART_KINDS = [
+  "Card",
+  "File version",
+  "Layout",
+  "Group",
+  "View text",
+  "Visual line",
+  "Focus order",
+  "Color",
+  "Crop, rotate and markup",
+  "Live collection block",
+] as const;
+export type WallPartKind = (typeof WALL_PART_KINDS)[number];
 
 export interface BuildInPublicField {
   name: string;
@@ -234,11 +319,15 @@ export interface BuildInPublicItem {
   internalStatus: BuildInPublicStatusKey | null;
   kind: BuildInPublicItemKind;
   labelSource: PublicLabelSource | null;
-  /** Dependent items (label suggestion, file, embed) hang under their Work item. */
+  /** Project member items only. */
+  memberKind: BuildInPublicMemberKind | null;
+  /** Dependent items (label suggestion, file, embed, Wall part) hang under their root item. */
   parentId: string | null;
   /** Roadmap Work: the label that would leave; Released label: `Released`. */
   publicStatusLabel: string | null;
   title: string;
+  /** Wall part items only. */
+  wallPart: WallPartKind | null;
   workId: string | null;
 }
 
@@ -250,9 +339,17 @@ export interface BuildInPublicPlaceholderFinding {
   sourceRecord: { id: string; title: string; type: string };
 }
 
-export interface BuildInPublicMetadata {
+/** Publication title and summary of one surface; none inherits from another. */
+export interface BuildInPublicSurfaceCopy {
   summary: string | null;
   title: string | null;
+}
+
+export interface BuildInPublicMetadata extends BuildInPublicSurfaceCopy {
+  /** The changelog index page's own title and summary. */
+  changelogIndex?: BuildInPublicSurfaceCopy;
+  /** The Roadmap index page's own title and summary. */
+  roadmapIndex?: BuildInPublicSurfaceCopy;
 }
 
 export interface BuildInPublicPreview {
@@ -266,10 +363,17 @@ export interface BuildInPublicPreview {
   written: false;
 }
 
-const metadataSchema = z
+const surfaceCopySchema = z
   .object({
     summary: z.string().trim().max(300).nullable().optional(),
     title: z.string().trim().max(120).nullable().optional(),
+  })
+  .strict();
+
+const metadataSchema = surfaceCopySchema
+  .extend({
+    changelogIndex: surfaceCopySchema.optional(),
+    roadmapIndex: surfaceCopySchema.optional(),
   })
   .strict();
 
@@ -284,7 +388,19 @@ export const approveBuildInPublicInputSchema = humanMutationEnvelopeSchema
   .extend({
     approval: z
       .object({
-        approvedItemIds: z.array(identifierSchema).max(1000),
+        approvedItemIds: z.array(identifierSchema).max(5000),
+        /**
+         * Default off. At most one approved Proje Sürümü or Karar, until the
+         * founder-set end time. Omitted keeps the earlier choice, null clears it.
+         */
+        featured: z
+          .object({
+            endsAt: z.string().datetime(),
+            recordId: identifierSchema,
+          })
+          .strict()
+          .nullable()
+          .optional(),
         fingerprint: z.string().trim().min(1).max(200),
         metadata: metadataSchema.optional(),
         /** Separate from scope approval; never implied by it. */
@@ -300,6 +416,8 @@ export type ApproveBuildInPublicInput = z.infer<
 
 /** One approved Roadmap Work as visitors will see it; no internal status or title. */
 export interface BuildInPublicSnapshotWork {
+  /** Presented from the internal date at approval; the date itself never leaves. */
+  dueLabel?: string | null;
   embeds: { kind: "YouTube video"; memberId: string; url: string }[];
   files: { attachmentId: string; name: string; version: number }[];
   /** Roadmap horizon the Work sat in when approved. */
@@ -313,9 +431,59 @@ export interface BuildInPublicSnapshotWork {
   title: string;
 }
 
+/** One approved Project Wall as a closed-world snapshot; opaque ids, no source ids. */
+export interface BuildInPublicSnapshotWall {
+  cards: {
+    cardId: string;
+    color: string | null;
+    column: number;
+    groupId: string | null;
+    row: number;
+    title: string;
+  }[];
+  /** Exact approved file versions with their crop, rotate and markup text. */
+  files: {
+    attachmentId: string;
+    cardId: string | null;
+    markup: string | null;
+    name: string;
+    version: number;
+  }[];
+  focusOrder: string[];
+  groups: { groupId: string; title: string }[];
+  lines: { fromCardId: string; label: string; toCardId: string }[];
+  /** Live collection blocks frozen as dated, read-only snapshots. */
+  liveBlocks: {
+    blockId: string;
+    frozenOn: string;
+    records: { fields: BuildInPublicField[]; title: string }[];
+    sourceLabel: string;
+  }[];
+  narrative: string | null;
+  /** Private diff keys (approval item id to content); never rendered or exposed on a visitor path. */
+  partSignatures: Record<string, string>;
+}
+
+export interface BuildInPublicSnapshotMember {
+  /** Changelog date (YYYY-MM-DD) of a Proje Sürümü or Karar. */
+  date: string | null;
+  fields: BuildInPublicField[];
+  kind: BuildInPublicMemberKind;
+  /** Opaque (`member-1`); the only id a visitor surface may use. */
+  memberId: string;
+  /** Private diff key; never rendered or exposed on a visitor path. */
+  sourceRecordId: string;
+  title: string;
+  wall?: BuildInPublicSnapshotWall;
+}
+
 export interface BuildInPublicSnapshot {
   approvedAt: string;
+  /** At most one approved Proje Sürümü or Karar; off unless the founder set it. */
+  featured?: { endsAt: string; memberId: string } | null;
   kind: "Build in Public";
+  /** Absent in revisions approved before the Proje view existed. */
+  members?: BuildInPublicSnapshotMember[];
   metadata: BuildInPublicMetadata;
   projectId: string;
   roadmap: BuildInPublicSnapshotWork[];
@@ -330,10 +498,15 @@ export interface ApprovedBuildInPublic {
 
 export const BUILD_IN_PUBLIC_ERROR_CODES = [
   "BUILD_IN_PUBLIC_DISABLED",
+  "BUILD_IN_PUBLIC_FEATURED_INVALID",
+  "BUILD_IN_PUBLIC_INDEXING_UNACKNOWLEDGED",
   "BUILD_IN_PUBLIC_LABEL_REQUIRED",
+  "BUILD_IN_PUBLIC_NOT_PUBLISHED",
   "BUILD_IN_PUBLIC_NOTHING_APPROVED",
   "BUILD_IN_PUBLIC_PLACEHOLDERS_UNRESOLVED",
   "BUILD_IN_PUBLIC_PREVIEW_STALE",
+  "BUILD_IN_PUBLIC_REDIRECT_UNCONFIRMED",
+  "BUILD_IN_PUBLIC_SLUG_TAKEN",
   "BUILD_IN_PUBLIC_WORK_UNAVAILABLE",
 ] as const;
 export type BuildInPublicErrorCode =
@@ -344,12 +517,22 @@ export const BUILD_IN_PUBLIC_ERROR_MESSAGES: Record<
   string
 > = {
   BUILD_IN_PUBLIC_DISABLED: "Enable Build in Public for this Project first.",
+  BUILD_IN_PUBLIC_FEATURED_INVALID:
+    "Feature one approved Project Release or Decision, and set an end time in the future.",
+  BUILD_IN_PUBLIC_INDEXING_UNACKNOWLEDGED:
+    "Acknowledge that third-party copies cannot be fully recalled before enabling indexing.",
   BUILD_IN_PUBLIC_LABEL_REQUIRED: LABEL_REQUIRED_MESSAGE,
+  BUILD_IN_PUBLIC_NOT_PUBLISHED:
+    "This Project has no published Build in Public.",
   BUILD_IN_PUBLIC_NOTHING_APPROVED: "Approve at least one item to publish.",
   BUILD_IN_PUBLIC_PLACEHOLDERS_UNRESOLVED:
     "Resolve the placeholders or confirm Publish/share anyway.",
   BUILD_IN_PUBLIC_PREVIEW_STALE:
     "The preview changed. Review it again before publishing.",
+  BUILD_IN_PUBLIC_REDIRECT_UNCONFIRMED:
+    "Changing the slug redirects the old address to the new one. Confirm the redirect first.",
+  BUILD_IN_PUBLIC_SLUG_TAKEN:
+    "Another published surface already uses this slug.",
   BUILD_IN_PUBLIC_WORK_UNAVAILABLE:
     "This Work is not on the Roadmap of this Project.",
 };
@@ -364,7 +547,7 @@ export class BuildInPublicError extends Error {
   }
 }
 
-export interface BuildInPublicAccess {
+export interface BuildInPublicAccess extends BuildInPublicPublicationAccess {
   approve: (
     accountId: string,
     input: Omit<
@@ -394,7 +577,11 @@ export interface BuildInPublicAccess {
   ) => Promise<BuildInPublicSettings | null>;
   setWorkCopy: (
     accountId: string,
-    input: Omit<BuildInPublicWorkCopy, never> & { projectId: string },
+    input: Omit<BuildInPublicWorkCopy, "dueDatePresentation"> & {
+      /** Omitted keeps `Hidden`. */
+      dueDatePresentation?: DueDatePresentation;
+      projectId: string;
+    },
   ) => Promise<BuildInPublicWorkCopy | null>;
 }
 
@@ -407,6 +594,16 @@ export function workItemId(workId: string) {
 }
 export function releasedItemId(workId: string) {
   return `released:${workId}`;
+}
+export function memberItemId(recordId: string) {
+  return `member:${recordId}`;
+}
+export function wallPartItemId(
+  recordId: string,
+  part: WallPartKind,
+  partId: string,
+) {
+  return `wall:${recordId}:${part}:${partId}`;
 }
 export function attachmentItemId(workId: string, attachmentId: string) {
   return `attachment:${workId}:${attachmentId}`;

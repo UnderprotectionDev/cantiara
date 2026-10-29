@@ -25,9 +25,11 @@ function item(overrides: Partial<BuildInPublicItem>): BuildInPublicItem {
     internalStatus: "Not Started",
     kind: "Roadmap Work",
     labelSource: "Default map",
+    memberKind: null,
     parentId: null,
     publicStatusLabel: "Planned",
     title: "A-1 · Faster board",
+    wallPart: null,
     workId: "a",
     ...overrides,
   };

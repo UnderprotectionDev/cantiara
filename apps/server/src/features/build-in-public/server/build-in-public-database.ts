@@ -1,11 +1,13 @@
 import type {
   BuildInPublicAccess,
   BuildInPublicSnapshot,
+  DueDatePresentation,
 } from "@cantiara/api/build-in-public";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import {
   buildInPublicSetting,
+  buildInPublicSlug,
   buildInPublicWorkCopy,
 } from "@cantiara/db/schema/build-in-public";
 import {
@@ -22,6 +24,8 @@ import {
   type BuildInPublicStore,
   createBuildInPublic,
 } from "./build-in-public";
+import { projectMembersOf } from "./build-in-public-project-view-database";
+import type { BuildInPublicPublicationStore } from "./build-in-public-publication";
 
 const SURFACE_KIND = "Build in Public";
 
@@ -31,6 +35,8 @@ function createFacts(database: Database): BuildInPublicFacts {
     // no Work attachment is previewed here; the seam takes them from this port
     // as soon as one exists, with their exact versions.
     attachments: async () => [],
+
+    members: (_accountId, projectId) => projectMembersOf(database, projectId),
 
     project: async (accountId, projectId) => {
       const [row] = await database
@@ -89,6 +95,7 @@ function createFacts(database: Database): BuildInPublicFacts {
         key: row.key,
         roadmapHorizon: row.roadmapHorizon ?? "",
         status: row.status,
+        targetDate: row.targetDate,
         title: row.title,
       }));
     },
@@ -103,14 +110,115 @@ const activeSurface = (projectId: string) =>
     isNull(externalSurface.cancelledAt),
   );
 
-function createStore(database: Database): BuildInPublicStore {
+/** Slug rows of one surface: the canonical one and the earlier ones that redirect to it. */
+export async function slugsOf(database: Database, surfaceId: string) {
+  const rows = await database
+    .select({
+      canonical: buildInPublicSlug.canonical,
+      slug: buildInPublicSlug.slug,
+    })
+    .from(buildInPublicSlug)
+    .where(eq(buildInPublicSlug.surfaceId, surfaceId))
+    .orderBy(asc(buildInPublicSlug.createdAt));
   return {
+    aliases: rows.filter((row) => !row.canonical).map((row) => row.slug),
+    canonical: rows.find((row) => row.canonical)?.slug ?? null,
+  };
+}
+
+function createStore(
+  database: Database,
+): BuildInPublicStore & BuildInPublicPublicationStore {
+  return {
+    cancel: async (surfaceId) =>
+      await database.transaction(async (transaction) => {
+        const rows = await transaction
+          .update(externalSurface)
+          .set({ cancelledAt: new Date() })
+          .where(
+            and(
+              eq(externalSurface.id, surfaceId),
+              isNull(externalSurface.cancelledAt),
+            ),
+          )
+          .returning({ id: externalSurface.id });
+        // The redirect dies with the surface and points at nothing afterwards.
+        await transaction
+          .delete(buildInPublicSlug)
+          .where(eq(buildInPublicSlug.surfaceId, surfaceId));
+        return rows.length > 0;
+      }),
+
+    changeSlug: async ({ slug, surfaceId, workspaceId }) =>
+      await database.transaction(async (transaction) => {
+        await transaction.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${`build-in-public-slug:${workspaceId}`}))`,
+        );
+        const [owner] = await transaction
+          .select({ surfaceId: buildInPublicSlug.surfaceId })
+          .from(buildInPublicSlug)
+          .where(
+            and(
+              eq(buildInPublicSlug.workspaceId, workspaceId),
+              eq(buildInPublicSlug.slug, slug),
+            ),
+          )
+          .limit(1);
+        if (owner && owner.surfaceId !== surfaceId) {
+          return false;
+        }
+        // The earlier canonical slug stays as a redirect; the new one is canonical.
+        await transaction
+          .update(buildInPublicSlug)
+          .set({ canonical: false })
+          .where(eq(buildInPublicSlug.surfaceId, surfaceId));
+        await transaction
+          .insert(buildInPublicSlug)
+          .values({ canonical: true, slug, surfaceId, workspaceId })
+          .onConflictDoUpdate({
+            set: { canonical: true },
+            target: [buildInPublicSlug.workspaceId, buildInPublicSlug.slug],
+          });
+        return true;
+      }),
+
+    setIndexing: async (surfaceId, enabled) => {
+      const rows = await database
+        .update(externalSurface)
+        .set({ indexingEnabled: enabled })
+        .where(
+          and(
+            eq(externalSurface.id, surfaceId),
+            isNull(externalSurface.cancelledAt),
+          ),
+        )
+        .returning({ id: externalSurface.id });
+      return rows.length > 0;
+    },
+
+    slugOwner: async (workspaceId, slug) => {
+      const [row] = await database
+        .select({ surfaceId: buildInPublicSlug.surfaceId })
+        .from(buildInPublicSlug)
+        .where(
+          and(
+            eq(buildInPublicSlug.workspaceId, workspaceId),
+            eq(buildInPublicSlug.slug, slug),
+          ),
+        )
+        .limit(1);
+      return row?.surfaceId ?? null;
+    },
+
+    slugs: (surfaceId) => slugsOf(database, surfaceId),
+
     copies: async (projectId) => {
       const rows = await database
         .select()
         .from(buildInPublicWorkCopy)
         .where(eq(buildInPublicWorkCopy.projectId, projectId));
       return rows.map((row) => ({
+        dueDatePresentation: row.dueDatePresentation as DueDatePresentation,
         publicStatusLabel: row.publicStatusLabel,
         publicSummary: row.publicSummary,
         publicTitle: row.publicTitle,
@@ -121,6 +229,7 @@ function createStore(database: Database): BuildInPublicStore {
     latest: async (projectId) => {
       const [row] = await database
         .select({
+          indexingEnabled: externalSurface.indexingEnabled,
           revision: externalSurfaceSnapshotRevision.revision,
           snapshot: externalSurfaceSnapshotRevision.snapshot,
           surfaceId: externalSurface.id,
@@ -135,11 +244,16 @@ function createStore(database: Database): BuildInPublicStore {
         .limit(1);
       const snapshot = row?.snapshot as BuildInPublicSnapshot | undefined;
       return row && snapshot?.kind === "Build in Public"
-        ? { revision: row.revision, snapshot, surfaceId: row.surfaceId }
+        ? {
+            indexingEnabled: row.indexingEnabled,
+            revision: row.revision,
+            snapshot,
+            surfaceId: row.surfaceId,
+          }
         : null;
     },
 
-    publish: async ({ projectId, snapshot, workspaceId }) =>
+    publish: async ({ projectId, slug, snapshot, workspaceId }) =>
       await database.transaction(async (transaction) => {
         // Serialises the first approval of one Project so only one surface is born.
         await transaction.execute(
@@ -159,6 +273,23 @@ function createStore(database: Database): BuildInPublicStore {
             surfaceKind: SURFACE_KIND,
             workspaceId,
           });
+        }
+        // A surface always has its own canonical slug (surfaces published before
+        // slugs existed get theirs on the next approval); the id is never reused.
+        const [named] = await transaction
+          .select({ slug: buildInPublicSlug.slug })
+          .from(buildInPublicSlug)
+          .where(
+            and(
+              eq(buildInPublicSlug.surfaceId, surfaceId),
+              eq(buildInPublicSlug.canonical, true),
+            ),
+          )
+          .limit(1);
+        if (!named) {
+          await transaction
+            .insert(buildInPublicSlug)
+            .values({ canonical: true, slug, surfaceId, workspaceId });
         }
         const [latest] = await transaction
           .select({ revision: externalSurfaceSnapshotRevision.revision })
@@ -186,6 +317,7 @@ function createStore(database: Database): BuildInPublicStore {
       await database
         .insert(buildInPublicWorkCopy)
         .values({
+          dueDatePresentation: copy.dueDatePresentation,
           projectId,
           publicStatusLabel: copy.publicStatusLabel,
           publicSummary: copy.publicSummary,
@@ -194,6 +326,7 @@ function createStore(database: Database): BuildInPublicStore {
         })
         .onConflictDoUpdate({
           set: {
+            dueDatePresentation: copy.dueDatePresentation,
             publicStatusLabel: copy.publicStatusLabel,
             publicSummary: copy.publicSummary,
             publicTitle: copy.publicTitle,

@@ -1,9 +1,44 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  createExternalSurfaceAccess,
   createMemoryExternalSurfaceResponseCache,
   parseByteRange,
 } from "./external-surface-access";
+
+describe("page cache variant", () => {
+  test("a variant keeps its own cached bytes and a cancelled surface never reads the cache", async () => {
+    let cancelled = false;
+    const access = createExternalSurfaceAccess({
+      cache: createMemoryExternalSurfaceResponseCache(),
+      reader: {
+        read: () =>
+          Promise.resolve({ cancelled, indexingEnabled: false, revision: 1 }),
+      },
+    });
+    const page = (variant: string, text: string) =>
+      access.page(new Request("https://x/s"), "s", {
+        render: () =>
+          Promise.resolve({
+            body: new TextEncoder().encode(text),
+            contentType: "text/html",
+          }),
+        variant,
+      });
+
+    expect(await (await page("owner", "owner page")).text()).toBe("owner page");
+    expect(await (await page("visitor", "visitor page")).text()).toBe(
+      "visitor page",
+    );
+    // Same variant: the cached bytes answer, the new render is ignored.
+    expect(await (await page("owner", "changed")).text()).toBe("owner page");
+
+    cancelled = true;
+    const gone = await page("owner", "owner page");
+    expect(gone.status).toBe(410);
+    expect(await gone.text()).toBe("");
+  });
+});
 
 describe("parseByteRange", () => {
   test("reads single well-formed ranges", () => {

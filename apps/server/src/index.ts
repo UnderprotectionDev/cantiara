@@ -17,6 +17,7 @@ import {
   backlog,
   backlogMutationContracts,
   buildInPublic,
+  buildInPublicPages,
   captureInbox,
   completionEffectsPreferences,
   completionEffectsPreferencesMutationContract,
@@ -233,6 +234,7 @@ const app = createApp({
   workTemplates,
   wikiPublicPages,
   buildInPublic,
+  buildInPublicPages,
   wikiPublishing,
   workspaceOverview,
 });

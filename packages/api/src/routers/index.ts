@@ -40,6 +40,12 @@ import {
   setBuildInPublicWorkCopyInputSchema,
 } from "../build-in-public";
 import {
+  buildInPublicSlugPreviewInputSchema,
+  setBuildInPublicIndexingInputSchema,
+  setBuildInPublicSlugInputSchema,
+  unpublishBuildInPublicInputSchema,
+} from "../build-in-public-publication";
+import {
   type CaptureInboxAccess,
   type CaptureInboxTriageAccess,
   captureAttachInputSchema,
@@ -1271,10 +1277,15 @@ function rethrowBuildInPublicError(error: unknown): never {
   }
   const status = {
     BUILD_IN_PUBLIC_DISABLED: "PRECONDITION_FAILED",
+    BUILD_IN_PUBLIC_FEATURED_INVALID: "BAD_REQUEST",
+    BUILD_IN_PUBLIC_INDEXING_UNACKNOWLEDGED: "PRECONDITION_FAILED",
     BUILD_IN_PUBLIC_LABEL_REQUIRED: "CONFLICT",
+    BUILD_IN_PUBLIC_NOT_PUBLISHED: "NOT_FOUND",
     BUILD_IN_PUBLIC_NOTHING_APPROVED: "BAD_REQUEST",
     BUILD_IN_PUBLIC_PLACEHOLDERS_UNRESOLVED: "CONFLICT",
     BUILD_IN_PUBLIC_PREVIEW_STALE: "PRECONDITION_FAILED",
+    BUILD_IN_PUBLIC_REDIRECT_UNCONFIRMED: "PRECONDITION_FAILED",
+    BUILD_IN_PUBLIC_SLUG_TAKEN: "CONFLICT",
     BUILD_IN_PUBLIC_WORK_UNAVAILABLE: "NOT_FOUND",
   }[error.code] as
     | "BAD_REQUEST"
@@ -8033,6 +8044,7 @@ export const appRouter = {
       const copy = await requireBuildInPublic(context).setWorkCopy(
         context.session.user.id,
         {
+          dueDatePresentation: input.dueDatePresentation,
           projectId: input.projectId,
           publicStatusLabel: input.publicStatusLabel,
           publicSummary: input.publicSummary,
@@ -8065,6 +8077,75 @@ export const appRouter = {
           payload,
         );
         return approved ?? buildInPublicUnavailable();
+      } catch (error) {
+        rethrowBuildInPublicError(error);
+      }
+    }),
+  buildInPublicPublication: protectedProcedure
+    .input(buildInPublicProjectInputSchema)
+    .handler(async ({ context, input }) => {
+      const publication = await requireBuildInPublic(context).publication(
+        context.session.user.id,
+        input.projectId,
+      );
+      return publication ?? buildInPublicUnavailable();
+    }),
+  previewBuildInPublicSlug: protectedProcedure
+    .input(buildInPublicSlugPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const preview = await requireBuildInPublic(context).previewSlug(
+          context.session.user.id,
+          input,
+        );
+        return preview ?? buildInPublicUnavailable();
+      } catch (error) {
+        rethrowBuildInPublicError(error);
+      }
+    }),
+  setBuildInPublicSlug: protectedProcedure
+    .input(setBuildInPublicSlugInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const publication = await requireBuildInPublic(context).setSlug(
+          context.session.user.id,
+          {
+            confirmRedirect: input.confirmRedirect,
+            projectId: input.projectId,
+            slug: input.slug,
+          },
+        );
+        return publication ?? buildInPublicUnavailable();
+      } catch (error) {
+        rethrowBuildInPublicError(error);
+      }
+    }),
+  setBuildInPublicIndexing: protectedProcedure
+    .input(setBuildInPublicIndexingInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const publication = await requireBuildInPublic(context).setIndexing(
+          context.session.user.id,
+          {
+            acknowledgeThirdPartyCopies: input.acknowledgeThirdPartyCopies,
+            enabled: input.enabled,
+            projectId: input.projectId,
+          },
+        );
+        return publication ?? buildInPublicUnavailable();
+      } catch (error) {
+        rethrowBuildInPublicError(error);
+      }
+    }),
+  unpublishBuildInPublic: protectedProcedure
+    .input(unpublishBuildInPublicInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const publication = await requireBuildInPublic(context).unpublish(
+          context.session.user.id,
+          input.projectId,
+        );
+        return publication ?? buildInPublicUnavailable();
       } catch (error) {
         rethrowBuildInPublicError(error);
       }
