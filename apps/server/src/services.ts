@@ -71,6 +71,7 @@ import { createFileAttachmentObjectStore } from "./features/file-attachments/ser
 import { createDatabaseFocusPeriod } from "./features/focus-period/server/focus-period-database";
 import { createConfiguredGitHubIntegration } from "./features/github-integration/server/github-integration-configured";
 import { createGitHubWebhookWorker } from "./features/github-integration/server/github-webhook-worker";
+import { createDatabaseLinkSharing } from "./features/link-sharing/server/link-sharing-database";
 import { createDatabaseMoodboardPersonalViews } from "./features/moodboards/server/moodboard-personal-views-database";
 import { createDatabaseMoodboardSnapshots } from "./features/moodboards/server/moodboard-snapshots-database";
 import { createDatabaseMoodboards } from "./features/moodboards/server/moodboards-database";
@@ -312,6 +313,7 @@ export const projectUpdates = createProjectUpdatesService(
   db,
   personalReminders,
 );
+export const linkSharing = createDatabaseLinkSharing(db);
 export const projectActivity = createProjectActivity(
   createDatabaseProjectActivityStore(db),
 );

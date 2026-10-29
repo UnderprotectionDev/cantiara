@@ -45,6 +45,7 @@ import {
 } from "@cantiara/api/file-attachments";
 import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
 import type { GitHubIntegrationAccess } from "@cantiara/api/github-integration";
+import type { LinkSharingAccess } from "@cantiara/api/link-sharing";
 import type { MoodboardSnapshotsAccess } from "@cantiara/api/moodboard-snapshot";
 import type { PersonalMoodboardViewsAccess } from "@cantiara/api/moodboard-viewport";
 import type {
@@ -236,6 +237,7 @@ export interface AppDependencies {
     "getStatus" | "requiresFreshConsent"
   >;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
+  linkSharing?: LinkSharingAccess;
   moodboardMutationContracts?: MoodboardMutationContracts;
   moodboardPersonalViews?: PersonalMoodboardViewsAccess;
   moodboardSnapshots?: MoodboardSnapshotsAccess;
@@ -705,6 +707,7 @@ export function createApp(dependencies: AppDependencies) {
       releaseEvidence: dependencies.releaseEvidence,
       projectHistory: dependencies.projectHistory,
       projectUpdates: dependencies.projectUpdates,
+      linkSharing: dependencies.linkSharing,
       projectClosureSummary: dependencies.projectClosureSummary,
       valueChain: dependencies.valueChain,
       trustedProxyIps: dependencies.trustedProxyIps,

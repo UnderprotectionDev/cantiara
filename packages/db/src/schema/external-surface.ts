@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   integer,
   jsonb,
@@ -25,6 +26,11 @@ export const externalSurface = pgTable("external_surface", {
   }),
   cancelledAt: timestamp("cancelled_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  /** Link Sharing only: the shared main record; null for other surfaces. */
+  rootId: text("root_id"),
+  rootKind: text("root_kind"),
+  /** Link Sharing only: `Link-limited share`; null for other surfaces. */
+  surfaceKind: text("surface_kind"),
 });
 
 export const externalSurfaceSnapshotRevision = pgTable(
@@ -37,8 +43,18 @@ export const externalSurfaceSnapshotRevision = pgTable(
     revision: integer("revision").notNull(),
     snapshot: jsonb("snapshot").$type<unknown>().notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
+    /** Link Sharing idempotency: one approval attempt writes one revision. */
+    approvalFingerprint: text("approval_fingerprint"),
+    approvalId: text("approval_id"),
+    /** Link Sharing: the separate `Publish/share anyway` confirmation. */
+    placeholdersAcknowledged: boolean("placeholders_acknowledged")
+      .notNull()
+      .default(false),
   },
   (table) => [
+    uniqueIndex("external_surface_snapshot_revision_approval_uidx").on(
+      table.approvalId,
+    ),
     uniqueIndex("external_surface_snapshot_revision_uidx").on(
       table.surfaceId,
       table.revision,
