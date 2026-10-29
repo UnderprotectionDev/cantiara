@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/useTopLevelRegex: Inline patterns assert one rendered string each.
 import type { Context } from "@cantiara/api/context";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
@@ -8,8 +9,7 @@ import { createMemoryLinkSharing } from "../link-sharing-memory-store";
 
 const ACCOUNT = "account-1";
 const SHARE_PROCEDURE = /share/i;
-const VISITOR_OR_LIFECYCLE =
-  /(visitor|session|password|token|expire|expiry|revoke|reshare|reopen)/i;
+const LIFECYCLE = /(expire|expiry|revoke|reshare|reopen)/i;
 
 const root = { id: "d1", kind: "Document" as const };
 const source: ShareSource = {
@@ -54,18 +54,17 @@ const selection = [
 ];
 
 describe("Link Sharing RPC seam", () => {
-  test("exposes the roots, the preview and the approval only (no visitor, expiry or revoke yet)", () => {
+  test("exposes the roots, the preview, the approval, the password and the token rotation only (no expiry or revoke yet)", () => {
     const procedures = Object.keys(appRouter).filter((name) =>
       SHARE_PROCEDURE.test(name),
     );
     expect(procedures.sort()).toEqual([
       "approveShareScope",
       "previewShareScope",
+      "rotateShareToken",
       "shareRoots",
     ]);
-    expect(procedures.some((name) => VISITOR_OR_LIFECYCLE.test(name))).toBe(
-      false,
-    );
+    expect(procedures.some((name) => LIFECYCLE.test(name))).toBe(false);
   });
 
   test("previews the exact closed world with no Secret and lists the placeholder", async () => {
@@ -133,6 +132,44 @@ describe("Link Sharing RPC seam", () => {
         approvedItemIds: selection.slice(0, 2),
       }),
     ).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
+  test("adds, changes and removes the Link password and rotates the Share token for the owner only", async () => {
+    const { client, harness } = setup();
+    const approved = await client.approveShareScope({
+      approvalId: "a1",
+      approvedItemIds: selection,
+      liveItemIds: [],
+      publishAnyway: true,
+      root,
+    });
+    expect(approved.accessToken).toBeTruthy();
+    const { surfaceId } = approved;
+    const added = await client.setLinkPassword({
+      password: "a long enough pass",
+      surfaceId,
+    });
+    expect(added).toEqual({ passwordProtected: true, surfaceId, token: null });
+    expect(JSON.stringify(added)).not.toContain("scrypt");
+    expect(harness.surfaces[0]?.passwordHash).toMatch(/^scrypt\$/);
+    expect(
+      await client.setLinkPassword({ password: null, surfaceId }),
+    ).toMatchObject({ passwordProtected: false });
+    const rotated = await client.rotateShareToken({ surfaceId });
+    expect(rotated.token).toBeTruthy();
+    expect(rotated.token).not.toBe(approved.accessToken);
+    await expect(
+      client.setLinkPassword({ password: "short", surfaceId }),
+    ).rejects.toBeDefined();
+    await expect(
+      client.setLinkPassword({
+        password: "a long enough pass",
+        surfaceId: "nope",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      setup(false).client.rotateShareToken({ surfaceId }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   test("rejects unknown fields", async () => {

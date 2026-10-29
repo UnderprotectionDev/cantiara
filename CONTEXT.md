@@ -1275,11 +1275,11 @@ Kapalı alan veya kayıt türünden gelen gizli değer; bağlantı parolası, ot
 _Avoid_: Markdown içinde secret tarama, hassaslık etiketi
 
 **Paylaşım token'ı**:
-Dış yüzey erişim anahtarı; tahmin edilemez, iptal edilebilir ve arama indeksine girmez. UI: `Share token`.
+Dış yüzey erişim anahtarı; tahmin edilemez, iptal edilebilir ve arama indeksine girmez; yalnız özeti saklanır, düz metni bağlantı oluşturulurken ya da yenilenirken bir kez gösterilir. UI: `Share token`, `Copy link`, `Rotate link`.
 _Avoid_: Ürün oturumu, entegrasyon token düz metni
 
 **Bağlantı parolası**:
-Bağlantıyla sınırlı paylaşımın isteğe bağlı ortak parolası; geri okunabilir saklanmaz ve arama indeksine girmez. UI: `Link password`.
+Bağlantıyla sınırlı paylaşımın isteğe bağlı ortak parolası; tuzlu, bellek-yoğun bir parola özetiyle saklanır, geri okunabilir değildir, loga ve arama indeksine girmez; eklenmesi, değişmesi veya kalkması açık Paylaşım erişim oturumlarını hemen bitirir. UI: `Link password`, `Add password`, `Change password`, `Remove password`.
 _Avoid_: Hesap parolası, ziyaretçi kimliği
 
 ## Test yönetimi

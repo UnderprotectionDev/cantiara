@@ -10,8 +10,9 @@ import { z } from "zod";
  * Nothing is inherited: the preview lists only the chosen root, the members a
  * collection root names, and the parts of those records (fields, versions,
  * attachments, embeds, relations, view metadata). A `Secret`, a share token
- * and a link password are never an item. This slice mints no token, password,
- * visitor session, expiry or revoke (#483, #484).
+ * and a link password are never an item. #483 adds the Share token (minted
+ * with a new surface, stored only as a hash), the optional Link password and
+ * the visitor Paylaşım erişim oturumu; expiry and revoke are #484.
  */
 
 export const SHARE_LABEL = "Share";
@@ -22,6 +23,17 @@ export const APPROVED_SNAPSHOT_LABEL = "Approved snapshot";
 export const LIVE_LABEL = "Live";
 export const SOME_FIELDS_LIVE_LABEL = "Some fields live";
 export const LAST_APPROVED_LABEL = "Last scope approval";
+export const SHARE_TOKEN_LABEL = "Share token";
+export const LINK_PASSWORD_LABEL = "Link password";
+export const LIVE_EXTERNAL_SOURCE_LABEL = "Live external source";
+
+/** A Paylaşım erişim oturumu ends 12 hours after creation; activity never extends it. */
+export const SHARE_VISITOR_SESSION_LIFETIME_MS = 12 * 60 * 60 * 1000;
+/** Link password bounds: long enough to resist guessing, bounded for hashing cost. */
+export const LINK_PASSWORD_MIN_LENGTH = 8;
+export const LINK_PASSWORD_MAX_LENGTH = 200;
+/** The visitor entry path; the share token is the only path segment. */
+export const SHARE_VISITOR_LINK_PATH = "/s";
 
 /** Main records a founder can pick as the root of a link share. */
 export const LINK_SHARING_ROOT_KINDS = [
@@ -175,6 +187,8 @@ export const shareSurfaceSummarySchema = z.object({
   /** `Approved snapshot` or `Some fields live`; never a blanket `Current`. */
   label: z.enum([APPROVED_SNAPSHOT_LABEL, SOME_FIELDS_LIVE_LABEL, LIVE_LABEL]),
   lastApprovedAt: z.string(),
+  /** Whether a Link password gates the surface; never the password itself. */
+  passwordProtected: z.boolean(),
   revision: z.number().int().positive(),
   surfaceId: z.string(),
 });
@@ -240,12 +254,44 @@ export const shareRootSummarySchema = z.object({
 export type ShareRootSummary = z.infer<typeof shareRootSummarySchema>;
 
 export const approvedShareSchema = z.object({
+  /**
+   * The Share token, returned once when the approval creates the surface.
+   * Only its hash is stored, so a replay returns `null`; rotate to get a new one.
+   */
+  accessToken: z.string().nullable(),
   label: shareSurfaceSummarySchema.shape.label,
   lastApprovedAt: z.string(),
+  passwordProtected: z.boolean(),
   revision: z.number().int().positive(),
   surfaceId: z.string(),
 });
 export type ApprovedShare = z.infer<typeof approvedShareSchema>;
+
+/** Add, change (a string) or remove (`null`) the optional Link password. */
+export const setLinkPasswordInputSchema = z
+  .object({
+    password: z
+      .string()
+      .min(LINK_PASSWORD_MIN_LENGTH)
+      .max(LINK_PASSWORD_MAX_LENGTH)
+      .nullable(),
+    surfaceId: identifier,
+  })
+  .strict();
+export type SetLinkPasswordInput = z.infer<typeof setLinkPasswordInputSchema>;
+
+export const rotateShareTokenInputSchema = z
+  .object({ surfaceId: identifier })
+  .strict();
+export type RotateShareTokenInput = z.infer<typeof rotateShareTokenInputSchema>;
+
+export const shareAccessSchema = z.object({
+  passwordProtected: z.boolean(),
+  surfaceId: z.string(),
+  /** Only a rotation returns a token, once. */
+  token: z.string().nullable(),
+});
+export type ShareAccess = z.infer<typeof shareAccessSchema>;
 
 /** The frozen content manifest an Approved snapshot revision stores. */
 export const SHARE_MANIFEST_FORMAT = "cantiara.link-share-manifest";
@@ -316,4 +362,14 @@ export interface LinkSharingAccess {
     accountId: string,
     projectId: string,
   ) => Promise<ShareRootSummary[] | null>;
+  /** New token for the surface; every visitor session ends. `null` when not the account's. */
+  rotateToken: (
+    accountId: string,
+    input: RotateShareTokenInput,
+  ) => Promise<ShareAccess | null>;
+  /** Adds, changes or removes the Link password; every visitor session ends. */
+  setPassword: (
+    accountId: string,
+    input: SetLinkPasswordInput,
+  ) => Promise<ShareAccess | null>;
 }

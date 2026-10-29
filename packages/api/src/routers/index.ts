@@ -244,6 +244,8 @@ import {
   LinkSharingPlaceholdersError,
   LinkSharingScopeError,
   previewShareScopeInputSchema,
+  rotateShareTokenInputSchema,
+  setLinkPasswordInputSchema,
   shareRootsInputSchema,
 } from "../link-sharing";
 import {
@@ -4677,6 +4679,30 @@ export const appRouter = {
         requireLinkSharing(context).approve(context.session.user.id, input),
       ),
     ),
+  setLinkPassword: protectedProcedure
+    .input(setLinkPasswordInputSchema)
+    .handler(async ({ context, input }) => {
+      const access = await requireLinkSharing(context).setPassword(
+        context.session.user.id,
+        input,
+      );
+      if (!access) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return access;
+    }),
+  rotateShareToken: protectedProcedure
+    .input(rotateShareTokenInputSchema)
+    .handler(async ({ context, input }) => {
+      const access = await requireLinkSharing(context).rotateToken(
+        context.session.user.id,
+        input,
+      );
+      if (!access) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return access;
+    }),
   projectUpdates: protectedProcedure
     .input(projectUpdatesInputSchema)
     .handler(async ({ context, input }) => {

@@ -67,6 +67,7 @@ describe("Share scope form", () => {
     const surface = {
       label: "Some fields live" as const,
       lastApprovedAt: "2026-01-01T00:00:00.000Z",
+      passwordProtected: false,
       revision: 2,
       surfaceId: "surf",
     };

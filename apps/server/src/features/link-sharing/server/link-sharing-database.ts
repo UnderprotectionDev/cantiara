@@ -43,9 +43,10 @@ import {
   technicalDiagram,
 } from "@cantiara/db/schema/technical-diagram";
 import { work } from "@cantiara/db/schema/work";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   createLinkSharing,
+  type LinkSharingSecurityEvents,
   type LinkSharingStore,
   type ShareSource,
   type ShareSourceField,
@@ -960,6 +961,7 @@ function createStore(database: Database): LinkSharingStore {
     const [row] = await database
       .select({
         fingerprint: externalSurfaceSnapshotRevision.approvalFingerprint,
+        passwordHash: externalSurface.passwordHash,
         revision: externalSurfaceSnapshotRevision.revision,
         snapshot: externalSurfaceSnapshotRevision.snapshot,
         surfaceId: externalSurfaceSnapshotRevision.surfaceId,
@@ -982,8 +984,10 @@ function createStore(database: Database): LinkSharingStore {
       return null;
     }
     const result: ApprovedShare = {
+      accessToken: null,
       label: manifest.label,
       lastApprovedAt: manifest.approvedAt,
+      passwordProtected: row.passwordHash !== null,
       revision: row.revision,
       surfaceId: row.surfaceId,
     };
@@ -998,9 +1002,13 @@ function createStore(database: Database): LinkSharingStore {
       }
       return database.transaction(async (executor) => {
         let { surfaceId } = commit;
+        let passwordProtected = false;
         if (surfaceId) {
           const [existing] = await executor
-            .select({ id: externalSurface.id })
+            .select({
+              id: externalSurface.id,
+              passwordHash: externalSurface.passwordHash,
+            })
             .from(externalSurface)
             .where(
               and(
@@ -1016,6 +1024,7 @@ function createStore(database: Database): LinkSharingStore {
           if (!existing) {
             return null;
           }
+          passwordProtected = existing.passwordHash !== null;
         } else {
           surfaceId = commit.newSurfaceId;
           await executor.insert(externalSurface).values({
@@ -1025,6 +1034,7 @@ function createStore(database: Database): LinkSharingStore {
             rootId: commit.root.id,
             rootKind: commit.root.kind,
             surfaceKind: SURFACE_KIND,
+            tokenHash: commit.tokenHash,
             workspaceId: owned.workspaceId,
           });
         }
@@ -1060,8 +1070,10 @@ function createStore(database: Database): LinkSharingStore {
           return replay?.result ?? null;
         }
         return {
+          accessToken: null,
           label: commit.manifest.label,
           lastApprovedAt: commit.manifest.approvedAt,
+          passwordProtected,
           revision,
           surfaceId,
         };
@@ -1103,9 +1115,55 @@ function createStore(database: Database): LinkSharingStore {
       return loaded;
     },
 
+    async updateAccess(accountId, surfaceId, patch) {
+      const [owned] = await database
+        .select({ id: externalSurface.id })
+        .from(externalSurface)
+        .innerJoin(workspace, eq(workspace.id, externalSurface.workspaceId))
+        .where(
+          and(
+            eq(externalSurface.id, surfaceId),
+            eq(externalSurface.surfaceKind, SURFACE_KIND),
+            eq(workspace.ownerAccountId, accountId),
+            isNull(externalSurface.cancelledAt),
+          ),
+        )
+        .limit(1);
+      if (!owned) {
+        return null;
+      }
+      // One statement: the new hash and the bumped epoch land together, so
+      // every Paylaşım erişim oturumu minted before it stops authorizing.
+      const [changed] = await database
+        .update(externalSurface)
+        .set({
+          accessEpoch: sql`${externalSurface.accessEpoch} + 1`,
+          ...(patch.passwordHash === undefined
+            ? {}
+            : { passwordHash: patch.passwordHash }),
+          ...(patch.tokenHash === undefined
+            ? {}
+            : { tokenHash: patch.tokenHash }),
+        })
+        .where(eq(externalSurface.id, surfaceId))
+        .returning({
+          accessEpoch: externalSurface.accessEpoch,
+          passwordHash: externalSurface.passwordHash,
+        });
+      return changed
+        ? {
+            accessEpoch: changed.accessEpoch,
+            passwordProtected: changed.passwordHash !== null,
+          }
+        : null;
+    },
+
     async surface(accountId, root, surfaceId) {
       const [row] = await database
-        .select({ id: externalSurface.id })
+        .select({
+          id: externalSurface.id,
+          passwordHash: externalSurface.passwordHash,
+        })
         .from(externalSurface)
         .innerJoin(workspace, eq(workspace.id, externalSurface.workspaceId))
         .where(
@@ -1134,6 +1192,7 @@ function createStore(database: Database): LinkSharingStore {
         ? ({
             approvedAt: manifest.approvedAt,
             manifest,
+            passwordProtected: row.passwordHash !== null,
             revision: revision.revision,
             surfaceId: row.id,
           } satisfies StoredShareSurface)
@@ -1144,6 +1203,7 @@ function createStore(database: Database): LinkSharingStore {
 
 export function createDatabaseLinkSharing(
   database: Database,
+  options: { events?: LinkSharingSecurityEvents } = {},
 ): LinkSharingAccess {
-  return createLinkSharing(createStore(database));
+  return createLinkSharing(createStore(database), options);
 }

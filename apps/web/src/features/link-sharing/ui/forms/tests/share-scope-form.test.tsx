@@ -113,6 +113,35 @@ describe("Approve scope form", () => {
     );
   });
 
+  test("a YouTube embed in the preview loads only after a click and sends no request on open", () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    mount(
+      basePreview({
+        items: [
+          ...basePreview().items,
+          item({
+            itemId: "part:Work:w1:embed",
+            kind: "Embed",
+            label: "YouTube (Live external source, loads on click)",
+            value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          }),
+        ],
+      }),
+      vi.fn<Submit>(async () => undefined),
+    );
+    expect(host?.textContent).toContain("Live external source");
+    expect(host?.querySelector("button")?.textContent).toBeDefined();
+    expect(
+      [...(host?.querySelectorAll("button") ?? [])].some(
+        (button) => button.textContent === "Load YouTube",
+      ),
+    ).toBe(true);
+    expect(host?.querySelector("iframe")).toBeNull();
+    expect(document.querySelector('script[src*="youtube"]')).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
   test("offers Live only on an allow-listed field and sends the explicit selection", async () => {
     const onSubmit = vi.fn<Submit>(async () => undefined);
     mount(basePreview(), onSubmit);

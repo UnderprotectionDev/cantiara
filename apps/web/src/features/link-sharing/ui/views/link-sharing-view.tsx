@@ -11,6 +11,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import type { ComponentProps } from "react";
+import { ShareAccessPanel } from "../components/share-access-panel";
 import { ShareScopeStatus } from "../components/share-scope-status";
 import {
   ShareScopeForm,
@@ -19,9 +21,10 @@ import {
 
 /**
  * Share: pick one main record, read the exact closed world that would leave,
- * then approve it. A visitor link, password, expiry and revoke are not here.
+ * then approve it.
  */
 export function LinkSharingView({
+  access,
   formatting,
   onApprove,
   onSelectRoot,
@@ -31,6 +34,7 @@ export function LinkSharingView({
   roots,
   selectedKey,
 }: {
+  access: Omit<ComponentProps<typeof ShareAccessPanel>, "passwordProtected">;
   formatting: AccountPreferences;
   onApprove: (values: ShareScopeFormSubmit) => Promise<unknown>;
   onSelectRoot: (key: string) => void;
@@ -77,6 +81,12 @@ export function LinkSharingView({
           {preview ? (
             <>
               <ShareScopeStatus formatting={formatting} preview={preview} />
+              {preview.surface ? (
+                <ShareAccessPanel
+                  {...access}
+                  passwordProtected={preview.surface.passwordProtected}
+                />
+              ) : null}
               <ShareScopeForm
                 key={`${preview.root.kind}:${preview.root.id}:${preview.surface?.revision ?? 0}`}
                 onSubmit={onApprove}

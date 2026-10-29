@@ -7,6 +7,7 @@ import {
   type ShareItem,
   type ShareScopePreview,
 } from "@cantiara/api/link-sharing";
+import { youtubeVideoId } from "@cantiara/api/link-sharing-rules";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
@@ -15,6 +16,7 @@ import {
 } from "@cantiara/ui/components/radio-group";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
+import { YouTubePreviewPlayer } from "@/components/youtube-preview-player";
 import {
   defaultShareScopeDraft,
   groupsNeedingChoice,
@@ -275,6 +277,12 @@ function ShareItemRow({
       </label>
       {note ? (
         <p className="ml-6 text-muted-foreground text-xs">{note}</p>
+      ) : null}
+      {item.kind === "Embed" && youtubeVideoId(item.value) ? (
+        <div className="ml-6">
+          {/* Click-to-load, as for a visitor: nothing is requested on open. */}
+          <YouTubePreviewPlayer videoId={youtubeVideoId(item.value) ?? ""} />
+        </div>
       ) : null}
       {item.liveEligible && checked ? (
         <label

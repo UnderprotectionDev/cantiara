@@ -401,7 +401,10 @@ describe("Link Sharing approval", () => {
       root,
     };
     const first = await access.approve(ACCOUNT, base);
-    expect(await access.approve(ACCOUNT, base)).toEqual(first);
+    expect(await access.approve(ACCOUNT, base)).toEqual({
+      ...first,
+      accessToken: null,
+    });
     expect(harness.revisions).toHaveLength(1);
     await expect(
       access.approve(ACCOUNT, {

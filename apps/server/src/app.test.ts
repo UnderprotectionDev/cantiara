@@ -20,6 +20,9 @@ import { createApp } from "./app";
 import { createGitHubAvailability } from "./features/account-access/server/github-availability";
 import type { GitHubIdentityConfirmation } from "./features/account-access/server/github-identity-confirmation";
 import type { TauriSessionAccess } from "./features/account-access/server/tauri-session";
+import { createLinkSharing } from "./features/link-sharing/server/link-sharing";
+import { createMemoryLinkSharing } from "./features/link-sharing/server/link-sharing-memory-store";
+import { createLinkSharingVisitor } from "./features/link-sharing/server/link-sharing-visitor";
 
 const authConfig = {
   BETTER_AUTH_URL: "https://api.cantiara.example",
@@ -56,6 +59,7 @@ function createTestApp(
     fileAttachments?: FileAttachmentAccess;
     githubAvailability?: AppDependencies["githubAvailability"];
     githubIdentityConfirmation?: GitHubIdentityConfirmation;
+    linkSharingVisitor?: AppDependencies["linkSharingVisitor"];
     onGitHubLoginOAuthRevoked?: () => void;
     onRevokeSession?: (sessionId: string) => void;
     tauriSessionAccess?: TauriSessionAccess;
@@ -122,6 +126,7 @@ function createTestApp(
     fileAttachments: options.fileAttachments,
     githubAvailability: options.githubAvailability ?? availableGitHub,
     githubIdentityConfirmation: options.githubIdentityConfirmation,
+    linkSharingVisitor: options.linkSharingVisitor,
     nodeEnv: "test",
     redactSecrets: (value) => value,
     tauriSessionAccess: options.tauriSessionAccess,
@@ -1861,5 +1866,117 @@ describe("server app Account Access boundary", () => {
     await expect(response.json()).resolves.toEqual({
       json: { status: "waiting" },
     });
+  });
+});
+
+describe("server app Link Sharing visitor boundary", () => {
+  const FOUNDER_COOKIE = "__Secure-better-auth.session_token=founder-session";
+  const source = {
+    blockers: [],
+    members: [],
+    projectId: "project-1",
+    record: {
+      fields: [
+        { key: "body", kind: "markdown" as const, label: "Body", value: "Hi" },
+      ],
+      id: "d1",
+      kind: "Document",
+      parts: [],
+      title: "Plan",
+    },
+  };
+
+  async function shared() {
+    const root = { id: "d1", kind: "Document" as const };
+    const harness = createMemoryLinkSharing({
+      accountId: "account-1",
+      sources: [{ root, source }],
+    });
+    const founderAccess = createLinkSharing(harness.store);
+    const approved = await founderAccess.approve("account-1", {
+      approvalId: "approval-1",
+      approvedItemIds: [
+        "record:Document:d1",
+        "field:Document:d1:title",
+        "field:Document:d1:body",
+      ],
+      liveItemIds: [],
+      publishAnyway: false,
+      root,
+    });
+    const visitor = createLinkSharingVisitor(harness.visitorStore, {
+      rateSecret: "rate-secret-for-tests",
+    });
+    // Only a Better Auth cookie is a Hesap oturumu.
+    const auth = {
+      api: {
+        getSession: async ({ headers }: { headers: Headers }) =>
+          (headers.get("cookie") ?? "").includes("better-auth.session_token")
+            ? { session: { id: "founder-session" }, user: { id: "account-1" } }
+            : null,
+      },
+      handler: async () => Response.json({}),
+    } as unknown as AppDependencies["auth"];
+    const { app } = createTestApp({
+      auth,
+      authorized: true,
+      linkSharingVisitor: visitor,
+    });
+    return { app, approved };
+  }
+
+  test("a visitor session cookie opens the surface but is no Hesap oturumu for the palette, search or Workspace writes", async () => {
+    const { app, approved } = await shared();
+    const exchange = await app.fetch(
+      new Request(`https://api.cantiara.example/s/${approved?.accessToken}`),
+    );
+    expect(exchange.status).toBe(303);
+    const visitorCookie =
+      (exchange.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+    expect(visitorCookie).toContain("__Secure-cantiara-share=");
+    const page = await app.fetch(
+      new Request(
+        `https://api.cantiara.example/shared/${approved?.surfaceId}`,
+        { headers: { cookie: visitorCookie } },
+      ),
+    );
+    expect(page.status).toBe(200);
+
+    const procedures = [
+      "searchRecords",
+      "addPaletteGroup",
+      "createWorkTemplate",
+      "approveShareScope",
+      "setLinkPassword",
+    ];
+    const responses = await Promise.all(
+      procedures.map((procedure) =>
+        app.fetch(
+          new Request(`https://api.cantiara.example/rpc/${procedure}`, {
+            body: JSON.stringify({ json: {} }),
+            headers: {
+              "content-type": "application/json",
+              cookie: visitorCookie,
+              origin: "https://cantiara.example",
+            },
+            method: "POST",
+          }),
+        ),
+      ),
+    );
+    expect(responses.map((response) => response.status)).toEqual(
+      procedures.map(() => 401),
+    );
+  });
+
+  test("a founder Better Auth cookie does not open the clean URL", async () => {
+    const { app, approved } = await shared();
+    const response = await app.fetch(
+      new Request(
+        `https://api.cantiara.example/shared/${approved?.surfaceId}`,
+        { headers: { cookie: FOUNDER_COOKIE } },
+      ),
+    );
+    expect(response.status).toBe(404);
   });
 });

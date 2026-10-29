@@ -146,6 +146,7 @@ import {
   requestClientPlatform,
 } from "./context";
 import { isRecoverableAuthPath } from "./features/account-access/server/auth-recovery-path";
+import { requestClientIp } from "./features/account-access/server/client-ip";
 import { createCsrfProtectionMiddleware } from "./features/account-access/server/csrf-protection";
 import { addFreshGitHubConsent } from "./features/account-access/server/fresh-github-consent";
 import type { GitHubAvailability } from "./features/account-access/server/github-availability";
@@ -186,6 +187,8 @@ import {
   GITHUB_WEBHOOK_PATH,
   handleGitHubWebhook,
 } from "./features/github-integration/server/github-webhook-route";
+import { createLinkSharingVisitorRoutes } from "./features/link-sharing/server/link-sharing-http";
+import type { LinkSharingVisitorAccess } from "./features/link-sharing/server/link-sharing-visitor";
 import { youtubePlayerRoutes } from "./features/sources-and-freshness/server/youtube-player-page";
 import {
   decorateAndRecordSupportFailure,
@@ -238,6 +241,7 @@ export interface AppDependencies {
   >;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   linkSharing?: LinkSharingAccess;
+  linkSharingVisitor?: LinkSharingVisitorAccess;
   moodboardMutationContracts?: MoodboardMutationContracts;
   moodboardPersonalViews?: PersonalMoodboardViewsAccess;
   moodboardSnapshots?: MoodboardSnapshotsAccess;
@@ -335,6 +339,18 @@ export function createApp(dependencies: AppDependencies) {
   ];
   const app = new Hono<EvlogVariables>();
   app.route("/smart-link/youtube", youtubePlayerRoutes);
+  // Visitor pages sit before the Better Auth identity, CORS and CSRF layers: a
+  // Paylaşım erişim oturumu is not a Hesap oturumu and reads no account cookie.
+  if (dependencies.linkSharingVisitor) {
+    app.route(
+      "/",
+      createLinkSharingVisitorRoutes({
+        networkOf: (request, context) =>
+          requestClientIp(request, context, dependencies.trustedProxyIps),
+        visitor: dependencies.linkSharingVisitor,
+      }),
+    );
+  }
 
   app.use("*", async (c, next) => {
     c.req.raw.headers.delete("x-request-id");
