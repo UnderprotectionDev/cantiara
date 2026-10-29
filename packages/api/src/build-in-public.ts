@@ -9,8 +9,10 @@ const identifierSchema = z.string().trim().min(1).max(255);
 export const BUILD_IN_PUBLIC_UI_LABELS = {
   buildInPublic: "Build in Public",
   completed: "Completed",
+  developmentFeed: "Development feed",
   disableIndexing: "Disable indexing",
   enableIndexing: "Enable indexing",
+  explainTheChange: "Explain the change",
   inProgress: "In Progress",
   liveExternalSource: "Live external source",
   openSourceRecord: "Open source record",
@@ -358,10 +360,18 @@ export interface BuildInPublicPreview {
   metadata: BuildInPublicMetadata;
   notice: string;
   placeholders: BuildInPublicPlaceholderFinding[];
+  /**
+   * What a visitor would read differently once everything approvable is
+   * approved, as exact previous and new public values. Non-empty means the
+   * optional `Explain the change` is offered; the product never writes the text.
+   */
+  planChanges: BuildInPublicPlanChange[];
   projectId: string;
   /** The preview writes nothing and creates no surface or revision. */
   written: false;
 }
+
+export const MAX_EXPLANATION_LENGTH = 600;
 
 const surfaceCopySchema = z
   .object({
@@ -399,6 +409,17 @@ export const approveBuildInPublicInputSchema = humanMutationEnvelopeSchema
             recordId: identifierSchema,
           })
           .strict()
+          .nullable()
+          .optional(),
+        /**
+         * Optional founder-written note bound to this publish event. Empty or
+         * omitted means none; accepted only when the publish changes a label,
+         * a shown date or Roadmap membership.
+         */
+        explanation: z
+          .string()
+          .trim()
+          .max(MAX_EXPLANATION_LENGTH)
           .nullable()
           .optional(),
         fingerprint: z.string().trim().min(1).max(200),
@@ -477,10 +498,59 @@ export interface BuildInPublicSnapshotMember {
   wall?: BuildInPublicSnapshotWall;
 }
 
+export const PLAN_CHANGE_KINDS = [
+  "Entered Roadmap",
+  "Left Roadmap",
+  "Label changed",
+  "Date changed",
+] as const;
+export type BuildInPublicPlanChangeKind = (typeof PLAN_CHANGE_KINDS)[number];
+
+/** A difference in what a visitor reads of the plan; public values only. */
+export interface BuildInPublicPlanChange {
+  /** Exact previous public value; null when nothing was shown. */
+  from: string | null;
+  kind: BuildInPublicPlanChangeKind;
+  /** Opaque (`work-1`); never a source id. */
+  memberId: string;
+  /** The public title, never the internal one. */
+  title: string;
+  /** Exact new public value; null when nothing is shown any more. */
+  to: string | null;
+}
+
+/** One entry of the public development feed: an approved change of one publish event. */
+export interface BuildInPublicFeedChange {
+  /** Record changelog date, when it has one. */
+  date?: string | null;
+  /** Plan changes carry exact public values; a record carries its kind and date. */
+  from: string | null;
+  kind: BuildInPublicPlanChangeKind | "Record published";
+  memberId: string;
+  recordKind?: BuildInPublicMemberKind;
+  title: string;
+  to: string | null;
+}
+
+/**
+ * One founder-approved publish event. Stored in the snapshot itself, so the
+ * feed is a projection of the same approved revision as Roadmap, changelog and
+ * Proje view; the founder's note is bound to this event and is never generated.
+ */
+export interface BuildInPublicFeedEvent {
+  changes: BuildInPublicFeedChange[];
+  /** Opaque (`event-1`). */
+  eventId: string;
+  explanation: string | null;
+  publishedAt: string;
+}
+
 export interface BuildInPublicSnapshot {
   approvedAt: string;
   /** At most one approved Proje Sürümü or Karar; off unless the founder set it. */
   featured?: { endsAt: string; memberId: string } | null;
+  /** Approved publish events, oldest first. Absent in revisions approved before the feed existed. */
+  feed?: BuildInPublicFeedEvent[];
   kind: "Build in Public";
   /** Absent in revisions approved before the Proje view existed. */
   members?: BuildInPublicSnapshotMember[];
@@ -498,6 +568,7 @@ export interface ApprovedBuildInPublic {
 
 export const BUILD_IN_PUBLIC_ERROR_CODES = [
   "BUILD_IN_PUBLIC_DISABLED",
+  "BUILD_IN_PUBLIC_EXPLANATION_UNAVAILABLE",
   "BUILD_IN_PUBLIC_FEATURED_INVALID",
   "BUILD_IN_PUBLIC_INDEXING_UNACKNOWLEDGED",
   "BUILD_IN_PUBLIC_LABEL_REQUIRED",
@@ -517,6 +588,8 @@ export const BUILD_IN_PUBLIC_ERROR_MESSAGES: Record<
   string
 > = {
   BUILD_IN_PUBLIC_DISABLED: "Enable Build in Public for this Project first.",
+  BUILD_IN_PUBLIC_EXPLANATION_UNAVAILABLE:
+    "Explain the change is offered only when this publish changes a label, a shown date or Roadmap membership.",
   BUILD_IN_PUBLIC_FEATURED_INVALID:
     "Feature one approved Project Release or Decision, and set an end time in the future.",
   BUILD_IN_PUBLIC_INDEXING_UNACKNOWLEDGED:
@@ -624,4 +697,112 @@ export function unresolvedPlaceholders(text: string) {
       .trim(),
     name,
   }));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Development feed                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What changes in the visitor's reading of the plan between two approved
+ * Roadmaps. Pure: it compares the public snapshot values of both sides and
+ * reads nothing internal.
+ */
+export function planChangesBetween(
+  previous: readonly BuildInPublicSnapshotWork[],
+  next: readonly BuildInPublicSnapshotWork[],
+): BuildInPublicPlanChange[] {
+  const before = new Map(previous.map((work) => [work.sourceWorkId, work]));
+  const after = new Set(next.map((work) => work.sourceWorkId));
+  const changes: BuildInPublicPlanChange[] = [];
+  for (const work of next) {
+    const old = before.get(work.sourceWorkId);
+    if (!old) {
+      changes.push({
+        from: null,
+        kind: "Entered Roadmap",
+        memberId: work.memberId,
+        title: work.title,
+        to: work.publicStatusLabel,
+      });
+      continue;
+    }
+    if (old.publicStatusLabel !== work.publicStatusLabel) {
+      changes.push({
+        from: old.publicStatusLabel,
+        kind: "Label changed",
+        memberId: work.memberId,
+        title: work.title,
+        to: work.publicStatusLabel,
+      });
+    }
+    if ((old.dueLabel ?? null) !== (work.dueLabel ?? null)) {
+      changes.push({
+        from: old.dueLabel ?? null,
+        kind: "Date changed",
+        memberId: work.memberId,
+        title: work.title,
+        to: work.dueLabel ?? null,
+      });
+    }
+  }
+  for (const old of previous) {
+    if (!after.has(old.sourceWorkId)) {
+      changes.push({
+        from: old.publicStatusLabel,
+        kind: "Left Roadmap",
+        memberId: old.memberId,
+        title: old.title,
+        to: null,
+      });
+    }
+  }
+  return changes;
+}
+
+/**
+ * The publish event of one approval, or null when it changed nothing a visitor
+ * can read. Only approved snapshot values enter it: plan changes against the
+ * previous approved Roadmap (none on a first publish, so the Roadmap is not
+ * dumped) and records that are newly approved. Nothing is read from the
+ * Workspace, and no sentence is generated.
+ */
+export function feedEventOf(input: {
+  approvedAt: string;
+  eventNumber: number;
+  explanation: string | null;
+  members: readonly BuildInPublicSnapshotMember[];
+  previous: BuildInPublicSnapshot | undefined;
+  roadmap: readonly BuildInPublicSnapshotWork[];
+}): BuildInPublicFeedEvent | null {
+  const known = new Set(
+    (input.previous?.members ?? []).map((member) => member.sourceRecordId),
+  );
+  const changes: BuildInPublicFeedChange[] = [
+    ...(input.previous
+      ? planChangesBetween(input.previous.roadmap, input.roadmap)
+      : []),
+    ...input.members
+      .filter((member) => !known.has(member.sourceRecordId))
+      .map(
+        (member): BuildInPublicFeedChange => ({
+          date: member.date,
+          from: null,
+          kind: "Record published",
+          memberId: member.memberId,
+          recordKind: member.kind,
+          title: member.title,
+          to: null,
+        }),
+      ),
+  ];
+  if (changes.length === 0) {
+    return null;
+  }
+  return {
+    changes,
+    eventId: `event-${input.eventNumber}`,
+    explanation: input.explanation,
+    publishedAt: input.approvedAt,
+  };
 }

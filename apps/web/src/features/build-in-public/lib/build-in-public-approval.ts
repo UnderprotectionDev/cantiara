@@ -111,7 +111,11 @@ export function buildApproval(
   approved: ReadonlySet<string>,
   publishAnyway: boolean,
   featured?: { endsAt: string; recordId: string } | null,
+  explanation?: string,
 ): ApproveBuildInPublicInput["approval"] {
+  // The note is the founder's own text; it is sent only when the plan reading changes and text exists.
+  const note =
+    preview.planChanges.length > 0 ? explanation?.trim() || null : null;
   const { summary, title, changelogIndex, roadmapIndex } = preview.metadata;
   const hasMetadata = title || summary || changelogIndex || roadmapIndex;
   return {
@@ -120,6 +124,7 @@ export function buildApproval(
       .map((item) => item.id),
     // Omitted keeps the earlier choice; the founder clears it with null.
     ...(featured === undefined ? {} : { featured }),
+    ...(note ? { explanation: note } : {}),
     fingerprint: preview.fingerprint,
     ...(hasMetadata ? { metadata: preview.metadata } : {}),
     publishAnyway,

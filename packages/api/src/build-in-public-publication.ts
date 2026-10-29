@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type {
+  BuildInPublicFeedEvent,
   BuildInPublicMetadata,
   BuildInPublicSnapshot,
   BuildInPublicSnapshotMember,
@@ -16,6 +17,7 @@ const identifierSchema = z.string().trim().min(1).max(255);
 export const BUILD_IN_PUBLIC_RESERVED_SLUGS = [
   "assets",
   "changelog",
+  "feed",
   "roadmap",
 ] as const;
 
@@ -42,7 +44,7 @@ export function defaultBuildInPublicSlug(title: string | null | undefined) {
     : slug;
 }
 
-export type BuildInPublicView = "changelog" | "project" | "roadmap";
+export type BuildInPublicView = "changelog" | "feed" | "project" | "roadmap";
 
 /** Canonical public path of one view; the surface id is random and never reused. */
 export function buildInPublicPath(
@@ -153,6 +155,11 @@ export interface BuildInPublicViews {
     copy: BuildInPublicSurfaceCopy;
     entries: BuildInPublicChangelogEntry[];
   };
+  feed: {
+    copy: BuildInPublicSurfaceCopy;
+    /** Newest first; only events the founder approved. */
+    events: BuildInPublicFeedEvent[];
+  };
   project: {
     copy: BuildInPublicSurfaceCopy;
     /** Set only while the founder's window is open. */
@@ -230,6 +237,10 @@ export function buildInPublicViews(
             null,
           title: member.title,
         })),
+    },
+    feed: {
+      copy: copyOf(undefined, "Development feed"),
+      events: [...(snapshot.feed ?? [])].reverse(),
     },
     project: {
       copy: copyOf(metadata, "Build in Public"),

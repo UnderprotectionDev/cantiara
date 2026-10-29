@@ -316,6 +316,7 @@ export async function previewOf(
 export async function approveItems(
   fixtures: Fixtures,
   options: {
+    explanation?: string | null;
     featured?: { endsAt: string; recordId: string } | null;
     keep?: (item: { id: string; kind: string }) => boolean;
     metadata?: Parameters<Fixtures["access"]["preview"]>[1]["metadata"];
@@ -328,6 +329,7 @@ export async function approveItems(
   const approved = await fixtures.access.approve(ACCOUNT_ID, {
     approval: {
       approvedItemIds: preview.items.filter(keep).map((item) => item.id),
+      explanation: options.explanation,
       featured: options.featured,
       fingerprint: preview.fingerprint,
       ...(options.metadata ? { metadata: options.metadata } : {}),

@@ -219,6 +219,9 @@ export function createBuildInPublicRoutes(options: {
       "roadmap",
     ),
   );
+  app.get("/:surfaceId/:slug/feed", (c) =>
+    servePage(c.req.raw, c.req.param("surfaceId"), c.req.param("slug"), "feed"),
+  );
   app.get("/:surfaceId/:slug/changelog", (c) =>
     servePage(
       c.req.raw,

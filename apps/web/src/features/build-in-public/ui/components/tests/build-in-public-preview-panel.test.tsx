@@ -85,6 +85,7 @@ const preview: BuildInPublicPreview = {
       sourceRecord: { id: "a", title: "Faster board", type: "Work" },
     },
   ],
+  planChanges: [],
   projectId: "project-1",
   written: false,
 };
