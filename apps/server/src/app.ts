@@ -8,6 +8,7 @@ import type {
   BacklogAccess,
   BacklogMutationContracts,
 } from "@cantiara/api/backlog";
+import type { BuildInPublicAccess } from "@cantiara/api/build-in-public";
 import type { CaptureInboxAccess } from "@cantiara/api/capture-triage";
 import type {
   CompletionEffectsPreferences,
@@ -216,6 +217,8 @@ export interface AppDependencies {
   auth: AccountAccessAuth;
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
+  buildInPublic?: BuildInPublicAccess;
+  buildInPublicPages?: Hono;
   captureInbox?: CaptureInboxAccess;
   completionEffectsPreferences?: CompletionEffectsPreferencesAccess;
   completionEffectsPreferencesMutationContract?: MutationContract<CompletionEffectsPreferences>;
@@ -363,6 +366,9 @@ export function createApp(dependencies: AppDependencies) {
   // visitor has no Account and the shared access module authorizes each request.
   if (dependencies.wikiPublicPages) {
     app.route("/w", dependencies.wikiPublicPages);
+  }
+  if (dependencies.buildInPublicPages) {
+    app.route("/b", dependencies.buildInPublicPages);
   }
 
   app.use("*", async (c, next) => {
@@ -747,6 +753,7 @@ export function createApp(dependencies: AppDependencies) {
       workDrafts: dependencies.workDrafts,
       workTemplates: dependencies.workTemplates,
       workLifecycle: dependencies.workLifecycle,
+      buildInPublic: dependencies.buildInPublic,
       externalSurfaceManagement: dependencies.externalSurfaceManagement,
       wikiPublishing: dependencies.wikiPublishing,
       workspaceOverview: dependencies.workspaceOverview,

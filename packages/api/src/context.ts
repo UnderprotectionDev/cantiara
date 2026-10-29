@@ -9,6 +9,7 @@ import type {
 import type { AttentionSignalsAccess } from "./attention-signals";
 import type { PublicRoadmapReviewAccess } from "./attention-signals-public-roadmap";
 import type { BacklogAccess, BacklogMutationContracts } from "./backlog";
+import type { BuildInPublicAccess } from "./build-in-public";
 import type { CaptureInboxAccess } from "./capture-triage";
 import type {
   CompletionEffectsPreferences,
@@ -194,6 +195,7 @@ export interface Context {
   auth: null;
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
+  buildInPublic?: BuildInPublicAccess;
   captureInbox?: CaptureInboxAccess;
   clientKey?: string;
   clientPlatform?: AccountAccessClient;

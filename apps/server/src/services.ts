@@ -34,6 +34,14 @@ import { createDatabaseBacklog } from "./features/backlog/server/backlog-databas
 import { createDatabaseBacklogMutationContracts } from "./features/backlog/server/backlog-mutation-database";
 import { createBacklogReappearSignalWorker } from "./features/backlog/server/backlog-reappear-signal-worker";
 import { sweepDueReappearSignals as sweepBacklogSignals } from "./features/backlog/server/backlog-reappear-signals";
+import { createDatabaseBuildInPublic } from "./features/build-in-public/server/build-in-public-database";
+import { createBuildInPublicRoutes } from "./features/build-in-public/server/build-in-public-http";
+import {
+  createDatabaseBuildInPublicAssets,
+  createDatabaseBuildInPublicSlugs,
+  createDatabaseBuildInPublicSnapshots,
+  createDatabaseBuildInPublicViewer,
+} from "./features/build-in-public/server/build-in-public-public-database";
 import {
   captureInboxMutationTarget,
   createDatabaseCaptureInbox,
@@ -317,6 +325,7 @@ export const prioritizationSessions = createPrioritizationSessionsAccess(
 );
 export const prioritizationSessionMutationContracts =
   createDatabasePrioritizationSessionMutationContracts(db);
+export const buildInPublic = createDatabaseBuildInPublic(db);
 export const wikiPublishing = createDatabaseWikiPublishing(db, {
   documents,
   projectSourceRecords,
@@ -624,6 +633,23 @@ export const wikiPublicPages = createWikiPublicRoutes({
   }),
   assets: createDatabaseWikiPublicAssets(db, fileAttachments),
   snapshots: createDatabaseWikiPublicSnapshots(db),
+});
+const buildInPublicStateReader = createDatabaseExternalSurfaceStateReader(db);
+export const buildInPublicPages = createBuildInPublicRoutes({
+  access: createExternalSurfaceAccess({
+    cache: createMemoryExternalSurfaceResponseCache(),
+    reader: buildInPublicStateReader,
+  }),
+  assets: createDatabaseBuildInPublicAssets(db, fileAttachments),
+  reader: buildInPublicStateReader,
+  slugs: createDatabaseBuildInPublicSlugs(db),
+  snapshots: createDatabaseBuildInPublicSnapshots(db),
+  viewer: createDatabaseBuildInPublicViewer(db, {
+    accountOf: async (request) =>
+      (await auth.api.getSession({ headers: request.headers }))?.user.id ??
+      null,
+    appOrigin: env.CORS_ORIGIN,
+  }),
 });
 export const moodboardSnapshots = createDatabaseMoodboardSnapshots(db, {
   objectStore: fileAttachmentObjectStore,

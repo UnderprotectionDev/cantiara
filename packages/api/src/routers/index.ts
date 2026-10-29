@@ -31,6 +31,21 @@ import {
   updateBacklogOrderMutationInputSchema,
 } from "../backlog";
 import {
+  approveBuildInPublicInputSchema,
+  type BuildInPublicAccess,
+  buildInPublicPreviewInputSchema,
+  buildInPublicProjectInputSchema,
+  setBuildInPublicEnabledInputSchema,
+  setBuildInPublicStatusMapInputSchema,
+  setBuildInPublicWorkCopyInputSchema,
+} from "../build-in-public";
+import {
+  buildInPublicSlugPreviewInputSchema,
+  setBuildInPublicIndexingInputSchema,
+  setBuildInPublicSlugInputSchema,
+  unpublishBuildInPublicInputSchema,
+} from "../build-in-public-publication";
+import {
   type CaptureInboxAccess,
   type CaptureInboxTriageAccess,
   captureAttachInputSchema,
@@ -1246,6 +1261,52 @@ function requireReleaseCommunication(
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.releaseCommunication;
+}
+
+function requireBuildInPublic(context: Context): BuildInPublicAccess {
+  if (!context.buildInPublic) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.buildInPublic;
+}
+
+function buildInPublicUnavailable(): never {
+  throw new ORPCError("NOT_FOUND", {
+    defined: true,
+    message: "Build in Public is unavailable for this Project.",
+  });
+}
+
+function rethrowBuildInPublicError(error: unknown): never {
+  if (!isRecord(error) || typeof error.code !== "string") {
+    throw error;
+  }
+  const status = {
+    BUILD_IN_PUBLIC_DISABLED: "PRECONDITION_FAILED",
+    BUILD_IN_PUBLIC_FEATURED_INVALID: "BAD_REQUEST",
+    BUILD_IN_PUBLIC_INDEXING_UNACKNOWLEDGED: "PRECONDITION_FAILED",
+    BUILD_IN_PUBLIC_LABEL_REQUIRED: "CONFLICT",
+    BUILD_IN_PUBLIC_NOT_PUBLISHED: "NOT_FOUND",
+    BUILD_IN_PUBLIC_NOTHING_APPROVED: "BAD_REQUEST",
+    BUILD_IN_PUBLIC_PLACEHOLDERS_UNRESOLVED: "CONFLICT",
+    BUILD_IN_PUBLIC_PREVIEW_STALE: "PRECONDITION_FAILED",
+    BUILD_IN_PUBLIC_REDIRECT_UNCONFIRMED: "PRECONDITION_FAILED",
+    BUILD_IN_PUBLIC_SLUG_TAKEN: "CONFLICT",
+    BUILD_IN_PUBLIC_WORK_UNAVAILABLE: "NOT_FOUND",
+  }[error.code] as
+    | "BAD_REQUEST"
+    | "CONFLICT"
+    | "NOT_FOUND"
+    | "PRECONDITION_FAILED"
+    | undefined;
+  if (!status) {
+    throw error;
+  }
+  throw new ORPCError(status, {
+    data: { code: error.code },
+    defined: true,
+    message: error instanceof Error ? error.message : "Build in Public failed.",
+  });
 }
 
 function requireWikiPublishing(context: Context): WikiPublishingAccess {
@@ -7995,6 +8056,149 @@ export const appRouter = {
         return entry ?? releaseUnavailable();
       } catch (error) {
         rethrowReleaseCommunicationError(error);
+      }
+    }),
+  buildInPublicSettings: protectedProcedure
+    .input(buildInPublicProjectInputSchema)
+    .handler(async ({ context, input }) => {
+      const settings = await requireBuildInPublic(context).settings(
+        context.session.user.id,
+        input.projectId,
+      );
+      return settings ?? buildInPublicUnavailable();
+    }),
+  setBuildInPublicEnabled: protectedProcedure
+    .input(setBuildInPublicEnabledInputSchema)
+    .handler(async ({ context, input }) => {
+      const settings = await requireBuildInPublic(context).setEnabled(
+        context.session.user.id,
+        { enabled: input.enabled, projectId: input.projectId },
+      );
+      return settings ?? buildInPublicUnavailable();
+    }),
+  setBuildInPublicStatusMap: protectedProcedure
+    .input(setBuildInPublicStatusMapInputSchema)
+    .handler(async ({ context, input }) => {
+      const settings = await requireBuildInPublic(context).setStatusMap(
+        context.session.user.id,
+        {
+          label: input.label,
+          projectId: input.projectId,
+          statusKey: input.statusKey,
+        },
+      );
+      return settings ?? buildInPublicUnavailable();
+    }),
+  setBuildInPublicWorkCopy: protectedProcedure
+    .input(setBuildInPublicWorkCopyInputSchema)
+    .handler(async ({ context, input }) => {
+      const copy = await requireBuildInPublic(context).setWorkCopy(
+        context.session.user.id,
+        {
+          dueDatePresentation: input.dueDatePresentation,
+          projectId: input.projectId,
+          publicStatusLabel: input.publicStatusLabel,
+          publicSummary: input.publicSummary,
+          publicTitle: input.publicTitle,
+          workId: input.workId,
+        },
+      );
+      return copy ?? buildInPublicUnavailable();
+    }),
+  previewBuildInPublic: protectedProcedure
+    .input(buildInPublicPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireBuildInPublic(context).preview(
+        context.session.user.id,
+        input,
+      );
+      return preview ?? buildInPublicUnavailable();
+    }),
+  approveBuildInPublic: protectedProcedure
+    .input(approveBuildInPublicInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision: _base,
+        clientIdempotencyKey: _key,
+        ...payload
+      } = input;
+      try {
+        const approved = await requireBuildInPublic(context).approve(
+          context.session.user.id,
+          payload,
+        );
+        return approved ?? buildInPublicUnavailable();
+      } catch (error) {
+        rethrowBuildInPublicError(error);
+      }
+    }),
+  buildInPublicPublication: protectedProcedure
+    .input(buildInPublicProjectInputSchema)
+    .handler(async ({ context, input }) => {
+      const publication = await requireBuildInPublic(context).publication(
+        context.session.user.id,
+        input.projectId,
+      );
+      return publication ?? buildInPublicUnavailable();
+    }),
+  previewBuildInPublicSlug: protectedProcedure
+    .input(buildInPublicSlugPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const preview = await requireBuildInPublic(context).previewSlug(
+          context.session.user.id,
+          input,
+        );
+        return preview ?? buildInPublicUnavailable();
+      } catch (error) {
+        rethrowBuildInPublicError(error);
+      }
+    }),
+  setBuildInPublicSlug: protectedProcedure
+    .input(setBuildInPublicSlugInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const publication = await requireBuildInPublic(context).setSlug(
+          context.session.user.id,
+          {
+            confirmRedirect: input.confirmRedirect,
+            projectId: input.projectId,
+            slug: input.slug,
+          },
+        );
+        return publication ?? buildInPublicUnavailable();
+      } catch (error) {
+        rethrowBuildInPublicError(error);
+      }
+    }),
+  setBuildInPublicIndexing: protectedProcedure
+    .input(setBuildInPublicIndexingInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const publication = await requireBuildInPublic(context).setIndexing(
+          context.session.user.id,
+          {
+            acknowledgeThirdPartyCopies: input.acknowledgeThirdPartyCopies,
+            enabled: input.enabled,
+            projectId: input.projectId,
+          },
+        );
+        return publication ?? buildInPublicUnavailable();
+      } catch (error) {
+        rethrowBuildInPublicError(error);
+      }
+    }),
+  unpublishBuildInPublic: protectedProcedure
+    .input(unpublishBuildInPublicInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const publication = await requireBuildInPublic(context).unpublish(
+          context.session.user.id,
+          input.projectId,
+        );
+        return publication ?? buildInPublicUnavailable();
+      } catch (error) {
+        rethrowBuildInPublicError(error);
       }
     }),
   previewWikiPublish: protectedProcedure
