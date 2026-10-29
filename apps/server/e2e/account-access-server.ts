@@ -57,6 +57,7 @@ import { createDatabaseDocumentEvidence } from "../src/features/evidence/server/
 import { createDatabaseFavorites } from "../src/features/favorites/server/favorites-database";
 import { createDatabaseFeedbackWithFeed } from "../src/features/feedback/server/feedback-feed-database";
 import { createDatabaseFocusPeriod } from "../src/features/focus-period/server/focus-period-database";
+import { createDatabaseLinkSharing } from "../src/features/link-sharing/server/link-sharing-database";
 import { createDatabaseMoodboardPersonalViews } from "../src/features/moodboards/server/moodboard-personal-views-database";
 import { createDatabaseMoodboards } from "../src/features/moodboards/server/moodboards-database";
 import { createDatabaseMoodboardMutationContracts } from "../src/features/moodboards/server/moodboards-mutation-database";
@@ -406,6 +407,7 @@ const app = createApp({
   ),
   projectHistory: createDatabaseProjectHistory(database),
   projectUpdates: createProjectUpdatesService(database, personalReminders),
+  linkSharing: createDatabaseLinkSharing(database),
   priorityMetricMutationContracts,
   priorityMetrics,
   projectShell,

@@ -69,6 +69,7 @@ import {
   PROJECT_UPDATES_HASH,
   projectSourceRecordFromHash,
   ROADMAP_HASH,
+  SHARE_HASH,
   SPEC_CHANGE_REVIEW_HASH,
   testGapRecordFromHash,
   workRecordHash,
@@ -199,6 +200,13 @@ function projectTestsSurface(
         projectId={projectId}
       />
     </div>
+  ) : null;
+}
+
+/** The route composes `Share`, so the shell never imports its `ui/`. */
+function shareSurface(activeHash: string, linkSharingArea?: ReactNode) {
+  return linkSharingArea && activeHash === SHARE_HASH ? (
+    <div id={SHARE_HASH}>{linkSharingArea}</div>
   ) : null;
 }
 
@@ -487,6 +495,7 @@ function ProjectShellContent({
   project,
   projectHistoryArea,
   projectUpdatesArea,
+  linkSharingArea,
   productionArea,
   projectId,
   releasesArea,
@@ -502,6 +511,7 @@ function ProjectShellContent({
   project: ProjectProfile;
   projectHistoryArea?: ReactNode;
   projectUpdatesArea?: ReactNode;
+  linkSharingArea?: ReactNode;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
@@ -649,6 +659,7 @@ function ProjectShellContent({
     ) ??
     projectHistorySurface(activeHash, projectHistoryArea) ??
     projectUpdatesSurface(activeHash, projectUpdatesArea) ??
+    shareSurface(activeHash, linkSharingArea) ??
     projectProductionSurface(
       activeHash,
       accountFormattingPreferences,

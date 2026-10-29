@@ -239,6 +239,14 @@ import {
 } from "../github-work-links";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
+  approveShareScopeInputSchema,
+  LinkSharingConflictError,
+  LinkSharingPlaceholdersError,
+  LinkSharingScopeError,
+  previewShareScopeInputSchema,
+  shareRootsInputSchema,
+} from "../link-sharing";
+import {
   MoodboardSnapshotError,
   moodboardSnapshotExportInputSchema,
   moodboardSnapshotPreviewInputSchema,
@@ -4549,6 +4557,52 @@ async function productionIncidentWrite<T>(
     throw error;
   }
 }
+function requireLinkSharing(context: Context) {
+  if (!context.linkSharing) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.linkSharing;
+}
+async function linkSharingWrite<T>(
+  targetId: string,
+  write: () => Promise<T | null>,
+): Promise<T> {
+  try {
+    const result = await write();
+    if (!result) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return result;
+  } catch (error) {
+    if (error instanceof LinkSharingConflictError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: "CONFLICT", targetId },
+        defined: true,
+        message: "Conflict",
+      });
+    }
+    if (error instanceof LinkSharingPlaceholdersError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: {
+          code: "PLACEHOLDERS_UNRESOLVED",
+          count: error.findings.length,
+          targetId,
+        },
+        defined: true,
+        message: error.message,
+      });
+    }
+    if (error instanceof LinkSharingScopeError) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        message: error.message,
+      });
+    }
+    throw error;
+  }
+}
 function requireProjectUpdates(context: Context) {
   if (!context.projectUpdates) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -4592,6 +4646,37 @@ async function projectUpdateWrite<T>(
   }
 }
 export const appRouter = {
+  shareRoots: protectedProcedure
+    .input(shareRootsInputSchema)
+    .handler(async ({ context, input }) => {
+      const roots = await requireLinkSharing(context).roots(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!roots) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return roots;
+    }),
+  previewShareScope: protectedProcedure
+    .input(previewShareScopeInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireLinkSharing(context).preview(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return preview;
+    }),
+  approveShareScope: protectedProcedure
+    .input(approveShareScopeInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.approvalId, () =>
+        requireLinkSharing(context).approve(context.session.user.id, input),
+      ),
+    ),
   projectUpdates: protectedProcedure
     .input(projectUpdatesInputSchema)
     .handler(async ({ context, input }) => {

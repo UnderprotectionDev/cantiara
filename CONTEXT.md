@@ -1254,6 +1254,10 @@ _Avoid_: Temizlenmiş kanıt sürümü, erişilebilir şifreli özgün, geçerli
 Kimliği doğrulanmış bir alıcıya değil, kararlı bağlantıyı ve varsa parolayı elinde tutan herkese salt okunur erişim veren Dış yüzey türü.
 _Avoid_: Özel paylaşım, kişiye özel paylaşım, kimlik doğrulamalı paylaşım
 
+**Kapalı dünya önizlemesi**:
+Bağlantıyla sınırlı paylaşım oluşmadan önce kurucunun dışarı çıkacak kesin kayıt, sürüm, alan, ilişki, gömü ve Dosya Eki kümesini gördüğü ve açıkça onayladığı [önizleme](docs/prd/14-sharing-and-public-publishing.md#bağlantıyla-sınırlı-salt-okunur-paylaşım); onay bir Dış yüzey ile Onaylı snapshot revizyonu doğurur, görünürlüğü klasör, ilişki veya görünüm üzerinden kalıtmaz. UI: `Share`, `Preview scope`, `Approve scope`, `Publish/share anyway`, `Approved snapshot`, `Live`, `Some fields live`.
+_Avoid_: Paylaşım taslağı, otomatik kapsam, Güncel etiketi
+
 **Bağlantı süre dolumu**:
 Önceden belirlenen zamanda yeni erişimi durduran, içeriği ve geçmişi silmeyen geri açılabilir Dış yüzey durumu.
 _Avoid_: İptal, kalıcı silme
