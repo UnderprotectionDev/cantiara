@@ -6,6 +6,7 @@ import {
   createMemoryExternalSurfaceResponseCache,
 } from "@cantiara/api/external-surface-access";
 import { createDatabaseExternalSurfaceStateReader } from "@cantiara/api/external-surface-access-database";
+import type { LinkSharingRootKind } from "@cantiara/api/link-sharing";
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
 import { createDatabaseMutationContract } from "@cantiara/api/mutation-contract-database";
 import { createAuth } from "@cantiara/auth";
@@ -64,6 +65,10 @@ import {
 } from "./features/documents/server/documents-database";
 import { insertWorkWithKeyAllocation } from "./features/evidence/server/evidence-record-creation";
 import { createDatabaseExternalExecutionHandoffs } from "./features/external-handoffs/server/external-handoffs-database";
+import { createExternalSurfaceManagement } from "./features/external-surface-management/server/external-surface-management";
+import { createDatabaseSurfaceDirectory } from "./features/external-surface-management/server/external-surface-management-database";
+import { createSurfacePurges } from "./features/external-surface-management/server/external-surface-purge";
+import { createDatabaseSurfacePurges } from "./features/external-surface-management/server/external-surface-purge-database";
 import { createDatabaseFavorites } from "./features/favorites/server/favorites-database";
 import { createDatabaseFeedbackWithFeed } from "./features/feedback/server/feedback-feed-database";
 import { createFileAttachmentLocationWork } from "./features/file-attachments/server/file-attachment-location-work";
@@ -350,6 +355,47 @@ const linkSharingReplay = createDatabaseLinkSharingReplay(
   db,
   linkSharingSecurityEvents,
 );
+export const externalSurfaceResponseCache =
+  createMemoryExternalSurfaceResponseCache();
+export const externalSurfacePurges = createSurfacePurges({
+  store: createDatabaseSurfacePurges(db),
+  targets: [
+    (surfaceId) =>
+      externalSurfaceResponseCache.purge?.(surfaceId) ?? Promise.resolve(),
+  ],
+});
+export const sweepExternalSurfacePurges = () => externalSurfacePurges.sweep();
+export const externalSurfaceManagement = createExternalSurfaceManagement({
+  // Reads the live source through the Link Sharing preview, so the directory
+  // forks neither scope rules nor the diff.
+  linkSource: async (accountId, record) => {
+    if (!(record.rootId && record.rootKind)) {
+      return null;
+    }
+    const preview = await linkSharing.preview(accountId, {
+      root: {
+        id: record.rootId,
+        kind: record.rootKind as LinkSharingRootKind,
+      },
+      surfaceId: record.surfaceId,
+    });
+    return preview
+      ? {
+          hasChanges:
+            (preview.diff?.added.length ?? 0) +
+              (preview.diff?.changed.length ?? 0) +
+              (preview.diff?.removed.length ?? 0) >
+            0,
+        }
+      : null;
+  },
+  purges: externalSurfacePurges,
+  revokeLink: (accountId, surfaceId) =>
+    linkSharing.revoke(accountId, { surfaceId }),
+  store: createDatabaseSurfaceDirectory(db),
+  unpublishWiki: (accountId, documentId) =>
+    wikiPublishing.unpublish(accountId, documentId),
+});
 export const linkSharingVisitor = createDatabaseLinkSharingVisitor(db, {
   audit: linkSharingAudit,
   rateSecret: env.BETTER_AUTH_SECRET,
@@ -573,7 +619,7 @@ processFileAttachmentPreview = fileAttachmentService?.processPreview;
 export const fileAttachments = fileAttachmentService?.access;
 export const wikiPublicPages = createWikiPublicRoutes({
   access: createExternalSurfaceAccess({
-    cache: createMemoryExternalSurfaceResponseCache(),
+    cache: externalSurfaceResponseCache,
     reader: createDatabaseExternalSurfaceStateReader(db),
   }),
   assets: createDatabaseWikiPublicAssets(db, fileAttachments),
@@ -691,6 +737,12 @@ const maintenanceWorker = createMaintenanceWorker({
       name: "file-attachment-upload-sweep",
       cron: "0 * * * *",
       process: sweepExpiredFileAttachmentUploads,
+    },
+    {
+      // Retries the cache and index purge of removed surfaces; never reopens one.
+      name: "external-surface-purge-sweep",
+      cron: "*/5 * * * *",
+      process: sweepExternalSurfacePurges,
     },
     {
       // Retention promises gate attempt data gone 24h after the last attempt,

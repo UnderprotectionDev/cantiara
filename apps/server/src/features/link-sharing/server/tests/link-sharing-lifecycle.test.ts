@@ -542,6 +542,10 @@ describe("Revoke is terminal", () => {
       "link-sharing.share-created",
       "link-sharing.share-revoked",
     ]);
+    expect(harness.auditRecords.map((record) => record.targetAlias)).toEqual([
+      surfaceId,
+      surfaceId,
+    ]);
   });
 });
 

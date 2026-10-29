@@ -36,6 +36,7 @@ import type {
   DocumentsAccess,
 } from "@cantiara/api/documents";
 import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
+import type { ExternalSurfaceManagementAccess } from "@cantiara/api/external-surface-management";
 import type { FavoritesAccess } from "@cantiara/api/favorites";
 import type { FeedbackAccess } from "@cantiara/api/feedback";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
@@ -231,6 +232,7 @@ export interface AppDependencies {
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   documentTransfers?: import("@cantiara/api/document-transfer").DocumentTransfersAccess;
+  externalSurfaceManagement?: ExternalSurfaceManagementAccess;
   favorites?: FavoritesAccess;
   feedback?: FeedbackAccess;
   fileAttachments?: FileAttachmentAccess;
@@ -745,6 +747,7 @@ export function createApp(dependencies: AppDependencies) {
       workDrafts: dependencies.workDrafts,
       workTemplates: dependencies.workTemplates,
       workLifecycle: dependencies.workLifecycle,
+      externalSurfaceManagement: dependencies.externalSurfaceManagement,
       wikiPublishing: dependencies.wikiPublishing,
       workspaceOverview: dependencies.workspaceOverview,
     });
