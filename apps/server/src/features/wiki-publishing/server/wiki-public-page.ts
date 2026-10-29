@@ -7,6 +7,7 @@ import {
 import { renderHtml } from "@tanstack/markdown/html";
 
 const SNAPSHOT_MARKER = /^:::snapshot-block\{memberId="(member-\d+)"\}\s*$/u;
+const YOUTUBE_MARKER = /^:::youtube\{memberId="(member-\d+)"\}\s*$/u;
 const YOUTUBE_LINE =
   /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/watch\?(?:[^\s#]*&)?v=|youtu\.be\/)([A-Za-z0-9_-]{11})(?:[&?#][^\s]*)?$/u;
 
@@ -88,6 +89,19 @@ function trimmedTitle(body: string, title: string) {
     : body;
 }
 
+/**
+ * The one card shape an approved YouTube member may become on the public page;
+ * anything else lets the marker line fall through as plain text.
+ */
+function approvedYoutubeCard(member: WikiSnapshotMember | undefined) {
+  if (member?.kind !== "YouTube video") {
+    return null;
+  }
+  const url = member.title.trim();
+  const videoId = YOUTUBE_LINE.exec(url)?.[1];
+  return member && videoId ? { member, url, videoId } : null;
+}
+
 export interface RenderedWikiPage {
   /** Hash-based CSP of this exact document: page and CSP are the same for every visitor, so both are safe to cache. */
   csp: string;
@@ -115,7 +129,7 @@ export function renderWikiPublicPage(
   };
   for (const line of trimmedTitle(snapshot.body, snapshot.title).split("\n")) {
     const marker = SNAPSHOT_MARKER.exec(line);
-    const video = YOUTUBE_LINE.exec(line.trim());
+    const youtube = YOUTUBE_MARKER.exec(line);
     if (marker?.[1]) {
       flush();
       const member = members.get(marker[1]);
@@ -123,10 +137,16 @@ export function renderWikiPublicPage(
         inBody.add(member.memberId);
         parts.push(blockHtml(member));
       }
-    } else if (video?.[1]) {
+    } else if (youtube?.[1]) {
+      // Only approved cards reach the frozen body: each one is its own
+      // approval item, so the card can never appear without approval.
       flush();
-      videos.push(video[1]);
-      parts.push(youtubeCard(video[1], line.trim(), videos.length - 1));
+      const card = approvedYoutubeCard(members.get(youtube[1]));
+      if (card) {
+        inBody.add(card.member.memberId);
+        videos.push(card.videoId);
+        parts.push(youtubeCard(card.videoId, card.url, videos.length - 1));
+      }
     } else {
       chunk.push(line);
     }

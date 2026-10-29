@@ -185,6 +185,75 @@ describe("Wiki Publishing approval", () => {
   });
 });
 
+describe("Wiki Publishing YouTube cards", () => {
+  const body = [
+    "# Release habits",
+    "",
+    "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "",
+    "youtu.be/11Digits123",
+    "",
+    "[[record:Decision:decision-1|Ship weekly]]",
+  ].join("\n");
+
+  test("each YouTube line is its own approval item, in body order", async () => {
+    const { preview } = await previewOf(createFixtures({ rootBody: body }));
+
+    const youtube = preview.embeds.filter(
+      (embed) => embed.kind === "YouTube video",
+    );
+    expect(youtube.map((embed) => embed.member.title)).toEqual([
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "youtu.be/11Digits123",
+    ]);
+    expect(new Set(youtube.map((embed) => embed.id)).size).toBe(2);
+  });
+
+  test("publishes only approved cards, closed like every other embed", async () => {
+    const { fixtures, preview } = await previewOf(
+      createFixtures({ rootBody: body }),
+    );
+    const youtube = preview.embeds.filter(
+      (embed) => embed.kind === "YouTube video",
+    );
+    const ship = preview.embeds.find(
+      (embed) => embed.kind === "Inline reference",
+    );
+
+    await fixtures.access.publish(
+      ACCOUNT_ID,
+      approval(preview, [youtube[0]?.id ?? "", ship?.id ?? ""]),
+    );
+
+    const [snapshot] = [...fixtures.surfaces.values()][0]?.snapshots ?? [];
+    const card = snapshot?.members.find(
+      (member) => member.kind === "YouTube video",
+    );
+    expect(card?.title).toBe("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    expect(card?.liveLabel).toBeNull();
+    expect(snapshot?.body).toContain(
+      `:::youtube{memberId="${card?.memberId}"}`,
+    );
+    expect(snapshot?.body).not.toContain("youtu.be/11Digits123");
+    expect(JSON.stringify(snapshot)).not.toContain("11Digits123");
+  });
+
+  test("approving the Document alone still shows no card", async () => {
+    const { fixtures, preview } = await previewOf(
+      createFixtures({ rootBody: body }),
+    );
+
+    await fixtures.access.publish(ACCOUNT_ID, approval(preview, []));
+
+    const [snapshot] = [...fixtures.surfaces.values()][0]?.snapshots ?? [];
+    expect(snapshot?.members.some((m) => m.kind === "YouTube video")).toBe(
+      false,
+    );
+    expect(snapshot?.body).not.toContain(":::youtube");
+    expect(snapshot?.body).not.toContain("youtube.com");
+  });
+});
+
 describe("Wiki Publishing unresolved placeholders", () => {
   const body = [
     "Hello {{customer_name}}.",

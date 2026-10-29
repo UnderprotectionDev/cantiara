@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
-import { createExternalSurfaceAccess } from "@cantiara/api/external-surface-access";
+import {
+  createExternalSurfaceAccess,
+  createMemoryExternalSurfaceResponseCache,
+} from "@cantiara/api/external-surface-access";
 import { createDatabaseExternalSurfaceStateReader } from "@cantiara/api/external-surface-access-database";
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
 import { createDatabaseMutationContract } from "@cantiara/api/mutation-contract-database";
@@ -528,6 +531,7 @@ processFileAttachmentPreview = fileAttachmentService?.processPreview;
 export const fileAttachments = fileAttachmentService?.access;
 export const wikiPublicPages = createWikiPublicRoutes({
   access: createExternalSurfaceAccess({
+    cache: createMemoryExternalSurfaceResponseCache(),
     reader: createDatabaseExternalSurfaceStateReader(db),
   }),
   assets: createDatabaseWikiPublicAssets(db, fileAttachments),

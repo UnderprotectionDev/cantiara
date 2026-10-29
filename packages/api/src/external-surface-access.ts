@@ -132,7 +132,10 @@ const RANGE_HEADER = /^bytes=(\d*)-(\d*)$/u;
 
 /**
  * One `bytes=a-b`, `bytes=a-` or `bytes=-n` range. `invalid` answers 416;
- * `null` means no usable `Range` header (a full response).
+ * `null` means no usable `Range` header (a full response). Per RFC 9110 a
+ * multi-range, whitespace-carrying or otherwise unsupported header is *not*
+ * invalid: it is ignored and the caller answers the full response. Only a
+ * well-formed but unsatisfiable range answers 416.
  */
 export function parseByteRange(
   header: string | null,
@@ -142,7 +145,10 @@ export function parseByteRange(
     return null;
   }
   const match = RANGE_HEADER.exec(header.trim());
-  if (!match || (match[1] === "" && match[2] === "")) {
+  if (!match) {
+    return null;
+  }
+  if (match[1] === "" && match[2] === "") {
     return "invalid";
   }
   if (match[1] === "") {
@@ -154,6 +160,56 @@ export function parseByteRange(
   const start = Number(match[1]);
   const end = match[2] === "" ? size - 1 : Math.min(Number(match[2]), size - 1);
   return start >= size || start > end ? "invalid" : { end, start };
+}
+
+export interface MemorySurfaceCacheOptions {
+  /** Cached responses held at most; the least recently used entry is evicted first. */
+  maxEntries?: number;
+  /** A body at or above this size is never cached, so big assets cannot exhaust memory. */
+  maxEntryBytes?: number;
+}
+
+/**
+ * A small in-process delivery cache for `createExternalSurfaceAccess`. Entries
+ * never go stale: page and asset cache keys carry the revision and the
+ * indexing flag, so any changed surface answers by missing. The bounds exist
+ * for memory hygiene only; a cancelled surface is never consulted through it
+ * because the live state check runs before every `get`.
+ */
+export function createMemoryExternalSurfaceResponseCache(
+  options: MemorySurfaceCacheOptions = {},
+): ExternalSurfaceResponseCache {
+  const maxEntries = options.maxEntries ?? 32;
+  const maxEntryBytes = options.maxEntryBytes ?? 4 * 1024 * 1024;
+  const entries = new Map<string, CachedSurfaceResponse>();
+  return {
+    // biome-ignore lint/suspicious/useAwait: an in-memory read answers directly.
+    get: async (key) => {
+      const value = entries.get(key);
+      if (!value) {
+        return null;
+      }
+      // Reinserting keeps the map in recency order without a separate list.
+      entries.delete(key);
+      entries.set(key, value);
+      return value;
+    },
+    // biome-ignore lint/suspicious/useAwait: an in-memory write answers directly.
+    set: async (key, value) => {
+      if (value.body.byteLength >= maxEntryBytes) {
+        return;
+      }
+      entries.delete(key);
+      entries.set(key, value);
+      while (entries.size > maxEntries) {
+        const oldest = entries.keys().next();
+        if (oldest.done) {
+          break;
+        }
+        entries.delete(oldest.value);
+      }
+    },
+  };
 }
 
 export interface ExternalSurfaceAccess {

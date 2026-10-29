@@ -434,6 +434,18 @@ describe("Wiki assets and ranges", () => {
     expect(invalid.headers.get("content-range")).toBe("bytes */10");
   });
 
+  test("ignores multi-range and unsupported Range headers with the full body, per RFC 9110", async () => {
+    const { asset, site } = await assetPath();
+
+    for (const range of ["bytes=0-1,4-6", "bytes= 2-4", "items=2-4"]) {
+      const full = await site.get(asset, { range });
+      expect(full.status).toBe(200);
+      expect(await full.text()).toBe("0123456789");
+      expect(full.headers.get("content-range")).toBeNull();
+      expect(full.headers.get("content-length")).toBe("10");
+    }
+  });
+
   test("an unapproved or unknown member has no asset URL", async () => {
     const harness = await published({
       approve: (ids) => ids.filter((id) => !id.startsWith("attachment:")),
@@ -538,5 +550,41 @@ describe("Wiki YouTube click-to-load", () => {
     expect(csp).toContain("script-src 'none'");
     expect(csp).toContain("frame-src 'none'");
     expect(await response.text()).not.toContain("<script");
+  });
+
+  test("an unapproved video line paints no card and leaves no URL", async () => {
+    const { path, site } = await published({
+      rootBody: `${ROOT_BODY}\n\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ\n\nyoutu.be/11Digits123`,
+      // Approve everything except the two YouTube cards.
+      approve: (ids) => ids.filter((id) => !id.startsWith("youtube:")),
+    });
+
+    const response = await site.get(path);
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).not.toContain("Live external source");
+    expect(html).not.toContain("dQw4w9WgXcQ");
+    expect(html).not.toContain("11Digits123");
+    expect(html).not.toContain("youtube");
+    expect(response.headers.get("content-security-policy")).toContain(
+      "frame-src 'none'",
+    );
+  });
+
+  test("only the approved cards render, one approval item per line", async () => {
+    const { path, site } = await published({
+      rootBody: `${ROOT_BODY}\n\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ\n\nyoutu.be/11Digits123`,
+      approve: (ids) => ids.filter((id) => id !== "youtube:1"),
+    });
+
+    const response = await site.get(path);
+    const html = await response.text();
+
+    expect((await site.get(path)).status).toBe(200);
+    expect(html).toContain("Live external source");
+    expect(html).toContain(`href="${YOUTUBE_URL}"`);
+    expect(html).not.toContain("11Digits123");
+    expect(html).not.toContain('href="youtu.be');
   });
 });

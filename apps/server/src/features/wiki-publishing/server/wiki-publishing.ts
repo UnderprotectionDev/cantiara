@@ -12,6 +12,7 @@ import {
   backlinkEmbedId,
   childEmbedId,
   closeWikiBody,
+  closeYoutubeLines,
   defaultWikiSlug,
   inlineReferenceEmbedId,
   liveBlockEmbedId,
@@ -31,6 +32,7 @@ import {
   type WikiPublishPreview,
   type WikiSnapshotMember,
   wikiPublicPath,
+  youtubeOccurrences,
 } from "@cantiara/api/wiki-publishing";
 
 export interface WikiSourceField extends WikiPreviewField {
@@ -244,6 +246,23 @@ export function createWikiPublishing(
       facts.backlinks(accountId, documentId),
       facts.attachments(accountId, documentId),
     ]);
+    // Every YouTube line is its own approval item, in body order, because the
+    // public page renders one click-to-load card per line (PRD 14).
+    for (const occurrence of youtubeOccurrences(root.body)) {
+      add({
+        id: occurrence.id,
+        kind: "YouTube video",
+        liveSourceLabel: null,
+        member: {
+          fields: [],
+          files: [],
+          recordId: occurrence.videoId,
+          recordType: "YouTube video",
+          title: occurrence.url,
+          version: null,
+        },
+      });
+    }
     for (const child of children) {
       add({
         id: childEmbedId(child.recordId),
@@ -397,9 +416,14 @@ export function createWikiPublishing(
       const titles = new Map(
         preview.embeds.map((embed) => [embed.id, embed.member.title]),
       );
+      const closed = closeWikiBody(root.body, approved, titles, publicIds);
       const snapshot: WikiDocumentSnapshot = {
         approvedAt,
-        body: closeWikiBody(root.body, approved, titles, publicIds),
+        // YouTube lines are not part of closeWikiBody: they close at the root
+        // only, where the public page renders the click-to-load cards. Member
+        // bodies keep their URLs, and the published body keeps the closed
+        // card markers instead of live lines.
+        body: closeYoutubeLines(closed, approved, publicIds),
         documentId: root.recordId,
         documentRevision: root.version ?? 0,
         kind: "Wiki Document",

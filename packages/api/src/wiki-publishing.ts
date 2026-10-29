@@ -52,6 +52,7 @@ export const WIKI_EMBED_KINDS = [
   "Live content section",
   "Live Work",
   "Live Technical Diagram",
+  "YouTube video",
 ] as const;
 export type WikiEmbedKind = (typeof WIKI_EMBED_KINDS)[number];
 
@@ -298,6 +299,87 @@ export function unresolvedPlaceholders(text: string) {
   }));
 }
 
+/** One full-line YouTube URL in the Markdown; the public page turns it into a click-to-load card. */
+export interface WikiYoutubeOccurrence {
+  end: number;
+  /** Stable per line in body order (`youtube:0`, `youtube:1`); the card's embed id. */
+  id: string;
+  start: number;
+  /** The original URL text kept on the card. */
+  url: string;
+  videoId: string;
+}
+
+const YOUTUBE_LINE =
+  /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/watch\?(?:[^\s#]*&)?v=|youtu\.be\/)([A-Za-z0-9_-]{11})(?:[&?#][^\s]*)?$/u;
+
+/** Each YouTube line of one text, in order, with its own embed id and exact range. */
+export function youtubeOccurrences(body: string): WikiYoutubeOccurrence[] {
+  const occurrences: WikiYoutubeOccurrence[] = [];
+  let offset = 0;
+  for (const line of body.split("\n")) {
+    const end = offset + line.length;
+    const match = YOUTUBE_LINE.exec(line.trim());
+    const videoId = match?.[1];
+    if (videoId) {
+      occurrences.push({
+        end,
+        id: `youtube:${occurrences.length}`,
+        start: offset,
+        url: line.trim(),
+        videoId,
+      });
+    }
+    offset = end + 1;
+  }
+  return occurrences;
+}
+
+function applyReplacements(
+  body: string,
+  replacements: { end: number; start: number; text: string }[],
+) {
+  let result = "";
+  let offset = 0;
+  for (const replacement of [...replacements].sort(
+    (left, right) => left.start - right.start,
+  )) {
+    if (replacement.start < offset) {
+      continue;
+    }
+    result += body.slice(offset, replacement.start) + replacement.text;
+    offset = replacement.end;
+  }
+  return result + body.slice(offset);
+}
+
+/** The closed marker of one approved YouTube card, mirroring the live-block marker. */
+function youtubeCardMarker(publicId: string | undefined) {
+  return `:::youtube{memberId="${publicId ?? ""}"}`;
+}
+
+/**
+ * The YouTube cards of the public Markdown. Closed world: an unapproved card
+ * line vanishes and an approved one becomes the frozen card marker; the plain
+ * URL is never kept as a live page line.
+ */
+export function closeYoutubeLines(
+  body: string,
+  approvedEmbedIds: ReadonlySet<string>,
+  publicIds: ReadonlyMap<string, string> = new Map(),
+) {
+  return applyReplacements(
+    body,
+    youtubeOccurrences(body).map((occurrence) => ({
+      end: occurrence.end,
+      start: occurrence.start,
+      text: approvedEmbedIds.has(occurrence.id)
+        ? youtubeCardMarker(publicIds.get(occurrence.id))
+        : "",
+    })),
+  );
+}
+
 /**
  * The public Markdown of the Wiki Document. Closed world: an unapproved
  * inline reference or live block vanishes without a gap marker, and an
@@ -310,7 +392,7 @@ export function closeWikiBody(
   /** Opaque public ids of the approved embeds; source identities never leave. */
   publicIds: ReadonlyMap<string, string> = new Map(),
 ) {
-  const replacements = [
+  return applyReplacements(body, [
     ...documentRecordReferences(body).map(
       ({ end, recordId, recordType, start }) => {
         const id = inlineReferenceEmbedId(recordType, recordId);
@@ -331,15 +413,5 @@ export function closeWikiBody(
           : "",
       };
     }),
-  ].sort((left, right) => left.start - right.start);
-  let result = "";
-  let offset = 0;
-  for (const replacement of replacements) {
-    if (replacement.start < offset) {
-      continue;
-    }
-    result += body.slice(offset, replacement.start) + replacement.text;
-    offset = replacement.end;
-  }
-  return result + body.slice(offset);
+  ]);
 }
