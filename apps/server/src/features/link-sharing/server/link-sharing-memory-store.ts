@@ -12,8 +12,15 @@ import type {
   StoredShareSurface,
 } from "./link-sharing";
 import type {
+  LinkSharingAudit,
+  LinkSharingAuditRecord,
+} from "./link-sharing-audit";
+import type { LinkSharingReplayStore } from "./link-sharing-replay";
+import type {
   LinkSharingVisitorStore,
   StoredVisitorSession,
+  VisitorFile,
+  VisitorSurface,
 } from "./link-sharing-visitor";
 import { ATTEMPT_RETENTION_MS } from "./link-sharing-visitor";
 
@@ -80,6 +87,7 @@ export function createMemoryLinkSharing(options: {
           accountId: commit.accountId,
           approvedAt: commit.manifest.approvedAt,
           cancelledAt: null,
+          expiresAt: null,
           manifest: commit.manifest,
           passwordHash: null,
           passwordProtected: false,
@@ -150,11 +158,101 @@ export function createMemoryLinkSharing(options: {
         .filter(
           (entry) =>
             entry.accountId === accountId &&
+            entry.cancelledAt === null &&
             keyOf(entry.root) === keyOf(root) &&
             (!surfaceId || entry.surfaceId === surfaceId),
         )
         .at(-1);
       return Promise.resolve(found ?? null);
+    },
+    lifecycle(accountId, surfaceId) {
+      const surface = surfaces.find(
+        (entry) =>
+          entry.surfaceId === surfaceId &&
+          entry.accountId === accountId &&
+          entry.cancelledAt === null,
+      );
+      return Promise.resolve(
+        surface
+          ? {
+              expiresAt: surface.expiresAt,
+              passwordProtected: surface.passwordProtected,
+            }
+          : null,
+      );
+    },
+    reshare(commit) {
+      const existing = surfaces.find(
+        (entry) => entry.surfaceId === commit.newSurfaceId,
+      );
+      const source = surfaces.find(
+        (entry) =>
+          entry.surfaceId === commit.sourceSurfaceId &&
+          entry.accountId === commit.accountId &&
+          entry.cancelledAt === null,
+      );
+      if (!source) {
+        return Promise.resolve(null);
+      }
+      const summary = (surface: MemorySurface, created: boolean) => ({
+        created,
+        share: {
+          accessToken: null,
+          label: surface.manifest.label,
+          lastApprovedAt: surface.approvedAt,
+          passwordProtected: surface.passwordProtected,
+          revision: surface.revision,
+          surfaceId: surface.surfaceId,
+        },
+      });
+      if (existing) {
+        return Promise.resolve(summary(existing, false));
+      }
+      const copy: MemorySurface = {
+        ...source,
+        accessEpoch: 0,
+        expiresAt: commit.expiresAt,
+        revision: 1,
+        surfaceId: commit.newSurfaceId,
+        tokenHash: commit.tokenHash,
+      };
+      surfaces.push(copy);
+      return Promise.resolve(summary(copy, true));
+    },
+    revoke(accountId, surfaceId, at) {
+      const surface = surfaces.find(
+        (entry) =>
+          entry.surfaceId === surfaceId &&
+          entry.accountId === accountId &&
+          entry.cancelledAt === null,
+      );
+      if (!surface) {
+        return Promise.resolve(null);
+      }
+      surface.cancelledAt = at;
+      surface.accessEpoch += 1;
+      for (let index = sessions.length - 1; index >= 0; index -= 1) {
+        if (sessions[index]?.surfaceId === surfaceId) {
+          sessions.splice(index, 1);
+        }
+      }
+      return Promise.resolve({ accessEpoch: surface.accessEpoch });
+    },
+    updateExpiry(accountId, surfaceId, expiresAt, endSessions) {
+      const surface = surfaces.find(
+        (entry) =>
+          entry.surfaceId === surfaceId &&
+          entry.accountId === accountId &&
+          entry.cancelledAt === null,
+      );
+      if (!surface) {
+        return Promise.resolve(null);
+      }
+      surface.expiresAt = expiresAt;
+      if (endSessions) {
+        surface.accessEpoch += 1;
+      }
+      return Promise.resolve({ accessEpoch: surface.accessEpoch });
     },
     updateAccess(accountId, surfaceId, patch) {
       const surface = surfaces.find(
@@ -186,9 +284,64 @@ export function createMemoryLinkSharing(options: {
       events.push(event);
       return Promise.resolve();
     },
+    list() {
+      return Promise.resolve([...events]);
+    },
   };
 
+  /** What a database restore of an older copy does to the surface rows. */
+  const replayStore: LinkSharingReplayStore = {
+    cancel(surfaceId, at, belowEpoch) {
+      const surface = surfaces.find((entry) => entry.surfaceId === surfaceId);
+      if (
+        surface &&
+        surface.cancelledAt === null &&
+        (belowEpoch === undefined || surface.accessEpoch < belowEpoch)
+      ) {
+        surface.cancelledAt = at;
+      }
+      return Promise.resolve();
+    },
+    raiseEpoch(surfaceId, epoch) {
+      const surface = surfaces.find((entry) => entry.surfaceId === surfaceId);
+      if (surface && surface.accessEpoch < epoch) {
+        surface.accessEpoch = epoch;
+      }
+      return Promise.resolve();
+    },
+  };
+
+  const files = new Map<string, VisitorFile>();
+  const auditRecords: LinkSharingAuditRecord[] = [];
+  const audit: LinkSharingAudit = {
+    append(record) {
+      auditRecords.push(record);
+      return Promise.resolve();
+    },
+    countSince(actorAlias, types, since) {
+      return Promise.resolve(
+        auditRecords.filter(
+          (record) =>
+            record.actorAlias === actorAlias &&
+            types.includes(record.type) &&
+            record.occurredAt >= since,
+        ).length,
+      );
+    },
+  };
+
+  const visitorSurfaceOf = (surface: MemorySurface): VisitorSurface => ({
+    accessEpoch: surface.accessEpoch,
+    cancelledAt: surface.cancelledAt,
+    expiresAt: surface.expiresAt,
+    passwordHash: surface.passwordHash,
+    surfaceId: surface.surfaceId,
+  });
+
   const visitorStore: LinkSharingVisitorStore = {
+    attachment(attachmentId, versionId) {
+      return Promise.resolve(files.get(`${attachmentId}:${versionId}`) ?? null);
+    },
     bumpFailure(key, now) {
       const current = attempts.get(key);
       const fresh =
@@ -263,35 +416,21 @@ export function createMemoryLinkSharing(options: {
     },
     surface(surfaceId) {
       const surface = surfaces.find((entry) => entry.surfaceId === surfaceId);
-      return Promise.resolve(
-        surface
-          ? {
-              accessEpoch: surface.accessEpoch,
-              cancelledAt: surface.cancelledAt,
-              passwordHash: surface.passwordHash,
-              surfaceId: surface.surfaceId,
-            }
-          : null,
-      );
+      return Promise.resolve(surface ? visitorSurfaceOf(surface) : null);
     },
     surfaceByTokenHash(tokenHash) {
       const surface = surfaces.find((entry) => entry.tokenHash === tokenHash);
-      return Promise.resolve(
-        surface
-          ? {
-              accessEpoch: surface.accessEpoch,
-              cancelledAt: surface.cancelledAt,
-              passwordHash: surface.passwordHash,
-              surfaceId: surface.surfaceId,
-            }
-          : null,
-      );
+      return Promise.resolve(surface ? visitorSurfaceOf(surface) : null);
     },
   };
 
   return {
     attempts,
+    audit,
+    auditRecords,
     events,
+    files,
+    replayStore,
     revisions,
     securityEvents,
     sessions,

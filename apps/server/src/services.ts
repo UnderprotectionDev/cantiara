@@ -71,7 +71,12 @@ import { createFileAttachmentObjectStore } from "./features/file-attachments/ser
 import { createDatabaseFocusPeriod } from "./features/focus-period/server/focus-period-database";
 import { createConfiguredGitHubIntegration } from "./features/github-integration/server/github-integration-configured";
 import { createGitHubWebhookWorker } from "./features/github-integration/server/github-webhook-worker";
-import { createDatabaseLinkSharing } from "./features/link-sharing/server/link-sharing-database";
+import { createLinkSharingAssets } from "./features/link-sharing/server/link-sharing-assets";
+import { createDatabaseLinkSharingAudit } from "./features/link-sharing/server/link-sharing-audit-database";
+import {
+  createDatabaseLinkSharing,
+  createDatabaseLinkSharingReplay,
+} from "./features/link-sharing/server/link-sharing-database";
 import { createDatabaseLinkSharingSecurityEvents } from "./features/link-sharing/server/link-sharing-security-events";
 import { createDatabaseLinkSharingVisitor } from "./features/link-sharing/server/link-sharing-visitor-database";
 import { createDatabaseMoodboardPersonalViews } from "./features/moodboards/server/moodboard-personal-views-database";
@@ -315,10 +320,19 @@ export const projectUpdates = createProjectUpdatesService(
   db,
   personalReminders,
 );
+const linkSharingAudit = createDatabaseLinkSharingAudit(db);
+const linkSharingSecurityEvents =
+  createDatabaseLinkSharingSecurityEvents(securityEventDb);
 export const linkSharing = createDatabaseLinkSharing(db, {
-  events: createDatabaseLinkSharingSecurityEvents(securityEventDb),
+  audit: linkSharingAudit,
+  events: linkSharingSecurityEvents,
 });
+const linkSharingReplay = createDatabaseLinkSharingReplay(
+  db,
+  linkSharingSecurityEvents,
+);
 export const linkSharingVisitor = createDatabaseLinkSharingVisitor(db, {
+  audit: linkSharingAudit,
   rateSecret: env.BETTER_AUTH_SECRET,
 });
 export const projectActivity = createProjectActivity(
@@ -488,6 +502,22 @@ const fileAttachmentObjectStore = createFileAttachmentObjectStore({
   nodeEnv: env.NODE_ENV,
   r2: fileAttachmentR2Config,
 });
+// Visitors never see an R2 URL: the product reads the exact object itself,
+// after the surface, session and file version are authorized.
+export const linkSharingAssets = fileAttachmentObjectStore
+  ? createLinkSharingAssets({
+      objects: {
+        async read(key) {
+          try {
+            return await fileAttachmentObjectStore.read(key);
+          } catch {
+            return null;
+          }
+        },
+      },
+      visitor: linkSharingVisitor,
+    })
+  : undefined;
 let processFileAttachmentPreview:
   | ((
       job: {
@@ -583,6 +613,7 @@ export function replaySecurityRevocations() {
       // it in the startup barrier so the same event history is not replayed twice.
       priorityMetricTrashMaintenance.sweepExpired(),
       documentTransfers.replayCancellations(),
+      linkSharingReplay.replay(),
     ])
       .then(() => undefined)
       .catch((error) => {

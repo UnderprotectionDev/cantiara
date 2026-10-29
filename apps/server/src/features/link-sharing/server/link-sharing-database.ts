@@ -17,6 +17,7 @@ import { document } from "@cantiara/db/schema/document";
 import {
   externalSurface,
   externalSurfaceSnapshotRevision,
+  linkShareVisitorSession,
 } from "@cantiara/db/schema/external-surface";
 import { feedback } from "@cantiara/db/schema/feedback";
 import {
@@ -43,7 +44,7 @@ import {
   technicalDiagram,
 } from "@cantiara/db/schema/technical-diagram";
 import { work } from "@cantiara/db/schema/work";
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import {
   createLinkSharing,
   type LinkSharingSecurityEvents,
@@ -55,6 +56,8 @@ import {
   type ShareSourceRecord,
   type StoredShareSurface,
 } from "./link-sharing";
+import type { LinkSharingAudit } from "./link-sharing-audit";
+import { createLinkSharingReplay } from "./link-sharing-replay";
 
 const SURFACE_KIND = "Link-limited share";
 const LIST_LIMIT = 200;
@@ -957,6 +960,37 @@ function createStore(database: Database): LinkSharingStore {
     return row ?? null;
   }
 
+  /** The owned, not revoked Link Sharing surface row. */
+  async function ownedLiveSurface(
+    accountId: string,
+    surfaceId: string,
+    executor: Pick<Database, "select"> = database,
+  ) {
+    const [row] = await executor
+      .select({
+        documentId: externalSurface.documentId,
+        expiresAt: externalSurface.expiresAt,
+        id: externalSurface.id,
+        passwordHash: externalSurface.passwordHash,
+        projectId: externalSurface.projectId,
+        rootId: externalSurface.rootId,
+        rootKind: externalSurface.rootKind,
+        workspaceId: externalSurface.workspaceId,
+      })
+      .from(externalSurface)
+      .innerJoin(workspace, eq(workspace.id, externalSurface.workspaceId))
+      .where(
+        and(
+          eq(externalSurface.id, surfaceId),
+          eq(externalSurface.surfaceKind, SURFACE_KIND),
+          eq(workspace.ownerAccountId, accountId),
+          isNull(externalSurface.cancelledAt),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
   async function findApproval(accountId: string, approvalId: string) {
     const [row] = await database
       .select({
@@ -1115,6 +1149,130 @@ function createStore(database: Database): LinkSharingStore {
       return loaded;
     },
 
+    async lifecycle(accountId, surfaceId) {
+      const owned = await ownedLiveSurface(accountId, surfaceId);
+      return owned
+        ? {
+            expiresAt: owned.expiresAt,
+            passwordProtected: owned.passwordHash !== null,
+          }
+        : null;
+    },
+
+    reshare(commit) {
+      return database.transaction(async (executor) => {
+        const existing = await executor
+          .select({ id: externalSurface.id })
+          .from(externalSurface)
+          .where(eq(externalSurface.id, commit.newSurfaceId))
+          .limit(1);
+        const source = await ownedLiveSurface(
+          commit.accountId,
+          commit.sourceSurfaceId,
+          executor,
+        );
+        if (!source) {
+          return null;
+        }
+        const [revision] = await executor
+          .select()
+          .from(externalSurfaceSnapshotRevision)
+          .where(eq(externalSurfaceSnapshotRevision.surfaceId, source.id))
+          .orderBy(desc(externalSurfaceSnapshotRevision.revision))
+          .limit(1);
+        const manifest = revision ? manifestOf(revision.snapshot) : null;
+        if (!(revision && manifest)) {
+          return null;
+        }
+        const share = {
+          accessToken: null,
+          label: manifest.label,
+          lastApprovedAt: manifest.approvedAt,
+          passwordProtected: source.passwordHash !== null,
+          revision: 1,
+          surfaceId: commit.newSurfaceId,
+        };
+        if (existing.length > 0) {
+          return { created: false, share };
+        }
+        await executor.insert(externalSurface).values({
+          documentId: source.documentId,
+          expiresAt: commit.expiresAt,
+          id: commit.newSurfaceId,
+          passwordHash: source.passwordHash,
+          projectId: source.projectId,
+          rootId: source.rootId,
+          rootKind: source.rootKind,
+          surfaceKind: SURFACE_KIND,
+          tokenHash: commit.tokenHash,
+          workspaceId: source.workspaceId,
+        });
+        await executor.insert(externalSurfaceSnapshotRevision).values({
+          createdAt: revision.createdAt,
+          id: crypto.randomUUID(),
+          placeholdersAcknowledged: revision.placeholdersAcknowledged,
+          revision: 1,
+          snapshot: revision.snapshot,
+          surfaceId: commit.newSurfaceId,
+        });
+        return { created: true, share };
+      });
+    },
+
+    async revoke(accountId, surfaceId, at) {
+      const owned = await ownedLiveSurface(accountId, surfaceId);
+      if (!owned) {
+        return null;
+      }
+      // Terminal: the cancellation and the epoch bump land together, and the
+      // surface's sessions are removed; nothing reads them again.
+      return database.transaction(async (executor) => {
+        const [changed] = await executor
+          .update(externalSurface)
+          .set({
+            accessEpoch: sql`${externalSurface.accessEpoch} + 1`,
+            cancelledAt: at,
+          })
+          .where(
+            and(
+              eq(externalSurface.id, surfaceId),
+              isNull(externalSurface.cancelledAt),
+            ),
+          )
+          .returning({ accessEpoch: externalSurface.accessEpoch });
+        if (!changed) {
+          return null;
+        }
+        await executor
+          .delete(linkShareVisitorSession)
+          .where(eq(linkShareVisitorSession.surfaceId, surfaceId));
+        return changed;
+      });
+    },
+
+    async updateExpiry(accountId, surfaceId, expiresAt, endSessions) {
+      const owned = await ownedLiveSurface(accountId, surfaceId);
+      if (!owned) {
+        return null;
+      }
+      const [changed] = await database
+        .update(externalSurface)
+        .set({
+          expiresAt,
+          ...(endSessions
+            ? { accessEpoch: sql`${externalSurface.accessEpoch} + 1` }
+            : {}),
+        })
+        .where(
+          and(
+            eq(externalSurface.id, surfaceId),
+            isNull(externalSurface.cancelledAt),
+          ),
+        )
+        .returning({ accessEpoch: externalSurface.accessEpoch });
+      return changed ?? null;
+    },
+
     async updateAccess(accountId, surfaceId, patch) {
       const [owned] = await database
         .select({ id: externalSurface.id })
@@ -1161,6 +1319,7 @@ function createStore(database: Database): LinkSharingStore {
     async surface(accountId, root, surfaceId) {
       const [row] = await database
         .select({
+          expiresAt: externalSurface.expiresAt,
           id: externalSurface.id,
           passwordHash: externalSurface.passwordHash,
         })
@@ -1191,6 +1350,7 @@ function createStore(database: Database): LinkSharingStore {
       return revision && manifest
         ? ({
             approvedAt: manifest.approvedAt,
+            expiresAt: row.expiresAt,
             manifest,
             passwordProtected: row.passwordHash !== null,
             revision: revision.revision,
@@ -1203,7 +1363,49 @@ function createStore(database: Database): LinkSharingStore {
 
 export function createDatabaseLinkSharing(
   database: Database,
-  options: { events?: LinkSharingSecurityEvents } = {},
+  options: {
+    audit?: LinkSharingAudit;
+    events?: LinkSharingSecurityEvents;
+  } = {},
 ): LinkSharingAccess {
   return createLinkSharing(createStore(database), options);
+}
+
+/**
+ * Restore replay of the Link Sharing events against the surface rows. It only
+ * ever cancels a row or raises its access epoch (see `link-sharing-replay.ts`).
+ */
+export function createDatabaseLinkSharingReplay(
+  database: Database,
+  events: Pick<LinkSharingSecurityEvents, "list">,
+) {
+  return createLinkSharingReplay(events, {
+    async cancel(surfaceId, at, belowEpoch) {
+      await database
+        .update(externalSurface)
+        .set({ cancelledAt: at })
+        .where(
+          and(
+            eq(externalSurface.id, surfaceId),
+            eq(externalSurface.surfaceKind, SURFACE_KIND),
+            isNull(externalSurface.cancelledAt),
+            belowEpoch === undefined
+              ? undefined
+              : lt(externalSurface.accessEpoch, belowEpoch),
+          ),
+        );
+    },
+    async raiseEpoch(surfaceId, epoch) {
+      await database
+        .update(externalSurface)
+        .set({ accessEpoch: epoch })
+        .where(
+          and(
+            eq(externalSurface.id, surfaceId),
+            eq(externalSurface.surfaceKind, SURFACE_KIND),
+            lt(externalSurface.accessEpoch, epoch),
+          ),
+        );
+    },
+  });
 }

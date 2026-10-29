@@ -7,7 +7,12 @@ import {
   linkShareGateAttempt,
   linkShareVisitorSession,
 } from "@cantiara/db/schema/external-surface";
+import {
+  fileAttachment,
+  fileAttachmentVersion,
+} from "@cantiara/db/schema/file-attachments";
 import { and, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
+import type { LinkSharingAudit } from "./link-sharing-audit";
 import {
   ATTEMPT_RETENTION_MS,
   createLinkSharingVisitor,
@@ -21,6 +26,7 @@ const SURFACE_KIND = "Link-limited share";
 const surfaceColumns = {
   accessEpoch: externalSurface.accessEpoch,
   cancelledAt: externalSurface.cancelledAt,
+  expiresAt: externalSurface.expiresAt,
   passwordHash: externalSurface.passwordHash,
   surfaceId: externalSurface.id,
 };
@@ -38,6 +44,32 @@ function createStore(database: Database): LinkSharingVisitorStore {
   };
 
   return {
+    async attachment(attachmentId, versionId) {
+      // The exact stored version of an Active attachment; a removed, trashed
+      // or redacted one is not found, so its URL answers `410 Gone`.
+      const [row] = await database
+        .select({
+          byteSize: fileAttachmentVersion.byteSize,
+          contentHash: fileAttachmentVersion.contentHash,
+          fileName: fileAttachmentVersion.fileName,
+          mimeType: fileAttachmentVersion.detectedMimeType,
+          objectKey: fileAttachmentVersion.objectKey,
+        })
+        .from(fileAttachmentVersion)
+        .innerJoin(
+          fileAttachment,
+          eq(fileAttachment.id, fileAttachmentVersion.attachmentId),
+        )
+        .where(
+          and(
+            eq(fileAttachmentVersion.id, versionId),
+            eq(fileAttachmentVersion.attachmentId, attachmentId),
+            eq(fileAttachment.lifecycleStatus, "Active"),
+          ),
+        )
+        .limit(1);
+      return row ?? null;
+    },
     async bumpFailure(key, now) {
       const cutoff = new Date(now.getTime() - ATTEMPT_RETENTION_MS);
       const [row] = await database
@@ -137,7 +169,7 @@ function createStore(database: Database): LinkSharingVisitorStore {
 
 export function createDatabaseLinkSharingVisitor(
   database: Database,
-  options: { rateSecret: string },
+  options: { audit?: LinkSharingAudit; rateSecret: string },
 ): LinkSharingVisitorAccess {
   return createLinkSharingVisitor(createStore(database), options);
 }

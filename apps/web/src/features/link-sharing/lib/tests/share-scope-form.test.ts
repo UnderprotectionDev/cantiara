@@ -65,10 +65,12 @@ describe("Share scope form", () => {
 
   test("on an existing surface only earlier approvals stay checked; candidates and new content wait", () => {
     const surface = {
+      expiresAt: null,
       label: "Some fields live" as const,
       lastApprovedAt: "2026-01-01T00:00:00.000Z",
       passwordProtected: false,
       revision: 2,
+      state: "Active" as const,
       surfaceId: "surf",
     };
     const draft = defaultShareScopeDraft(

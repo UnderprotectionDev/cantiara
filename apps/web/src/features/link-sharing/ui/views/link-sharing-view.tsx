@@ -13,6 +13,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import type { ComponentProps } from "react";
 import { ShareAccessPanel } from "../components/share-access-panel";
+import { ShareLifecyclePanel } from "../components/share-lifecycle-panel";
 import { ShareScopeStatus } from "../components/share-scope-status";
 import {
   ShareScopeForm,
@@ -26,6 +27,8 @@ import {
 export function LinkSharingView({
   access,
   formatting,
+  lifecycle,
+  notice,
   onApprove,
   onSelectRoot,
   preview,
@@ -36,6 +39,12 @@ export function LinkSharingView({
 }: {
   access: Omit<ComponentProps<typeof ShareAccessPanel>, "passwordProtected">;
   formatting: AccountPreferences;
+  lifecycle: Omit<
+    ComponentProps<typeof ShareLifecyclePanel>,
+    "surface" | "timeZone"
+  >;
+  /** A result that outlives its panel, such as a revoked link. */
+  notice: string | null;
   onApprove: (values: ShareScopeFormSubmit) => Promise<unknown>;
   onSelectRoot: (key: string) => void;
   preview?: ShareScopePreview;
@@ -81,11 +90,21 @@ export function LinkSharingView({
           {preview ? (
             <>
               <ShareScopeStatus formatting={formatting} preview={preview} />
+              {notice ? <p role="status">{notice}</p> : null}
               {preview.surface ? (
-                <ShareAccessPanel
-                  {...access}
-                  passwordProtected={preview.surface.passwordProtected}
-                />
+                <>
+                  {preview.surface.state === "Active" ? (
+                    <ShareAccessPanel
+                      {...access}
+                      passwordProtected={preview.surface.passwordProtected}
+                    />
+                  ) : null}
+                  <ShareLifecyclePanel
+                    {...lifecycle}
+                    surface={preview.surface}
+                    timeZone={formatting.timeZone}
+                  />
+                </>
               ) : null}
               <ShareScopeForm
                 key={`${preview.root.kind}:${preview.root.id}:${preview.surface?.revision ?? 0}`}

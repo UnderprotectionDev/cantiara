@@ -54,17 +54,74 @@ const selection = [
 ];
 
 describe("Link Sharing RPC seam", () => {
-  test("exposes the roots, the preview, the approval, the password and the token rotation only (no expiry or revoke yet)", () => {
+  test("exposes the roots, preview, approval, password, token rotation and the expiry, reopen, reshare and revoke lifecycle", () => {
     const procedures = Object.keys(appRouter).filter((name) =>
       SHARE_PROCEDURE.test(name),
     );
     expect(procedures.sort()).toEqual([
       "approveShareScope",
       "previewShareScope",
+      "reopenShareLink",
+      "reshareShareLink",
+      "revokeShareLink",
       "rotateShareToken",
+      "setShareExpiry",
       "shareRoots",
     ]);
-    expect(procedures.some((name) => LIFECYCLE.test(name))).toBe(false);
+    expect(procedures.filter((name) => LIFECYCLE.test(name)).sort()).toEqual([
+      "reopenShareLink",
+      "reshareShareLink",
+      "revokeShareLink",
+      "setShareExpiry",
+    ]);
+  });
+
+  test("the lifecycle procedures need the owner, a confirmed reopen and map state and rate-limit refusals", async () => {
+    const { client } = setup();
+    const approved = await client.approveShareScope({
+      approvalId: "a1",
+      approvedItemIds: selection,
+      liveItemIds: [],
+      publishAnyway: true,
+      root,
+    });
+    const { surfaceId } = approved;
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    expect(
+      await client.setShareExpiry({ expiresAt: future, surfaceId }),
+    ).toMatchObject({ expiresAt: future, state: "Active" });
+    await expect(
+      client.setShareExpiry({ expiresAt: "2000-01-01T00:00:00Z", surfaceId }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      data: { code: "LINK_STATE_INVALID" },
+    });
+    await expect(
+      client.reopenShareLink({
+        confirmOldHoldersRegainAccess: false,
+        expiresAt: null,
+        surfaceId,
+      } as never),
+    ).rejects.toBeDefined();
+    await expect(
+      client.reopenShareLink({
+        confirmOldHoldersRegainAccess: true,
+        expiresAt: null,
+        surfaceId,
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(
+      setup(false).client.revokeShareLink({ surfaceId }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(
+      client.revokeShareLink({ surfaceId: "nope" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await client.revokeShareLink({ surfaceId })).toMatchObject({
+      surfaceId,
+    });
+    await expect(client.revokeShareLink({ surfaceId })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
   });
 
   test("previews the exact closed world with no Secret and lists the placeholder", async () => {

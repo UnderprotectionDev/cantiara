@@ -1259,11 +1259,11 @@ Bağlantıyla sınırlı paylaşım oluşmadan önce kurucunun dışarı çıkac
 _Avoid_: Paylaşım taslağı, otomatik kapsam, Güncel etiketi
 
 **Bağlantı süre dolumu**:
-Önceden belirlenen zamanda yeni erişimi durduran, içeriği ve geçmişi silmeyen geri açılabilir Dış yüzey durumu.
+Önceden belirlenen zamanda yeni erişimi durduran, içeriği ve geçmişi silmeyen geri açılabilir Dış yüzey durumu. Süre isteğe bağlıdır, varsayılan yoktur ve kurucunun profil saat diliminde seçilir; dolmadan uzatılabilir veya kaldırılabilir. Dolunca açık Paylaşım erişim oturumları ve yeni girişler durur; anlık görüntü, Bağlantı parolası ve Build in Public yüzeyi değişmez. Dolduktan sonra iki ayrı eylem vardır: `Reshare with a new link` yeni Dış yüzey ve yeni erişim anahtarı üretir, eski bağlantı kapalı kalır; `Reopen the same link` aynı bağlantıyı eski sahiplerine yeniden açar, bu yüzden uyarı ve ayrı onay ister, önceki oturumları uyandırmaz. Süreyi açmak, değiştirmek veya yeniden etkinleştirmek kaynak kaydın durumunu, Herkese açık durum etiketini ya da Build in Public snapshot'ını yazmaz. UI: `Set expiry`, `Remove expiry`, `Expired`, `Reshare with a new link`, `Reopen the same link`.
 _Avoid_: İptal, kalıcı silme
 
 **Bağlantı iptali**:
-Kurucunun belirli bir bağlantı ve erişim anahtarını geri döndürülemez biçimde geçersiz kıldığı Dış yüzey geçişi; sonraki paylaşım yeni Dış yüzeydir.
+Kurucunun belirli bir bağlantı ve erişim anahtarını geri döndürülemez biçimde geçersiz kıldığı Dış yüzey geçişi; sonraki paylaşım yeni Dış yüzeydir. İptal edilmiş, yayından kaldırılmış veya redakte edilmiş URL HTML, Dosya Eki ve byte-range isteklerinde cache'den önce gövdesiz `410 Gone` ve `noindex` döner, yeni yüzeye yönlendirmez; URL ve anahtar yeniden kullanılmaz, geçmiş bir satırın restore'u iptali geri almaz (Geri döndürülemez güvenlik olay günlüğü replay eder). Paylaşım oluşturma, iptal, süre değişimi ve ziyaretçi kapısı hataları Denetim kaydına gizlisiz ve takma adla yazılır. UI: `Revoke`.
 _Avoid_: Süre dolumu, geçici duraklatma
 
 **Paylaşım erişim oturumu**:

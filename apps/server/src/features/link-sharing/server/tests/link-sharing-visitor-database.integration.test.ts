@@ -96,8 +96,11 @@ describeDatabase("Link Sharing visitor session PostgreSQL", () => {
       throw new Error("not granted");
     }
     expect(
-      (await visitor.authorize(surfaceId, granted.cookieValue))?.manifest.items
-        .length,
+      (
+        (await visitor.authorize(surfaceId, granted.cookieValue)) as {
+          snapshot?: { manifest: { items: unknown[] } };
+        }
+      ).snapshot?.manifest.items.length,
     ).toBeGreaterThan(0);
     const [session] = await database
       .select()
@@ -114,7 +117,9 @@ describeDatabase("Link Sharing visitor session PostgreSQL", () => {
       password: "correct horse battery",
       surfaceId,
     });
-    expect(await visitor.authorize(surfaceId, granted.cookieValue)).toBeNull();
+    expect(
+      (await visitor.authorize(surfaceId, granted.cookieValue)).status,
+    ).toBe("denied");
     expect(await visitor.exchange({ password: null, signals, token })).toEqual({
       status: "denied",
     });
