@@ -79,8 +79,9 @@ export function initialApproved(preview: BuildInPublicPreview) {
 const MEMBER_PREFIX = "member:";
 
 /**
- * Approved Proje Sürümü and Karar items the founder may feature. Nothing is
- * featured unless one of them is picked together with an end time.
+ * Previously approved Proje Sürümü and Karar items the founder may feature
+ * (a `New` item has no earlier revision). Nothing is featured unless one of
+ * them is picked together with an end time.
  */
 export function featureCandidates(
   preview: BuildInPublicPreview,
@@ -89,6 +90,7 @@ export function featureCandidates(
   return leavingItems(preview, approved).filter(
     (item) =>
       item.kind === "Project member" &&
+      item.change !== "New" &&
       (item.memberKind === "Decision" || item.memberKind === "Project Release"),
   );
 }

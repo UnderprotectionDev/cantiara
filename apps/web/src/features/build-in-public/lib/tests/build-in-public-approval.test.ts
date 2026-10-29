@@ -95,6 +95,7 @@ test("a Wall part leaves only with its ticked Wall, and featuring offers only ap
     workId: null,
   });
   const decision = item({
+    change: "Unchanged",
     id: "member:decision-1",
     kind: "Project member",
     memberKind: "Decision",
@@ -115,6 +116,15 @@ test("a Wall part leaves only with its ticked Wall, and featuring offers only ap
   expect(
     featureCandidates(wallPreview, new Set([decision.id])).map((i) => i.id),
   ).toEqual([decision.id]);
+  const fresh = item({
+    id: "member:decision-2",
+    kind: "Project member",
+    memberKind: "Decision",
+    workId: null,
+  });
+  expect(
+    featureCandidates({ ...wallPreview, items: [fresh] }, new Set([fresh.id])),
+  ).toEqual([]);
 });
 
 test("featuring is omitted unless chosen and the end time becomes an instant", () => {

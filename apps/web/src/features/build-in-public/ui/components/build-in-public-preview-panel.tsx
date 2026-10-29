@@ -227,8 +227,9 @@ export function BuildInPublicPreviewPanel({
       <section aria-labelledby="bip-featured" className="grid gap-2">
         <h3 id="bip-featured">Featured record</h3>
         <p>
-          Off by default. One approved Project Release or Decision stays on top
-          of the Project view until the end time, then returns to its place.
+          Off by default. One previously approved Project Release or Decision
+          stays on top of the Project view until the end time, then returns to
+          its place.
         </p>
         <label htmlFor="bip-featured-record">Record</label>
         <NativeSelect

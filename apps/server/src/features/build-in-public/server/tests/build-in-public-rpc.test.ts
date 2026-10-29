@@ -146,6 +146,18 @@ describe("Build in Public RPC", () => {
     });
   });
 
+  test("Publish/share anyway must be sent explicitly; scope approval never implies it", async () => {
+    const approve = vi.fn();
+    const { publishAnyway: _omitted, ...withoutAnyway } = approveInput.approval;
+    await expect(
+      createClient({ approve }).approveBuildInPublic({
+        ...approveInput,
+        approval: withoutAnyway,
+      } as never),
+    ).rejects.toBeDefined();
+    expect(approve).not.toHaveBeenCalled();
+  });
+
   test("rejects an unknown approval field", async () => {
     const approve = vi.fn();
     await expect(

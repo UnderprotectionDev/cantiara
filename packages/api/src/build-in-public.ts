@@ -8,6 +8,7 @@ const identifierSchema = z.string().trim().min(1).max(255);
 
 export const BUILD_IN_PUBLIC_UI_LABELS = {
   buildInPublic: "Build in Public",
+  changelog: "Changelog",
   completed: "Completed",
   developmentFeed: "Development feed",
   disableIndexing: "Disable indexing",
@@ -17,11 +18,13 @@ export const BUILD_IN_PUBLIC_UI_LABELS = {
   liveExternalSource: "Live external source",
   openSourceRecord: "Open source record",
   planned: "Planned",
+  project: "Project",
   publicStatusLabel: "Public Status Label",
   publicSummary: "Public summary",
   publicTitle: "Public title",
   publishAnyway: "Publish/share anyway",
   released: "Released",
+  roadmap: "Roadmap",
   reviewPublishDiff: "Review publish diff",
   unpublish: "Unpublish",
   unpublishedChanges: "Unpublished changes",

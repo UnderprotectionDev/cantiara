@@ -294,7 +294,7 @@ export function renderBuildInPublicPage(
   );
   const at = (view: BuildInPublicView) =>
     buildInPublicPath(input.surfaceId, input.slug, view);
-  const nav = `<nav aria-label="Build in Public">${link(at("project"), "Project")} ${link(at("roadmap"), "Roadmap")} ${link(at("changelog"), "Changelog")} ${link(at("feed"), BUILD_IN_PUBLIC_UI_LABELS.developmentFeed)}</nav>`;
+  const nav = `<nav aria-label="Build in Public">${link(at("project"), BUILD_IN_PUBLIC_UI_LABELS.project)} ${link(at("roadmap"), BUILD_IN_PUBLIC_UI_LABELS.roadmap)} ${link(at("changelog"), BUILD_IN_PUBLIC_UI_LABELS.changelog)} ${link(at("feed"), BUILD_IN_PUBLIC_UI_LABELS.developmentFeed)}</nav>`;
   const owner = input.owner
     ? `<nav aria-label="Owner controls">${link(input.owner.sourceHref, BUILD_IN_PUBLIC_UI_LABELS.openSourceRecord)} ${link(input.owner.diffHref, BUILD_IN_PUBLIC_UI_LABELS.reviewPublishDiff)}</nav>`
     : "";

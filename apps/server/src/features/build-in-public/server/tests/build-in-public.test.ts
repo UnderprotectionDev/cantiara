@@ -507,6 +507,17 @@ describe("Build in Public approval", () => {
     expect(fixtures.revisions).toHaveLength(0);
   });
 
+  test("a retried approval is stale and appends no second revision or feed event", async () => {
+    const fixtures = createFixtures();
+    await enabled(fixtures);
+    const request = approval(await previewOf(fixtures), ["work:work-a"]);
+    await fixtures.access.approve(ACCOUNT_ID, request);
+    await expect(
+      fixtures.access.approve(ACCOUNT_ID, request),
+    ).rejects.toMatchObject({ code: "BUILD_IN_PUBLIC_PREVIEW_STALE" });
+    expect(fixtures.revisions).toHaveLength(1);
+  });
+
   test("only approved items leave, with stable opaque ids across revisions", async () => {
     const fixtures = createFixtures();
     await enabled(fixtures);

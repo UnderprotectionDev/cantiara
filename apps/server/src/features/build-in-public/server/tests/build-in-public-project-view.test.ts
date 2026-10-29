@@ -284,6 +284,7 @@ describe("Build in Public featured record", () => {
 
   test("keeps one approved Release or Decision on top until the window ends, then chronological", async () => {
     const fixtures = createFixtures({ members: [release, decision] });
+    await approveItems(fixtures);
     const writesBefore = fixtures.writes.length;
     await approveItems(fixtures, {
       featured: { endsAt: future, recordId: "decision-1" },
@@ -318,6 +319,15 @@ describe("Build in Public featured record", () => {
       keep?: (item: { id: string }) => boolean,
     ) => approveItems(fixtures, { featured: request, keep });
 
+    // A record first approved in this very snapshot cannot be featured yet.
+    await expect(
+      attempt({ endsAt: future, recordId: "decision-1" }),
+    ).rejects.toMatchObject({ code: "BUILD_IN_PUBLIC_FEATURED_INVALID" });
+    expect(fixtures.surfaces).toHaveLength(0);
+    await approveItems(fixtures, {
+      keep: (item) => item.id !== "member:doc-secret",
+    });
+
     await expect(
       attempt({ endsAt: future, recordId: "doc-secret" }),
     ).rejects.toMatchObject({ code: "BUILD_IN_PUBLIC_FEATURED_INVALID" });
@@ -330,7 +340,6 @@ describe("Build in Public featured record", () => {
         (item) => item.id !== "member:decision-1",
       ),
     ).rejects.toMatchObject({ code: "BUILD_IN_PUBLIC_FEATURED_INVALID" });
-    expect(fixtures.surfaces).toHaveLength(0);
 
     // Featuring another record replaces the first: never more than one.
     await attempt({ endsAt: future, recordId: "decision-1" });

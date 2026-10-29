@@ -112,6 +112,31 @@ describe("Build in Public slug", () => {
     expect((await site.get("/surface-1/new-name")).status).toBe(200);
   });
 
+  test("an alias redirect is never cached and a warm canonical cache cannot outlive unpublish", async () => {
+    const { fixtures, site } = await published();
+    expect((await site.get("/surface-1/my-project")).status).toBe(200);
+    await fixtures.access.setSlug(ACCOUNT_ID, {
+      confirmRedirect: true,
+      projectId: PROJECT_ID,
+      slug: "new-name",
+    });
+    expect((await site.get("/surface-1/new-name")).status).toBe(200);
+    const redirect = await site.get("/surface-1/my-project");
+    expect(redirect.status).toBe(308);
+    expect(redirect.headers.get("cache-control")).toBe("no-store");
+    expect(await redirect.text()).toBe("");
+
+    await fixtures.access.unpublish(ACCOUNT_ID, PROJECT_ID);
+    const dead = await Promise.all([
+      site.get("/surface-1/my-project"),
+      site.get("/surface-1/new-name"),
+    ]);
+    for (const response of dead) {
+      expect(response.status).toBe(410);
+      expect(response.headers.get("location")).toBeNull();
+    }
+  });
+
   test("the redirect dies on unpublish and points at no content", async () => {
     const { fixtures, site } = await published();
     await fixtures.access.setSlug(ACCOUNT_ID, {

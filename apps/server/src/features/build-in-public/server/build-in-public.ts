@@ -632,8 +632,15 @@ function featuredOf(
   if (requested === null) {
     return null;
   }
+  // Only a record approved in an earlier revision may be featured: never one
+  // that first becomes public in the snapshot being approved now.
+  const earlier = new Set(
+    (previous?.members ?? []).map((member) => member.memberId),
+  );
   const featurable = (members ?? []).filter(
-    (member) => member.kind === "Project Release" || member.kind === "Decision",
+    (member) =>
+      earlier.has(member.memberId) &&
+      (member.kind === "Project Release" || member.kind === "Decision"),
   );
   if (requested === undefined) {
     const kept = previous?.featured;
