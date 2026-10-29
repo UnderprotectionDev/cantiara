@@ -49,6 +49,12 @@ export interface SurfaceDelivery {
 export interface SurfacePageOptions {
   /** Builds the page for the current revision; null means there is nothing to show. */
   render: (state: ExternalSurfaceState) => Promise<SurfaceDelivery | null>;
+  /**
+   * Names what else the rendered bytes depend on (view, page number, owner
+   * controls, a time window). It only widens the cache key; the live state
+   * check still runs first on every request.
+   */
+  variant?: string;
 }
 
 export interface SurfaceAssetOptions {
@@ -326,7 +332,7 @@ export function createExternalSurfaceAccess(options: {
       if (!state) {
         return goneResponse();
       }
-      const key = `${surfaceId}:${state.revision}:page:${state.indexingEnabled}`;
+      const key = `${surfaceId}:${state.revision}:page:${state.indexingEnabled}:${pageOptions.variant ?? ""}`;
       const page = await cached(key, async () => {
         const delivery = await pageOptions.render(state);
         return delivery

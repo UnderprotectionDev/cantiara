@@ -92,6 +92,60 @@ describe("Build in Public RPC", () => {
     expect(setWorkCopy).not.toHaveBeenCalled();
   });
 
+  test("publication management runs as the signed-in User and maps its errors", async () => {
+    const unpublish = vi.fn(async () => ({ published: false }) as never);
+    await createClient({ unpublish }).unpublishBuildInPublic({
+      ...envelope,
+      projectId: "project-1",
+    });
+    expect(unpublish).toHaveBeenCalledWith("account-1", "project-1");
+
+    const cases = [
+      ["BUILD_IN_PUBLIC_SLUG_TAKEN", "CONFLICT"],
+      ["BUILD_IN_PUBLIC_REDIRECT_UNCONFIRMED", "PRECONDITION_FAILED"],
+    ] as const;
+    await Promise.all(
+      cases.map(([code, status]) =>
+        expect(
+          createClient({
+            setSlug: () => {
+              throw new BuildInPublicError(code);
+            },
+          }).setBuildInPublicSlug({
+            ...envelope,
+            confirmRedirect: false,
+            projectId: "project-1",
+            slug: "launch",
+          }),
+        ).rejects.toMatchObject({ code: status }),
+      ),
+    );
+    await expect(
+      createClient({}).setBuildInPublicSlug({
+        ...envelope,
+        confirmRedirect: true,
+        projectId: "project-1",
+        slug: "roadmap",
+      }),
+    ).rejects.toBeDefined();
+  });
+
+  test("approval accepts a featured record and refuses unknown fields", async () => {
+    const approve = vi.fn(async () => ({ revision: 2 }) as never);
+    const featured = {
+      endsAt: "2027-01-01T00:00:00.000Z",
+      recordId: "release-1",
+    };
+    await createClient({ approve }).approveBuildInPublic({
+      ...approveInput,
+      approval: { ...approveInput.approval, featured },
+    });
+    expect(approve).toHaveBeenCalledWith("account-1", {
+      approval: { ...approveInput.approval, featured },
+      projectId: "project-1",
+    });
+  });
+
   test("rejects an unknown approval field", async () => {
     const approve = vi.fn();
     await expect(

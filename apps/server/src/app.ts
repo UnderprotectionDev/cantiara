@@ -217,6 +217,7 @@ export interface AppDependencies {
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
   buildInPublic?: BuildInPublicAccess;
+  buildInPublicPages?: Hono;
   captureInbox?: CaptureInboxAccess;
   completionEffectsPreferences?: CompletionEffectsPreferencesAccess;
   completionEffectsPreferencesMutationContract?: MutationContract<CompletionEffectsPreferences>;
@@ -363,6 +364,9 @@ export function createApp(dependencies: AppDependencies) {
   // visitor has no Account and the shared access module authorizes each request.
   if (dependencies.wikiPublicPages) {
     app.route("/w", dependencies.wikiPublicPages);
+  }
+  if (dependencies.buildInPublicPages) {
+    app.route("/b", dependencies.buildInPublicPages);
   }
 
   app.use("*", async (c, next) => {

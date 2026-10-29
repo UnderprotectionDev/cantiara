@@ -4,10 +4,13 @@ import {
   check,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { workspace } from "./auth";
+import { externalSurface } from "./external-surface";
 import { project } from "./project";
 import { work } from "./work";
 
@@ -50,6 +53,10 @@ export const buildInPublicSetting = pgTable(
 export const buildInPublicWorkCopy = pgTable(
   "build_in_public_work_copy",
   {
+    /** `Full date`, `Month`, `Quarter` or `Hidden`; derived from the Work's one internal date. */
+    dueDatePresentation: text("due_date_presentation")
+      .notNull()
+      .default("Hidden"),
     projectId: text("project_id")
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),
@@ -71,8 +78,46 @@ export const buildInPublicWorkCopy = pgTable(
       sql`${table.publicSummary} is null or length(btrim(${table.publicSummary})) between 1 and 300`,
     ),
     check(
+      "build_in_public_work_copy_due_date_check",
+      sql`${table.dueDatePresentation} in ('Full date', 'Month', 'Quarter', 'Hidden')`,
+    ),
+    check(
       "build_in_public_work_copy_label_check",
       sql`${table.publicStatusLabel} is null or length(btrim(${table.publicStatusLabel})) between 1 and 40`,
+    ),
+  ],
+);
+
+/**
+ * Public addresses of one Build in Public surface. The `canonical` slug names
+ * the surface; any other row is an earlier slug that redirects to it. A slug is
+ * unique in the Workspace. Unpublishing deletes every row, so a redirect never
+ * outlives the surface and no address is reused.
+ */
+export const buildInPublicSlug = pgTable(
+  "build_in_public_slug",
+  {
+    canonical: boolean("canonical").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    slug: text("slug").notNull(),
+    surfaceId: text("surface_id")
+      .notNull()
+      .references(() => externalSurface.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.workspaceId, table.slug],
+      name: "build_in_public_slug_pk",
+    }),
+    uniqueIndex("build_in_public_slug_canonical_uidx")
+      .on(table.surfaceId)
+      .where(sql`${table.canonical}`),
+    check(
+      "build_in_public_slug_check",
+      sql`${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(${table.slug}) <= 80`,
     ),
   ],
 );

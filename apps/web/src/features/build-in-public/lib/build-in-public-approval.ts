@@ -27,16 +27,20 @@ export function leavingItems(
   preview: BuildInPublicPreview,
   approved: ReadonlySet<string>,
 ) {
-  const works = new Set(
+  const roots = new Set(
     preview.items
-      .filter((item) => item.kind === "Roadmap Work" && approved.has(item.id))
+      .filter(
+        (item) =>
+          (item.kind === "Roadmap Work" || item.kind === "Project member") &&
+          approved.has(item.id),
+      )
       .map((item) => item.id),
   );
   return preview.items.filter((item) => {
     if (!approved.has(item.id)) {
       return false;
     }
-    return item.parentId === null ? true : works.has(item.parentId);
+    return item.parentId === null ? true : roots.has(item.parentId);
   });
 }
 
@@ -72,16 +76,50 @@ export function initialApproved(preview: BuildInPublicPreview) {
   );
 }
 
+const MEMBER_PREFIX = "member:";
+
+/**
+ * Approved Proje Sürümü and Karar items the founder may feature. Nothing is
+ * featured unless one of them is picked together with an end time.
+ */
+export function featureCandidates(
+  preview: BuildInPublicPreview,
+  approved: ReadonlySet<string>,
+) {
+  return leavingItems(preview, approved).filter(
+    (item) =>
+      item.kind === "Project member" &&
+      (item.memberKind === "Decision" || item.memberKind === "Project Release"),
+  );
+}
+
+/** The source record id of a Project member item. */
+export function memberRecordId(item: BuildInPublicItem) {
+  return item.id.startsWith(MEMBER_PREFIX)
+    ? item.id.slice(MEMBER_PREFIX.length)
+    : item.id;
+}
+
+/** `yyyy-MM-ddTHH:mm` (local) to the ISO instant the contract takes; empty or invalid is no window. */
+export function featuredEndsAt(local: string) {
+  const time = local ? new Date(local).getTime() : Number.NaN;
+  return Number.isNaN(time) ? null : new Date(time).toISOString();
+}
+
 export function buildApproval(
   preview: BuildInPublicPreview,
   approved: ReadonlySet<string>,
   publishAnyway: boolean,
+  featured?: { endsAt: string; recordId: string } | null,
 ): ApproveBuildInPublicInput["approval"] {
-  const hasMetadata = preview.metadata.title || preview.metadata.summary;
+  const { summary, title, changelogIndex, roadmapIndex } = preview.metadata;
+  const hasMetadata = title || summary || changelogIndex || roadmapIndex;
   return {
     approvedItemIds: preview.items
       .filter((item) => approved.has(item.id))
       .map((item) => item.id),
+    // Omitted keeps the earlier choice; the founder clears it with null.
+    ...(featured === undefined ? {} : { featured }),
     fingerprint: preview.fingerprint,
     ...(hasMetadata ? { metadata: preview.metadata } : {}),
     publishAnyway,

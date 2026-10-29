@@ -100,4 +100,81 @@ describeDatabase("Build in Public PostgreSQL", () => {
     expect(row?.status).toBe("Blocked");
     expect((await access.settings(accountId, profile.id))?.revision).toBe(1);
   });
+
+  test("slug is unique per Workspace, redirects on change, and unpublish deletes it and cancels the surface", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const profile = await createDatabaseProjectShell(database).create(
+      accountId,
+      {
+        name: "Public",
+        shortCode: "PUB",
+        starterConfiguration: "Blank Project",
+      },
+    );
+    await database.insert(work).values({
+      id: `work-${crypto.randomUUID()}`,
+      key: "PUB-1",
+      number: 1,
+      projectId: profile.id,
+      roadmapHorizon: "Now",
+      status: "In Progress",
+      targetDate: "2026-11-15",
+      title: "Internal codename",
+      type: "Task",
+    });
+    const access = createDatabaseBuildInPublic(database);
+    await access.setEnabled(accountId, {
+      enabled: true,
+      projectId: profile.id,
+    });
+    const preview = await access.preview(accountId, {
+      metadata: { title: "Launch Notes" },
+      projectId: profile.id,
+    });
+    const approved = await access.approve(accountId, {
+      approval: {
+        approvedItemIds: preview?.items.map((item) => item.id) ?? [],
+        fingerprint: preview?.fingerprint ?? "",
+        metadata: { title: "Launch Notes" },
+        publishAnyway: true,
+      },
+      projectId: profile.id,
+    });
+    expect(approved?.revision).toBe(1);
+
+    const first = await access.publication(accountId, profile.id);
+    expect(first?.slug).toBe("launch-notes");
+    expect(first?.indexingEnabled).toBe(false);
+
+    const slugPreview = await access.previewSlug(accountId, {
+      projectId: profile.id,
+      slug: "launch",
+    });
+    expect(slugPreview?.redirect?.to).toBe(`/b/${approved?.surfaceId}/launch`);
+    const changed = await access.setSlug(accountId, {
+      confirmRedirect: true,
+      projectId: profile.id,
+      slug: "launch",
+    });
+    expect(changed?.aliases).toEqual(["launch-notes"]);
+
+    await access.unpublish(accountId, profile.id);
+    expect((await access.publication(accountId, profile.id))?.published).toBe(
+      false,
+    );
+    // A later publish gets a new surface, never the cancelled one.
+    const again = await access.preview(accountId, { projectId: profile.id });
+    const second = await access.approve(accountId, {
+      approval: {
+        approvedItemIds: again?.items.map((item) => item.id) ?? [],
+        fingerprint: again?.fingerprint ?? "",
+        publishAnyway: true,
+      },
+      projectId: profile.id,
+    });
+    expect(second?.surfaceId).not.toBe(approved?.surfaceId);
+    expect(second?.revision).toBe(1);
+  });
 });

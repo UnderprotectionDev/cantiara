@@ -1270,6 +1270,26 @@ _Avoid_: İş akışı durumu, ikinci herkese açık İş, otomatik yayın karar
 Bir Projenin seçili Roadmap İşlerini, durum eşlemesini ve üstverisini kurucunun [kapalı dünya önizlemesi](docs/prd/14-sharing-and-public-publishing.md#build-in-public) ve öğe başına onayıyla Proje bazında isteğe bağlı herkese açık yayımladığı Dış yüzeydir; her onay yeni bir Onaylı snapshot revizyonu ekler, canlı Roadmap kopyası değildir ve kaynak değişikliği onaylanana kadar `Unpublished changes` olarak farkta kalır. Roadmap İşinin isteğe bağlı `Public title` ve `Public summary` alanları o İşe bağlı yayın alanlarıdır; iç başlık değişince kendiliğinden yeniden yazılmaz ve ikinci herkese açık İş üretmez. UI: `Build in Public`, `Public title`, `Public summary`, `Unpublished changes`, `Publish/share anyway`.
 _Avoid_: Canlı Roadmap kopyası, ikinci herkese açık İş, görüntülenme sayacı, otomatik blog, Tekil Wiki yayını
 
+**Aynı revizyon üçlüsü**:
+Build in Public'in herkese açık Roadmap'inin, değişiklik günlüğünün ve Proje görünümünün tek Onaylı snapshot revizyonunun projeksiyonu olması; üçü farklı revizyonu göstermez ve Proje görünümü yalnız o revizyonun onaylı Roadmap, İş, Belge, tasarım, Karar, Proje Sürümü ve seçilmiş Proje Duvarı üyelerini listeler, canlı Çalışma Alanı sorgusu çalıştırmaz. Seçilen Proje Duvarının kart, kesin Dosya Eki sürümü, yerleşim, grup, görünüm metni, görsel çizgi, odak sırası, renk, kırpma/döndürme/işaretleme ve canlı koleksiyon bloğu ayrı onay öğesidir; onaylanmayan kartın çizgisi, grubu, odak adımı ve konum boşluğu yapıyı sızdırmaz; canlı blok tarih etiketli salt okunur snapshot olarak donar. Her Roadmap, changelog ve Proje yüzeyi kendi yayın başlığı ve özetini taşır, alanlar miras olmaz. UI: `Unpublished changes`, `Live external source`.
+_Avoid_: Canlı Proje görünümü, revizyon kayması, kopya Proje, kamusal Çalışma Alanı sorgusu
+
+**Herkese açık tarih sunumu**:
+Roadmap İşinin tek iç hedef tarihinden türetilen ve İş başına seçilen `Full date`, `Month`, `Quarter` veya `Hidden` gösterimidir; ikinci herkese açık tarih alanı yoktur, daha kaba gösterim daha ince tarihi snapshot'a taşımaz ve varsayılan `Hidden`'dır. UI: `Full date`, `Month`, `Quarter`, `Hidden`.
+_Avoid_: Public due date alanı, ikinci tarih, takvim yayını
+
+**Öne çıkarılan kayıt**:
+Herkese açık Proje görünümünün üstünde, kurucunun belirlediği bitiş zamanına kadar tutulan, daha önce onaylanmış en fazla bir Proje Sürümü ya da Karar; varsayılan kapalıdır, özel alan yayımlamaz, içerik üretmez ve Dikkat sinyali doğurmaz; süre bitince kayıt kronolojik konumuna döner. UI: `Featured record`.
+_Avoid_: Sabitlenmiş duyuru, kampanya, bildirim, ikinci yayın
+
+**Kurucu yayın kontrolleri**:
+Oturum açmış sahibin kendi herkese açık Build in Public görünümünde yalnız kendine gördüğü `Open source record` ve `Review publish diff` bağlantılarıdır; ziyaretçi bunları, yönetim kontrolünü, paleti, aramayı veya yazma yüzeyini görmez ve sahiplik oturumdan okunur, ziyaretçi kimliği tutulmaz. UI: `Open source record`, `Review publish diff`.
+_Avoid_: Ziyaretçi yönetim çubuğu, görüntülenme paneli, yönetici modu
+
+**Herkese açık slug**:
+Build in Public yüzeyinin Çalışma Alanında benzersiz okunabilir adresidir; değişiklik uygulanmadan eski adresten yeni kanonik adrese yönlenecek redirect önizlenir ve ayrıca onaylanır, redirect yalnız yüzey herkese açıkken çalışır, yayından kaldırmada ölür ve özel içeriğe yönlendirmez; slug'ın varlığı indekslemeyi kendiliğinden açmaz. UI: `Slug`, `Enable indexing`, `Disable indexing`, `Unpublish`.
+_Avoid_: Kısa bağlantı, özel alan adı, SEO anahtar kelimesi
+
 **Güvenlik nedeniyle redakte edilmiş kanıt**:
 Değişmez sürüm manifestini yeniden yazmadan hassas içeriği [kaldırılmış kanıtın](docs/prd/10-testing-and-validation.md#düzeltme-geri-çekme-ve-güvenlik-redaksiyonu) erişilemez durumu; yeni bir sürümün kabul kanıtı olarak yeniden kullanılamaz.
 _Avoid_: Temizlenmiş kanıt sürümü, erişilebilir şifreli özgün, geçerli devredilmiş kanıt

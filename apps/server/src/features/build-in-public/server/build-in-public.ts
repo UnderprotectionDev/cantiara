@@ -16,10 +16,13 @@ import {
   type BuildInPublicSnapshot,
   type BuildInPublicSnapshotWork,
   type BuildInPublicStatusKey,
+  type BuildInPublicSurfaceCopy,
   type BuildInPublicWorkCopy,
   DEFAULT_PUBLIC_STATUS_MAP,
+  type DueDatePresentation,
   LABEL_REQUIRED_MESSAGE,
   METADATA_ITEM_ID,
+  presentDueDate,
   publicStatusKeyOf,
   RELEASED_LABEL,
   releasedItemId,
@@ -34,6 +37,16 @@ import {
 } from "@cantiara/api/mutation-and-undo";
 import { youtubeOccurrences } from "@cantiara/api/wiki-publishing";
 
+import {
+  type BuildInPublicSourceMember,
+  memberItemSet,
+  snapshotMembers,
+} from "./build-in-public-project-view";
+import {
+  type BuildInPublicPublicationStore,
+  createBuildInPublicPublication,
+} from "./build-in-public-publication";
+
 export interface BuildInPublicWorkFact {
   closureResult: string | null;
   /** Internal text; only full-line YouTube URLs are read from it, as separate embeds. */
@@ -42,6 +55,8 @@ export interface BuildInPublicWorkFact {
   key: string;
   roadmapHorizon: string;
   status: string;
+  /** The internal target date (YYYY-MM-DD); only its public presentation can leave. */
+  targetDate: string | null;
   title: string;
 }
 
@@ -51,6 +66,11 @@ export interface BuildInPublicFacts {
     accountId: string,
     workId: string,
   ) => Promise<{ id: string; name: string; version: number }[]>;
+  /** Belgeler, tasarımlar, Kararlar, published Proje Sürümleri and Proje Duvarları of the Project. */
+  members: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<BuildInPublicSourceMember[]>;
   /** The owned Project's workspace, or null for anything else. */
   project: (
     accountId: string,
@@ -75,6 +95,7 @@ export interface BuildInPublicSettingRow {
 }
 
 export interface BuildInPublicLatest {
+  indexingEnabled: boolean;
   revision: number;
   snapshot: BuildInPublicSnapshot;
   surfaceId: string;
@@ -90,6 +111,8 @@ export interface BuildInPublicStore {
    */
   publish: (write: {
     projectId: string;
+    /** Canonical slug a first publish starts with; later revisions keep the stored one. */
+    slug: string;
     snapshot: BuildInPublicSnapshot;
     workspaceId: string;
   }) => Promise<ApprovedBuildInPublic>;
@@ -108,7 +131,7 @@ export interface BuildInPublicStore {
 export interface BuildInPublicOptions {
   facts: BuildInPublicFacts;
   now?: () => Date;
-  store: BuildInPublicStore;
+  store: BuildInPublicStore & BuildInPublicPublicationStore;
 }
 
 const EMPTY_SETTING: BuildInPublicSettingRow = {
@@ -189,8 +212,10 @@ function dependent(
     files: [],
     internalStatus: null,
     labelSource: null,
+    memberKind: null,
     parentId: parent.id,
     publicStatusLabel: null,
+    wallPart: null,
     workId: parent.workId,
     ...item,
   };
@@ -231,12 +256,18 @@ function workItem(work: BuildInPublicWorkFact, context: PreviewContext) {
   const publicSummary = clean(copy?.publicSummary);
   const title = publicTitle ?? work.title;
   const approved = context.approvedOf.get(work.id);
+  // Derived from the one internal date on every preview; there is no second public date.
+  const dueLabel = presentDueDate(
+    work.targetDate,
+    copy?.dueDatePresentation ?? "Hidden",
+  );
   const fields: BuildInPublicField[] = [
     { name: publicTitle ? "Public title" : "Title", value: title },
     ...(publicSummary
       ? [{ name: "Public summary", value: publicSummary }]
       : []),
     { name: "Roadmap horizon", value: work.roadmapHorizon },
+    ...(dueLabel ? [{ name: "Due date", value: dueLabel }] : []),
   ];
   const item: BuildInPublicItem = {
     blocker: resolved.label ? null : LABEL_REQUIRED_MESSAGE,
@@ -249,6 +280,7 @@ function workItem(work: BuildInPublicWorkFact, context: PreviewContext) {
         resolved.label,
       ],
       ["Roadmap horizon", approved?.horizon ?? null, work.roadmapHorizon],
+      ["Due date", approved?.dueLabel ?? null, dueLabel],
     ]),
     fields,
     files: [],
@@ -256,9 +288,11 @@ function workItem(work: BuildInPublicWorkFact, context: PreviewContext) {
     internalStatus: statusKey,
     kind: "Roadmap Work",
     labelSource: resolved.source,
+    memberKind: null,
     parentId: null,
     publicStatusLabel: resolved.label,
     title: `${work.key} · ${title}`,
+    wallPart: null,
     workId: work.id,
   };
   return { approved, item, label: resolved.label };
@@ -323,32 +357,96 @@ function youtubeItem(
   });
 }
 
+const COPY_SURFACES = [
+  ["Publication", (metadata: BuildInPublicMetadata) => metadata],
+  ["Roadmap index", (metadata: BuildInPublicMetadata) => metadata.roadmapIndex],
+  [
+    "Changelog index",
+    (metadata: BuildInPublicMetadata) => metadata.changelogIndex,
+  ],
+] as const;
+
+/** Each surface keeps its own title and summary; none is derived from another. */
+function metadataFields(
+  metadata: BuildInPublicMetadata | undefined,
+): BuildInPublicField[] {
+  return COPY_SURFACES.flatMap(([surface, pick]) => {
+    const copy: BuildInPublicSurfaceCopy | undefined = metadata
+      ? pick(metadata)
+      : undefined;
+    return [
+      ...(copy?.title ? [{ name: `${surface} title`, value: copy.title }] : []),
+      ...(copy?.summary
+        ? [{ name: `${surface} summary`, value: copy.summary }]
+        : []),
+    ];
+  });
+}
+
+interface BuildInPublicMetadataInput {
+  changelogIndex?: { summary?: string | null; title?: string | null };
+  roadmapIndex?: { summary?: string | null; title?: string | null };
+  summary?: string | null;
+  title?: string | null;
+}
+
+function cleanCopy(
+  copy: { summary?: string | null; title?: string | null } | undefined,
+): BuildInPublicSurfaceCopy | undefined {
+  const cleaned = {
+    summary: clean(copy?.summary),
+    title: clean(copy?.title),
+  };
+  return cleaned.summary || cleaned.title ? cleaned : undefined;
+}
+
+function cleanMetadata(
+  proposed: BuildInPublicMetadataInput,
+): BuildInPublicMetadata {
+  const changelogIndex = cleanCopy(proposed.changelogIndex);
+  const roadmapIndex = cleanCopy(proposed.roadmapIndex);
+  return {
+    ...(changelogIndex ? { changelogIndex } : {}),
+    ...(roadmapIndex ? { roadmapIndex } : {}),
+    summary: clean(proposed.summary),
+    title: clean(proposed.title),
+  };
+}
+
 function metadataItem(
   metadata: BuildInPublicMetadata,
   before: BuildInPublicMetadata | undefined,
 ): BuildInPublicItem {
+  const proposed = metadataFields(metadata);
+  const approvedFields = metadataFields(before);
+  const names = [
+    ...new Set([...proposed, ...approvedFields].map((field) => field.name)),
+  ];
+  const valueIn = (list: BuildInPublicField[], name: string) =>
+    list.find((field) => field.name === name)?.value ?? null;
   return {
     blocker: null,
-    ...diffAgainst(before, [
-      ["Publication title", before?.title ?? null, metadata.title],
-      ["Publication summary", before?.summary ?? null, metadata.summary],
-    ]),
-    fields: [
-      ...(metadata.title
-        ? [{ name: "Publication title", value: metadata.title }]
-        : []),
-      ...(metadata.summary
-        ? [{ name: "Publication summary", value: metadata.summary }]
-        : []),
-    ],
+    ...diffAgainst(
+      before,
+      names.map(
+        (name): DiffPair => [
+          name,
+          valueIn(approvedFields, name),
+          valueIn(proposed, name),
+        ],
+      ),
+    ),
+    fields: proposed,
     files: [],
     id: METADATA_ITEM_ID,
     internalStatus: null,
     kind: "Metadata",
     labelSource: null,
+    memberKind: null,
     parentId: null,
     publicStatusLabel: null,
     title: "Publication metadata",
+    wallPart: null,
     workId: null,
   };
 }
@@ -360,7 +458,10 @@ function leavingItemIds(
 ) {
   const ids = new Set<string>();
   for (const item of preview.items) {
-    if (item.kind === "Roadmap Work" && ticked.has(item.id)) {
+    if (
+      (item.kind === "Roadmap Work" || item.kind === "Project member") &&
+      ticked.has(item.id)
+    ) {
       ids.add(item.id);
     }
   }
@@ -413,6 +514,7 @@ function snapshotWorks(
         (entry) => entry.parentId === item.id && leaving.has(entry.id),
       );
       return {
+        dueLabel: fieldOf("Due date"),
         embeds: parts
           .filter((entry) => entry.kind === "YouTube video")
           .map((entry, index) => ({
@@ -459,6 +561,39 @@ function assertApprovable(
   if (unresolved && !publishAnyway) {
     throw new BuildInPublicError("BUILD_IN_PUBLIC_PLACEHOLDERS_UNRESOLVED");
   }
+}
+
+/**
+ * Featuring is off unless the founder sets it: one approved Proje Sürümü or
+ * Karar of this very snapshot, until a future end time. Omitted keeps the
+ * earlier choice while that record stays approved. Nothing is published and no
+ * signal is emitted for it.
+ */
+function featuredOf(
+  requested: { endsAt: string; recordId: string } | null | undefined,
+  previous: BuildInPublicSnapshot | undefined,
+  members: BuildInPublicSnapshot["members"],
+  at: Date,
+): BuildInPublicSnapshot["featured"] {
+  if (requested === null) {
+    return null;
+  }
+  const featurable = (members ?? []).filter(
+    (member) => member.kind === "Project Release" || member.kind === "Decision",
+  );
+  if (requested === undefined) {
+    const kept = previous?.featured;
+    return kept && featurable.some((m) => m.memberId === kept.memberId)
+      ? kept
+      : null;
+  }
+  const record = featurable.find(
+    (member) => member.sourceRecordId === requested.recordId,
+  );
+  if (!record || new Date(requested.endsAt).getTime() <= at.getTime()) {
+    throw new BuildInPublicError("BUILD_IN_PUBLIC_FEATURED_INVALID");
+  }
+  return { endsAt: requested.endsAt, memberId: record.memberId };
 }
 
 export function createBuildInPublic(
@@ -516,19 +651,21 @@ export function createBuildInPublic(
   async function build(
     accountId: string,
     projectId: string,
-    proposed: { summary?: string | null; title?: string | null },
+    proposed: BuildInPublicMetadataInput,
   ) {
     const project = await facts.project(accountId, projectId);
     if (!project) {
       return null;
     }
-    const [setting, works, copies, latest, memberships] = await Promise.all([
-      store.setting(projectId),
-      facts.roadmapWorks(accountId, projectId),
-      store.copies(projectId),
-      store.latest(projectId),
-      facts.publishedReleaseMembership(accountId, projectId),
-    ]);
+    const [setting, works, copies, latest, memberships, sources] =
+      await Promise.all([
+        store.setting(projectId),
+        facts.roadmapWorks(accountId, projectId),
+        store.copies(projectId),
+        store.latest(projectId),
+        facts.publishedReleaseMembership(accountId, projectId),
+        facts.members(accountId, projectId),
+      ]);
     const { items, placeholders } = await workItems(accountId, works, {
       approvedOf: new Map(
         (latest?.snapshot.roadmap ?? []).map((entry) => [
@@ -543,11 +680,33 @@ export function createBuildInPublic(
       ),
     });
 
-    const metadata: BuildInPublicMetadata = {
-      summary: clean(proposed.summary),
-      title: clean(proposed.title),
-    };
-    if (metadata.title || metadata.summary) {
+    const frozenOn = now().toISOString().slice(0, 10);
+    const approvedMembers = new Map(
+      (latest?.snapshot.members ?? []).map((entry) => [
+        entry.sourceRecordId,
+        entry,
+      ]),
+    );
+    for (const source of sources) {
+      const set = memberItemSet(
+        source,
+        approvedMembers.get(source.recordId),
+        frozenOn,
+      );
+      items.push(...set.items);
+      for (const scan of set.scans) {
+        placeholders.push(
+          ...findingsIn(scan.itemId, scan.fields, {
+            id: scan.recordId,
+            title: scan.recordTitle,
+            type: source.kind,
+          }),
+        );
+      }
+    }
+
+    const metadata: BuildInPublicMetadata = cleanMetadata(proposed);
+    if (metadataFields(metadata).length > 0) {
       const item = metadataItem(metadata, latest?.snapshot.metadata);
       items.push(item);
       placeholders.push(
@@ -572,7 +731,14 @@ export function createBuildInPublic(
       projectId,
       written: false,
     };
-    return { latest, preview, workspaceId: project.workspaceId, works };
+    return {
+      frozenOn,
+      latest,
+      preview,
+      sources,
+      workspaceId: project.workspaceId,
+      works,
+    };
   }
 
   async function saveSetting(
@@ -593,7 +759,16 @@ export function createBuildInPublic(
     return settingsOf(projectId);
   }
 
+  const publication = createBuildInPublicPublication({
+    facts,
+    previewOf: async (accountId, projectId) =>
+      (await build(accountId, projectId, {}))?.preview ?? null,
+    store,
+  });
+
   return {
+    ...publication.access,
+
     settings: async (accountId, projectId) =>
       (await facts.project(accountId, projectId))
         ? settingsOf(projectId)
@@ -625,6 +800,8 @@ export function createBuildInPublic(
         return null;
       }
       const copy: BuildInPublicWorkCopy = {
+        dueDatePresentation: (input.dueDatePresentation ??
+          "Hidden") satisfies DueDatePresentation,
         publicStatusLabel: clean(input.publicStatusLabel),
         publicSummary: clean(input.publicSummary),
         publicTitle: clean(input.publicTitle),
@@ -652,7 +829,7 @@ export function createBuildInPublic(
       if (!setting.enabled) {
         throw new BuildInPublicError("BUILD_IN_PUBLIC_DISABLED");
       }
-      const { latest, preview, workspaceId, works } = built;
+      const { frozenOn, latest, preview, sources, workspaceId, works } = built;
       if (preview.fingerprint !== input.approval.fingerprint) {
         throw new BuildInPublicError("BUILD_IN_PUBLIC_PREVIEW_STALE");
       }
@@ -669,20 +846,41 @@ export function createBuildInPublic(
       const fieldOf = (name: string) =>
         approvedMetadata?.fields.find((field) => field.name === name)?.value ??
         null;
+      const copyOfSurface = (surface: string): BuildInPublicSurfaceCopy => ({
+        summary: fieldOf(`${surface} summary`),
+        title: fieldOf(`${surface} title`),
+      });
+      const snapshotMetadata: BuildInPublicMetadata = approvedMetadata
+        ? {
+            ...copyOfSurface("Publication"),
+            changelogIndex: copyOfSurface("Changelog index"),
+            roadmapIndex: copyOfSurface("Roadmap index"),
+          }
+        : (latest?.snapshot.metadata ?? { summary: null, title: null });
+      const members = snapshotMembers({
+        frozenOn,
+        items: preview.items,
+        leaving,
+        previous: latest?.snapshot.members ?? [],
+        sources,
+      });
       const snapshot: BuildInPublicSnapshot = {
         approvedAt: now().toISOString(),
+        featured: featuredOf(
+          input.approval.featured,
+          latest?.snapshot,
+          members,
+          now(),
+        ),
         kind: "Build in Public",
-        metadata: approvedMetadata
-          ? {
-              summary: fieldOf("Publication summary"),
-              title: fieldOf("Publication title"),
-            }
-          : (latest?.snapshot.metadata ?? { summary: null, title: null }),
+        members,
+        metadata: snapshotMetadata,
         projectId: input.projectId,
         roadmap: snapshotWorks(preview, leaving, works, latest?.snapshot),
       };
       return store.publish({
         projectId: input.projectId,
+        slug: await publication.firstSlug(workspaceId, snapshotMetadata.title),
         snapshot,
         workspaceId,
       });
