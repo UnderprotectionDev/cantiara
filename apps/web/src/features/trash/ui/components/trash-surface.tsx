@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { orpc } from "@/utils/orpc";
 import { useMoveToTrash } from "../../hooks/use-move-to-trash";
+import { usePreviewMoveToTrash } from "../../hooks/use-move-to-trash-preview";
 import { trashCandidates } from "../../lib/trash-candidates";
 import { TrashView } from "../views/trash-view";
 
@@ -18,6 +19,7 @@ export default function TrashSurface({ projectId }: { projectId: string }) {
   const decisions = useQuery(orpc.projectDecisions.queryOptions({ input }));
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
   const move = useMoveToTrash(projectId);
+  const preview = usePreviewMoveToTrash(projectId);
 
   const candidates = useMemo(
     () =>
@@ -53,6 +55,7 @@ export default function TrashSurface({ projectId }: { projectId: string }) {
       entries={trash.data.entries}
       formatting={preferences.data ?? DEFAULT_ACCOUNT_PREFERENCES}
       onMove={move}
+      onPreview={preview}
     />
   );
 }

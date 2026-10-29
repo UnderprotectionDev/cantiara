@@ -37,6 +37,7 @@ export function createDatabaseDocumentDiscovery(
         .where(
           and(
             eq(workspace.ownerAccountId, accountId),
+            isNull(document.trashedAt),
             input.archived
               ? or(
                   isNotNull(document.archivedAt),

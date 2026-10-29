@@ -126,6 +126,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ekran oluşturulamadı | `Screen could not be created.` | Başlık dışındaki oluşturma reddi |
 | Çöpe taşı | `Move to Trash` | Ekranı Çöp Kutusuna alma |
 | Kalıcı sil | `Permanently Delete` | Çöp Kutusundaki Ekranı geri döndürülemez kaldırma |
+| Onaylı yüzeyi koru | `Keep approved surface` | Çöpe taşıma önizlemesinde, yalnız yaşayan Çalışma Alanı, Proje veya Kişisel Wiki içindeki tekil kaynakta sunulan ve bağlı Dış yüzeyi son Onaylı snapshot revizyonunda donduran seçenek; varsayılan iptaldir |
 | Çöpte Ekran yok | `No Screens in Trash.` | Çöp Kutusu listesinde Ekran olmaması |
 | Ekran yaşamı | `Active`, `Archived`, `In Trash` | Ekranın ortak ana kayıt görünürlüğü; Wireframe bağımsız yaşam değildir |
 | Wireframe | `Wireframe` | Ekrana ait düşük sadakatli sürümlü yüzey; bağımsız ana kayıt değildir |

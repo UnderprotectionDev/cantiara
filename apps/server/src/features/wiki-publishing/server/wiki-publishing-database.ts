@@ -1,4 +1,5 @@
 import type { DocumentsAccess } from "@cantiara/api/documents";
+import { withinFrozenRevision } from "@cantiara/api/external-surface-access-database";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import type { ProjectSourceRecordsAccess } from "@cantiara/api/project-source-records";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
@@ -351,6 +352,8 @@ const activeWikiSurface = (workspaceId: string, documentId: string) =>
     eq(externalSurface.documentId, documentId),
     isNull(externalSurface.projectId),
     isNull(externalSurface.cancelledAt),
+    // A kept surface is frozen: it takes no new publish.
+    isNull(externalSurface.frozenRevision),
     sql`exists (select 1 from ${externalSurfaceSnapshotRevision} r where r.surface_id = ${externalSurface.id} and r.snapshot ->> 'kind' = 'Wiki Document')`,
   );
 
@@ -483,7 +486,12 @@ export function createDatabaseWikiPublicSnapshots(
       const [latest] = await database
         .select({ snapshot: externalSurfaceSnapshotRevision.snapshot })
         .from(externalSurfaceSnapshotRevision)
-        .where(eq(externalSurfaceSnapshotRevision.surfaceId, surfaceId))
+        .where(
+          and(
+            eq(externalSurfaceSnapshotRevision.surfaceId, surfaceId),
+            withinFrozenRevision(surfaceId),
+          ),
+        )
         .orderBy(desc(externalSurfaceSnapshotRevision.revision))
         .limit(1);
       const snapshot = latest?.snapshot as WikiDocumentSnapshot | undefined;

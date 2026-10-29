@@ -1,3 +1,4 @@
+import { withinFrozenRevision } from "@cantiara/api/external-surface-access-database";
 import type {
   ShareManifest,
   ShareManifestItem,
@@ -321,7 +322,12 @@ function createStore(database: Database): LinkSharingVisitorStore {
           snapshot: externalSurfaceSnapshotRevision.snapshot,
         })
         .from(externalSurfaceSnapshotRevision)
-        .where(eq(externalSurfaceSnapshotRevision.surfaceId, surfaceId))
+        .where(
+          and(
+            eq(externalSurfaceSnapshotRevision.surfaceId, surfaceId),
+            withinFrozenRevision(surfaceId),
+          ),
+        )
         .orderBy(desc(externalSurfaceSnapshotRevision.revision))
         .limit(1);
       const frozen = revision?.snapshot as Partial<ShareManifest> | undefined;

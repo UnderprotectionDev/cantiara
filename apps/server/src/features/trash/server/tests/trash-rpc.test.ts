@@ -65,6 +65,28 @@ describe("Trash RPC seam", () => {
     expect(overview.entries.map((e) => e.id)).toEqual([entry.id]);
   });
 
+  test("previews the attached surfaces with revoke as the default", async () => {
+    const client = setup();
+
+    const preview = await client.moveToTrashPreview({
+      projectId: "project-1",
+      recordId: "r1",
+      recordKind: "Risk",
+    });
+
+    expect(preview.defaultDisposition).toBe("revoke");
+    expect(preview.surfaces).toEqual([]);
+    expect(preview.keepApprovedSurface.available).toBe(false);
+  });
+
+  test("a surface disposition other than revoke or keep is a bad request", async () => {
+    const client = setup();
+
+    await expect(
+      client.moveToTrash({ ...body, surfaceDisposition: "publish" as never }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   test("replays the same key with the same entry", async () => {
     const client = setup();
 

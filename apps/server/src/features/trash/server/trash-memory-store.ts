@@ -15,7 +15,12 @@ export function createMemoryTrash(options: {
     {
       records: Map<
         string,
-        { label: string; revision: number; trashed?: boolean }
+        {
+          label: string;
+          movable?: boolean;
+          revision: number;
+          trashed?: boolean;
+        }
       >;
       workspaceId: string;
     }
@@ -72,6 +77,7 @@ export function createMemoryTrash(options: {
         owner
           ? {
               label: owner.label,
+              movable: owner.movable,
               revision: owner.revision,
               trashed: owner.trashed === true,
             }

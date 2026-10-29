@@ -10,7 +10,12 @@ import { project } from "@cantiara/db/schema/project";
 import { trashEntry } from "@cantiara/db/schema/trash";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
-import { createTrash, type StoredTrashEntry, type TrashStore } from "./trash";
+import {
+  createTrash,
+  type StoredTrashEntry,
+  type TrashStore,
+  type TrashSurfacePort,
+} from "./trash";
 import { trashRecordAdapters } from "./trash-records-database";
 
 function toStored(row: typeof trashEntry.$inferSelect): StoredTrashEntry {
@@ -165,6 +170,9 @@ export function createDatabaseTrashStore(database: Database): TrashStore {
   };
 }
 
-export function createDatabaseTrash(database: Database): TrashAccess {
-  return createTrash(createDatabaseTrashStore(database));
+export function createDatabaseTrash(
+  database: Database,
+  surfaces?: TrashSurfacePort,
+): TrashAccess {
+  return createTrash(createDatabaseTrashStore(database), { surfaces });
 }

@@ -53,7 +53,7 @@ import { projectRelease } from "@cantiara/db/schema/project-release";
 import { usageLink } from "@cantiara/db/schema/relation";
 import { risk } from "@cantiara/db/schema/risk";
 import { validationRecord } from "@cantiara/db/schema/validation-record";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { createDatabaseDecisionSupersession } from "./decision-supersession-database";
 import {
@@ -149,7 +149,7 @@ async function listDecisionRecords(database: Database, projectId: string) {
   const rows = await database
     .select()
     .from(decision)
-    .where(eq(decision.projectId, projectId))
+    .where(and(eq(decision.projectId, projectId), isNull(decision.trashedAt)))
     .orderBy(asc(decision.createdAt), asc(decision.id));
   return rows.map(toDecision);
 }
@@ -1359,7 +1359,7 @@ export function createDatabaseProjectSourceRecords(
       const rows = await database
         .select()
         .from(risk)
-        .where(eq(risk.projectId, input.projectId))
+        .where(and(eq(risk.projectId, input.projectId), isNull(risk.trashedAt)))
         .orderBy(asc(risk.createdAt), asc(risk.id));
       return {
         records: rows.map((row) => riskRecordSchema.parse(toRisk(row))),
@@ -1736,7 +1736,9 @@ export function createDatabaseProjectSourceRecords(
         database
           .select()
           .from(risk)
-          .where(eq(risk.projectId, input.projectId))
+          .where(
+            and(eq(risk.projectId, input.projectId), isNull(risk.trashedAt)),
+          )
           .orderBy(asc(risk.createdAt), asc(risk.id)),
         database
           .select()

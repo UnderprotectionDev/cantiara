@@ -1175,6 +1175,7 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
               isNull(document.projectId),
               eq(document.workspaceId, workspaceId),
               archiveFilter,
+              isNull(document.trashedAt),
             ),
           )
           .orderBy(desc(document.updatedAt));
@@ -1198,6 +1199,7 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
               eq(document.projectId, projectId),
               eq(workspace.ownerAccountId, accountId),
               archiveFilter,
+              isNull(document.trashedAt),
             ),
           )
           .orderBy(desc(document.updatedAt));

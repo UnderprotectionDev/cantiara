@@ -2,10 +2,11 @@ import type { TrashRecordKind } from "@cantiara/api/trash";
 import type { Database } from "@cantiara/db";
 import { decision } from "@cantiara/db/schema/decision";
 import { document } from "@cantiara/db/schema/document";
+import { externalSurface } from "@cantiara/db/schema/external-surface";
 import { risk } from "@cantiara/db/schema/risk";
 import { screen } from "@cantiara/db/schema/screen";
 import { work } from "@cantiara/db/schema/work";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import type { TrashRecordFacts } from "./trash";
 
@@ -79,10 +80,59 @@ function adapterFor(table: TrashableTable): TrashRecordAdapter {
   };
 }
 
+/**
+ * A Dis yuzey has no title; its kind is the label. Only a revoked surface
+ * (terminal `cancelled_at`) may move, so Trash never keeps a live URL alive.
+ */
+const externalSurfaceAdapter: TrashRecordAdapter = {
+  async read(executor, projectId, recordId) {
+    const [row] = await executor
+      .select({
+        cancelledAt: externalSurface.cancelledAt,
+        revision: externalSurface.revision,
+        surfaceKind: externalSurface.surfaceKind,
+        trashedAt: externalSurface.trashedAt,
+      })
+      .from(externalSurface)
+      .where(
+        and(
+          eq(externalSurface.id, recordId),
+          eq(externalSurface.projectId, projectId),
+        ),
+      )
+      .limit(1);
+    return row
+      ? {
+          label: row.surfaceKind ?? "External Surface",
+          movable: row.cancelledAt !== null,
+          revision: row.revision,
+          trashed: row.trashedAt !== null,
+        }
+      : null;
+  },
+  async stamp(executor, projectId, recordId, baseRevision, at) {
+    const stamped = await executor
+      .update(externalSurface)
+      .set({ revision: sql`${externalSurface.revision} + 1`, trashedAt: at })
+      .where(
+        and(
+          eq(externalSurface.id, recordId),
+          eq(externalSurface.projectId, projectId),
+          eq(externalSurface.revision, baseRevision),
+          isNull(externalSurface.trashedAt),
+          isNotNull(externalSurface.cancelledAt),
+        ),
+      )
+      .returning({ id: externalSurface.id });
+    return stamped.length > 0;
+  },
+};
+
 /** The first-slice registry. Configuration kinds and the rest are later adapters. */
 export const trashRecordAdapters: Record<TrashRecordKind, TrashRecordAdapter> =
   {
     Decision: adapterFor(decision),
+    "External Surface": externalSurfaceAdapter,
     Document: adapterFor(document),
     Risk: adapterFor(risk),
     Screen: adapterFor(screen),

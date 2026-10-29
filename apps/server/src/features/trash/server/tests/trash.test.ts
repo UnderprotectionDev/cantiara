@@ -3,14 +3,18 @@ import {
   MutationStaleBaseRevisionError,
 } from "@cantiara/api/mutation-contract";
 import {
+  KEEP_APPROVED_SURFACE_LABEL,
   TRASH_RECORD_KINDS,
   TRASH_RETENTION_DAYS,
   TrashAlreadyTrashedError,
   TrashChildRecordError,
+  TrashKeepSurfaceNotAllowedError,
+  type TrashSurface,
+  TrashSurfaceNotRevokedError,
 } from "@cantiara/api/trash";
 import { describe, expect, test } from "vitest";
 
-import { createTrash } from "../trash";
+import { createTrash, type TrashSurfacePort } from "../trash";
 import { createMemoryTrash } from "../trash-memory-store";
 
 const ACCOUNT = "account-1";
@@ -98,6 +102,7 @@ describe("Trash seam: Move to Trash", () => {
       "Decision",
       "Risk",
       "Screen",
+      "External Surface",
     ]);
   });
 
@@ -213,5 +218,235 @@ describe("Trash seam: stale error type", () => {
     await expect(
       trash.move(ACCOUNT, move("Risk", "r1", 0)),
     ).rejects.toBeInstanceOf(MutationStaleBaseRevisionError);
+  });
+});
+
+function withSurfaces(initial: TrashSurface[]) {
+  const surfaces = new Map(initial.map((s) => [s.surfaceId, { ...s }]));
+  const calls: string[] = [];
+  const port: TrashSurfacePort = {
+    attached: () => Promise.resolve([...surfaces.values()]),
+    freeze: (_account, surface) => {
+      const found = surfaces.get(surface.surfaceId);
+      if (found?.state !== "Active") {
+        return Promise.resolve(false);
+      }
+      found.state = "Kept";
+      calls.push(`freeze:${surface.surfaceId}`);
+      return Promise.resolve(true);
+    },
+    revoke: (_account, surface) => {
+      const found = surfaces.get(surface.surfaceId);
+      if (found) {
+        found.state = "Revoked";
+      }
+      calls.push(`revoke:${surface.surfaceId}`);
+      return Promise.resolve();
+    },
+  };
+  return { calls, port, surfaces };
+}
+
+const share = (surfaceId: string, state: TrashSurface["state"] = "Active") =>
+  ({ kind: "Link-limited share", state, surfaceId }) as TrashSurface;
+
+function setupSurfaces(initial: TrashSurface[]) {
+  const harness = createMemoryTrash({
+    accountId: ACCOUNT,
+    projects: new Map([
+      [
+        PROJECT,
+        {
+          records: new Map([
+            ["Document:d1", { label: "Notes", revision: 0 }],
+            ["Work:w1", { label: "Ship it", revision: 3 }],
+            [
+              "External Surface:rev",
+              { label: "Link-limited share", movable: true, revision: 0 },
+            ],
+            [
+              "External Surface:live",
+              { label: "Link-limited share", movable: false, revision: 0 },
+            ],
+          ]),
+          workspaceId: "workspace-1",
+        },
+      ],
+    ]),
+  });
+  const fake = withSurfaces(initial);
+  return {
+    ...harness,
+    ...fake,
+    trash: createTrash(harness.store, { now: () => NOW, surfaces: fake.port }),
+  };
+}
+
+const preview = (recordKind: string, recordId: string) =>
+  ({ projectId: PROJECT, recordId, recordKind }) as never;
+
+describe("Trash seam: External Surface preview and default revoke", () => {
+  test("the preview lists every attached surface and defaults to revoke", async () => {
+    const { trash } = setupSurfaces([
+      share("s1"),
+      share("s2", "Revoked"),
+      share("s3", "Kept"),
+    ]);
+
+    const result = await trash.preview(ACCOUNT, preview("Document", "d1"));
+
+    expect(result?.defaultDisposition).toBe("revoke");
+    expect(result?.surfaces.map((s) => [s.surfaceId, s.state])).toEqual([
+      ["s1", "Active"],
+      ["s2", "Revoked"],
+      ["s3", "Kept"],
+    ]);
+    expect(result?.keepApprovedSurface).toEqual({ available: true });
+  });
+
+  test("moving without a choice revokes every Active surface and leaves others", async () => {
+    const { calls, surfaces, trash } = setupSurfaces([
+      share("s1"),
+      share("s2", "Revoked"),
+      share("s3", "Kept"),
+    ]);
+
+    const entry = await trash.move(ACCOUNT, move("Document", "d1", 0));
+
+    expect(calls).toEqual(["revoke:s1"]);
+    expect(surfaces.get("s1")?.state).toBe("Revoked");
+    expect(surfaces.get("s3")?.state).toBe("Kept");
+    expect(entry?.surfaces).toEqual([
+      { disposition: "revoked", surfaceId: "s1" },
+    ]);
+  });
+
+  test("a stale move revokes nothing", async () => {
+    const { calls, trash } = setupSurfaces([share("s1")]);
+
+    await expect(
+      trash.move(ACCOUNT, move("Document", "d1", 9)),
+    ).rejects.toMatchObject({ code: "STALE_BASE_REVISION" });
+    expect(calls).toEqual([]);
+  });
+
+  test("another account gets no preview", async () => {
+    const { trash } = setupSurfaces([share("s1")]);
+
+    expect(await trash.preview("other", preview("Document", "d1"))).toBeNull();
+    expect(
+      await trash.preview(ACCOUNT, preview("Document", "missing")),
+    ).toBeNull();
+  });
+});
+
+const NON_RECORD_DELETIONS = [
+  "project",
+  "project-delete-group",
+  "workspace",
+  "account",
+] as const;
+
+describe("Trash seam: Keep approved surface", () => {
+  const keep = (recordKind: string, recordId: string, baseRevision: number) =>
+    ({
+      ...(move(recordKind, recordId, baseRevision, "keep-key") as object),
+      surfaceDisposition: "keep",
+    }) as never;
+
+  test.each(NON_RECORD_DELETIONS)(
+    "is absent from the preview of a %s delete",
+    async (deletion) => {
+      const { trash } = setupSurfaces([share("s1")]);
+
+      const result = await trash.preview(ACCOUNT, preview("Document", "d1"), {
+        deletion,
+      });
+
+      expect(result?.keepApprovedSurface.available).toBe(false);
+      expect(result?.surfaces).toHaveLength(1);
+    },
+  );
+
+  test("a single record delete offers it only with an Active surface", async () => {
+    const { trash } = setupSurfaces([share("s2", "Revoked")]);
+
+    const result = await trash.preview(ACCOUNT, preview("Document", "d1"));
+
+    expect(result?.keepApprovedSurface.available).toBe(false);
+  });
+
+  test("keeping freezes the surface instead of revoking it", async () => {
+    const { calls, surfaces, trash } = setupSurfaces([share("s1")]);
+
+    const entry = await trash.move(ACCOUNT, keep("Document", "d1", 0));
+
+    expect(calls).toEqual(["freeze:s1"]);
+    expect(surfaces.get("s1")?.state).toBe("Kept");
+    expect(entry?.surfaces).toEqual([{ disposition: "kept", surfaceId: "s1" }]);
+  });
+
+  test("a surface that cannot freeze is revoked, never left live", async () => {
+    const { calls, port, surfaces, trash } = setupSurfaces([share("s1")]);
+    port.freeze = () => Promise.resolve(false);
+
+    const entry = await trash.move(ACCOUNT, keep("Document", "d1", 0));
+
+    expect(calls).toEqual(["revoke:s1"]);
+    expect(surfaces.get("s1")?.state).toBe("Revoked");
+    expect(entry?.surfaces?.[0]?.disposition).toBe("revoked");
+  });
+
+  test.each(NON_RECORD_DELETIONS)(
+    "a keep request on a %s delete is rejected and writes nothing",
+    async (deletion) => {
+      const { calls, entries, surfaces, trash } = setupSurfaces([share("s1")]);
+
+      await expect(
+        trash.move(ACCOUNT, keep("Document", "d1", 0), { deletion }),
+      ).rejects.toBeInstanceOf(TrashKeepSurfaceNotAllowedError);
+      expect(calls).toEqual([]);
+      expect(entries).toHaveLength(0);
+      expect(surfaces.get("s1")?.state).toBe("Active");
+    },
+  );
+
+  test("the rejection names the Keep approved surface label", async () => {
+    const { trash } = setupSurfaces([share("s1")]);
+
+    await expect(
+      trash.move(ACCOUNT, keep("Document", "d1", 0), { deletion: "project" }),
+    ).rejects.toThrow(KEEP_APPROVED_SURFACE_LABEL);
+  });
+
+  test("the surface port has no bind path, so restore cannot auto-bind", () => {
+    const { port } = withSurfaces([share("s1")]);
+
+    expect(Object.keys(port).sort()).toEqual(["attached", "freeze", "revoke"]);
+  });
+});
+
+describe("Trash seam: a revoked External Surface in Trash", () => {
+  test("a revoked surface moves to Trash on the same 30-day clock", async () => {
+    const { trash } = setupSurfaces([]);
+
+    const entry = await trash.move(ACCOUNT, move("External Surface", "rev", 0));
+
+    expect(entry).toMatchObject({
+      recordId: "rev",
+      recordKind: "External Surface",
+    });
+    expect(entry?.expiresAt).toBe(
+      new Date(NOW.valueOf() + 30 * DAY_MS).toISOString(),
+    );
+  });
+
+  test("an Active surface cannot enter Trash before it is revoked", async () => {
+    const { entries, trash } = setupSurfaces([]);
+
+    await expect(
+      trash.move(ACCOUNT, move("External Surface", "live", 0)),
+    ).rejects.toBeInstanceOf(TrashSurfaceNotRevokedError);
+    expect(entries).toHaveLength(0);
   });
 });

@@ -110,6 +110,7 @@ async function getProjectSourceMembershipRecords(
         .where(
           and(
             inArray(decision.projectId, projectIds),
+            isNull(decision.trashedAt),
             status ? eq(decision.life, status) : undefined,
           ),
         )
@@ -133,6 +134,7 @@ async function getProjectSourceMembershipRecords(
         .where(
           and(
             inArray(risk.projectId, projectIds),
+            isNull(risk.trashedAt),
             status ? eq(risk.life, status) : undefined,
           ),
         )
@@ -439,6 +441,7 @@ async function getDocumentMembershipRecords(
         and(
           inArray(document.projectId, projectScope.projectIds),
           isNull(document.workspaceId),
+          isNull(document.trashedAt),
           ...documentConditions,
         ),
       )
@@ -451,6 +454,7 @@ async function getDocumentMembershipRecords(
         and(
           eq(document.workspaceId, workspaceId),
           isNull(document.projectId),
+          isNull(document.trashedAt),
           ...documentConditions,
         ),
       )

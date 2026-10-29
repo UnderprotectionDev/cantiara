@@ -5,6 +5,7 @@ import { describe, expect, test } from "vitest";
 import { TrashView } from "../trash-view";
 
 const moved = () => Promise.resolve();
+const unused = () => Promise.reject(new Error("unused"));
 
 describe("TrashView", () => {
   test("offers Move to Trash per live record and states the 30-day window", () => {
@@ -14,6 +15,7 @@ describe("TrashView", () => {
         entries={[]}
         formatting={DEFAULT_ACCOUNT_PREFERENCES}
         onMove={moved}
+        onPreview={unused}
       />,
     );
 

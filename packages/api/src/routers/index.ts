@@ -752,8 +752,11 @@ import {
 } from "../test-review-summary";
 import {
   moveToTrashInputSchema,
+  moveToTrashPreviewInputSchema,
   TrashAlreadyTrashedError,
   TrashChildRecordError,
+  TrashKeepSurfaceNotAllowedError,
+  TrashSurfaceNotRevokedError,
   trashOverviewInputSchema,
 } from "../trash";
 import {
@@ -4646,6 +4649,22 @@ async function trashWrite<T>(
         message: error.message,
       });
     }
+    if (error instanceof TrashKeepSurfaceNotAllowedError) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: "TRASH_KEEP_SURFACE_NOT_ALLOWED", targetId },
+        defined: true,
+        message: error.message,
+      });
+    }
+    if (error instanceof TrashSurfaceNotRevokedError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: "TRASH_SURFACE_NOT_REVOKED", targetId },
+        defined: true,
+        message: "Revoke the External Surface before moving it to Trash",
+      });
+    }
     if (error instanceof TrashAlreadyTrashedError) {
       throw new ORPCError("CONFLICT", {
         cause: error,
@@ -4706,6 +4725,13 @@ export const appRouter = {
       }
       return overview;
     }),
+  moveToTrashPreview: protectedProcedure
+    .input(moveToTrashPreviewInputSchema)
+    .handler(({ context, input }) =>
+      trashWrite(input.recordId, () =>
+        requireTrash(context).preview(context.session.user.id, input),
+      ),
+    ),
   moveToTrash: protectedProcedure
     .input(moveToTrashInputSchema)
     .handler(({ context, input }) =>

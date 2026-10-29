@@ -1289,6 +1289,13 @@
       "when": 1793272342245,
       "tag": "0183_chemical_sentry",
       "breakpoints": true
+    },
+    {
+      "idx": 184,
+      "version": "7",
+      "when": 1793273309837,
+      "tag": "0184_lumpy_fenris",
+      "breakpoints": true
     }
   ]
 }

@@ -156,6 +156,7 @@ import { createDatabaseTestGaps } from "./features/test-gaps/server/test-gaps-da
 import { createDatabaseTestReports } from "./features/test-report/server/test-report-database";
 import { createDatabaseTestReview } from "./features/test-review/server/test-review-database";
 import { createDatabaseTrash } from "./features/trash/server/trash-database";
+import { createDatabaseTrashSurfaces } from "./features/trash/server/trash-surfaces-database";
 import { createDatabaseUserFlow } from "./features/user-flow/server/user-flow-database";
 import { createDatabaseValueChain } from "./features/value-chain/server/value-chain-database";
 import {
@@ -319,7 +320,6 @@ export const wikiPublishing = createDatabaseWikiPublishing(db, {
   smartCollections,
   technicalDiagrams,
 });
-export const trash = createDatabaseTrash(db);
 export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
 export const attentionSignals = createDatabaseAttentionSignals(db, {
@@ -348,6 +348,14 @@ export const linkSharing = createDatabaseLinkSharing(db, {
   audit: linkSharingAudit,
   events: linkSharingSecurityEvents,
 });
+export const trash = createDatabaseTrash(
+  db,
+  createDatabaseTrashSurfaces(db, {
+    events: securityEventDb,
+    linkSharing,
+    wikiPublishing,
+  }),
+);
 const linkSharingReplay = createDatabaseLinkSharingReplay(
   db,
   linkSharingSecurityEvents,

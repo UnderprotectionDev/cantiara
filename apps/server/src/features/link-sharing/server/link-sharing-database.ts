@@ -834,6 +834,8 @@ async function claimSurface(
           eq(externalSurface.rootKind, commit.root.kind),
           eq(externalSurface.rootId, commit.root.id),
           isNull(externalSurface.cancelledAt),
+          // A kept surface is frozen: no new revision lands on it.
+          isNull(externalSurface.frozenRevision),
         ),
       )
       .limit(1);

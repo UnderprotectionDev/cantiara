@@ -51,6 +51,16 @@ export const externalSurface = pgTable(
     expiresAt: timestamp("expires_at"),
     /** Link Sharing only: SHA-256 of the share token (Secret); never the token. */
     tokenHash: text("token_hash"),
+    /**
+     * Trash (spec 77): set by `Keep approved surface` to the last Onaylı
+     * snapshot revizyonu at that moment. A frozen surface serves only that
+     * revision and never takes a new one; null is not frozen.
+     */
+    frozenRevision: integer("frozen_revision"),
+    /** Trash: write counter for the base-revision check when the surface moves to Trash. */
+    revision: integer("revision").notNull().default(0),
+    /** Trash: a revoked surface in its 30-day recoverable window. */
+    trashedAt: timestamp("trashed_at"),
   },
   (table) => [
     uniqueIndex("external_surface_token_hash_uidx").on(table.tokenHash),

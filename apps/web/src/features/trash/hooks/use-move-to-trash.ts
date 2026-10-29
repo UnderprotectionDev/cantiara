@@ -1,3 +1,4 @@
+import type { TrashSurfaceDisposition } from "@cantiara/api/trash";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
@@ -12,8 +13,11 @@ import type { TrashCandidate } from "../lib/trash-candidates";
 export function useMoveToTrash(projectId: string) {
   const queryClient = useQueryClient();
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
-  return async function move(candidate: TrashCandidate) {
-    const fingerprint = `${candidate.kind}:${candidate.id}:${candidate.revision}`;
+  return async function move(
+    candidate: TrashCandidate,
+    surfaceDisposition: TrashSurfaceDisposition = "revoke",
+  ) {
+    const fingerprint = `${candidate.kind}:${candidate.id}:${candidate.revision}:${surfaceDisposition}`;
     if (attempt.current?.fingerprint !== fingerprint) {
       attempt.current = { fingerprint, key: crypto.randomUUID() };
     }
@@ -26,6 +30,7 @@ export function useMoveToTrash(projectId: string) {
           projectId,
           recordId: candidate.id,
           recordKind: candidate.kind,
+          surfaceDisposition,
         }),
       );
       attempt.current = null;
