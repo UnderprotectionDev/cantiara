@@ -5,7 +5,7 @@ const serverUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "310
 function workRow(page: Page, title: string) {
   return page
     .locator('ul[aria-label="Work list"] > li')
-    .filter({ hasText: new RegExp(`${title}$`) });
+    .filter({ hasText: title });
 }
 
 test("a reload ends the Active Working Set and the panel starts closed again", async ({
@@ -20,13 +20,11 @@ test("a reload ends the Active Working Set and the panel starts closed again", a
   expect(response.ok()).toBe(true);
   const setup = await response.json();
   await context.addCookies([setup.cookie]);
-  await page.goto(`/projects/${setup.projectId}`);
+  // The Work list (with its More menu) renders for a Work source hash.
+  await page.goto(
+    `/projects/${setup.projectId}#work-${setup.favorites.workId}`,
+  );
   const sourceUrl = page.url();
-
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("link", { name: "Work", exact: true })
-    .click();
   const work = workRow(page, "Favorite Work");
   await expect(work).toBeVisible({ timeout: 30_000 });
   await work.getByRole("button", { name: "More", exact: true }).click();

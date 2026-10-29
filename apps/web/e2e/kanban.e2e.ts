@@ -25,6 +25,8 @@ async function openBoard(page: Page) {
   await expect(page.getByRole("heading", { name: "Board" })).toBeVisible();
 }
 
+const NEXT_MONTH_BUTTON_NAME = /next month/i;
+
 test("moves Work through Board with explicit close and reopen steps", async ({
   context,
   page,
@@ -239,11 +241,22 @@ test("moves Work through Board with explicit close and reopen steps", async ({
     name: `Reappear date for ${deferredTitle}`,
   });
   await reappearDateButton.click();
-  const deferredDateLabel = await page.evaluate(() => {
+  const { deferredDateLabel, crossesMonth } = await page.evaluate(() => {
+    const today = new Date();
     const date = new Date();
     date.setDate(date.getDate() + 3);
-    return date.toLocaleDateString();
+    return {
+      deferredDateLabel: date.toLocaleDateString(),
+      crossesMonth: date.getMonth() !== today.getMonth(),
+    };
   });
+  if (crossesMonth) {
+    // The calendar opens on the current month, so a date in the next month needs one navigation step.
+    await page
+      .locator('[data-slot="calendar"]')
+      .getByRole("button", { name: NEXT_MONTH_BUTTON_NAME })
+      .click();
+  }
   const deferredDateButton = page.locator(
     `[data-slot="calendar"] button[data-day=${JSON.stringify(deferredDateLabel)}]`,
   );
