@@ -12,6 +12,7 @@ import {
   backlinkEmbedId,
   childEmbedId,
   closeWikiBody,
+  defaultWikiSlug,
   inlineReferenceEmbedId,
   liveBlockEmbedId,
   type PublishedWikiDocument,
@@ -23,10 +24,12 @@ import {
   type WikiPlaceholderFinding,
   type WikiPreviewField,
   type WikiPreviewMember,
+  type WikiPublication,
   type WikiPublishingAccess,
   WikiPublishingError,
   type WikiPublishPreview,
   type WikiSnapshotMember,
+  wikiPublicPath,
 } from "@cantiara/api/wiki-publishing";
 
 export interface WikiSourceField extends WikiPreviewField {
@@ -88,12 +91,29 @@ export interface WikiPublishWrite {
   workspaceId: string;
 }
 
+/** The Document's active (not cancelled) Wiki surface with its latest revision. */
+export interface WikiActiveSurface {
+  indexingEnabled: boolean;
+  revision: number;
+  slug: string;
+  surfaceId: string;
+}
+
 export interface WikiPublishingStore {
+  /** The active Wiki surface of one Document, or null when none is published. */
+  active: (
+    workspaceId: string,
+    documentId: string,
+  ) => Promise<WikiActiveSurface | null>;
+  /** Terminal: sets `cancelledAt` so the URL answers `410 Gone` from now on. */
+  cancel: (surfaceId: string) => Promise<void>;
   /**
    * Atomic: reuse the Document's active Wiki surface or create an independent
    * one (no Project), then append the next Onaylı snapshot revizyonu.
    */
   publish: (write: WikiPublishWrite) => Promise<PublishedWikiDocument>;
+  /** Explicit founder action only; publishing never writes this. */
+  setIndexing: (surfaceId: string, enabled: boolean) => Promise<void>;
 }
 
 export interface WikiPublishingOptions {
@@ -127,6 +147,19 @@ function member(
     recordType: source.recordType,
     title: source.title,
     version: source.version,
+  };
+}
+
+function publicationOf(
+  documentId: string,
+  surface: WikiActiveSurface | null,
+): WikiPublication {
+  return {
+    documentId,
+    indexingEnabled: surface?.indexingEnabled ?? false,
+    path: surface ? wikiPublicPath(surface.surfaceId, surface.slug) : null,
+    revision: surface?.revision ?? null,
+    surfaceId: surface?.surfaceId ?? null,
   };
 }
 
@@ -258,6 +291,49 @@ export function createWikiPublishing(
   }
 
   return {
+    publication: async (accountId, documentId) => {
+      const root = await facts.document(accountId, documentId);
+      return root
+        ? publicationOf(
+            documentId,
+            await store.active(root.workspaceId, documentId),
+          )
+        : null;
+    },
+
+    setIndexing: async (accountId, input) => {
+      const root = await facts.document(accountId, input.documentId);
+      if (!root) {
+        return null;
+      }
+      if (input.enabled && !input.acknowledgeThirdPartyCopies) {
+        throw new WikiPublishingError(
+          "WIKI_PUBLISHING_INDEXING_UNACKNOWLEDGED",
+          "Acknowledge that third-party copies cannot be fully recalled before enabling indexing.",
+        );
+      }
+      const surface = await store.active(root.workspaceId, input.documentId);
+      if (surface) {
+        await store.setIndexing(surface.surfaceId, input.enabled);
+      }
+      return publicationOf(
+        input.documentId,
+        surface && { ...surface, indexingEnabled: input.enabled },
+      );
+    },
+
+    unpublish: async (accountId, documentId) => {
+      const root = await facts.document(accountId, documentId);
+      if (!root) {
+        return null;
+      }
+      const surface = await store.active(root.workspaceId, documentId);
+      if (surface) {
+        await store.cancel(surface.surfaceId);
+      }
+      return publicationOf(documentId, null);
+    },
+
     preview: async (accountId, documentId) =>
       (await build(accountId, documentId))?.preview ?? null,
 
@@ -311,6 +387,8 @@ export function createWikiPublishing(
         documentRevision: root.version ?? 0,
         kind: "Wiki Document",
         members,
+        slug: input.approval.slug ?? defaultWikiSlug(root.title),
+        summary: input.approval.summary?.trim() || null,
         title: root.title,
       };
       return store.publish({

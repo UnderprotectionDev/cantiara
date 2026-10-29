@@ -1,0 +1,1 @@
+ALTER TABLE "external_surface" ADD COLUMN "indexing_enabled" boolean DEFAULT false NOT NULL;

@@ -1,8 +1,12 @@
 import type { DocumentsAccess } from "@cantiara/api/documents";
+import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import type { ProjectSourceRecordsAccess } from "@cantiara/api/project-source-records";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
 import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
-import type { WikiPublishingAccess } from "@cantiara/api/wiki-publishing";
+import type {
+  WikiDocumentSnapshot,
+  WikiPublishingAccess,
+} from "@cantiara/api/wiki-publishing";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
@@ -10,10 +14,12 @@ import {
   externalSurface,
   externalSurfaceSnapshotRevision,
 } from "@cantiara/db/schema/external-surface";
-import { fileAttachment } from "@cantiara/db/schema/file-attachments";
+import {
+  fileAttachment,
+  fileAttachmentVersion,
+} from "@cantiara/db/schema/file-attachments";
 import { usageLink } from "@cantiara/db/schema/relation";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-
 import {
   createWikiPublishing,
   type WikiPublishingFacts,
@@ -21,6 +27,10 @@ import {
   type WikiSourceDocument,
   type WikiSourceRecord,
 } from "./wiki-publishing";
+import type {
+  WikiPublicAssetSource,
+  WikiPublicSnapshotReader,
+} from "./wiki-publishing-http";
 
 /** The owners this seam reads; injected so no feature imports another's server code. */
 export interface WikiPublishingSources {
@@ -335,8 +345,73 @@ function createFacts(
   };
 }
 
+const activeWikiSurface = (workspaceId: string, documentId: string) =>
+  and(
+    eq(externalSurface.workspaceId, workspaceId),
+    eq(externalSurface.documentId, documentId),
+    isNull(externalSurface.projectId),
+    isNull(externalSurface.cancelledAt),
+    sql`exists (select 1 from ${externalSurfaceSnapshotRevision} r where r.surface_id = ${externalSurface.id} and r.snapshot ->> 'kind' = 'Wiki Document')`,
+  );
+
 function createStore(database: Database): WikiPublishingStore {
   return {
+    active: async (workspaceId, documentId) => {
+      const [surface] = await database
+        .select({
+          id: externalSurface.id,
+          indexingEnabled: externalSurface.indexingEnabled,
+        })
+        .from(externalSurface)
+        .where(activeWikiSurface(workspaceId, documentId))
+        .limit(1);
+      if (!surface) {
+        return null;
+      }
+      const [latest] = await database
+        .select({
+          revision: externalSurfaceSnapshotRevision.revision,
+          snapshot: externalSurfaceSnapshotRevision.snapshot,
+        })
+        .from(externalSurfaceSnapshotRevision)
+        .where(eq(externalSurfaceSnapshotRevision.surfaceId, surface.id))
+        .orderBy(desc(externalSurfaceSnapshotRevision.revision))
+        .limit(1);
+      const snapshot = latest?.snapshot as WikiDocumentSnapshot | undefined;
+      return latest && snapshot
+        ? {
+            indexingEnabled: surface.indexingEnabled,
+            revision: latest.revision,
+            slug: snapshot.slug,
+            surfaceId: surface.id,
+          }
+        : null;
+    },
+
+    cancel: async (surfaceId) => {
+      await database
+        .update(externalSurface)
+        .set({ cancelledAt: new Date() })
+        .where(
+          and(
+            eq(externalSurface.id, surfaceId),
+            isNull(externalSurface.cancelledAt),
+          ),
+        );
+    },
+
+    setIndexing: async (surfaceId, enabled) => {
+      await database
+        .update(externalSurface)
+        .set({ indexingEnabled: enabled })
+        .where(
+          and(
+            eq(externalSurface.id, surfaceId),
+            isNull(externalSurface.cancelledAt),
+          ),
+        );
+    },
+
     publish: async ({ documentId, snapshot, workspaceId }) =>
       await database.transaction(async (transaction) => {
         // Serialises first publishes of one Document so only one surface is born.
@@ -346,15 +421,7 @@ function createStore(database: Database): WikiPublishingStore {
         const [existing] = await transaction
           .select({ id: externalSurface.id })
           .from(externalSurface)
-          .where(
-            and(
-              eq(externalSurface.workspaceId, workspaceId),
-              eq(externalSurface.documentId, documentId),
-              isNull(externalSurface.projectId),
-              isNull(externalSurface.cancelledAt),
-              sql`exists (select 1 from ${externalSurfaceSnapshotRevision} r where r.surface_id = ${externalSurface.id} and r.snapshot ->> 'kind' = 'Wiki Document')`,
-            ),
-          )
+          .where(activeWikiSurface(workspaceId, documentId))
           .limit(1);
         // No Project: a Wiki publish never creates a Build in Public surface.
         const surfaceId = existing?.id ?? crypto.randomUUID();
@@ -399,4 +466,73 @@ export function createDatabaseWikiPublishing(
     facts: createFacts(database, sources),
     store: createStore(database),
   });
+}
+
+/** Latest approved revision of a Wiki surface; the access module has already checked its state. */
+export function createDatabaseWikiPublicSnapshots(
+  database: Database,
+): WikiPublicSnapshotReader {
+  return {
+    latest: async (surfaceId) => {
+      const [latest] = await database
+        .select({ snapshot: externalSurfaceSnapshotRevision.snapshot })
+        .from(externalSurfaceSnapshotRevision)
+        .where(eq(externalSurfaceSnapshotRevision.surfaceId, surfaceId))
+        .orderBy(desc(externalSurfaceSnapshotRevision.revision))
+        .limit(1);
+      const snapshot = latest?.snapshot as WikiDocumentSnapshot | undefined;
+      return snapshot?.kind === "Wiki Document" ? snapshot : null;
+    },
+  };
+}
+
+/**
+ * Reads the exact approved File Attachment version through the File Attachment
+ * owner's `readAsset`; the object-store key and URL never leave that owner.
+ */
+export function createDatabaseWikiPublicAssets(
+  database: Database,
+  fileAttachments: FileAttachmentAccess | undefined,
+): WikiPublicAssetSource {
+  return {
+    open: async (surfaceId, file) => {
+      if (!fileAttachments) {
+        return null;
+      }
+      const [owner] = await database
+        .select({ accountId: workspace.ownerAccountId })
+        .from(externalSurface)
+        .innerJoin(workspace, eq(workspace.id, externalSurface.workspaceId))
+        .where(eq(externalSurface.id, surfaceId))
+        .limit(1);
+      const [version] = await database
+        .select({ id: fileAttachmentVersion.id })
+        .from(fileAttachmentVersion)
+        .where(
+          and(
+            eq(fileAttachmentVersion.attachmentId, file.attachmentId),
+            eq(fileAttachmentVersion.version, file.version),
+          ),
+        )
+        .limit(1);
+      if (!(owner && version)) {
+        return null;
+      }
+      try {
+        const asset = await fileAttachments.readAsset(owner.accountId, {
+          attachmentId: file.attachmentId,
+          variant: "original",
+          versionId: version.id,
+        });
+        return {
+          bytes: asset.bytes,
+          contentType: asset.contentType,
+          fileName: asset.fileName,
+        };
+      } catch {
+        // A missing or unreadable file reads as gone; nothing about it is explained.
+        return null;
+      }
+    },
+  };
 }

@@ -141,3 +141,39 @@ test("an unapproved embed does not block and Cancel publishes nothing", () => {
   expect(onCancel).toHaveBeenCalledTimes(1);
   expect(onPublish).not.toHaveBeenCalled();
 });
+
+test("sends its own summary and slug, validates the slug, and offers them by label", () => {
+  const { onPublish } = render();
+  const field = (label: string) => {
+    const id = [...document.body.querySelectorAll("label")]
+      .find((candidate) => candidate.textContent?.includes(label))
+      ?.getAttribute("for");
+    return document.getElementById(id ?? "") as HTMLInputElement;
+  };
+  const type = (input: HTMLInputElement, value: string) => {
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )?.set;
+    act(() => {
+      setter?.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  };
+
+  type(field("Page address"), "Bad Slug!");
+  expect(button("Publish Wiki Document").disabled).toBe(true);
+  expect(document.body.textContent).toContain("single dashes only");
+
+  type(field("Page address"), "release-habits");
+  type(field("Public summary"), "How I ship");
+  act(() => button("Publish Wiki Document").click());
+
+  expect(onPublish).toHaveBeenCalledWith({
+    approvedEmbedIds: [],
+    fingerprint: "fp-1",
+    publishAnyway: false,
+    slug: "release-habits",
+    summary: "How I ship",
+  });
+});

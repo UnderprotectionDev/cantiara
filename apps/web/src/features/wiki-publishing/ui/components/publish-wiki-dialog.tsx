@@ -17,9 +17,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
+import { Input } from "@cantiara/ui/components/input";
+import { Label } from "@cantiara/ui/components/label";
 import { useState } from "react";
 import {
   buildWikiPublishApproval,
+  isValidWikiSlug,
   leavingPlaceholders,
   toggledEmbed,
 } from "../../lib/wiki-publish-approval";
@@ -95,6 +98,9 @@ export function PublishWikiDialog({
   const [approved, setApproved] = useState<ReadonlySet<string>>(new Set());
   const [publishAnyway, setPublishAnyway] = useState(false);
   const [approvedFor, setApprovedFor] = useState(preview.fingerprint);
+  const [slug, setSlug] = useState("");
+  const [summary, setSummary] = useState("");
+  const slugValid = isValidWikiSlug(slug);
   if (approvedFor !== preview.fingerprint) {
     // A changed preview never inherits approvals given to an earlier one.
     setApprovedFor(preview.fingerprint);
@@ -102,7 +108,7 @@ export function PublishWikiDialog({
     setPublishAnyway(false);
   }
   const placeholders = leavingPlaceholders(preview, approved);
-  const blocked = placeholders.length > 0 && !publishAnyway;
+  const blocked = (placeholders.length > 0 && !publishAnyway) || !slugValid;
 
   return (
     <Dialog
@@ -127,6 +133,37 @@ export function PublishWikiDialog({
         <section aria-labelledby="wiki-publish-document" className="grid gap-1">
           <h3 id="wiki-publish-document">Document</h3>
           <MemberDetails member={preview.root} />
+        </section>
+
+        <section aria-labelledby="wiki-publish-page" className="grid gap-2">
+          <h3 id="wiki-publish-page">Public page</h3>
+          <p>
+            Title, summary and address belong to this page. Nothing is taken
+            from a Project or its Build in Public page.
+          </p>
+          <Label htmlFor="wiki-publish-summary">
+            Public summary (optional)
+          </Label>
+          <Input
+            id="wiki-publish-summary"
+            maxLength={300}
+            onChange={(event) => setSummary(event.target.value)}
+            value={summary}
+          />
+          <Label htmlFor="wiki-publish-slug">Page address (optional)</Label>
+          <Input
+            aria-describedby="wiki-publish-slug-help"
+            aria-invalid={!slugValid}
+            id="wiki-publish-slug"
+            maxLength={80}
+            onChange={(event) => setSlug(event.target.value)}
+            value={slug}
+          />
+          <p id="wiki-publish-slug-help" role={slugValid ? undefined : "alert"}>
+            {slugValid
+              ? "Lowercase letters, digits and dashes. Left empty, it follows the Document title. It does not make the page searchable."
+              : "Use lowercase letters, digits and single dashes only."}
+          </p>
         </section>
 
         <section aria-labelledby="wiki-publish-embeds" className="grid gap-2">
@@ -184,7 +221,10 @@ export function PublishWikiDialog({
             disabled={blocked || publishing}
             onClick={() =>
               onPublish(
-                buildWikiPublishApproval(preview, approved, publishAnyway),
+                buildWikiPublishApproval(preview, approved, publishAnyway, {
+                  slug,
+                  summary,
+                }),
               )
             }
             type="button"

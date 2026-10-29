@@ -758,7 +758,10 @@ import { valueChainInputSchema } from "../value-chain";
 import type { WebCaptureAccess } from "../web-capture";
 import {
   publishWikiDocumentInputSchema,
+  setWikiIndexingInputSchema,
+  unpublishWikiDocumentInputSchema,
   type WikiPublishingAccess,
+  wikiPublicationInputSchema,
   wikiPublishPreviewInputSchema,
 } from "../wiki-publishing";
 import { WireframeDocumentError } from "../wireframe-document";
@@ -1246,6 +1249,7 @@ function rethrowWikiPublishingError(error: unknown): never {
     throw error;
   }
   const status = {
+    WIKI_PUBLISHING_INDEXING_UNACKNOWLEDGED: "PRECONDITION_FAILED",
     WIKI_PUBLISHING_PLACEHOLDERS_UNRESOLVED: "CONFLICT",
     WIKI_PUBLISHING_PREVIEW_STALE: "PRECONDITION_FAILED",
   }[error.code] as "CONFLICT" | "PRECONDITION_FAILED" | undefined;
@@ -7880,6 +7884,42 @@ export const appRouter = {
           payload,
         );
         return published ?? wikiDocumentUnavailable();
+      } catch (error) {
+        rethrowWikiPublishingError(error);
+      }
+    }),
+  wikiPublication: protectedProcedure
+    .input(wikiPublicationInputSchema)
+    .handler(async ({ context, input }) => {
+      const publication = await requireWikiPublishing(context).publication(
+        context.session.user.id,
+        input.documentId,
+      );
+      return publication ?? wikiDocumentUnavailable();
+    }),
+  unpublishWikiDocument: protectedProcedure
+    .input(unpublishWikiDocumentInputSchema)
+    .handler(async ({ context, input }) => {
+      const publication = await requireWikiPublishing(context).unpublish(
+        context.session.user.id,
+        input.documentId,
+      );
+      return publication ?? wikiDocumentUnavailable();
+    }),
+  setWikiIndexing: protectedProcedure
+    .input(setWikiIndexingInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision: _base,
+        clientIdempotencyKey: _key,
+        ...payload
+      } = input;
+      try {
+        const publication = await requireWikiPublishing(context).setIndexing(
+          context.session.user.id,
+          payload,
+        );
+        return publication ?? wikiDocumentUnavailable();
       } catch (error) {
         rethrowWikiPublishingError(error);
       }

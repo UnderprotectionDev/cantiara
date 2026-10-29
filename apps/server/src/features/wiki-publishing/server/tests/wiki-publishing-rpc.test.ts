@@ -81,4 +81,58 @@ describe("Wiki Publishing RPC", () => {
     ).rejects.toThrow();
     expect(publish).not.toHaveBeenCalled();
   });
+
+  test("unpublishes and changes indexing as the signed-in User", async () => {
+    const unpublish = vi.fn(async () => ({ surfaceId: null }) as never);
+    const setIndexing = vi.fn(async () => ({ indexingEnabled: true }) as never);
+    const client = createClient({ setIndexing, unpublish });
+
+    await client.unpublishWikiDocument({
+      baseRevision: 1,
+      clientIdempotencyKey: "key-2",
+      documentId: "wiki-1",
+    });
+    await client.setWikiIndexing({
+      acknowledgeThirdPartyCopies: true,
+      baseRevision: 1,
+      clientIdempotencyKey: "key-3",
+      documentId: "wiki-1",
+      enabled: true,
+    });
+
+    expect(unpublish).toHaveBeenCalledWith("account-1", "wiki-1");
+    expect(setIndexing).toHaveBeenCalledWith("account-1", {
+      acknowledgeThirdPartyCopies: true,
+      documentId: "wiki-1",
+      enabled: true,
+    });
+  });
+
+  test("maps an unacknowledged indexing request and a missing Wiki Document", async () => {
+    const unacknowledged = createClient({
+      setIndexing: () => {
+        throw new WikiPublishingError(
+          "WIKI_PUBLISHING_INDEXING_UNACKNOWLEDGED",
+          "x",
+        );
+      },
+      unpublish: async () => null,
+    });
+    await expect(
+      unacknowledged.setWikiIndexing({
+        acknowledgeThirdPartyCopies: false,
+        baseRevision: 1,
+        clientIdempotencyKey: "key-4",
+        documentId: "wiki-1",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    await expect(
+      unacknowledged.unpublishWikiDocument({
+        baseRevision: 1,
+        clientIdempotencyKey: "key-5",
+        documentId: "none",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
 });

@@ -7,9 +7,38 @@ import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 const identifierSchema = z.string().trim().min(1).max(255);
 
 export const WIKI_PUBLISHING_UI_LABELS = {
+  disableIndexing: "Disable indexing",
+  enableIndexing: "Enable indexing",
+  liveExternalSource: "Live external source",
   publishAnyway: "Publish/share anyway",
   publishWikiDocument: "Publish Wiki Document",
+  unpublish: "Unpublish",
 } as const;
+
+export const WIKI_INDEXING_WARNING =
+  "Search engines and other third parties may keep copies of this page. Those copies cannot be fully recalled, even if you unpublish or disable indexing later.";
+
+const wikiSlugSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u, "Use lowercase letters, digits and -.");
+
+const TRAILING_DASHES = /-+$/u;
+
+/** Readable default slug from the Belge title; independent of any Project metadata. */
+export function defaultWikiSlug(title: string) {
+  const slug = title
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, "-")
+    .replace(/^-+|-+$/gu, "")
+    .slice(0, 80)
+    .replace(TRAILING_DASHES, "");
+  return slug || "wiki";
+}
 
 export const WIKI_PUBLISHING_NOTICE =
   "Free text, URLs and file metadata are not scanned for secrets. Secret fields, share tokens and link passwords are never part of a Wiki publish.";
@@ -85,6 +114,10 @@ export const publishWikiDocumentInputSchema = humanMutationEnvelopeSchema
         fingerprint: z.string().trim().min(1).max(200),
         /** Separate from scope approval; never implied by it. */
         publishAnyway: z.boolean(),
+        /** Public slug; defaults from the Document title and never from Build in Public. */
+        slug: wikiSlugSchema.optional(),
+        /** Optional document-specific public summary. */
+        summary: z.string().trim().max(300).nullable().optional(),
       })
       .strict(),
     documentId: identifierSchema,
@@ -111,6 +144,10 @@ export interface WikiDocumentSnapshot {
   documentRevision: number;
   kind: "Wiki Document";
   members: WikiSnapshotMember[];
+  /** Readable URL segment; decorative, never used for access or redirects. */
+  slug: string;
+  /** Document-specific public summary; does not make the page indexable. */
+  summary: string | null;
   title: string;
 }
 
@@ -124,6 +161,7 @@ export interface PublishedWikiDocument {
 }
 
 export const WIKI_PUBLISHING_ERROR_CODES = [
+  "WIKI_PUBLISHING_INDEXING_UNACKNOWLEDGED",
   "WIKI_PUBLISHING_PLACEHOLDERS_UNRESOLVED",
   "WIKI_PUBLISHING_PREVIEW_STALE",
 ] as const;
@@ -140,11 +178,49 @@ export class WikiPublishingError extends Error {
   }
 }
 
+export const wikiPublicationInputSchema = z
+  .object({ documentId: identifierSchema })
+  .strict();
+
+export const unpublishWikiDocumentInputSchema = humanMutationEnvelopeSchema
+  .extend({ documentId: identifierSchema })
+  .strict();
+
+export const setWikiIndexingInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    /** Required for `enabled: true`; never implied by anything else. */
+    acknowledgeThirdPartyCopies: z.boolean(),
+    documentId: identifierSchema,
+    enabled: z.boolean(),
+  })
+  .strict();
+export type SetWikiIndexingInput = z.infer<typeof setWikiIndexingInputSchema>;
+
+/** The Document's current public state; null `surfaceId` means it is not published. */
+export interface WikiPublication {
+  documentId: string;
+  indexingEnabled: boolean;
+  /** Path of the public page; ends with the current slug. */
+  path: string | null;
+  revision: number | null;
+  surfaceId: string | null;
+}
+
+/** The public page path. The surface id carries access; the slug is only readable text. */
+export function wikiPublicPath(surfaceId: string, slug: string) {
+  return `/w/${surfaceId}/${slug}`;
+}
+
 export interface WikiPublishingAccess {
   preview: (
     accountId: string,
     documentId: string,
   ) => Promise<WikiPublishPreview | null>;
+  /** Unpublish is terminal for the URL: the surface is cancelled and never reused. */
+  publication: (
+    accountId: string,
+    documentId: string,
+  ) => Promise<WikiPublication | null>;
   publish: (
     accountId: string,
     input: Omit<
@@ -152,6 +228,18 @@ export interface WikiPublishingAccess {
       "baseRevision" | "clientIdempotencyKey"
     >,
   ) => Promise<PublishedWikiDocument | null>;
+  setIndexing: (
+    accountId: string,
+    input: {
+      acknowledgeThirdPartyCopies: boolean;
+      documentId: string;
+      enabled: boolean;
+    },
+  ) => Promise<WikiPublication | null>;
+  unpublish: (
+    accountId: string,
+    documentId: string,
+  ) => Promise<WikiPublication | null>;
 }
 
 /* -------------------------------------------------------------------------- */

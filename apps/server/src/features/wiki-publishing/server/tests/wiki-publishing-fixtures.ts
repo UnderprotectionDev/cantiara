@@ -1,10 +1,15 @@
 // biome-ignore-all lint/suspicious/useAwait: in-memory doubles implement the async ports.
 
+import {
+  type CachedSurfaceResponse,
+  createExternalSurfaceAccess,
+  type ExternalSurfaceResponseCache,
+  type ExternalSurfaceStateReader,
+} from "@cantiara/api/external-surface-access";
 import type {
   PublishedWikiDocument,
   WikiDocumentSnapshot,
 } from "@cantiara/api/wiki-publishing";
-
 import {
   createWikiPublishing,
   type WikiPublishingFacts,
@@ -12,6 +17,7 @@ import {
   type WikiSourceDocument,
   type WikiSourceRecord,
 } from "../wiki-publishing";
+import { createWikiPublicRoutes } from "../wiki-publishing-http";
 
 export const ACCOUNT_ID = "account-1";
 export const ROOT_ID = "wiki-1";
@@ -128,17 +134,57 @@ export function createFixtures(input: { rootBody?: string } = {}) {
   };
   const surfaces = new Map<
     string,
-    { documentId: string; projectId: null; snapshots: WikiDocumentSnapshot[] }
+    {
+      cancelled: boolean;
+      documentId: string;
+      indexingEnabled: boolean;
+      projectId: null;
+      snapshots: WikiDocumentSnapshot[];
+    }
   >();
   const store: WikiPublishingStore = {
+    active: async (_workspaceId, documentId) => {
+      const found = [...surfaces.entries()].find(
+        ([, surface]) =>
+          surface.documentId === documentId && !surface.cancelled,
+      );
+      const latest = found?.[1].snapshots.at(-1);
+      return found && latest
+        ? {
+            indexingEnabled: found[1].indexingEnabled,
+            revision: found[1].snapshots.length,
+            slug: latest.slug,
+            surfaceId: found[0],
+          }
+        : null;
+    },
+    cancel: async (surfaceId) => {
+      const surface = surfaces.get(surfaceId);
+      if (surface) {
+        surface.cancelled = true;
+      }
+    },
+    setIndexing: async (surfaceId, enabled) => {
+      const surface = surfaces.get(surfaceId);
+      if (surface && !surface.cancelled) {
+        surface.indexingEnabled = enabled;
+      }
+    },
     publish: async (write) => {
       let found = [...surfaces.entries()].find(
-        ([, surface]) => surface.documentId === write.documentId,
+        ([, surface]) =>
+          surface.documentId === write.documentId && !surface.cancelled,
       );
       if (!found) {
         found = [
           `surface-${surfaces.size + 1}`,
-          { documentId: write.documentId, projectId: null, snapshots: [] },
+          {
+            cancelled: false,
+            documentId: write.documentId,
+            indexingEnabled: false,
+            projectId: null,
+            snapshots: [],
+          },
         ];
         surfaces.set(found[0], found[1]);
       }
@@ -159,4 +205,54 @@ export function createFixtures(input: { rootBody?: string } = {}) {
     store,
   });
   return { access, state, store, surfaces };
+}
+
+/** The visitor side over the same in-memory surfaces, behind the shared access module. */
+export function createPublicSite(fixtures: ReturnType<typeof createFixtures>) {
+  const events: string[] = [];
+  const cacheEntries = new Map<string, CachedSurfaceResponse>();
+  const reader: ExternalSurfaceStateReader = {
+    read: async (surfaceId) => {
+      events.push("state");
+      const surface = fixtures.surfaces.get(surfaceId);
+      return surface
+        ? {
+            cancelled: surface.cancelled,
+            indexingEnabled: surface.indexingEnabled,
+            revision: surface.snapshots.length,
+          }
+        : null;
+    },
+  };
+  const cache: ExternalSurfaceResponseCache = {
+    get: async (key) => {
+      events.push("cache-get");
+      return cacheEntries.get(key) ?? null;
+    },
+    set: async (key, value) => {
+      cacheEntries.set(key, value);
+    },
+  };
+  const objectReads: { attachmentId: string; version: number }[] = [];
+  const bytes = new TextEncoder().encode("0123456789");
+  const routes = createWikiPublicRoutes({
+    access: createExternalSurfaceAccess({ cache, reader }),
+    assets: {
+      open: async (_surfaceId, file) => {
+        objectReads.push(file);
+        return { bytes, contentType: "image/png", fileName: "diagram.png" };
+      },
+    },
+    snapshots: {
+      latest: async (surfaceId) =>
+        fixtures.surfaces.get(surfaceId)?.snapshots.at(-1) ?? null,
+    },
+  });
+  return {
+    events,
+    get: (path: string, headers: Record<string, string> = {}) =>
+      routes.request(path, { headers }),
+    objectReads,
+    routes,
+  };
 }

@@ -295,6 +295,7 @@ export interface AppDependencies {
   userFlow?: UserFlowAccess;
   valueChain?: ValueChainAccess;
   webCapture?: WebCaptureAccess;
+  wikiPublicPages?: Hono;
   wikiPublishing?: WikiPublishingAccess;
   workAutomation?: WorkAutomationAccess;
   workContext?: WorkContextAccess;
@@ -335,6 +336,11 @@ export function createApp(dependencies: AppDependencies) {
   ];
   const app = new Hono<EvlogVariables>();
   app.route("/smart-link/youtube", youtubePlayerRoutes);
+  // Public Wiki pages sit before the session, CORS and CSRF middleware: a
+  // visitor has no Account and the shared access module authorizes each request.
+  if (dependencies.wikiPublicPages) {
+    app.route("/w", dependencies.wikiPublicPages);
+  }
 
   app.use("*", async (c, next) => {
     c.req.raw.headers.delete("x-request-id");
