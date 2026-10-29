@@ -13,6 +13,7 @@ import ProjectShellView from "@/features/project-shell/ui/views/project-shell-vi
 import ProjectUpdatesSurface from "@/features/project-updates/ui/components/project-updates-surface";
 import ReleaseEvidencePackSurface from "@/features/release-evidence/ui/components/release-evidence-pack-surface";
 import { smartCollectionWorkPrefillFromSearch } from "@/features/smart-collections/lib/smart-collection-work-prefill";
+import TrashSurface from "@/features/trash/ui/components/trash-surface";
 import ValueChainSurface from "@/features/value-chain/ui/components/value-chain-surface";
 
 export const Route = createFileRoute("/_auth/projects/$projectId/")({
@@ -86,6 +87,7 @@ function RouteComponent() {
       }
       releaseEvidenceArea={releaseEvidenceArea}
       releasesArea={ProjectReleasesView}
+      trashArea={<TrashSurface key={projectId} projectId={projectId} />}
       valueChainArea={valueChainArea}
       workHistoryArea={workHistoryArea}
     />

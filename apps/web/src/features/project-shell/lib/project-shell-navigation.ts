@@ -13,6 +13,7 @@ export const ALWAYS_REACHABLE_SURFACES = [
   "Project History",
   "Project Updates",
   "Share",
+  "Trash",
 ] as const;
 export const ALL_PROJECT_AREAS = PROJECT_AREA_OPTIONS;
 export const CONFIGURATION_HOST_GROUPS = ["Project", "Work"] as const;
@@ -114,6 +115,8 @@ export const PROJECT_HISTORY_HASH = "project-history";
 export const PROJECT_UPDATES_HASH = "project-updates";
 /** The `Share` surface: closed-world preview and scope approval for a link share. */
 export const SHARE_HASH = "share";
+/** The `Trash` surface: Trash entries and `Move to Trash`; never the landing surface. */
+export const TRASH_HASH = "trash";
 export const BACKLOG_HASH = "backlog";
 export const ROADMAP_HASH = "roadmap";
 const WORK_RELATIONS_HASH_PREFIX = "work-relations-";
@@ -297,6 +300,7 @@ const DIRECT_SURFACE_BY_HASH = new Map<string, NavigationSurface>([
   [PROJECT_HISTORY_HASH, "Project History"],
   [PROJECT_UPDATES_HASH, "Project Updates"],
   [SHARE_HASH, "Share"],
+  [TRASH_HASH, "Trash"],
 ]);
 
 export function navigationSurfaceFromHash(
@@ -404,6 +408,9 @@ export function navigationHash(surface: NavigationSurface) {
   }
   if (surface === "Share") {
     return SHARE_HASH;
+  }
+  if (surface === "Trash") {
+    return TRASH_HASH;
   }
   if (surface === "Smart Collection") {
     return "smart-collections";

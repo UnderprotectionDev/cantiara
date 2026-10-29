@@ -1282,6 +1282,13 @@
       "when": 1793263129158,
       "tag": "0182_previous_wild_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 183,
+      "version": "7",
+      "when": 1793272342245,
+      "tag": "0183_chemical_sentry",
+      "breakpoints": true
     }
   ]
 }

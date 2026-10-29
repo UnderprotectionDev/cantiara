@@ -92,7 +92,8 @@ export async function listEvidenceTargets(
       );
     for (const row of rows) {
       if (
-        ("trashedAt" in row && (row.trashedAt || row.archivedAt)) ||
+        ("trashedAt" in row &&
+          (row.trashedAt || ("archivedAt" in row && row.archivedAt))) ||
         ("status" in row && row.status === "Archived")
       ) {
         continue;

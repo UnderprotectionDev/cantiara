@@ -751,6 +751,12 @@ import {
   testSummarySchema,
 } from "../test-review-summary";
 import {
+  moveToTrashInputSchema,
+  TrashAlreadyTrashedError,
+  TrashChildRecordError,
+  trashOverviewInputSchema,
+} from "../trash";
+import {
   convertUserFlowNodeInputSchema,
   createUserFlowFromTemplateInputSchema,
   createUserFlowInputSchema,
@@ -4615,6 +4621,42 @@ function requireProjectUpdates(context: Context) {
   }
   return context.projectUpdates;
 }
+function requireTrash(context: Context) {
+  if (!context.trash) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.trash;
+}
+async function trashWrite<T>(
+  targetId: string,
+  write: () => Promise<T | null>,
+): Promise<T> {
+  try {
+    const result = await write();
+    if (!result) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return result;
+  } catch (error) {
+    if (error instanceof TrashChildRecordError) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: "TRASH_CHILD_RECORD", targetId },
+        defined: true,
+        message: error.message,
+      });
+    }
+    if (error instanceof TrashAlreadyTrashedError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: "TRASH_ALREADY_TRASHED", targetId },
+        defined: true,
+        message: "Already in Trash",
+      });
+    }
+    return rethrowProjectShellMutationError(error, targetId);
+  }
+}
 async function projectUpdateWrite<T>(
   targetId: string,
   write: () => Promise<T | null>,
@@ -4652,6 +4694,25 @@ async function projectUpdateWrite<T>(
   }
 }
 export const appRouter = {
+  trash: protectedProcedure
+    .input(trashOverviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const overview = await requireTrash(context).overview(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!overview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return overview;
+    }),
+  moveToTrash: protectedProcedure
+    .input(moveToTrashInputSchema)
+    .handler(({ context, input }) =>
+      trashWrite(input.recordId, () =>
+        requireTrash(context).move(context.session.user.id, input),
+      ),
+    ),
   shareRoots: protectedProcedure
     .input(shareRootsInputSchema)
     .handler(({ context, input }) =>

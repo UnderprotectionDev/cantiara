@@ -112,12 +112,14 @@ import {
   workspaceTagAssignmentRelations,
   workspaceTagRelations,
 } from "./schema/tags";
+import { trashEntry } from "./schema/trash";
 import {
   workExternalExecutionHandoff,
   workExternalExecutionHandoffAttentionSignal,
 } from "./schema/work-external-handoff";
 
 const schema = {
+  trashEntry,
   source,
   sourceVersion,
   account,

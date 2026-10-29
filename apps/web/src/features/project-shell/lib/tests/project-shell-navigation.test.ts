@@ -139,6 +139,12 @@ describe("Project Shell Work navigation", () => {
     expect(navigationSurfaceFromHash("share", [], [], [])).toBe("Share");
   });
 
+  test("round trips the always-reachable Trash surface", () => {
+    expect(ALWAYS_REACHABLE_SURFACES).toContain("Trash");
+    expect(navigationHash("Trash")).toBe("trash");
+    expect(navigationSurfaceFromHash("trash", [], [], [])).toBe("Trash");
+  });
+
   test("does not read a Daily action hash as a Work record id", () => {
     for (const hash of Object.values(DAILY_ACTION_HASHES)) {
       expect(workRecordIdFromHash(hash)).toBeNull();

@@ -15,6 +15,7 @@ export default function ProjectShellView({
   projectHistoryArea,
   projectUpdatesArea,
   linkSharingArea,
+  trashArea,
   projectId,
   releasesArea,
   releaseEvidenceArea,
@@ -27,6 +28,7 @@ export default function ProjectShellView({
   projectHistoryArea?: ReactNode;
   projectUpdatesArea?: ReactNode;
   linkSharingArea?: ReactNode;
+  trashArea?: ReactNode;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
@@ -82,6 +84,7 @@ export default function ProjectShellView({
         releaseEvidenceArea={releaseEvidenceArea}
         releasesArea={releasesArea}
         scopeTreeQuery={scopeTreeQuery}
+        trashArea={trashArea}
         valueChainArea={valueChainArea}
         workHistoryArea={workHistoryArea}
       />

@@ -71,6 +71,7 @@ import {
   ROADMAP_HASH,
   SHARE_HASH,
   SPEC_CHANGE_REVIEW_HASH,
+  TRASH_HASH,
   testGapRecordFromHash,
   workRecordHash,
   workRecordIdFromHash,
@@ -200,6 +201,13 @@ function projectTestsSurface(
         projectId={projectId}
       />
     </div>
+  ) : null;
+}
+
+/** The route composes `Trash`, so the shell never imports its `ui/`. */
+function trashSurface(activeHash: string, trashArea?: ReactNode) {
+  return trashArea && activeHash === TRASH_HASH ? (
+    <div id={TRASH_HASH}>{trashArea}</div>
   ) : null;
 }
 
@@ -496,6 +504,7 @@ function ProjectShellContent({
   projectHistoryArea,
   projectUpdatesArea,
   linkSharingArea,
+  trashArea,
   productionArea,
   projectId,
   releasesArea,
@@ -512,6 +521,7 @@ function ProjectShellContent({
   projectHistoryArea?: ReactNode;
   projectUpdatesArea?: ReactNode;
   linkSharingArea?: ReactNode;
+  trashArea?: ReactNode;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
@@ -660,6 +670,7 @@ function ProjectShellContent({
     projectHistorySurface(activeHash, projectHistoryArea) ??
     projectUpdatesSurface(activeHash, projectUpdatesArea) ??
     shareSurface(activeHash, linkSharingArea) ??
+    trashSurface(activeHash, trashArea) ??
     projectProductionSurface(
       activeHash,
       accountFormattingPreferences,
