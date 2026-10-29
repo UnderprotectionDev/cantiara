@@ -1263,8 +1263,12 @@ Tekil Wiki sayfasının varsayılan `noindex` durumunu yalnız kurucunun açık 
 _Avoid_: SEO etkinleştirme, otomatik indeksleme, sitemap kaydı
 
 **Herkese açık durum etiketi**:
-Bir İşin iç İş akışı durumunu değiştirmeden yalnız herkese açık Roadmap sunumunda gösterilen Proje bazlı ziyaretçi etiketi ([eşleme sözleşmesi](docs/prd/14-sharing-and-public-publishing.md#iç-durumların-herkese-açık-sunumu)).
+Bir İşin iç İş akışı durumunu değiştirmeden yalnız herkese açık Roadmap sunumunda gösterilen Proje bazlı ziyaretçi etiketi ([eşleme sözleşmesi](docs/prd/14-sharing-and-public-publishing.md#iç-durumların-herkese-açık-sunumu)). Başlangıç eşlemesi `Not Started→Planned`, `In Progress→In Progress`, `Closed+Completed→Completed`; `Blocked` ve `Closed+Abandoned` eşlemesizdir ve kurucu açık etiket seçmeden yayımlanamaz; yayımlanmış Proje Sürümü üyeliği yalnız `Released` önerir, onaysız uygulanmaz; etiket bir iç durum adını (`Blocked`, `Closed`, `Abandoned`, `Not Started`) yeniden kullanamaz. İç durum değişimi etiketi, etiket de iç durumu kendiliğinden değiştirmez. UI: `Public Status Label`, `Planned`, `In Progress`, `Completed`, `Released`.
 _Avoid_: İş akışı durumu, ikinci herkese açık İş, otomatik yayın kararı
+
+**Build in Public**:
+Bir Projenin seçili Roadmap İşlerini, durum eşlemesini ve üstverisini kurucunun [kapalı dünya önizlemesi](docs/prd/14-sharing-and-public-publishing.md#build-in-public) ve öğe başına onayıyla Proje bazında isteğe bağlı herkese açık yayımladığı Dış yüzeydir; her onay yeni bir Onaylı snapshot revizyonu ekler, canlı Roadmap kopyası değildir ve kaynak değişikliği onaylanana kadar `Unpublished changes` olarak farkta kalır. Roadmap İşinin isteğe bağlı `Public title` ve `Public summary` alanları o İşe bağlı yayın alanlarıdır; iç başlık değişince kendiliğinden yeniden yazılmaz ve ikinci herkese açık İş üretmez. UI: `Build in Public`, `Public title`, `Public summary`, `Unpublished changes`, `Publish/share anyway`.
+_Avoid_: Canlı Roadmap kopyası, ikinci herkese açık İş, görüntülenme sayacı, otomatik blog, Tekil Wiki yayını
 
 **Güvenlik nedeniyle redakte edilmiş kanıt**:
 Değişmez sürüm manifestini yeniden yazmadan hassas içeriği [kaldırılmış kanıtın](docs/prd/10-testing-and-validation.md#düzeltme-geri-çekme-ve-güvenlik-redaksiyonu) erişilemez durumu; yeni bir sürümün kabul kanıtı olarak yeniden kullanılamaz.

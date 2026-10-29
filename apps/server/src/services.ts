@@ -33,6 +33,7 @@ import { createDatabaseBacklog } from "./features/backlog/server/backlog-databas
 import { createDatabaseBacklogMutationContracts } from "./features/backlog/server/backlog-mutation-database";
 import { createBacklogReappearSignalWorker } from "./features/backlog/server/backlog-reappear-signal-worker";
 import { sweepDueReappearSignals as sweepBacklogSignals } from "./features/backlog/server/backlog-reappear-signals";
+import { createDatabaseBuildInPublic } from "./features/build-in-public/server/build-in-public-database";
 import {
   captureInboxMutationTarget,
   createDatabaseCaptureInbox,
@@ -312,6 +313,7 @@ export const prioritizationSessions = createPrioritizationSessionsAccess(
 );
 export const prioritizationSessionMutationContracts =
   createDatabasePrioritizationSessionMutationContracts(db);
+export const buildInPublic = createDatabaseBuildInPublic(db);
 export const wikiPublishing = createDatabaseWikiPublishing(db, {
   documents,
   projectSourceRecords,

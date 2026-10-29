@@ -4,6 +4,7 @@ export * from "./assumption";
 export * from "./attention-signals";
 export * from "./auth";
 export * from "./backlog";
+export * from "./build-in-public";
 export * from "./capture-triage";
 export * from "./completion-effects";
 export * from "./contact";
