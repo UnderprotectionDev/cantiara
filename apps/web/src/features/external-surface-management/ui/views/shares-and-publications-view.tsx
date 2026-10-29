@@ -1,4 +1,8 @@
 import {
+  type AccountPreferences,
+  DEFAULT_ACCOUNT_PREFERENCES,
+} from "@cantiara/api/account-preferences";
+import {
   SHARES_AND_PUBLICATIONS_LABEL,
   type SurfaceAction,
   type SurfaceRow,
@@ -14,23 +18,34 @@ import {
 } from "@cantiara/ui/components/table";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { shareLink, sourceLink } from "../../lib/surface-source-link";
 
 const ACTION_CLASS =
   "inline-flex min-h-11 items-center rounded-md px-2 text-sm underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
 
-function accessLabel(row: SurfaceRow) {
+function accessLabel(row: SurfaceRow, formatting: AccountPreferences) {
   const parts = [row.passwordProtected ? "Password set" : "No password"];
-  parts.push(row.expiresAt ? `Expires ${row.expiresAt}` : "No expiry");
+  parts.push(
+    row.expiresAt
+      ? `Expires ${formatAccountDateTime(row.expiresAt, formatting)}`
+      : "No expiry",
+  );
   return parts.join(" · ");
 }
 
-function purgeLabel(purge: NonNullable<SurfaceRow["purge"]>) {
+function purgeLabel(
+  purge: NonNullable<SurfaceRow["purge"]>,
+  formatting: AccountPreferences,
+) {
   if (purge.status === "Done") {
     return "Cache and index purge done";
   }
   if (purge.status === "Retrying") {
-    return `Cache and index purge retrying (attempt ${purge.attempts}, next ${purge.nextAttemptAt})`;
+    const next = purge.nextAttemptAt
+      ? `next ${formatAccountDateTime(purge.nextAttemptAt, formatting)}`
+      : null;
+    return `Cache and index purge retrying (attempt ${purge.attempts}${next ? `, ${next}` : ""})`;
   }
   return "Cache and index purge requested";
 }
@@ -83,12 +98,14 @@ function RowActions({
  */
 export function SharesAndPublicationsView({
   error,
+  formatting = DEFAULT_ACCOUNT_PREFERENCES,
   loading,
   renderRemove,
   rows,
   scopeLabel,
 }: {
   error: boolean;
+  formatting?: AccountPreferences;
   loading: boolean;
   renderRemove?: (row: SurfaceRow) => ReactNode;
   rows: readonly SurfaceRow[];
@@ -131,7 +148,7 @@ export function SharesAndPublicationsView({
                   </div>
                 </TableCell>
                 <TableCell>{row.visibility}</TableCell>
-                <TableCell>{accessLabel(row)}</TableCell>
+                <TableCell>{accessLabel(row, formatting)}</TableCell>
                 <TableCell>
                   <div className="flex flex-wrap items-center gap-1">
                     <Badge>{row.status}</Badge>
@@ -142,14 +159,20 @@ export function SharesAndPublicationsView({
                       <Badge variant="outline">Redacted</Badge>
                     ) : null}
                     {row.purge ? (
-                      <Badge variant="outline">{purgeLabel(row.purge)}</Badge>
+                      <Badge variant="outline">
+                        {purgeLabel(row.purge, formatting)}
+                      </Badge>
                     ) : null}
                     {row.frozenDetached ? (
                       <Badge variant="outline">Frozen · source detached</Badge>
                     ) : null}
                   </div>
                 </TableCell>
-                <TableCell>{row.lastApprovedAt ?? "—"}</TableCell>
+                <TableCell>
+                  {row.lastApprovedAt
+                    ? formatAccountDateTime(row.lastApprovedAt, formatting)
+                    : "—"}
+                </TableCell>
                 <TableCell>
                   <RowActions renderRemove={renderRemove} row={row} />
                 </TableCell>
