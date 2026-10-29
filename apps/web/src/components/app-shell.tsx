@@ -4,6 +4,7 @@ import { HeadContent, Outlet, useMatches } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import type { ReactNode } from "react";
 
+import ActiveWorkingSetHost from "@/components/active-working-set-host";
 import Header from "@/components/header";
 import { ThemeProvider, useTheme } from "@/components/theme-provider";
 import { useFounderCommandPaletteSource } from "@/features/command-palette/hooks/use-command-palette-source";
@@ -47,6 +48,7 @@ function AppShell() {
           <ContextRecordPreviewProvider>
             <FounderCommandPaletteShell>
               {shellContent}
+              <ActiveWorkingSetHost />
             </FounderCommandPaletteShell>
           </ContextRecordPreviewProvider>
         ) : (
