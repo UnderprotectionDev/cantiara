@@ -162,6 +162,10 @@ import {
   startExternalExecutionHandoffMutationInputSchema,
 } from "../external-handoffs";
 import {
+  externalSurfaceManagementUnavailable,
+  listExternalSurfacesInputSchema,
+} from "../external-surface-management";
+import {
   FavoriteSourceUnavailableError,
   favoriteSourceSchema,
 } from "../favorites";
@@ -4651,7 +4655,22 @@ async function projectUpdateWrite<T>(
     throw error;
   }
 }
+function requireExternalSurfaceManagement(context: Context) {
+  if (!context.externalSurfaceManagement) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.externalSurfaceManagement;
+}
 export const appRouter = {
+  listExternalSurfaces: protectedProcedure
+    .input(listExternalSurfacesInputSchema)
+    .handler(async ({ context, input }) => {
+      const directory = await requireExternalSurfaceManagement(context).list(
+        context.session.user.id,
+        input,
+      );
+      return directory ?? externalSurfaceManagementUnavailable();
+    }),
   shareRoots: protectedProcedure
     .input(shareRootsInputSchema)
     .handler(({ context, input }) =>

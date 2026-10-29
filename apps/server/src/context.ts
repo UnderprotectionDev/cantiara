@@ -33,6 +33,7 @@ import type {
   DocumentsAccess,
 } from "@cantiara/api/documents";
 import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
+import type { ExternalSurfaceManagementAccess } from "@cantiara/api/external-surface-management";
 import type { FavoritesAccess } from "@cantiara/api/favorites";
 import type { FeedbackAccess } from "@cantiara/api/feedback";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
@@ -147,6 +148,7 @@ export interface CreateContextOptions {
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   documentTransfers?: DocumentTransfersAccess;
+  externalSurfaceManagement?: ExternalSurfaceManagementAccess;
   favorites?: FavoritesAccess;
   feedback?: FeedbackAccess;
   fileAttachments?: FileAttachmentAccess;
@@ -286,6 +288,7 @@ export async function createContext({
   recordActions,
   releaseCommunication,
   workAutomation,
+  externalSurfaceManagement,
   wikiPublishing,
   workspaceOverview,
   tags,
@@ -396,6 +399,7 @@ export async function createContext({
     recordActions,
     releaseCommunication,
     workAutomation,
+    externalSurfaceManagement,
     wikiPublishing,
     workspaceOverview,
     tags,

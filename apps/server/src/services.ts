@@ -6,6 +6,7 @@ import {
   createMemoryExternalSurfaceResponseCache,
 } from "@cantiara/api/external-surface-access";
 import { createDatabaseExternalSurfaceStateReader } from "@cantiara/api/external-surface-access-database";
+import type { LinkSharingRootKind } from "@cantiara/api/link-sharing";
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
 import { createDatabaseMutationContract } from "@cantiara/api/mutation-contract-database";
 import { createAuth } from "@cantiara/auth";
@@ -64,6 +65,8 @@ import {
 } from "./features/documents/server/documents-database";
 import { insertWorkWithKeyAllocation } from "./features/evidence/server/evidence-record-creation";
 import { createDatabaseExternalExecutionHandoffs } from "./features/external-handoffs/server/external-handoffs-database";
+import { createExternalSurfaceManagement } from "./features/external-surface-management/server/external-surface-management";
+import { createDatabaseSurfaceDirectory } from "./features/external-surface-management/server/external-surface-management-database";
 import { createDatabaseFavorites } from "./features/favorites/server/favorites-database";
 import { createDatabaseFeedbackWithFeed } from "./features/feedback/server/feedback-feed-database";
 import { createFileAttachmentLocationWork } from "./features/file-attachments/server/file-attachment-location-work";
@@ -350,6 +353,32 @@ const linkSharingReplay = createDatabaseLinkSharingReplay(
   db,
   linkSharingSecurityEvents,
 );
+export const externalSurfaceManagement = createExternalSurfaceManagement({
+  // Reads the live source through the Link Sharing preview, so the directory
+  // forks neither scope rules nor the diff.
+  linkSource: async (accountId, record) => {
+    if (!(record.rootId && record.rootKind)) {
+      return null;
+    }
+    const preview = await linkSharing.preview(accountId, {
+      root: {
+        id: record.rootId,
+        kind: record.rootKind as LinkSharingRootKind,
+      },
+      surfaceId: record.surfaceId,
+    });
+    return preview
+      ? {
+          hasChanges:
+            (preview.diff?.added.length ?? 0) +
+              (preview.diff?.changed.length ?? 0) +
+              (preview.diff?.removed.length ?? 0) >
+            0,
+        }
+      : null;
+  },
+  store: createDatabaseSurfaceDirectory(db),
+});
 export const linkSharingVisitor = createDatabaseLinkSharingVisitor(db, {
   audit: linkSharingAudit,
   rateSecret: env.BETTER_AUTH_SECRET,

@@ -26,6 +26,7 @@ import {
   documentMutationContracts,
   documents,
   documentTransfers,
+  externalSurfaceManagement,
   favorites,
   feedback,
   fileAttachments,
@@ -231,6 +232,7 @@ const app = createApp({
   workLifecycle,
   workTemplates,
   wikiPublicPages,
+  externalSurfaceManagement,
   wikiPublishing,
   workspaceOverview,
 });
