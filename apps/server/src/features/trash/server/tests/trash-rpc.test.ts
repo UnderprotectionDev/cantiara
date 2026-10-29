@@ -8,8 +8,8 @@ import { createMemoryTrash } from "../trash-memory-store";
 
 const ACCOUNT = "account-1";
 const TRASH_PROCEDURE = /trash/i;
-const RESTORE_OR_DELETE_PROCEDURE =
-  /^(restore|delete|purge|permanently).*trash|trash.*(restore|purge|permanent)/i;
+const DELETE_PROCEDURE =
+  /^(delete|purge|permanently).*trash|trash.*(purge|permanent)/i;
 
 function setup(authenticated = true) {
   const harness = createMemoryTrash({
@@ -42,16 +42,17 @@ const body = {
 };
 
 describe("Trash RPC seam", () => {
-  test("exposes list and Move to Trash only, no restore or delete yet", () => {
+  test("exposes list, Move to Trash and Restore; no early permanent delete yet", () => {
     const procedures = Object.keys(appRouter).filter((name) =>
       TRASH_PROCEDURE.test(name),
     );
 
     expect(procedures).toContain("moveToTrash");
     expect(procedures).toContain("trash");
-    expect(
-      procedures.filter((name) => RESTORE_OR_DELETE_PROCEDURE.test(name)),
-    ).toEqual([]);
+    expect(procedures).toContain("restoreFromTrash");
+    expect(procedures.filter((name) => DELETE_PROCEDURE.test(name))).toEqual(
+      [],
+    );
   });
 
   test("moves a record and lists it with the 30-day window", async () => {
@@ -77,6 +78,41 @@ describe("Trash RPC seam", () => {
     expect(preview.defaultDisposition).toBe("revoke");
     expect(preview.surfaces).toEqual([]);
     expect(preview.keepApprovedSurface.available).toBe(false);
+  });
+
+  test("restores a record with the same id and answers a stale revision", async () => {
+    const client = setup();
+    const entry = await client.moveToTrash(body);
+
+    await expect(
+      client.restoreFromTrash({
+        baseRevision: entry.revision - 1,
+        clientIdempotencyKey: "r-stale",
+        entryId: entry.id,
+        projectId: "project-1",
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    const restored = await client.restoreFromTrash({
+      baseRevision: entry.revision,
+      clientIdempotencyKey: "r-1",
+      entryId: entry.id,
+      projectId: "project-1",
+    });
+
+    expect(restored.records).toEqual([
+      { recordId: "r1", recordKind: "Risk", revision: 4 },
+    ]);
+    expect((await client.trash({ projectId: "project-1" })).entries).toEqual(
+      [],
+    );
+    await expect(
+      client.restoreFromTrash({
+        baseRevision: entry.revision,
+        clientIdempotencyKey: "r-2",
+        entryId: entry.id,
+        projectId: "project-1",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   test("a surface disposition other than revoke or keep is a bad request", async () => {

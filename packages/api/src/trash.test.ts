@@ -1,12 +1,18 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  IN_TRASH_LABEL,
   isTrashChildOnlyKind,
   isTrashRecordKind,
   keepApprovedSurfaceEligibility,
   MOVE_TO_TRASH_LABEL,
+  moveProjectDeleteGroupInputSchema,
   moveToTrashInputSchema,
+  PERMANENTLY_DELETED_LABEL,
+  RESTORE_LABEL,
+  restoreFromTrashInputSchema,
   TRASH_LABEL,
+  TRASH_PERMANENT_DELETE_EVENT_TYPE,
   TRASH_RETENTION_DAYS,
   trashExpiresAt,
 } from "./trash";
@@ -108,6 +114,57 @@ describe("Trash rules", () => {
     expect(
       moveToTrashInputSchema.safeParse({ ...valid, surfaceDisposition: "x" })
         .success,
+    ).toBe(false);
+  });
+
+  test("uses the English restore and deleted-target labels", () => {
+    expect(RESTORE_LABEL).toBe("Restore");
+    expect(IN_TRASH_LABEL).toBe("In Trash");
+    expect(PERMANENTLY_DELETED_LABEL).toBe("Permanently deleted");
+    expect(TRASH_PERMANENT_DELETE_EVENT_TYPE).toBe("trash.permanently-deleted");
+  });
+
+  test("restore needs an entry, a base revision and an idempotency key", () => {
+    const valid = {
+      baseRevision: 2,
+      clientIdempotencyKey: "k",
+      entryId: "e",
+      projectId: "p",
+    };
+
+    expect(restoreFromTrashInputSchema.safeParse(valid).success).toBe(true);
+    expect(
+      restoreFromTrashInputSchema.safeParse({
+        ...valid,
+        baseRevision: undefined,
+      }).success,
+    ).toBe(false);
+    expect(
+      restoreFromTrashInputSchema.safeParse({ ...valid, recordId: "r" })
+        .success,
+    ).toBe(false);
+  });
+
+  test("a Project delete group carries members and no surface disposition", () => {
+    const member = { baseRevision: 0, recordId: "r", recordKind: "Risk" };
+    const group = {
+      clientIdempotencyKey: "k",
+      members: [member],
+      projectId: "p",
+    };
+
+    expect(moveProjectDeleteGroupInputSchema.safeParse(group).success).toBe(
+      true,
+    );
+    expect(
+      moveProjectDeleteGroupInputSchema.safeParse({ ...group, members: [] })
+        .success,
+    ).toBe(false);
+    expect(
+      moveProjectDeleteGroupInputSchema.safeParse({
+        ...group,
+        surfaceDisposition: "keep",
+      }).success,
     ).toBe(false);
   });
 });

@@ -5,7 +5,9 @@ import { describe, expect, test } from "vitest";
 
 import { TrashEntryList } from "../trash-entry-list";
 
-const CONTROL_OR_LIFECYCLE_COPY = /<button|Restore|Permanently Delete|Archive/;
+const DELETE_OR_ARCHIVE_COPY = /Permanently Delete|Archive|restore point/i;
+
+const noop = () => undefined;
 
 const entry: TrashEntry = {
   expiresAt: "2026-03-31T00:00:00.000Z",
@@ -15,6 +17,7 @@ const entry: TrashEntry = {
   recordId: "r1",
   recordKind: "Risk",
   recordLabel: "Slip",
+  revision: 3,
   trashedAt: "2026-03-01T00:00:00.000Z",
   workspaceId: "w1",
 };
@@ -34,7 +37,34 @@ describe("TrashEntryList", () => {
     expect(html).toContain('dateTime="2026-03-31T00:00:00.000Z"');
   });
 
-  test("offers no restore, delete or archive control yet", () => {
+  test("marks each row In Trash and offers a labelled Restore button", () => {
+    const html = renderToStaticMarkup(
+      <TrashEntryList
+        entries={[entry]}
+        formatting={DEFAULT_ACCOUNT_PREFERENCES}
+        onRestore={noop}
+      />,
+    );
+
+    expect(html).toContain("In Trash");
+    expect(html).toContain('aria-label="Restore: Slip"');
+    expect(html).toContain("<button");
+    expect(html).not.toMatch(DELETE_OR_ARCHIVE_COPY);
+  });
+
+  test("a group row says it restores with its Project delete group", () => {
+    const html = renderToStaticMarkup(
+      <TrashEntryList
+        entries={[{ ...entry, groupId: "g1" }]}
+        formatting={DEFAULT_ACCOUNT_PREFERENCES}
+        onRestore={noop}
+      />,
+    );
+
+    expect(html).toContain("Project delete group");
+  });
+
+  test("offers no Restore without a handler", () => {
     const html = renderToStaticMarkup(
       <TrashEntryList
         entries={[entry]}
@@ -42,7 +72,7 @@ describe("TrashEntryList", () => {
       />,
     );
 
-    expect(html).not.toMatch(CONTROL_OR_LIFECYCLE_COPY);
+    expect(html).not.toContain("<button");
   });
 
   test("says Trash is empty", () => {

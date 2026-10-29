@@ -16,6 +16,7 @@ describe("TrashView", () => {
         formatting={DEFAULT_ACCOUNT_PREFERENCES}
         onMove={moved}
         onPreview={unused}
+        onRestore={moved}
       />,
     );
 

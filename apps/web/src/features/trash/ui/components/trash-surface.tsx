@@ -8,6 +8,7 @@ import { useMemo } from "react";
 import { orpc } from "@/utils/orpc";
 import { useMoveToTrash } from "../../hooks/use-move-to-trash";
 import { usePreviewMoveToTrash } from "../../hooks/use-move-to-trash-preview";
+import { useRestoreFromTrash } from "../../hooks/use-restore-from-trash";
 import { trashCandidates } from "../../lib/trash-candidates";
 import { TrashView } from "../views/trash-view";
 
@@ -20,6 +21,7 @@ export default function TrashSurface({ projectId }: { projectId: string }) {
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
   const move = useMoveToTrash(projectId);
   const preview = usePreviewMoveToTrash(projectId);
+  const restore = useRestoreFromTrash(projectId);
 
   const candidates = useMemo(
     () =>
@@ -56,6 +58,7 @@ export default function TrashSurface({ projectId }: { projectId: string }) {
       formatting={preferences.data ?? DEFAULT_ACCOUNT_PREFERENCES}
       onMove={move}
       onPreview={preview}
+      onRestore={restore}
     />
   );
 }

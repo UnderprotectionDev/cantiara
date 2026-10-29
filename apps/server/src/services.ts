@@ -156,6 +156,11 @@ import { createDatabaseTestGaps } from "./features/test-gaps/server/test-gaps-da
 import { createDatabaseTestReports } from "./features/test-report/server/test-report-database";
 import { createDatabaseTestReview } from "./features/test-review/server/test-review-database";
 import { createDatabaseTrash } from "./features/trash/server/trash-database";
+import { createTrashMaintenance } from "./features/trash/server/trash-expiry";
+import {
+  createDatabaseTrashEventLog,
+  createDatabaseTrashExpiry,
+} from "./features/trash/server/trash-expiry-database";
 import { createDatabaseTrashSurfaces } from "./features/trash/server/trash-surfaces-database";
 import { createDatabaseUserFlow } from "./features/user-flow/server/user-flow-database";
 import { createDatabaseValueChain } from "./features/value-chain/server/value-chain-database";
@@ -355,6 +360,10 @@ export const trash = createDatabaseTrash(
     linkSharing,
     wikiPublishing,
   }),
+);
+const trashMaintenance = createTrashMaintenance(
+  createDatabaseTrashExpiry(db),
+  createDatabaseTrashEventLog(securityEventDb),
 );
 const linkSharingReplay = createDatabaseLinkSharingReplay(
   db,
@@ -653,6 +662,8 @@ export function replaySecurityRevocations() {
       // Retention maintenance replays permanent deletes before sweeping. Include
       // it in the startup barrier so the same event history is not replayed twice.
       priorityMetricTrashMaintenance.sweepExpired(),
+      // Replay re-erases records an old backup brought back after a Trash permanent delete.
+      trashMaintenance.replayPermanentDeletes(),
       documentTransfers.replayCancellations(),
       linkSharingReplay.replay(),
     ])
@@ -667,6 +678,10 @@ export function replaySecurityRevocations() {
 
 export function sweepExpiredPriorityMetrics(now = new Date()) {
   return priorityMetricTrashMaintenance.sweepExpired(now);
+}
+
+export function sweepExpiredTrash(now = new Date()) {
+  return trashMaintenance.sweepExpired(now);
 }
 
 // The GitHub login OAuth adapter calls this signal when its authorization is revoked.
@@ -731,6 +746,14 @@ const maintenanceWorker = createMaintenanceWorker({
       name: "priority-metric-trash-sweep",
       cron: "0 * * * *",
       process: () => sweepExpiredPriorityMetrics(),
+    },
+    {
+      // The 30-day Trash clock ends here: whole Project delete groups at once.
+      name: "trash-expiry-sweep",
+      cron: "5 * * * *",
+      process: async () => {
+        await sweepExpiredTrash();
+      },
     },
   ],
 });

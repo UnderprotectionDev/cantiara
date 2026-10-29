@@ -6,11 +6,14 @@ import { externalSurface } from "@cantiara/db/schema/external-surface";
 import { risk } from "@cantiara/db/schema/risk";
 import { screen } from "@cantiara/db/schema/screen";
 import { work } from "@cantiara/db/schema/work";
-import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import type { TrashRecordFacts } from "./trash";
 
-export type TrashRecordExecutor = Pick<Database, "select" | "update">;
+export type TrashRecordExecutor = Pick<
+  Database,
+  "delete" | "insert" | "select" | "update"
+>;
 
 /**
  * One adapter per record kind. It only reads the owner record and stamps its
@@ -19,6 +22,19 @@ export type TrashRecordExecutor = Pick<Database, "select" | "update">;
  * new entry here plus its CHECK value in `trash_entry`, nothing else.
  */
 export interface TrashRecordAdapter {
+  /**
+   * Removes the record's content. Returns a content-free GitHub tombstone
+   * description for a GitHub external record kind (none in the first slice).
+   */
+  erase: (
+    executor: TrashRecordExecutor,
+    recordId: string,
+  ) => Promise<{ githubTombstone?: GithubTombstoneInput } | null>;
+  /** Ids among `recordIds` that still exist (an old backup may bring one back). */
+  existing: (
+    executor: TrashRecordExecutor,
+    recordIds: readonly string[],
+  ) => Promise<string[]>;
   read: (
     executor: TrashRecordExecutor,
     projectId: string,
@@ -32,6 +48,25 @@ export interface TrashRecordAdapter {
     baseRevision: number,
     at: Date,
   ) => Promise<boolean>;
+  /**
+   * Restore: clears the stamp of the same row at the trashed revision, so the
+   * identity and scope never change; `false` when it did not match.
+   */
+  unstamp: (
+    executor: TrashRecordExecutor,
+    projectId: string,
+    recordId: string,
+    trashedRevision: number,
+  ) => Promise<boolean>;
+}
+
+/** A GitHub external record's content-free identity for the resurrection tombstone. */
+export interface GithubTombstoneInput {
+  githubId: number;
+  kind: string;
+  linkId: string;
+  number: number;
+  recordId: string;
 }
 
 type TrashableTable =
@@ -62,6 +97,37 @@ function adapterFor(table: TrashableTable): TrashRecordAdapter {
             trashed: row.trashedAt !== null,
           }
         : null;
+    },
+    async erase(executor, recordId) {
+      const deleted = await executor
+        .delete(table)
+        .where(eq(table.id, recordId))
+        .returning({ id: table.id });
+      return deleted.length > 0 ? {} : null;
+    },
+    async existing(executor, recordIds) {
+      if (recordIds.length === 0) {
+        return [];
+      }
+      const rows = await executor
+        .select({ id: table.id })
+        .from(table)
+        .where(inArray(table.id, [...recordIds]));
+      return rows.map((row) => row.id);
+    },
+    async unstamp(executor, projectId, recordId, trashedRevision) {
+      const cleared = await executor
+        .update(table)
+        .set({ revision: sql`${table.revision} + 1`, trashedAt: null })
+        .where(
+          and(
+            scope(projectId, recordId),
+            eq(table.revision, trashedRevision),
+            isNotNull(table.trashedAt),
+          ),
+        )
+        .returning({ id: table.id });
+      return cleared.length > 0;
     },
     async stamp(executor, projectId, recordId, baseRevision, at) {
       const stamped = await executor
@@ -109,6 +175,40 @@ const externalSurfaceAdapter: TrashRecordAdapter = {
           trashed: row.trashedAt !== null,
         }
       : null;
+  },
+  async erase(executor, recordId) {
+    const deleted = await executor
+      .delete(externalSurface)
+      .where(eq(externalSurface.id, recordId))
+      .returning({ id: externalSurface.id });
+    return deleted.length > 0 ? {} : null;
+  },
+  async existing(executor, recordIds) {
+    if (recordIds.length === 0) {
+      return [];
+    }
+    const rows = await executor
+      .select({ id: externalSurface.id })
+      .from(externalSurface)
+      .where(inArray(externalSurface.id, [...recordIds]));
+    return rows.map((row) => row.id);
+  },
+  // A restored surface record stays revoked: only the Trash stamp is cleared,
+  // `cancelled_at` and `frozen_revision` are never touched.
+  async unstamp(executor, projectId, recordId, trashedRevision) {
+    const cleared = await executor
+      .update(externalSurface)
+      .set({ revision: sql`${externalSurface.revision} + 1`, trashedAt: null })
+      .where(
+        and(
+          eq(externalSurface.id, recordId),
+          eq(externalSurface.projectId, projectId),
+          eq(externalSurface.revision, trashedRevision),
+          isNotNull(externalSurface.trashedAt),
+        ),
+      )
+      .returning({ id: externalSurface.id });
+    return cleared.length > 0;
   },
   async stamp(executor, projectId, recordId, baseRevision, at) {
     const stamped = await executor

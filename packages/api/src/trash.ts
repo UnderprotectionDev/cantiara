@@ -15,6 +15,17 @@ export const TRASH_LABEL = "Trash";
 export const MOVE_TO_TRASH_LABEL = "Move to Trash";
 export const TRASH_EMPTY_LABEL = "Nothing in Trash.";
 export const KEEP_APPROVED_SURFACE_LABEL = "Keep approved surface";
+export const RESTORE_LABEL = "Restore";
+/** Broken-reference reasons this surface shows for a deleted target. */
+export const IN_TRASH_LABEL = "In Trash";
+export const PERMANENTLY_DELETED_LABEL = "Permanently deleted";
+
+/**
+ * The irreversible security event a permanent delete appends so that an old
+ * database copy cannot resurrect the record after replay. Secret-free: aliased
+ * actor, record kind and id, time.
+ */
+export const TRASH_PERMANENT_DELETE_EVENT_TYPE = "trash.permanently-deleted";
 
 /** The retention is a product clock in fixed 24-hour days, not a calendar month. */
 export const TRASH_RETENTION_DAYS = 30;
@@ -71,6 +82,40 @@ export const moveToTrashInputSchema = humanMutationEnvelopeSchema
   })
   .strict();
 export type MoveToTrashInput = z.input<typeof moveToTrashInputSchema>;
+
+/** Restore one Trash entry; a Project delete group entry restores its whole group. */
+export const restoreFromTrashInputSchema = humanMutationEnvelopeSchema
+  .extend({ entryId: identifier, projectId: identifier })
+  .strict();
+export type RestoreFromTrashInput = z.input<typeof restoreFromTrashInputSchema>;
+
+/**
+ * Move the records of one Project delete group together: one shared clock,
+ * all or nothing. Which records belong is the lifecycle's rule (PRD 02); the
+ * caller (Project retirement, spec 83) names them.
+ */
+export const moveProjectDeleteGroupInputSchema = z
+  .object({
+    clientIdempotencyKey:
+      humanMutationEnvelopeSchema.shape.clientIdempotencyKey,
+    members: z
+      .array(
+        z
+          .object({
+            baseRevision: humanMutationEnvelopeSchema.shape.baseRevision,
+            recordId: identifier,
+            recordKind: trashRecordKindSchema,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(500),
+    projectId: identifier,
+  })
+  .strict();
+export type MoveProjectDeleteGroupInput = z.input<
+  typeof moveProjectDeleteGroupInputSchema
+>;
 
 /** The Move to Trash preview: which source, so the surfaces can be listed. */
 export const moveToTrashPreviewInputSchema = z
@@ -192,7 +237,7 @@ export function trashExpiresAt(trashedAt: Date): Date {
 export interface TrashEntry {
   /** When the recoverable window ends (`trashedAt` plus 30 days). */
   expiresAt: string;
-  /** Set when the entry belongs to a Project delete group sharing one clock (later ticket). */
+  /** Set when the entry belongs to a Project delete group sharing one clock. */
   groupId: string | null;
   id: string;
   projectId: string;
@@ -200,6 +245,8 @@ export interface TrashEntry {
   recordId: string;
   recordKind: TrashRecordKind;
   recordLabel: string;
+  /** The record's revision while it waits in Trash; the base revision of a restore. */
+  revision: number;
   /** What happened to the Active surfaces attached to the record (empty when none). */
   surfaces?: { disposition: "kept" | "revoked"; surfaceId: string }[];
   trashedAt: string;
@@ -210,6 +257,22 @@ export interface TrashOverview {
   /** Soonest expiry first. */
   entries: TrashEntry[];
   retentionDays: number;
+}
+
+export interface RestoredRecord {
+  recordId: string;
+  recordKind: TrashRecordKind;
+  /** The record's revision after the restore. The identity is unchanged. */
+  revision: number;
+}
+
+export interface RestoreResult {
+  entryId: string;
+  /** Set when the entry belonged to a Project delete group restored as one unit. */
+  groupId: string | null;
+  projectId: string;
+  records: RestoredRecord[];
+  restoredAt: string;
 }
 
 export class TrashChildRecordError extends Error {
@@ -271,6 +334,14 @@ export interface TrashAccess {
     input: MoveToTrashInput,
     context?: { deletion?: TrashDeletionKind },
   ) => Promise<TrashEntry | null>;
+  /**
+   * Moves the records of one Project delete group: one shared clock, all or
+   * nothing, every surface revoked and `Keep approved surface` never offered.
+   */
+  moveGroup: (
+    accountId: string,
+    input: MoveProjectDeleteGroupInput,
+  ) => Promise<TrashEntry[] | null>;
   /** Every entry in Trash for the Project, or `null` when it is not the account's. */
   overview: (
     accountId: string,
@@ -282,4 +353,14 @@ export interface TrashAccess {
     input: MoveToTrashPreviewInput,
     context?: { deletion?: TrashDeletionKind },
   ) => Promise<MoveToTrashPreview | null>;
+  /**
+   * Restores the record under the same internal id and scope, never a copy.
+   * A Project delete group restores as one unit. `null` when the entry is not
+   * in the account's Project. Surfaces are never touched: a revoked one stays
+   * revoked, a kept one does not rebind.
+   */
+  restore: (
+    accountId: string,
+    input: RestoreFromTrashInput,
+  ) => Promise<RestoreResult | null>;
 }

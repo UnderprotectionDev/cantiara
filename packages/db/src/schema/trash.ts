@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -73,5 +74,32 @@ export const trashEntry = pgTable(
       "trash_entry_label_check",
       sql`length(${table.recordLabel}) between 1 and 255`,
     ),
+  ],
+);
+
+/**
+ * Restore receipt (spec 77): the idempotent answer of one restore. A restore
+ * closes the `trash_entry` (the record keeps its own row and id), so the key
+ * lives here and the same key replays the same result instead of a second
+ * restore. Content-free: kinds, ids and revisions only.
+ */
+export const trashRestoreReceipt = pgTable(
+  "trash_restore_receipt",
+  {
+    idempotencyKey: text("idempotency_key").notNull(),
+    idempotencyScope: text("idempotency_scope").notNull(),
+    payloadFingerprint: text("payload_fingerprint").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    restoredAt: timestamp("restored_at").notNull(),
+    result: jsonb("result").notNull(),
+  },
+  (table) => [
+    uniqueIndex("trash_restore_receipt_idempotency_uidx").on(
+      table.idempotencyScope,
+      table.idempotencyKey,
+    ),
+    index("trash_restore_receipt_project_idx").on(table.projectId),
   ],
 );

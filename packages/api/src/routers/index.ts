@@ -753,6 +753,7 @@ import {
 import {
   moveToTrashInputSchema,
   moveToTrashPreviewInputSchema,
+  restoreFromTrashInputSchema,
   TrashAlreadyTrashedError,
   TrashChildRecordError,
   TrashKeepSurfaceNotAllowedError,
@@ -4737,6 +4738,13 @@ export const appRouter = {
     .handler(({ context, input }) =>
       trashWrite(input.recordId, () =>
         requireTrash(context).move(context.session.user.id, input),
+      ),
+    ),
+  restoreFromTrash: protectedProcedure
+    .input(restoreFromTrashInputSchema)
+    .handler(({ context, input }) =>
+      trashWrite(input.entryId, () =>
+        requireTrash(context).restore(context.session.user.id, input),
       ),
     ),
   shareRoots: protectedProcedure

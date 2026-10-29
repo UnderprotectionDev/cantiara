@@ -25,6 +25,7 @@ export function TrashView({
   formatting,
   onMove,
   onPreview,
+  onRestore,
 }: {
   candidates: readonly TrashCandidate[];
   entries: readonly TrashEntry[];
@@ -34,7 +35,26 @@ export function TrashView({
     disposition: TrashSurfaceDisposition,
   ) => Promise<unknown>;
   onPreview: (candidate: TrashCandidate) => Promise<MoveToTrashPreview>;
+  onRestore: (entry: TrashEntry) => Promise<unknown>;
 }) {
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const [restoreFailed, setRestoreFailed] = useState<string | null>(null);
+  const [restoredLabel, setRestoredLabel] = useState<string | null>(null);
+
+  async function restore(entry: TrashEntry) {
+    setRestoring(entry.id);
+    setRestoreFailed(null);
+    setRestoredLabel(null);
+    try {
+      await onRestore(entry);
+      setRestoredLabel(entry.recordLabel);
+    } catch {
+      setRestoreFailed(entry.id);
+    } finally {
+      setRestoring(null);
+    }
+  }
+
   const [pending, setPending] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<{
@@ -84,7 +104,16 @@ export function TrashView({
           {TRASH_RETENTION_DAYS} days, then it is permanently deleted.
         </p>
       </header>
-      <TrashEntryList entries={entries} formatting={formatting} />
+      <TrashEntryList
+        entries={entries}
+        failedId={restoreFailed}
+        formatting={formatting}
+        onRestore={restore}
+        pendingId={restoring}
+      />
+      <p aria-live="polite" role="status">
+        {restoredLabel ? `Restored ${restoredLabel}.` : null}
+      </p>
       {candidates.length > 0 ? (
         <section aria-label={MOVE_TO_TRASH_LABEL} className="space-y-2">
           <h3 className="font-medium">{MOVE_TO_TRASH_LABEL}</h3>

@@ -10,8 +10,11 @@ import {
   isTrashChildOnlyKind,
   isTrashRecordKind,
   keepApprovedSurfaceEligibility,
+  type MoveProjectDeleteGroupInput,
   type MoveToTrashInput,
   type MoveToTrashPreview,
+  type RestoreFromTrashInput,
+  type RestoreResult,
   TRASH_RETENTION_DAYS,
   type TrashAccess,
   TrashAlreadyTrashedError,
@@ -55,6 +58,19 @@ export interface TrashRecordFacts {
   trashed: boolean;
 }
 
+export interface StoredRestoreReceipt {
+  idempotencyKey: string;
+  idempotencyScope: string;
+  payloadFingerprint: string;
+  result: RestoreResult;
+}
+
+export type TrashRestoreOutcome =
+  | { status: "restored" }
+  | { currentRevision: number; recordId: string; status: "stale" }
+  | { receipt: StoredRestoreReceipt; status: "replayed" }
+  | { status: "gone" };
+
 export type TrashCommitOutcome =
   | { status: "moved" }
   | { currentRevision: number; status: "stale" }
@@ -67,6 +83,23 @@ export interface TrashStore {
    * entry, atomically. Nothing is written unless both happen.
    */
   commit: (entry: StoredTrashEntry) => Promise<TrashCommitOutcome>;
+  /** Moves every entry of one Project delete group atomically, or none. */
+  commitGroup: (entries: StoredTrashEntry[]) => Promise<TrashCommitOutcome>;
+  /**
+   * Un-stamps every record of the plan at its trashed revision, closes the
+   * entries and stores the receipt, atomically. Same ids, same scope.
+   */
+  commitRestore: (
+    entries: StoredTrashEntry[],
+    receipt: StoredRestoreReceipt,
+  ) => Promise<TrashRestoreOutcome>;
+  /** One entry of the Project, or `null`. */
+  find: (
+    projectId: string,
+    entryId: string,
+  ) => Promise<StoredTrashEntry | null>;
+  /** Every entry of one Project delete group. */
+  group: (projectId: string, groupId: string) => Promise<StoredTrashEntry[]>;
   list: (projectId: string) => Promise<StoredTrashEntry[]>;
   /** `null` when the account does not own the Project. */
   project: (
@@ -81,6 +114,11 @@ export interface TrashStore {
   ) => Promise<TrashRecordFacts | null>;
   /** The stored result of an earlier attempt with the same idempotency key. */
   replay: (scope: string, key: string) => Promise<StoredTrashEntry | null>;
+  /** The receipt of an earlier restore with the same idempotency key. */
+  restoreReceipt: (
+    scope: string,
+    key: string,
+  ) => Promise<StoredRestoreReceipt | null>;
   /** Keys (`kind:id`) of the given records that are in Trash. */
   trashedKeys: (
     projectId: string,
@@ -180,6 +218,7 @@ function toEntry(stored: StoredTrashEntry): TrashEntry {
     recordId: stored.recordId,
     recordKind: stored.recordKind,
     recordLabel: stored.recordLabel,
+    revision: stored.baseRevision + 1,
     trashedAt: stored.trashedAt,
     workspaceId: stored.workspaceId,
   };
@@ -196,6 +235,74 @@ function staleRevision(
     revision: currentRevision,
     value,
   });
+}
+
+/** The members of a Project delete group as sorted refs; `null` for an unknown kind. */
+function groupMemberRefs(
+  members: MoveProjectDeleteGroupInput["members"],
+): (TrashRecordRef & { baseRevision: number })[] | null {
+  const refs: (TrashRecordRef & { baseRevision: number })[] = [];
+  for (const member of members) {
+    // A child record travels with its owner, also inside a group.
+    if (isTrashChildOnlyKind(member.recordKind)) {
+      throw new TrashChildRecordError(member.recordKind);
+    }
+    if (!isTrashRecordKind(member.recordKind)) {
+      return null;
+    }
+    refs.push({
+      baseRevision: member.baseRevision,
+      id: member.recordId,
+      kind: member.recordKind,
+    });
+  }
+  return refs.sort((a, b) =>
+    trashRecordKey(a).localeCompare(trashRecordKey(b)),
+  );
+}
+
+/** Every member's owner facts, all movable at their base revision; `null` if one is missing. */
+async function loadGroupFacts(
+  store: TrashStore,
+  projectId: string,
+  refs: readonly (TrashRecordRef & { baseRevision: number })[],
+) {
+  const facts = await Promise.all(
+    refs.map((ref) => store.record(projectId, ref.kind, ref.id)),
+  );
+  const found: TrashRecordFacts[] = [];
+  for (const [index, fact] of facts.entries()) {
+    const ref = refs[index];
+    if (!(fact && ref)) {
+      return null;
+    }
+    assertMovable(ref, fact, ref.baseRevision);
+    found.push(fact);
+  }
+  return found;
+}
+
+/** Every member is in Trash at its expected revision; `false` when a record is gone. */
+async function assertRestorable(
+  store: TrashStore,
+  unit: readonly StoredTrashEntry[],
+  expectedOf: (member: StoredTrashEntry) => number,
+) {
+  const facts = await Promise.all(
+    unit.map((member) =>
+      store.record(member.projectId, member.recordKind, member.recordId),
+    ),
+  );
+  for (const [index, fact] of facts.entries()) {
+    const member = unit[index];
+    if (!(fact && member)) {
+      return false;
+    }
+    if (fact.revision !== expectedOf(member)) {
+      throw staleRevision(member.recordId, fact.label, fact.revision);
+    }
+  }
+  return true;
 }
 
 export function createTrash(
@@ -335,6 +442,7 @@ export function createTrash(
         recordId: ref.id,
         recordKind: ref.kind,
         recordLabel: facts.label.slice(0, 255) || ref.kind,
+        revision: input.baseRevision + 1,
         trashedAt: trashedAt.toISOString(),
         workspaceId: project.workspaceId,
       };
@@ -351,6 +459,176 @@ export function createTrash(
           throw staleRevision(ref.id, facts.label, outcome.currentRevision);
         case "already-trashed":
           throw new TrashAlreadyTrashedError(ref);
+        default:
+          return outcome satisfies never;
+      }
+    },
+
+    async moveGroup(accountId, input) {
+      const project = await store.project(accountId, input.projectId);
+      if (!project) {
+        return null;
+      }
+      const refs = groupMemberRefs(input.members);
+      if (!refs) {
+        return null;
+      }
+      const payloadFingerprint = await fingerprintMutationPayload({
+        deletion: "project-delete-group",
+        members: refs.map(({ baseRevision, id, kind }) => ({
+          baseRevision,
+          recordId: id,
+          recordKind: kind,
+        })),
+        projectId: input.projectId,
+      });
+      const scopeOf = (ref: TrashRecordRef) =>
+        `human:${accountId}:trash-move:${trashRecordKey(ref)}`;
+      const replayGroup = async (replayId: string | null) =>
+        replayId
+          ? (await store.group(input.projectId, replayId))
+              .map(toEntry)
+              .sort((a, b) => a.id.localeCompare(b.id))
+          : null;
+
+      const [first] = refs;
+      const earlier = first
+        ? await store.replay(scopeOf(first), input.clientIdempotencyKey)
+        : null;
+      if (earlier) {
+        if (earlier.payloadFingerprint !== payloadFingerprint) {
+          throw new MutationConflictError(earlier.recordId);
+        }
+        return await replayGroup(earlier.groupId);
+      }
+
+      const facts = await loadGroupFacts(store, input.projectId, refs);
+      if (!facts) {
+        return null;
+      }
+      // Group deletion never keeps a surface: every Active one is revoked
+      // before any record leaves view.
+      await Promise.all(
+        refs.map(async (ref) =>
+          settleSurfaces(
+            surfaces,
+            accountId,
+            (await surfaces.attached(accountId, input.projectId, ref)).filter(
+              ({ state }) => state === "Active",
+            ),
+            "revoke",
+          ),
+        ),
+      );
+
+      // One clock for the whole group: the same instant, the same expiry.
+      const trashedAt = now();
+      const groupId = newId();
+      const entries: StoredTrashEntry[] = refs.map((ref, index) => ({
+        actorAccountId: accountId,
+        baseRevision: ref.baseRevision,
+        expiresAt: trashExpiresAt(trashedAt).toISOString(),
+        groupId,
+        id: newId(),
+        idempotencyKey: input.clientIdempotencyKey,
+        idempotencyScope: scopeOf(ref),
+        payloadFingerprint,
+        projectId: input.projectId,
+        recordId: ref.id,
+        recordKind: ref.kind,
+        recordLabel: facts[index]?.label.slice(0, 255) || ref.kind,
+        revision: ref.baseRevision + 1,
+        trashedAt: trashedAt.toISOString(),
+        workspaceId: project.workspaceId,
+      }));
+      const outcome = await store.commitGroup(entries);
+      switch (outcome.status) {
+        case "moved":
+          return entries.map(toEntry);
+        case "replayed":
+          return await replayGroup(outcome.entry.groupId);
+        case "stale":
+          throw staleRevision(
+            first?.id ?? "",
+            first?.kind ?? "",
+            outcome.currentRevision,
+          );
+        case "already-trashed":
+          throw new TrashAlreadyTrashedError(first ?? { id: "", kind: "Work" });
+        default:
+          return outcome satisfies never;
+      }
+    },
+
+    async restore(accountId, input: RestoreFromTrashInput) {
+      if (!(await store.project(accountId, input.projectId))) {
+        return null;
+      }
+      const payloadFingerprint = await fingerprintMutationPayload({
+        baseRevision: input.baseRevision,
+        entryId: input.entryId,
+        projectId: input.projectId,
+      });
+      const scope = `human:${accountId}:trash-restore:${input.entryId}`;
+      const replayed = (stored: StoredRestoreReceipt) => {
+        if (stored.payloadFingerprint !== payloadFingerprint) {
+          throw new MutationConflictError(input.entryId);
+        }
+        return stored.result;
+      };
+      const earlier = await store.restoreReceipt(
+        scope,
+        input.clientIdempotencyKey,
+      );
+      if (earlier) {
+        return replayed(earlier);
+      }
+
+      const entry = await store.find(input.projectId, input.entryId);
+      if (!entry) {
+        return null;
+      }
+      // A group member is never restored on its own clock: the whole group
+      // comes back, or nothing does.
+      const unit = entry.groupId
+        ? await store.group(input.projectId, entry.groupId)
+        : [entry];
+      const expectedOf = (member: StoredTrashEntry) =>
+        member.id === entry.id ? input.baseRevision : member.baseRevision + 1;
+      if (!(await assertRestorable(store, unit, expectedOf))) {
+        return null;
+      }
+
+      const receipt: StoredRestoreReceipt = {
+        idempotencyKey: input.clientIdempotencyKey,
+        idempotencyScope: scope,
+        payloadFingerprint,
+        result: {
+          entryId: entry.id,
+          groupId: entry.groupId,
+          projectId: entry.projectId,
+          records: unit.map((member) => ({
+            recordId: member.recordId,
+            recordKind: member.recordKind,
+            revision: expectedOf(member) + 1,
+          })),
+          restoredAt: now().toISOString(),
+        },
+      };
+      const outcome = await store.commitRestore(unit, receipt);
+      switch (outcome.status) {
+        case "restored":
+          return receipt.result;
+        case "replayed":
+          return replayed(outcome.receipt);
+        case "stale":
+          throw staleRevision(
+            outcome.recordId,
+            entry.recordLabel,
+            outcome.currentRevision,
+          );
+        case "gone":
+          return null;
         default:
           return outcome satisfies never;
       }
