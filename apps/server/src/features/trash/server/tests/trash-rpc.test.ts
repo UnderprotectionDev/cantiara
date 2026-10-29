@@ -5,7 +5,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import { createTrash } from "../trash";
 import { createTrashEarlyDelete } from "../trash-early-delete";
-import { createMemoryTrash } from "../trash-memory-store";
+import { createMemoryTrash } from "./trash-memory-store";
 
 const ACCOUNT = "account-1";
 const TRASH_PROCEDURE = /trash/i;

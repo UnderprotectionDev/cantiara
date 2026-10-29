@@ -211,6 +211,16 @@ export function createDatabaseTrashStore(database: Database): TrashStore {
       }
     },
 
+    async container(projectId) {
+      const [row] = await database
+        .select({ archivedAt: project.archivedAt })
+        .from(project)
+        .where(eq(project.id, projectId))
+        .limit(1);
+      // A Project that is gone or archived is not a living container.
+      return row && row.archivedAt === null ? "project" : "gone";
+    },
+
     async find(projectId, entryId) {
       const [row] = await database
         .select()

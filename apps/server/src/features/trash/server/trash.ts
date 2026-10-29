@@ -24,6 +24,7 @@ import {
   TrashKeepSurfaceNotAllowedError,
   type TrashRecordKind,
   type TrashRecordRef,
+  type TrashSourceContainer,
   type TrashSurface,
   type TrashSurfaceDisposition,
   TrashSurfaceNotRevokedError,
@@ -91,14 +92,20 @@ export interface TrashStore {
   commit: (entry: StoredTrashEntry) => Promise<TrashCommitOutcome>;
   /** Moves every entry of one Project delete group atomically, or none. */
   commitGroup: (entries: StoredTrashEntry[]) => Promise<TrashCommitOutcome>;
-  /**
-   * Un-stamps every record of the plan at its trashed revision, closes the
-   * entries and stores the receipt, atomically. Same ids, same scope.
-   */
   commitRestore: (
     entries: StoredTrashEntry[],
     receipt: StoredRestoreReceipt,
   ) => Promise<TrashRestoreOutcome>;
+  /**
+   * Un-stamps every record of the plan at its trashed revision, closes the
+   * entries and stores the receipt, atomically. Same ids, same scope.
+   */
+  /**
+   * Where the Project's records live right now: `project` while the Project
+   * exists and is not archived, `gone` otherwise. Keep approved surface
+   * eligibility reads this instead of assuming a living container.
+   */
+  container: (projectId: string) => Promise<TrashSourceContainer>;
   /** One entry of the Project, or `null`. */
   find: (
     projectId: string,
@@ -210,19 +217,34 @@ const noSurfaces: TrashSurfacePort = {
   revoke: () => Promise.resolve(),
 };
 
+/**
+ * Eligibility from real facts: the container the Project is in now, how many
+ * records the deletion moves and which deletion it belongs to.
+ */
+async function keepVerdict(
+  store: TrashStore,
+  projectId: string,
+  deletion: TrashDeletionKind | undefined,
+  sourceCount: number,
+) {
+  return keepApprovedSurfaceEligibility({
+    container: await store.container(projectId),
+    deletion: deletion ?? "record",
+    sourceCount,
+  });
+}
+
 /** A `keep` request is honored only when the pure rule allows it; otherwise it is rejected. */
-function assertKeepAllowed(
+async function assertKeepAllowed(
+  store: TrashStore,
+  projectId: string,
   disposition: TrashSurfaceDisposition,
   deletion: TrashDeletionKind | undefined,
 ) {
   if (disposition !== "keep") {
     return;
   }
-  const verdict = keepApprovedSurfaceEligibility({
-    container: "project",
-    deletion: deletion ?? "record",
-    sourceCount: 1,
-  });
+  const verdict = await keepVerdict(store, projectId, deletion, 1);
   if (!verdict.eligible) {
     throw new TrashKeepSurfaceNotAllowedError(verdict.reason);
   }
@@ -400,11 +422,12 @@ export function createTrash(
         return null;
       }
       const attached = await surfaces.attached(accountId, input.projectId, ref);
-      const verdict = keepApprovedSurfaceEligibility({
-        container: "project",
-        deletion: context?.deletion ?? "record",
-        sourceCount: 1,
-      });
+      const verdict = await keepVerdict(
+        store,
+        input.projectId,
+        context?.deletion,
+        1,
+      );
       const hasActive = attached.some(({ state }) => state === "Active");
       const preview: MoveToTrashPreview = {
         defaultDisposition: "revoke",
@@ -448,7 +471,12 @@ export function createTrash(
 
       const disposition = input.surfaceDisposition ?? "revoke";
       // Fail closed before any write: the commit decides like the preview.
-      assertKeepAllowed(disposition, context?.deletion);
+      await assertKeepAllowed(
+        store,
+        input.projectId,
+        disposition,
+        context?.deletion,
+      );
 
       const payloadFingerprint = await fingerprintMutationPayload({
         baseRevision: input.baseRevision,
@@ -466,12 +494,34 @@ export function createTrash(
         return toEntry(stored);
       };
 
+      // Active surfaces are settled only after the owner record is stamped:
+      // revoke and freeze are irreversible, so a move that loses the race
+      // (stale revision, already trashed) must leave every surface untouched.
+      // A settle that fails after the commit is healed by the retry, which
+      // replays the entry and settles the still Active surfaces again.
+      const settleActive = async () =>
+        await settleSurfaces(
+          surfaces,
+          accountId,
+          (await surfaces.attached(accountId, input.projectId, ref)).filter(
+            ({ state }) => state === "Active",
+          ),
+          disposition,
+        );
+      const replayedWithSurfaces = async (stored: StoredTrashEntry) => {
+        const entry = replayed(stored);
+        const dispositions = await settleActive();
+        return dispositions.length > 0
+          ? { ...entry, surfaces: dispositions }
+          : entry;
+      };
+
       const earlier = await store.replay(
         idempotencyScope,
         input.clientIdempotencyKey,
       );
       if (earlier) {
-        return replayed(earlier);
+        return await replayedWithSurfaces(earlier);
       }
 
       const facts = await store.record(input.projectId, ref.kind, ref.id);
@@ -479,18 +529,6 @@ export function createTrash(
         return null;
       }
       assertMovable(ref, facts, input.baseRevision);
-
-      // Access ends before the record leaves view: a revoked or frozen
-      // surface never outlives the move, and a lost race afterwards leaves the
-      // surface closed (fail closed).
-      const dispositions = await settleSurfaces(
-        surfaces,
-        accountId,
-        (await surfaces.attached(accountId, input.projectId, ref)).filter(
-          ({ state }) => state === "Active",
-        ),
-        disposition,
-      );
 
       const trashedAt = now();
       const entry: StoredTrashEntry = {
@@ -513,12 +551,14 @@ export function createTrash(
 
       const outcome = await store.commit(entry);
       switch (outcome.status) {
-        case "moved":
+        case "moved": {
+          const dispositions = await settleActive();
           return dispositions.length > 0
             ? { ...toEntry(entry), surfaces: dispositions }
             : toEntry(entry);
+        }
         case "replayed":
-          return replayed(outcome.entry);
+          return await replayedWithSurfaces(outcome.entry);
         case "stale":
           throw staleRevision(ref.id, facts.label, outcome.currentRevision);
         case "already-trashed":
@@ -548,12 +588,39 @@ export function createTrash(
       });
       const scopeOf = (ref: TrashRecordRef) =>
         `human:${accountId}:trash-move:${trashRecordKey(ref)}`;
-      const replayGroup = async (replayId: string | null) =>
-        replayId
-          ? (await store.group(input.projectId, replayId))
-              .map(toEntry)
-              .sort((a, b) => a.id.localeCompare(b.id))
-          : null;
+      const revokeGroupSurfaces = async (
+        actor: string,
+        projectId: string,
+        members: readonly TrashRecordRef[],
+      ) => {
+        await Promise.all(
+          members.map(async (member) =>
+            settleSurfaces(
+              surfaces,
+              actor,
+              (await surfaces.attached(actor, projectId, member)).filter(
+                ({ state }) => state === "Active",
+              ),
+              "revoke",
+            ),
+          ),
+        );
+      };
+      const replayGroup = async (replayId: string | null) => {
+        if (!replayId) {
+          return null;
+        }
+        const stored = await store.group(input.projectId, replayId);
+        await revokeGroupSurfaces(
+          accountId,
+          input.projectId,
+          stored.map((member) => ({
+            id: member.recordId,
+            kind: member.recordKind,
+          })),
+        );
+        return stored.map(toEntry).sort((a, b) => a.id.localeCompare(b.id));
+      };
 
       const [first] = refs;
       const earlier = first
@@ -570,21 +637,6 @@ export function createTrash(
       if (!facts) {
         return null;
       }
-      // Group deletion never keeps a surface: every Active one is revoked
-      // before any record leaves view.
-      await Promise.all(
-        refs.map(async (ref) =>
-          settleSurfaces(
-            surfaces,
-            accountId,
-            (await surfaces.attached(accountId, input.projectId, ref)).filter(
-              ({ state }) => state === "Active",
-            ),
-            "revoke",
-          ),
-        ),
-      );
-
       // One clock for the whole group: the same instant, the same expiry.
       const trashedAt = now();
       const groupId = newId();
@@ -608,6 +660,9 @@ export function createTrash(
       const outcome = await store.commitGroup(entries);
       switch (outcome.status) {
         case "moved":
+          // Group deletion never keeps a surface: every Active one is revoked,
+          // but only once the whole group is committed (compare-then-act).
+          await revokeGroupSurfaces(accountId, input.projectId, refs);
           return entries.map(toEntry);
         case "replayed":
           return await replayGroup(outcome.entry.groupId);

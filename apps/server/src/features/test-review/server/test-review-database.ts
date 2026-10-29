@@ -132,8 +132,12 @@ async function readSessions(
         ? and(
             eq(testSession.projectId, projectId),
             eq(testSession.id, sessionId),
+            isNull(testSession.trashedAt),
           )
-        : eq(testSession.projectId, projectId),
+        : and(
+            eq(testSession.projectId, projectId),
+            isNull(testSession.trashedAt),
+          ),
     )
     .orderBy(desc(testSession.reportedAt), asc(testSession.id));
   if (sessions.length === 0) {

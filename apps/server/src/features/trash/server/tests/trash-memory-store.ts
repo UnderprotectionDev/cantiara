@@ -5,17 +5,19 @@ import type {
   StoredTrashEntry,
   TrashRecordFacts,
   TrashStore,
-} from "./trash";
+} from "../trash";
 import type {
   TrashEventLog,
   TrashExpiryStore,
   TrashPermanentDeleteEvent,
-} from "./trash-expiry";
-import { parseTrashTargetAlias } from "./trash-expiry";
+} from "../trash-expiry";
+import { parseTrashTargetAlias } from "../trash-expiry";
 
 interface MemoryRecord {
   /** An External Surface that still serves the record, so delete is refused. */
   activeSurface?: boolean;
+  /** A frozen Kept surface still serves visitors, so delete is refused. */
+  keptSurface?: boolean;
   label: string;
   movable?: boolean;
   revision: number;
@@ -33,9 +35,13 @@ interface MemoryRecord {
  */
 export function createMemoryTrash(options: {
   accountId: string;
+  /** Makes the next erase transaction fail, as a database commit failure would. */
+  failEraseCommit?: boolean;
   projects: Map<
     string,
     {
+      /** An archived Project is not a living container for `Keep approved surface`. */
+      archived?: boolean;
       records: Map<string, MemoryRecord>;
       workspaceId: string;
     }
@@ -153,6 +159,10 @@ export function createMemoryTrash(options: {
       receipts.push(structuredClone(receipt));
       return Promise.resolve({ status: "restored" });
     },
+    container: (projectId) => {
+      const project = options.projects.get(projectId);
+      return Promise.resolve(project && !project.archived ? "project" : "gone");
+    },
     find: (projectId, entryId) => {
       const found = entries.find(
         (e) => e.projectId === projectId && e.id === entryId,
@@ -232,7 +242,7 @@ export function createMemoryTrash(options: {
         const owner = records(entry.projectId)?.get(
           key(entry.recordKind, entry.recordId),
         );
-        if (owner?.activeSurface) {
+        if (owner?.activeSurface || owner?.keptSurface) {
           found.add("active-surface");
         }
         if (owner?.sensitiveContent) {
@@ -258,11 +268,13 @@ export function createMemoryTrash(options: {
         ),
       );
     },
-    erase: async (unit, unitEvents, beforeCommit) => {
+    erase: (unit, unitEvents) => {
       if (!unit.every((entry) => entries.some((e) => e.id === entry.id))) {
-        return false;
+        return Promise.resolve(false);
       }
-      await beforeCommit();
+      if (options.failEraseCommit) {
+        return Promise.reject(new Error("commit failed"));
+      }
       for (const entry of unit) {
         remove(entry);
       }
@@ -275,7 +287,7 @@ export function createMemoryTrash(options: {
           type: event.type,
         });
       }
-      return true;
+      return Promise.resolve(true);
     },
     eraseResurrected: (history) => {
       let erased = 0;

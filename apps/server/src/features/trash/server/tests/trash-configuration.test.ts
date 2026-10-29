@@ -2,7 +2,7 @@ import { TrashRestoreConflictError } from "@cantiara/api/trash-configuration";
 import { describe, expect, test } from "vitest";
 
 import { createTrash, type TrashConfigurationPort } from "../trash";
-import { createMemoryTrash } from "../trash-memory-store";
+import { createMemoryTrash } from "./trash-memory-store";
 
 const ACCOUNT = "account-1";
 const PROJECT = "project-1";

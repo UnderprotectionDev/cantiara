@@ -4649,6 +4649,66 @@ function requireTrashEarlyDelete(context: Context) {
   }
   return earlyDelete;
 }
+interface TrashErrorMapping {
+  code: string;
+  /** Extra secret-free fields the client needs next to the code. */
+  data?: (error: never) => Record<string, unknown>;
+  /** Fixed copy; defaults to the error's own message. */
+  message?: string;
+  status: "BAD_REQUEST" | "CONFLICT" | "FORBIDDEN";
+  test: (error: unknown) => boolean;
+}
+
+const trashErrorMappings: readonly TrashErrorMapping[] = [
+  {
+    code: "TRASH_CHILD_RECORD",
+    status: "BAD_REQUEST",
+    test: (error) => error instanceof TrashChildRecordError,
+  },
+  {
+    code: "TRASH_KEEP_SURFACE_NOT_ALLOWED",
+    status: "BAD_REQUEST",
+    test: (error) => error instanceof TrashKeepSurfaceNotAllowedError,
+  },
+  {
+    code: "TRASH_SURFACE_NOT_REVOKED",
+    message: "Revoke the External Surface before moving it to Trash",
+    status: "CONFLICT",
+    test: (error) => error instanceof TrashSurfaceNotRevokedError,
+  },
+  {
+    code: "TRASH_DELETE_BLOCKED",
+    data: (error: TrashDeleteBlockedError) => ({ blockers: error.blockers }),
+    status: "CONFLICT",
+    test: (error) => error instanceof TrashDeleteBlockedError,
+  },
+  {
+    code: "TRASH_RESTORE_CONFLICT",
+    data: (error: TrashRestoreConflictError) => ({
+      conflicts: error.conflicts,
+    }),
+    status: "CONFLICT",
+    test: (error) => error instanceof TrashRestoreConflictError,
+  },
+  {
+    code: "TRASH_TYPED_NAME_MISMATCH",
+    message: "The Project name does not match.",
+    status: "BAD_REQUEST",
+    test: (error) => error instanceof TrashTypedNameMismatchError,
+  },
+  {
+    code: "TRASH_GRANT_REJECTED",
+    status: "FORBIDDEN",
+    test: (error) => error instanceof TrashGrantRejectedError,
+  },
+  {
+    code: "TRASH_ALREADY_TRASHED",
+    message: "Already in Trash",
+    status: "CONFLICT",
+    test: (error) => error instanceof TrashAlreadyTrashedError,
+  },
+];
+
 async function trashWrite<T>(
   targetId: string,
   write: () => Promise<T | null>,
@@ -4660,76 +4720,17 @@ async function trashWrite<T>(
     }
     return result;
   } catch (error) {
-    if (error instanceof TrashChildRecordError) {
-      throw new ORPCError("BAD_REQUEST", {
-        cause: error,
-        data: { code: "TRASH_CHILD_RECORD", targetId },
-        defined: true,
-        message: error.message,
-      });
-    }
-    if (error instanceof TrashKeepSurfaceNotAllowedError) {
-      throw new ORPCError("BAD_REQUEST", {
-        cause: error,
-        data: { code: "TRASH_KEEP_SURFACE_NOT_ALLOWED", targetId },
-        defined: true,
-        message: error.message,
-      });
-    }
-    if (error instanceof TrashSurfaceNotRevokedError) {
-      throw new ORPCError("CONFLICT", {
-        cause: error,
-        data: { code: "TRASH_SURFACE_NOT_REVOKED", targetId },
-        defined: true,
-        message: "Revoke the External Surface before moving it to Trash",
-      });
-    }
-    if (error instanceof TrashDeleteBlockedError) {
-      throw new ORPCError("CONFLICT", {
+    const mapping = trashErrorMappings.find(({ test }) => test(error));
+    if (mapping && error instanceof Error) {
+      throw new ORPCError(mapping.status, {
         cause: error,
         data: {
-          blockers: error.blockers,
-          code: "TRASH_DELETE_BLOCKED",
+          ...mapping.data?.(error as never),
+          code: mapping.code,
           targetId,
         },
         defined: true,
-        message: error.message,
-      });
-    }
-    if (error instanceof TrashRestoreConflictError) {
-      throw new ORPCError("CONFLICT", {
-        cause: error,
-        data: {
-          code: "TRASH_RESTORE_CONFLICT",
-          conflicts: error.conflicts,
-          targetId,
-        },
-        defined: true,
-        message: error.message,
-      });
-    }
-    if (error instanceof TrashTypedNameMismatchError) {
-      throw new ORPCError("BAD_REQUEST", {
-        cause: error,
-        data: { code: "TRASH_TYPED_NAME_MISMATCH", targetId },
-        defined: true,
-        message: "The Project name does not match.",
-      });
-    }
-    if (error instanceof TrashGrantRejectedError) {
-      throw new ORPCError("FORBIDDEN", {
-        cause: error,
-        data: { code: "TRASH_GRANT_REJECTED", targetId },
-        defined: true,
-        message: error.message,
-      });
-    }
-    if (error instanceof TrashAlreadyTrashedError) {
-      throw new ORPCError("CONFLICT", {
-        cause: error,
-        data: { code: "TRASH_ALREADY_TRASHED", targetId },
-        defined: true,
-        message: "Already in Trash",
+        message: mapping.message ?? error.message,
       });
     }
     return rethrowProjectShellMutationError(error, targetId);
@@ -4788,14 +4789,18 @@ export const appRouter = {
     .input(moveToTrashPreviewInputSchema)
     .handler(({ context, input }) =>
       trashWrite(input.recordId, () =>
-        requireTrash(context).preview(context.session.user.id, input),
+        requireTrash(context).preview(context.session.user.id, input, {
+          deletion: "record",
+        }),
       ),
     ),
   moveToTrash: protectedProcedure
     .input(moveToTrashInputSchema)
     .handler(({ context, input }) =>
       trashWrite(input.recordId, () =>
-        requireTrash(context).move(context.session.user.id, input),
+        requireTrash(context).move(context.session.user.id, input, {
+          deletion: "record",
+        }),
       ),
     ),
   previewPermanentDeleteFromTrash: protectedProcedure

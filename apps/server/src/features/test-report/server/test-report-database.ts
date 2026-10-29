@@ -357,7 +357,12 @@ export function createDatabaseTestReportStore(
             const rows = await executor
               .select()
               .from(testSession)
-              .where(eq(testSession.projectId, owned.id))
+              .where(
+                and(
+                  eq(testSession.projectId, owned.id),
+                  isNull(testSession.trashedAt),
+                ),
+              )
               .orderBy(desc(testSession.reportedAt), asc(testSession.id));
             if (rows.length === 0) {
               return [];

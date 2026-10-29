@@ -11,13 +11,13 @@ import { describe, expect, test, vi } from "vitest";
 
 import { createTrash } from "../trash";
 import { createTrashEarlyDelete } from "../trash-early-delete";
-import { createMemoryTrash } from "../trash-memory-store";
+import { createMemoryTrash } from "./trash-memory-store";
 
 const ACCOUNT = "account-1";
 const PROJECT = "project-1";
 const NOW = new Date("2026-03-01T10:00:00.000Z");
 
-function setup() {
+function setup(options: { failEraseCommit?: boolean } = {}) {
   const projects = new Map([
     [
       PROJECT,
@@ -26,6 +26,7 @@ function setup() {
           string,
           {
             activeSurface?: boolean;
+            keptSurface?: boolean;
             label: string;
             revision: number;
             sensitiveContent?: boolean;
@@ -39,7 +40,11 @@ function setup() {
       },
     ],
   ]);
-  const harness = createMemoryTrash({ accountId: ACCOUNT, projects });
+  const harness = createMemoryTrash({
+    accountId: ACCOUNT,
+    projects,
+    ...options,
+  });
   let counter = 0;
   const trash = createTrash(harness.store, {
     newId: () => {
@@ -280,6 +285,63 @@ describe("Trash seam: early Permanently Delete", () => {
     ).toBeNull();
 
     expect(consume).not.toHaveBeenCalled();
+    expect(env.records?.has("Work:w1")).toBe(true);
+  });
+
+  test("a Kept (frozen) surface still serves visitors, so it blocks the delete until it is revoked", async () => {
+    const env = setup();
+    const id = await trashWork(env);
+    const work = env.records?.get("Work:w1");
+    if (work) {
+      work.keptSurface = true;
+    }
+    const consume = accept();
+
+    await expect(
+      env.early.permanentlyDelete(ACCOUNT, body(id), consume),
+    ).rejects.toMatchObject({ blockers: ["active-surface"] });
+
+    expect(consume).not.toHaveBeenCalled();
+    expect(env.records?.has("Work:w1")).toBe(true);
+    expect(env.events).toHaveLength(0);
+  });
+
+  test("a commit that fails leaves no security event behind, so a live record is never erased by replay", async () => {
+    const env = setup({ failEraseCommit: true });
+    const id = await trashWork(env);
+
+    await expect(
+      env.early.permanentlyDelete(ACCOUNT, body(id), accept()),
+    ).rejects.toThrow("commit failed");
+
+    expect(env.events).toHaveLength(0);
+    expect(env.records?.has("Work:w1")).toBe(true);
+    expect(env.entries).toHaveLength(1);
+  });
+
+  test("a unit restored after the checks is not erased and writes no event; the grant is already consumed", async () => {
+    const env = setup();
+    const id = await trashWork(env);
+    // The founder restores in the window between the checks and the erase.
+    const consume = vi.fn(async () => {
+      await env.trash.restore(ACCOUNT, {
+        baseRevision: 4,
+        clientIdempotencyKey: "r1",
+        entryId: id,
+        projectId: PROJECT,
+      });
+      return true;
+    });
+
+    const result = await env.early.permanentlyDelete(
+      ACCOUNT,
+      body(id),
+      consume,
+    );
+
+    expect(result).toBeNull();
+    expect(consume).toHaveBeenCalledTimes(1);
+    expect(env.events).toHaveLength(0);
     expect(env.records?.has("Work:w1")).toBe(true);
   });
 });

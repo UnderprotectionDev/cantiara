@@ -48,6 +48,10 @@ export const TRASH_RECORD_KINDS = [
   "External Surface",
   // Configuration Trash (#498): definitions share the same clock and rules.
   ...TRASH_CONFIGURATION_KINDS,
+  // The local copy of a GitHub issue or Pull request (no source write while here).
+  "GitHub External Record",
+  // A Test Oturumu moves with its Oturum Testi children as one historical whole.
+  "Test Session",
 ] as const;
 export const trashRecordKindSchema = z.enum(TRASH_RECORD_KINDS);
 export type TrashRecordKind = z.infer<typeof trashRecordKindSchema>;

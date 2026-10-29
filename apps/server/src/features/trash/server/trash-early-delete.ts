@@ -16,6 +16,7 @@ import {
 
 import type { StoredTrashEntry, TrashStore } from "./trash";
 import {
+  eraseAndRecord,
   type TrashEventLog,
   type TrashExpiryStore,
   trashPermanentDeleteEvent,
@@ -24,10 +25,21 @@ import {
 /**
  * Early permanent delete (spec 77) over the same mechanics as duration-end
  * delete: the expiry store erases content, entries and relations and writes
- * the Denetim kaydi, and the event log gets the irreversible security event.
+ * the audit record, and the event log gets the irreversible security event.
  * What is new is the gate, in a fixed order so a refusal never writes:
  * ownership, replay, blockers, typed Project name, then the Account Access
  * grant is consumed exactly once, then the erase.
+ *
+ * Every refusal that can be known up front (existence, revision, blockers,
+ * typed name) runs before the grant is consumed. What remains after the
+ * consume is the erase itself: the grant lives in Account Access, a different
+ * store from the erase transaction, so it cannot join that transaction. If
+ * the erase then finds the unit restored meanwhile, or fails, the one-time
+ * grant is spent and the founder confirms again; nothing is erased and no
+ * security event is written in that case. The answer of an applied key is
+ * kept in memory only, so a retry after a restart is refused without
+ * consuming a grant (fail closed); a durable receipt would need its own table
+ * and is not part of this slice.
  */
 
 interface Receipt {
@@ -188,9 +200,7 @@ export function createTrashEarlyDelete(
       const unitEvents = unit.map((member) =>
         trashPermanentDeleteEvent(member, actor, at),
       );
-      const erased = await expiry.erase(unit, unitEvents, async () => {
-        await Promise.all(unitEvents.map((event) => events.append(event)));
-      });
+      const erased = await eraseAndRecord(expiry, events, unit, unitEvents);
       if (!erased) {
         return null;
       }

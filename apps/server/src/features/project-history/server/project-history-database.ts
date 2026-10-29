@@ -195,7 +195,13 @@ async function readKinds(
             await executor
               .select()
               .from(decision)
-              .where(and(eq(decision.projectId, projectId), decisionScope))
+              .where(
+                and(
+                  eq(decision.projectId, projectId),
+                  isNull(decision.trashedAt),
+                  decisionScope,
+                ),
+              )
               .orderBy(asc(decision.createdAt))
               .limit(MAX_EVENTS_PER_KIND)
           ).flatMap((row) => [
@@ -226,6 +232,7 @@ async function readKinds(
                 and(
                   eq(document.projectId, projectId),
                   isNull(document.archivedAt),
+                  isNull(document.trashedAt),
                   documentScope,
                 ),
               )

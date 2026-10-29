@@ -148,6 +148,8 @@ export const githubExternalRecord = pgTable(
     originRecordId: text("origin_record_id"),
     originDeletedAt: timestamp("origin_deleted_at"),
     trashedAt: timestamp("trashed_at"),
+    /** Trash seam optimistic revision: bumped by each Trash stamp and restore. */
+    revision: integer("revision").default(0).notNull(),
     githubId: bigint("github_id", { mode: "number" }).notNull(),
     htmlUrl: text("html_url").notNull(),
     id: text("id").primaryKey(),

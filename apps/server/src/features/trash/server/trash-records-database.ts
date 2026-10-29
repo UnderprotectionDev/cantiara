@@ -10,6 +10,8 @@ import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import type { TrashRecordFacts } from "./trash";
 import { trashConfigurationAdapters } from "./trash-configuration-database";
+import { trashGithubExternalRecordAdapter } from "./trash-github-database";
+import { trashTestSessionAdapter } from "./trash-test-session-database";
 
 export type TrashRecordExecutor = Pick<
   Database,
@@ -236,7 +238,9 @@ export const trashRecordAdapters: Record<TrashRecordKind, TrashRecordAdapter> =
     Decision: adapterFor(decision),
     "External Surface": externalSurfaceAdapter,
     Document: adapterFor(document),
+    "GitHub External Record": trashGithubExternalRecordAdapter,
     Risk: adapterFor(risk),
     Screen: adapterFor(screen),
+    "Test Session": trashTestSessionAdapter,
     Work: adapterFor(work),
   };

@@ -292,7 +292,7 @@ export function createDatabaseTrashExpiry(
       return units;
     },
 
-    async erase(unit, events, beforeCommit) {
+    async erase(unit, events) {
       return await database.transaction(async (transaction) => {
         const current = await transaction
           .select({ id: trashEntry.id })
@@ -307,9 +307,6 @@ export function createDatabaseTrashExpiry(
         if (current.length !== unit.length) {
           return false;
         }
-        // The security event is appended while the entries are locked, so a
-        // restore cannot slip in between the event and the delete.
-        await beforeCommit();
         for (const entry of unit) {
           // biome-ignore lint/performance/noAwaitInLoops: Records of one unit are erased inside one transaction, in order.
           await eraseRecord(

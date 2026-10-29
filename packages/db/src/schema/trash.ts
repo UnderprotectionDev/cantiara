@@ -63,7 +63,7 @@ export const trashEntry = pgTable(
     index("trash_entry_group_idx").on(table.groupId),
     check(
       "trash_entry_record_kind_check",
-      sql`${table.recordKind} in ('Work', 'Document', 'Decision', 'Risk', 'Screen', 'External Surface', 'Custom Field', 'Smart Collection', 'Automation Rule', 'Work Template', 'Document Template', 'Record Action', 'Prioritization Session')`,
+      sql`${table.recordKind} in ('Work', 'Document', 'Decision', 'Risk', 'Screen', 'External Surface', 'Custom Field', 'Smart Collection', 'Automation Rule', 'Work Template', 'Document Template', 'Record Action', 'Prioritization Session', 'GitHub External Record', 'Test Session')`,
     ),
     check(
       "trash_entry_retention_check",

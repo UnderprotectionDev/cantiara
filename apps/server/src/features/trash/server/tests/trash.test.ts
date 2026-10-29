@@ -15,7 +15,7 @@ import {
 import { describe, expect, test } from "vitest";
 
 import { createTrash, type TrashSurfacePort } from "../trash";
-import { createMemoryTrash } from "../trash-memory-store";
+import { createMemoryTrash } from "./trash-memory-store";
 
 const ACCOUNT = "account-1";
 const PROJECT = "project-1";
@@ -110,6 +110,8 @@ describe("Trash seam: Move to Trash", () => {
       "Document Template",
       "Record Action",
       "Prioritization Session",
+      "GitHub External Record",
+      "Test Session",
     ]);
   });
 
@@ -257,13 +259,17 @@ function withSurfaces(initial: TrashSurface[]) {
 const share = (surfaceId: string, state: TrashSurface["state"] = "Active") =>
   ({ kind: "Link-limited share", state, surfaceId }) as TrashSurface;
 
-function setupSurfaces(initial: TrashSurface[]) {
+function setupSurfaces(
+  initial: TrashSurface[],
+  options: { archived?: boolean; loseRace?: boolean } = {},
+) {
   const harness = createMemoryTrash({
     accountId: ACCOUNT,
     projects: new Map([
       [
         PROJECT,
         {
+          archived: options.archived,
           records: new Map([
             ["Document:d1", { label: "Notes", revision: 0 }],
             ["Work:w1", { label: "Ship it", revision: 3 }],
@@ -285,7 +291,17 @@ function setupSurfaces(initial: TrashSurface[]) {
   return {
     ...harness,
     ...fake,
-    trash: createTrash(harness.store, { now: () => NOW, surfaces: fake.port }),
+    trash: createTrash(
+      options.loseRace
+        ? {
+            ...harness.store,
+            // Another writer wins between the checks and the commit.
+            commit: () =>
+              Promise.resolve({ currentRevision: 9, status: "stale" }),
+          }
+        : harness.store,
+      { now: () => NOW, surfaces: fake.port },
+    ),
   };
 }
 
@@ -424,6 +440,55 @@ describe("Trash seam: Keep approved surface", () => {
     await expect(
       trash.move(ACCOUNT, keep("Document", "d1", 0), { deletion: "project" }),
     ).rejects.toThrow(KEEP_APPROVED_SURFACE_LABEL);
+  });
+
+  test("a Project that is no longer living offers no keep, in preview or commit", async () => {
+    const { calls, surfaces, trash } = setupSurfaces([share("s1")], {
+      archived: true,
+    });
+
+    const result = await trash.preview(ACCOUNT, preview("Document", "d1"));
+    await expect(
+      trash.move(ACCOUNT, keep("Document", "d1", 0)),
+    ).rejects.toBeInstanceOf(TrashKeepSurfaceNotAllowedError);
+
+    expect(result?.keepApprovedSurface.available).toBe(false);
+    expect(calls).toEqual([]);
+    expect(surfaces.get("s1")?.state).toBe("Active");
+  });
+
+  test("a move that loses the race after the checks revokes and freezes nothing", async () => {
+    const { calls, surfaces, trash } = setupSurfaces([share("s1")], {
+      loseRace: true,
+    });
+
+    await expect(
+      trash.move(ACCOUNT, keep("Document", "d1", 0)),
+    ).rejects.toBeInstanceOf(MutationStaleBaseRevisionError);
+
+    expect(calls).toEqual([]);
+    expect(surfaces.get("s1")?.state).toBe("Active");
+  });
+
+  test("a surface settle that failed after the commit is healed by the retry", async () => {
+    const { calls, entries, port, surfaces, trash } = setupSurfaces([
+      share("s1"),
+    ]);
+    const { revoke } = port;
+    port.revoke = () => Promise.reject(new Error("revoke failed"));
+
+    await expect(
+      trash.move(ACCOUNT, move("Document", "d1", 0)),
+    ).rejects.toThrow("revoke failed");
+    port.revoke = revoke;
+    const retried = await trash.move(ACCOUNT, move("Document", "d1", 0));
+
+    expect(entries).toHaveLength(1);
+    expect(calls).toEqual(["revoke:s1"]);
+    expect(surfaces.get("s1")?.state).toBe("Revoked");
+    expect(retried?.surfaces).toEqual([
+      { disposition: "revoked", surfaceId: "s1" },
+    ]);
   });
 
   test("the surface port has no bind path, so restore cannot auto-bind", () => {

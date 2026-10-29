@@ -9,7 +9,7 @@ import type { StoredTrashEntry } from "./trash";
  * Trash expiry (spec 77): the duration-end permanent delete. A due entry, or a
  * whole Project delete group when any member is due (they share one clock),
  * loses its content, its entries and its place in every living relation, and
- * leaves only content-free marks: a Denetim kaydi, an irreversible security
+ * leaves only content-free marks: an audit record, an irreversible security
  * event for restore replay and, for a GitHub record, a tombstone. Nothing
  * permanent happens while an active External Surface still uses a record or
  * sensitive content is not yet removed.
@@ -42,15 +42,17 @@ export interface TrashExpiryStore {
   /** Units whose clock ended at `now`; a group is one unit. */
   due: (now: Date) => Promise<StoredTrashEntry[][]>;
   /**
-   * In one transaction: re-verify the unit is still in Trash, run
-   * `beforeCommit` (the cross-database event append), remove the contents and
-   * entries, mark living relations and write the audit records. `false` when
-   * the unit is no longer in Trash (it was restored meanwhile).
+   * In one transaction: re-verify the unit is still in Trash, remove the
+   * contents and entries, mark living relations and write the audit records.
+   * `false` when the unit is no longer in Trash (it was restored meanwhile).
+   * The security event is NOT written here: it lives in another database, so
+   * the caller appends it only after this resolves `true` (see
+   * `eraseAndRecord`). A failed transaction therefore never leaves an event
+   * that a later replay would use to erase a live record.
    */
   erase: (
     unit: readonly StoredTrashEntry[],
     events: readonly TrashPermanentDeleteEvent[],
-    beforeCommit: () => Promise<void>,
   ) => Promise<boolean>;
   /**
    * Erases records a replay found alive again (restored from an old backup)
@@ -88,6 +90,24 @@ export function trashPermanentDeleteEvent(
     type: TRASH_PERMANENT_DELETE_EVENT_TYPE,
     version: 1,
   };
+}
+
+/**
+ * Erases a unit, then appends its irreversible security events. Events carry a
+ * deterministic id, so appending again is idempotent. An append failure after
+ * the commit surfaces to the caller; the erase itself is already final.
+ */
+export async function eraseAndRecord(
+  store: TrashExpiryStore,
+  events: TrashEventLog,
+  unit: readonly StoredTrashEntry[],
+  unitEvents: readonly TrashPermanentDeleteEvent[],
+) {
+  const erased = await store.erase(unit, unitEvents);
+  if (erased) {
+    await Promise.all(unitEvents.map((event) => events.append(event)));
+  }
+  return erased;
 }
 
 export interface TrashSweepResult {
@@ -133,9 +153,7 @@ export function createTrashMaintenance(
         const unitEvents = unit.map((entry) =>
           trashPermanentDeleteEvent(entry, TRASH_RETENTION_ACTOR_ALIAS, now),
         );
-        const erased = await store.erase(unit, unitEvents, async () => {
-          await Promise.all(unitEvents.map((event) => events.append(event)));
-        });
+        const erased = await eraseAndRecord(store, events, unit, unitEvents);
         if (erased) {
           result.deleted += unit.length;
         }

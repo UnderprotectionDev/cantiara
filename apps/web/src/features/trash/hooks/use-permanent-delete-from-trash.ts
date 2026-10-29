@@ -1,9 +1,7 @@
 import type { TrashEntry } from "@cantiara/api/trash";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
 import { requestGitHubIdentityGrant } from "@/features/account-access/lib/github-identity-confirmation";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import { client } from "@/utils/orpc";
+import { useIdempotentTrashWrite } from "./use-idempotent-trash-write";
 
 /**
  * Early `Permanently Delete` for one Trash entry (or its whole Project delete
@@ -12,8 +10,7 @@ import { client, orpc } from "@/utils/orpc";
  * The key belongs to one attempt at one entry revision, so a retry replays.
  */
 export function usePermanentDeleteFromTrash(projectId: string) {
-  const queryClient = useQueryClient();
-  const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
+  const write = useIdempotentTrashWrite();
   return {
     async confirmIdentity() {
       const grant = await requestGitHubIdentityGrant("early-permanent-delete");
@@ -22,31 +19,20 @@ export function usePermanentDeleteFromTrash(projectId: string) {
       }
       return grant;
     },
-    async permanentlyDelete(
+    permanentlyDelete(
       entry: TrashEntry,
       confirmation: { grant: string; typedName: string },
     ) {
-      const fingerprint = `${entry.id}:${entry.revision}`;
-      if (attempt.current?.fingerprint !== fingerprint) {
-        attempt.current = { fingerprint, key: crypto.randomUUID() };
-      }
-      const { key } = attempt.current;
-      try {
-        const result = await runOnlineOnlyWrite(() =>
-          client.permanentlyDeleteFromTrash({
-            baseRevision: entry.revision,
-            clientIdempotencyKey: key,
-            entryId: entry.id,
-            grant: confirmation.grant,
-            projectId,
-            typedName: confirmation.typedName,
-          }),
-        );
-        attempt.current = null;
-        return result;
-      } finally {
-        await queryClient.invalidateQueries({ queryKey: orpc.trash.key() });
-      }
+      return write(`${entry.id}:${entry.revision}`, (clientIdempotencyKey) =>
+        client.permanentlyDeleteFromTrash({
+          baseRevision: entry.revision,
+          clientIdempotencyKey,
+          entryId: entry.id,
+          grant: confirmation.grant,
+          projectId,
+          typedName: confirmation.typedName,
+        }),
+      );
     },
     preview: (entry: TrashEntry) =>
       client.previewPermanentDeleteFromTrash({

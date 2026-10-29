@@ -3,13 +3,14 @@
 import {
   CONFIRM_GITHUB_IDENTITY_LABEL,
   PERMANENTLY_DELETE_LABEL,
+  permanentlyDeleteFromTrashInputSchema,
   TRASH_DELETE_BLOCKER_COPY,
   type TrashEarlyDeletePreview,
 } from "@cantiara/api/trash-early-delete";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useEffect, useRef } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 /**
  * The early `Permanently Delete` review: what will be removed (a Project
@@ -40,8 +41,26 @@ export function PermanentlyDeleteForm({
   const heading = useRef<HTMLHeadingElement>(null);
   const form = useForm({
     defaultValues: { typedName: "" },
-    onSubmit: ({ value }) => onSubmit(value.typedName),
+    onSubmit: ({ value }) => {
+      // The same field rules the server enforces: a refused value never
+      // reaches the delete request.
+      const typed =
+        permanentlyDeleteFromTrashInputSchema.shape.typedName.safeParse(
+          value.typedName,
+        );
+      const grantCheck =
+        permanentlyDeleteFromTrashInputSchema.shape.grant.safeParse(grant);
+      if (!(typed.success && grantCheck.success)) {
+        setInvalid(
+          "Check the Project name and Confirm GitHub Identity, then try again.",
+        );
+        return;
+      }
+      setInvalid(null);
+      onSubmit(value.typedName);
+    },
   });
+  const [invalid, setInvalid] = useState<string | null>(null);
   const blocked = preview.blockers.length > 0;
   const { name } = preview.typedNameTarget;
 
@@ -129,7 +148,7 @@ export function PermanentlyDeleteForm({
           </label>
         )}
       </form.Field>
-      {error ? <p role="alert">{error}</p> : null}
+      {error || invalid ? <p role="alert">{error ?? invalid}</p> : null}
       <div className="flex gap-2">
         <form.Subscribe selector={(state) => state.values.typedName}>
           {(typedName) => (

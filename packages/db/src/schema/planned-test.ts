@@ -158,9 +158,13 @@ export const testSession = pgTable(
     reporterId: text("reporter_id").notNull(),
     reporterKind: text("reporter_kind").notNull(),
     reviewState: text("review_state").default("Unreviewed").notNull(),
+    /** Trash seam optimistic revision: bumped by each Trash stamp and restore. */
+    revision: integer("revision").default(0).notNull(),
     schemaVersion: text("schema_version").notNull(),
     startedAt: timestamp("started_at"),
     summary: text("summary"),
+    /** Trash stamp of the session; its Session Tests travel with it and carry none. */
+    trashedAt: timestamp("trashed_at"),
   },
   (table) => [
     index("project_test_session_project_idx").on(

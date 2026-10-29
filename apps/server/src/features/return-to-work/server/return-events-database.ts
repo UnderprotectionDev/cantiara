@@ -128,8 +128,18 @@ async function readEventSources(
       database
         .select()
         .from(decision)
-        .where(eq(decision.projectId, context.projectId)),
-      database.select().from(risk).where(eq(risk.projectId, context.projectId)),
+        .where(
+          and(
+            eq(decision.projectId, context.projectId),
+            isNull(decision.trashedAt),
+          ),
+        ),
+      database
+        .select()
+        .from(risk)
+        .where(
+          and(eq(risk.projectId, context.projectId), isNull(risk.trashedAt)),
+        ),
       database
         .select()
         .from(document)
@@ -137,6 +147,7 @@ async function readEventSources(
           and(
             eq(document.projectId, context.projectId),
             isNull(document.archivedAt),
+            isNull(document.trashedAt),
           ),
         ),
       database

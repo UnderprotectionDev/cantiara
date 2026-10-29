@@ -20,7 +20,7 @@ import { document } from "@cantiara/db/schema/document";
 import { openQuestion } from "@cantiara/db/schema/open-question";
 import { project } from "@cantiara/db/schema/project";
 import { usageLink } from "@cantiara/db/schema/relation";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 type UsageLinkDatabaseRecord = typeof usageLink.$inferSelect;
@@ -135,6 +135,7 @@ async function validatedUncertaintyPinLocation(
       and(
         eq(document.id, link.source.recordId),
         eq(document.projectId, destination.projectId),
+        isNull(document.trashedAt),
       ),
     )
     .for("update")

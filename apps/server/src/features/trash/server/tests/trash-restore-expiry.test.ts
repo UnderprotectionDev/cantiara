@@ -12,7 +12,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import { createTrash, type TrashSurfacePort } from "../trash";
 import { createTrashMaintenance } from "../trash-expiry";
-import { createMemoryTrash } from "../trash-memory-store";
+import { createMemoryTrash } from "./trash-memory-store";
 
 const ACCOUNT = "account-1";
 const PROJECT = "project-1";
