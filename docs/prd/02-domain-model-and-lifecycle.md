@@ -1366,6 +1366,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Boş sinyal bölümü | `No signals in this section.` | Bildirim Merkezi bölümü boşken; her şey yolunda iddiası taşımaz |
 | Yeniden bak boş durumu | `Nothing to look at again.` | `Look again` yüzeyi boşken |
 | Yeniden bak yüzeyi | `Look again` | `review-later` kaynak grubunu listeleyen yüzeyin adı |
+| Kişisel erişim kabuğu tetikleyicisi | `Personal` | Üst çubuktaki, Günlük Odak, Favoriler, Birleşik Bildirim Merkezi ve Yeniden bak geçici panelini açan düğme; panelin başlığı seçili yüzeyin adıdır |
+| Kişisel erişim kabuğu açıklaması | `Personal surfaces open above your current work.` | Panel altındaki Proje, kayıt ve kaynak görünüm konumunun korunduğunu söyler |
 | Çalışma Oturumu kümesi açıklaması | `Held for this session only.` | `Active Working Set` kalıcı olmadığını söyler |
 | Hesap adı uyuşmazlığı | `The name does not match.` | Hesabı kapatma ve silme onayında yazılan ad uyuşmadığında |
 | Dış yüzey dizin eylemleri | `Open source`, `Review diff`, `Change expiry`, `Reactivate`, `Revoke`, `Unpublish` | Shares and Publications satır eylemleri; durum ve yüzey türüne göre görünür |
