@@ -28,7 +28,7 @@ export interface LinkPasswordHasher {
 
 export const randomSecret = () => randomBytes(32).toString("base64url");
 
-export const sha256Hex = (value: string) =>
+export const sha256Hex = (value: string | Uint8Array) =>
   createHash("sha256").update(value).digest("hex");
 
 /** Keyed hash for rotating, privacy-preserving rate-limit keys. */

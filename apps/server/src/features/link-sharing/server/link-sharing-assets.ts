@@ -1,3 +1,4 @@
+import { sha256Hex } from "./link-sharing-credentials";
 import type {
   LinkSharingVisitorAccess,
   VisitorFile,
@@ -81,18 +82,11 @@ export function parseByteRange(
   return { end, start };
 }
 
-async function sha256Hex(bytes: Uint8Array) {
-  const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 /** Bytes are served only when they are exactly the approved file version. */
-async function isExactVersion(bytes: Uint8Array, file: VisitorFile) {
+function isExactVersion(bytes: Uint8Array, file: VisitorFile) {
   return (
     bytes.byteLength === file.byteSize &&
-    (await sha256Hex(bytes)).toLowerCase() === file.contentHash.toLowerCase()
+    sha256Hex(bytes).toLowerCase() === file.contentHash.toLowerCase()
   );
 }
 
@@ -106,11 +100,11 @@ export function createLinkSharingAssets(options: {
   async function exactBytes(file: VisitorFile) {
     const cacheKey = `${file.objectKey}:${file.contentHash}`;
     const cached = await cache?.get(cacheKey);
-    if (cached && (await isExactVersion(cached, file))) {
+    if (cached && isExactVersion(cached, file)) {
       return cached;
     }
     const stored = await objects.read(file.objectKey);
-    if (!(stored && (await isExactVersion(stored, file)))) {
+    if (!(stored && isExactVersion(stored, file))) {
       return null;
     }
     await cache?.set(cacheKey, stored);

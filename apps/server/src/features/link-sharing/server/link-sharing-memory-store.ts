@@ -22,7 +22,7 @@ import type {
   VisitorFile,
   VisitorSurface,
 } from "./link-sharing-visitor";
-import { ATTEMPT_RETENTION_MS } from "./link-sharing-visitor";
+import { ATTEMPT_RETENTION_MS, latestInstant } from "./link-sharing-visitor";
 
 interface MemorySurface extends StoredShareSurface {
   accessEpoch: number;
@@ -175,6 +175,7 @@ export function createMemoryLinkSharing(options: {
       return Promise.resolve(
         surface
           ? {
+              accessEpoch: surface.accessEpoch,
               expiresAt: surface.expiresAt,
               passwordProtected: surface.passwordProtected,
             }
@@ -372,11 +373,7 @@ export function createMemoryLinkSharing(options: {
       const ends = keys
         .map((key) => attempts.get(key)?.lockedUntil)
         .filter((end): end is Date => !!end && end > now);
-      return Promise.resolve(
-        ends.length === 0
-          ? null
-          : new Date(Math.max(...ends.map((end) => end.getTime()))),
-      );
+      return Promise.resolve(latestInstant(ends));
     },
     lockUntil(key, until) {
       const current = attempts.get(key);

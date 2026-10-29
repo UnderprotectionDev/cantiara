@@ -1,7 +1,10 @@
 // biome-ignore-all lint/performance/useTopLevelRegex: Inline patterns assert one rendered string each.
 // biome-ignore-all lint/suspicious/noMisplacedAssertion: expectGone is the shared 410 assertion helper.
 // biome-ignore-all lint/performance/noAwaitInLoops: Each share must reach the audit count before the next one.
-import { LinkSharingRateLimitError } from "@cantiara/api/link-sharing";
+import {
+  LinkSharingEventLogError,
+  LinkSharingRateLimitError,
+} from "@cantiara/api/link-sharing";
 import { describe, expect, test } from "vitest";
 
 import { createLinkSharing, type ShareSource } from "../link-sharing";
@@ -965,5 +968,85 @@ describe("Denetim kaydı and rate limits", () => {
     expect(await founder.revoke(ACCOUNT, { surfaceId })).toMatchObject({
       surfaceId,
     });
+  });
+});
+
+describe("access changes and their security events stay consistent", () => {
+  /** An event log that fails its first `failures` appends, then recovers. */
+  function failingFounder(setupResult: Setup, failures: number) {
+    let remaining = failures;
+    return createLinkSharing(setupResult.harness.store, {
+      audit: setupResult.harness.audit,
+      events: {
+        append(event) {
+          if (remaining > 0) {
+            remaining -= 1;
+            return Promise.reject(new Error("security log unavailable"));
+          }
+          return setupResult.harness.securityEvents.append(event);
+        },
+        list: () => setupResult.harness.securityEvents.list(),
+      },
+      hasher: fastHasher,
+      now: setupResult.clock.now,
+    });
+  }
+
+  async function granted(setupResult: Setup, token: string) {
+    const result = await setupResult.visitor.exchange({
+      password: null,
+      signals: { device: "d", network: "n" },
+      token,
+    });
+    if (result.status !== "granted") {
+      throw new Error("not granted");
+    }
+    return result;
+  }
+
+  test("revoke still ends access when the log is down, and reports the unlogged change", async () => {
+    const context = await setup();
+    const { surfaceId, token } = await share(context.founder);
+    const session = await granted(context, token);
+    const broken = failingFounder(context, Number.POSITIVE_INFINITY);
+    await expect(broken.revoke(ACCOUNT, { surfaceId })).rejects.toBeInstanceOf(
+      LinkSharingEventLogError,
+    );
+    expect(
+      (await context.visitor.authorize(surfaceId, session.cookieValue)).status,
+    ).toBe("gone");
+  });
+
+  test("revoke retries a failed append with the real epoch and then succeeds", async () => {
+    const context = await setup();
+    const { surfaceId } = await share(context.founder);
+    const flaky = failingFounder(context, 2);
+    await expect(flaky.revoke(ACCOUNT, { surfaceId })).resolves.toMatchObject({
+      surfaceId,
+    });
+    const types = context.harness.events.map((event) => event.type);
+    expect(types).toContain("link-sharing.surface-revoked");
+    expect(types).toContain("link-sharing.sessions-revoked");
+  });
+
+  test("token and password changes take effect but are never reported as clean when unlogged", async () => {
+    const context = await setup();
+    const { surfaceId, token } = await share(context.founder);
+    const broken = failingFounder(context, Number.POSITIVE_INFINITY);
+    await expect(
+      broken.rotateToken(ACCOUNT, { surfaceId }),
+    ).rejects.toBeInstanceOf(LinkSharingEventLogError);
+    expect(
+      (
+        await context.visitor.exchange({
+          password: null,
+          signals: { device: "d", network: "n" },
+          token,
+        })
+      ).status,
+    ).not.toBe("granted");
+    await expect(
+      broken.setPassword(ACCOUNT, { password: "correct horse", surfaceId }),
+    ).rejects.toBeInstanceOf(LinkSharingEventLogError);
   });
 });

@@ -18,6 +18,7 @@ import {
   createLinkSharingVisitor,
   type LinkSharingVisitorAccess,
   type LinkSharingVisitorStore,
+  latestInstant,
   type VisitorSurface,
 } from "./link-sharing-visitor";
 
@@ -116,9 +117,7 @@ function createStore(database: Database): LinkSharingVisitorStore {
       const ends = rows
         .map((row) => row.lockedUntil)
         .filter((end): end is Date => end !== null);
-      return ends.length === 0
-        ? null
-        : new Date(Math.max(...ends.map((end) => end.getTime())));
+      return latestInstant(ends);
     },
     async lockUntil(key, until) {
       await database
