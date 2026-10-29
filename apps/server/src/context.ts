@@ -105,6 +105,7 @@ import type { TestReviewAccess } from "@cantiara/api/test-review";
 import type { UserFlowAccess } from "@cantiara/api/user-flow";
 import type { ValueChainAccess } from "@cantiara/api/value-chain";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
+import type { WikiPublishingAccess } from "@cantiara/api/wiki-publishing";
 import type { WorkAutomationAccess } from "@cantiara/api/work-automation";
 import type { WorkContextAccess } from "@cantiara/api/work-context";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
@@ -207,6 +208,7 @@ export interface CreateContextOptions {
   userFlow?: UserFlowAccess;
   valueChain?: ValueChainAccess;
   webCapture?: WebCaptureAccess;
+  wikiPublishing?: WikiPublishingAccess;
   workAutomation?: WorkAutomationAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
@@ -282,6 +284,7 @@ export async function createContext({
   recordActions,
   releaseCommunication,
   workAutomation,
+  wikiPublishing,
   workspaceOverview,
   tags,
   contacts,
@@ -390,6 +393,7 @@ export async function createContext({
     recordActions,
     releaseCommunication,
     workAutomation,
+    wikiPublishing,
     workspaceOverview,
     tags,
     contacts,

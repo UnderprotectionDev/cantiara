@@ -756,6 +756,14 @@ import {
 } from "../user-flow";
 import { valueChainInputSchema } from "../value-chain";
 import type { WebCaptureAccess } from "../web-capture";
+import {
+  publishWikiDocumentInputSchema,
+  setWikiIndexingInputSchema,
+  unpublishWikiDocumentInputSchema,
+  type WikiPublishingAccess,
+  wikiPublicationInputSchema,
+  wikiPublishPreviewInputSchema,
+} from "../wiki-publishing";
 import { WireframeDocumentError } from "../wireframe-document";
 import {
   createRequiredPrMergeRuleInputSchema,
@@ -1220,6 +1228,40 @@ function requireReleaseCommunication(
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.releaseCommunication;
+}
+
+function requireWikiPublishing(context: Context): WikiPublishingAccess {
+  if (!context.wikiPublishing) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.wikiPublishing;
+}
+
+function wikiDocumentUnavailable(): never {
+  throw new ORPCError("NOT_FOUND", {
+    defined: true,
+    message: "Wiki Document is unavailable.",
+  });
+}
+
+function rethrowWikiPublishingError(error: unknown): never {
+  if (!isRecord(error) || typeof error.code !== "string") {
+    throw error;
+  }
+  const status = {
+    WIKI_PUBLISHING_INDEXING_UNACKNOWLEDGED: "PRECONDITION_FAILED",
+    WIKI_PUBLISHING_NOT_PUBLISHED: "CONFLICT",
+    WIKI_PUBLISHING_PLACEHOLDERS_UNRESOLVED: "CONFLICT",
+    WIKI_PUBLISHING_PREVIEW_STALE: "PRECONDITION_FAILED",
+  }[error.code] as "CONFLICT" | "PRECONDITION_FAILED" | undefined;
+  if (!status) {
+    throw error;
+  }
+  throw new ORPCError(status, {
+    data: { code: error.code },
+    defined: true,
+    message: error instanceof Error ? error.message : "Wiki publish failed.",
+  });
 }
 
 function releaseUnavailable(): never {
@@ -7818,6 +7860,73 @@ export const appRouter = {
         return entry ?? releaseUnavailable();
       } catch (error) {
         rethrowReleaseCommunicationError(error);
+      }
+    }),
+  previewWikiPublish: protectedProcedure
+    .input(wikiPublishPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireWikiPublishing(context).preview(
+        context.session.user.id,
+        input.documentId,
+      );
+      return preview ?? wikiDocumentUnavailable();
+    }),
+  publishWikiDocument: protectedProcedure
+    .input(publishWikiDocumentInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision: _base,
+        clientIdempotencyKey: _key,
+        ...payload
+      } = input;
+      try {
+        const published = await requireWikiPublishing(context).publish(
+          context.session.user.id,
+          payload,
+        );
+        return published ?? wikiDocumentUnavailable();
+      } catch (error) {
+        rethrowWikiPublishingError(error);
+      }
+    }),
+  wikiPublication: protectedProcedure
+    .input(wikiPublicationInputSchema)
+    .handler(async ({ context, input }) => {
+      const publication = await requireWikiPublishing(context).publication(
+        context.session.user.id,
+        input.documentId,
+      );
+      return publication ?? wikiDocumentUnavailable();
+    }),
+  unpublishWikiDocument: protectedProcedure
+    .input(unpublishWikiDocumentInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const publication = await requireWikiPublishing(context).unpublish(
+          context.session.user.id,
+          input.documentId,
+        );
+        return publication ?? wikiDocumentUnavailable();
+      } catch (error) {
+        rethrowWikiPublishingError(error);
+      }
+    }),
+  setWikiIndexing: protectedProcedure
+    .input(setWikiIndexingInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision: _base,
+        clientIdempotencyKey: _key,
+        ...payload
+      } = input;
+      try {
+        const publication = await requireWikiPublishing(context).setIndexing(
+          context.session.user.id,
+          payload,
+        );
+        return publication ?? wikiDocumentUnavailable();
+      } catch (error) {
+        rethrowWikiPublishingError(error);
       }
     }),
   releaseChangelog: protectedProcedure

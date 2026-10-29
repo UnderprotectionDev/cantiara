@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   integer,
   jsonb,
@@ -24,6 +25,8 @@ export const externalSurface = pgTable("external_surface", {
     onDelete: "set null",
   }),
   cancelledAt: timestamp("cancelled_at"),
+  // Explicit founder action only; default noindex. Metadata never sets it.
+  indexingEnabled: boolean("indexing_enabled").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
