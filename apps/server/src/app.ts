@@ -118,6 +118,7 @@ import {
   webCapturePairingInputSchema,
   webCaptureSendInputSchema,
 } from "@cantiara/api/web-capture";
+import type { WikiPublishingAccess } from "@cantiara/api/wiki-publishing";
 import type { WorkAutomationAccess } from "@cantiara/api/work-automation";
 import type { WorkContextAccess } from "@cantiara/api/work-context";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
@@ -294,6 +295,7 @@ export interface AppDependencies {
   userFlow?: UserFlowAccess;
   valueChain?: ValueChainAccess;
   webCapture?: WebCaptureAccess;
+  wikiPublishing?: WikiPublishingAccess;
   workAutomation?: WorkAutomationAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
@@ -715,6 +717,7 @@ export function createApp(dependencies: AppDependencies) {
       workDrafts: dependencies.workDrafts,
       workTemplates: dependencies.workTemplates,
       workLifecycle: dependencies.workLifecycle,
+      wikiPublishing: dependencies.wikiPublishing,
       workspaceOverview: dependencies.workspaceOverview,
     });
     const rpcResult = await rpcHandler.handle(c.req.raw, {

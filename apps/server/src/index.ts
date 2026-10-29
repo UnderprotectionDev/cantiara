@@ -95,6 +95,7 @@ import {
   userFlow,
   valueChain,
   webCapture,
+  wikiPublishing,
   workAutomation,
   workContext,
   workDrafts,
@@ -222,6 +223,7 @@ const app = createApp({
   workDrafts,
   workLifecycle,
   workTemplates,
+  wikiPublishing,
   workspaceOverview,
 });
 

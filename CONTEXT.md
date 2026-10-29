@@ -1242,6 +1242,14 @@ _Avoid_: Snapshot, yayın sürümü
 Bir Dış yüzeyde belirli bir onay anında gösterilmesine izin verilen kesin sürüm manifestinin değişmez ve [Dış yüzeyden bağımsız yaşayamayan revizyonu](docs/adr/0001-dis-yuzey-ve-snapshot-kimligi.md).
 _Avoid_: Paylaşım bağlantısı, canlı görünüm, Dış yüzey
 
+**Tekil Wiki yayını**:
+Kurucunun tek bir Kişisel Wiki Belgesini kapalı dünya önizlemesi ve gömü başına onayla, Proje Build in Public yüzeyinden bağımsız herkese açık bir [Dış yüzey ve Onaylı snapshot revizyonu](docs/prd/14-sharing-and-public-publishing.md#tekil-wiki-belgesi-yayınlama) olarak yayımlamasıdır; onaylanmayan çocuk belge, geri bağlantı, ek, satır içi referans ve canlı blok çıkmaz, onaylı canlı bloklar kaynak ve tarih etiketli salt okunur snapshot olur. UI: `Publish Wiki Document`.
+_Avoid_: Wiki kopyası, bilgi tabanı, canlı Wiki, Proje Build in Public, Bağlantıyla sınırlı salt okunur paylaşım
+
+**Yine de yayımla/paylaş onayı**:
+Önizlemede listelenen çözülmemiş `{{alan_adı}}` yer tutucularına rağmen sürdürmek için kapsam onayından ayrı verilen açık kullanıcı onayı; kapsam veya gizlilik onayı bunu vermiş sayılmaz. UI: `Publish/share anyway`.
+_Avoid_: Örtük yer tutucu onayı, zorunlu alan kapısı, tamamlama puanı
+
 **Herkese açık durum etiketi**:
 Bir İşin iç İş akışı durumunu değiştirmeden yalnız herkese açık Roadmap sunumunda gösterilen Proje bazlı ziyaretçi etiketi ([eşleme sözleşmesi](docs/prd/14-sharing-and-public-publishing.md#iç-durumların-herkese-açık-sunumu)).
 _Avoid_: İş akışı durumu, ikinci herkese açık İş, otomatik yayın kararı

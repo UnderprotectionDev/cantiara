@@ -142,6 +142,7 @@ import { createDatabaseTestReports } from "./features/test-report/server/test-re
 import { createDatabaseTestReview } from "./features/test-review/server/test-review-database";
 import { createDatabaseUserFlow } from "./features/user-flow/server/user-flow-database";
 import { createDatabaseValueChain } from "./features/value-chain/server/value-chain-database";
+import { createDatabaseWikiPublishing } from "./features/wiki-publishing/server/wiki-publishing-database";
 import {
   createDatabaseWorkAutomation,
   type WorkAutomationWorkCreation,
@@ -291,6 +292,12 @@ export const prioritizationSessions = createPrioritizationSessionsAccess(
 );
 export const prioritizationSessionMutationContracts =
   createDatabasePrioritizationSessionMutationContracts(db);
+export const wikiPublishing = createDatabaseWikiPublishing(db, {
+  documents,
+  projectSourceRecords,
+  smartCollections,
+  technicalDiagrams,
+});
 export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
 export const attentionSignals = createDatabaseAttentionSignals(db, {
