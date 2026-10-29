@@ -5,6 +5,7 @@ import {
   LINK_SHARING_ROOT_KINDS,
   type LinkSharingAccess,
   LinkSharingConflictError,
+  LinkSharingEventLogError,
   LinkSharingPlaceholdersError,
   LinkSharingRateLimitError,
   LinkSharingScopeError,
@@ -166,6 +167,8 @@ export interface LinkSharingSecurityEvents {
 
 /** What an owned, not revoked Link Sharing surface looks like to a lifecycle write. */
 export interface ShareLifecycleState {
+  /** The epoch before the next access change bumps it by one. */
+  accessEpoch: number;
   expiresAt: Date | null;
   passwordProtected: boolean;
 }
@@ -509,7 +512,7 @@ function summaryOf(
 const actorAliasOf = (accountId: string) =>
   `account:${sha256Hex(accountId).slice(0, 16)}`;
 
-async function fingerprintOf(input: ApproveShareScopeInput) {
+function fingerprintOf(input: ApproveShareScopeInput) {
   const canonical = JSON.stringify({
     approved: [...input.approvedItemIds].sort(),
     live: [...input.liveItemIds].sort(),
@@ -517,13 +520,7 @@ async function fingerprintOf(input: ApproveShareScopeInput) {
     root: input.root,
     surfaceId: input.surfaceId ?? null,
   });
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(canonical),
-  );
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+  return sha256Hex(canonical);
 }
 
 function checkApprovedItem(
@@ -656,7 +653,7 @@ export function createLinkSharing(
     rawInput: ApproveShareScopeInput,
   ): Promise<ApprovedShare | null> {
     const input = approveShareScopeInputSchema.parse(rawInput);
-    const fingerprint = await fingerprintOf(input);
+    const fingerprint = fingerprintOf(input);
     const replay = await store.findApproval(accountId, input.approvalId);
     if (replay) {
       if (replay.fingerprint !== fingerprint) {
@@ -788,6 +785,53 @@ export function createLinkSharing(
     );
   }
 
+  /**
+   * Applies a revoke, password or token change together with its security
+   * events. The events live in a separate irreversible log, so the two writes
+   * cannot share a transaction. Ordering, safest first:
+   * 1. Append the events for the epoch the change will produce. The event id
+   *    is derived from the epoch, so a repeated append never duplicates, and an
+   *    event without its change only makes a restore replay cancel the row
+   *    (fail closed).
+   * 2. Apply the change even when step 1 failed: access must end now.
+   * 3. When step 1 failed, or the real epoch differs, append again with the
+   *    real epoch; if that fails too, throw instead of reporting success, so
+   *    the unlogged change is never silent.
+   */
+  async function changeWithEvents<T extends { accessEpoch: number }>(
+    accountId: string,
+    surfaceId: string,
+    types: ShareAccessEvent["type"][],
+    change: () => Promise<T | null>,
+  ): Promise<T | null> {
+    const state = await store.lifecycle(accountId, surfaceId);
+    if (!state) {
+      return null;
+    }
+    const predicted = state.accessEpoch + 1;
+    let logged = true;
+    try {
+      await appendEvents(accountId, surfaceId, predicted, types);
+    } catch {
+      logged = false;
+    }
+    const changed = await change();
+    if (!changed) {
+      return null;
+    }
+    if (!logged || changed.accessEpoch !== predicted) {
+      try {
+        await appendEvents(accountId, surfaceId, changed.accessEpoch, types);
+      } catch (cause) {
+        throw new LinkSharingEventLogError(
+          "The change took effect, but its security event could not be logged. Try again.",
+          { cause },
+        );
+      }
+    }
+    return changed;
+  }
+
   /** Future instants only; `null` removes the expiry. */
   function checkedExpiry(expiresAt: string | null) {
     if (expiresAt === null) {
@@ -915,14 +959,15 @@ export function createLinkSharing(
     const input = revokeShareInputSchema.parse(rawInput);
     await enforceRateLimit(accountId, SHARE_REVOKE_TYPES);
     const at = now();
-    const revoked = await store.revoke(accountId, input.surfaceId, at);
+    const revoked = await changeWithEvents(
+      accountId,
+      input.surfaceId,
+      ["link-sharing.surface-revoked", "link-sharing.sessions-revoked"],
+      () => store.revoke(accountId, input.surfaceId, at),
+    );
     if (!revoked) {
       return null;
     }
-    await appendEvents(accountId, input.surfaceId, revoked.accessEpoch, [
-      "link-sharing.surface-revoked",
-      "link-sharing.sessions-revoked",
-    ]);
     await record("link-sharing.share-revoked", accountId, input.surfaceId);
     return { revokedAt: at.toISOString(), surfaceId: input.surfaceId };
   }
@@ -933,15 +978,16 @@ export function createLinkSharing(
     patch: ShareAccessPatch,
     type: ShareAccessEvent["type"],
   ) {
-    const changed = await store.updateAccess(accountId, surfaceId, patch);
+    // Secret-free events: an aliased actor, the surface id and the epoch only.
+    const changed = await changeWithEvents(
+      accountId,
+      surfaceId,
+      [type, "link-sharing.sessions-revoked"],
+      () => store.updateAccess(accountId, surfaceId, patch),
+    );
     if (!changed) {
       return null;
     }
-    // Secret-free: an aliased actor, the surface id and the new epoch only.
-    await appendEvents(accountId, surfaceId, changed.accessEpoch, [
-      type,
-      "link-sharing.sessions-revoked",
-    ]);
     await record(
       type === "link-sharing.token-rotated"
         ? "link-sharing.token-rotated"

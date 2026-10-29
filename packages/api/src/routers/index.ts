@@ -240,11 +240,7 @@ import {
 import { protectedProcedure, publicProcedure } from "../index";
 import {
   approveShareScopeInputSchema,
-  LinkSharingConflictError,
-  LinkSharingPlaceholdersError,
-  LinkSharingRateLimitError,
-  LinkSharingScopeError,
-  LinkSharingStateError,
+  linkSharingWrite,
   previewShareScopeInputSchema,
   reopenExpiredLinkInputSchema,
   reshareExpiredLinkInputSchema,
@@ -4571,60 +4567,6 @@ function requireLinkSharing(context: Context) {
   }
   return context.linkSharing;
 }
-async function linkSharingWrite<T>(
-  targetId: string,
-  write: () => Promise<T | null>,
-): Promise<T> {
-  try {
-    const result = await write();
-    if (!result) {
-      throw new ORPCError("NOT_FOUND");
-    }
-    return result;
-  } catch (error) {
-    if (error instanceof LinkSharingConflictError) {
-      throw new ORPCError("CONFLICT", {
-        cause: error,
-        data: { code: "CONFLICT", targetId },
-        defined: true,
-        message: "Conflict",
-      });
-    }
-    if (error instanceof LinkSharingPlaceholdersError) {
-      throw new ORPCError("CONFLICT", {
-        cause: error,
-        data: {
-          code: "PLACEHOLDERS_UNRESOLVED",
-          count: error.findings.length,
-          targetId,
-        },
-        defined: true,
-        message: error.message,
-      });
-    }
-    if (error instanceof LinkSharingScopeError) {
-      throw new ORPCError("BAD_REQUEST", {
-        cause: error,
-        message: error.message,
-      });
-    }
-    if (error instanceof LinkSharingStateError) {
-      throw new ORPCError("CONFLICT", {
-        cause: error,
-        data: { code: "LINK_STATE_INVALID", targetId },
-        defined: true,
-        message: error.message,
-      });
-    }
-    if (error instanceof LinkSharingRateLimitError) {
-      throw new ORPCError("TOO_MANY_REQUESTS", {
-        cause: error,
-        message: error.message,
-      });
-    }
-    throw error;
-  }
-}
 function requireProjectUpdates(context: Context) {
   if (!context.projectUpdates) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -4670,28 +4612,21 @@ async function projectUpdateWrite<T>(
 export const appRouter = {
   shareRoots: protectedProcedure
     .input(shareRootsInputSchema)
-    .handler(async ({ context, input }) => {
-      const roots = await requireLinkSharing(context).roots(
-        context.session.user.id,
-        input.projectId,
-      );
-      if (!roots) {
-        throw new ORPCError("NOT_FOUND");
-      }
-      return roots;
-    }),
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.projectId, () =>
+        requireLinkSharing(context).roots(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
   previewShareScope: protectedProcedure
     .input(previewShareScopeInputSchema)
-    .handler(async ({ context, input }) => {
-      const preview = await requireLinkSharing(context).preview(
-        context.session.user.id,
-        input,
-      );
-      if (!preview) {
-        throw new ORPCError("NOT_FOUND");
-      }
-      return preview;
-    }),
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.root.id, () =>
+        requireLinkSharing(context).preview(context.session.user.id, input),
+      ),
+    ),
   approveShareScope: protectedProcedure
     .input(approveShareScopeInputSchema)
     .handler(({ context, input }) =>
@@ -4729,28 +4664,18 @@ export const appRouter = {
     ),
   setLinkPassword: protectedProcedure
     .input(setLinkPasswordInputSchema)
-    .handler(async ({ context, input }) => {
-      const access = await requireLinkSharing(context).setPassword(
-        context.session.user.id,
-        input,
-      );
-      if (!access) {
-        throw new ORPCError("NOT_FOUND");
-      }
-      return access;
-    }),
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.surfaceId, () =>
+        requireLinkSharing(context).setPassword(context.session.user.id, input),
+      ),
+    ),
   rotateShareToken: protectedProcedure
     .input(rotateShareTokenInputSchema)
-    .handler(async ({ context, input }) => {
-      const access = await requireLinkSharing(context).rotateToken(
-        context.session.user.id,
-        input,
-      );
-      if (!access) {
-        throw new ORPCError("NOT_FOUND");
-      }
-      return access;
-    }),
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.surfaceId, () =>
+        requireLinkSharing(context).rotateToken(context.session.user.id, input),
+      ),
+    ),
   projectUpdates: protectedProcedure
     .input(projectUpdatesInputSchema)
     .handler(async ({ context, input }) => {

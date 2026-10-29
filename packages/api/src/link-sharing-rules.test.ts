@@ -80,6 +80,12 @@ describe("findPlaceholders", () => {
     ).toHaveLength(1);
   });
 
+  test("a stray backtick in one paragraph never hides a placeholder in the next", () => {
+    expect(
+      findPlaceholders("It`s one.\n\nFill {{alan_adı}} here.\n\nAnother` end."),
+    ).toHaveLength(1);
+  });
+
   test("only the closed syntax counts: no prose guesses, no other braces", () => {
     for (const text of [
       "TBD, fill in later",

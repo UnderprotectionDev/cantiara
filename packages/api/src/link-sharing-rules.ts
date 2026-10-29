@@ -39,7 +39,7 @@ export interface PlaceholderMatch {
 
 const PLACEHOLDER = /\{\{(\p{Ll}[\p{Ll}\p{Nd}_]*)\}\}/gu;
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
-const INLINE_CODE = /(`+)[^`][\s\S]*?\1(?!`)/g;
+const INLINE_CODE = /(`+)[^`\n][^\n]*?\1(?!`)/g;
 const NOT_NEWLINE = /[^\n]/g;
 const WHITESPACE = /\s+/g;
 const CONTEXT_RADIUS = 40;

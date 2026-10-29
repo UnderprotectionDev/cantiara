@@ -968,6 +968,7 @@ function createStore(database: Database): LinkSharingStore {
   ) {
     const [row] = await executor
       .select({
+        accessEpoch: externalSurface.accessEpoch,
         documentId: externalSurface.documentId,
         expiresAt: externalSurface.expiresAt,
         id: externalSurface.id,
@@ -1153,6 +1154,7 @@ function createStore(database: Database): LinkSharingStore {
       const owned = await ownedLiveSurface(accountId, surfaceId);
       return owned
         ? {
+            accessEpoch: owned.accessEpoch,
             expiresAt: owned.expiresAt,
             passwordProtected: owned.passwordHash !== null,
           }

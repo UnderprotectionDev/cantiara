@@ -67,6 +67,13 @@ export interface StoredVisitorSession {
   surfaceId: string;
 }
 
+/** The latest of the given instants, or `null` when there are none. */
+export function latestInstant(instants: Date[]): Date | null {
+  return instants.length === 0
+    ? null
+    : new Date(Math.max(...instants.map((instant) => instant.getTime())));
+}
+
 export interface LinkSharingVisitorStore {
   /**
    * The exact file version of an Active File Attachment; `null` once the file
