@@ -824,6 +824,7 @@ export function createBuildInPublic(
 
   const publication = createBuildInPublicPublication({
     facts,
+    now,
     previewOf: async (accountId, projectId) =>
       (await build(accountId, projectId, {}))?.preview ?? null,
     store,

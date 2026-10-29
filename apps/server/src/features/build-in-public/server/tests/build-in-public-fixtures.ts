@@ -1,9 +1,10 @@
 // biome-ignore-all lint/suspicious/useAwait: in-memory doubles implement the async ports.
 
-import type {
-  ApprovedBuildInPublic,
-  BuildInPublicSnapshot,
-  BuildInPublicWorkCopy,
+import {
+  type ApprovedBuildInPublic,
+  BuildInPublicError,
+  type BuildInPublicSnapshot,
+  type BuildInPublicWorkCopy,
 } from "@cantiara/api/build-in-public";
 import {
   createExternalSurfaceAccess,
@@ -72,9 +73,12 @@ export function createFixtures(
     >;
     members?: BuildInPublicSourceMember[];
     memberships?: { releaseName: string; workId: string }[];
+    now?: () => Date;
     works?: BuildInPublicWorkFact[];
   } = {},
 ) {
+  /** Tests advance this clock for time-dependent seams (freezes, probe TTL). */
+  let now = input.now ?? (() => NOW);
   const state = {
     attachments: input.attachments ?? {},
     members: input.members ?? [],
@@ -156,6 +160,18 @@ export function createFixtures(
         : null;
     },
     publish: async ({ projectId, slug, snapshot }) => {
+      // Mirrors the database write guard: another surface of the Workspace
+      // that holds the slug at write time answers the owner error (race
+      // against `firstSlug`), never a raw insert failure.
+      const holder = surfaces.find(
+        (entry) =>
+          entry.id !== active()?.id &&
+          (entry.slugs.canonical === slug ||
+            entry.slugs.aliases.includes(slug)),
+      );
+      if (holder) {
+        throw new BuildInPublicError("BUILD_IN_PUBLIC_SLUG_TAKEN");
+      }
       let surface = active();
       if (!surface) {
         surface = {
@@ -208,7 +224,7 @@ export function createFixtures(
       ),
   };
 
-  const access = createBuildInPublic({ facts, now: () => NOW, store });
+  const access = createBuildInPublic({ facts, now: () => now(), store });
   return {
     access,
     copies,
@@ -222,6 +238,13 @@ export function createFixtures(
     surfaces,
     workspaceReads,
     writes,
+    /** The mutable seam clock; reassign it to advance time. */
+    get now() {
+      return now;
+    },
+    set now(next: () => Date) {
+      now = next;
+    },
   };
 }
 

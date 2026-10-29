@@ -12,7 +12,10 @@ import {
   approveItems,
   createFixtures,
   createPublicSite,
+  NOW,
   PROJECT_ID,
+  WORKSPACE_ID,
+  workFact,
 } from "./build-in-public-fixtures";
 
 async function published(title = "My Project") {
@@ -232,5 +235,61 @@ describe("Build in Public indexing", () => {
       await fixtures.access.publication("account-2", PROJECT_ID),
     ).toBeNull();
     expect(await fixtures.access.unpublish("account-2", PROJECT_ID)).toBeNull();
+  });
+});
+
+describe("Build in Public unpublished-changes banner", () => {
+  test("the probe is memoized briefly and recomputed after the window", async () => {
+    const { fixtures } = await published();
+    const before = await fixtures.access.publication(ACCOUNT_ID, PROJECT_ID);
+    expect(before?.unpublishedChanges).toBe(false);
+
+    // Inside the freshness window the banner stays as probed: no fresh scan.
+    fixtures.state.works[0] = workFact({ id: "work-a", title: "Renamed" });
+    const warmed = await fixtures.access.publication(ACCOUNT_ID, PROJECT_ID);
+    expect(warmed?.unpublishedChanges).toBe(false);
+
+    // After the window the probe re-runs and reports the edit, while the
+    // public page still shows the approved title.
+    fixtures.now = () => new Date(NOW.getTime() + 10_000);
+    const later = await fixtures.access.publication(ACCOUNT_ID, PROJECT_ID);
+    expect(later?.unpublishedChanges).toBe(true);
+    const site = createPublicSite(fixtures);
+    expect(await (await site.get("/surface-1/my-project")).text()).toContain(
+      "My Project",
+    );
+  });
+});
+
+describe("Build in Public first-publish write guard", () => {
+  test("a slug another surface holds at write time answers the owner error, not a raw insert failure", async () => {
+    const fixtures = createFixtures();
+    await approveItems(fixtures);
+    // The sibling surface claimed the default slug inside the race window that
+    // `firstSlug` cannot see; the write guard serializes against the same
+    // Workspace slug lock the database adapter holds.
+    fixtures.surfaces.push({
+      cancelled: false,
+      id: "surface-other",
+      indexingEnabled: false,
+      revisions: [],
+      slugs: { aliases: [], canonical: "build-in-public" },
+    });
+    const snapshot = fixtures.surfaces[0]?.revisions[0];
+    if (!snapshot) {
+      throw new Error("no snapshot");
+    }
+    const revisionsBefore = fixtures.surfaces[0]?.revisions.length ?? 0;
+
+    await expect(
+      fixtures.store.publish({
+        projectId: PROJECT_ID,
+        slug: "build-in-public",
+        snapshot,
+        workspaceId: WORKSPACE_ID,
+      }),
+    ).rejects.toMatchObject({ code: "BUILD_IN_PUBLIC_SLUG_TAKEN" });
+    expect(fixtures.surfaces[0]?.revisions).toHaveLength(revisionsBefore);
+    expect(fixtures.surfaces[1]?.revisions).toHaveLength(0);
   });
 });

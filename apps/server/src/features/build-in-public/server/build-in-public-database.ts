@@ -1,7 +1,8 @@
-import type {
-  BuildInPublicAccess,
-  BuildInPublicSnapshot,
-  DueDatePresentation,
+import {
+  type BuildInPublicAccess,
+  BuildInPublicError,
+  type BuildInPublicSnapshot,
+  type DueDatePresentation,
 } from "@cantiara/api/build-in-public";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
@@ -273,6 +274,25 @@ function createStore(
             surfaceKind: SURFACE_KIND,
             workspaceId,
           });
+        }
+        // The slug is claimed under the same Workspace lock `changeSlug`
+        // holds, so two Projects racing one first address answer the owner
+        // error instead of crashing on a unique-violation 500.
+        await transaction.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${`build-in-public-slug:${workspaceId}`}))`,
+        );
+        const [holder] = await transaction
+          .select({ surfaceId: buildInPublicSlug.surfaceId })
+          .from(buildInPublicSlug)
+          .where(
+            and(
+              eq(buildInPublicSlug.workspaceId, workspaceId),
+              eq(buildInPublicSlug.slug, slug),
+            ),
+          )
+          .limit(1);
+        if (holder && holder.surfaceId !== surfaceId) {
+          throw new BuildInPublicError("BUILD_IN_PUBLIC_SLUG_TAKEN");
         }
         // A surface always has its own canonical slug (surfaces published before
         // slugs existed get theirs on the next approval); the id is never reused.

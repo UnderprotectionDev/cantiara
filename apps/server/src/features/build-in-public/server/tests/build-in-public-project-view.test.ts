@@ -271,6 +271,93 @@ describe("Build in Public selected Project Wall", () => {
     expect(stored?.groups).toHaveLength(0);
     expect(stored?.cards[0]?.groupId).toBeNull();
   });
+
+  test("a part deleted in the source is Unpublished changes and leaves only after a new approval", async () => {
+    const fixtures = createFixtures({ members: [wall] });
+    await approveItems(fixtures);
+    const site = createPublicSite(fixtures);
+    const slug = fixtures.surfaces[0]?.slugs.canonical ?? "";
+
+    // The public page still carries the card: the deletion is not yet approved.
+    const before = await (await site.get(`/surface-1/${slug}`)).text();
+    expect(before).toContain("Private card");
+    expect(before).toContain("depends");
+
+    const source = wall.wall;
+    if (!source) {
+      throw new Error("wall fixture");
+    }
+    fixtures.state.members[0] = {
+      ...wall,
+      wall: {
+        ...source,
+        cards: source.cards.filter((card) => card.id !== "c2"),
+        focusOrder: source.focusOrder.filter((id) => id !== "c2"),
+        lines: source.lines.filter((line) => line.id !== "l1"),
+      },
+    };
+
+    const preview = await previewOf(fixtures);
+    const root = preview.items.find((item) => item.id === "member:wall-1");
+    expect(root?.change).toBe("Unpublished changes");
+    // The removals are the only diff the member needs; a stale approved id
+    // names its kind, so the readable content of the removed card stays out.
+    expect(root?.diff).toEqual([
+      {
+        approved: "Approved",
+        field: "Card",
+        proposed: "Removed in the source",
+      },
+      {
+        approved: "Approved",
+        field: "Visual line",
+        proposed: "Removed in the source",
+      },
+    ]);
+    const publication = await fixtures.access.publication(
+      ACCOUNT_ID,
+      PROJECT_ID,
+    );
+    expect(publication?.unpublishedChanges).toBe(true);
+
+    await approveItems(fixtures);
+    const after = await (await site.get(`/surface-1/${slug}`)).text();
+    expect(after).not.toContain("Private card");
+    expect(after).not.toContain("depends");
+    const stored = snapshotOf(fixtures).members?.[0]?.wall;
+    expect(stored?.cards.map((card) => card.title)).toEqual([
+      "Public card",
+      "Third card",
+    ]);
+    expect(stored?.lines.map((line) => line.label)).toEqual(["ships"]);
+  });
+
+  test("a live block re-signs no more when only the freeze day advances", async () => {
+    const fixtures = createFixtures({ members: [wall] });
+    await approveItems(fixtures);
+
+    // Tomorrow nothing about the block's content changed, only today's date.
+    fixtures.now = () => new Date(NOW.getTime() + 24 * 60 * 60 * 1000);
+    const preview = await previewOf(fixtures);
+    const parts = preview.items.filter((item) => item.kind === "Wall part");
+    expect(parts.every((part) => part.change === "Unchanged")).toBe(true);
+    const publication = await fixtures.access.publication(
+      ACCOUNT_ID,
+      PROJECT_ID,
+    );
+    expect(publication?.unpublishedChanges).toBe(false);
+
+    // Re-approving re-freezes the same block instead of dropping it: nothing
+    // was unticked and the plan reading did not change, so no new feed event.
+    await approveItems(fixtures);
+    const stored = snapshotOf(fixtures).members?.[0]?.wall;
+    expect(stored?.liveBlocks).toHaveLength(1);
+    expect(stored?.liveBlocks[0]?.frozenOn).toBe("2026-10-30");
+    expect(stored?.liveBlocks[0]?.records).toEqual([
+      { fields: [{ name: "Status", value: "Open" }], title: "Bug A" },
+    ]);
+    expect(snapshotOf(fixtures).feed).toHaveLength(1);
+  });
 });
 
 describe("Build in Public featured record", () => {

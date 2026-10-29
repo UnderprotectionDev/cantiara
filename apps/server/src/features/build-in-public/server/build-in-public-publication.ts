@@ -48,6 +48,7 @@ export interface BuildInPublicPublicationOptions {
       projectId: string,
     ) => Promise<{ workspaceId: string } | null>;
   };
+  now?: () => Date;
   previewOf: (
     accountId: string,
     projectId: string,
@@ -56,6 +57,11 @@ export interface BuildInPublicPublicationOptions {
     latest: (projectId: string) => Promise<BuildInPublicLatest | null>;
   };
 }
+
+/** The `Unpublished changes` probe of `publication` is memoized this long; a
+ * publish always re-verifies through the full preview, so the memoization can
+ * only delay the founder-facing banner, never a publication itself. */
+const CHANGES_PROBE_TTL_MS = 5000;
 
 const NO_SLUGS: BuildInPublicSlugs = { aliases: [], canonical: null };
 
@@ -106,6 +112,13 @@ export function createBuildInPublicPublication(
   options: BuildInPublicPublicationOptions,
 ) {
   const { facts, previewOf, store } = options;
+  const now = options.now ?? (() => new Date());
+  let probe: {
+    at: number;
+    projectId: string;
+    revision: number;
+    unpublishedChanges: boolean;
+  } | null = null;
 
   async function current(accountId: string, projectId: string) {
     const project = await facts.project(accountId, projectId);
@@ -116,6 +129,32 @@ export function createBuildInPublicPublication(
     return { latest, workspaceId: project.workspaceId };
   }
 
+  async function unpublishedChangesOf(
+    accountId: string,
+    projectId: string,
+    revision: number,
+  ) {
+    if (
+      probe &&
+      probe.projectId === projectId &&
+      probe.revision === revision &&
+      now().getTime() - probe.at < CHANGES_PROBE_TTL_MS
+    ) {
+      return probe.unpublishedChanges;
+    }
+    const unpublishedChanges =
+      (await previewOf(accountId, projectId))?.items.some(
+        (item) => item.change === "Unpublished changes",
+      ) ?? false;
+    probe = {
+      at: now().getTime(),
+      projectId,
+      revision,
+      unpublishedChanges,
+    };
+    return unpublishedChanges;
+  }
+
   async function describe(
     accountId: string,
     projectId: string,
@@ -124,17 +163,11 @@ export function createBuildInPublicPublication(
     if (!latest) {
       return shape(projectId, null, NO_SLUGS, false);
     }
-    const [slugs, preview] = await Promise.all([
+    const [slugs, unpublishedChanges] = await Promise.all([
       store.slugs(latest.surfaceId),
-      previewOf(accountId, projectId),
+      unpublishedChangesOf(accountId, projectId, latest.revision),
     ]);
-    return shape(
-      projectId,
-      latest,
-      slugs,
-      preview?.items.some((item) => item.change === "Unpublished changes") ??
-        false,
-    );
+    return shape(projectId, latest, slugs, unpublishedChanges);
   }
 
   async function slugChange(

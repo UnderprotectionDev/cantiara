@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import {
   type BuildInPublicChange,
+  type BuildInPublicDiffRow,
   type BuildInPublicField,
   type BuildInPublicItem,
   type BuildInPublicMemberKind,
   type BuildInPublicSnapshotMember,
   type BuildInPublicSnapshotWall,
   memberItemId,
+  WALL_PART_KINDS,
   type WallPartKind,
   wallPartItemId,
 } from "@cantiara/api/build-in-public";
@@ -85,12 +87,14 @@ function baseItem(
 }
 
 /**
- * A one-way digest of an item's preview fields. Shared parts (layout, focus
+ * A one-way digest of a part's readable fields. Shared parts (layout, focus
  * order, colors) name every card of the source Wall, so the readable fields
- * must never be stored in the snapshot.
+ * must never be stored in the snapshot. The live block's freeze date is
+ * presentation, not content: it never makes a part re-sign.
  */
 function signatureOf(fields: BuildInPublicField[]) {
-  return createHash("sha256").update(JSON.stringify(fields)).digest("hex");
+  const content = fields.filter((field) => field.name !== "Frozen on");
+  return createHash("sha256").update(JSON.stringify(content)).digest("hex");
 }
 
 function partChange(
@@ -265,6 +269,33 @@ function wallParts(
   return parts;
 }
 
+/** Which Wall part kinds the last approved revision holds that the source no longer has. */
+function removedWallPartKinds(
+  member: BuildInPublicSourceMember,
+  parts: BuildInPublicItem[],
+  approvedWall: BuildInPublicSnapshotWall | undefined,
+): WallPartKind[] {
+  if (!approvedWall) {
+    return [];
+  }
+  const live = new Set(parts.map((part) => part.id));
+  const kinds = new Set<WallPartKind>();
+  for (const id of Object.keys(approvedWall.partSignatures)) {
+    if (live.has(id)) {
+      continue;
+    }
+    // The stale id names its own kind, so a deleted card, line, group or file
+    // still surfaces without reintroducing its readable content.
+    const kind = WALL_PART_KINDS.find((name) =>
+      id.startsWith(`wall:${member.recordId}:${name}:`),
+    );
+    if (kind) {
+      kinds.add(kind);
+    }
+  }
+  return [...kinds];
+}
+
 /** Root approval item of every Project member, with its Wall parts as separate dependents. */
 export function memberItemSet(
   member: BuildInPublicSourceMember,
@@ -303,6 +334,24 @@ export function memberItemSet(
   const parts = member.wall
     ? wallParts(member, member.wall, root, approved?.wall, frozenOn)
     : [];
+  // A part that was approved in the last revision but whose source item no
+  // longer exists (e.g. a deleted card) has no item of its own anymore, so the
+  // removal would drop out of the snapshot silently. It thus shows on the
+  // member as `Unpublished changes` and needs an explicit approval.
+  const removals = removedWallPartKinds(member, parts, approved?.wall);
+  if (removals.length > 0) {
+    root.change = "Unpublished changes";
+    root.diff = [
+      ...root.diff,
+      ...removals.map(
+        (field): BuildInPublicDiffRow => ({
+          approved: "Approved",
+          field,
+          proposed: "Removed in the source",
+        }),
+      ),
+    ];
+  }
   const items = [root, ...parts];
   return {
     items,
