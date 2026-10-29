@@ -106,7 +106,13 @@ export async function findOwnedDocumentTemplate(
   const query = executor
     .select()
     .from(documentTemplate)
-    .where(eq(documentTemplate.id, templateId))
+    // A Document Template in Trash is not selectable (spec 77).
+    .where(
+      and(
+        eq(documentTemplate.id, templateId),
+        isNull(documentTemplate.trashedAt),
+      ),
+    )
     .limit(1);
   const [row] = lock ? await query.for("update") : await query;
   return row ? toTemplate(row) : null;
@@ -127,12 +133,15 @@ export function createDatabaseDocumentTemplates(
         .select()
         .from(documentTemplate)
         .where(
-          scope.projectId
-            ? eq(documentTemplate.projectId, scope.projectId)
-            : and(
-                isNull(documentTemplate.projectId),
-                eq(documentTemplate.workspaceId, scope.workspaceId ?? ""),
-              ),
+          and(
+            isNull(documentTemplate.trashedAt),
+            scope.projectId
+              ? eq(documentTemplate.projectId, scope.projectId)
+              : and(
+                  isNull(documentTemplate.projectId),
+                  eq(documentTemplate.workspaceId, scope.workspaceId ?? ""),
+                ),
+          ),
         )
         .orderBy(desc(documentTemplate.updatedAt));
       return rows.map(toTemplate);

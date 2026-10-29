@@ -761,6 +761,10 @@ import {
   trashOverviewInputSchema,
 } from "../trash";
 import {
+  TrashRestoreConflictError,
+  trashRestorePreviewInputSchema,
+} from "../trash-configuration";
+import {
   permanentlyDeleteFromTrashInputSchema,
   TrashDeleteBlockedError,
   TrashGrantRejectedError,
@@ -4692,6 +4696,18 @@ async function trashWrite<T>(
         message: error.message,
       });
     }
+    if (error instanceof TrashRestoreConflictError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: {
+          code: "TRASH_RESTORE_CONFLICT",
+          conflicts: error.conflicts,
+          targetId,
+        },
+        defined: true,
+        message: error.message,
+      });
+    }
     if (error instanceof TrashTypedNameMismatchError) {
       throw new ORPCError("BAD_REQUEST", {
         cause: error,
@@ -4813,6 +4829,13 @@ export const appRouter = {
         ),
       );
     }),
+  restoreFromTrashPreview: protectedProcedure
+    .input(trashRestorePreviewInputSchema)
+    .handler(({ context, input }) =>
+      trashWrite(input.entryId, () =>
+        requireTrash(context).restorePreview(context.session.user.id, input),
+      ),
+    ),
   restoreFromTrash: protectedProcedure
     .input(restoreFromTrashInputSchema)
     .handler(({ context, input }) =>

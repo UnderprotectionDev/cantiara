@@ -17,6 +17,7 @@ import {
   type TrashStore,
   type TrashSurfacePort,
 } from "./trash";
+import { createDatabaseTrashConfiguration } from "./trash-configuration-database";
 import { trashRecordAdapters } from "./trash-records-database";
 
 function toStored(row: typeof trashEntry.$inferSelect): StoredTrashEntry {
@@ -369,5 +370,8 @@ export function createDatabaseTrash(
   database: Database,
   surfaces?: TrashSurfacePort,
 ): TrashAccess {
-  return createTrash(createDatabaseTrashStore(database), { surfaces });
+  return createTrash(createDatabaseTrashStore(database), {
+    configuration: createDatabaseTrashConfiguration(database),
+    surfaces,
+  });
 }

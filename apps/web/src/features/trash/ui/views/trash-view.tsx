@@ -9,11 +9,17 @@ import {
   type TrashEntry,
   type TrashSurfaceDisposition,
 } from "@cantiara/api/trash";
+import {
+  isTrashConfigurationKind,
+  type TrashRestoreConflict,
+  type TrashRestorePreview,
+} from "@cantiara/api/trash-configuration";
 import type { TrashEarlyDeletePreview } from "@cantiara/api/trash-early-delete";
 import { Button } from "@cantiara/ui/components/button";
 import { useState } from "react";
 import type { TrashCandidate } from "../../lib/trash-candidates";
 import { TrashEntryList } from "../components/trash-entry-list";
+import { TrashRestoreConflicts } from "../components/trash-restore-conflicts";
 import { MoveToTrashForm } from "../forms/move-to-trash-form";
 import { PermanentlyDeleteForm } from "../forms/permanently-delete-form";
 
@@ -39,6 +45,7 @@ export function TrashView({
   onPreview,
   onRestore,
   permanentDelete,
+  onRestorePreview,
 }: {
   candidates: readonly TrashCandidate[];
   entries: readonly TrashEntry[];
@@ -50,6 +57,8 @@ export function TrashView({
   onPreview: (candidate: TrashCandidate) => Promise<MoveToTrashPreview>;
   onRestore: (entry: TrashEntry) => Promise<unknown>;
   permanentDelete?: TrashPermanentDelete;
+  /** Configuration kinds only: reads dependency conflicts before a restore. */
+  onRestorePreview?: (entry: TrashEntry) => Promise<TrashRestorePreview>;
 }) {
   const [deleting, setDeleting] = useState<{
     entry: TrashEntry;
@@ -119,6 +128,10 @@ export function TrashView({
     }
   }
 
+  const [conflicts, setConflicts] = useState<{
+    conflicts: TrashRestoreConflict[];
+    label: string;
+  } | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
   const [restoreFailed, setRestoreFailed] = useState<string | null>(null);
   const [restoredLabel, setRestoredLabel] = useState<string | null>(null);
@@ -127,7 +140,20 @@ export function TrashView({
     setRestoring(entry.id);
     setRestoreFailed(null);
     setRestoredLabel(null);
+    setConflicts(null);
     try {
+      // A definition with an unresolvable dependency shows a conflict preview
+      // and stays in Trash; nothing is rebound.
+      if (onRestorePreview && isTrashConfigurationKind(entry.recordKind)) {
+        const check = await onRestorePreview(entry);
+        if (!check.restorable) {
+          setConflicts({
+            conflicts: check.conflicts,
+            label: entry.recordLabel,
+          });
+          return;
+        }
+      }
       await onRestore(entry);
       setRestoredLabel(entry.recordLabel);
     } catch {
@@ -207,6 +233,12 @@ export function TrashView({
         />
       ) : null}
       {deleting || !deleteError ? null : <p role="alert">{deleteError}</p>}
+      {conflicts ? (
+        <TrashRestoreConflicts
+          conflicts={conflicts.conflicts}
+          label={conflicts.label}
+        />
+      ) : null}
       <p aria-live="polite" role="status">
         {restoredLabel ? `Restored ${restoredLabel}.` : null}
       </p>

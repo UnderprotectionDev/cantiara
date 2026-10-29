@@ -823,6 +823,8 @@ async function loadSmartCollectionView(
       and(
         eq(smartCollectionView.id, viewId),
         eq(workspace.ownerAccountId, accountId),
+        // A Smart Collection in Trash yields no membership (spec 77).
+        isNull(smartCollection.trashedAt),
       ),
     );
   const [row] = await (options?.readOnly
@@ -1239,6 +1241,7 @@ export function createDatabaseSmartCollections(
         .where(
           and(
             eq(workspace.ownerAccountId, accountId),
+            isNull(smartCollection.trashedAt),
             or(
               eq(smartCollection.projectId, projectId),
               sql`${smartCollection.scope} @> ${JSON.stringify({ projectIds: [projectId] })}::jsonb`,

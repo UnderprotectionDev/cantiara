@@ -15,14 +15,34 @@ interface SourceRecord {
   title: string;
 }
 
+interface NamedSource {
+  id: string;
+  name: string;
+  revision: number;
+}
+
 /**
- * Risks and Decisions already loaded by the Project overview, newest sources
+ * Risks, Decisions and the Configuration Trash definitions already loaded by the Project overview, newest sources
  * first as given. Other kinds join as their surfaces mount `Move to Trash`.
  */
 export function trashCandidates(sources: {
+  automationRules?: readonly NamedSource[];
+  customFields?: readonly NamedSource[];
   decisions?: readonly SourceRecord[];
+  documentTemplates?: readonly NamedSource[];
   risks?: readonly SourceRecord[];
+  workTemplates?: readonly NamedSource[];
 }): TrashCandidate[] {
+  // Configuration Trash: definitions carry a name instead of a title.
+  const named = (kind: TrashRecordKind, records: readonly NamedSource[] = []) =>
+    records.map(
+      (record): TrashCandidate => ({
+        id: record.id,
+        kind,
+        label: record.name,
+        revision: record.revision,
+      }),
+    );
   const candidates = (
     kind: TrashRecordKind,
     records: readonly SourceRecord[] = [],
@@ -38,5 +58,9 @@ export function trashCandidates(sources: {
   return [
     ...candidates("Risk", sources.risks),
     ...candidates("Decision", sources.decisions),
+    ...named("Custom Field", sources.customFields),
+    ...named("Work Template", sources.workTemplates),
+    ...named("Automation Rule", sources.automationRules),
+    ...named("Document Template", sources.documentTemplates),
   ];
 }

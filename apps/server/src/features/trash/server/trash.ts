@@ -30,6 +30,12 @@ import {
   trashExpiresAt,
   trashRecordKey,
 } from "@cantiara/api/trash";
+import {
+  isTrashConfigurationKind,
+  type TrashConfigurationImpact,
+  type TrashRestoreConflict,
+  TrashRestoreConflictError,
+} from "@cantiara/api/trash-configuration";
 
 /**
  * Trash behavior (spec 77, first slice): move and list. A moved record keeps
@@ -145,6 +151,57 @@ export interface TrashSurfacePort {
   freeze: (accountId: string, surface: TrashSurface) => Promise<boolean>;
   /** Terminal revoke through the surface owner's own path. */
   revoke: (accountId: string, surface: TrashSurface) => Promise<void>;
+}
+
+/**
+ * Port to the configuration definitions (Configuration Trash). It reads what a
+ * move would affect and which dependencies a restore could not resolve; it
+ * never rebinds a dependency, so a conflict stays visible to the founder.
+ */
+export interface TrashConfigurationPort {
+  /** Affected stored values and living dependents of a definition. */
+  impact: (
+    projectId: string,
+    ref: TrashRecordRef,
+  ) => Promise<TrashConfigurationImpact>;
+  /**
+   * Dependencies of a definition in Trash that are permanently deleted, in
+   * Trash or meaning-changed. `unit` holds the keys restoring together.
+   */
+  restoreConflicts: (
+    projectId: string,
+    ref: TrashRecordRef,
+    unit: ReadonlySet<string>,
+  ) => Promise<TrashRestoreConflict[]>;
+}
+
+const noConfiguration: TrashConfigurationPort = {
+  impact: () => Promise.resolve({ dependents: [], storedValues: [] }),
+  restoreConflicts: () => Promise.resolve([]),
+};
+
+/** Conflicts of every configuration member of a restore unit. */
+async function unitConflicts(
+  port: TrashConfigurationPort,
+  unit: readonly StoredTrashEntry[],
+) {
+  const keys = new Set(
+    unit.map((member) =>
+      trashRecordKey({ id: member.recordId, kind: member.recordKind }),
+    ),
+  );
+  const found = await Promise.all(
+    unit
+      .filter((member) => isTrashConfigurationKind(member.recordKind))
+      .map((member) =>
+        port.restoreConflicts(
+          member.projectId,
+          { id: member.recordId, kind: member.recordKind },
+          keys,
+        ),
+      ),
+  );
+  return found.flat();
 }
 
 const noSurfaces: TrashSurfacePort = {
@@ -308,11 +365,13 @@ async function assertRestorable(
 export function createTrash(
   store: TrashStore,
   options: {
+    configuration?: TrashConfigurationPort;
     newId?: () => string;
     now?: () => Date;
     surfaces?: TrashSurfacePort;
   } = {},
 ): TrashAccess {
+  const configuration = options.configuration ?? noConfiguration;
   const surfaces = options.surfaces ?? noSurfaces;
   const now = options.now ?? (() => new Date());
   const newId = options.newId ?? (() => crypto.randomUUID());
@@ -362,7 +421,12 @@ export function createTrash(
         recordKind: ref.kind,
         surfaces: attached,
       };
-      return preview;
+      return isTrashConfigurationKind(ref.kind)
+        ? {
+            ...preview,
+            configuration: await configuration.impact(input.projectId, ref),
+          }
+        : preview;
     },
 
     async move(accountId, input: MoveToTrashInput, context) {
@@ -595,6 +659,12 @@ export function createTrash(
         : [entry];
       const expectedOf = (member: StoredTrashEntry) =>
         member.id === entry.id ? input.baseRevision : member.baseRevision + 1;
+      // A dependency that is gone, in Trash or changed meaning is a conflict
+      // for the founder to see, never a silent rebind.
+      const conflicts = await unitConflicts(configuration, unit);
+      if (conflicts.length > 0) {
+        throw new TrashRestoreConflictError(conflicts);
+      }
       if (!(await assertRestorable(store, unit, expectedOf))) {
         return null;
       }
@@ -632,6 +702,25 @@ export function createTrash(
         default:
           return outcome satisfies never;
       }
+    },
+
+    async restorePreview(accountId, input) {
+      if (!(await store.project(accountId, input.projectId))) {
+        return null;
+      }
+      const entry = await store.find(input.projectId, input.entryId);
+      if (!entry) {
+        return null;
+      }
+      const unit = entry.groupId
+        ? await store.group(input.projectId, entry.groupId)
+        : [entry];
+      const conflicts = await unitConflicts(configuration, unit);
+      return {
+        conflicts,
+        entryId: entry.id,
+        restorable: conflicts.length === 0,
+      };
     },
 
     async overview(accountId, projectId) {
