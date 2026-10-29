@@ -10,7 +10,11 @@ import {
   type PlaceholderFinding,
   type PreviewShareScopeInput,
   previewShareScopeInputSchema,
+  type RotateShareTokenInput,
+  rotateShareTokenInputSchema,
+  type SetLinkPasswordInput,
   SHARE_MANIFEST_FORMAT,
+  type ShareAccess,
   type ShareDiff,
   type ShareFieldKind,
   type ShareItem,
@@ -21,6 +25,7 @@ import {
   type ShareRootSummary,
   type ShareScopePreview,
   type ShareSurfaceSummary,
+  setLinkPasswordInputSchema,
   shareRootsInputSchema,
 } from "@cantiara/api/link-sharing";
 import {
@@ -29,6 +34,12 @@ import {
   isSecretKind,
   shareLabel,
 } from "@cantiara/api/link-sharing-rules";
+import {
+  type LinkPasswordHasher,
+  randomSecret,
+  scryptLinkPasswordHasher,
+  sha256Hex,
+} from "./link-sharing-credentials";
 
 /**
  * Link Sharing behavior (spec 73, #482). The closed world is built only from
@@ -85,6 +96,7 @@ export interface ShareSource {
 export interface StoredShareSurface {
   approvedAt: string;
   manifest: ShareManifest;
+  passwordProtected: boolean;
   revision: number;
   surfaceId: string;
 }
@@ -101,6 +113,30 @@ export interface ShareApprovalCommit {
   root: ShareRoot;
   /** `null` creates the Dış yüzey; otherwise a revision joins that surface. */
   surfaceId: string | null;
+  /** SHA-256 of the token minted with a new surface; `null` for a new revision. */
+  tokenHash: string | null;
+}
+
+export interface ShareAccessPatch {
+  /** `undefined` keeps it; `null` removes it. */
+  passwordHash?: string | null;
+  tokenHash?: string;
+}
+
+/** A secret-free event for the irreversible security log (ADR-0003, ADR-0019). */
+export interface ShareAccessEvent {
+  accessEpoch: number;
+  actor: string;
+  occurredAt: Date;
+  surfaceId: string;
+  type:
+    | "link-sharing.password-changed"
+    | "link-sharing.token-rotated"
+    | "link-sharing.sessions-revoked";
+}
+
+export interface LinkSharingSecurityEvents {
+  append: (event: ShareAccessEvent) => Promise<void>;
 }
 
 /** Port to the source records and the stored surfaces; no member rewrites a revision. */
@@ -121,6 +157,12 @@ export interface LinkSharingStore {
     root: ShareRoot,
     surfaceId?: string,
   ) => Promise<StoredShareSurface | null>;
+  /** The owned, uncancelled Link Sharing surface gets the patch and a new access epoch. */
+  updateAccess: (
+    accountId: string,
+    surfaceId: string,
+    patch: ShareAccessPatch,
+  ) => Promise<{ accessEpoch: number; passwordProtected: boolean } | null>;
 }
 
 interface ScopeModel {
@@ -382,6 +424,7 @@ function summaryOf(
     ? {
         label: surface.manifest.label,
         lastApprovedAt: surface.approvedAt,
+        passwordProtected: surface.passwordProtected,
         revision: surface.revision,
         surfaceId: surface.surfaceId,
       }
@@ -481,9 +524,14 @@ function validateSelection(
 
 export function createLinkSharing(
   store: LinkSharingStore,
-  options: { now?: () => Date } = {},
+  options: {
+    events?: LinkSharingSecurityEvents;
+    hasher?: LinkPasswordHasher;
+    now?: () => Date;
+  } = {},
 ): LinkSharingAccess {
   const now = options.now ?? (() => new Date());
+  const hasher = options.hasher ?? scryptLinkPasswordHasher;
 
   async function load(accountId: string, input: PreviewShareScopeInput) {
     const source = await store.source(accountId, input.root);
@@ -564,6 +612,7 @@ export function createLinkSharing(
         value: item.value,
       }));
     const approvedAt = now().toISOString();
+    const token = surface ? null : randomSecret();
     const manifest: ShareManifest = {
       approvedAt,
       format: SHARE_MANIFEST_FORMAT,
@@ -573,17 +622,48 @@ export function createLinkSharing(
       root: input.root,
       version: 1,
     };
-    return store.commit({
+    const newSurfaceId = crypto.randomUUID();
+    const approvedShare = await store.commit({
       accountId,
       approvalId: input.approvalId,
       fingerprint,
       manifest,
-      newSurfaceId: crypto.randomUUID(),
+      newSurfaceId,
       placeholdersAcknowledged: findings.length > 0,
       projectId: source.projectId,
       root: input.root,
       surfaceId: surface?.surfaceId ?? null,
+      tokenHash: token ? sha256Hex(token) : null,
     });
+    return approvedShare && approvedShare.surfaceId === newSurfaceId
+      ? { ...approvedShare, accessToken: token }
+      : approvedShare;
+  }
+
+  async function changeAccess(
+    accountId: string,
+    surfaceId: string,
+    patch: ShareAccessPatch,
+    type: ShareAccessEvent["type"],
+  ) {
+    const changed = await store.updateAccess(accountId, surfaceId, patch);
+    if (!changed) {
+      return null;
+    }
+    // Secret-free: an aliased actor, the surface id and the new epoch only.
+    const actor = `account:${sha256Hex(accountId).slice(0, 16)}`;
+    await Promise.all(
+      [type, "link-sharing.sessions-revoked" as const].map((eventType) =>
+        options.events?.append({
+          accessEpoch: changed.accessEpoch,
+          actor,
+          occurredAt: now(),
+          surfaceId,
+          type: eventType,
+        }),
+      ),
+    );
+    return changed;
   }
 
   return {
@@ -594,6 +674,47 @@ export function createLinkSharing(
         accountId,
         shareRootsInputSchema.parse({ projectId }).projectId,
       );
+    },
+    async rotateToken(
+      accountId: string,
+      rawInput: RotateShareTokenInput,
+    ): Promise<ShareAccess | null> {
+      const input = rotateShareTokenInputSchema.parse(rawInput);
+      const token = randomSecret();
+      const changed = await changeAccess(
+        accountId,
+        input.surfaceId,
+        { tokenHash: sha256Hex(token) },
+        "link-sharing.token-rotated",
+      );
+      return changed
+        ? {
+            passwordProtected: changed.passwordProtected,
+            surfaceId: input.surfaceId,
+            token,
+          }
+        : null;
+    },
+    async setPassword(
+      accountId: string,
+      rawInput: SetLinkPasswordInput,
+    ): Promise<ShareAccess | null> {
+      const input = setLinkPasswordInputSchema.parse(rawInput);
+      const passwordHash =
+        input.password === null ? null : await hasher.hash(input.password);
+      const changed = await changeAccess(
+        accountId,
+        input.surfaceId,
+        { passwordHash },
+        "link-sharing.password-changed",
+      );
+      return changed
+        ? {
+            passwordProtected: changed.passwordProtected,
+            surfaceId: input.surfaceId,
+            token: null,
+          }
+        : null;
     },
   };
 }

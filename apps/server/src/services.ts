@@ -72,6 +72,8 @@ import { createDatabaseFocusPeriod } from "./features/focus-period/server/focus-
 import { createConfiguredGitHubIntegration } from "./features/github-integration/server/github-integration-configured";
 import { createGitHubWebhookWorker } from "./features/github-integration/server/github-webhook-worker";
 import { createDatabaseLinkSharing } from "./features/link-sharing/server/link-sharing-database";
+import { createDatabaseLinkSharingSecurityEvents } from "./features/link-sharing/server/link-sharing-security-events";
+import { createDatabaseLinkSharingVisitor } from "./features/link-sharing/server/link-sharing-visitor-database";
 import { createDatabaseMoodboardPersonalViews } from "./features/moodboards/server/moodboard-personal-views-database";
 import { createDatabaseMoodboardSnapshots } from "./features/moodboards/server/moodboard-snapshots-database";
 import { createDatabaseMoodboards } from "./features/moodboards/server/moodboards-database";
@@ -313,7 +315,12 @@ export const projectUpdates = createProjectUpdatesService(
   db,
   personalReminders,
 );
-export const linkSharing = createDatabaseLinkSharing(db);
+export const linkSharing = createDatabaseLinkSharing(db, {
+  events: createDatabaseLinkSharingSecurityEvents(securityEventDb),
+});
+export const linkSharingVisitor = createDatabaseLinkSharingVisitor(db, {
+  rateSecret: env.BETTER_AUTH_SECRET,
+});
 export const projectActivity = createProjectActivity(
   createDatabaseProjectActivityStore(db),
 );

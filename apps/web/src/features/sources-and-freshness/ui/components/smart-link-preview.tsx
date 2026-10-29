@@ -12,8 +12,8 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { type ClipboardEvent, useRef, useState } from "react";
+import { YouTubePreviewPlayer } from "@/components/youtube-preview-player";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
-import { YouTubePreviewPlayer } from "./youtube-preview-player";
 
 export function SmartLinkComposer({
   onPreview,

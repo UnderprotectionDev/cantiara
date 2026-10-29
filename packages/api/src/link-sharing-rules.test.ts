@@ -6,6 +6,7 @@ import {
   isLiveEligible,
   isSecretKind,
   shareLabel,
+  youtubeVideoId,
 } from "./link-sharing-rules";
 
 describe("Link Sharing live allow-list", () => {
@@ -91,5 +92,26 @@ describe("findPlaceholders", () => {
       expect(findPlaceholders(text)).toEqual([]);
     }
     expect(findPlaceholders("{{a1_b2}}")).toHaveLength(1);
+  });
+});
+
+describe("Link Sharing YouTube id", () => {
+  test("accepts only a watch or short YouTube URL with an 11 character id", () => {
+    expect(youtubeVideoId("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(
+      "dQw4w9WgXcQ",
+    );
+    expect(youtubeVideoId("https://youtu.be/dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
+    for (const url of [
+      null,
+      "",
+      "not a url",
+      "javascript:alert(1)",
+      "https://evil.example/watch?v=dQw4w9WgXcQ",
+      "https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ",
+      "https://www.youtube.com/watch?v=short",
+      'https://www.youtube.com/watch?v="><script>',
+    ]) {
+      expect(youtubeVideoId(url)).toBeNull();
+    }
   });
 });

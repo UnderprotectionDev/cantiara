@@ -87,3 +87,33 @@ export function findPlaceholders(text: string): PlaceholderMatch[] {
   }
   return matches;
 }
+
+const YOUTUBE_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+const WWW_PREFIX = /^www\./;
+
+/**
+ * The video id of an original YouTube URL, or `null` for anything else. Only
+ * the id leaves the page, and only after a visitor click.
+ */
+export function youtubeVideoId(url: string | null): string | null {
+  if (!url) {
+    return null;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    return null;
+  }
+  const host = parsed.hostname.replace(WWW_PREFIX, "");
+  let id: string | null = null;
+  if (host === "youtu.be") {
+    id = parsed.pathname.slice(1);
+  } else if (host === "youtube.com" && parsed.pathname === "/watch") {
+    id = parsed.searchParams.get("v");
+  }
+  return id && YOUTUBE_VIDEO_ID.test(id) ? id : null;
+}
