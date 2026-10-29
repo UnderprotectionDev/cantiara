@@ -10,7 +10,7 @@ import { document } from "@cantiara/db/schema/document";
 import { project } from "@cantiara/db/schema/project";
 import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import {
   type AttentionSignalStore,
@@ -210,7 +210,7 @@ const RECORD_TABLES = {
 
 /**
  * Existence for one known record kind over a batch of ids: the ids that are
- * missing, or for Work trashed, as `kind:id` keys. Unknown kinds report present.
+ * missing or trashed, as `kind:id` keys. Unknown kinds report present.
  */
 async function deletedKeysForKind(
   database: Database,
@@ -234,7 +234,7 @@ async function deletedKeysForKind(
   const present = await database
     .select({ id: table.id })
     .from(table)
-    .where(inArray(table.id, ids));
+    .where(and(inArray(table.id, ids), isNull(table.trashedAt)));
   const found = new Set(present.map((row) => row.id));
   return ids.filter((id) => !found.has(id)).map((id) => `${kind}:${id}`);
 }
@@ -274,20 +274,9 @@ export function createDatabaseSourceResolver(
       const [row] = await database
         .select({ id: table.id })
         .from(table)
-        .where(eq(table.id, group.id))
+        .where(and(eq(table.id, group.id), isNull(table.trashedAt)))
         .limit(1);
-      if (!row) {
-        return "deleted";
-      }
-      if (group.kind === "Work") {
-        const [trashed] = await database
-          .select({ trashedAt: work.trashedAt })
-          .from(work)
-          .where(eq(work.id, group.id))
-          .limit(1);
-        return trashed?.trashedAt ? "deleted" : "present";
-      }
-      return "present";
+      return row ? "present" : "deleted";
     },
   };
 }

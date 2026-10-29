@@ -772,6 +772,27 @@ import {
   testSummarySchema,
 } from "../test-review-summary";
 import {
+  moveToTrashInputSchema,
+  moveToTrashPreviewInputSchema,
+  restoreFromTrashInputSchema,
+  TrashAlreadyTrashedError,
+  TrashChildRecordError,
+  TrashKeepSurfaceNotAllowedError,
+  TrashSurfaceNotRevokedError,
+  trashOverviewInputSchema,
+} from "../trash";
+import {
+  TrashRestoreConflictError,
+  trashRestorePreviewInputSchema,
+} from "../trash-configuration";
+import {
+  permanentlyDeleteFromTrashInputSchema,
+  TrashDeleteBlockedError,
+  TrashGrantRejectedError,
+  TrashTypedNameMismatchError,
+  trashEarlyDeletePreviewInputSchema,
+} from "../trash-early-delete";
+import {
   convertUserFlowNodeInputSchema,
   createUserFlowFromTemplateInputSchema,
   createUserFlowInputSchema,
@@ -4682,6 +4703,106 @@ function requireProjectUpdates(context: Context) {
   }
   return context.projectUpdates;
 }
+function requireTrash(context: Context) {
+  if (!context.trash) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.trash;
+}
+function requireTrashEarlyDelete(context: Context) {
+  const { earlyDelete } = requireTrash(context);
+  if (!earlyDelete) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return earlyDelete;
+}
+interface TrashErrorMapping {
+  code: string;
+  /** Extra secret-free fields the client needs next to the code. */
+  data?: (error: never) => Record<string, unknown>;
+  /** Fixed copy; defaults to the error's own message. */
+  message?: string;
+  status: "BAD_REQUEST" | "CONFLICT" | "FORBIDDEN";
+  test: (error: unknown) => boolean;
+}
+
+const trashErrorMappings: readonly TrashErrorMapping[] = [
+  {
+    code: "TRASH_CHILD_RECORD",
+    status: "BAD_REQUEST",
+    test: (error) => error instanceof TrashChildRecordError,
+  },
+  {
+    code: "TRASH_KEEP_SURFACE_NOT_ALLOWED",
+    status: "BAD_REQUEST",
+    test: (error) => error instanceof TrashKeepSurfaceNotAllowedError,
+  },
+  {
+    code: "TRASH_SURFACE_NOT_REVOKED",
+    message: "Revoke the External Surface before moving it to Trash",
+    status: "CONFLICT",
+    test: (error) => error instanceof TrashSurfaceNotRevokedError,
+  },
+  {
+    code: "TRASH_DELETE_BLOCKED",
+    data: (error: TrashDeleteBlockedError) => ({ blockers: error.blockers }),
+    status: "CONFLICT",
+    test: (error) => error instanceof TrashDeleteBlockedError,
+  },
+  {
+    code: "TRASH_RESTORE_CONFLICT",
+    data: (error: TrashRestoreConflictError) => ({
+      conflicts: error.conflicts,
+    }),
+    status: "CONFLICT",
+    test: (error) => error instanceof TrashRestoreConflictError,
+  },
+  {
+    code: "TRASH_TYPED_NAME_MISMATCH",
+    message: "The Project name does not match.",
+    status: "BAD_REQUEST",
+    test: (error) => error instanceof TrashTypedNameMismatchError,
+  },
+  {
+    code: "TRASH_GRANT_REJECTED",
+    status: "FORBIDDEN",
+    test: (error) => error instanceof TrashGrantRejectedError,
+  },
+  {
+    code: "TRASH_ALREADY_TRASHED",
+    message: "Already in Trash",
+    status: "CONFLICT",
+    test: (error) => error instanceof TrashAlreadyTrashedError,
+  },
+];
+
+async function trashWrite<T>(
+  targetId: string,
+  write: () => Promise<T | null>,
+): Promise<T> {
+  try {
+    const result = await write();
+    if (!result) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return result;
+  } catch (error) {
+    const mapping = trashErrorMappings.find(({ test }) => test(error));
+    if (mapping && error instanceof Error) {
+      throw new ORPCError(mapping.status, {
+        cause: error,
+        data: {
+          ...mapping.data?.(error as never),
+          code: mapping.code,
+          targetId,
+        },
+        defined: true,
+        message: mapping.message ?? error.message,
+      });
+    }
+    return rethrowProjectShellMutationError(error, targetId);
+  }
+}
 async function projectUpdateWrite<T>(
   targetId: string,
   write: () => Promise<T | null>,
@@ -4725,6 +4846,81 @@ function requireExternalSurfaceManagement(context: Context) {
   return context.externalSurfaceManagement;
 }
 export const appRouter = {
+  trash: protectedProcedure
+    .input(trashOverviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const overview = await requireTrash(context).overview(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!overview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return overview;
+    }),
+  moveToTrashPreview: protectedProcedure
+    .input(moveToTrashPreviewInputSchema)
+    .handler(({ context, input }) =>
+      trashWrite(input.recordId, () =>
+        requireTrash(context).preview(context.session.user.id, input, {
+          deletion: "record",
+        }),
+      ),
+    ),
+  moveToTrash: protectedProcedure
+    .input(moveToTrashInputSchema)
+    .handler(({ context, input }) =>
+      trashWrite(input.recordId, () =>
+        requireTrash(context).move(context.session.user.id, input, {
+          deletion: "record",
+        }),
+      ),
+    ),
+  previewPermanentDeleteFromTrash: protectedProcedure
+    .input(trashEarlyDeletePreviewInputSchema)
+    .handler(({ context, input }) =>
+      trashWrite(input.entryId, () =>
+        requireTrashEarlyDelete(context).preview(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  permanentlyDeleteFromTrash: protectedProcedure
+    .input(permanentlyDeleteFromTrashInputSchema)
+    .handler(({ context, input }) => {
+      const confirmation = context.githubIdentityConfirmation;
+      if (!confirmation) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return trashWrite(input.entryId, () =>
+        requireTrashEarlyDelete(context).permanentlyDelete(
+          context.session.user.id,
+          input,
+          (grant) =>
+            confirmation.consume(
+              sessionPrincipal(context.session),
+              "early-permanent-delete",
+              grant,
+              context.clientKey,
+            ),
+        ),
+      );
+    }),
+  restoreFromTrashPreview: protectedProcedure
+    .input(trashRestorePreviewInputSchema)
+    .handler(({ context, input }) =>
+      trashWrite(input.entryId, () =>
+        requireTrash(context).restorePreview(context.session.user.id, input),
+      ),
+    ),
+  restoreFromTrash: protectedProcedure
+    .input(restoreFromTrashInputSchema)
+    .handler(({ context, input }) =>
+      trashWrite(input.entryId, () =>
+        requireTrash(context).restore(context.session.user.id, input),
+      ),
+    ),
   removeExternalSurface: protectedProcedure
     .input(removeExternalSurfaceInputSchema)
     .handler(async ({ context, input }) => {

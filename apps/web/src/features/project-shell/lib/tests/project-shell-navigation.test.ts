@@ -139,6 +139,12 @@ describe("Project Shell Work navigation", () => {
     expect(navigationSurfaceFromHash("share", [], [], [])).toBe("Share");
   });
 
+  test("round trips the always-reachable Trash surface", () => {
+    expect(ALWAYS_REACHABLE_SURFACES).toContain("Trash");
+    expect(navigationHash("Trash")).toBe("trash");
+    expect(navigationSurfaceFromHash("trash", [], [], [])).toBe("Trash");
+  });
+
   test("round trips the always-reachable Shares and Publications surface", () => {
     expect(ALWAYS_REACHABLE_SURFACES).toContain("Shares and Publications");
     expect(navigationHash("Shares and Publications")).toBe(

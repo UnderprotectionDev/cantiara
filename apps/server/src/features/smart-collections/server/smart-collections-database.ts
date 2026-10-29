@@ -110,6 +110,7 @@ async function getProjectSourceMembershipRecords(
         .where(
           and(
             inArray(decision.projectId, projectIds),
+            isNull(decision.trashedAt),
             status ? eq(decision.life, status) : undefined,
           ),
         )
@@ -133,6 +134,7 @@ async function getProjectSourceMembershipRecords(
         .where(
           and(
             inArray(risk.projectId, projectIds),
+            isNull(risk.trashedAt),
             status ? eq(risk.life, status) : undefined,
           ),
         )
@@ -439,6 +441,7 @@ async function getDocumentMembershipRecords(
         and(
           inArray(document.projectId, projectScope.projectIds),
           isNull(document.workspaceId),
+          isNull(document.trashedAt),
           ...documentConditions,
         ),
       )
@@ -451,6 +454,7 @@ async function getDocumentMembershipRecords(
         and(
           eq(document.workspaceId, workspaceId),
           isNull(document.projectId),
+          isNull(document.trashedAt),
           ...documentConditions,
         ),
       )
@@ -819,6 +823,8 @@ async function loadSmartCollectionView(
       and(
         eq(smartCollectionView.id, viewId),
         eq(workspace.ownerAccountId, accountId),
+        // A Smart Collection in Trash yields no membership (spec 77).
+        isNull(smartCollection.trashedAt),
       ),
     );
   const [row] = await (options?.readOnly
@@ -1235,6 +1241,7 @@ export function createDatabaseSmartCollections(
         .where(
           and(
             eq(workspace.ownerAccountId, accountId),
+            isNull(smartCollection.trashedAt),
             or(
               eq(smartCollection.projectId, projectId),
               sql`${smartCollection.scope} @> ${JSON.stringify({ projectIds: [projectId] })}::jsonb`,

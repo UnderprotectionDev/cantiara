@@ -61,7 +61,8 @@ export async function researchBindingTarget(
   const [record] = lock ? await lookup.for("update") : await lookup;
   if (
     !record ||
-    ("trashedAt" in record && (record.trashedAt || record.archivedAt)) ||
+    ("trashedAt" in record &&
+      (record.trashedAt || ("archivedAt" in record && record.archivedAt))) ||
     (target.type === "Feature" &&
       (!("type" in record) || record.type !== "Feature")) ||
     (target.type === "Work" && "type" in record && record.type === "Feature") ||
@@ -202,7 +203,8 @@ export async function listResearchBindingTargets(
       );
     for (const row of rows) {
       if (
-        ("trashedAt" in row && (row.trashedAt || row.archivedAt)) ||
+        ("trashedAt" in row &&
+          (row.trashedAt || ("archivedAt" in row && row.archivedAt))) ||
         ("status" in row && row.status === "Archived")
       ) {
         continue;

@@ -28,6 +28,7 @@ export const document = pgTable(
     body: text("body").notNull(),
     type: text("type").notNull().default("General"),
     archivedAt: timestamp("archived_at"),
+    trashedAt: timestamp("trashed_at"),
     folder: text("folder"),
     parentDocumentId: text("parent_document_id"),
     inlineTags: jsonb("inline_tags")

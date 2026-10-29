@@ -254,6 +254,7 @@ function personaScope(projectId: string, workspaceId: string): SQL {
   return and(
     eq(document.type, "Persona"),
     isNull(document.archivedAt),
+    isNull(document.trashedAt),
     or(
       eq(document.projectId, projectId),
       eq(document.workspaceId, workspaceId),

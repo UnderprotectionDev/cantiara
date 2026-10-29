@@ -27,6 +27,8 @@ export const documentTemplate = pgTable(
     revision: integer("revision").notNull().default(1),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    // Trash (spec 77, Configuration Trash): a trashed template is not selectable.
+    trashedAt: timestamp("trashed_at"),
   },
   (table) => [
     index("document_template_project_idx").on(table.projectId),

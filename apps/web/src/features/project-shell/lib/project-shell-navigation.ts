@@ -13,6 +13,7 @@ export const ALWAYS_REACHABLE_SURFACES = [
   "Project History",
   "Project Updates",
   "Share",
+  "Trash",
   "Shares and Publications",
 ] as const;
 export const ALL_PROJECT_AREAS = PROJECT_AREA_OPTIONS;
@@ -115,6 +116,8 @@ export const PROJECT_HISTORY_HASH = "project-history";
 export const PROJECT_UPDATES_HASH = "project-updates";
 /** The `Share` surface: closed-world preview and scope approval for a link share. */
 export const SHARE_HASH = "share";
+/** The `Trash` surface: Trash entries and `Move to Trash`; never the landing surface. */
+export const TRASH_HASH = "trash";
 /** The `Shares and Publications` directory of every Dış yüzey of the Project. */
 export const SHARES_AND_PUBLICATIONS_HASH = "shares-and-publications";
 export const BACKLOG_HASH = "backlog";
@@ -300,6 +303,7 @@ const DIRECT_SURFACE_BY_HASH = new Map<string, NavigationSurface>([
   [PROJECT_HISTORY_HASH, "Project History"],
   [PROJECT_UPDATES_HASH, "Project Updates"],
   [SHARE_HASH, "Share"],
+  [TRASH_HASH, "Trash"],
   [SHARES_AND_PUBLICATIONS_HASH, "Shares and Publications"],
 ]);
 
@@ -408,6 +412,9 @@ export function navigationHash(surface: NavigationSurface) {
   }
   if (surface === "Share") {
     return SHARE_HASH;
+  }
+  if (surface === "Trash") {
+    return TRASH_HASH;
   }
   if (surface === "Shares and Publications") {
     return SHARES_AND_PUBLICATIONS_HASH;

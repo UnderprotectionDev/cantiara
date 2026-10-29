@@ -105,6 +105,7 @@ import type { TestAssessmentsAccess } from "@cantiara/api/test-assessments";
 import type { TestGapsAccess } from "@cantiara/api/test-gaps";
 import type { TestReportAcceptanceAccess } from "@cantiara/api/test-report";
 import type { TestReviewAccess } from "@cantiara/api/test-review";
+import type { TrashAccess } from "@cantiara/api/trash";
 import type { UserFlowAccess } from "@cantiara/api/user-flow";
 import type { ValueChainAccess } from "@cantiara/api/value-chain";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
@@ -207,6 +208,7 @@ export interface CreateContextOptions {
   testGaps?: TestGapsAccess;
   testReports?: TestReportAcceptanceAccess;
   testReview?: TestReviewAccess;
+  trash?: TrashAccess;
   trustedProxyIps: readonly string[];
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
@@ -314,6 +316,7 @@ export async function createContext({
   releaseEvidence,
   projectHistory,
   projectUpdates,
+  trash,
   linkSharing,
   projectClosureSummary,
   valueChain,
@@ -426,6 +429,7 @@ export async function createContext({
     releaseEvidence,
     projectHistory,
     projectUpdates,
+    trash,
     linkSharing,
     projectClosureSummary,
     valueChain,

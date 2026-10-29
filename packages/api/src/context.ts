@@ -93,6 +93,7 @@ import type { TestAssessmentsAccess } from "./test-assessments";
 import type { TestGapsAccess } from "./test-gaps";
 import type { TestReportAcceptanceAccess } from "./test-report";
 import type { TestReviewAccess } from "./test-review";
+import type { TrashAccess } from "./trash";
 import type { UserFlowAccess } from "./user-flow";
 import type { ValueChainAccess } from "./value-chain";
 import type { WebCaptureAccess } from "./web-capture";
@@ -271,6 +272,7 @@ export interface Context {
   testGaps?: TestGapsAccess;
   testReports?: TestReportAcceptanceAccess;
   testReview?: TestReviewAccess;
+  trash?: TrashAccess;
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;

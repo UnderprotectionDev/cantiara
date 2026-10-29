@@ -30,6 +30,7 @@ export const risk = pgTable(
     response: text("response"),
     revision: integer("revision").default(0).notNull(),
     title: text("title").notNull(),
+    trashedAt: timestamp("trashed_at"),
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => /* @__PURE__ */ new Date())

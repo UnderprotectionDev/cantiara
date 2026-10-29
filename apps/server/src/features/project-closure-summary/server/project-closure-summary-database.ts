@@ -143,6 +143,7 @@ export function createDatabaseProjectClosureSummarySources(
                 and(
                   eq(document.projectId, projectId),
                   isNull(document.archivedAt),
+                  isNull(document.trashedAt),
                 ),
               )
               .orderBy(asc(document.title))

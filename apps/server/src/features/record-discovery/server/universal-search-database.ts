@@ -391,6 +391,7 @@ async function searchDecisionRecords({
           textContent([decisionTitle, decisionText]),
         ),
         eq(decision.life, input.decisionStatus ?? "Valid"),
+        isNull(decision.trashedAt),
       ),
     );
   results.push(
@@ -447,7 +448,10 @@ async function searchRiskRecords({
     .innerJoin(project, eq(risk.projectId, project.id))
     .innerJoin(workspace, eq(project.workspaceId, workspace.id))
     .where(
-      projectConditions(accountId, input, textContent([riskTitle, riskText])),
+      and(
+        projectConditions(accountId, input, textContent([riskTitle, riskText])),
+        isNull(risk.trashedAt),
+      ),
     );
   results.push(
     ...riskRows.map((row) =>
@@ -1000,6 +1004,7 @@ async function searchDocumentRecords({
       and(
         eq(workspace.ownerAccountId, accountId),
         or(isNull(document.projectId), eq(project.workspaceId, workspace.id)),
+        isNull(document.trashedAt),
         archiveCondition(input.archived, document.archivedAt),
         query
           ? matches(query, textContent([documentTitle, documentText]))

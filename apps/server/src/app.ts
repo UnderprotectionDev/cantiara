@@ -114,6 +114,7 @@ import type { TestAssessmentsAccess } from "@cantiara/api/test-assessments";
 import type { TestGapsAccess } from "@cantiara/api/test-gaps";
 import type { TestReportAcceptanceAccess } from "@cantiara/api/test-report";
 import type { TestReviewAccess } from "@cantiara/api/test-review";
+import type { TrashAccess } from "@cantiara/api/trash";
 import type { UserFlowAccess } from "@cantiara/api/user-flow";
 import type { ValueChainAccess } from "@cantiara/api/value-chain";
 import {
@@ -301,6 +302,7 @@ export interface AppDependencies {
   testGaps?: TestGapsAccess;
   testReports?: TestReportAcceptanceAccess;
   testReview?: TestReviewAccess;
+  trash?: TrashAccess;
   trustedProxyIps: readonly string[];
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
@@ -742,6 +744,7 @@ export function createApp(dependencies: AppDependencies) {
       releaseEvidence: dependencies.releaseEvidence,
       projectHistory: dependencies.projectHistory,
       projectUpdates: dependencies.projectUpdates,
+      trash: dependencies.trash,
       linkSharing: dependencies.linkSharing,
       projectClosureSummary: dependencies.projectClosureSummary,
       valueChain: dependencies.valueChain,
