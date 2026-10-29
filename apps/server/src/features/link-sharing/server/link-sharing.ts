@@ -445,7 +445,9 @@ function placeholderFindings(
   const findings: PlaceholderFinding[] = [];
   for (const item of scope.items) {
     const record = item.parentId ? records.get(item.parentId) : undefined;
-    if (item.kind !== "Field" || !record || !item.value) {
+    // Fields and non-record part texts (for example a diagram's origin
+    // snapshot text) are checked alike: the rule is about the text itself.
+    if (item.kind === "Record" || !record || !item.value) {
       continue;
     }
     for (const match of findPlaceholders(item.value)) {
@@ -669,9 +671,6 @@ export function createLinkSharing(
     if (source.blockers.length > 0) {
       throw new LinkSharingScopeError(source.blockers.join(" "));
     }
-    if (!surface) {
-      await enforceRateLimit(accountId, SHARE_START_TYPES);
-    }
     const approved = new Set(input.approvedItemIds);
     const live = new Set(input.liveItemIds);
     validateSelection(scope, approved, live, input.root);
@@ -680,6 +679,16 @@ export function createLinkSharing(
     );
     if (findings.length > 0 && !input.publishAnyway) {
       throw new LinkSharingPlaceholdersError(findings);
+    }
+    if (!surface) {
+      // The reservation lands before the store commit: a store failure keeps
+      // the slot, so the limit is never bypassed by concurrent attempts.
+      await reserveRateLimit(
+        accountId,
+        "link-sharing.share-created",
+        input.approvalId,
+        source.projectId,
+      );
     }
     const items: ShareManifestItem[] = scope.items
       .filter((item) => approved.has(item.itemId))
@@ -715,38 +724,52 @@ export function createLinkSharing(
       surfaceId: surface?.surfaceId ?? null,
       tokenHash: token ? sha256Hex(token) : null,
     });
-    return await finishApproval(accountId, approvedShare, newSurfaceId, token);
+    return finishApproval(approvedShare, newSurfaceId, token);
   }
 
-  /** A new surface returns its token once and writes the `Denetim kaydı` entry. */
-  async function finishApproval(
-    accountId: string,
+  /** A new surface returns its token once. The audit entry was the reservation. */
+  function finishApproval(
     approvedShare: ApprovedShare | null,
     newSurfaceId: string,
     token: string | null,
   ) {
-    if (approvedShare && approvedShare.surfaceId === newSurfaceId) {
-      await record("link-sharing.share-created", accountId, newSurfaceId);
-      return { ...approvedShare, accessToken: token };
-    }
-    return approvedShare;
+    return approvedShare && approvedShare.surfaceId === newSurfaceId
+      ? { ...approvedShare, accessToken: token }
+      : approvedShare;
   }
 
-  /** The founder's start and revoke writes are counted from their audit entries. */
-  async function enforceRateLimit(
+  /**
+   * The founder's start and revoke writes are rate-limited by reserving the
+   * slot as the audit entry itself: one reservation per attempt id inside a
+   * per-actor serialized transaction, so a concurrent burst cannot pass the
+   * check together and a retried or event-log-failed write never loses its
+   * entry. A write that fails after a successful reservation keeps the slot
+   * (fail-closed; the audit alias and target never carry a secret).
+   */
+  async function reserveRateLimit(
     accountId: string,
-    types: readonly LinkSharingAuditType[],
-  ) {
+    type: LinkSharingAuditType,
+    idKey: string,
+    targetAlias: string,
+  ): Promise<void> {
     if (!options.audit) {
       return;
     }
-    const since = new Date(now().getTime() - SHARE_CHANGE_WINDOW_MS);
-    const used = await options.audit.countSince(
-      actorAliasOf(accountId),
-      types,
-      since,
-    );
-    if (used >= SHARE_CHANGE_LIMIT) {
+    const at = now();
+    const reserved = await options.audit.reserve({
+      actorAlias: actorAliasOf(accountId),
+      counted:
+        type === "link-sharing.share-revoked"
+          ? SHARE_REVOKE_TYPES
+          : SHARE_START_TYPES,
+      id: `${type}:${sha256Hex(`${accountId}\u0000${idKey}`).slice(0, 32)}`,
+      limit: SHARE_CHANGE_LIMIT,
+      occurredAt: at,
+      since: new Date(at.getTime() - SHARE_CHANGE_WINDOW_MS),
+      targetAlias,
+      type,
+    });
+    if (!reserved) {
       throw new LinkSharingRateLimitError(SHARE_CHANGE_WINDOW_MS / 1000);
     }
   }
@@ -928,7 +951,12 @@ export function createLinkSharing(
       );
     }
     const expiresAt = checkedExpiry(input.expiresAt);
-    await enforceRateLimit(accountId, SHARE_START_TYPES);
+    await reserveRateLimit(
+      accountId,
+      "link-sharing.share-reshared",
+      input.newSurfaceId,
+      input.surfaceId,
+    );
     const token = randomSecret();
     const shared = await store.reshare({
       accountId,
@@ -944,11 +972,7 @@ export function createLinkSharing(
     if (!shared.created) {
       return shared.share;
     }
-    await record(
-      "link-sharing.share-reshared",
-      accountId,
-      shared.share.surfaceId,
-    );
+    // The audit entry was the rate-limit reservation.
     return { ...shared.share, accessToken: token };
   }
 
@@ -957,7 +981,12 @@ export function createLinkSharing(
     rawInput: RevokeShareInput,
   ): Promise<RevokedShare | null> {
     const input = revokeShareInputSchema.parse(rawInput);
-    await enforceRateLimit(accountId, SHARE_REVOKE_TYPES);
+    await reserveRateLimit(
+      accountId,
+      "link-sharing.share-revoked",
+      input.surfaceId,
+      input.surfaceId,
+    );
     const at = now();
     const revoked = await changeWithEvents(
       accountId,
@@ -968,7 +997,8 @@ export function createLinkSharing(
     if (!revoked) {
       return null;
     }
-    await record("link-sharing.share-revoked", accountId, input.surfaceId);
+    // The audit entry was the rate-limit reservation; a change whose security
+    // event failed already wrote it, so the revoked write is never uncounted.
     return { revokedAt: at.toISOString(), surfaceId: input.surfaceId };
   }
 

@@ -78,7 +78,10 @@ import {
   createDatabaseLinkSharingReplay,
 } from "./features/link-sharing/server/link-sharing-database";
 import { createDatabaseLinkSharingSecurityEvents } from "./features/link-sharing/server/link-sharing-security-events";
-import { createDatabaseLinkSharingVisitor } from "./features/link-sharing/server/link-sharing-visitor-database";
+import {
+  createDatabaseLinkSharingVisitor,
+  purgeLinkSharingVisitorData,
+} from "./features/link-sharing/server/link-sharing-visitor-database";
 import { createDatabaseMoodboardPersonalViews } from "./features/moodboards/server/moodboard-personal-views-database";
 import { createDatabaseMoodboardSnapshots } from "./features/moodboards/server/moodboard-snapshots-database";
 import { createDatabaseMoodboards } from "./features/moodboards/server/moodboards-database";
@@ -561,6 +564,10 @@ export const stopFileAttachmentPreviewWorker = () =>
   fileAttachmentPreviewWorker?.stop() ?? Promise.resolve();
 export const sweepExpiredFileAttachmentUploads = () =>
   fileAttachmentService?.sweepExpiredUploads() ?? Promise.resolve(0);
+
+/** Gate attempts die 24h after the last attempt, sessions at their end. */
+export const sweepExpiredLinkSharingVisitorData = () =>
+  purgeLinkSharingVisitorData(db);
 export const captureInbox = createDatabaseCaptureInbox(
   db,
   captureInboxWorkCreate,
@@ -660,6 +667,13 @@ const maintenanceWorker = createMaintenanceWorker({
       name: "file-attachment-upload-sweep",
       cron: "0 * * * *",
       process: sweepExpiredFileAttachmentUploads,
+    },
+    {
+      // Retention promises gate attempt data gone 24h after the last attempt,
+      // also when a surface stops being visited (visitor purge only runs lazily).
+      name: "link-sharing-visitor-sweep",
+      cron: "0 * * * *",
+      process: sweepExpiredLinkSharingVisitorData,
     },
     {
       // Incremental read-only reconcile of every active GitHub link (<= 15 min).

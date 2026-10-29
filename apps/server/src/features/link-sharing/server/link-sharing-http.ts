@@ -129,10 +129,15 @@ export function createLinkSharingVisitorRoutes(options: {
     const nonce = crypto.randomUUID();
     const request = c.req.raw;
     const origin = request.headers.get("origin");
-    const length = Number(request.headers.get("content-length") ?? 0);
+    // The gate form always sends a bounded body: a missing, malformed or
+    // oversized Content-Length is refused before formData() reads anything.
+    const lengthHeader = request.headers.get("content-length");
+    const length = lengthHeader === null ? Number.NaN : Number(lengthHeader);
     if (
       request.headers.get("sec-fetch-site") === "cross-site" ||
       (origin && origin !== new URL(request.url).origin) ||
+      !Number.isInteger(length) ||
+      length < 0 ||
       length > MAX_FORM_BYTES
     ) {
       return respond(unavailablePage(nonce), 404, nonce);

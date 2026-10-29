@@ -255,6 +255,7 @@ function ShareItemRow({
     <li className="grid gap-1">
       <label className="inline-flex items-start gap-2 text-sm" htmlFor={id}>
         <Checkbox
+          aria-describedby={note ? `${id}-note` : undefined}
           checked={checked}
           disabled={disabled || !item.selectable}
           id={id}
@@ -276,7 +277,9 @@ function ShareItemRow({
         </span>
       </label>
       {note ? (
-        <p className="ml-6 text-muted-foreground text-xs">{note}</p>
+        <p className="ml-6 text-muted-foreground text-xs" id={`${id}-note`}>
+          {note}
+        </p>
       ) : null}
       {item.kind === "Embed" && youtubeVideoId(item.value) ? (
         <div className="ml-6">

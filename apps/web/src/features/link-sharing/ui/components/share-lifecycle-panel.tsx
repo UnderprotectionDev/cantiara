@@ -96,6 +96,7 @@ export function ShareLifecyclePanel({
               ? [{ clears: true, id: "clear", label: REMOVE_EXPIRY_LABEL }]
               : []),
           ]}
+          defaultActionId="set"
           initial={expiryInput(surface.expiresAt, timeZone)}
           key={surface.expiresAt ?? "none"}
           legend="Link expiry"

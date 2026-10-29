@@ -96,12 +96,20 @@ const post = (
   routes: Awaited<ReturnType<typeof setup>>["routes"],
   fields: Record<string, string>,
   headers: Record<string, string> = {},
-) =>
-  routes.request(`${ORIGIN}/s`, {
-    body: new URLSearchParams(fields),
-    headers: { origin: ORIGIN, ...headers },
+) => {
+  const body = new URLSearchParams(fields).toString();
+  return routes.request(`${ORIGIN}/s`, {
+    // A browser form post always carries the bounded length.
+    body,
+    headers: {
+      "content-length": String(body.length),
+      "content-type": "application/x-www-form-urlencoded",
+      origin: ORIGIN,
+      ...headers,
+    },
     method: "POST",
   });
+};
 
 const cookieOf = (response: Response) =>
   (response.headers.get("set-cookie") ?? "").split(";")[0] ?? "";

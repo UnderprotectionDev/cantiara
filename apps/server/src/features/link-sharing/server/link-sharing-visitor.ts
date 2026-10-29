@@ -31,6 +31,8 @@ export const ATTEMPT_RETENTION_MS = 24 * 60 * 60 * 1000;
 const MAX_TOKEN_LENGTH = 200;
 const MAX_PASSWORD_LENGTH = 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** Limits concurrent ~32 MB scrypt derivations on the visitor boundary. */
+const MAX_CONCURRENT_HASHES = 8;
 
 export interface VisitorSurface {
   accessEpoch: number;
@@ -191,6 +193,32 @@ export function cooldownSeconds(failures: number) {
   );
 }
 
+/**
+ * Bounds concurrent password derivations: one attempt is ~32 MB of scrypt,
+ * so an unauthenticated fleet cannot queue unbounded half-finished guesses.
+ * Beyond the cap the next attempt waits; the surface and client ladders
+ * still answer the cooldown first, so waiting stays short in real traffic.
+ */
+export function createHashingGate(limit: number) {
+  let inFlight = 0;
+  const waiters: (() => void)[] = [];
+  return async function run<T>(hash: () => Promise<T>): Promise<T> {
+    while (inFlight >= limit) {
+      // biome-ignore lint/performance/noAwaitInLoops: a semaphore waits here until a slot frees, then rechecks the count.
+      await new Promise<void>((resolve) => {
+        waiters.push(resolve);
+      });
+    }
+    inFlight += 1;
+    try {
+      return await hash();
+    } finally {
+      inFlight -= 1;
+      waiters.shift()?.();
+    }
+  };
+}
+
 export function createLinkSharingVisitor(
   store: LinkSharingVisitorStore,
   options: {
@@ -204,6 +232,7 @@ export function createLinkSharingVisitor(
 ): LinkSharingVisitorAccess {
   const now = options.now ?? (() => new Date());
   const hasher = options.hasher ?? scryptLinkPasswordHasher;
+  const boundedHash = createHashingGate(MAX_CONCURRENT_HASHES);
 
   /** Keyed per UTC day, so yesterday's keys cannot be linked to today's. */
   function attemptKeys(
@@ -292,13 +321,19 @@ export function createLinkSharingVisitor(
         ? grant(surface, at)
         : { status: "denied" };
     }
-    // Always the same hashing work, whether or not the surface exists.
-    const passwordMatches = await hasher.verify(
-      input.password.slice(0, MAX_PASSWORD_LENGTH),
-      surface?.passwordHash ?? null,
+    // Always the same hashing work, whether or not the surface exists, and
+    // at most a bounded number of derivations sit in flight at one time.
+    const { password } = input;
+    const passwordMatches = await boundedHash(() =>
+      hasher.verify(
+        password.slice(0, MAX_PASSWORD_LENGTH),
+        surface?.passwordHash ?? null,
+      ),
     );
     if (surface && (surface.passwordHash === null || passwordMatches)) {
-      await store.clearFailures(keys.slice(1));
+      // A correct answer also clears the surface count, so one stranger's
+      // guessing can never lock the correct password out for everyone.
+      await store.clearFailures(keys);
       return grant(surface, at);
     }
     await Promise.all(keys.map((key) => recordFailure(key, at)));

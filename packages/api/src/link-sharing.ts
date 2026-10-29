@@ -551,6 +551,8 @@ export async function linkSharingWrite<T>(
     if (error instanceof LinkSharingRateLimitError) {
       throw new ORPCError("TOO_MANY_REQUESTS", {
         cause: error,
+        data: { retryAfterSeconds: error.retryAfterSeconds, targetId },
+        defined: true,
         message: error.message,
       });
     }

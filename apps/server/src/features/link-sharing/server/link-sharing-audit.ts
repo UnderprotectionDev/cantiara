@@ -27,6 +27,20 @@ export interface LinkSharingAuditRecord {
   type: LinkSharingAuditType;
 }
 
+/** One rate-limited write slot, reserved atomically before the write. */
+export interface LinkSharingAuditReservation {
+  actorAlias: string;
+  counted: readonly LinkSharingAuditType[];
+  /** The reservation is the audit entry itself: a retry replays, never double counts. */
+  id: string;
+  limit: number;
+  occurredAt: Date;
+  since: Date;
+  targetAlias: string;
+  /** The reservation entry type; a member of `counted`. */
+  type: LinkSharingAuditType;
+}
+
 export interface LinkSharingAudit {
   append: (record: LinkSharingAuditRecord) => Promise<void>;
   /** How many records of these types the actor wrote since the instant. */
@@ -35,6 +49,12 @@ export interface LinkSharingAudit {
     types: readonly LinkSharingAuditType[],
     since: Date,
   ) => Promise<number>;
+  /**
+   * Reserves one slot for a rate-limited write as its audit entry: `false`
+   * when the actor is already at the limit for the window, `true` when the
+   * slot landed or the reservation id already ran (idempotent retry).
+   */
+  reserve: (input: LinkSharingAuditReservation) => Promise<boolean>;
 }
 
 /** Share starts and revokes per founder per hour; beyond it the write is refused. */

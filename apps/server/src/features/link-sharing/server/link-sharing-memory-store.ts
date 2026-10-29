@@ -329,6 +329,28 @@ export function createMemoryLinkSharing(options: {
         ).length,
       );
     },
+    reserve(input) {
+      if (auditRecords.some((record) => record.id === input.id)) {
+        return Promise.resolve(true);
+      }
+      const used = auditRecords.filter(
+        (record) =>
+          record.actorAlias === input.actorAlias &&
+          input.counted.includes(record.type) &&
+          record.occurredAt >= input.since,
+      ).length;
+      if (used >= input.limit) {
+        return Promise.resolve(false);
+      }
+      auditRecords.push({
+        actorAlias: input.actorAlias,
+        id: input.id,
+        occurredAt: input.occurredAt,
+        targetAlias: input.targetAlias,
+        type: input.type,
+      });
+      return Promise.resolve(true);
+    },
   };
 
   const visitorSurfaceOf = (surface: MemorySurface): VisitorSurface => ({
