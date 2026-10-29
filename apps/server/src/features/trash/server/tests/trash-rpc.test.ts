@@ -1,9 +1,10 @@
 import type { Context } from "@cantiara/api/context";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import { createTrash } from "../trash";
+import { createTrashEarlyDelete } from "../trash-early-delete";
 import { createMemoryTrash } from "../trash-memory-store";
 
 const ACCOUNT = "account-1";
@@ -42,7 +43,7 @@ const body = {
 };
 
 describe("Trash RPC seam", () => {
-  test("exposes list, Move to Trash and Restore; no early permanent delete yet", () => {
+  test("exposes list, Move to Trash, Restore and the early Permanently Delete pair", () => {
     const procedures = Object.keys(appRouter).filter((name) =>
       TRASH_PROCEDURE.test(name),
     );
@@ -50,9 +51,10 @@ describe("Trash RPC seam", () => {
     expect(procedures).toContain("moveToTrash");
     expect(procedures).toContain("trash");
     expect(procedures).toContain("restoreFromTrash");
-    expect(procedures.filter((name) => DELETE_PROCEDURE.test(name))).toEqual(
-      [],
-    );
+    expect(procedures.filter((name) => DELETE_PROCEDURE.test(name))).toEqual([
+      "permanentlyDeleteFromTrash",
+    ]);
+    expect(procedures).toContain("previewPermanentDeleteFromTrash");
   });
 
   test("moves a record and lists it with the 30-day window", async () => {
@@ -159,5 +161,63 @@ describe("Trash RPC seam", () => {
     await expect(
       setup(false).trash({ projectId: "project-1" }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  test("early Permanently Delete consumes the early-permanent-delete grant once and fails closed", async () => {
+    const harness = createMemoryTrash({
+      accountId: ACCOUNT,
+      projects: new Map([
+        [
+          "project-1",
+          {
+            records: new Map([["Risk:r1", { label: "Slip", revision: 2 }]]),
+            workspaceId: "workspace-1",
+          },
+        ],
+      ]),
+    });
+    const consume = vi.fn(() => Promise.resolve(false));
+    const context = {
+      githubIdentityConfirmation: { consume },
+      session: { session: { id: "session" }, user: { id: ACCOUNT } },
+      trash: {
+        ...createTrash(harness.store),
+        earlyDelete: createTrashEarlyDelete({
+          events: harness.eventLog,
+          expiry: harness.expiry,
+          projectName: () => Promise.resolve("Atlas"),
+          store: harness.store,
+        }),
+      },
+    } as unknown as Context;
+    const client = createRouterClient(appRouter, { context });
+    const entry = await client.moveToTrash(body);
+    const request = {
+      baseRevision: entry.revision,
+      clientIdempotencyKey: "del-1",
+      entryId: entry.id,
+      grant: "g",
+      projectId: "project-1",
+      typedName: "Atlas",
+    };
+
+    await expect(
+      client.permanentlyDeleteFromTrash(request),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      client.permanentlyDeleteFromTrash({ ...request, typedName: "nope" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(consume).toHaveBeenCalledTimes(1);
+    expect(consume).toHaveBeenCalledWith(
+      { accountId: ACCOUNT, sessionId: "session" },
+      "early-permanent-delete",
+      "g",
+      undefined,
+    );
+    expect(harness.events).toHaveLength(0);
+
+    consume.mockResolvedValueOnce(true);
+    const result = await client.permanentlyDeleteFromTrash(request);
+    expect(result.records).toEqual([{ recordId: "r1", recordKind: "Risk" }]);
   });
 });

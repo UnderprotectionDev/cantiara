@@ -8,6 +8,7 @@ import {
   TRASH_LABEL,
   type TrashEntry,
 } from "@cantiara/api/trash";
+import { PERMANENTLY_DELETE_LABEL } from "@cantiara/api/trash-early-delete";
 import { Button } from "@cantiara/ui/components/button";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 
@@ -22,12 +23,14 @@ export function TrashEntryList({
   entries,
   failedId,
   formatting,
+  onPermanentlyDelete,
   onRestore,
   pendingId,
 }: {
   entries: readonly TrashEntry[];
   failedId?: string | null;
   formatting: AccountPreferences;
+  onPermanentlyDelete?: (entry: TrashEntry) => void;
   onRestore?: (entry: TrashEntry) => void;
   pendingId?: string | null;
 }) {
@@ -71,6 +74,18 @@ export function TrashEntryList({
               variant="outline"
             >
               {RESTORE_LABEL}
+            </Button>
+          ) : null}
+          {onPermanentlyDelete ? (
+            <Button
+              aria-label={`${PERMANENTLY_DELETE_LABEL}: ${entry.recordLabel}`}
+              disabled={Boolean(pendingId)}
+              onClick={() => onPermanentlyDelete(entry)}
+              size="sm"
+              type="button"
+              variant="destructive"
+            >
+              {PERMANENTLY_DELETE_LABEL}
             </Button>
           ) : null}
           {failedId === entry.id ? (

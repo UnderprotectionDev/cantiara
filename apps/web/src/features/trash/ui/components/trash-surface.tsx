@@ -8,6 +8,7 @@ import { useMemo } from "react";
 import { orpc } from "@/utils/orpc";
 import { useMoveToTrash } from "../../hooks/use-move-to-trash";
 import { usePreviewMoveToTrash } from "../../hooks/use-move-to-trash-preview";
+import { usePermanentDeleteFromTrash } from "../../hooks/use-permanent-delete-from-trash";
 import { useRestoreFromTrash } from "../../hooks/use-restore-from-trash";
 import { trashCandidates } from "../../lib/trash-candidates";
 import { TrashView } from "../views/trash-view";
@@ -22,6 +23,7 @@ export default function TrashSurface({ projectId }: { projectId: string }) {
   const move = useMoveToTrash(projectId);
   const preview = usePreviewMoveToTrash(projectId);
   const restore = useRestoreFromTrash(projectId);
+  const permanentDelete = usePermanentDeleteFromTrash(projectId);
 
   const candidates = useMemo(
     () =>
@@ -59,6 +61,7 @@ export default function TrashSurface({ projectId }: { projectId: string }) {
       onMove={move}
       onPreview={preview}
       onRestore={restore}
+      permanentDelete={permanentDelete}
     />
   );
 }

@@ -156,6 +156,7 @@ import { createDatabaseTestGaps } from "./features/test-gaps/server/test-gaps-da
 import { createDatabaseTestReports } from "./features/test-report/server/test-report-database";
 import { createDatabaseTestReview } from "./features/test-review/server/test-review-database";
 import { createDatabaseTrash } from "./features/trash/server/trash-database";
+import { createDatabaseTrashEarlyDelete } from "./features/trash/server/trash-early-delete-database";
 import { createTrashMaintenance } from "./features/trash/server/trash-expiry";
 import {
   createDatabaseTrashEventLog,
@@ -353,18 +354,25 @@ export const linkSharing = createDatabaseLinkSharing(db, {
   audit: linkSharingAudit,
   events: linkSharingSecurityEvents,
 });
-export const trash = createDatabaseTrash(
-  db,
-  createDatabaseTrashSurfaces(db, {
-    events: securityEventDb,
-    linkSharing,
-    wikiPublishing,
+const trashExpiry = createDatabaseTrashExpiry(db);
+const trashEventLog = createDatabaseTrashEventLog(securityEventDb);
+export const trash = {
+  ...createDatabaseTrash(
+    db,
+    createDatabaseTrashSurfaces(db, {
+      events: securityEventDb,
+      linkSharing,
+      wikiPublishing,
+    }),
+  ),
+  earlyDelete: createDatabaseTrashEarlyDelete(db, {
+    events: trashEventLog,
+    expiry: trashExpiry,
+    projectName: async (accountId, projectId) =>
+      (await projectShell.find(accountId, projectId))?.name ?? null,
   }),
-);
-const trashMaintenance = createTrashMaintenance(
-  createDatabaseTrashExpiry(db),
-  createDatabaseTrashEventLog(securityEventDb),
-);
+};
+const trashMaintenance = createTrashMaintenance(trashExpiry, trashEventLog);
 const linkSharingReplay = createDatabaseLinkSharingReplay(
   db,
   linkSharingSecurityEvents,

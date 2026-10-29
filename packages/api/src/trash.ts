@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
+import type { TrashEarlyDeleteAccess } from "./trash-early-delete";
 
 /**
  * Trash seam (spec 77): the product-facing recoverable-deletion interface. A
@@ -314,6 +315,8 @@ export class TrashSurfaceNotRevokedError extends Error {
 }
 
 export interface TrashAccess {
+  /** Early `Permanently Delete` (grant + typed name); wired by the server. */
+  earlyDelete?: TrashEarlyDeleteAccess;
   /**
    * Of the given records, the ones that still count as living: a record in
    * Trash belongs to no active rule, Smart Collection or named view. `null`

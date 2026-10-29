@@ -761,6 +761,13 @@ import {
   trashOverviewInputSchema,
 } from "../trash";
 import {
+  permanentlyDeleteFromTrashInputSchema,
+  TrashDeleteBlockedError,
+  TrashGrantRejectedError,
+  TrashTypedNameMismatchError,
+  trashEarlyDeletePreviewInputSchema,
+} from "../trash-early-delete";
+import {
   convertUserFlowNodeInputSchema,
   createUserFlowFromTemplateInputSchema,
   createUserFlowInputSchema,
@@ -4631,6 +4638,13 @@ function requireTrash(context: Context) {
   }
   return context.trash;
 }
+function requireTrashEarlyDelete(context: Context) {
+  const { earlyDelete } = requireTrash(context);
+  if (!earlyDelete) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return earlyDelete;
+}
 async function trashWrite<T>(
   targetId: string,
   write: () => Promise<T | null>,
@@ -4664,6 +4678,34 @@ async function trashWrite<T>(
         data: { code: "TRASH_SURFACE_NOT_REVOKED", targetId },
         defined: true,
         message: "Revoke the External Surface before moving it to Trash",
+      });
+    }
+    if (error instanceof TrashDeleteBlockedError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: {
+          blockers: error.blockers,
+          code: "TRASH_DELETE_BLOCKED",
+          targetId,
+        },
+        defined: true,
+        message: error.message,
+      });
+    }
+    if (error instanceof TrashTypedNameMismatchError) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: "TRASH_TYPED_NAME_MISMATCH", targetId },
+        defined: true,
+        message: "The Project name does not match.",
+      });
+    }
+    if (error instanceof TrashGrantRejectedError) {
+      throw new ORPCError("FORBIDDEN", {
+        cause: error,
+        data: { code: "TRASH_GRANT_REJECTED", targetId },
+        defined: true,
+        message: error.message,
       });
     }
     if (error instanceof TrashAlreadyTrashedError) {
@@ -4740,6 +4782,37 @@ export const appRouter = {
         requireTrash(context).move(context.session.user.id, input),
       ),
     ),
+  previewPermanentDeleteFromTrash: protectedProcedure
+    .input(trashEarlyDeletePreviewInputSchema)
+    .handler(({ context, input }) =>
+      trashWrite(input.entryId, () =>
+        requireTrashEarlyDelete(context).preview(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  permanentlyDeleteFromTrash: protectedProcedure
+    .input(permanentlyDeleteFromTrashInputSchema)
+    .handler(({ context, input }) => {
+      const confirmation = context.githubIdentityConfirmation;
+      if (!confirmation) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return trashWrite(input.entryId, () =>
+        requireTrashEarlyDelete(context).permanentlyDelete(
+          context.session.user.id,
+          input,
+          (grant) =>
+            confirmation.consume(
+              sessionPrincipal(context.session),
+              "early-permanent-delete",
+              grant,
+              context.clientKey,
+            ),
+        ),
+      );
+    }),
   restoreFromTrash: protectedProcedure
     .input(restoreFromTrashInputSchema)
     .handler(({ context, input }) =>
