@@ -12,6 +12,7 @@ export const ALWAYS_REACHABLE_SURFACES = [
   "All Tools",
   "Project History",
   "Project Updates",
+  "Share",
 ] as const;
 export const ALL_PROJECT_AREAS = PROJECT_AREA_OPTIONS;
 export const CONFIGURATION_HOST_GROUPS = ["Project", "Work"] as const;
@@ -111,6 +112,8 @@ export const DAILY_ACTION_MESSAGES: Record<DailyAction, string> = {
 export const PROJECT_HISTORY_HASH = "project-history";
 /** The Manual Project Updates chronology (`Project Update` entries); never the landing surface. */
 export const PROJECT_UPDATES_HASH = "project-updates";
+/** The `Share` surface: closed-world preview and scope approval for a link share. */
+export const SHARE_HASH = "share";
 export const BACKLOG_HASH = "backlog";
 export const ROADMAP_HASH = "roadmap";
 const WORK_RELATIONS_HASH_PREFIX = "work-relations-";
@@ -288,6 +291,14 @@ export function isWorkRelationsHash(hash: string) {
   return hash.startsWith(WORK_RELATIONS_HASH_PREFIX);
 }
 
+const DIRECT_SURFACE_BY_HASH = new Map<string, NavigationSurface>([
+  ["all-tools", "All Tools"],
+  ["tags", "Tags"],
+  [PROJECT_HISTORY_HASH, "Project History"],
+  [PROJECT_UPDATES_HASH, "Project Updates"],
+  [SHARE_HASH, "Share"],
+]);
+
 export function navigationSurfaceFromHash(
   hash: string,
   enabledAreas: readonly ProjectArea[],
@@ -297,17 +308,9 @@ export function navigationSurfaceFromHash(
   if (!hash) {
     return "Overview";
   }
-  if (hash === "all-tools") {
-    return "All Tools";
-  }
-  if (hash === "tags") {
-    return "Tags";
-  }
-  if (hash === PROJECT_HISTORY_HASH) {
-    return "Project History";
-  }
-  if (hash === PROJECT_UPDATES_HASH) {
-    return "Project Updates";
+  const direct = DIRECT_SURFACE_BY_HASH.get(hash);
+  if (direct) {
+    return direct;
   }
   if (
     hash === "smart-collections" ||
@@ -398,6 +401,9 @@ export function navigationHash(surface: NavigationSurface) {
   }
   if (surface === "Project Updates") {
     return PROJECT_UPDATES_HASH;
+  }
+  if (surface === "Share") {
+    return SHARE_HASH;
   }
   if (surface === "Smart Collection") {
     return "smart-collections";

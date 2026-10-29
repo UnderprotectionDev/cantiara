@@ -29,6 +29,7 @@ import type { FeedbackAccess } from "./feedback";
 import type { FileAttachmentAccess } from "./file-attachments";
 import type { FocusPeriodAccess } from "./focus-period";
 import type { GitHubIntegrationAccess } from "./github-integration";
+import type { LinkSharingAccess } from "./link-sharing";
 import type { MoodboardSnapshotsAccess } from "./moodboard-snapshot";
 import type { PersonalMoodboardViewsAccess } from "./moodboard-viewport";
 import type {
@@ -214,6 +215,7 @@ export interface Context {
   gitHubIntegration?: GitHubIntegrationAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
+  linkSharing?: LinkSharingAccess;
   moodboardMutationContracts?: MoodboardMutationContracts;
   moodboardPersonalViews?: PersonalMoodboardViewsAccess;
   moodboardSnapshots?: MoodboardSnapshotsAccess;

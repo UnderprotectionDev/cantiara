@@ -1,0 +1,1 @@
+ALTER TABLE "external_surface" ADD COLUMN "expires_at" timestamp;

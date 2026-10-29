@@ -239,6 +239,18 @@ import {
 } from "../github-work-links";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
+  approveShareScopeInputSchema,
+  linkSharingWrite,
+  previewShareScopeInputSchema,
+  reopenExpiredLinkInputSchema,
+  reshareExpiredLinkInputSchema,
+  revokeShareInputSchema,
+  rotateShareTokenInputSchema,
+  setLinkPasswordInputSchema,
+  setShareExpiryInputSchema,
+  shareRootsInputSchema,
+} from "../link-sharing";
+import {
   MoodboardSnapshotError,
   moodboardSnapshotExportInputSchema,
   moodboardSnapshotPreviewInputSchema,
@@ -4591,6 +4603,12 @@ async function productionIncidentWrite<T>(
     throw error;
   }
 }
+function requireLinkSharing(context: Context) {
+  if (!context.linkSharing) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.linkSharing;
+}
 function requireProjectUpdates(context: Context) {
   if (!context.projectUpdates) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -4634,6 +4652,72 @@ async function projectUpdateWrite<T>(
   }
 }
 export const appRouter = {
+  shareRoots: protectedProcedure
+    .input(shareRootsInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.projectId, () =>
+        requireLinkSharing(context).roots(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  previewShareScope: protectedProcedure
+    .input(previewShareScopeInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.root.id, () =>
+        requireLinkSharing(context).preview(context.session.user.id, input),
+      ),
+    ),
+  approveShareScope: protectedProcedure
+    .input(approveShareScopeInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.approvalId, () =>
+        requireLinkSharing(context).approve(context.session.user.id, input),
+      ),
+    ),
+  setShareExpiry: protectedProcedure
+    .input(setShareExpiryInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.surfaceId, () =>
+        requireLinkSharing(context).setExpiry(context.session.user.id, input),
+      ),
+    ),
+  reopenShareLink: protectedProcedure
+    .input(reopenExpiredLinkInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.surfaceId, () =>
+        requireLinkSharing(context).reopen(context.session.user.id, input),
+      ),
+    ),
+  reshareShareLink: protectedProcedure
+    .input(reshareExpiredLinkInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.surfaceId, () =>
+        requireLinkSharing(context).reshare(context.session.user.id, input),
+      ),
+    ),
+  revokeShareLink: protectedProcedure
+    .input(revokeShareInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.surfaceId, () =>
+        requireLinkSharing(context).revoke(context.session.user.id, input),
+      ),
+    ),
+  setLinkPassword: protectedProcedure
+    .input(setLinkPasswordInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.surfaceId, () =>
+        requireLinkSharing(context).setPassword(context.session.user.id, input),
+      ),
+    ),
+  rotateShareToken: protectedProcedure
+    .input(rotateShareTokenInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.surfaceId, () =>
+        requireLinkSharing(context).rotateToken(context.session.user.id, input),
+      ),
+    ),
   projectUpdates: protectedProcedure
     .input(projectUpdatesInputSchema)
     .handler(async ({ context, input }) => {

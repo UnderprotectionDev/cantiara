@@ -75,6 +75,17 @@ import { createFileAttachmentObjectStore } from "./features/file-attachments/ser
 import { createDatabaseFocusPeriod } from "./features/focus-period/server/focus-period-database";
 import { createConfiguredGitHubIntegration } from "./features/github-integration/server/github-integration-configured";
 import { createGitHubWebhookWorker } from "./features/github-integration/server/github-webhook-worker";
+import { createLinkSharingAssets } from "./features/link-sharing/server/link-sharing-assets";
+import { createDatabaseLinkSharingAudit } from "./features/link-sharing/server/link-sharing-audit-database";
+import {
+  createDatabaseLinkSharing,
+  createDatabaseLinkSharingReplay,
+} from "./features/link-sharing/server/link-sharing-database";
+import { createDatabaseLinkSharingSecurityEvents } from "./features/link-sharing/server/link-sharing-security-events";
+import {
+  createDatabaseLinkSharingVisitor,
+  purgeLinkSharingVisitorData,
+} from "./features/link-sharing/server/link-sharing-visitor-database";
 import { createDatabaseMoodboardPersonalViews } from "./features/moodboards/server/moodboard-personal-views-database";
 import { createDatabaseMoodboardSnapshots } from "./features/moodboards/server/moodboard-snapshots-database";
 import { createDatabaseMoodboards } from "./features/moodboards/server/moodboards-database";
@@ -328,6 +339,21 @@ export const projectUpdates = createProjectUpdatesService(
   db,
   personalReminders,
 );
+const linkSharingAudit = createDatabaseLinkSharingAudit(db);
+const linkSharingSecurityEvents =
+  createDatabaseLinkSharingSecurityEvents(securityEventDb);
+export const linkSharing = createDatabaseLinkSharing(db, {
+  audit: linkSharingAudit,
+  events: linkSharingSecurityEvents,
+});
+const linkSharingReplay = createDatabaseLinkSharingReplay(
+  db,
+  linkSharingSecurityEvents,
+);
+export const linkSharingVisitor = createDatabaseLinkSharingVisitor(db, {
+  audit: linkSharingAudit,
+  rateSecret: env.BETTER_AUTH_SECRET,
+});
 export const projectActivity = createProjectActivity(
   createDatabaseProjectActivityStore(db),
 );
@@ -495,6 +521,22 @@ const fileAttachmentObjectStore = createFileAttachmentObjectStore({
   nodeEnv: env.NODE_ENV,
   r2: fileAttachmentR2Config,
 });
+// Visitors never see an R2 URL: the product reads the exact object itself,
+// after the surface, session and file version are authorized.
+export const linkSharingAssets = fileAttachmentObjectStore
+  ? createLinkSharingAssets({
+      objects: {
+        async read(key) {
+          try {
+            return await fileAttachmentObjectStore.read(key);
+          } catch {
+            return null;
+          }
+        },
+      },
+      visitor: linkSharingVisitor,
+    })
+  : undefined;
 let processFileAttachmentPreview:
   | ((
       job: {
@@ -546,6 +588,10 @@ export const stopFileAttachmentPreviewWorker = () =>
   fileAttachmentPreviewWorker?.stop() ?? Promise.resolve();
 export const sweepExpiredFileAttachmentUploads = () =>
   fileAttachmentService?.sweepExpiredUploads() ?? Promise.resolve(0);
+
+/** Gate attempts die 24h after the last attempt, sessions at their end. */
+export const sweepExpiredLinkSharingVisitorData = () =>
+  purgeLinkSharingVisitorData(db);
 export const captureInbox = createDatabaseCaptureInbox(
   db,
   captureInboxWorkCreate,
@@ -598,6 +644,7 @@ export function replaySecurityRevocations() {
       // it in the startup barrier so the same event history is not replayed twice.
       priorityMetricTrashMaintenance.sweepExpired(),
       documentTransfers.replayCancellations(),
+      linkSharingReplay.replay(),
     ])
       .then(() => undefined)
       .catch((error) => {
@@ -644,6 +691,13 @@ const maintenanceWorker = createMaintenanceWorker({
       name: "file-attachment-upload-sweep",
       cron: "0 * * * *",
       process: sweepExpiredFileAttachmentUploads,
+    },
+    {
+      // Retention promises gate attempt data gone 24h after the last attempt,
+      // also when a surface stops being visited (visitor purge only runs lazily).
+      name: "link-sharing-visitor-sweep",
+      cron: "0 * * * *",
+      process: sweepExpiredLinkSharingVisitorData,
     },
     {
       // Incremental read-only reconcile of every active GitHub link (<= 15 min).

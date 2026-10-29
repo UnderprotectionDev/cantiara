@@ -45,6 +45,7 @@ import {
 } from "@cantiara/api/file-attachments";
 import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
 import type { GitHubIntegrationAccess } from "@cantiara/api/github-integration";
+import type { LinkSharingAccess } from "@cantiara/api/link-sharing";
 import type { MoodboardSnapshotsAccess } from "@cantiara/api/moodboard-snapshot";
 import type { PersonalMoodboardViewsAccess } from "@cantiara/api/moodboard-viewport";
 import type {
@@ -146,6 +147,7 @@ import {
   requestClientPlatform,
 } from "./context";
 import { isRecoverableAuthPath } from "./features/account-access/server/auth-recovery-path";
+import { requestClientIp } from "./features/account-access/server/client-ip";
 import { createCsrfProtectionMiddleware } from "./features/account-access/server/csrf-protection";
 import { addFreshGitHubConsent } from "./features/account-access/server/fresh-github-consent";
 import type { GitHubAvailability } from "./features/account-access/server/github-availability";
@@ -186,6 +188,9 @@ import {
   GITHUB_WEBHOOK_PATH,
   handleGitHubWebhook,
 } from "./features/github-integration/server/github-webhook-route";
+import type { LinkSharingAssets } from "./features/link-sharing/server/link-sharing-assets";
+import { createLinkSharingVisitorRoutes } from "./features/link-sharing/server/link-sharing-http";
+import type { LinkSharingVisitorAccess } from "./features/link-sharing/server/link-sharing-visitor";
 import { youtubePlayerRoutes } from "./features/sources-and-freshness/server/youtube-player-page";
 import {
   decorateAndRecordSupportFailure,
@@ -237,6 +242,9 @@ export interface AppDependencies {
     "getStatus" | "requiresFreshConsent"
   >;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
+  linkSharing?: LinkSharingAccess;
+  linkSharingAssets?: LinkSharingAssets;
+  linkSharingVisitor?: LinkSharingVisitorAccess;
   moodboardMutationContracts?: MoodboardMutationContracts;
   moodboardPersonalViews?: PersonalMoodboardViewsAccess;
   moodboardSnapshots?: MoodboardSnapshotsAccess;
@@ -336,6 +344,19 @@ export function createApp(dependencies: AppDependencies) {
   ];
   const app = new Hono<EvlogVariables>();
   app.route("/smart-link/youtube", youtubePlayerRoutes);
+  // Visitor pages sit before the Better Auth identity, CORS and CSRF layers: a
+  // Paylaşım erişim oturumu is not a Hesap oturumu and reads no account cookie.
+  if (dependencies.linkSharingVisitor) {
+    app.route(
+      "/",
+      createLinkSharingVisitorRoutes({
+        assets: dependencies.linkSharingAssets,
+        networkOf: (request, context) =>
+          requestClientIp(request, context, dependencies.trustedProxyIps),
+        visitor: dependencies.linkSharingVisitor,
+      }),
+    );
+  }
   // Public Wiki pages sit before the session, CORS and CSRF middleware: a
   // visitor has no Account and the shared access module authorizes each request.
   if (dependencies.wikiPublicPages) {
@@ -713,6 +734,7 @@ export function createApp(dependencies: AppDependencies) {
       releaseEvidence: dependencies.releaseEvidence,
       projectHistory: dependencies.projectHistory,
       projectUpdates: dependencies.projectUpdates,
+      linkSharing: dependencies.linkSharing,
       projectClosureSummary: dependencies.projectClosureSummary,
       valueChain: dependencies.valueChain,
       trustedProxyIps: dependencies.trustedProxyIps,

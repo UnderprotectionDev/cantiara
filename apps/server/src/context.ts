@@ -38,6 +38,7 @@ import type { FeedbackAccess } from "@cantiara/api/feedback";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
 import type { GitHubIntegrationAccess } from "@cantiara/api/github-integration";
+import type { LinkSharingAccess } from "@cantiara/api/link-sharing";
 import type { MoodboardSnapshotsAccess } from "@cantiara/api/moodboard-snapshot";
 import type { PersonalMoodboardViewsAccess } from "@cantiara/api/moodboard-viewport";
 import type {
@@ -153,6 +154,7 @@ export interface CreateContextOptions {
   gitHubIntegration?: GitHubIntegrationAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
+  linkSharing?: LinkSharingAccess;
   moodboardMutationContracts?: MoodboardMutationContracts;
   moodboardPersonalViews?: PersonalMoodboardViewsAccess;
   moodboardSnapshots?: MoodboardSnapshotsAccess;
@@ -306,6 +308,7 @@ export async function createContext({
   releaseEvidence,
   projectHistory,
   projectUpdates,
+  linkSharing,
   projectClosureSummary,
   valueChain,
   tagMutationContracts,
@@ -415,6 +418,7 @@ export async function createContext({
     releaseEvidence,
     projectHistory,
     projectUpdates,
+    linkSharing,
     projectClosureSummary,
     valueChain,
     auth: null,
