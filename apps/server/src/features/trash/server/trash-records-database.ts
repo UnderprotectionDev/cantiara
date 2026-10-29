@@ -9,6 +9,7 @@ import { work } from "@cantiara/db/schema/work";
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import type { TrashRecordFacts } from "./trash";
+import { trashConfigurationAdapters } from "./trash-configuration-database";
 
 export type TrashRecordExecutor = Pick<
   Database,
@@ -231,6 +232,7 @@ const externalSurfaceAdapter: TrashRecordAdapter = {
 /** The first-slice registry. Configuration kinds and the rest are later adapters. */
 export const trashRecordAdapters: Record<TrashRecordKind, TrashRecordAdapter> =
   {
+    ...trashConfigurationAdapters,
     Decision: adapterFor(decision),
     "External Surface": externalSurfaceAdapter,
     Document: adapterFor(document),

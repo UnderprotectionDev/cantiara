@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
+import {
+  TRASH_CONFIGURATION_KINDS,
+  type TrashConfigurationImpact,
+  type TrashRestorePreview,
+} from "./trash-configuration";
 
 /**
  * Trash seam (spec 77): the product-facing recoverable-deletion interface. A
@@ -40,6 +45,8 @@ export const TRASH_RECORD_KINDS = [
   "Screen",
   // A revoked Dış yüzey follows the same 30 days (it never gets a second clock).
   "External Surface",
+  // Configuration Trash (#498): definitions share the same clock and rules.
+  ...TRASH_CONFIGURATION_KINDS,
 ] as const;
 export const trashRecordKindSchema = z.enum(TRASH_RECORD_KINDS);
 export type TrashRecordKind = z.infer<typeof trashRecordKindSchema>;
@@ -199,6 +206,11 @@ export interface TrashSurface {
 }
 
 export interface MoveToTrashPreview {
+  /**
+   * Configuration kinds only: affected stored values and dependent views,
+   * rules and references, so the founder sees the blast radius first.
+   */
+  configuration?: TrashConfigurationImpact;
   /** What commit does to an Active surface when the founder does not choose. */
   defaultDisposition: "revoke";
   keepApprovedSurface:
@@ -363,4 +375,12 @@ export interface TrashAccess {
     accountId: string,
     input: RestoreFromTrashInput,
   ) => Promise<RestoreResult | null>;
+  /**
+   * Conflicts a restore would meet (permanently deleted, in Trash or
+   * meaning-changed dependency). Never rebinds; `null` when not the account's.
+   */
+  restorePreview: (
+    accountId: string,
+    input: { entryId: string; projectId: string },
+  ) => Promise<TrashRestorePreview | null>;
 }

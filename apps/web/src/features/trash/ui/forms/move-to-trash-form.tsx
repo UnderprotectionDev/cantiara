@@ -16,6 +16,7 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useEffect, useRef } from "react";
 import type { TrashCandidate } from "../../lib/trash-candidates";
+import { TrashConfigurationImpactList } from "../components/trash-configuration-impact";
 
 /**
  * The `Move to Trash` preview: every attached External Surface is listed
@@ -102,6 +103,9 @@ export function MoveToTrashForm({
           </ul>
         </>
       )}
+      {preview.configuration ? (
+        <TrashConfigurationImpactList impact={preview.configuration} />
+      ) : null}
       {hasActive ? (
         <form.Field name="disposition">
           {(field) => (

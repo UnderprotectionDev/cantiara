@@ -38,6 +38,9 @@ export const smartCollection = pgTable(
       .notNull()
       .default({}),
     createdAt: timestamp("created_at").notNull().defaultNow(),
+    // Trash (spec 77, Configuration Trash): a trashed collection yields no membership.
+    revision: integer("revision").notNull().default(1),
+    trashedAt: timestamp("trashed_at"),
   },
   (table) => [
     index("smart_collection_project_idx").on(table.projectId),

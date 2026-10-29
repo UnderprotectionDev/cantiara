@@ -761,6 +761,10 @@ import {
   trashOverviewInputSchema,
 } from "../trash";
 import {
+  TrashRestoreConflictError,
+  trashRestorePreviewInputSchema,
+} from "../trash-configuration";
+import {
   convertUserFlowNodeInputSchema,
   createUserFlowFromTemplateInputSchema,
   createUserFlowInputSchema,
@@ -4666,6 +4670,18 @@ async function trashWrite<T>(
         message: "Revoke the External Surface before moving it to Trash",
       });
     }
+    if (error instanceof TrashRestoreConflictError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: {
+          code: "TRASH_RESTORE_CONFLICT",
+          conflicts: error.conflicts,
+          targetId,
+        },
+        defined: true,
+        message: error.message,
+      });
+    }
     if (error instanceof TrashAlreadyTrashedError) {
       throw new ORPCError("CONFLICT", {
         cause: error,
@@ -4738,6 +4754,13 @@ export const appRouter = {
     .handler(({ context, input }) =>
       trashWrite(input.recordId, () =>
         requireTrash(context).move(context.session.user.id, input),
+      ),
+    ),
+  restoreFromTrashPreview: protectedProcedure
+    .input(trashRestorePreviewInputSchema)
+    .handler(({ context, input }) =>
+      trashWrite(input.entryId, () =>
+        requireTrash(context).restorePreview(context.session.user.id, input),
       ),
     ),
   restoreFromTrash: protectedProcedure

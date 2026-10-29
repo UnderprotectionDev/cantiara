@@ -9,10 +9,16 @@ import {
   type TrashEntry,
   type TrashSurfaceDisposition,
 } from "@cantiara/api/trash";
+import {
+  isTrashConfigurationKind,
+  type TrashRestoreConflict,
+  type TrashRestorePreview,
+} from "@cantiara/api/trash-configuration";
 import { Button } from "@cantiara/ui/components/button";
 import { useState } from "react";
 import type { TrashCandidate } from "../../lib/trash-candidates";
 import { TrashEntryList } from "../components/trash-entry-list";
+import { TrashRestoreConflicts } from "../components/trash-restore-conflicts";
 import { MoveToTrashForm } from "../forms/move-to-trash-form";
 
 /**
@@ -26,6 +32,7 @@ export function TrashView({
   onMove,
   onPreview,
   onRestore,
+  onRestorePreview,
 }: {
   candidates: readonly TrashCandidate[];
   entries: readonly TrashEntry[];
@@ -36,7 +43,13 @@ export function TrashView({
   ) => Promise<unknown>;
   onPreview: (candidate: TrashCandidate) => Promise<MoveToTrashPreview>;
   onRestore: (entry: TrashEntry) => Promise<unknown>;
+  /** Configuration kinds only: reads dependency conflicts before a restore. */
+  onRestorePreview?: (entry: TrashEntry) => Promise<TrashRestorePreview>;
 }) {
+  const [conflicts, setConflicts] = useState<{
+    conflicts: TrashRestoreConflict[];
+    label: string;
+  } | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
   const [restoreFailed, setRestoreFailed] = useState<string | null>(null);
   const [restoredLabel, setRestoredLabel] = useState<string | null>(null);
@@ -45,7 +58,20 @@ export function TrashView({
     setRestoring(entry.id);
     setRestoreFailed(null);
     setRestoredLabel(null);
+    setConflicts(null);
     try {
+      // A definition with an unresolvable dependency shows a conflict preview
+      // and stays in Trash; nothing is rebound.
+      if (onRestorePreview && isTrashConfigurationKind(entry.recordKind)) {
+        const check = await onRestorePreview(entry);
+        if (!check.restorable) {
+          setConflicts({
+            conflicts: check.conflicts,
+            label: entry.recordLabel,
+          });
+          return;
+        }
+      }
       await onRestore(entry);
       setRestoredLabel(entry.recordLabel);
     } catch {
@@ -111,6 +137,12 @@ export function TrashView({
         onRestore={restore}
         pendingId={restoring}
       />
+      {conflicts ? (
+        <TrashRestoreConflicts
+          conflicts={conflicts.conflicts}
+          label={conflicts.label}
+        />
+      ) : null}
       <p aria-live="polite" role="status">
         {restoredLabel ? `Restored ${restoredLabel}.` : null}
       </p>

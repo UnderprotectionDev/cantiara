@@ -103,6 +103,13 @@ describe("Trash seam: Move to Trash", () => {
       "Risk",
       "Screen",
       "External Surface",
+      "Custom Field",
+      "Smart Collection",
+      "Automation Rule",
+      "Work Template",
+      "Document Template",
+      "Record Action",
+      "Prioritization Session",
     ]);
   });
 

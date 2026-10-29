@@ -8,6 +8,7 @@ import { useMemo } from "react";
 import { orpc } from "@/utils/orpc";
 import { useMoveToTrash } from "../../hooks/use-move-to-trash";
 import { usePreviewMoveToTrash } from "../../hooks/use-move-to-trash-preview";
+import { usePreviewRestoreFromTrash } from "../../hooks/use-preview-restore-from-trash";
 import { useRestoreFromTrash } from "../../hooks/use-restore-from-trash";
 import { trashCandidates } from "../../lib/trash-candidates";
 import { TrashView } from "../views/trash-view";
@@ -18,18 +19,38 @@ export default function TrashSurface({ projectId }: { projectId: string }) {
   const trash = useQuery(orpc.trash.queryOptions({ input }));
   const risks = useQuery(orpc.projectRisks.queryOptions({ input }));
   const decisions = useQuery(orpc.projectDecisions.queryOptions({ input }));
+  const customFields = useQuery(orpc.customFields.queryOptions({ input }));
+  const workTemplates = useQuery(orpc.workTemplates.queryOptions({ input }));
+  const automationRules = useQuery(
+    orpc.workAutomationRules.queryOptions({ input }),
+  );
+  const documentTemplates = useQuery(
+    orpc.documentTemplates.queryOptions({ input }),
+  );
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
   const move = useMoveToTrash(projectId);
   const preview = usePreviewMoveToTrash(projectId);
   const restore = useRestoreFromTrash(projectId);
+  const restorePreview = usePreviewRestoreFromTrash(projectId);
 
   const candidates = useMemo(
     () =>
       trashCandidates({
+        automationRules: automationRules.data,
+        customFields: customFields.data,
         decisions: decisions.data?.records,
+        documentTemplates: documentTemplates.data,
         risks: risks.data?.records,
+        workTemplates: workTemplates.data,
       }),
-    [decisions.data, risks.data],
+    [
+      automationRules.data,
+      customFields.data,
+      decisions.data,
+      documentTemplates.data,
+      risks.data,
+      workTemplates.data,
+    ],
   );
 
   if (trash.isPending) {
@@ -59,6 +80,7 @@ export default function TrashSurface({ projectId }: { projectId: string }) {
       onMove={move}
       onPreview={preview}
       onRestore={restore}
+      onRestorePreview={restorePreview}
     />
   );
 }
