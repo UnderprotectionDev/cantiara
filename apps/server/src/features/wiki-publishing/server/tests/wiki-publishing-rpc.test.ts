@@ -108,6 +108,33 @@ describe("Wiki Publishing RPC", () => {
     });
   });
 
+  test("maps a not-published Document to a typed CONFLICT for unpublish and indexing", async () => {
+    const fail = () => {
+      throw new WikiPublishingError("WIKI_PUBLISHING_NOT_PUBLISHED", "x");
+    };
+    const client = createClient({ setIndexing: fail, unpublish: fail });
+
+    await expect(
+      client.unpublishWikiDocument({
+        baseRevision: 1,
+        clientIdempotencyKey: "key-6",
+        documentId: "wiki-1",
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      data: { code: "WIKI_PUBLISHING_NOT_PUBLISHED" },
+    });
+    await expect(
+      client.setWikiIndexing({
+        acknowledgeThirdPartyCopies: false,
+        baseRevision: 1,
+        clientIdempotencyKey: "key-7",
+        documentId: "wiki-1",
+        enabled: false,
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
   test("maps an unacknowledged indexing request and a missing Wiki Document", async () => {
     const unacknowledged = createClient({
       setIndexing: () => {

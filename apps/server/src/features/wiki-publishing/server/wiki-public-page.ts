@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   WIKI_PUBLISHING_UI_LABELS,
   type WikiDocumentSnapshot,
@@ -23,21 +24,46 @@ function escapeHtml(value: string) {
   return value.replace(/["&'<>]/gu, (char) => ESCAPES[char] ?? char);
 }
 
-/** Markdown to HTML with no raw HTML, no image request on paint and `noreferrer` links. */
+const ENTITIES: Record<string, string> = {
+  "&#39;": "'",
+  "&amp;": "&",
+  "&gt;": ">",
+  "&lt;": "<",
+  "&quot;": '"',
+};
+const ENTITY = /&(?:#39|amp|gt|lt|quot);/gu;
+const SAFE_HREF = /^(?:https?:\/\/|mailto:)/iu;
+const MARKDOWN_ANCHOR = /<a\s+href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gu;
+const SCHEME = /^https?:\/\//iu;
+
+/** The only anchor shape the public page emits; `href` is raw text and is escaped here. */
+function anchor(href: string, innerHtml: string) {
+  return `<a rel="noreferrer noopener nofollow" href="${escapeHtml(href)}">${innerHtml}</a>`;
+}
+
+/**
+ * Markdown to HTML with no raw HTML, no image request on paint, only
+ * http/https/mailto links (anything else becomes plain text) and `noreferrer` links.
+ */
 function markdownHtml(markdown: string) {
   return renderHtml(markdown, { allowHtml: false })
     .replace(/<img\b[^>]*\balt="([^"]*)"[^>]*>/gu, "$1")
     .replace(/<img\b[^>]*>/gu, "")
-    .replace(
-      /<a\s+href="([^"]*)"/gu,
-      '<a rel="noreferrer noopener nofollow" href="$1"',
-    );
+    .replace(MARKDOWN_ANCHOR, (_match, href: string, inner: string) => {
+      const raw = href.replace(ENTITY, (entity) => ENTITIES[entity] ?? entity);
+      return SAFE_HREF.test(raw) ? anchor(raw, inner) : inner;
+    });
+}
+
+function sha256Source(content: string) {
+  return `'sha256-${createHash("sha256").update(content).digest("base64")}'`;
 }
 
 function youtubeCard(videoId: string, url: string, index: number) {
   const label = WIKI_PUBLISHING_UI_LABELS.liveExternalSource;
+  const href = SCHEME.test(url) ? url : `https://${url}`;
   // No iframe, script or request to a third party exists until the visitor clicks.
-  return `<figure class="yt" data-video-id="${videoId}"><figcaption><strong>${escapeHtml(label)}</strong><span> Loading plays a video from YouTube (youtube-nocookie.com), which may set cookies.</span></figcaption><button type="button" class="yt-load" data-yt-index="${index}">Load video from YouTube</button><p><a rel="noreferrer noopener nofollow" href="${escapeHtml(url)}">${escapeHtml(url)}</a></p></figure>`;
+  return `<figure class="yt" data-video-id="${videoId}"><figcaption><strong>${escapeHtml(label)}</strong><span> Loading plays a video from YouTube (youtube-nocookie.com), which may set cookies.</span></figcaption><button type="button" class="yt-load" data-yt-index="${index}">Load video from YouTube</button><p>${anchor(href, escapeHtml(url))}</p></figure>`;
 }
 
 function blockHtml(member: WikiSnapshotMember) {
@@ -63,7 +89,7 @@ function trimmedTitle(body: string, title: string) {
 }
 
 export interface RenderedWikiPage {
-  /** The CSP of this exact document, matching its nonce. */
+  /** Hash-based CSP of this exact document: page and CSP are the same for every visitor, so both are safe to cache. */
   csp: string;
   hasYoutube: boolean;
   html: string;
@@ -71,9 +97,9 @@ export interface RenderedWikiPage {
 
 export function renderWikiPublicPage(
   snapshot: WikiDocumentSnapshot,
-  options: { indexable: boolean; nonce: string; surfaceId: string },
+  options: { indexable: boolean; surfaceId: string },
 ): RenderedWikiPage {
-  const { nonce, surfaceId } = options;
+  const { surfaceId } = options;
   const members = new Map(
     snapshot.members.map((member) => [member.memberId, member]),
   );
@@ -114,7 +140,7 @@ export function renderWikiPublicPage(
         return member.files
           .map(
             (file, index) =>
-              `<li><a rel="noreferrer noopener nofollow" href="/w/${escapeHtml(surfaceId)}/assets/${member.memberId}/${index}">${escapeHtml(file.name)}</a></li>`,
+              `<li>${anchor(`/w/${surfaceId}/assets/${member.memberId}/${index}`, escapeHtml(file.name))}</li>`,
           )
           .join("");
       }
@@ -133,14 +159,15 @@ export function renderWikiPublicPage(
   const description = snapshot.summary
     ? `<meta name="description" content="${escapeHtml(snapshot.summary)}">`
     : "";
-  const script = hasYoutube
-    ? `<script nonce="${nonce}">const ids=${JSON.stringify(videos)};for(const b of document.querySelectorAll(".yt-load")){b.addEventListener("click",()=>{const f=b.closest("figure");const i=document.createElement("iframe");i.src="https://www.youtube-nocookie.com/embed/"+ids[Number(b.dataset.ytIndex)]+"?autoplay=0&rel=0";i.title="YouTube video player";i.referrerPolicy="no-referrer";i.allow="encrypted-media; picture-in-picture";i.allowFullscreen=true;i.className="yt-frame";b.replaceWith(i);i.focus();});}</script>`
-    : "";
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">${robots}${description}<title>${escapeHtml(snapshot.title)}</title><style nonce="${nonce}">body{font:16px/1.6 system-ui,sans-serif;margin:0;color:#1a1a1a;background:#fff}main{max-width:44rem;margin:0 auto;padding:2rem 1rem}pre{overflow:auto}.summary{color:#555}.snapshot{border:1px solid #ccc;border-radius:6px;padding:.75rem 1rem;margin:1rem 0}.snapshot-label{font-size:.85rem;color:#555;margin:0}.yt{margin:1rem 0}.yt-frame{width:100%;aspect-ratio:16/9;border:0}.yt-load{font:inherit;padding:.5rem 1rem;cursor:pointer}</style></head><body><main><article><h1>${escapeHtml(snapshot.title)}</h1>${summary}${parts.join("")}${extra.length > 0 ? `<ul>${extra.join("")}</ul>` : ""}</article></main>${script}</body></html>`;
+  const scriptBody = `const ids=${JSON.stringify(videos)};for(const b of document.querySelectorAll(".yt-load")){b.addEventListener("click",()=>{const f=b.closest("figure");const i=document.createElement("iframe");i.src="https://www.youtube-nocookie.com/embed/"+ids[Number(b.dataset.ytIndex)]+"?autoplay=0&rel=0";i.title="YouTube video player";i.referrerPolicy="no-referrer";i.allow="encrypted-media; picture-in-picture";i.allowFullscreen=true;i.className="yt-frame";b.replaceWith(i);i.focus();});}`;
+  const script = hasYoutube ? `<script>${scriptBody}</script>` : "";
+  const styleBody =
+    "body{font:16px/1.6 system-ui,sans-serif;margin:0;color:#1a1a1a;background:#fff}main{max-width:44rem;margin:0 auto;padding:2rem 1rem}pre{overflow:auto}.summary{color:#555}.snapshot{border:1px solid #ccc;border-radius:6px;padding:.75rem 1rem;margin:1rem 0}.snapshot-label{font-size:.85rem;color:#555;margin:0}.yt{margin:1rem 0}.yt-frame{width:100%;aspect-ratio:16/9;border:0}.yt-load{font:inherit;padding:.5rem 1rem;cursor:pointer}";
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">${robots}${description}<title>${escapeHtml(snapshot.title)}</title><style>${styleBody}</style></head><body><main><article><h1>${escapeHtml(snapshot.title)}</h1>${summary}${parts.join("")}${extra.length > 0 ? `<ul>${extra.join("")}</ul>` : ""}</article></main>${script}</body></html>`;
   const csp = [
     "default-src 'none'",
-    `style-src 'nonce-${nonce}'`,
-    hasYoutube ? `script-src 'nonce-${nonce}'` : "script-src 'none'",
+    `style-src ${sha256Source(styleBody)}`,
+    hasYoutube ? `script-src ${sha256Source(scriptBody)}` : "script-src 'none'",
     hasYoutube
       ? "frame-src https://www.youtube-nocookie.com"
       : "frame-src 'none'",

@@ -17,6 +17,7 @@ import {
   liveBlockEmbedId,
   type PublishedWikiDocument,
   unresolvedPlaceholders,
+  WIKI_PUBLISHING_ERROR_MESSAGES,
   WIKI_PUBLISHING_NOTICE,
   type WikiDocumentSnapshot,
   type WikiEmbedItem,
@@ -105,15 +106,20 @@ export interface WikiPublishingStore {
     workspaceId: string,
     documentId: string,
   ) => Promise<WikiActiveSurface | null>;
-  /** Terminal: sets `cancelledAt` so the URL answers `410 Gone` from now on. */
-  cancel: (surfaceId: string) => Promise<void>;
+  /**
+   * Terminal: sets `cancelledAt` so the URL answers `410 Gone` from now on.
+   * False when the surface was already cancelled (a concurrent unpublish won).
+   */
+  cancel: (surfaceId: string) => Promise<boolean>;
   /**
    * Atomic: reuse the Document's active Wiki surface or create an independent
-   * one (no Project), then append the next Onaylı snapshot revizyonu.
+   * one (no Project), then append the next Onaylı snapshot revizyonu. The
+   * active check is repeated under a row lock, so a revision is never appended
+   * to a surface that an unpublish cancelled first; a cancelled id is never reused.
    */
   publish: (write: WikiPublishWrite) => Promise<PublishedWikiDocument>;
-  /** Explicit founder action only; publishing never writes this. */
-  setIndexing: (surfaceId: string, enabled: boolean) => Promise<void>;
+  /** Explicit founder action only; publishing never writes this. False when the surface is cancelled. */
+  setIndexing: (surfaceId: string, enabled: boolean) => Promise<boolean>;
 }
 
 export interface WikiPublishingOptions {
@@ -148,6 +154,13 @@ function member(
     title: source.title,
     version: source.version,
   };
+}
+
+function notPublished() {
+  return new WikiPublishingError(
+    "WIKI_PUBLISHING_NOT_PUBLISHED",
+    WIKI_PUBLISHING_ERROR_MESSAGES.WIKI_PUBLISHING_NOT_PUBLISHED,
+  );
 }
 
 function publicationOf(
@@ -313,13 +326,17 @@ export function createWikiPublishing(
         );
       }
       const surface = await store.active(root.workspaceId, input.documentId);
-      if (surface) {
-        await store.setIndexing(surface.surfaceId, input.enabled);
+      if (
+        !(
+          surface && (await store.setIndexing(surface.surfaceId, input.enabled))
+        )
+      ) {
+        throw notPublished();
       }
-      return publicationOf(
-        input.documentId,
-        surface && { ...surface, indexingEnabled: input.enabled },
-      );
+      return publicationOf(input.documentId, {
+        ...surface,
+        indexingEnabled: input.enabled,
+      });
     },
 
     unpublish: async (accountId, documentId) => {
@@ -328,8 +345,8 @@ export function createWikiPublishing(
         return null;
       }
       const surface = await store.active(root.workspaceId, documentId);
-      if (surface) {
-        await store.cancel(surface.surfaceId);
+      if (!(surface && (await store.cancel(surface.surfaceId)))) {
+        throw notPublished();
       }
       return publicationOf(documentId, null);
     },

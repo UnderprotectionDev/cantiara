@@ -39,14 +39,22 @@ export function createWikiPublicRoutes(options: {
   app.get("/:surfaceId/assets/:memberId/:fileIndex", (c) => {
     const surfaceId = c.req.param("surfaceId");
     const memberId = c.req.param("memberId");
-    const fileIndex = Number(c.req.param("fileIndex"));
+    const rawIndex = c.req.param("fileIndex");
+    // Only a canonical non-negative integer names a file; the live check still runs first.
+    const fileIndex =
+      Number.isInteger(Number(rawIndex)) &&
+      String(Number(rawIndex)) === rawIndex
+        ? Number(rawIndex)
+        : -1;
     return access.asset(c.req.raw, surfaceId, {
       assetKey: `${memberId}:${fileIndex}`,
       open: async () => {
         const snapshot = await snapshots.latest(surfaceId);
-        const file = snapshot?.members.find(
-          (member) => member.memberId === memberId,
-        )?.files[fileIndex];
+        const file =
+          fileIndex < 0
+            ? undefined
+            : snapshot?.members.find((member) => member.memberId === memberId)
+                ?.files[fileIndex];
         if (!file) {
           return null;
         }
@@ -80,7 +88,6 @@ export function createWikiPublicRoutes(options: {
         }
         const page = renderWikiPublicPage(snapshot, {
           indexable: state.indexingEnabled,
-          nonce: crypto.randomUUID(),
           surfaceId,
         });
         return {

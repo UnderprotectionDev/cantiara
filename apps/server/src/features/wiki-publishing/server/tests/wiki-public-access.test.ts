@@ -1,6 +1,8 @@
 // biome-ignore-all lint/performance/useTopLevelRegex: assertions read clearer with inline patterns.
 // biome-ignore-all lint/performance/noAwaitInLoops: requests are checked one after another on purpose.
 
+import { createHash } from "node:crypto";
+import { createExternalSurfaceAccess } from "@cantiara/api/external-surface-access";
 import {
   WIKI_INDEXING_WARNING,
   type WikiPublishingError,
@@ -98,6 +100,22 @@ describe("Wiki public page", () => {
     );
     expect(html).not.toContain("<img");
     expect(html).not.toContain("tracker.example");
+  });
+});
+
+describe("Wiki Markdown links", () => {
+  test("only http, https and mailto links stay links; others become plain text", async () => {
+    const { path, site } = await published({
+      rootBody: `${ROOT_BODY}\n\n[a](javascript:alert(1)) [b](data:text/html,x) [c](/relative) [d](https://example.com/ok) [e](mailto:me@example.com) [f](vbscript:x)`,
+    });
+
+    const html = await (await site.get(path)).text();
+
+    expect(html).not.toMatch(/href="(?!https?:|mailto:|\/w\/)/u);
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("data:text");
+    expect(html).toContain('href="https://example.com/ok"');
+    expect(html).toContain('href="mailto:me@example.com"');
   });
 });
 
@@ -293,6 +311,69 @@ describe("Wiki unpublish fails closed before any cache", () => {
     expect((await site.get(`/${again?.surfaceId}/page`)).status).toBe(200);
   });
 
+  test("unpublish and indexing without an active surface fail with a typed error", async () => {
+    const { fixtures } = await published();
+    await fixtures.access.unpublish(ACCOUNT_ID, ROOT_ID);
+
+    await expect(
+      fixtures.access.unpublish(ACCOUNT_ID, ROOT_ID),
+    ).rejects.toMatchObject({ code: "WIKI_PUBLISHING_NOT_PUBLISHED" });
+    await expect(
+      fixtures.access.setIndexing(ACCOUNT_ID, {
+        acknowledgeThirdPartyCopies: true,
+        documentId: ROOT_ID,
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "WIKI_PUBLISHING_NOT_PUBLISHED" });
+    await expect(
+      fixtures.access.setIndexing(ACCOUNT_ID, {
+        acknowledgeThirdPartyCopies: false,
+        documentId: ROOT_ID,
+        enabled: false,
+      }),
+    ).rejects.toMatchObject({ code: "WIKI_PUBLISHING_NOT_PUBLISHED" });
+  });
+
+  test("a delivery cannot override the security headers", async () => {
+    const access = createExternalSurfaceAccess({
+      reader: {
+        read: async () => ({
+          cancelled: false,
+          indexingEnabled: false,
+          revision: 1,
+        }),
+      },
+    });
+    const body = new TextEncoder().encode("x");
+    const evil = {
+      "Cache-Control": "public, max-age=999",
+      "Content-Security-Policy": "default-src *",
+      "Referrer-Policy": "unsafe-url",
+      "X-Content-Type-Options": "sniff",
+      "X-Robots-Tag": "all",
+      "content-disposition": "attachment",
+    };
+
+    const page = await access.page(new Request("http://x/s"), "s", {
+      render: async () => ({ body, contentType: "text/html", headers: evil }),
+    });
+    const asset = await access.asset(new Request("http://x/s"), "s", {
+      assetKey: "a",
+      open: async () => ({ body, contentType: "image/png", headers: evil }),
+    });
+
+    for (const response of [page, asset]) {
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      expect(response.headers.get("content-security-policy")).not.toContain(
+        "*",
+      );
+      expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+      expect(response.headers.get("content-disposition")).toBe("attachment");
+    }
+  });
+
   test("only the owner can unpublish or change indexing", async () => {
     const { fixtures, path, site } = await published();
 
@@ -362,8 +443,30 @@ describe("Wiki assets and ranges", () => {
       `/${harness.result.surfaceId}/assets/member-1/0`,
     );
 
-    expect(response.status).toBe(410);
+    expect(response.status).toBe(404);
     expect(await response.text()).toBe("");
+  });
+
+  test("an invalid or unknown member or file index on a live surface answers 404, while a removed surface stays 410", async () => {
+    const { asset, fixtures, result, site } = await assetPath();
+    const base = `/${result.surfaceId}/assets`;
+    const [, , , member] = asset.split("/");
+
+    for (const bad of [
+      `${base}/${member}/NaN`,
+      `${base}/${member}/abc`,
+      `${base}/${member}/-1`,
+      `${base}/${member}/1.5`,
+      `${base}/${member}/99`,
+      `${base}/${member}/01`,
+      `${base}/unknown-member/0`,
+    ]) {
+      const response = await site.get(bad);
+      expect([bad, response.status]).toEqual([bad, 404]);
+    }
+    await fixtures.access.unpublish(ACCOUNT_ID, ROOT_ID);
+    expect((await site.get(`${base}/${member}/NaN`)).status).toBe(410);
+    expect((await site.get(`${base}/${member}/99`)).status).toBe(410);
   });
 });
 
@@ -384,8 +487,46 @@ describe("Wiki YouTube click-to-load", () => {
     expect(html).not.toMatch(/<script[^>]*\ssrc=/u);
     expect(html).not.toMatch(/<link[^>]*href="http/u);
     expect(csp).toContain("frame-src https://www.youtube-nocookie.com");
-    expect(csp).toMatch(/script-src 'nonce-[^']+'/u);
+    expect(csp).toMatch(/script-src 'sha256-[^']+'/u);
     expect(csp).not.toContain("https://www.youtube.com");
+  });
+
+  test("the cached page and CSP are identical for every visitor and use no nonce", async () => {
+    const { path, site } = await published({
+      rootBody: `${ROOT_BODY}\n\n${YOUTUBE_URL}`,
+    });
+
+    const first = await site.get(path);
+    const second = await site.get(path);
+    const html = await first.text();
+    const csp = first.headers.get("content-security-policy") ?? "";
+
+    expect(await second.text()).toBe(html);
+    expect(second.headers.get("content-security-policy")).toBe(csp);
+    expect(html).not.toContain("nonce");
+    expect(csp).not.toContain("nonce");
+    for (const [tag, directive] of [
+      ["script", "script-src"],
+      ["style", "style-src"],
+    ] as const) {
+      const body = html.slice(
+        html.indexOf(`<${tag}>`) + tag.length + 2,
+        html.indexOf(`</${tag}>`),
+      );
+      const digest = createHash("sha256").update(body).digest("base64");
+      expect(csp).toContain(`${directive} 'sha256-${digest}'`);
+    }
+  });
+
+  test("a scheme-less YouTube line links to https", async () => {
+    const { path, site } = await published({
+      rootBody: `${ROOT_BODY}\n\nyoutube.com/watch?v=dQw4w9WgXcQ`,
+    });
+
+    const html = await (await site.get(path)).text();
+
+    expect(html).toContain('href="https://youtube.com/watch?v=dQw4w9WgXcQ"');
+    expect(html).not.toContain('href="youtube.com');
   });
 
   test("a page without a video allows no script or frame at all", async () => {

@@ -54,7 +54,7 @@ export interface SurfacePageOptions {
 export interface SurfaceAssetOptions {
   /** Cache key part naming the exact asset and version (never an object-store URL). */
   assetKey: string;
-  /** Loads the exact approved file version, or null when it is not part of the snapshot. */
+  /** Loads the exact approved file version, or null when it is not part of the snapshot (answers 404). */
   open: (state: ExternalSurfaceState) => Promise<SurfaceDelivery | null>;
 }
 
@@ -73,18 +73,49 @@ export function goneResponse() {
   });
 }
 
+/** Headers only the access module may set; a delivery can never override them. */
+const OWNED_HEADERS = new Set([
+  "accept-ranges",
+  "cache-control",
+  "content-length",
+  "content-range",
+  "content-security-policy",
+  "content-type",
+  "cross-origin-resource-policy",
+  "referrer-policy",
+  "x-content-type-options",
+  "x-robots-tag",
+]);
+
+/** Bodyless `404 Not Found` for an unknown member or file of a live surface. */
+export function notFoundResponse() {
+  return new Response(null, {
+    headers: {
+      "cache-control": "no-store",
+      "referrer-policy": SURFACE_REFERRER_POLICY,
+      "x-robots-tag": SURFACE_NOINDEX,
+    },
+    status: 404,
+  });
+}
+
 function surfaceHeaders(
   state: ExternalSurfaceState,
   delivery: SurfaceDelivery,
 ) {
+  const extra = Object.fromEntries(
+    Object.entries(delivery.headers ?? {}).filter(
+      ([name]) => !OWNED_HEADERS.has(name.toLowerCase()),
+    ),
+  );
   const headers: Record<string, string> = {
+    ...extra,
     // A copy in a shared cache would outlive a revoke, so the response itself is uncacheable.
     "cache-control": "private, no-store",
     "content-security-policy": delivery.csp ?? "default-src 'none'",
     "content-type": delivery.contentType,
     "referrer-policy": SURFACE_REFERRER_POLICY,
     "x-content-type-options": "nosniff",
-    ...delivery.headers,
   };
   if (!state.indexingEnabled) {
     headers["x-robots-tag"] = SURFACE_NOINDEX;
@@ -189,7 +220,8 @@ export function createExternalSurfaceAccess(options: {
           : null;
       });
       if (!full) {
-        return goneResponse();
+        // The surface is live, so a missing member or file is an unknown path, not a removal.
+        return notFoundResponse();
       }
       const contentType =
         full.headers["content-type"] || "application/octet-stream";

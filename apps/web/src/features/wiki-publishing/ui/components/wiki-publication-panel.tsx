@@ -19,6 +19,8 @@ import { useState } from "react";
 
 interface WikiPublicationPanelProps {
   busy?: boolean;
+  /** Founder-facing text of the last failed action (see `WIKI_PUBLISHING_ERROR_MESSAGES`). */
+  error?: string | null;
   onSetIndexing: (input: {
     acknowledgeThirdPartyCopies: boolean;
     enabled: boolean;
@@ -36,6 +38,7 @@ interface WikiPublicationPanelProps {
  */
 export function WikiPublicationPanel({
   busy = false,
+  error = null,
   onSetIndexing,
   onUnpublish,
   publication,
@@ -49,6 +52,7 @@ export function WikiPublicationPanel({
     return (
       <section aria-labelledby="wiki-publication-title" className="grid gap-1">
         <h3 id="wiki-publication-title">Public page</h3>
+        {error ? <p role="alert">{error}</p> : null}
         <p role="status">This Document is not published.</p>
       </section>
     );
@@ -57,6 +61,7 @@ export function WikiPublicationPanel({
   return (
     <section aria-labelledby="wiki-publication-title" className="grid gap-2">
       <h3 id="wiki-publication-title">Public page</h3>
+      {error ? <p role="alert">{error}</p> : null}
       {publicUrl ? (
         <p>
           <a href={publicUrl} rel="noreferrer noopener" target="_blank">

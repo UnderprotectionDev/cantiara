@@ -1250,6 +1250,7 @@ function rethrowWikiPublishingError(error: unknown): never {
   }
   const status = {
     WIKI_PUBLISHING_INDEXING_UNACKNOWLEDGED: "PRECONDITION_FAILED",
+    WIKI_PUBLISHING_NOT_PUBLISHED: "CONFLICT",
     WIKI_PUBLISHING_PLACEHOLDERS_UNRESOLVED: "CONFLICT",
     WIKI_PUBLISHING_PREVIEW_STALE: "PRECONDITION_FAILED",
   }[error.code] as "CONFLICT" | "PRECONDITION_FAILED" | undefined;
@@ -7900,11 +7901,15 @@ export const appRouter = {
   unpublishWikiDocument: protectedProcedure
     .input(unpublishWikiDocumentInputSchema)
     .handler(async ({ context, input }) => {
-      const publication = await requireWikiPublishing(context).unpublish(
-        context.session.user.id,
-        input.documentId,
-      );
-      return publication ?? wikiDocumentUnavailable();
+      try {
+        const publication = await requireWikiPublishing(context).unpublish(
+          context.session.user.id,
+          input.documentId,
+        );
+        return publication ?? wikiDocumentUnavailable();
+      } catch (error) {
+        rethrowWikiPublishingError(error);
+      }
     }),
   setWikiIndexing: protectedProcedure
     .input(setWikiIndexingInputSchema)

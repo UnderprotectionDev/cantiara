@@ -1,6 +1,9 @@
 // @vitest-environment happy-dom
 
-import type { WikiPublication } from "@cantiara/api/wiki-publishing";
+import {
+  WIKI_PUBLISHING_ERROR_MESSAGES,
+  type WikiPublication,
+} from "@cantiara/api/wiki-publishing";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
@@ -130,6 +133,27 @@ test("an indexed page offers Disable indexing without a warning dialog", () => {
     acknowledgeThirdPartyCopies: false,
     enabled: false,
   });
+});
+
+test("shows the founder-facing error of a failed action as an alert", () => {
+  const host = document.createElement("div");
+  document.body.append(host);
+  root = createRoot(host);
+  act(() =>
+    root?.render(
+      <WikiPublicationPanel
+        error={WIKI_PUBLISHING_ERROR_MESSAGES.WIKI_PUBLISHING_NOT_PUBLISHED}
+        onSetIndexing={vi.fn()}
+        onUnpublish={vi.fn()}
+        publication={{ ...published, path: null, surfaceId: null }}
+        publicUrl={null}
+      />,
+    ),
+  );
+
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+    "not published",
+  );
 });
 
 test("an unpublished Document shows status only and no Unpublish control", () => {

@@ -160,15 +160,19 @@ export function createFixtures(input: { rootBody?: string } = {}) {
     },
     cancel: async (surfaceId) => {
       const surface = surfaces.get(surfaceId);
-      if (surface) {
-        surface.cancelled = true;
+      if (!surface || surface.cancelled) {
+        return false;
       }
+      surface.cancelled = true;
+      return true;
     },
     setIndexing: async (surfaceId, enabled) => {
       const surface = surfaces.get(surfaceId);
-      if (surface && !surface.cancelled) {
-        surface.indexingEnabled = enabled;
+      if (!surface || surface.cancelled) {
+        return false;
       }
+      surface.indexingEnabled = enabled;
+      return true;
     },
     publish: async (write) => {
       let found = [...surfaces.entries()].find(

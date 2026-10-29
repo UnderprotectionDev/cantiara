@@ -162,11 +162,27 @@ export interface PublishedWikiDocument {
 
 export const WIKI_PUBLISHING_ERROR_CODES = [
   "WIKI_PUBLISHING_INDEXING_UNACKNOWLEDGED",
+  "WIKI_PUBLISHING_NOT_PUBLISHED",
   "WIKI_PUBLISHING_PLACEHOLDERS_UNRESOLVED",
   "WIKI_PUBLISHING_PREVIEW_STALE",
 ] as const;
 export type WikiPublishingErrorCode =
   (typeof WIKI_PUBLISHING_ERROR_CODES)[number];
+
+/** Founder-facing text for each typed error; the UI shows this instead of a raw code. */
+export const WIKI_PUBLISHING_ERROR_MESSAGES: Record<
+  WikiPublishingErrorCode,
+  string
+> = {
+  WIKI_PUBLISHING_INDEXING_UNACKNOWLEDGED:
+    "Acknowledge that third-party copies cannot be fully recalled before enabling indexing.",
+  WIKI_PUBLISHING_NOT_PUBLISHED:
+    "This Document is not published. Refresh to see its current state.",
+  WIKI_PUBLISHING_PLACEHOLDERS_UNRESOLVED:
+    "Resolve the placeholders or confirm Publish/share anyway.",
+  WIKI_PUBLISHING_PREVIEW_STALE:
+    "The preview changed. Review it again before publishing.",
+};
 
 export class WikiPublishingError extends Error {
   readonly code: WikiPublishingErrorCode;

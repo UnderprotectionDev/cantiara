@@ -356,40 +356,36 @@ const activeWikiSurface = (workspaceId: string, documentId: string) =>
 
 function createStore(database: Database): WikiPublishingStore {
   return {
+    // One statement: the surface and its latest revision come from the same snapshot.
     active: async (workspaceId, documentId) => {
-      const [surface] = await database
-        .select({
-          id: externalSurface.id,
-          indexingEnabled: externalSurface.indexingEnabled,
-        })
-        .from(externalSurface)
-        .where(activeWikiSurface(workspaceId, documentId))
-        .limit(1);
-      if (!surface) {
-        return null;
-      }
       const [latest] = await database
         .select({
+          indexingEnabled: externalSurface.indexingEnabled,
           revision: externalSurfaceSnapshotRevision.revision,
           snapshot: externalSurfaceSnapshotRevision.snapshot,
+          surfaceId: externalSurface.id,
         })
-        .from(externalSurfaceSnapshotRevision)
-        .where(eq(externalSurfaceSnapshotRevision.surfaceId, surface.id))
+        .from(externalSurface)
+        .innerJoin(
+          externalSurfaceSnapshotRevision,
+          eq(externalSurfaceSnapshotRevision.surfaceId, externalSurface.id),
+        )
+        .where(activeWikiSurface(workspaceId, documentId))
         .orderBy(desc(externalSurfaceSnapshotRevision.revision))
         .limit(1);
       const snapshot = latest?.snapshot as WikiDocumentSnapshot | undefined;
       return latest && snapshot
         ? {
-            indexingEnabled: surface.indexingEnabled,
+            indexingEnabled: latest.indexingEnabled,
             revision: latest.revision,
             slug: snapshot.slug,
-            surfaceId: surface.id,
+            surfaceId: latest.surfaceId,
           }
         : null;
     },
 
     cancel: async (surfaceId) => {
-      await database
+      const rows = await database
         .update(externalSurface)
         .set({ cancelledAt: new Date() })
         .where(
@@ -397,11 +393,13 @@ function createStore(database: Database): WikiPublishingStore {
             eq(externalSurface.id, surfaceId),
             isNull(externalSurface.cancelledAt),
           ),
-        );
+        )
+        .returning({ id: externalSurface.id });
+      return rows.length > 0;
     },
 
     setIndexing: async (surfaceId, enabled) => {
-      await database
+      const rows = await database
         .update(externalSurface)
         .set({ indexingEnabled: enabled })
         .where(
@@ -409,7 +407,9 @@ function createStore(database: Database): WikiPublishingStore {
             eq(externalSurface.id, surfaceId),
             isNull(externalSurface.cancelledAt),
           ),
-        );
+        )
+        .returning({ id: externalSurface.id });
+      return rows.length > 0;
     },
 
     publish: async ({ documentId, snapshot, workspaceId }) =>
@@ -418,12 +418,18 @@ function createStore(database: Database): WikiPublishingStore {
         await transaction.execute(
           sql`select pg_advisory_xact_lock(hashtext(${`wiki-publish:${documentId}`}))`,
         );
+        // `for update` takes the row lock a concurrent unpublish needs: if it
+        // committed first the row no longer matches `cancelledAt is null` and a
+        // fresh surface is born; if this runs first the unpublish waits for it.
+        // Either way no revision lands on a cancelled surface.
         const [existing] = await transaction
           .select({ id: externalSurface.id })
           .from(externalSurface)
           .where(activeWikiSurface(workspaceId, documentId))
-          .limit(1);
+          .limit(1)
+          .for("update");
         // No Project: a Wiki publish never creates a Build in Public surface.
+        // A new id is always random, so a cancelled surface id is never reused.
         const surfaceId = existing?.id ?? crypto.randomUUID();
         if (!existing) {
           await transaction.insert(externalSurface).values({
