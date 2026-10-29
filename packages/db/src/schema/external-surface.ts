@@ -34,7 +34,7 @@ export const externalSurface = pgTable(
     /** Link Sharing only: the shared main record; null for other surfaces. */
     rootId: text("root_id"),
     rootKind: text("root_kind"),
-    /** Link Sharing only: `Link-limited share`; null for other surfaces. */
+    /** `Link-limited share` for Link Sharing, `Build in Public` for a Project surface; null for a Wiki publish. */
     surfaceKind: text("surface_kind"),
     /**
      * Link Sharing only: bumped by every password or token change; a visitor
@@ -135,6 +135,41 @@ export const externalSurfaceSnapshotRevision = pgTable(
     check(
       "external_surface_snapshot_revision_check",
       sql`${table.revision} > 0`,
+    ),
+  ],
+);
+
+/**
+ * `Paylaşım ve Yayınlar dizini`: the product-controlled cache and index purge
+ * request of one removed Dış yüzey. It is hygiene, not the security barrier: a
+ * failed purge only schedules a retry and never reopens the URL, which answers
+ * `410 Gone` from `cancelled_at` alone. It holds no content and no visitor data.
+ */
+export const externalSurfacePurgeRequest = pgTable(
+  "external_surface_purge_request",
+  {
+    surfaceId: text("surface_id")
+      .primaryKey()
+      .references(() => externalSurface.id, { onDelete: "cascade" }),
+    /** `Pending`, `Retrying` (the last attempt failed) or `Done`. */
+    status: text("status").notNull().default("Pending"),
+    attempts: integer("attempts").notNull().default(0),
+    requestedAt: timestamp("requested_at").notNull().defaultNow(),
+    nextAttemptAt: timestamp("next_attempt_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
+  },
+  (table) => [
+    index("external_surface_purge_request_due_idx").on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+    check(
+      "external_surface_purge_request_status_check",
+      sql`${table.status} in ('Pending', 'Retrying', 'Done')`,
+    ),
+    check(
+      "external_surface_purge_request_attempts_check",
+      sql`${table.attempts} >= 0`,
     ),
   ],
 );

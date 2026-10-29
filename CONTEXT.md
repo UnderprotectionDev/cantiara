@@ -1263,8 +1263,36 @@ Tekil Wiki sayfasının varsayılan `noindex` durumunu yalnız kurucunun açık 
 _Avoid_: SEO etkinleştirme, otomatik indeksleme, sitemap kaydı
 
 **Herkese açık durum etiketi**:
-Bir İşin iç İş akışı durumunu değiştirmeden yalnız herkese açık Roadmap sunumunda gösterilen Proje bazlı ziyaretçi etiketi ([eşleme sözleşmesi](docs/prd/14-sharing-and-public-publishing.md#iç-durumların-herkese-açık-sunumu)).
+Bir İşin iç İş akışı durumunu değiştirmeden yalnız herkese açık Roadmap sunumunda gösterilen Proje bazlı ziyaretçi etiketi ([eşleme sözleşmesi](docs/prd/14-sharing-and-public-publishing.md#iç-durumların-herkese-açık-sunumu)). Başlangıç eşlemesi `Not Started→Planned`, `In Progress→In Progress`, `Closed+Completed→Completed`; `Blocked` ve `Closed+Abandoned` eşlemesizdir ve kurucu açık etiket seçmeden yayımlanamaz; yayımlanmış Proje Sürümü üyeliği yalnız `Released` önerir, onaysız uygulanmaz; etiket bir iç durum adını (`Blocked`, `Closed`, `Abandoned`, `Not Started`) yeniden kullanamaz. İç durum değişimi etiketi, etiket de iç durumu kendiliğinden değiştirmez. UI: `Public Status Label`, `Planned`, `In Progress`, `Completed`, `Released`.
 _Avoid_: İş akışı durumu, ikinci herkese açık İş, otomatik yayın kararı
+
+**Build in Public**:
+Bir Projenin seçili Roadmap İşlerini, durum eşlemesini ve üstverisini kurucunun [kapalı dünya önizlemesi](docs/prd/14-sharing-and-public-publishing.md#build-in-public) ve öğe başına onayıyla Proje bazında isteğe bağlı herkese açık yayımladığı Dış yüzeydir; her onay yeni bir Onaylı snapshot revizyonu ekler, canlı Roadmap kopyası değildir ve kaynak değişikliği onaylanana kadar `Unpublished changes` olarak farkta kalır. Roadmap İşinin isteğe bağlı `Public title` ve `Public summary` alanları o İşe bağlı yayın alanlarıdır; iç başlık değişince kendiliğinden yeniden yazılmaz ve ikinci herkese açık İş üretmez. UI: `Build in Public`, `Public title`, `Public summary`, `Unpublished changes`, `Publish/share anyway`.
+_Avoid_: Canlı Roadmap kopyası, ikinci herkese açık İş, görüntülenme sayacı, otomatik blog, Tekil Wiki yayını
+
+**Aynı revizyon üçlüsü**:
+Build in Public'in herkese açık Roadmap'inin, değişiklik günlüğünün ve Proje görünümünün tek Onaylı snapshot revizyonunun projeksiyonu olması; üçü farklı revizyonu göstermez ve Proje görünümü yalnız o revizyonun onaylı Roadmap, İş, Belge, tasarım, Karar, Proje Sürümü ve seçilmiş Proje Duvarı üyelerini listeler, canlı Çalışma Alanı sorgusu çalıştırmaz. Seçilen Proje Duvarının kart, kesin Dosya Eki sürümü, yerleşim, grup, görünüm metni, görsel çizgi, odak sırası, renk, kırpma/döndürme/işaretleme ve canlı koleksiyon bloğu ayrı onay öğesidir; onaylanmayan kartın çizgisi, grubu, odak adımı ve konum boşluğu yapıyı sızdırmaz; canlı blok tarih etiketli salt okunur snapshot olarak donar. Her Roadmap, changelog ve Proje yüzeyi kendi yayın başlığı ve özetini taşır, alanlar miras olmaz. UI: `Unpublished changes`, `Live external source`.
+_Avoid_: Canlı Proje görünümü, revizyon kayması, kopya Proje, kamusal Çalışma Alanı sorgusu
+
+**Herkese açık tarih sunumu**:
+Roadmap İşinin tek iç hedef tarihinden türetilen ve İş başına seçilen `Full date`, `Month`, `Quarter` veya `Hidden` gösterimidir; ikinci herkese açık tarih alanı yoktur, daha kaba gösterim daha ince tarihi snapshot'a taşımaz ve varsayılan `Hidden`'dır. UI: `Full date`, `Month`, `Quarter`, `Hidden`.
+_Avoid_: Public due date alanı, ikinci tarih, takvim yayını
+
+**Öne çıkarılan kayıt**:
+Herkese açık Proje görünümünün üstünde, kurucunun belirlediği bitiş zamanına kadar tutulan, daha önce onaylanmış en fazla bir Proje Sürümü ya da Karar; varsayılan kapalıdır, özel alan yayımlamaz, içerik üretmez ve Dikkat sinyali doğurmaz; süre bitince kayıt kronolojik konumuna döner. UI: `Featured record`.
+_Avoid_: Sabitlenmiş duyuru, kampanya, bildirim, ikinci yayın
+
+**Kurucu yayın kontrolleri**:
+Oturum açmış sahibin kendi herkese açık Build in Public görünümünde yalnız kendine gördüğü `Open source record` ve `Review publish diff` bağlantılarıdır; ziyaretçi bunları, yönetim kontrolünü, paleti, aramayı veya yazma yüzeyini görmez ve sahiplik oturumdan okunur, ziyaretçi kimliği tutulmaz. UI: `Open source record`, `Review publish diff`.
+_Avoid_: Ziyaretçi yönetim çubuğu, görüntülenme paneli, yönetici modu
+
+**Herkese açık slug**:
+Build in Public yüzeyinin Çalışma Alanında benzersiz okunabilir adresidir; değişiklik uygulanmadan eski adresten yeni kanonik adrese yönlenecek redirect önizlenir ve ayrıca onaylanır, redirect yalnız yüzey herkese açıkken çalışır, yayından kaldırmada ölür ve özel içeriğe yönlendirmez; slug'ın varlığı indekslemeyi kendiliğinden açmaz. UI: `Slug`, `Enable indexing`, `Disable indexing`, `Unpublish`.
+_Avoid_: Kısa bağlantı, özel alan adı, SEO anahtar kelimesi
+
+**Onaylı gelişim akışı**:
+Build in Public yüzeyinin, aynı Onaylı snapshot revizyonunun içinde taşınan ve yalnız kurucunun onayladığı tarihsel yayın olaylarını (onaylı Roadmap farkları: etiket, gösterilen tarih, Roadmap kapsamına giriş-çıkış; yeni onaylanan kayıtlar) en yeni önce listeleyen görünümüdür; Proje Etkinliği dökümü değildir, kaynak kayıt açılmaz, yalnız aynı yüzeyin opak snapshot girdisine bağlanır, abonelik, yorum ve oy yoktur. Kurucunun isteğe bağlı `Explain the change` notu tam önceki ve yeni herkese açık değerlerle aynı yayın olayına bağlanır; yalnız yayın bir etiketi, gösterilen tarihi veya Roadmap kapsamını değiştirdiğinde sunulur, ürün tarafından üretilmez, zorunlu değildir ve ikinci plan doğruluk kaynağı olmaz. UI: `Development feed`, `Explain the change`.
+_Avoid_: Proje Etkinliği, Geri Bildirim feed'i, Bildirim Merkezi, otomatik blog, akış aboneliği, üretilmiş değişiklik açıklaması
 
 **Güvenlik nedeniyle redakte edilmiş kanıt**:
 Değişmez sürüm manifestini yeniden yazmadan hassas içeriği [kaldırılmış kanıtın](docs/prd/10-testing-and-validation.md#düzeltme-geri-çekme-ve-güvenlik-redaksiyonu) erişilemez durumu; yeni bir sürümün kabul kanıtı olarak yeniden kullanılamaz.
@@ -1301,6 +1329,10 @@ _Avoid_: Ürün oturumu, entegrasyon token düz metni
 **Bağlantı parolası**:
 Bağlantıyla sınırlı paylaşımın isteğe bağlı ortak parolası; tuzlu, bellek-yoğun bir parola özetiyle saklanır, geri okunabilir değildir, loga ve arama indeksine girmez; eklenmesi, değişmesi veya kalkması açık Paylaşım erişim oturumlarını hemen bitirir. UI: `Link password`, `Add password`, `Change password`, `Remove password`.
 _Avoid_: Hesap parolası, ziyaretçi kimliği
+
+**Paylaşım ve Yayınlar dizini**:
+Kurucunun Çalışma Alanı veya tek Proje düzeyinde bağlantı paylaşımı, Tekil Wiki yayını ve Build in Public gibi bütün Dış yüzeyleri kaynak, görünürlük, parola varlığı, süre, yaşam durumu, son onay ve yayımlanmamış değişiklik bayrağıyla tek yerde yönettiği [dizin](docs/prd/14-sharing-and-public-publishing.md#paylaşım-ve-yayınlar-yönetimi); yüzey oluşturmaz, görüntülenme sayacı, son erişim veya ziyaretçi izi toplamaz ve CDN panosu ya da analitik ürünü değildir. Tekil kaynağı Çöp Kutusuna alınırken korunan yüzey dizinde canlı kaynağa bağlı değil, donmuş ve ayrılmış olarak görünür. UI: `Shares and Publications`, `Active`, `Expired`, `Revoked`, `Open source`, `Review diff`, `Change expiry / Reactivate`, `Revoke / Unpublish`, `Move to Trash`.
+_Avoid_: Paylaşım analitiği, CDN panosu, yayın sihirbazı, görüntülenme sayacı, son erişim
 
 ## Test yönetimi
 

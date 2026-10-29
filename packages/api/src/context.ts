@@ -9,6 +9,7 @@ import type {
 import type { AttentionSignalsAccess } from "./attention-signals";
 import type { PublicRoadmapReviewAccess } from "./attention-signals-public-roadmap";
 import type { BacklogAccess, BacklogMutationContracts } from "./backlog";
+import type { BuildInPublicAccess } from "./build-in-public";
 import type { CaptureInboxAccess } from "./capture-triage";
 import type {
   CompletionEffectsPreferences,
@@ -24,6 +25,7 @@ import type { DocumentEvidenceAccess } from "./document-evidence";
 import type { DocumentTransfersAccess } from "./document-transfer";
 import type { DocumentMutationContracts, DocumentsAccess } from "./documents";
 import type { ExternalExecutionHandoffsAccess } from "./external-handoffs";
+import type { ExternalSurfaceManagementAccess } from "./external-surface-management";
 import type { FavoritesAccess } from "./favorites";
 import type { FeedbackAccess } from "./feedback";
 import type { FileAttachmentAccess } from "./file-attachments";
@@ -194,6 +196,7 @@ export interface Context {
   auth: null;
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
+  buildInPublic?: BuildInPublicAccess;
   captureInbox?: CaptureInboxAccess;
   clientKey?: string;
   clientPlatform?: AccountAccessClient;
@@ -209,6 +212,7 @@ export interface Context {
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   documentTransfers?: DocumentTransfersAccess;
+  externalSurfaceManagement?: ExternalSurfaceManagementAccess;
   favorites?: FavoritesAccess;
   feedback?: FeedbackAccess;
   fileAttachments?: FileAttachmentAccess;

@@ -70,6 +70,7 @@ import {
   projectSourceRecordFromHash,
   ROADMAP_HASH,
   SHARE_HASH,
+  SHARES_AND_PUBLICATIONS_HASH,
   SPEC_CHANGE_REVIEW_HASH,
   TRASH_HASH,
   testGapRecordFromHash,
@@ -212,6 +213,16 @@ function trashSurface(activeHash: string, trashArea?: ReactNode) {
 }
 
 /** The route composes `Share`, so the shell never imports its `ui/`. */
+function sharesAndPublicationsSurface(
+  activeHash: string,
+  sharesAndPublicationsArea?: ReactNode,
+) {
+  return sharesAndPublicationsArea &&
+    activeHash === SHARES_AND_PUBLICATIONS_HASH ? (
+    <div id={SHARES_AND_PUBLICATIONS_HASH}>{sharesAndPublicationsArea}</div>
+  ) : null;
+}
+
 function shareSurface(activeHash: string, linkSharingArea?: ReactNode) {
   return linkSharingArea && activeHash === SHARE_HASH ? (
     <div id={SHARE_HASH}>{linkSharingArea}</div>
@@ -505,6 +516,7 @@ function ProjectShellContent({
   projectUpdatesArea,
   linkSharingArea,
   trashArea,
+  sharesAndPublicationsArea,
   productionArea,
   projectId,
   releasesArea,
@@ -522,6 +534,7 @@ function ProjectShellContent({
   projectUpdatesArea?: ReactNode;
   linkSharingArea?: ReactNode;
   trashArea?: ReactNode;
+  sharesAndPublicationsArea?: ReactNode;
   projectId: string;
   releasesArea?: ProjectReleasesArea;
   releaseEvidenceArea?: (releaseId: string) => ReactNode;
@@ -671,6 +684,7 @@ function ProjectShellContent({
     projectUpdatesSurface(activeHash, projectUpdatesArea) ??
     shareSurface(activeHash, linkSharingArea) ??
     trashSurface(activeHash, trashArea) ??
+    sharesAndPublicationsSurface(activeHash, sharesAndPublicationsArea) ??
     projectProductionSurface(
       activeHash,
       accountFormattingPreferences,

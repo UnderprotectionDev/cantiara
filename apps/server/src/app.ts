@@ -8,6 +8,7 @@ import type {
   BacklogAccess,
   BacklogMutationContracts,
 } from "@cantiara/api/backlog";
+import type { BuildInPublicAccess } from "@cantiara/api/build-in-public";
 import type { CaptureInboxAccess } from "@cantiara/api/capture-triage";
 import type {
   CompletionEffectsPreferences,
@@ -36,6 +37,7 @@ import type {
   DocumentsAccess,
 } from "@cantiara/api/documents";
 import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
+import type { ExternalSurfaceManagementAccess } from "@cantiara/api/external-surface-management";
 import type { FavoritesAccess } from "@cantiara/api/favorites";
 import type { FeedbackAccess } from "@cantiara/api/feedback";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
@@ -216,6 +218,8 @@ export interface AppDependencies {
   auth: AccountAccessAuth;
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
+  buildInPublic?: BuildInPublicAccess;
+  buildInPublicPages?: Hono;
   captureInbox?: CaptureInboxAccess;
   completionEffectsPreferences?: CompletionEffectsPreferencesAccess;
   completionEffectsPreferencesMutationContract?: MutationContract<CompletionEffectsPreferences>;
@@ -232,6 +236,7 @@ export interface AppDependencies {
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   documentTransfers?: import("@cantiara/api/document-transfer").DocumentTransfersAccess;
+  externalSurfaceManagement?: ExternalSurfaceManagementAccess;
   favorites?: FavoritesAccess;
   feedback?: FeedbackAccess;
   fileAttachments?: FileAttachmentAccess;
@@ -363,6 +368,9 @@ export function createApp(dependencies: AppDependencies) {
   // visitor has no Account and the shared access module authorizes each request.
   if (dependencies.wikiPublicPages) {
     app.route("/w", dependencies.wikiPublicPages);
+  }
+  if (dependencies.buildInPublicPages) {
+    app.route("/b", dependencies.buildInPublicPages);
   }
 
   app.use("*", async (c, next) => {
@@ -748,6 +756,8 @@ export function createApp(dependencies: AppDependencies) {
       workDrafts: dependencies.workDrafts,
       workTemplates: dependencies.workTemplates,
       workLifecycle: dependencies.workLifecycle,
+      buildInPublic: dependencies.buildInPublic,
+      externalSurfaceManagement: dependencies.externalSurfaceManagement,
       wikiPublishing: dependencies.wikiPublishing,
       workspaceOverview: dependencies.workspaceOverview,
     });

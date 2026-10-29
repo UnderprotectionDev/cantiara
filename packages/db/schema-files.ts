@@ -10,6 +10,7 @@ export const primarySchemaFiles = [
   "./src/schema/return-to-work.ts",
   "./src/schema/document.ts",
   "./src/schema/external-surface.ts",
+  "./src/schema/build-in-public.ts",
   "./src/schema/document-template.ts",
   "./src/schema/smart-collection.ts",
   "./src/schema/schema-artifact.ts",

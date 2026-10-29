@@ -145,6 +145,16 @@ describe("Project Shell Work navigation", () => {
     expect(navigationSurfaceFromHash("trash", [], [], [])).toBe("Trash");
   });
 
+  test("round trips the always-reachable Shares and Publications surface", () => {
+    expect(ALWAYS_REACHABLE_SURFACES).toContain("Shares and Publications");
+    expect(navigationHash("Shares and Publications")).toBe(
+      "shares-and-publications",
+    );
+    expect(
+      navigationSurfaceFromHash("shares-and-publications", [], [], []),
+    ).toBe("Shares and Publications");
+  });
+
   test("does not read a Daily action hash as a Work record id", () => {
     for (const hash of Object.values(DAILY_ACTION_HASHES)) {
       expect(workRecordIdFromHash(hash)).toBeNull();

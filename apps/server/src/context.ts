@@ -8,6 +8,7 @@ import type {
   BacklogAccess,
   BacklogMutationContracts,
 } from "@cantiara/api/backlog";
+import type { BuildInPublicAccess } from "@cantiara/api/build-in-public";
 import type { CaptureInboxAccess } from "@cantiara/api/capture-triage";
 import type {
   CompletionEffectsPreferences,
@@ -33,6 +34,7 @@ import type {
   DocumentsAccess,
 } from "@cantiara/api/documents";
 import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
+import type { ExternalSurfaceManagementAccess } from "@cantiara/api/external-surface-management";
 import type { FavoritesAccess } from "@cantiara/api/favorites";
 import type { FeedbackAccess } from "@cantiara/api/feedback";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
@@ -135,6 +137,7 @@ export interface CreateContextOptions {
   auth: AccountAccessAuth;
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
+  buildInPublic?: BuildInPublicAccess;
   captureInbox?: CaptureInboxAccess;
   completionEffectsPreferences?: CompletionEffectsPreferencesAccess;
   completionEffectsPreferencesMutationContract?: MutationContract<CompletionEffectsPreferences>;
@@ -148,6 +151,7 @@ export interface CreateContextOptions {
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   documentTransfers?: DocumentTransfersAccess;
+  externalSurfaceManagement?: ExternalSurfaceManagementAccess;
   favorites?: FavoritesAccess;
   feedback?: FeedbackAccess;
   fileAttachments?: FileAttachmentAccess;
@@ -288,6 +292,8 @@ export async function createContext({
   recordActions,
   releaseCommunication,
   workAutomation,
+  buildInPublic,
+  externalSurfaceManagement,
   wikiPublishing,
   workspaceOverview,
   tags,
@@ -399,6 +405,8 @@ export async function createContext({
     recordActions,
     releaseCommunication,
     workAutomation,
+    buildInPublic,
+    externalSurfaceManagement,
     wikiPublishing,
     workspaceOverview,
     tags,
