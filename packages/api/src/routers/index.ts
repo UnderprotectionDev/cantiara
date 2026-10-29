@@ -242,10 +242,16 @@ import {
   approveShareScopeInputSchema,
   LinkSharingConflictError,
   LinkSharingPlaceholdersError,
+  LinkSharingRateLimitError,
   LinkSharingScopeError,
+  LinkSharingStateError,
   previewShareScopeInputSchema,
+  reopenExpiredLinkInputSchema,
+  reshareExpiredLinkInputSchema,
+  revokeShareInputSchema,
   rotateShareTokenInputSchema,
   setLinkPasswordInputSchema,
+  setShareExpiryInputSchema,
   shareRootsInputSchema,
 } from "../link-sharing";
 import {
@@ -4602,6 +4608,20 @@ async function linkSharingWrite<T>(
         message: error.message,
       });
     }
+    if (error instanceof LinkSharingStateError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: "LINK_STATE_INVALID", targetId },
+        defined: true,
+        message: error.message,
+      });
+    }
+    if (error instanceof LinkSharingRateLimitError) {
+      throw new ORPCError("TOO_MANY_REQUESTS", {
+        cause: error,
+        message: error.message,
+      });
+    }
     throw error;
   }
 }
@@ -4677,6 +4697,34 @@ export const appRouter = {
     .handler(({ context, input }) =>
       linkSharingWrite(input.approvalId, () =>
         requireLinkSharing(context).approve(context.session.user.id, input),
+      ),
+    ),
+  setShareExpiry: protectedProcedure
+    .input(setShareExpiryInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.surfaceId, () =>
+        requireLinkSharing(context).setExpiry(context.session.user.id, input),
+      ),
+    ),
+  reopenShareLink: protectedProcedure
+    .input(reopenExpiredLinkInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.surfaceId, () =>
+        requireLinkSharing(context).reopen(context.session.user.id, input),
+      ),
+    ),
+  reshareShareLink: protectedProcedure
+    .input(reshareExpiredLinkInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.surfaceId, () =>
+        requireLinkSharing(context).reshare(context.session.user.id, input),
+      ),
+    ),
+  revokeShareLink: protectedProcedure
+    .input(revokeShareInputSchema)
+    .handler(({ context, input }) =>
+      linkSharingWrite(input.surfaceId, () =>
+        requireLinkSharing(context).revoke(context.session.user.id, input),
       ),
     ),
   setLinkPassword: protectedProcedure

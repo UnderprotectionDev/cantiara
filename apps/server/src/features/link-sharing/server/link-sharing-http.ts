@@ -1,8 +1,14 @@
-import { SHARE_VISITOR_LINK_PATH } from "@cantiara/api/link-sharing";
+import {
+  SHARE_SURFACE_PATH,
+  SHARE_VISITOR_LINK_PATH,
+} from "@cantiara/api/link-sharing";
 import { type Context, Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
+import type { LinkSharingAssets } from "./link-sharing-assets";
 import {
+  assetHeaders,
   gatePage,
+  goneHeaders,
   surfacePage,
   unavailablePage,
   visitorHeaders,
@@ -25,7 +31,7 @@ import type {
 
 /** Name without the `__Secure-` prefix the cookie helper adds. */
 export const SHARE_COOKIE_NAME = "cantiara-share";
-export const SHARE_SURFACE_PATH = "/shared";
+
 const MAX_FORM_BYTES = 4096;
 const MAX_DEVICE_LENGTH = 200;
 
@@ -46,12 +52,17 @@ function respond(
   });
 }
 
+/** Generic empty-body `410 Gone` + `noindex`: no body, no redirect, no hint of a new surface. */
+const gone = () => new Response(null, { headers: goneHeaders(), status: 410 });
+
 export function createLinkSharingVisitorRoutes(options: {
+  /** Dosya Eki and byte-range delivery; without it the file route answers 404. */
+  assets?: LinkSharingAssets;
   /** The caller's trusted-proxy aware client address (Account Access owns it). */
   networkOf: (request: Request, context: Context) => string;
   visitor: LinkSharingVisitorAccess;
 }) {
-  const { networkOf, visitor } = options;
+  const { assets, networkOf, visitor } = options;
   const routes = new Hono();
 
   const signalsOf = (request: Request, context: Context): VisitorSignals => ({
@@ -69,6 +80,9 @@ export function createLinkSharingVisitorRoutes(options: {
     attempted: boolean,
   ) {
     const nonce = crypto.randomUUID();
+    if (result.status === "gone") {
+      return gone();
+    }
     if (result.status === "granted") {
       const { surfaceId } = result;
       setCookie(context, SHARE_COOKIE_NAME, result.cookieValue, {
@@ -144,18 +158,67 @@ export function createLinkSharingVisitorRoutes(options: {
 
   routes.get(`${SHARE_SURFACE_PATH}/:surfaceId`, async (c) => {
     const nonce = crypto.randomUUID();
-    const snapshot = await visitor.authorize(
-      c.req.param("surfaceId"),
+    const surfaceId = c.req.param("surfaceId");
+    const authorization = await visitor.authorize(
+      surfaceId,
       getCookie(c, SHARE_COOKIE_NAME, "secure"),
     );
-    if (!snapshot) {
-      // No session, another browser, an ended session and an unknown surface
-      // all answer the same.
+    if (authorization.status === "gone") {
+      return gone();
+    }
+    if (authorization.status !== "granted") {
+      // No session, another browser, an ended or expired session and an
+      // unknown surface all answer the same.
       return respond(unavailablePage(nonce), 404, nonce);
     }
-    const page = surfacePage(snapshot, nonce);
+    const page = surfacePage(authorization.snapshot, nonce, surfaceId);
     return respond(page.html, 200, nonce, { frames: page.frames });
   });
+
+  // Every file request, whole or `Range`, is authorized against the current
+  // surface, session and exact file version before anything is read.
+  routes.get(
+    `${SHARE_SURFACE_PATH}/:surfaceId/files/:attachmentId/:versionId`,
+    async (c) => {
+      if (!assets) {
+        return new Response(null, { headers: goneHeaders(), status: 404 });
+      }
+      const result = await assets.deliver({
+        attachmentId: c.req.param("attachmentId"),
+        cookieValue: getCookie(c, SHARE_COOKIE_NAME, "secure"),
+        range: c.req.header("range") ?? null,
+        surfaceId: c.req.param("surfaceId"),
+        versionId: c.req.param("versionId"),
+      });
+      if (result.status === "gone") {
+        return gone();
+      }
+      if (result.status === "unsatisfiable") {
+        return new Response(null, {
+          headers: {
+            ...goneHeaders(),
+            "Content-Range": `bytes */${result.size}`,
+          },
+          status: 416,
+        });
+      }
+      if (result.status !== "ok") {
+        const status = result.status === "unavailable" ? 503 : 404;
+        return new Response(null, { headers: goneHeaders(), status });
+      }
+      const { bytes, end, file, partial, start } = result;
+      return new Response(bytes, {
+        headers: {
+          ...assetHeaders(file),
+          "Content-Length": String(bytes.byteLength),
+          ...(partial
+            ? { "Content-Range": `bytes ${start}-${end}/${file.byteSize}` }
+            : {}),
+        },
+        status: partial ? 206 : 200,
+      });
+    },
+  );
 
   return routes;
 }

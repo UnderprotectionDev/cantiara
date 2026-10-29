@@ -2,6 +2,7 @@ import {
   LAST_APPROVED_LABEL,
   LINK_PASSWORD_LABEL,
   LIVE_EXTERNAL_SOURCE_LABEL,
+  SHARE_SURFACE_PATH,
   SHARE_VISITOR_LINK_PATH,
   type ShareManifestItem,
 } from "@cantiara/api/link-sharing";
@@ -114,25 +115,38 @@ function embedCard(item: ShareManifestItem) {
   return `<section class="card" aria-label="${esc(LIVE_EXTERNAL_SOURCE_LABEL)}"><h3>${esc(LIVE_EXTERNAL_SOURCE_LABEL)}</h3><p class="note">${videoId ? "Loading this video contacts YouTube (Google), which may set cookies and see your network address. Nothing is requested until you choose to load it. It does not autoplay." : "This source is not embedded."}</p><p>Original URL: ${link}</p>${videoId ? `<div><button type="button" data-youtube="${esc(videoId)}">Load YouTube video</button><div data-slot aria-live="polite"></div></div>` : ""}</section>`;
 }
 
-function partRow(item: ShareManifestItem) {
+const ATTACHMENT_ITEM = /:attachment:([^:]+):([^:]+)$/;
+
+function partRow(item: ShareManifestItem, surfaceId: string) {
   const detail = item.value ? ` — ${esc(item.value)}` : "";
-  return `<li>${esc(item.label)}${detail}</li>`;
+  const file =
+    item.kind === "Attachment" ? ATTACHMENT_ITEM.exec(item.itemId) : null;
+  // A product-controlled URL on this surface; there is no object-store URL.
+  const download = file
+    ? ` <a href="${SHARE_SURFACE_PATH}/${encodeURIComponent(surfaceId)}/files/${encodeURIComponent(file[1] ?? "")}/${encodeURIComponent(file[2] ?? "")}" rel="noreferrer" download>Download</a>`
+    : "";
+  return `<li>${esc(item.label)}${detail}${download}</li>`;
 }
 
 function recordSection(
   record: ShareManifestItem,
   children: ShareManifestItem[],
   index: number,
+  surfaceId: string,
 ) {
   const fields = children.filter((item) => item.kind === "Field" && item.value);
   const embeds = children.filter((item) => item.kind === "Embed");
   const parts = children.filter(
     (item) => item.kind !== "Field" && item.kind !== "Embed",
   );
-  return `<section id="record-${index}" aria-labelledby="record-${index}-title"><h2 id="record-${index}-title">${esc(record.label)}</h2>${fields.length > 0 ? `<dl>${fields.map((item) => `<dt>${esc(item.label)}</dt><dd>${esc(item.value ?? "")}</dd>`).join("")}</dl>` : ""}${embeds.map(embedCard).join("")}${parts.length > 0 ? `<ul>${parts.map(partRow).join("")}</ul>` : ""}</section>`;
+  return `<section id="record-${index}" aria-labelledby="record-${index}-title"><h2 id="record-${index}-title">${esc(record.label)}</h2>${fields.length > 0 ? `<dl>${fields.map((item) => `<dt>${esc(item.label)}</dt><dd>${esc(item.value ?? "")}</dd>`).join("")}</dl>` : ""}${embeds.map(embedCard).join("")}${parts.length > 0 ? `<ul>${parts.map((part) => partRow(part, surfaceId)).join("")}</ul>` : ""}</section>`;
 }
 
-export function surfacePage(snapshot: VisitorSnapshot, nonce: string) {
+export function surfacePage(
+  snapshot: VisitorSnapshot,
+  nonce: string,
+  surfaceId: string,
+) {
   const { items } = snapshot.manifest;
   const records = items.filter((item) => item.kind === "Record");
   const hasEmbed = items.some(
@@ -150,6 +164,7 @@ export function surfacePage(snapshot: VisitorSnapshot, nonce: string) {
           record,
           items.filter((item) => item.parentId === record.itemId),
           index,
+          surfaceId,
         ),
       )
       .join("")}`,
@@ -158,4 +173,36 @@ export function surfacePage(snapshot: VisitorSnapshot, nonce: string) {
     title,
   });
   return { frames: hasEmbed, html };
+}
+
+/**
+ * A revoked, unpublished or redacted URL answers with these headers and no
+ * body at all: generic, `noindex`, never a redirect to a new surface.
+ */
+export function goneHeaders() {
+  return {
+    "Cache-Control": "no-store",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow",
+  };
+}
+
+const FILE_NAME_UNSAFE = /[^\w.\- ]+/g;
+
+/** Dosya Eki bytes: a download, never rendered, never kept by a shared cache. */
+export function assetHeaders(file: { fileName: string; mimeType: string }) {
+  const name = file.fileName.replaceAll(FILE_NAME_UNSAFE, "_") || "file";
+  return {
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "private, no-store",
+    "Content-Disposition": `attachment; filename="${name}"; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
+    "Content-Security-Policy":
+      "default-src 'none'; sandbox; frame-ancestors 'none'",
+    "Content-Type": file.mimeType,
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow",
+  };
 }

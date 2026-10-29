@@ -6,16 +6,27 @@ import {
   type LinkSharingAccess,
   LinkSharingConflictError,
   LinkSharingPlaceholdersError,
+  LinkSharingRateLimitError,
   LinkSharingScopeError,
+  LinkSharingStateError,
   type PlaceholderFinding,
   type PreviewShareScopeInput,
   previewShareScopeInputSchema,
+  type ReopenExpiredLinkInput,
+  type ReshareExpiredLinkInput,
+  type RevokedShare,
+  type RevokeShareInput,
   type RotateShareTokenInput,
+  reopenExpiredLinkInputSchema,
+  reshareExpiredLinkInputSchema,
+  revokeShareInputSchema,
   rotateShareTokenInputSchema,
   type SetLinkPasswordInput,
+  type SetShareExpiryInput,
   SHARE_MANIFEST_FORMAT,
   type ShareAccess,
   type ShareDiff,
+  type ShareExpiry,
   type ShareFieldKind,
   type ShareItem,
   type ShareItemKind,
@@ -26,6 +37,7 @@ import {
   type ShareScopePreview,
   type ShareSurfaceSummary,
   setLinkPasswordInputSchema,
+  setShareExpiryInputSchema,
   shareRootsInputSchema,
 } from "@cantiara/api/link-sharing";
 import {
@@ -34,6 +46,14 @@ import {
   isSecretKind,
   shareLabel,
 } from "@cantiara/api/link-sharing-rules";
+import {
+  type LinkSharingAudit,
+  type LinkSharingAuditType,
+  SHARE_CHANGE_LIMIT,
+  SHARE_CHANGE_WINDOW_MS,
+  SHARE_REVOKE_TYPES,
+  SHARE_START_TYPES,
+} from "./link-sharing-audit";
 import {
   type LinkPasswordHasher,
   randomSecret,
@@ -95,6 +115,8 @@ export interface ShareSource {
 
 export interface StoredShareSurface {
   approvedAt: string;
+  /** The optional Bağlantı süre dolumu; `null` is none. */
+  expiresAt: Date | null;
   manifest: ShareManifest;
   passwordProtected: boolean;
   revision: number;
@@ -132,11 +154,29 @@ export interface ShareAccessEvent {
   type:
     | "link-sharing.password-changed"
     | "link-sharing.token-rotated"
+    | "link-sharing.surface-revoked"
     | "link-sharing.sessions-revoked";
 }
 
 export interface LinkSharingSecurityEvents {
   append: (event: ShareAccessEvent) => Promise<void>;
+  /** Every Link Sharing event in the log, oldest first (restore replay). */
+  list: () => Promise<ShareAccessEvent[]>;
+}
+
+/** What an owned, not revoked Link Sharing surface looks like to a lifecycle write. */
+export interface ShareLifecycleState {
+  expiresAt: Date | null;
+  passwordProtected: boolean;
+}
+
+export interface ShareReshareCommit {
+  accountId: string;
+  expiresAt: Date | null;
+  newSurfaceId: string;
+  /** The expired surface the new one copies; it stays expired and reopenable. */
+  sourceSurfaceId: string;
+  tokenHash: string;
 }
 
 /** Port to the source records and the stored surfaces; no member rewrites a revision. */
@@ -146,6 +186,25 @@ export interface LinkSharingStore {
     accountId: string,
     approvalId: string,
   ) => Promise<{ fingerprint: string; result: ApprovedShare } | null>;
+  /** Expiry and password state of the owned, not revoked surface. */
+  lifecycle: (
+    accountId: string,
+    surfaceId: string,
+  ) => Promise<ShareLifecycleState | null>;
+  /**
+   * A new Dış yüzey copying the expired one's latest approved revision (and
+   * its password hash) under a new token. A repeated `newSurfaceId` returns
+   * the same surface with `accessToken: null`.
+   */
+  reshare: (
+    commit: ShareReshareCommit,
+  ) => Promise<{ created: boolean; share: ApprovedShare } | null>;
+  /** Terminal `Bağlantı iptali`: sets the cancellation, ends every session. */
+  revoke: (
+    accountId: string,
+    surfaceId: string,
+    at: Date,
+  ) => Promise<{ accessEpoch: number } | null>;
   roots: (
     accountId: string,
     projectId: string,
@@ -163,6 +222,16 @@ export interface LinkSharingStore {
     surfaceId: string,
     patch: ShareAccessPatch,
   ) => Promise<{ accessEpoch: number; passwordProtected: boolean } | null>;
+  /**
+   * Sets the expiry of the owned, not revoked surface; `endSessions` also
+   * bumps the access epoch so sessions minted before it stay dead.
+   */
+  updateExpiry: (
+    accountId: string,
+    surfaceId: string,
+    expiresAt: Date | null,
+    endSessions: boolean,
+  ) => Promise<{ accessEpoch: number } | null>;
 }
 
 interface ScopeModel {
@@ -417,19 +486,28 @@ function diffOf(
   };
 }
 
+const isExpired = (expiresAt: Date | null, at: Date) =>
+  expiresAt !== null && expiresAt <= at;
+
 function summaryOf(
   surface: StoredShareSurface | null,
+  at: Date,
 ): ShareSurfaceSummary | null {
   return surface
     ? {
+        expiresAt: surface.expiresAt?.toISOString() ?? null,
         label: surface.manifest.label,
         lastApprovedAt: surface.approvedAt,
         passwordProtected: surface.passwordProtected,
         revision: surface.revision,
+        state: isExpired(surface.expiresAt, at) ? "Expired" : "Active",
         surfaceId: surface.surfaceId,
       }
     : null;
 }
+
+const actorAliasOf = (accountId: string) =>
+  `account:${sha256Hex(accountId).slice(0, 16)}`;
 
 async function fingerprintOf(input: ApproveShareScopeInput) {
   const canonical = JSON.stringify({
@@ -525,6 +603,8 @@ function validateSelection(
 export function createLinkSharing(
   store: LinkSharingStore,
   options: {
+    /** `Denetim kaydı` entries; also the share start and revoke rate limit. */
+    audit?: LinkSharingAudit;
     events?: LinkSharingSecurityEvents;
     hasher?: LinkPasswordHasher;
     now?: () => Date;
@@ -567,7 +647,7 @@ export function createLinkSharing(
         kind: input.root.kind,
         title: source.record.title,
       },
-      surface: summaryOf(surface),
+      surface: summaryOf(surface, now()),
     };
   }
 
@@ -591,6 +671,9 @@ export function createLinkSharing(
     const { scope, source, surface } = loaded;
     if (source.blockers.length > 0) {
       throw new LinkSharingScopeError(source.blockers.join(" "));
+    }
+    if (!surface) {
+      await enforceRateLimit(accountId, SHARE_START_TYPES);
     }
     const approved = new Set(input.approvedItemIds);
     const live = new Set(input.liveItemIds);
@@ -635,9 +718,213 @@ export function createLinkSharing(
       surfaceId: surface?.surfaceId ?? null,
       tokenHash: token ? sha256Hex(token) : null,
     });
-    return approvedShare && approvedShare.surfaceId === newSurfaceId
-      ? { ...approvedShare, accessToken: token }
-      : approvedShare;
+    return await finishApproval(accountId, approvedShare, newSurfaceId, token);
+  }
+
+  /** A new surface returns its token once and writes the `Denetim kaydı` entry. */
+  async function finishApproval(
+    accountId: string,
+    approvedShare: ApprovedShare | null,
+    newSurfaceId: string,
+    token: string | null,
+  ) {
+    if (approvedShare && approvedShare.surfaceId === newSurfaceId) {
+      await record("link-sharing.share-created", accountId, newSurfaceId);
+      return { ...approvedShare, accessToken: token };
+    }
+    return approvedShare;
+  }
+
+  /** The founder's start and revoke writes are counted from their audit entries. */
+  async function enforceRateLimit(
+    accountId: string,
+    types: readonly LinkSharingAuditType[],
+  ) {
+    if (!options.audit) {
+      return;
+    }
+    const since = new Date(now().getTime() - SHARE_CHANGE_WINDOW_MS);
+    const used = await options.audit.countSince(
+      actorAliasOf(accountId),
+      types,
+      since,
+    );
+    if (used >= SHARE_CHANGE_LIMIT) {
+      throw new LinkSharingRateLimitError(SHARE_CHANGE_WINDOW_MS / 1000);
+    }
+  }
+
+  /** A secret-free `Denetim kaydı` entry: alias, surface id, type, time. */
+  async function record(
+    type: LinkSharingAuditType,
+    accountId: string,
+    surfaceId: string,
+  ) {
+    await options.audit?.append({
+      actorAlias: actorAliasOf(accountId),
+      id: `${type}:${crypto.randomUUID()}`,
+      occurredAt: now(),
+      targetAlias: surfaceId,
+      type,
+    });
+  }
+
+  async function appendEvents(
+    accountId: string,
+    surfaceId: string,
+    accessEpoch: number,
+    types: ShareAccessEvent["type"][],
+  ) {
+    await Promise.all(
+      types.map((type) =>
+        options.events?.append({
+          accessEpoch,
+          actor: actorAliasOf(accountId),
+          occurredAt: now(),
+          surfaceId,
+          type,
+        }),
+      ),
+    );
+  }
+
+  /** Future instants only; `null` removes the expiry. */
+  function checkedExpiry(expiresAt: string | null) {
+    if (expiresAt === null) {
+      return null;
+    }
+    const at = new Date(expiresAt);
+    if (at <= now()) {
+      throw new LinkSharingStateError("Choose an expiry in the future.");
+    }
+    return at;
+  }
+
+  const expiryOf = (
+    surfaceId: string,
+    expiresAt: Date | null,
+  ): ShareExpiry => ({
+    expiresAt: expiresAt?.toISOString() ?? null,
+    state: isExpired(expiresAt, now()) ? "Expired" : "Active",
+    surfaceId,
+  });
+
+  async function setExpiry(
+    accountId: string,
+    rawInput: SetShareExpiryInput,
+  ): Promise<ShareExpiry | null> {
+    const input = setShareExpiryInputSchema.parse(rawInput);
+    const lifecycle = await store.lifecycle(accountId, input.surfaceId);
+    if (!lifecycle) {
+      return null;
+    }
+    // Extending is for a link that has not expired; an expired one is either
+    // reopened (with confirmation) or reshared.
+    if (isExpired(lifecycle.expiresAt, now())) {
+      throw new LinkSharingStateError(
+        "This link has expired. Reopen the same link or reshare with a new link.",
+      );
+    }
+    const expiresAt = checkedExpiry(input.expiresAt);
+    const changed = await store.updateExpiry(
+      accountId,
+      input.surfaceId,
+      expiresAt,
+      false,
+    );
+    if (!changed) {
+      return null;
+    }
+    await record("link-sharing.expiry-changed", accountId, input.surfaceId);
+    return expiryOf(input.surfaceId, expiresAt);
+  }
+
+  async function reopen(
+    accountId: string,
+    rawInput: ReopenExpiredLinkInput,
+  ): Promise<ShareExpiry | null> {
+    const input = reopenExpiredLinkInputSchema.parse(rawInput);
+    const lifecycle = await store.lifecycle(accountId, input.surfaceId);
+    if (!lifecycle) {
+      return null;
+    }
+    if (!isExpired(lifecycle.expiresAt, now())) {
+      throw new LinkSharingStateError("Only an expired link can be reopened.");
+    }
+    const expiresAt = checkedExpiry(input.expiresAt);
+    // Sessions minted before the expiry must not wake up with the link.
+    const changed = await store.updateExpiry(
+      accountId,
+      input.surfaceId,
+      expiresAt,
+      true,
+    );
+    if (!changed) {
+      return null;
+    }
+    await appendEvents(accountId, input.surfaceId, changed.accessEpoch, [
+      "link-sharing.sessions-revoked",
+    ]);
+    await record("link-sharing.share-reopened", accountId, input.surfaceId);
+    return expiryOf(input.surfaceId, expiresAt);
+  }
+
+  async function reshare(
+    accountId: string,
+    rawInput: ReshareExpiredLinkInput,
+  ): Promise<ApprovedShare | null> {
+    const input = reshareExpiredLinkInputSchema.parse(rawInput);
+    const lifecycle = await store.lifecycle(accountId, input.surfaceId);
+    if (!lifecycle) {
+      return null;
+    }
+    if (!isExpired(lifecycle.expiresAt, now())) {
+      throw new LinkSharingStateError(
+        "Only an expired link can be reshared with a new link.",
+      );
+    }
+    const expiresAt = checkedExpiry(input.expiresAt);
+    await enforceRateLimit(accountId, SHARE_START_TYPES);
+    const token = randomSecret();
+    const shared = await store.reshare({
+      accountId,
+      expiresAt,
+      newSurfaceId: input.newSurfaceId,
+      sourceSurfaceId: input.surfaceId,
+      tokenHash: sha256Hex(token),
+    });
+    if (!shared) {
+      return null;
+    }
+    // A retried `newSurfaceId` answers without a token; the first answer held it.
+    if (!shared.created) {
+      return shared.share;
+    }
+    await record(
+      "link-sharing.share-reshared",
+      accountId,
+      shared.share.surfaceId,
+    );
+    return { ...shared.share, accessToken: token };
+  }
+
+  async function revoke(
+    accountId: string,
+    rawInput: RevokeShareInput,
+  ): Promise<RevokedShare | null> {
+    const input = revokeShareInputSchema.parse(rawInput);
+    await enforceRateLimit(accountId, SHARE_REVOKE_TYPES);
+    const at = now();
+    const revoked = await store.revoke(accountId, input.surfaceId, at);
+    if (!revoked) {
+      return null;
+    }
+    await appendEvents(accountId, input.surfaceId, revoked.accessEpoch, [
+      "link-sharing.surface-revoked",
+      "link-sharing.sessions-revoked",
+    ]);
+    await record("link-sharing.share-revoked", accountId, input.surfaceId);
+    return { revokedAt: at.toISOString(), surfaceId: input.surfaceId };
   }
 
   async function changeAccess(
@@ -651,17 +938,16 @@ export function createLinkSharing(
       return null;
     }
     // Secret-free: an aliased actor, the surface id and the new epoch only.
-    const actor = `account:${sha256Hex(accountId).slice(0, 16)}`;
-    await Promise.all(
-      [type, "link-sharing.sessions-revoked" as const].map((eventType) =>
-        options.events?.append({
-          accessEpoch: changed.accessEpoch,
-          actor,
-          occurredAt: now(),
-          surfaceId,
-          type: eventType,
-        }),
-      ),
+    await appendEvents(accountId, surfaceId, changed.accessEpoch, [
+      type,
+      "link-sharing.sessions-revoked",
+    ]);
+    await record(
+      type === "link-sharing.token-rotated"
+        ? "link-sharing.token-rotated"
+        : "link-sharing.password-rotated",
+      accountId,
+      surfaceId,
     );
     return changed;
   }
@@ -669,6 +955,10 @@ export function createLinkSharing(
   return {
     approve,
     preview,
+    reopen,
+    reshare,
+    revoke,
+    setExpiry,
     roots(accountId, projectId) {
       return store.roots(
         accountId,

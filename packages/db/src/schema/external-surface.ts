@@ -41,6 +41,12 @@ export const externalSurface = pgTable(
     accessEpoch: integer("access_epoch").notNull().default(0),
     /** Link Sharing only: scrypt hash of the optional link password (Secret). */
     passwordHash: text("password_hash"),
+    /**
+     * Link Sharing only: the optional `Bağlantı süre dolumu`; null is no
+     * expiry. Expiry stops access and deletes nothing; `cancelled_at` is the
+     * terminal `Bağlantı iptali`.
+     */
+    expiresAt: timestamp("expires_at"),
     /** Link Sharing only: SHA-256 of the share token (Secret); never the token. */
     tokenHash: text("token_hash"),
   },

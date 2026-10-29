@@ -32,6 +32,7 @@ export default function LinkSharingSurface({
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
   const approve = useApproveShareScope();
   const [issued, setIssued] = useState<IssuedShareLink | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const root = rootOf(selectedKey, roots.data ?? []);
   const preview = useQuery({
     ...orpc.previewShareScope.queryOptions({
@@ -77,6 +78,30 @@ export default function LinkSharingSurface({
         serverUrl: env.VITE_SERVER_URL,
       }}
       formatting={preferences.data ?? DEFAULT_ACCOUNT_PREFERENCES}
+      lifecycle={{
+        onReopen: (expiresAt) => access.reopen(expiresAt),
+        onReshare: async (expiresAt) => {
+          const shared = await access.reshare(expiresAt);
+          // The new token is returned once, with the new surface.
+          if (shared.accessToken) {
+            setIssued({
+              surfaceId: shared.surfaceId,
+              token: shared.accessToken,
+            });
+          }
+          return shared;
+        },
+        onRevoke: async () => {
+          const revoked = await access.revoke();
+          setIssued(null);
+          setNotice(
+            "Link revoked. It can never be used again; approving the scope again makes a new link.",
+          );
+          return revoked;
+        },
+        onSetExpiry: (expiresAt) => access.setExpiry(expiresAt),
+      }}
+      notice={notice}
       onApprove={async (values) => {
         if (!(root && preview.data)) {
           throw new Error("No scope to approve");
@@ -97,7 +122,10 @@ export default function LinkSharingSurface({
         }
         return approved;
       }}
-      onSelectRoot={setSelectedKey}
+      onSelectRoot={(key) => {
+        setNotice(null);
+        setSelectedKey(key);
+      }}
       preview={preview.data}
       previewError={preview.isError}
       previewLoading={root !== null && preview.isPending}

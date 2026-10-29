@@ -134,24 +134,31 @@ describe("Link Sharing visitor session seam", () => {
     if (result.status !== "granted") {
       return;
     }
-    const snapshot = await visitor.authorize(surfaceId, result.cookieValue);
-    expect(snapshot?.manifest.items.map((item) => item.label)).toContain(
-      "Body",
-    );
+    const access = await visitor.authorize(surfaceId, result.cookieValue);
+    expect(
+      access.status === "granted" &&
+        access.snapshot.manifest.items.map((item) => item.label),
+    ).toContain("Body");
     // The cookie secret is stored only as a hash and carries no account id.
     expect(JSON.stringify(harness.sessions)).not.toContain(
       result.cookieValue.split(".")[1] ?? "missing",
     );
     expect(JSON.stringify(harness.sessions)).not.toContain(ACCOUNT);
     // Another surface, a missing cookie and a tampered secret all fail alike.
-    expect(await visitor.authorize("other", result.cookieValue)).toBeNull();
-    expect(await visitor.authorize(surfaceId, undefined)).toBeNull();
+    expect((await visitor.authorize("other", result.cookieValue)).status).toBe(
+      "denied",
+    );
+    expect((await visitor.authorize(surfaceId, undefined)).status).toBe(
+      "denied",
+    );
     expect(
-      await visitor.authorize(
-        surfaceId,
-        `${result.cookieValue.split(".")[0]}.tampered`,
-      ),
-    ).toBeNull();
+      (
+        await visitor.authorize(
+          surfaceId,
+          `${result.cookieValue.split(".")[0]}.tampered`,
+        )
+      ).status,
+    ).toBe("denied");
   });
 
   test("the session ends 12 hours after creation and activity never extends it", async () => {
@@ -163,14 +170,16 @@ describe("Link Sharing visitor session seam", () => {
     }
     clock.advance(SHARE_VISITOR_SESSION_LIFETIME_MS - 60_000);
     expect(
-      await visitor.authorize(surfaceId, result.cookieValue),
-    ).not.toBeNull();
+      (await visitor.authorize(surfaceId, result.cookieValue)).status,
+    ).toBe("granted");
     clock.advance(30_000);
     expect(
-      await visitor.authorize(surfaceId, result.cookieValue),
-    ).not.toBeNull();
+      (await visitor.authorize(surfaceId, result.cookieValue)).status,
+    ).toBe("granted");
     clock.advance(30_000);
-    expect(await visitor.authorize(surfaceId, result.cookieValue)).toBeNull();
+    expect(
+      (await visitor.authorize(surfaceId, result.cookieValue)).status,
+    ).toBe("denied");
   });
 
   test("a password is required, and a wrong password, a missing password and an unknown token answer the same", async () => {
@@ -226,14 +235,18 @@ describe("Link Sharing visitor session seam", () => {
       throw new Error("not granted");
     }
     await founder.setPassword(ACCOUNT, { password: "pass-one-1", surfaceId });
-    expect(await visitor.authorize(surfaceId, first.cookieValue)).toBeNull();
+    expect((await visitor.authorize(surfaceId, first.cookieValue)).status).toBe(
+      "denied",
+    );
 
     const second = await live();
     expect(
-      await visitor.authorize(surfaceId, second ?? undefined),
-    ).not.toBeNull();
+      (await visitor.authorize(surfaceId, second ?? undefined)).status,
+    ).toBe("granted");
     await founder.setPassword(ACCOUNT, { password: "pass-two-2", surfaceId });
-    expect(await visitor.authorize(surfaceId, second ?? undefined)).toBeNull();
+    expect(
+      (await visitor.authorize(surfaceId, second ?? undefined)).status,
+    ).toBe("denied");
     expect(await open(visitor, token, "pass-one-1")).toEqual({
       status: "denied",
     });
@@ -247,7 +260,9 @@ describe("Link Sharing visitor session seam", () => {
       surfaceId,
     });
     expect(removed).toMatchObject({ passwordProtected: false });
-    expect(await visitor.authorize(surfaceId, third.cookieValue)).toBeNull();
+    expect((await visitor.authorize(surfaceId, third.cookieValue)).status).toBe(
+      "denied",
+    );
     expect(await open(visitor, token)).toMatchObject({ status: "granted" });
 
     expect(harness.events.map((event) => event.type)).toEqual([
@@ -273,7 +288,9 @@ describe("Link Sharing visitor session seam", () => {
     }
     const rotated = await founder.rotateToken(ACCOUNT, { surfaceId });
     expect(rotated?.token).toBeTruthy();
-    expect(await visitor.authorize(surfaceId, session.cookieValue)).toBeNull();
+    expect(
+      (await visitor.authorize(surfaceId, session.cookieValue)).status,
+    ).toBe("denied");
     expect(await open(visitor, token)).toEqual({ status: "denied" });
     expect(await open(visitor, rotated?.token ?? "")).toMatchObject({
       status: "granted",

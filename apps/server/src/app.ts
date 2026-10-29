@@ -187,6 +187,7 @@ import {
   GITHUB_WEBHOOK_PATH,
   handleGitHubWebhook,
 } from "./features/github-integration/server/github-webhook-route";
+import type { LinkSharingAssets } from "./features/link-sharing/server/link-sharing-assets";
 import { createLinkSharingVisitorRoutes } from "./features/link-sharing/server/link-sharing-http";
 import type { LinkSharingVisitorAccess } from "./features/link-sharing/server/link-sharing-visitor";
 import { youtubePlayerRoutes } from "./features/sources-and-freshness/server/youtube-player-page";
@@ -241,6 +242,7 @@ export interface AppDependencies {
   >;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   linkSharing?: LinkSharingAccess;
+  linkSharingAssets?: LinkSharingAssets;
   linkSharingVisitor?: LinkSharingVisitorAccess;
   moodboardMutationContracts?: MoodboardMutationContracts;
   moodboardPersonalViews?: PersonalMoodboardViewsAccess;
@@ -345,6 +347,7 @@ export function createApp(dependencies: AppDependencies) {
     app.route(
       "/",
       createLinkSharingVisitorRoutes({
+        assets: dependencies.linkSharingAssets,
         networkOf: (request, context) =>
           requestClientIp(request, context, dependencies.trustedProxyIps),
         visitor: dependencies.linkSharingVisitor,
