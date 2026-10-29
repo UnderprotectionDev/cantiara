@@ -1,6 +1,6 @@
 {
-  "id": "8f817a51-0082-4202-a00b-95de94902726",
-  "prevId": "5f6de83b-68a7-4701-a70c-55b71654690a",
+  "id": "bc56e0d1-4e13-4b9a-9ddd-4f9e3db460ef",
+  "prevId": "944770f0-dc00-4f35-afe2-e248d3afdffe",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3740,6 +3740,100 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.external_surface_purge_request": {
+      "name": "external_surface_purge_request",
+      "schema": "",
+      "columns": {
+        "surface_id": {
+          "name": "surface_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Pending'"
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "requested_at": {
+          "name": "requested_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "next_attempt_at": {
+          "name": "next_attempt_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "external_surface_purge_request_due_idx": {
+          "name": "external_surface_purge_request_due_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "next_attempt_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "external_surface_purge_request_surface_id_external_surface_id_fk": {
+          "name": "external_surface_purge_request_surface_id_external_surface_id_fk",
+          "tableFrom": "external_surface_purge_request",
+          "tableTo": "external_surface",
+          "columnsFrom": ["surface_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "external_surface_purge_request_status_check": {
+          "name": "external_surface_purge_request_status_check",
+          "value": "\"external_surface_purge_request\".\"status\" in ('Pending', 'Retrying', 'Done')"
+        },
+        "external_surface_purge_request_attempts_check": {
+          "name": "external_surface_purge_request_attempts_check",
+          "value": "\"external_surface_purge_request\".\"attempts\" >= 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.external_surface_snapshot_revision": {

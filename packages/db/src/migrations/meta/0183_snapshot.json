@@ -1,5 +1,5 @@
 {
-  "id": "5f6de83b-68a7-4701-a70c-55b71654690a",
+  "id": "944770f0-dc00-4f35-afe2-e248d3afdffe",
   "prevId": "ab89992b-45c3-4999-9d21-7a66b1e9de92",
   "version": "7",
   "dialect": "postgresql",
@@ -3742,6 +3742,100 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.external_surface_purge_request": {
+      "name": "external_surface_purge_request",
+      "schema": "",
+      "columns": {
+        "surface_id": {
+          "name": "surface_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Pending'"
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "requested_at": {
+          "name": "requested_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "next_attempt_at": {
+          "name": "next_attempt_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "external_surface_purge_request_due_idx": {
+          "name": "external_surface_purge_request_due_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "next_attempt_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "external_surface_purge_request_surface_id_external_surface_id_fk": {
+          "name": "external_surface_purge_request_surface_id_external_surface_id_fk",
+          "tableFrom": "external_surface_purge_request",
+          "tableTo": "external_surface",
+          "columnsFrom": ["surface_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "external_surface_purge_request_status_check": {
+          "name": "external_surface_purge_request_status_check",
+          "value": "\"external_surface_purge_request\".\"status\" in ('Pending', 'Retrying', 'Done')"
+        },
+        "external_surface_purge_request_attempts_check": {
+          "name": "external_surface_purge_request_attempts_check",
+          "value": "\"external_surface_purge_request\".\"attempts\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.external_surface_snapshot_revision": {
       "name": "external_surface_snapshot_revision",
       "schema": "",
@@ -3998,158 +4092,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.build_in_public_setting": {
-      "name": "build_in_public_setting",
-      "schema": "",
-      "columns": {
-        "enabled": {
-          "name": "enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "status_map": {
-          "name": "status_map",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "build_in_public_setting_project_id_project_id_fk": {
-          "name": "build_in_public_setting_project_id_project_id_fk",
-          "tableFrom": "build_in_public_setting",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "build_in_public_setting_workspace_id_workspace_id_fk": {
-          "name": "build_in_public_setting_workspace_id_workspace_id_fk",
-          "tableFrom": "build_in_public_setting",
-          "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "build_in_public_setting_status_map_check": {
-          "name": "build_in_public_setting_status_map_check",
-          "value": "jsonb_typeof(\"build_in_public_setting\".\"status_map\") = 'object'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.build_in_public_work_copy": {
-      "name": "build_in_public_work_copy",
-      "schema": "",
-      "columns": {
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "public_status_label": {
-          "name": "public_status_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "public_summary": {
-          "name": "public_summary",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "public_title": {
-          "name": "public_title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "work_id": {
-          "name": "work_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "build_in_public_work_copy_project_id_project_id_fk": {
-          "name": "build_in_public_work_copy_project_id_project_id_fk",
-          "tableFrom": "build_in_public_work_copy",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "build_in_public_work_copy_work_id_work_id_fk": {
-          "name": "build_in_public_work_copy_work_id_work_id_fk",
-          "tableFrom": "build_in_public_work_copy",
-          "tableTo": "work",
-          "columnsFrom": ["work_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "build_in_public_work_copy_title_check": {
-          "name": "build_in_public_work_copy_title_check",
-          "value": "\"build_in_public_work_copy\".\"public_title\" is null or length(btrim(\"build_in_public_work_copy\".\"public_title\")) between 1 and 120"
-        },
-        "build_in_public_work_copy_summary_check": {
-          "name": "build_in_public_work_copy_summary_check",
-          "value": "\"build_in_public_work_copy\".\"public_summary\" is null or length(btrim(\"build_in_public_work_copy\".\"public_summary\")) between 1 and 300"
-        },
-        "build_in_public_work_copy_label_check": {
-          "name": "build_in_public_work_copy_label_check",
-          "value": "\"build_in_public_work_copy\".\"public_status_label\" is null or length(btrim(\"build_in_public_work_copy\".\"public_status_label\")) between 1 and 40"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.document_template": {

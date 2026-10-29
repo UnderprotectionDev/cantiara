@@ -33,6 +33,8 @@ export interface CachedSurfaceResponse {
 /** Delivery cache. It is only consulted after the live state allowed the request. */
 export interface ExternalSurfaceResponseCache {
   get: (key: string) => Promise<CachedSurfaceResponse | null>;
+  /** Drops every entry of one surface (the product-controlled purge of a removed surface). */
+  purge?: (surfaceId: string) => Promise<void>;
   set: (key: string, value: CachedSurfaceResponse) => Promise<void>;
 }
 
@@ -189,6 +191,14 @@ export function createMemoryExternalSurfaceResponseCache(
   const maxEntryBytes = options.maxEntryBytes ?? 4 * 1024 * 1024;
   const entries = new Map<string, CachedSurfaceResponse>();
   return {
+    // biome-ignore lint/suspicious/useAwait: an in-memory purge answers directly.
+    purge: async (surfaceId) => {
+      for (const key of [...entries.keys()]) {
+        if (key.startsWith(`${surfaceId}:`)) {
+          entries.delete(key);
+        }
+      }
+    },
     // biome-ignore lint/suspicious/useAwait: an in-memory read answers directly.
     get: async (key) => {
       const value = entries.get(key);

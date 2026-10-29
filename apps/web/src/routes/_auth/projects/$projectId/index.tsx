@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
+import SharesAndPublicationsSurface from "@/features/external-surface-management/ui/components/shares-and-publications-surface";
 
 import GitHubIntegrationSurface from "@/features/github-integration/ui/components/github-integration-surface";
 import LinkSharingSurface from "@/features/link-sharing/ui/components/link-sharing-surface";
@@ -86,6 +87,9 @@ function RouteComponent() {
       }
       releaseEvidenceArea={releaseEvidenceArea}
       releasesArea={ProjectReleasesView}
+      sharesAndPublicationsArea={
+        <SharesAndPublicationsSurface key={projectId} projectId={projectId} />
+      }
       valueChainArea={valueChainArea}
       workHistoryArea={workHistoryArea}
     />

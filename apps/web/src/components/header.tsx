@@ -60,6 +60,9 @@ export default function Header() {
               <ShellNavLink to="/capture">Capture Inbox</ShellNavLink>
               <ShellNavLink to="/contacts">Contact</ShellNavLink>
               <ShellNavLink to="/product-gaps">Product Gaps</ShellNavLink>
+              <ShellNavLink to="/shares-and-publications">
+                Shares and Publications
+              </ShellNavLink>
             </nav>
           </div>
           <div className="ml-auto flex min-w-0 items-center justify-end gap-1 sm:gap-1.5">
@@ -103,7 +106,8 @@ function ShellNavLink({
     | "/focus-periods"
     | "/personal-wiki"
     | "/product-gaps"
-    | "/projects";
+    | "/projects"
+    | "/shares-and-publications";
 }) {
   const linkClassName =
     "inline-flex h-11 min-w-max items-center whitespace-nowrap rounded-md px-2 font-medium text-xs text-muted-foreground hover:bg-muted hover:text-foreground sm:px-2.5 sm:text-sm";

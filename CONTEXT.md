@@ -1330,6 +1330,10 @@ _Avoid_: Ürün oturumu, entegrasyon token düz metni
 Bağlantıyla sınırlı paylaşımın isteğe bağlı ortak parolası; tuzlu, bellek-yoğun bir parola özetiyle saklanır, geri okunabilir değildir, loga ve arama indeksine girmez; eklenmesi, değişmesi veya kalkması açık Paylaşım erişim oturumlarını hemen bitirir. UI: `Link password`, `Add password`, `Change password`, `Remove password`.
 _Avoid_: Hesap parolası, ziyaretçi kimliği
 
+**Paylaşım ve Yayınlar dizini**:
+Kurucunun Çalışma Alanı veya tek Proje düzeyinde bağlantı paylaşımı, Tekil Wiki yayını ve Build in Public gibi bütün Dış yüzeyleri kaynak, görünürlük, parola varlığı, süre, yaşam durumu, son onay ve yayımlanmamış değişiklik bayrağıyla tek yerde yönettiği [dizin](docs/prd/14-sharing-and-public-publishing.md#paylaşım-ve-yayınlar-yönetimi); yüzey oluşturmaz, görüntülenme sayacı, son erişim veya ziyaretçi izi toplamaz ve CDN panosu ya da analitik ürünü değildir. Tekil kaynağı Çöp Kutusuna alınırken korunan yüzey dizinde canlı kaynağa bağlı değil, donmuş ve ayrılmış olarak görünür. UI: `Shares and Publications`, `Active`, `Expired`, `Revoked`, `Open source`, `Review diff`, `Change expiry / Reactivate`, `Revoke / Unpublish`, `Move to Trash`.
+_Avoid_: Paylaşım analitiği, CDN panosu, yayın sihirbazı, görüntülenme sayacı, son erişim
+
 ## Test yönetimi
 
 **Planlı Test Senaryosu**:

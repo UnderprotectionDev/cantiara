@@ -680,6 +680,7 @@ export function createLinkSharing(
     if (findings.length > 0 && !input.publishAnyway) {
       throw new LinkSharingPlaceholdersError(findings);
     }
+    const newSurfaceId = crypto.randomUUID();
     if (!surface) {
       // The reservation lands before the store commit: a store failure keeps
       // the slot, so the limit is never bypassed by concurrent attempts.
@@ -687,7 +688,7 @@ export function createLinkSharing(
         accountId,
         "link-sharing.share-created",
         input.approvalId,
-        source.projectId,
+        newSurfaceId,
       );
     }
     const items: ShareManifestItem[] = scope.items
@@ -711,7 +712,6 @@ export function createLinkSharing(
       root: input.root,
       version: 1,
     };
-    const newSurfaceId = crypto.randomUUID();
     const approvedShare = await store.commit({
       accountId,
       approvalId: input.approvalId,
