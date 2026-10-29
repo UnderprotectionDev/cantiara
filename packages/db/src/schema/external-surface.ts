@@ -34,7 +34,7 @@ export const externalSurface = pgTable(
     /** Link Sharing only: the shared main record; null for other surfaces. */
     rootId: text("root_id"),
     rootKind: text("root_kind"),
-    /** Link Sharing only: `Link-limited share`; null for other surfaces. */
+    /** `Link-limited share` for Link Sharing, `Build in Public` for a Project surface; null for a Wiki publish. */
     surfaceKind: text("surface_kind"),
     /**
      * Link Sharing only: bumped by every password or token change; a visitor

@@ -8,6 +8,7 @@ import type {
   BacklogAccess,
   BacklogMutationContracts,
 } from "@cantiara/api/backlog";
+import type { BuildInPublicAccess } from "@cantiara/api/build-in-public";
 import type { CaptureInboxAccess } from "@cantiara/api/capture-triage";
 import type {
   CompletionEffectsPreferences,
@@ -215,6 +216,7 @@ export interface AppDependencies {
   auth: AccountAccessAuth;
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
+  buildInPublic?: BuildInPublicAccess;
   captureInbox?: CaptureInboxAccess;
   completionEffectsPreferences?: CompletionEffectsPreferencesAccess;
   completionEffectsPreferencesMutationContract?: MutationContract<CompletionEffectsPreferences>;
@@ -745,6 +747,7 @@ export function createApp(dependencies: AppDependencies) {
       workDrafts: dependencies.workDrafts,
       workTemplates: dependencies.workTemplates,
       workLifecycle: dependencies.workLifecycle,
+      buildInPublic: dependencies.buildInPublic,
       wikiPublishing: dependencies.wikiPublishing,
       workspaceOverview: dependencies.workspaceOverview,
     });
