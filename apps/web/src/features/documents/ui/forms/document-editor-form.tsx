@@ -30,6 +30,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import ActiveWorkingSetControl from "@/components/active-working-set-control";
 import FavoriteControl from "@/components/favorite-control";
 import PersonalReminderControl from "@/components/personal-reminder-control";
 import {
@@ -766,6 +767,15 @@ export default function DocumentEditor({
         <FavoriteControl
           sourceRecordId={record.id}
           sourceRecordType="Document"
+        />
+        <ActiveWorkingSetControl
+          archived={Boolean(record.archivedAt)}
+          member={{
+            id: record.id,
+            kind: "Document",
+            label: record.title,
+            projectId: record.projectId ?? null,
+          }}
         />
         <PersonalReminderControl
           compact
