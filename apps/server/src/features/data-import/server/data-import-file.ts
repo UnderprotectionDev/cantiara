@@ -66,6 +66,10 @@ const NON_ALPHANUMERIC = /[^a-z0-9]/gu;
 const FILE_EXTENSION = /\.([A-Za-z0-9]+)$/u;
 const CANTIARA_PREFIX = /^cantiara\./u;
 const BOM = /^﻿/u;
+/** The first line this product's CSV export writes: the proof of its own escape. */
+const EXPORT_MARKER = /^#\s*cantiara-export:\s*csv\/1\s*(?:\r?\n|$)/iu;
+/** The product's spreadsheet-safe escape: an apostrophe before a formula trigger. */
+const EXPORT_ESCAPE = /^'([=+\-@\t\r])/u;
 
 const ORIGIN_COLUMNS = new Set([
   "originkey",
@@ -440,8 +444,10 @@ function resolveCatalogType(
 
 function parseCsv(input: ParseInput): ParsedFile {
   const catalogType = resolveCatalogType(input.catalogType, undefined);
+  const unmarked = input.content.replace(BOM, "");
+  const exportMarker = EXPORT_MARKER.exec(unmarked);
   const result = Papa.parse<Record<string, string>>(
-    input.content.replace(BOM, ""),
+    exportMarker ? unmarked.slice(exportMarker[0].length) : unmarked,
     {
       header: true,
       skipEmptyLines: "greedy",
@@ -473,11 +479,20 @@ function parseCsv(input: ParseInput): ParsedFile {
       shapeProblems.set(error.row, error.message);
     }
   }
+  let unescaped = 0;
   const rows = result.data.map((cells, index): ParsedRow => {
     const normalized: Record<string, string> = {};
     for (const column of columns) {
       const cell = cells[column];
-      normalized[column] = typeof cell === "string" ? cell : "";
+      const text = typeof cell === "string" ? cell : "";
+      // Only a file that proves it is this product's export loses the escape;
+      // an ordinary leading apostrophe is the user's text and stays.
+      if (exportMarker && EXPORT_ESCAPE.test(text)) {
+        unescaped += 1;
+        normalized[column] = text.slice(1);
+      } else {
+        normalized[column] = text;
+      }
     }
     const problem = shapeProblems.get(index);
     return {
@@ -492,7 +507,15 @@ function parseCsv(input: ParseInput): ParsedFile {
     family: "Catalog",
     fixedMapping: null,
     format: "CSV",
-    losses: [],
+    losses:
+      unescaped > 0
+        ? [
+            {
+              detail: `The export escape was removed from ${unescaped} cell${unescaped === 1 ? "" : "s"}; this file proves it is a Cantiara export. Other apostrophes are unchanged.`,
+              kind: "spreadsheet escape removed",
+            },
+          ]
+        : [],
     originColumn: null,
     provider: `file:${input.fileName}`,
     rows,

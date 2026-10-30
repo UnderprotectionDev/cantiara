@@ -28,6 +28,7 @@ import type {
   ImportTargetValue,
 } from "./data-import-apply";
 import type { ImportSealer } from "./data-import-envelope";
+import { createDatabaseOrigins } from "./data-import-origin-database";
 import {
   unavailableImportWrite,
   writeImportPlan,
@@ -285,8 +286,8 @@ function createApplyPorts(database: Database): ImportApplyPorts {
  * Standard Import wired to PostgreSQL. The preview reads the target scope and
  * writes only `data_import_staging`. `Apply Import` writes the final set, its
  * import origins and the receipt through the Mutation Contract. The origin
- * lookup stays empty until the no-identity-resurrection ticket reads
- * `data_import_origin`, so every keyed row still previews as a new record.
+ * lookup reads `data_import_origin` against living, retired and permanently
+ * deleted records; only an exact living match previews `update existing`.
  */
 export function createDatabaseDataImport(
   database: Database,
@@ -295,7 +296,7 @@ export function createDatabaseDataImport(
   const staging = createStagingStore(database);
   const access = createDataImport({
     apply: createApplyPorts(database),
-    origins: () => Promise.resolve(new Map()),
+    origins: createDatabaseOrigins(database),
     scopes: createScopes(database),
     sealer,
     staging,

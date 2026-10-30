@@ -616,3 +616,37 @@ describe("Standard Import staging", () => {
     expect(staged.size).toBe(1);
   });
 });
+
+describe("Standard Import CSV export escape", () => {
+  const csv = (marker: boolean) =>
+    `${marker ? "# cantiara-export: csv/1\n" : ""}Title,Description,ID\n'=SUM(A1),'hello,e-1`;
+
+  test("removes the escape only when the file proves it is this product's export", async () => {
+    const { importer } = setup({ accountId: ACCOUNT });
+    const proven = await importer.preview(
+      ACCOUNT,
+      request({ catalogType: "Task", content: csv(true) }),
+      NOW,
+    );
+    expect(proven.rows[0]?.values).toMatchObject({
+      description: "'hello",
+      title: "=SUM(A1)",
+    });
+    expect(proven.losses.map((loss) => loss.kind)).toContain(
+      "spreadsheet escape removed",
+    );
+
+    const plain = await importer.preview(
+      ACCOUNT,
+      request({ catalogType: "Task", content: csv(false) }),
+      NOW,
+    );
+    expect(plain.rows[0]?.values).toMatchObject({
+      description: "'hello",
+      title: "'=SUM(A1)",
+    });
+    expect(plain.losses.map((loss) => loss.kind)).not.toContain(
+      "spreadsheet escape removed",
+    );
+  });
+});

@@ -119,6 +119,19 @@ function createMemoryApply(options: {
       relations: [...options.primary.relations],
     };
     try {
+      for (const update of plan.updates) {
+        const index = options.primary.records.findIndex(
+          (record) => record.id === update.recordId,
+        );
+        const current = options.primary.records[index];
+        if (!current) {
+          throw new Error("The record to update was not found.");
+        }
+        options.primary.records[index] = {
+          ...current,
+          values: { ...current.values, ...update.values },
+        };
+      }
       for (const record of plan.creates) {
         if (
           options.failOnValue &&
@@ -294,6 +307,8 @@ export function createMemoryDataImport(options: {
   failOnValue?: string;
   origins?: Record<string, ImportOriginState>;
   primary?: PrimaryFacts;
+  /** Records that already live in the scope, targets of update-existing. */
+  seedRecords?: WrittenRecord[];
   /** Why Apply cannot write the set, as the PostgreSQL adapter reports it. */
   unavailable?: string;
 }) {
@@ -306,7 +321,7 @@ export function createMemoryDataImport(options: {
   const frozen = JSON.stringify(primary);
   const written = {
     origins: [] as WrittenOrigin[],
-    records: [] as WrittenRecord[],
+    records: [...(options.seedRecords ?? [])] as WrittenRecord[],
     relations: [] as string[],
   };
   const importReceipts = new Map<string, ImportReceipt>();

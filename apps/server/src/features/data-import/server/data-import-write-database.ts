@@ -6,7 +6,7 @@ import { dataImportOrigin } from "@cantiara/db/schema/data-import";
 import { document } from "@cantiara/db/schema/document";
 import { project } from "@cantiara/db/schema/project";
 import { work, workKeyAllocation } from "@cantiara/db/schema/work";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import type {
   ImportFinalSet,
@@ -39,7 +39,7 @@ const TITLE_LIMIT = 255;
  */
 export function unavailableImportWrite(final: ImportFinalSet) {
   if (final.family === "Document") {
-    const tooLong = final.creates.find(
+    const tooLong = [...final.creates, ...final.updates].find(
       (row) => (row.values.title ?? "").length > TITLE_LIMIT,
     );
     return tooLong
@@ -110,6 +110,32 @@ async function writeDocuments(
   if (!(projectId || workspaceId)) {
     throw new Error("The Document scope was not found.");
   }
+  for (const record of plan.updates) {
+    const updated = await executor
+      .update(document)
+      .set({
+        ...(record.values.body === undefined
+          ? {}
+          : { body: record.values.body }),
+        ...(record.values.title === undefined
+          ? {}
+          : { title: record.values.title }),
+        revision: sql`${document.revision} + 1`,
+        updatedAt: committedAt,
+      })
+      .where(
+        and(
+          eq(document.id, record.recordId),
+          projectId
+            ? eq(document.projectId, projectId)
+            : eq(document.workspaceId, workspaceId as string),
+        ),
+      )
+      .returning({ id: document.id });
+    if (updated.length !== 1) {
+      throw new Error("A Document to update was not found in this scope.");
+    }
+  }
   for (const record of plan.creates) {
     await executor.insert(document).values({
       body: record.values.body ?? "",
@@ -139,6 +165,26 @@ async function writeWork(
     plan.scope.projectId,
   );
   let count = owner.workCount;
+  for (const record of plan.updates) {
+    const { description, dueDate, status, title } = record.values;
+    const updated = await executor
+      .update(work)
+      .set({
+        ...(description === undefined ? {} : { description }),
+        ...(dueDate === undefined ? {} : { targetDate: dueDate }),
+        ...(status === undefined
+          ? {}
+          : { status, statusChangedAt: committedAt }),
+        ...(title === undefined ? {} : { title }),
+        revision: sql`${work.revision} + 1`,
+        updatedAt: committedAt,
+      })
+      .where(and(eq(work.id, record.recordId), eq(work.projectId, owner.id)))
+      .returning({ id: work.id });
+    if (updated.length !== 1) {
+      throw new Error("A Work to update was not found in this Project.");
+    }
+  }
   for (const record of plan.creates) {
     count += 1;
     const key = `${owner.shortCode}-${count}`;
@@ -168,20 +214,23 @@ async function writeWork(
       updatedAt: committedAt,
     });
   }
-  await executor
-    .update(project)
-    .set({
-      revision: owner.revision + 1,
-      updatedAt: committedAt,
-      workCount: count,
-    })
-    .where(eq(project.id, owner.id));
+  if (plan.creates.length > 0) {
+    await executor
+      .update(project)
+      .set({
+        revision: owner.revision + 1,
+        updatedAt: committedAt,
+        workCount: count,
+      })
+      .where(eq(project.id, owner.id));
+  }
 }
 
-function scopeOf(plan: ImportWritePlan) {
-  return plan.scope.kind === "project"
-    ? { scopeId: plan.scope.projectId, scopeKind: "project" }
-    : { scopeId: plan.scope.kind, scopeKind: plan.scope.kind };
+/** How an origin names its scope: a Project id, or `wiki` / `workspace`. */
+export function importScopeColumns(scope: ImportWritePlan["scope"]) {
+  return scope.kind === "project"
+    ? { scopeId: scope.projectId, scopeKind: "project" }
+    : { scopeId: scope.kind, scopeKind: scope.kind };
 }
 
 async function writeOrigins(
@@ -207,7 +256,7 @@ async function writeOrigins(
       receiptKey: plan.idempotencyKey,
       recordId: record.id,
       recordType: record.recordType,
-      ...scopeOf(plan),
+      ...importScopeColumns(plan.scope),
     });
   }
 }
@@ -221,9 +270,6 @@ export async function writeImportPlan(
   plan: ImportWritePlan,
   committedAt: Date,
 ) {
-  if (plan.updates.length > 0) {
-    throw new Error("Updating an earlier import is not available yet.");
-  }
   if (plan.family === "Document") {
     await writeDocuments(executor, plan, committedAt);
   } else {
