@@ -64,6 +64,8 @@ import {
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseDailyFocus } from "./features/daily-focus/server/daily-focus-database";
+import { createSelectedExport } from "./features/data-export/server/selected-export";
+import { createDatabaseWorkExportSource } from "./features/data-export/server/selected-export-work-database";
 import { createDatabaseDocumentSurfaceCancellations } from "./features/documents/server/document-surface-cancellations";
 import { createDatabaseDocumentTagRenameWriter } from "./features/documents/server/document-tag-rename-database";
 import { createDatabaseDocumentTransfers } from "./features/documents/server/document-transfers-database";
@@ -386,6 +388,17 @@ export const trash = {
       (await projectShell.find(accountId, projectId))?.name ?? null,
   }),
 };
+// Work is the first source reader; each later record type registers its own.
+const workExportSource = createDatabaseWorkExportSource(db);
+export const selectedExport = createSelectedExport({
+  sources: {
+    Bug: workExportSource,
+    Feature: workExportSource,
+    Improvement: workExportSource,
+    Research: workExportSource,
+    Task: workExportSource,
+  },
+});
 const trashMaintenance = createTrashMaintenance(trashExpiry, trashEventLog);
 const linkSharingReplay = createDatabaseLinkSharingReplay(
   db,

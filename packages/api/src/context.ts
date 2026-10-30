@@ -21,6 +21,7 @@ import type {
   CustomFieldsAccess,
 } from "./custom-fields";
 import type { DailyFocusAccess } from "./daily-focus";
+import type { SelectedExportAccess } from "./data-export";
 import type { DocumentEvidenceAccess } from "./document-evidence";
 import type { DocumentTransfersAccess } from "./document-transfer";
 import type { DocumentMutationContracts, DocumentsAccess } from "./documents";
@@ -255,6 +256,7 @@ export interface Context {
   roadmapHorizon?: RoadmapHorizonAccess;
   schemaArtifacts?: SchemaArtifactsAccess;
   screens?: ScreensAccess;
+  selectedExport?: SelectedExportAccess;
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;

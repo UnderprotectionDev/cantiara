@@ -24,6 +24,7 @@ import type {
   CustomFieldsAccess,
 } from "@cantiara/api/custom-fields";
 import type { DailyFocusAccess } from "@cantiara/api/daily-focus";
+import type { SelectedExportAccess } from "@cantiara/api/data-export";
 import {
   DEFAULT_DESKTOP_API_COMPATIBILITY_WINDOW,
   DESKTOP_API_CONTRACT_HEADER,
@@ -287,6 +288,7 @@ export interface AppDependencies {
   roadmapHorizon?: RoadmapHorizonAccess;
   schemaArtifacts?: SchemaArtifactsAccess;
   screens?: ScreensAccess;
+  selectedExport?: SelectedExportAccess;
   smartCollections?: SmartCollectionsAccess;
   smartLinkPreview?: SmartLinkPreviewAccess;
   sourceEvidence?: SourceEvidenceAccess;
@@ -744,6 +746,7 @@ export function createApp(dependencies: AppDependencies) {
       releaseEvidence: dependencies.releaseEvidence,
       projectHistory: dependencies.projectHistory,
       projectUpdates: dependencies.projectUpdates,
+      selectedExport: dependencies.selectedExport,
       trash: dependencies.trash,
       linkSharing: dependencies.linkSharing,
       projectClosureSummary: dependencies.projectClosureSummary,

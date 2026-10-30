@@ -1676,6 +1676,10 @@ _Avoid_: Sürümsüz JSON, tahminî eski dosya içe aktarımı, CSV kayıpsızl�
 Formül gibi yorumlanabilecek kullanıcı metnini elektronik tabloda veri olarak açılacak biçimde işaretleyen ve bu dönüşümü [raporlayan kolaylık dışa aktarımı](docs/prd/13-data-security-and-portability.md#standart-biçimlerde-seçili-kayıt-dışa-aktarma); ham değerin kayıpsız kanonik temsili değildir.
 _Avoid_: Kayıpsız CSV, formül çalıştırabilen ham hücre, kanıtsız apostrof kaldırma
 
+**Seçili kayıt dışa aktarma**:
+Kurucunun tek kayıt türünü ve tek seçili kapsamı, kapalı dünya önizlemesi ve kaynak manifestiyle JSON veya CSV olarak aldığı, işlem başına 10.000 satır veya 25 MB ile sınırlı eylem; secret, paylaşım token'ı ve bağlantı parolası çıktıya girmez ([standart biçimlerde seçili kayıt dışa aktarma](docs/prd/13-data-security-and-portability.md#standart-biçimlerde-seçili-kayıt-dışa-aktarma)). UI: `Export`, `JSON`, `CSV`.
+_Avoid_: Çalışma Alanı çıkış paketi, canlı senkron, ikinci doğruluk kaynağı, yedek, tek belge dışa aktarma
+
 ## Veri güvenliği
 
 **GitHub kimliğini yeniden teyit etme**:
