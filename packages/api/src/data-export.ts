@@ -11,7 +11,12 @@ import { z } from "zod";
  */
 
 export const EXPORT_LABEL = "Export";
-export const EXPORT_FORMATS = ["JSON", "CSV"] as const;
+/**
+ * `PDF` is a readable snapshot of an exact-view list only (a Work list, a
+ * Smart Collection or a cross-project list). The seam refuses it for a general
+ * catalog export, which stays JSON and CSV.
+ */
+export const EXPORT_FORMATS = ["JSON", "CSV", "PDF"] as const;
 export const exportFormatSchema = z.enum(EXPORT_FORMATS);
 export type ExportFormat = z.infer<typeof exportFormatSchema>;
 
@@ -76,11 +81,44 @@ export function exportFamilyOf(recordType: ExportRecordType): string {
 
 const identifier = z.string().trim().min(1).max(255);
 
-/** One selected scope per operation. */
-export const exportScopeSchema = z
+export const EXPORT_MAX_CROSS_PROJECTS = 50;
+
+/** One Project. */
+export const exportProjectScopeSchema = z
   .object({ kind: z.literal("project"), projectId: identifier })
   .strict();
+export type ExportProjectScope = z.infer<typeof exportProjectScopeSchema>;
+
+/**
+ * A selection of the founder's Projects (a cross-project list). It is still one
+ * selected scope per operation; the seam reads and access-checks every Project.
+ */
+export const exportCrossProjectScopeSchema = z
+  .object({
+    kind: z.literal("cross-project"),
+    projectIds: z
+      .array(identifier)
+      .min(1)
+      .max(EXPORT_MAX_CROSS_PROJECTS)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "Projects must be listed once each.",
+      }),
+  })
+  .strict();
+export type ExportCrossProjectScope = z.infer<
+  typeof exportCrossProjectScopeSchema
+>;
+
+/** One selected scope per operation. */
+export const exportScopeSchema = z.discriminatedUnion("kind", [
+  exportProjectScopeSchema,
+  exportCrossProjectScopeSchema,
+]);
 export type ExportScope = z.infer<typeof exportScopeSchema>;
+
+export function exportScopeProjectIds(scope: ExportScope): string[] {
+  return scope.kind === "project" ? [scope.projectId] : [...scope.projectIds];
+}
 
 /**
  * The exact on-screen view a CSV snapshot captures (a Work list, a Smart
@@ -94,6 +132,8 @@ export const EXPORT_VIEW_KINDS = [
 ] as const;
 export const exportViewSchema = z
   .object({
+    /** A Smart Collection view id; the server resolves and verifies it. */
+    id: identifier.optional(),
     kind: z.enum(EXPORT_VIEW_KINDS),
     name: z.string().trim().min(1).max(200),
     sort: z
@@ -180,6 +220,8 @@ export interface ExportPreview {
   limits: { maxBytes: number; maxRows: number };
   lost: ExportLoss[];
   nature: string;
+  /** PDF only: the accessibility limit and the alternative offered instead. */
+  pdfNotice?: { alternative: ExportFormat; limitation: string };
   recordCount: number;
   records: Array<{ id: string; label: string }>;
   recordType: ExportRecordType;
@@ -251,7 +293,9 @@ export interface ExportDataset {
 }
 
 export interface ExportArtifact {
+  /** Text, or base64 when `encoding` is `base64` (PDF). */
   bytes: string;
+  encoding?: "base64" | "utf8";
   fileName: string;
   manifest: ExportManifest;
   mediaType: string;
@@ -262,9 +306,18 @@ export interface ExportArtifact {
  * calls it only after the preview was confirmed and every limit passed.
  */
 export interface ExportFormatProducer {
+  /**
+   * Cheap, synchronous artifact the preview measures. A producer that needs a
+   * heavy step (PDF rendering) returns its source here and renders in
+   * `finalize`, which runs only after the founder confirmed the preview.
+   */
+  finalize?: (artifact: ExportArtifact) => Promise<ExportArtifact>;
   format: ExportFormat;
   produce: (dataset: ExportDataset) => ExportArtifact;
 }
+
+export const EXPORT_PDF_LIMITATION =
+  "This PDF is a visual, static snapshot. It is not a tagged PDF and does not promise WCAG conformance. For an accessible alternative, export the same view as CSV or JSON, or use a Document's Markdown export.";
 
 export const EXPORT_ERROR_CODES = [
   "unlisted_family",
@@ -273,6 +326,7 @@ export const EXPORT_ERROR_CODES = [
   "preview_required",
   "source_unavailable",
   "format_unavailable",
+  "view_unverified",
 ] as const;
 export type ExportErrorCode = (typeof EXPORT_ERROR_CODES)[number];
 
@@ -285,6 +339,8 @@ export const EXPORT_ERROR_MESSAGES: Record<ExportErrorCode, string> = {
     "Review the preview first. The selection changed or was never previewed.",
   source_unavailable: "Exporting this record type is not available yet.",
   unlisted_family: "This record type is not part of Export.",
+  view_unverified:
+    "This view does not match the saved Smart Collection, so it was not exported.",
 };
 
 export class ExportError extends Error {

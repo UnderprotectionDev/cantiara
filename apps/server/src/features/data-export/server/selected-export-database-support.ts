@@ -1,7 +1,7 @@
 import type {
   ExportCustomFieldDefinition,
+  ExportProjectScope,
   ExportRecordType,
-  ExportScope,
 } from "@cantiara/api/data-export";
 import { ExportError } from "@cantiara/api/data-export";
 import type { Database } from "@cantiara/db";
@@ -41,7 +41,7 @@ export async function guardExportRead(
     accountId: string;
     filters: Record<string, string>;
     recordType: ExportRecordType;
-    scope: ExportScope;
+    scope: ExportProjectScope;
   },
   supportedFilters: readonly string[] = [],
 ): Promise<boolean> {

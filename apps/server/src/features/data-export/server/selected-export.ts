@@ -3,6 +3,7 @@ import {
   EXPORT_MAX_CONCURRENT,
   EXPORT_MAX_ROWS,
   EXPORT_NATURE_NOTE,
+  EXPORT_PDF_LIMITATION,
   EXPORT_RECORD_TYPES,
   EXPORT_RESIDENCY_NOTE,
   EXPORT_SCHEMA_VERSION,
@@ -17,15 +18,16 @@ import {
   type ExportLoss,
   type ExportPreview,
   type ExportProduceInput,
+  type ExportProjectScope,
   type ExportRecordExtras,
   type ExportRecordType,
   type ExportRelationPreview,
   type ExportRequest,
-  type ExportScope,
   type ExportView,
   exportFamilyOf,
   exportProduceInputSchema,
   exportRequestSchema,
+  exportScopeProjectIds,
   isExportRecordType,
   isSecretKey,
   type SelectedExportAccess,
@@ -33,6 +35,12 @@ import {
 } from "@cantiara/api/data-export";
 
 import { buildCsvTable } from "./csv-export-producer";
+import {
+  type ExportViewVerifier,
+  verifyExportView,
+} from "./export-view-verification";
+
+export type { ExportViewVerifier } from "./export-view-verification";
 
 /** One record as a source reader hands it over, before the seam closes the world. */
 export interface ExportSourceRecord extends ExportRecordExtras {
@@ -67,7 +75,7 @@ export interface ExportSourceReader {
     limit: number;
     recordIds?: readonly string[];
     recordType: ExportRecordType;
-    scope: ExportScope;
+    scope: ExportProjectScope;
   }) => Promise<ExportSourceRead | null>;
 }
 
@@ -131,6 +139,18 @@ const LOSSES: Record<ExportFormat, ExportLoss[]> = {
     },
   ],
   JSON: [],
+  PDF: [
+    {
+      detail:
+        "The PDF is a static picture of the table: relations, custom field values, key history, origin and nested components are not carried.",
+      kind: "structure",
+    },
+    {
+      detail:
+        "Values are printed as text, so field types and stable record identities are not a round-trip key in this file.",
+      kind: "types",
+    },
+  ],
 };
 
 /**
@@ -228,6 +248,60 @@ function projectRecord(
   return output;
 }
 
+/**
+ * Reads the selected scope through the per-Project reader. A cross-project
+ * scope reads every Project in turn; if any Project is not accessible, the whole
+ * export is refused so a partial list never claims the full scope.
+ */
+async function readScope(
+  reader: ExportSourceReader,
+  input: {
+    accountId: string;
+    filters: Record<string, string>;
+    recordIds?: readonly string[];
+    recordType: ExportRecordType;
+    scope: ReturnType<typeof exportRequestSchema.parse>["scope"];
+  },
+): Promise<ExportSourceRead | null> {
+  const merged: ExportSourceRead = { records: [], relations: [] };
+  let accessible = null as Set<string> | null;
+  const definitions = new Map<string, ExportCustomFieldDefinition>();
+  for (const projectId of exportScopeProjectIds(input.scope)) {
+    // Projects are read one after the other so the row limit applies to the sum.
+    // biome-ignore lint/performance/noAwaitInLoops: sequential by design.
+    const read = await reader.read({
+      accountId: input.accountId,
+      filters: input.filters,
+      limit: EXPORT_MAX_ROWS + 1 - merged.records.length,
+      recordIds: input.recordIds,
+      recordType: input.recordType,
+      scope: { kind: "project", projectId },
+    });
+    if (!read) {
+      return null;
+    }
+    merged.records.push(...read.records);
+    merged.relations.push(...read.relations);
+    for (const definition of read.customFieldDefinitions ?? []) {
+      definitions.set(definition.id, definition);
+    }
+    if (read.accessibleFields) {
+      const fieldsOfProject: Set<string> = new Set(read.accessibleFields);
+      accessible = accessible
+        ? new Set([...accessible].filter((key) => fieldsOfProject.has(key)))
+        : fieldsOfProject;
+    }
+    if (merged.records.length > EXPORT_MAX_ROWS) {
+      throw new ExportError("limit_exceeded");
+    }
+  }
+  merged.customFieldDefinitions = [...definitions.values()];
+  if (accessible) {
+    merged.accessibleFields = [...accessible];
+  }
+  return merged;
+}
+
 interface ClosedWorld {
   /** The finished artifact, produced inside the capacity window. */
   artifact?: ExportArtifact;
@@ -245,6 +319,8 @@ export function createSelectedExport(options: {
   now?: () => Date;
   producers?: Partial<Record<ExportFormat, ExportFormatProducer>>;
   sources: ExportSources;
+  /** Resolves stored view definitions; without it a Smart Collection view is refused. */
+  viewVerifier?: ExportViewVerifier;
 }): SelectedExportAccess {
   const capacity = options.capacity ?? createExportCapacity();
   const now = options.now ?? (() => new Date());
@@ -259,6 +335,18 @@ export function createSelectedExport(options: {
       throw new ExportError("unlisted_family");
     }
     const { recordType } = parsed;
+    if (parsed.format === "PDF" && !parsed.view) {
+      throw new ExportError(
+        "format_unavailable",
+        "PDF is only available for an exact-view list.",
+      );
+    }
+    const verified = await verifyExportView({
+      accountId,
+      parsed,
+      recordType,
+      verifier: options.viewVerifier,
+    });
     const reader = options.sources[recordType];
     if (!reader) {
       throw new ExportError("source_unavailable");
@@ -268,11 +356,10 @@ export function createSelectedExport(options: {
       throw new ExportError("capacity_exceeded");
     }
     try {
-      const read = await reader.read({
+      const read = await readScope(reader, {
         accountId,
-        filters: parsed.filters,
-        limit: EXPORT_MAX_ROWS + 1,
-        recordIds: parsed.recordIds,
+        filters: verified.readerFilters,
+        recordIds: verified.recordIds,
         recordType,
         scope: parsed.scope,
       });
@@ -283,7 +370,7 @@ export function createSelectedExport(options: {
         throw new ExportError("limit_exceeded");
       }
       // Shaping, serialization and hashing stay inside the capacity window.
-      const world = shape(parsed, recordType, reader, read);
+      const world = shape(parsed, recordType, reader, read, verified);
       world.fingerprint = await fingerprint(world);
       return world;
     } finally {
@@ -296,6 +383,7 @@ export function createSelectedExport(options: {
     recordType: ExportRecordType,
     reader: ExportSourceReader,
     read: ExportSourceRead,
+    verified: { recordIds?: string[] },
   ): ClosedWorld {
     const secrets = new Set<string>();
     const { fields, hiddenFields } = chooseColumns(
@@ -306,7 +394,7 @@ export function createSelectedExport(options: {
     );
     const visibleKeys = fields.map((field) => field.key);
 
-    const requested = parsed.recordIds ? new Set(parsed.recordIds) : null;
+    const requested = verified.recordIds ? new Set(verified.recordIds) : null;
     const view = exportedView(parsed.view, visibleKeys);
     const selected = sortForView(
       read.records.filter((record) => !requested || requested.has(record.id)),
@@ -379,6 +467,14 @@ export function createSelectedExport(options: {
         hiddenFields,
         limits: { maxBytes: EXPORT_MAX_BYTES, maxRows: EXPORT_MAX_ROWS },
         lost: LOSSES[parsed.format],
+        ...(parsed.format === "PDF"
+          ? {
+              pdfNotice: {
+                alternative: "CSV" as const,
+                limitation: EXPORT_PDF_LIMITATION,
+              },
+            }
+          : {}),
         nature: EXPORT_NATURE_NOTE,
         recordCount: records.length,
         recordType,
@@ -444,7 +540,28 @@ export function createSelectedExport(options: {
       if (!world.artifact) {
         throw new ExportError("format_unavailable");
       }
-      return world.artifact;
+      const finalize = producers[world.preview.format]?.finalize;
+      if (!finalize) {
+        return world.artifact;
+      }
+      // Heavy rendering (PDF) happens only after confirmation, inside capacity.
+      const release = capacity.acquire();
+      if (!release) {
+        throw new ExportError("capacity_exceeded");
+      }
+      try {
+        const finished = await finalize(world.artifact);
+        const size =
+          finished.encoding === "base64"
+            ? Math.ceil((finished.bytes.length * 3) / 4)
+            : byteLength(finished.bytes);
+        if (size > EXPORT_MAX_BYTES) {
+          throw new ExportError("limit_exceeded");
+        }
+        return finished;
+      } finally {
+        release();
+      }
     },
   };
 }

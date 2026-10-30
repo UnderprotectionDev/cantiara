@@ -8,6 +8,7 @@ import {
   type ExportRequest,
 } from "@cantiara/api/data-export";
 import { useExportFlow } from "../../hooks/use-export-flow";
+import type { ExportHandoff } from "../../lib/export-handoff";
 import { ExportPreviewPanel } from "../components/export-preview-panel";
 import { ExportForm } from "../forms/export-form";
 
@@ -18,11 +19,14 @@ import { ExportForm } from "../forms/export-form";
  */
 export function ExportView({
   catalog,
+  handoff,
   onPreview,
   onProduce,
   projects,
 }: {
   catalog: readonly ExportCatalogEntry[];
+  /** The exact list view this Export was opened from, if any. */
+  handoff?: ExportHandoff | null;
   onPreview: (request: ExportRequest) => Promise<ExportPreview>;
   onProduce: (
     request: ExportRequest,
@@ -43,6 +47,7 @@ export function ExportView({
       <ExportForm
         catalog={catalog}
         disabled={flow.pending}
+        handoff={handoff}
         onPreview={(request) => {
           flow.review(request).catch(() => undefined);
         }}
@@ -59,6 +64,12 @@ export function ExportView({
           onCancel={flow.cancel}
           onConfirm={() => {
             flow.confirm().catch(() => undefined);
+          }}
+          onUseAlternative={(format) => {
+            const request = flow.reviewing?.request;
+            if (request) {
+              flow.review({ ...request, format }).catch(() => undefined);
+            }
           }}
           preview={flow.reviewing.preview}
           produced={flow.produced}

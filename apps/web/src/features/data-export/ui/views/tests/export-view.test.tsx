@@ -6,6 +6,13 @@ import type {
 } from "@cantiara/api/data-export";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
+import {
+  type ExportHandoff,
+  groupRecordIdsByType,
+  scopeForProjects,
+  setExportHandoff,
+  takeExportHandoff,
+} from "../../../lib/export-handoff";
 import { ExportPreviewPanel } from "../../components/export-preview-panel";
 import { ExportView } from "../export-view";
 
@@ -98,5 +105,94 @@ describe("Export preview panel", () => {
     expect(html).toContain("1 cells that start with");
     expect(html).toContain("JSON keeps these values as they are");
     expect(html).toContain("creates no saved view, report or subscription");
+  });
+});
+
+describe("Export from a list screen", () => {
+  const handoff: ExportHandoff = {
+    filters: { status: "Ready" },
+    recordIdsByType: { Task: ["w1", "w2"] },
+    scope: scopeForProjects(["p1", "p2"]),
+    view: { kind: "Cross-project list", name: "Ready work" },
+    visibleFields: ["key", "title"],
+  };
+
+  test("offers PDF only for an exact view and shows the exact scope", () => {
+    const html = renderToStaticMarkup(
+      <ExportView
+        catalog={catalog}
+        handoff={{ ...handoff, recordIdsByType: { Task: ["w1", "w2"] } }}
+        onPreview={() => Promise.reject(new Error("unused"))}
+        onProduce={() => Promise.reject(new Error("unused"))}
+        projects={[{ id: "p1", name: "Alpha" }]}
+      />,
+    );
+    expect(html).toContain("PDF");
+    expect(html).toContain("Cross-project list");
+    expect(html).toContain("2 Task records");
+    expect(html).toContain("status = Ready");
+    expect(html).toContain("Columns: key, title");
+    expect(html).not.toContain("export-ids");
+  });
+
+  test("a general export has record ids and a status filter, no PDF", () => {
+    const html = renderToStaticMarkup(
+      <ExportView
+        catalog={catalog}
+        onPreview={() => Promise.reject(new Error("unused"))}
+        onProduce={() => Promise.reject(new Error("unused"))}
+        projects={[{ id: "p1", name: "Alpha" }]}
+      />,
+    );
+    expect(html).toContain("Record ids (optional)");
+    expect(html).toContain("Status filter (optional)");
+    expect(html).not.toContain("PDF");
+  });
+
+  test("hands the view over once", () => {
+    setExportHandoff({ ...handoff, recordIdsByType: { Task: ["w1"] } });
+    expect(takeExportHandoff()?.view.name).toBe("Ready work");
+    expect(takeExportHandoff()).toBeNull();
+  });
+
+  test("groups ids by type and picks the scope kind", () => {
+    expect(
+      groupRecordIdsByType([
+        { id: "a", type: "Task" },
+        { id: "b", type: "Bug" },
+        { id: "c", type: "Task" },
+      ]),
+    ).toEqual({ Bug: ["b"], Task: ["a", "c"] });
+    expect(scopeForProjects(["p1"])).toEqual({
+      kind: "project",
+      projectId: "p1",
+    });
+    expect(scopeForProjects(["p1", "p2"]).kind).toBe("cross-project");
+  });
+
+  test("the PDF preview explains the limit and offers CSV", () => {
+    const html = renderToStaticMarkup(
+      <ExportPreviewPanel
+        disabled={false}
+        onCancel={() => undefined}
+        onConfirm={() => undefined}
+        onUseAlternative={() => undefined}
+        preview={{
+          ...preview,
+          format: "PDF",
+          formatAvailable: true,
+          pdfNotice: {
+            alternative: "CSV",
+            limitation: "This PDF is not a tagged PDF.",
+          },
+          scope: { kind: "cross-project", projectIds: ["p1", "p2"] },
+        }}
+        produced={null}
+      />,
+    );
+    expect(html).toContain("PDF accessibility");
+    expect(html).toContain("not a tagged PDF");
+    expect(html).toContain("Use CSV instead");
+    expect(html).toContain("2 Projects");
   });
 });

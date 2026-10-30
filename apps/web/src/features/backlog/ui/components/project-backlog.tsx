@@ -44,7 +44,13 @@ import { Link } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ExportListAction } from "@/components/export-list-action";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
+import {
+  groupRecordIdsByType,
+  scopeForProjects,
+  WORK_LIST_EXPORT_FIELDS,
+} from "@/features/data-export/lib/export-handoff";
 import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
@@ -445,6 +451,32 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
 
   return (
     <section className="mt-5 space-y-3">
+      <ExportListAction
+        describe={() => ({
+          filters: {},
+          recordIdsByType: groupRecordIdsByType(
+            displayedWorks.flatMap((work) => {
+              const type = profilesById.get(work.id)?.type;
+              return type ? [{ id: work.id, type }] : [];
+            }),
+          ),
+          scope: scopeForProjects([projectId]),
+          view: {
+            kind: "Work list",
+            name: "Backlog",
+            ...(presentation === "Field"
+              ? {
+                  sort: {
+                    direction: "asc" as const,
+                    field: field === "Status" ? "status" : "title",
+                  },
+                }
+              : {}),
+          },
+          visibleFields: WORK_LIST_EXPORT_FIELDS,
+        })}
+        label="Backlog"
+      />
       <BacklogSortControls
         enabledMetrics={enabledMetrics}
         field={field}

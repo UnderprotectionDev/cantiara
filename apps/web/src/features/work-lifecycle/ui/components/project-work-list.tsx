@@ -23,6 +23,7 @@ import { useLocation } from "@tanstack/react-router";
 import { useSelector } from "@tanstack/react-store";
 import { useEffect, useRef, useState } from "react";
 import ActiveWorkingSetControl from "@/components/active-working-set-control";
+import { ExportListAction } from "@/components/export-list-action";
 import FavoriteControl from "@/components/favorite-control";
 import WorkStatusForm, {
   type WorkStatusActionRequest,
@@ -35,6 +36,11 @@ import useUserInitiatedWorkSuccess, {
   type UserInitiatedWorkCloseOutcome,
 } from "@/features/completion-effects/hooks/use-user-initiated-work-success";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
+import {
+  groupRecordIdsByType,
+  scopeForProjects,
+  WORK_LIST_EXPORT_FIELDS,
+} from "@/features/data-export/lib/export-handoff";
 import EvidenceFlowPanel from "@/features/evidence/ui/components/evidence-flow-panel";
 import ExternalExecutionHandoff from "@/features/external-handoffs/ui/components/external-execution-handoff";
 import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
@@ -454,6 +460,8 @@ function BulkEditSelectionControls({
   const selectedWorks = workItems.filter((work) =>
     selectedWorkIds.has(work.id),
   );
+  // The selection, or else every record the list shows, with its columns.
+  const exportedWorks = selectedWorks.length > 0 ? selectedWorks : workItems;
 
   return (
     <>
@@ -467,6 +475,19 @@ function BulkEditSelectionControls({
           </Button>
         </div>
       ) : null}
+      <ExportListAction
+        describe={() => ({
+          filters: {},
+          recordIdsByType: groupRecordIdsByType(exportedWorks),
+          scope: scopeForProjects([projectId]),
+          view: {
+            kind: "Work list",
+            name: archived ? "Work records (Archived)" : "Work records",
+          },
+          visibleFields: WORK_LIST_EXPORT_FIELDS,
+        })}
+        label="Work records"
+      />
       <BulkEditDialog
         archived={archived}
         onCloseOutcome={onCloseOutcome}
