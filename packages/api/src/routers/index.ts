@@ -106,6 +106,16 @@ import {
   dailyFocusMembershipInputSchema,
 } from "../daily-focus";
 import {
+  exportCatalogInputSchema,
+  exportProduceInputSchema,
+  exportRequestSchema,
+} from "../data-export";
+import {
+  exportCatalogHandler,
+  exportPreviewHandler,
+  exportProduceHandler,
+} from "../data-export-handlers";
+import {
   applyImportInputSchema,
   cancelImportInputSchema,
   ImportConflictError,
@@ -4948,6 +4958,15 @@ function requireExternalSurfaceManagement(context: Context) {
   return context.externalSurfaceManagement;
 }
 export const appRouter = {
+  exportCatalog: protectedProcedure
+    .input(exportCatalogInputSchema)
+    .handler(({ context }) => exportCatalogHandler(context)),
+  exportPreview: protectedProcedure
+    .input(exportRequestSchema)
+    .handler(({ context, input }) => exportPreviewHandler(context, input)),
+  exportProduce: protectedProcedure
+    .input(exportProduceInputSchema)
+    .handler(({ context, input }) => exportProduceHandler(context, input)),
   previewImport: protectedProcedure
     .input(previewImportInputSchema)
     .handler(({ context, input }) =>

@@ -63,6 +63,7 @@ export default function Header() {
               <ShellNavLink to="/shares-and-publications">
                 Shares and Publications
               </ShellNavLink>
+              <ShellNavLink to="/export">Export</ShellNavLink>
               <ShellNavLink to="/import">Import</ShellNavLink>
             </nav>
           </div>
@@ -104,6 +105,7 @@ function ShellNavLink({
     | "/capture"
     | "/contacts"
     | "/daily-focus"
+    | "/export"
     | "/focus-periods"
     | "/import"
     | "/personal-wiki"

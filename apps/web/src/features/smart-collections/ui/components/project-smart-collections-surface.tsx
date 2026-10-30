@@ -18,7 +18,14 @@ import {
   useRef,
   useState,
 } from "react";
+import { ExportListAction } from "@/components/export-list-action";
 import FavoriteControl from "@/components/favorite-control";
+import {
+  type ExportHandoff,
+  groupRecordIdsByType,
+  scopeForProjects,
+  WORK_LIST_EXPORT_FIELDS,
+} from "@/features/data-export/lib/export-handoff";
 import {
   OpenSourceRecordButton,
   type SourceRecordPreviewTarget,
@@ -390,6 +397,52 @@ function CollectionSubscriptionControls({
   );
 }
 
+/**
+ * A Smart Collection snapshot is only offered when the stored conditions can
+ * be verified against a reader: Work reads its `status` and carries `type` in
+ * the subject, while every other in-catalog type has no filter column, so a
+ * collection with a condition would never pass the preview.
+ */
+function collectionOffersExport(view: SmartCollectionViewSource): boolean {
+  if (view.sourceType === "Work") {
+    return true;
+  }
+  return !Object.values(view.conditions).some(
+    (value) => typeof value === "string" && value.length > 0,
+  );
+}
+
+/**
+ * The exact on-screen scope of a Smart Collection view: its stored Projects and
+ * conditions, and the records shown (the Insights slices narrow them). The
+ * server resolves the collection again and rejects a mismatch.
+ */
+function collectionExportHandoff(
+  view: SmartCollectionViewSource,
+  shownWorks: SmartCollectionViewSource["works"] | undefined,
+): ExportHandoff {
+  const isWork = view.sourceType === "Work";
+  const filters: Record<string, string> = {};
+  for (const [key, value] of Object.entries(view.conditions)) {
+    if (typeof value === "string" && value.length > 0) {
+      filters[key] = value;
+    }
+  }
+  const records = isWork
+    ? (shownWorks ?? view.works).map(({ id, type }) => ({ id, type }))
+    : view.projectSourceRecords.map(({ id, sourceType }) => ({
+        id,
+        type: sourceType,
+      }));
+  return {
+    filters,
+    recordIdsByType: groupRecordIdsByType(records),
+    scope: scopeForProjects(view.scope.projectIds),
+    view: { id: view.id, kind: "Smart Collection", name: view.collectionName },
+    ...(isWork ? { visibleFields: WORK_LIST_EXPORT_FIELDS } : {}),
+  };
+}
+
 function CollectionViewCard({
   preview,
   view,
@@ -456,6 +509,12 @@ function CollectionViewCard({
           New work
         </a>
       ) : null}
+      {view.preparedReason || !collectionOffersExport(view) ? null : (
+        <ExportListAction
+          describe={() => collectionExportHandoff(view, selectedWorks)}
+          label={view.collectionName}
+        />
+      )}
       {isWorkCollection ? (
         <fieldset className="flex gap-2">
           <legend className="sr-only">Collection view</legend>

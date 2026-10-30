@@ -26,6 +26,7 @@ import type {
   CustomFieldsAccess,
 } from "@cantiara/api/custom-fields";
 import type { DailyFocusAccess } from "@cantiara/api/daily-focus";
+import type { SelectedExportAccess } from "@cantiara/api/data-export";
 import type { DataImportAccess } from "@cantiara/api/data-import";
 import { DESKTOP_API_CONTRACT_HEADER } from "@cantiara/api/desktop-api-window";
 import type { DocumentEvidenceAccess } from "@cantiara/api/document-evidence";
@@ -198,6 +199,7 @@ export interface CreateContextOptions {
   schemaArtifacts?: SchemaArtifactsAccess;
   screens?: ScreensAccess;
   securityRedaction?: SecurityRedactionAccess;
+  selectedExport?: SelectedExportAccess;
   smartCollections?: SmartCollectionsAccess;
   smartLinkPreview?: SmartLinkPreviewAccess;
   sourceEvidence?: SourceEvidenceAccess;
@@ -321,6 +323,7 @@ export async function createContext({
   releaseEvidence,
   projectHistory,
   projectUpdates,
+  selectedExport,
   trash,
   dataImport,
   linkSharing,
@@ -436,6 +439,7 @@ export async function createContext({
     releaseEvidence,
     projectHistory,
     projectUpdates,
+    selectedExport,
     trash,
     dataImport,
     linkSharing,

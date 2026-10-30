@@ -1,4 +1,8 @@
 import {
+  EXPORT_ERROR_CODES,
+  EXPORT_ERROR_MESSAGES,
+} from "@cantiara/api/data-export";
+import {
   DESKTOP_API_UPDATE_REQUIRED_CODE,
   DESKTOP_API_UPDATE_REQUIRED_HEADER,
 } from "@cantiara/api/desktop-api-window";
@@ -46,7 +50,11 @@ export interface CreateSupportReferenceFailureOptions {
 }
 
 interface PreservedMutationResponse {
-  code: "CONFLICT" | "PRECONDITION_FAILED";
+  code:
+    | "BAD_REQUEST"
+    | "CONFLICT"
+    | "PRECONDITION_FAILED"
+    | "TOO_MANY_REQUESTS";
   data: Record<string, unknown>;
   defined: boolean;
   message: string;
@@ -189,6 +197,21 @@ function preservedMutationResponseFrom(
       },
       defined: true,
       message: MUTATION_UI_LABELS.conflict,
+    };
+  }
+
+  // A Selected Export refusal keeps its stable code and fixed message so the
+  // Export surface can name the refusal; nothing else of the error leaves.
+  const exportCode = EXPORT_ERROR_CODES.find((code) => code === data.code);
+  if (
+    exportCode &&
+    (value.code === "BAD_REQUEST" || value.code === "TOO_MANY_REQUESTS")
+  ) {
+    return {
+      code: value.code,
+      data: { code: exportCode },
+      defined: true,
+      message: EXPORT_ERROR_MESSAGES[exportCode],
     };
   }
 

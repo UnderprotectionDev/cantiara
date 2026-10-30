@@ -1,3 +1,4 @@
+import { EXPORT_MAX_CROSS_PROJECTS } from "@cantiara/api/data-export";
 import {
   parseRecordTableFieldValue,
   type RecordTableCellUpdateInput,
@@ -33,6 +34,12 @@ import {
   useState,
 } from "react";
 
+import { ExportListAction } from "@/components/export-list-action";
+import {
+  type ExportHandoff,
+  groupRecordIdsByType,
+  scopeForProjects,
+} from "@/features/data-export/lib/export-handoff";
 import RecordTablePasteCorrectionForm, {
   recordTablePasteCorrectionFormId,
 } from "../forms/record-table-paste-correction-form";
@@ -579,10 +586,14 @@ function EditableCell({
 }
 
 function RecordTableGrid({
+  exportProjectIds,
   onSaveCell,
   recordType,
   records,
-}: Pick<RecordTableViewProps, "onSaveCell" | "recordType" | "records">) {
+}: Pick<RecordTableViewProps, "onSaveCell" | "recordType" | "records"> & {
+  /** The Projects this table lists; Work can be exported from them. */
+  exportProjectIds: readonly string[];
+}) {
   const [filter, setFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
   const handleFilterChange = useCallback(
@@ -644,8 +655,41 @@ function RecordTableGrid({
     state: { globalFilter: filter, sorting },
   });
 
+  // The rows as shown: filtered and sorted, mixed Work types in one list.
+  const shownRows = table.getRowModel().rows;
+  const describeExport = useCallback((): ExportHandoff => {
+    const shown = shownRows.map((row) => ({
+      id: row.original.id,
+      type: String(recordField(row.original, "type")),
+    }));
+    const [onlyProject] = exportProjectIds;
+    return {
+      filters: {},
+      listedIds: shown.map((work) => work.id),
+      recordIdsByType: groupRecordIdsByType(shown),
+      scope: scopeForProjects(exportProjectIds),
+      view: {
+        kind:
+          exportProjectIds.length === 1 && onlyProject
+            ? "Work list"
+            : "Cross-project list",
+        name: "Work table",
+        order: "listed",
+      },
+      visibleFields: [...fields],
+    };
+  }, [exportProjectIds, fields, shownRows]);
+  const canExport =
+    recordType === "Work" &&
+    shownRows.length > 0 &&
+    exportProjectIds.length > 0 &&
+    exportProjectIds.length <= EXPORT_MAX_CROSS_PROJECTS;
+
   return (
     <div className="space-y-3">
+      {canExport ? (
+        <ExportListAction describe={describeExport} label="Work table" />
+      ) : null}
       <label className="block space-y-1" htmlFor="record-table-filter">
         <span>Filter rows</span>
         <Input
@@ -919,6 +963,9 @@ export function RecordTableView({
       {pending ? <p role="status">Loading…</p> : null}
       {failed || pending ? null : (
         <RecordTableGrid
+          exportProjectIds={
+            projectId ? [projectId] : projects.map((project) => project.id)
+          }
           onSaveCell={onSaveCell}
           records={records}
           recordType={recordType}

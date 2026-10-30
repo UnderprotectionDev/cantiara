@@ -166,4 +166,28 @@ describe("Smart Collection source preview actions", () => {
     );
     expect(html).not.toContain('href="/projects/project-1#source-test-gap-g1"');
   });
+
+  test("offers Export only where the stored conditions can be verified by a reader", () => {
+    // A Work collection carries its status in the reader and type in the subject.
+    const workWithStatus: SmartCollectionViewSource = {
+      ...emptyView("work-reviewed", "Work"),
+      conditions: { status: "In Progress" },
+    };
+    expect(renderSurface([workWithStatus])).toContain(
+      'aria-label="Export Review"',
+    );
+    // A plain type has no filter column, so a conditioned collection would
+    // never pass the preview and offers no action.
+    const decisionWithStatus: SmartCollectionViewSource = {
+      ...emptyView("decision-active", "Decision"),
+      conditions: { status: "Confirmed" },
+    };
+    expect(renderSurface([decisionWithStatus])).not.toContain(
+      'aria-label="Export Review"',
+    );
+    // Without conditions its records are exportable as they are.
+    expect(renderSurface([emptyView("decision-all", "Decision")])).toContain(
+      'aria-label="Export Review"',
+    );
+  });
 });

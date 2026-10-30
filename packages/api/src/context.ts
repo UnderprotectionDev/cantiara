@@ -21,6 +21,7 @@ import type {
   CustomFieldsAccess,
 } from "./custom-fields";
 import type { DailyFocusAccess } from "./daily-focus";
+import type { SelectedExportAccess } from "./data-export";
 import type { DataImportAccess } from "./data-import";
 import type { DocumentEvidenceAccess } from "./document-evidence";
 import type { DocumentTransfersAccess } from "./document-transfer";
@@ -259,6 +260,7 @@ export interface Context {
   schemaArtifacts?: SchemaArtifactsAccess;
   screens?: ScreensAccess;
   securityRedaction?: SecurityRedactionAccess;
+  selectedExport?: SelectedExportAccess;
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;

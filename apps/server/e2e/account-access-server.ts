@@ -46,6 +46,7 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "../src/features/custom-fields/server/custom-fields-mutation-database";
+import { createDatabaseSelectedExport } from "../src/features/data-export/server/selected-export-database";
 import { createDatabaseDataImport } from "../src/features/data-import/server/data-import-database";
 import {
   createEphemeralImportKeyRing,
@@ -393,6 +394,11 @@ const app = createApp({
     createDatabaseDocumentSurfaceCancellations(securityEventDatabase),
   ),
   smartCollections,
+  selectedExport: createDatabaseSelectedExport({
+    db: database,
+    smartCollections,
+    technicalDiagrams,
+  }),
   moodboardMutationContracts,
   moodboardPersonalViews,
   moodboards,

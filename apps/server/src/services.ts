@@ -67,6 +67,7 @@ import {
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseDailyFocus } from "./features/daily-focus/server/daily-focus-database";
+import { createDatabaseSelectedExport } from "./features/data-export/server/selected-export-database";
 import { createDatabaseDataImport } from "./features/data-import/server/data-import-database";
 import {
   createEphemeralImportKeyRing,
@@ -409,6 +410,11 @@ export const trash = {
       (await projectShell.find(accountId, projectId))?.name ?? null,
   }),
 };
+export const selectedExport = createDatabaseSelectedExport({
+  db,
+  smartCollections,
+  technicalDiagrams,
+});
 const trashMaintenance = createTrashMaintenance(trashExpiry, trashEventLog);
 // Staged import files are encrypted with their own key scope (not the GitHub ring).
 export const dataImport = createDatabaseDataImport(
