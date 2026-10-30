@@ -315,7 +315,8 @@ export interface ImportRowPreview {
 export type ImportLossKind =
   | "unmapped column"
   | "nested value flattened"
-  | "front matter ignored";
+  | "front matter ignored"
+  | "spreadsheet escape removed";
 
 export interface ImportLoss {
   detail: string;

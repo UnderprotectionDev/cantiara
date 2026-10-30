@@ -279,7 +279,19 @@ function countRows(rows: readonly ImportRowPreview[]) {
   return counts;
 }
 
+const RELATIONS_NOTE =
+  " Relations: this file type carries none, so none are written; an earlier record's relations are never revived for a new identity.";
+
 function originNote(
+  originColumn: string | null,
+  provenance: string,
+  parsed: ParsedFile,
+) {
+  const base = originNoteBase(originColumn, provenance, parsed);
+  return { ...base, note: `${base.note}${RELATIONS_NOTE}` };
+}
+
+function originNoteBase(
   originColumn: string | null,
   provenance: string,
   parsed: ParsedFile,

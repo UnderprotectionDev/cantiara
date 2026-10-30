@@ -407,7 +407,7 @@ describe("Standard Import Apply Import", () => {
     );
     const release = holdBarrier();
     const applying = importer.apply(ACCOUNT, confirm(preview), NOW);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     const cancel = await importer.cancel(ACCOUNT, {
       stagingId: preview.stagingId,
@@ -506,5 +506,177 @@ describe("Standard Import Apply Import", () => {
     ).rejects.toThrow("staged import is gone");
 
     expect(written.records).toHaveLength(0);
+  });
+});
+
+describe("Standard Import identity (no resurrection)", () => {
+  const LIVE = {
+    "ext-1": { recordId: "rec-1", state: "living", title: "Old brief" },
+  } as const;
+  const seed = [
+    {
+      id: "rec-1",
+      originKey: "ext-1",
+      recordType: "Task",
+      values: { description: "Kept", title: "Old brief" },
+    },
+  ];
+
+  test("update existing writes the living record atomically and creates no duplicate", async () => {
+    const { importer, written } = setup({
+      accountId: ACCOUNT,
+      origins: { ...LIVE },
+      seedRecords: seed,
+    });
+    const preview = await importer.preview(
+      ACCOUNT,
+      request({
+        catalogType: "Task",
+        content: "Title,ID\nNew brief,ext-1\nFresh,ext-9",
+      }),
+      NOW,
+    );
+    expect(preview.counts).toMatchObject({ create: 1, updateExisting: 1 });
+
+    const result = await importer.apply(ACCOUNT, confirm(preview), NOW);
+
+    expect(result).toMatchObject({
+      receipt: { counts: { created: 1, updated: 1 } },
+      status: "committed",
+    });
+    expect(written.records).toHaveLength(2);
+    expect(written.records[0]).toMatchObject({
+      id: "rec-1",
+      values: { description: "Kept", title: "New brief" },
+    });
+  });
+
+  test("a failing update rolls the whole final set back", async () => {
+    const { importer, written } = setup({
+      accountId: ACCOUNT,
+      origins: { "ext-1": { recordId: "gone", state: "living", title: "x" } },
+      seedRecords: seed,
+    });
+    const preview = await importer.preview(
+      ACCOUNT,
+      request({
+        catalogType: "Task",
+        content: "Title,ID\nNew brief,ext-1\nFresh,ext-9",
+      }),
+      NOW,
+    );
+
+    const result = await importer.apply(ACCOUNT, confirm(preview), NOW);
+
+    expect(result.status).toBe("rolled-back");
+    expect(written.records).toEqual(seed);
+    expect(written.origins).toHaveLength(0);
+  });
+
+  test("skip leaves the living record untouched and unresolved conflict refuses", async () => {
+    const { importer, written } = setup({
+      accountId: ACCOUNT,
+      origins: { ...LIVE },
+      seedRecords: seed,
+    });
+    const content = "Title,ID\nNew brief,ext-1\nFresh,ext-9";
+    const skipped = await importer.preview(
+      ACCOUNT,
+      request({ catalogType: "Task", content, rowChoices: { "1": "skip" } }),
+      NOW,
+    );
+    await importer.apply(ACCOUNT, confirm(skipped), NOW);
+    expect(written.records[0]?.values.title).toBe("Old brief");
+
+    const conflict = await importer.preview(
+      ACCOUNT,
+      request({
+        catalogType: "Task",
+        content,
+        rowChoices: { "1": "resolve conflict" },
+      }),
+      NOW,
+    );
+    expect(
+      await refusal(
+        importer.apply(ACCOUNT, confirm(conflict, "key-other-0001"), NOW),
+      ),
+    ).toBe("unresolved-conflict");
+  });
+
+  test("a permanently deleted id gets a new id, the previous origin stays visible and no old edge returns", async () => {
+    const { importer, written } = setup({
+      accountId: ACCOUNT,
+      origins: { "ext-1": { state: "permanently deleted" } },
+    });
+    const preview = await importer.preview(
+      ACCOUNT,
+      request({ catalogType: "Task", content: "Title,ID\nBack,ext-1" }),
+      NOW,
+    );
+    expect(preview.rows[0]?.newIdentity).toEqual({
+      previousOrigin: "ext-1",
+      reason: "permanently deleted",
+    });
+    expect(preview.origin.note).toContain("never revived");
+
+    await importer.apply(ACCOUNT, confirm(preview), NOW);
+
+    expect(written.records).toHaveLength(1);
+    expect(written.records[0]?.id).not.toBe("ext-1");
+    expect(written.origins).toEqual([
+      expect.objectContaining({
+        originKey: "ext-1",
+        recordId: written.records[0]?.id,
+      }),
+    ]);
+    expect(written.relations).toHaveLength(0);
+  });
+
+  test("a retired merge id stays retired and is never reused", async () => {
+    const { importer, written } = setup({
+      accountId: ACCOUNT,
+      origins: { "retired-1": { state: "retired" } },
+    });
+    const preview = await importer.preview(
+      ACCOUNT,
+      request({ catalogType: "Task", content: "Title,ID\nMerged,retired-1" }),
+      NOW,
+    );
+    expect(preview.rows[0]?.newIdentity?.reason).toBe("retired");
+
+    await importer.apply(ACCOUNT, confirm(preview), NOW);
+
+    expect(written.records).toHaveLength(1);
+    expect(written.records[0]?.id).not.toBe("retired-1");
+  });
+
+  test("a file without a stable origin key is never matched by guess", async () => {
+    const { importer, written } = setup({
+      accountId: ACCOUNT,
+      origins: { ...LIVE },
+      seedRecords: seed,
+    });
+    const preview = await importer.preview(
+      ACCOUNT,
+      request({ catalogType: "Task", content: "Title\nOld brief" }),
+      NOW,
+    );
+    expect(preview.counts).toMatchObject({ create: 1, updateExisting: 0 });
+    expect(preview.origin.note).toContain("no matching is guessed");
+
+    await importer.apply(ACCOUNT, confirm(preview), NOW);
+    expect(written.records).toHaveLength(2);
+  });
+
+  test("Apply is not a test-report, backup restore or GitHub sync command", () => {
+    const { importer } = setup();
+    expect(Object.keys(importer).sort()).toEqual([
+      "apply",
+      "cancel",
+      "preview",
+      "receipt",
+      "reopen",
+    ]);
   });
 });
