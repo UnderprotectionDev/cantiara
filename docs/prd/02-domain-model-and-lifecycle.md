@@ -334,6 +334,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Oturumu ve seçili sonuçları incelendi işaretle | `Mark session and selected results as reviewed` | Önizleme gerektiren, tek atomik ve idempotent toplu inceleme eylemi |
 | Düzeltme | `Correction` | Önceki Test Oturumu ya da Oturum Testi kaydına bağlı, gerekçeli yeni olay; güncel görünümde öne çıkar, özgün bildirim yerinde kalır |
 | Geri çekme | `Withdrawal` | Önceki kayda bağlı, gerekçeli yeni olay; sonucu güncel kanıt olmaktan çıkarır, özgün bildirim silinmez |
+| Güvenlik redaksiyonu | `Redact` | Hassas değerin etkisini önizleyip `Confirm GitHub Identity` grant'ini tüketen ve etkilenen Hesap veya Proje adının yazıldığı geri döndürülemez kaldırma eylemi; parola, MFA veya oturum yenileme değildir, Çöp Kutusu veya yerinde düzenleme değildir |
 | Güvenlik redaksiyonu işareti | `Redact value` | Hassas değerin yerine içeriksiz işaret, zaman, gerekçe ve aktör gösterir; Çöp Kutusu veya yerinde yeniden yazma değildir |
 | Kapanıştan sonra yeni bağlam | `New context after close` | Kapalı kayda sonradan gelen düzeltme, geri çekme veya redaksiyon sinyali; inceleme durumunu geri almaz |
 | Yerine geçer (Oturum Testi) | `Supersedes` | Aynı uzman türdeki kesin Oturum Testleri arasında yönlü, döngüsüz ilişki; iki tarihsel sonucu ve teknik bağlam farkını korur, hiçbirini yazmaz |

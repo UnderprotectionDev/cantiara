@@ -80,6 +80,7 @@ import type { ReturnToWorkAccess } from "./return-to-work";
 import type { RoadmapHorizonAccess } from "./roadmap-horizon";
 import type { SchemaArtifactsAccess } from "./schema-artifacts";
 import type { ScreensAccess } from "./screens";
+import type { SecurityRedactionAccess } from "./security-redaction";
 import type { SmartCollectionsAccess } from "./smart-collections";
 import type { SmartLinkPreviewAccess } from "./smart-link-preview";
 import type { SourceEvidenceAccess } from "./source-evidence";
@@ -255,6 +256,7 @@ export interface Context {
   roadmapHorizon?: RoadmapHorizonAccess;
   schemaArtifacts?: SchemaArtifactsAccess;
   screens?: ScreensAccess;
+  securityRedaction?: SecurityRedactionAccess;
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;
