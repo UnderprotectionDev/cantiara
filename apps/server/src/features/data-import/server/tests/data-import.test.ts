@@ -81,7 +81,7 @@ describe("Standard Import preview", () => {
       NOW,
     );
 
-    expect(preview.scope).toEqual({ kind: "wiki", label: "Wiki" });
+    expect(preview.scope).toEqual({ kind: "wiki", label: "Personal Wiki" });
     expect(preview.losses.map((loss) => loss.kind)).toContain(
       "front matter ignored",
     );
@@ -114,6 +114,26 @@ describe("Standard Import preview", () => {
       action: "create",
       newIdentity: { previousOrigin: "doc-7", reason: "permanently deleted" },
     });
+  });
+
+  test("accepts a first-party Document JSON whose body is empty", async () => {
+    const { importer } = setup();
+
+    const preview = await importer.preview(
+      ACCOUNT,
+      request({
+        content: JSON.stringify({
+          schema: "cantiara.document/1",
+          title: "Title only",
+        }),
+        fileName: "title-only.json",
+      }),
+      NOW,
+    );
+
+    expect(preview.rows[0]).toMatchObject({ action: "create" });
+    expect(preview.counts).toMatchObject({ create: 1, invalid: 0 });
+    expect(preview.rows[0]?.values).toMatchObject({ title: "Title only" });
   });
 
   test("refuses an unknown future schema version without staging", async () => {

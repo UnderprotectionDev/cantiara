@@ -70,6 +70,29 @@ export function newApplyKey() {
   return `import-${crypto.randomUUID()}`;
 }
 
+const LAST_APPLY_KEY_STORAGE_KEY = "cantiara:data-import:last-apply-key";
+
+/** Stores the key of the last Apply Import so a fresh page can reopen its receipt. */
+export function rememberLastApplyKey(idempotencyKey: string) {
+  try {
+    window.localStorage.setItem(LAST_APPLY_KEY_STORAGE_KEY, idempotencyKey);
+  } catch {
+    // A restricted browser storage context should not block Apply Import.
+  }
+}
+
+/** The key of the last Apply Import, or null when none was confirmed yet. */
+export function lastApplyKey() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return window.localStorage.getItem(LAST_APPLY_KEY_STORAGE_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Why Apply Import cannot run on this preview yet, or null. */
 export function applyBlockedReason(preview: ImportPreview) {
   if (preview.invalidTotal > 0) {

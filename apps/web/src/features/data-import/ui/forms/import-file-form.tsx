@@ -134,7 +134,9 @@ export default function ImportFileForm({
                   {project.name}
                 </NativeSelectOption>
               ))}
-              <NativeSelectOption value={WIKI_SCOPE}>Wiki</NativeSelectOption>
+              <NativeSelectOption value={WIKI_SCOPE}>
+                Personal Wiki
+              </NativeSelectOption>
               <NativeSelectOption value={WORKSPACE_SCOPE}>
                 Workspace
               </NativeSelectOption>

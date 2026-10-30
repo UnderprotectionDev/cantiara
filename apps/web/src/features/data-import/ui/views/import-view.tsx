@@ -3,12 +3,14 @@ import {
   IMPORT_LABEL,
   type ImportApplyResult,
   type ImportPreview,
+  type ImportReceipt,
   type PreviewImportInput,
 } from "@cantiara/api/data-import";
 import { useCallback, useState } from "react";
 import { importErrorText, toggleExcludedRow } from "../../lib/import-form";
 import { ImportApplyPanel } from "../components/import-apply-panel";
 import { ImportPreviewPanel } from "../components/import-preview-panel";
+import { ImportReceiptReopen } from "../components/import-receipt-reopen";
 import ImportFileForm, {
   type ImportProjectChoice,
 } from "../forms/import-file-form";
@@ -22,11 +24,13 @@ export function ImportView({
   onApply,
   onCancel,
   onPreview,
+  onReopenReceipt,
   projects,
 }: {
   onApply: (input: ApplyImportInput) => Promise<ImportApplyResult>;
   onCancel: (stagingId: string) => Promise<unknown>;
   onPreview: (input: PreviewImportInput) => Promise<ImportPreview>;
+  onReopenReceipt?: (idempotencyKey: string) => Promise<ImportReceipt>;
   projects: readonly ImportProjectChoice[];
 }) {
   const [shown, setShown] = useState<{
@@ -86,6 +90,9 @@ export function ImportView({
         </p>
       </header>
       <ImportFileForm onPreview={previewFile} projects={projects} />
+      {onReopenReceipt ? (
+        <ImportReceiptReopen onReopen={onReopenReceipt} />
+      ) : null}
       {actionError ? (
         <p className="text-destructive text-sm" role="alert">
           {actionError}

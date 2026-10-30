@@ -3,6 +3,7 @@ import type {
   ImportCatalogType,
   ImportReceipt,
 } from "@cantiara/api/data-import";
+import { ImportConflictError } from "@cantiara/api/data-import";
 import { createDatabaseMutationContract } from "@cantiara/api/mutation-contract-database";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
@@ -186,7 +187,7 @@ function createScopes(database: Database): DataImportPorts["scopes"] {
     }
     return {
       customFieldNames: [],
-      label: scope.kind === "wiki" ? "Wiki" : "Workspace",
+      label: scope.kind === "wiki" ? "Personal Wiki" : "Workspace",
     };
   };
 }
@@ -244,7 +245,15 @@ function createReceiptStore(database: Database): ImportReceiptStore {
           supportReference: receipt.supportReference ?? null,
         })
         .onConflictDoNothing();
-      return (await find(accountId, receipt.idempotencyKey)) ?? receipt;
+      const stored = await find(accountId, receipt.idempotencyKey);
+      if (
+        stored &&
+        stored.finalSetFingerprint !== receipt.finalSetFingerprint
+      ) {
+        // Same key, different final set: an explicit conflict, never a swap.
+        throw new ImportConflictError();
+      }
+      return stored ?? receipt;
     },
   };
 }

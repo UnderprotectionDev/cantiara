@@ -8,6 +8,8 @@ import {
 import { describe, expect, test } from "vitest";
 
 import { createDataImport } from "../data-import";
+import type { ImportFinalSet } from "../data-import-apply";
+import { unavailableImportWrite } from "../data-import-write-database";
 import { createMemoryDataImport } from "./data-import-memory-store";
 
 const ACCOUNT = "account-1";
@@ -678,5 +680,154 @@ describe("Standard Import identity (no resurrection)", () => {
       "receipt",
       "reopen",
     ]);
+  });
+});
+
+describe("Standard Import write availability", () => {
+  const finalSet = (
+    overrides: Partial<ImportFinalSet> = {},
+  ): ImportFinalSet => ({
+    catalogType: "Task",
+    conflicts: 0,
+    counts: { created: 1, excluded: 0, skipped: 0, updated: 0 },
+    creates: [
+      {
+        originKey: null,
+        recordId: null,
+        rowNumber: 1,
+        values: { title: "Write brief" },
+      },
+    ],
+    family: "Catalog",
+    fileName: "tasks.csv",
+    fingerprint: "a".repeat(64),
+    invalid: 0,
+    mappedFields: ["title"],
+    provenance: null,
+    scope: { kind: "project", projectId: "project-1" },
+    scopeLabel: "Project Atlas",
+    updates: [],
+    ...overrides,
+  });
+
+  test("refuses a Work title longer than the product's 255 characters", () => {
+    const code = unavailableImportWrite(
+      finalSet({
+        creates: [
+          {
+            originKey: null,
+            recordId: null,
+            rowNumber: 2,
+            values: { title: "x".repeat(256) },
+          },
+        ],
+      }),
+    );
+    expect(code).toBe("Row 2: the Work title is longer than 255 characters.");
+  });
+
+  test("accepts the product Work statuses but never closes a new Work", () => {
+    // The product closes a Work only with its explicit Completed or Abandoned result.
+    expect(
+      unavailableImportWrite(
+        finalSet({
+          creates: [
+            {
+              originKey: null,
+              recordId: null,
+              rowNumber: 1,
+              values: { status: "Closed", title: "Archive intake" },
+            },
+          ],
+        }),
+      ),
+    ).toBe(
+      "Row 1: a new Work cannot be Closed; closing needs its explicit Completed or Abandoned result. Import it open or drop the column.",
+    );
+    expect(
+      unavailableImportWrite(
+        finalSet({
+          creates: [
+            {
+              originKey: null,
+              recordId: null,
+              rowNumber: 1,
+              values: { status: "Not Started", title: "Archive intake" },
+            },
+          ],
+          updates: [
+            {
+              originKey: null,
+              recordId: "record-7",
+              rowNumber: 2,
+              values: { status: "Closed", title: "Archive intake kept" },
+            },
+          ],
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      unavailableImportWrite(
+        finalSet({
+          creates: [
+            {
+              originKey: null,
+              recordId: null,
+              rowNumber: 1,
+              values: { status: "Pending", title: "Not a status" },
+            },
+          ],
+        }),
+      ),
+    ).toBe(
+      'Row 1: status "Pending" is not Not Started, In Progress, Blocked, Closed.',
+    );
+  });
+
+  test("still refuses a Document title longer than 255 characters", () => {
+    expect(
+      unavailableImportWrite(
+        finalSet({
+          catalogType: null,
+          family: "Document",
+          creates: [
+            {
+              originKey: null,
+              recordId: null,
+              rowNumber: 1,
+              values: { body: "b", title: "y".repeat(300) },
+            },
+          ],
+        }),
+      ),
+    ).toBe("Row 1: the Document title is longer than 255 characters.");
+  });
+});
+
+describe("Standard Import receipt store", () => {
+  test("a receipt under a key never swaps to a different final set", async () => {
+    const { importer, ports } = setup();
+    const preview = await importer.preview(
+      ACCOUNT,
+      request({ catalogType: "Task", content: "Title\nA" }),
+      NOW,
+    );
+    const result = await importer.apply(ACCOUNT, confirm(preview), NOW);
+    if (result.status === "finalizing") {
+      throw new Error("unexpected finalizing");
+    }
+    const earlier = { ...result.receipt, idempotencyKey: KEY };
+
+    await expect(
+      ports.apply.receipts.put(ACCOUNT, {
+        ...earlier,
+        finalSetFingerprint: "c".repeat(64),
+      }),
+    ).rejects.toBeInstanceOf(ImportConflictError);
+    await expect(ports.apply.receipts.get(ACCOUNT, KEY)).resolves.toMatchObject(
+      {
+        finalSetFingerprint: result.receipt.finalSetFingerprint,
+      },
+    );
   });
 });

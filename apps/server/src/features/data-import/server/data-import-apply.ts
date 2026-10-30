@@ -314,6 +314,7 @@ export function createImportApply({ openStaged, ports }: ApplyContext) {
   }
 
   return {
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: The barrier order (receipt replay, claim, refusals, finalize) is the seam itself.
     async apply(
       accountId: string,
       rawInput: unknown,
@@ -339,7 +340,7 @@ export function createImportApply({ openStaged, ports }: ApplyContext) {
       if (!(await ports.staging.claim(accountId, input.stagingId, key))) {
         refuse(
           "apply-in-progress",
-          "Another import is already applying this file.",
+          "Another import is already applying this file or its idempotency key.",
         );
       }
       try {
@@ -354,7 +355,6 @@ export function createImportApply({ openStaged, ports }: ApplyContext) {
         await ports.staging.release(accountId, input.stagingId);
         throw error;
       }
-
       const plan = planOf(accountId, key, final, newId);
       const contract = ports.apply.contract(plan, barrier(accountId, final));
       const payload: MutationPayload = {
@@ -427,6 +427,11 @@ export function createImportApply({ openStaged, ports }: ApplyContext) {
           await ports.staging.release(accountId, input.stagingId);
           // biome-ignore lint/style/useErrorCause: The contract error carries no more than the conflict itself.
           throw new ImportConflictError();
+        }
+        if (error instanceof ImportConflictError) {
+          // A receipt under this key already carries a different final set.
+          await ports.staging.release(accountId, input.stagingId);
+          throw error;
         }
         throw error;
       }

@@ -2,6 +2,7 @@
 import { randomBytes } from "node:crypto";
 
 import type { ImportReceipt } from "@cantiara/api/data-import";
+import { ImportConflictError } from "@cantiara/api/data-import";
 import type {
   MutationPayload,
   MutationReceipt,
@@ -54,7 +55,7 @@ function scopeLabel(kind: "project" | "wiki" | "workspace") {
   if (kind === "project") {
     return "Project Atlas";
   }
-  return kind === "wiki" ? "Wiki" : "Workspace";
+  return kind === "wiki" ? "Personal Wiki" : "Workspace";
 }
 
 const PENDING: ImportTargetValue = {
@@ -362,6 +363,10 @@ export function createMemoryDataImport(options: {
       put: (accountId, receipt) => {
         const id = `${accountId}:${receipt.idempotencyKey}`;
         const kept = importReceipts.get(id) ?? receipt;
+        if (kept.finalSetFingerprint !== receipt.finalSetFingerprint) {
+          // Same key, different final set: an explicit conflict, never a swap.
+          return Promise.reject(new ImportConflictError());
+        }
         importReceipts.set(id, kept);
         return Promise.resolve(kept);
       },

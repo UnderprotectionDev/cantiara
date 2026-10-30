@@ -1,12 +1,13 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: the final set is written in file order inside one transaction.
 import type { ImportCatalogType } from "@cantiara/api/data-import";
 import type { MutationDatabaseExecutor } from "@cantiara/api/mutation-contract-database";
+import { WORK_STATUS_OPTIONS } from "@cantiara/api/work-lifecycle";
 import { workspace } from "@cantiara/db/schema/auth";
 import { dataImportOrigin } from "@cantiara/db/schema/data-import";
 import { document } from "@cantiara/db/schema/document";
 import { project } from "@cantiara/db/schema/project";
 import { work, workKeyAllocation } from "@cantiara/db/schema/work";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import type {
   ImportFinalSet,
@@ -21,7 +22,8 @@ const WORK_TYPES: readonly ImportCatalogType[] = [
   "Research",
   "Improvement",
 ];
-const WORK_STATUSES = ["Not Started", "In Progress", "Blocked"];
+/** The product's Work statuses, shared with `WORK_STATUS_OPTIONS`. */
+const WORK_STATUSES: readonly string[] = WORK_STATUS_OPTIONS;
 const WORK_FIELDS_WRITTEN = new Set([
   "title",
   "description",
@@ -57,9 +59,15 @@ export function unavailableImportWrite(final: ImportFinalSet) {
     return `Applying ${unwritten.join(", ")} for Work is not available yet. Skip those columns and preview again. Nothing was written.`;
   }
   for (const row of [...final.creates, ...final.updates]) {
-    const { dueDate, status } = row.values;
+    const { dueDate, status, title } = row.values;
+    if ((title ?? "").length > TITLE_LIMIT) {
+      return `Row ${row.rowNumber}: the Work title is longer than ${TITLE_LIMIT} characters.`;
+    }
     if (status !== undefined && !WORK_STATUSES.includes(status)) {
-      return `Row ${row.rowNumber}: status "${status}" is not Not Started, In Progress or Blocked.`;
+      return `Row ${row.rowNumber}: status "${status}" is not ${WORK_STATUSES.join(", ")}.`;
+    }
+    if (status === "Closed" && row.recordId === null) {
+      return `Row ${row.rowNumber}: a new Work cannot be Closed; closing needs its explicit Completed or Abandoned result. Import it open or drop the column.`;
     }
     if (dueDate !== undefined && !DATE_PATTERN.test(dueDate)) {
       return `Row ${row.rowNumber}: due date "${dueDate}" is not YYYY-MM-DD.`;
@@ -126,6 +134,7 @@ async function writeDocuments(
       .where(
         and(
           eq(document.id, record.recordId),
+          isNull(document.trashedAt),
           projectId
             ? eq(document.projectId, projectId)
             : eq(document.workspaceId, workspaceId as string),
@@ -165,26 +174,7 @@ async function writeWork(
     plan.scope.projectId,
   );
   let count = owner.workCount;
-  for (const record of plan.updates) {
-    const { description, dueDate, status, title } = record.values;
-    const updated = await executor
-      .update(work)
-      .set({
-        ...(description === undefined ? {} : { description }),
-        ...(dueDate === undefined ? {} : { targetDate: dueDate }),
-        ...(status === undefined
-          ? {}
-          : { status, statusChangedAt: committedAt }),
-        ...(title === undefined ? {} : { title }),
-        revision: sql`${work.revision} + 1`,
-        updatedAt: committedAt,
-      })
-      .where(and(eq(work.id, record.recordId), eq(work.projectId, owner.id)))
-      .returning({ id: work.id });
-    if (updated.length !== 1) {
-      throw new Error("A Work to update was not found in this Project.");
-    }
-  }
+  await updateWorkRecords(executor, owner, plan, committedAt);
   for (const record of plan.creates) {
     count += 1;
     const key = `${owner.shortCode}-${count}`;
@@ -223,6 +213,50 @@ async function writeWork(
         workCount: count,
       })
       .where(eq(project.id, owner.id));
+  }
+}
+
+/**
+ * The update part of the finalize write: revision bumps scoped to the Project,
+ * never touching a record in the Çöp Kutusu, and refusing an open record that
+ * claims `Closed` without its own Completed or Abandoned result.
+ */
+async function updateWorkRecords(
+  executor: MutationDatabaseExecutor,
+  owner: { id: string },
+  plan: ImportWritePlan,
+  committedAt: Date,
+) {
+  for (const record of plan.updates) {
+    const { description, dueDate, status, title } = record.values;
+    const updated = await executor
+      .update(work)
+      .set({
+        ...(description === undefined ? {} : { description }),
+        ...(dueDate === undefined ? {} : { targetDate: dueDate }),
+        ...(status === undefined
+          ? {}
+          : { status, statusChangedAt: committedAt }),
+        ...(title === undefined ? {} : { title }),
+        revision: sql`${work.revision} + 1`,
+        updatedAt: committedAt,
+      })
+      .where(
+        and(
+          eq(work.id, record.recordId),
+          eq(work.projectId, owner.id),
+          isNull(work.trashedAt),
+        ),
+      )
+      .returning({ closureResult: work.closureResult, id: work.id });
+    if (updated.length !== 1) {
+      throw new Error("A Work to update was not found in this Project.");
+    }
+    if (status === "Closed" && (updated[0]?.closureResult ?? null) === null) {
+      throw new Error(
+        "The Work cannot become Closed without its Completed or Abandoned result.",
+      );
+    }
   }
 }
 

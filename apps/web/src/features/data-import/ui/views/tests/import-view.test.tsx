@@ -10,6 +10,7 @@ import type {
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
+import { rememberLastApplyKey } from "../../../lib/import-form";
 import { ImportView } from "../import-view";
 
 (
@@ -96,6 +97,7 @@ let host: HTMLDivElement | undefined;
 afterEach(() => {
   act(() => root?.unmount());
   host?.remove();
+  window.localStorage.removeItem("cantiara:data-import:last-apply-key");
 });
 
 function mount(
@@ -103,6 +105,7 @@ function mount(
   handlers: {
     onApply?: (input: ApplyImportInput) => Promise<ImportApplyResult>;
     onCancel?: (stagingId: string) => Promise<unknown>;
+    onReopenReceipt?: (idempotencyKey: string) => Promise<ImportReceipt>;
   } = {},
 ) {
   host = document.createElement("div");
@@ -114,6 +117,7 @@ function mount(
         onApply={handlers.onApply ?? (() => Promise.reject(new Error("no")))}
         onCancel={handlers.onCancel ?? (() => Promise.resolve({}))}
         onPreview={onPreview}
+        onReopenReceipt={handlers.onReopenReceipt}
         projects={[{ id: "p1", name: "Project Atlas" }]}
       />,
     );
@@ -310,4 +314,29 @@ test("asks for a file before reading anything", async () => {
   expect(document.querySelector('[role="alert"]')?.textContent).toBe(
     "Choose a file.",
   );
+});
+
+test("a dropped receipt reopens by the stored key of the last Apply Import", async () => {
+  rememberLastApplyKey("import-stored-0001");
+  const onReopenReceipt = vi.fn(() =>
+    Promise.resolve({ ...receipt, idempotencyKey: "import-stored-0001" }),
+  );
+  mount(
+    vi.fn(() => Promise.resolve(validPreview)),
+    { onReopenReceipt },
+  );
+
+  expect(button("Reopen receipt")).toBeDefined();
+  await click("Reopen receipt");
+
+  expect(onReopenReceipt).toHaveBeenCalledWith("import-stored-0001");
+  expect(document.body.textContent).toContain(
+    "This is the same receipt, reopened.",
+  );
+});
+
+test("without a stored key no reopen control is offered", () => {
+  mount(vi.fn());
+
+  expect(button("Reopen receipt")).toBeUndefined();
 });

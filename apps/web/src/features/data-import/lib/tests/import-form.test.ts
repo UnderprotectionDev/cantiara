@@ -1,8 +1,12 @@
+// @vitest-environment happy-dom
+
 import { expect, test } from "vitest";
 import {
   buildPreviewInput,
   importErrorText,
+  lastApplyKey,
   projectScopeValue,
+  rememberLastApplyKey,
   scopeOfChoice,
 } from "../import-form";
 
@@ -55,4 +59,12 @@ test("shows a refusal message without file content", () => {
   expect(importErrorText("x")).toBe(
     "The file could not be previewed. Try again.",
   );
+});
+
+test("remembers the last Apply Import key for receipt reopening", () => {
+  expect(lastApplyKey()).toBeNull();
+  rememberLastApplyKey("import-key-1");
+  expect(lastApplyKey()).toBe("import-key-1");
+  rememberLastApplyKey("import-key-2");
+  expect(lastApplyKey()).toBe("import-key-2");
 });

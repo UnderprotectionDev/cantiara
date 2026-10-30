@@ -2,7 +2,7 @@ import type { Database } from "@cantiara/db";
 import { dataImportOrigin } from "@cantiara/db/schema/data-import";
 import { document } from "@cantiara/db/schema/document";
 import { work, workRetiredIdentity } from "@cantiara/db/schema/work";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import type {
   DataImportPorts,
@@ -58,11 +58,16 @@ async function livingTitles(
       ? await database
           .select({ id: document.id, title: document.title })
           .from(document)
-          .where(inArray(document.id, [...recordIds]))
+          .where(
+            and(
+              inArray(document.id, [...recordIds]),
+              isNull(document.trashedAt),
+            ),
+          )
       : await database
           .select({ id: work.id, title: work.title })
           .from(work)
-          .where(inArray(work.id, [...recordIds]));
+          .where(and(inArray(work.id, [...recordIds]), isNull(work.trashedAt)));
   return new Map(found.map((row) => [row.id, row.title]));
 }
 

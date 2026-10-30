@@ -9,7 +9,11 @@ import {
 } from "@cantiara/api/data-import";
 import { Button } from "@cantiara/ui/components/button";
 import { useState } from "react";
-import { applyBlockedReason, newApplyKey } from "../../lib/import-form";
+import {
+  applyBlockedReason,
+  newApplyKey,
+  rememberLastApplyKey,
+} from "../../lib/import-form";
 import { ImportReceiptPanel } from "./import-receipt";
 
 type ApplyState =
@@ -40,6 +44,8 @@ export function ImportApplyPanel({
 
   async function apply() {
     setState({ kind: "applying" });
+    // A receipt a dropped connection never showed stays reopenable by this key.
+    rememberLastApplyKey(key);
     try {
       const result = await onApply({
         finalSetFingerprint: preview.finalSetFingerprint,

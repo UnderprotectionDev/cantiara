@@ -159,6 +159,9 @@ function mappedValues(
   return values;
 }
 
+/** Required fields whose value may legitimately be empty: a Document body. */
+const EMPTY_REQUIRED_FIELDS = new Set(["body"]);
+
 function missingRequired(
   requiredFields: readonly string[],
   mappedFields: ReadonlySet<string>,
@@ -168,7 +171,7 @@ function missingRequired(
   for (const field of requiredFields) {
     if (!mappedFields.has(field)) {
       problems.push(`No column is mapped to ${field}.`);
-    } else if (!values[field]) {
+    } else if (!(values[field] || EMPTY_REQUIRED_FIELDS.has(field))) {
       problems.push(`${field} is empty.`);
     }
   }
