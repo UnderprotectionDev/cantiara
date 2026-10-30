@@ -128,7 +128,13 @@ test("Export previews before download, keeps JSON raw and CSV spreadsheet-safe, 
   expect(csv.text).not.toMatch(SECRET_WORDS);
 
   // An unlisted family is refused with a stable code and writes nothing.
+  // The request carries the session cookie and the web origin by hand: the
+  // server host is not the cookie's origin, and cookie writes need an Origin.
   const refused = await context.request.post(`${serverUrl}/rpc/exportPreview`, {
+    headers: {
+      Cookie: `${setup.cookie.name}=${setup.cookie.value}`,
+      Origin: `http://127.0.0.1:${process.env.PLAYWRIGHT_WEB_PORT ?? "4173"}`,
+    },
     data: {
       json: {
         filters: {},
