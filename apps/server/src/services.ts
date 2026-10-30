@@ -68,6 +68,12 @@ import {
 } from "./features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseDailyFocus } from "./features/daily-focus/server/daily-focus-database";
 import { createDatabaseSelectedExport } from "./features/data-export/server/selected-export-database";
+import { createDatabaseDataImport } from "./features/data-import/server/data-import-database";
+import {
+  createEphemeralImportKeyRing,
+  createImportSealer,
+  parseImportKeyRing,
+} from "./features/data-import/server/data-import-envelope";
 import { createDatabaseDocumentSurfaceCancellations } from "./features/documents/server/document-surface-cancellations";
 import { createDatabaseDocumentTagRenameWriter } from "./features/documents/server/document-tag-rename-database";
 import { createDatabaseDocumentTransfers } from "./features/documents/server/document-transfers-database";
@@ -410,6 +416,18 @@ export const selectedExport = createDatabaseSelectedExport({
   technicalDiagrams,
 });
 const trashMaintenance = createTrashMaintenance(trashExpiry, trashEventLog);
+// Staged import files are encrypted with their own key scope (not the GitHub ring).
+export const dataImport = createDatabaseDataImport(
+  db,
+  createImportSealer(
+    env.DATA_IMPORT_KEY_RING
+      ? parseImportKeyRing(
+          env.DATA_IMPORT_KEY_RING,
+          env.DATA_IMPORT_KEY_VERSION,
+        )
+      : createEphemeralImportKeyRing(),
+  ),
+);
 const linkSharingReplay = createDatabaseLinkSharingReplay(
   db,
   linkSharingSecurityEvents,
@@ -900,6 +918,14 @@ const maintenanceWorker = createMaintenanceWorker({
       cron: "5 * * * *",
       process: async () => {
         await sweepExpiredTrash();
+      },
+    },
+    {
+      // Staged import files never outlive their 24 hours.
+      name: "data-import-staging-sweep",
+      cron: "10 * * * *",
+      process: async () => {
+        await dataImport.purgeExpired();
       },
     },
   ],

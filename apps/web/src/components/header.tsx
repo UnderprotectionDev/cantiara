@@ -64,6 +64,7 @@ export default function Header() {
                 Shares and Publications
               </ShellNavLink>
               <ShellNavLink to="/export">Export</ShellNavLink>
+              <ShellNavLink to="/import">Import</ShellNavLink>
             </nav>
           </div>
           <div className="ml-auto flex min-w-0 items-center justify-end gap-1 sm:gap-1.5">
@@ -106,6 +107,7 @@ function ShellNavLink({
     | "/daily-focus"
     | "/export"
     | "/focus-periods"
+    | "/import"
     | "/personal-wiki"
     | "/product-gaps"
     | "/projects"

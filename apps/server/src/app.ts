@@ -25,6 +25,7 @@ import type {
 } from "@cantiara/api/custom-fields";
 import type { DailyFocusAccess } from "@cantiara/api/daily-focus";
 import type { SelectedExportAccess } from "@cantiara/api/data-export";
+import type { DataImportAccess } from "@cantiara/api/data-import";
 import {
   DEFAULT_DESKTOP_API_COMPATIBILITY_WINDOW,
   DESKTOP_API_CONTRACT_HEADER,
@@ -231,6 +232,7 @@ export interface AppDependencies {
   customFields?: CustomFieldsAccess;
   dailyFocus?: DailyFocusAccess;
   database: Database;
+  dataImport?: DataImportAccess;
   desktopApiNow?: () => Date;
   desktopApiWindow?: DesktopApiCompatibilityWindow;
   desktopOrigins: readonly string[];
@@ -751,6 +753,7 @@ export function createApp(dependencies: AppDependencies) {
       selectedExport: dependencies.selectedExport,
       securityRedaction: dependencies.securityRedaction,
       trash: dependencies.trash,
+      dataImport: dependencies.dataImport,
       linkSharing: dependencies.linkSharing,
       projectClosureSummary: dependencies.projectClosureSummary,
       valueChain: dependencies.valueChain,

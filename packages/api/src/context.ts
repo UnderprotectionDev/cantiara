@@ -22,6 +22,7 @@ import type {
 } from "./custom-fields";
 import type { DailyFocusAccess } from "./daily-focus";
 import type { SelectedExportAccess } from "./data-export";
+import type { DataImportAccess } from "./data-import";
 import type { DocumentEvidenceAccess } from "./document-evidence";
 import type { DocumentTransfersAccess } from "./document-transfer";
 import type { DocumentMutationContracts, DocumentsAccess } from "./documents";
@@ -208,6 +209,7 @@ export interface Context {
   customFieldMutationContracts?: CustomFieldMutationContracts;
   customFields?: CustomFieldsAccess;
   dailyFocus?: DailyFocusAccess;
+  dataImport?: DataImportAccess;
   db: Database;
   desktopApiContract?: string;
   documentEvidence?: DocumentEvidenceAccess;
