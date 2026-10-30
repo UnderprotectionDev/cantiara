@@ -398,6 +398,21 @@ function CollectionSubscriptionControls({
 }
 
 /**
+ * A Smart Collection snapshot is only offered when the stored conditions can
+ * be verified against a reader: Work reads its `status` and carries `type` in
+ * the subject, while every other in-catalog type has no filter column, so a
+ * collection with a condition would never pass the preview.
+ */
+function collectionOffersExport(view: SmartCollectionViewSource): boolean {
+  if (view.sourceType === "Work") {
+    return true;
+  }
+  return !Object.values(view.conditions).some(
+    (value) => typeof value === "string" && value.length > 0,
+  );
+}
+
+/**
  * The exact on-screen scope of a Smart Collection view: its stored Projects and
  * conditions, and the records shown (the Insights slices narrow them). The
  * server resolves the collection again and rejects a mismatch.
@@ -494,7 +509,7 @@ function CollectionViewCard({
           New work
         </a>
       ) : null}
-      {view.preparedReason ? null : (
+      {view.preparedReason || !collectionOffersExport(view) ? null : (
         <ExportListAction
           describe={() => collectionExportHandoff(view, selectedWorks)}
           label={view.collectionName}

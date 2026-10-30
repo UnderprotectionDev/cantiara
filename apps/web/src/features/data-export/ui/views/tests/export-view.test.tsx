@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to this surface's state.
-import type {
-  ExportCatalogEntry,
-  ExportPreview,
+import {
+  EXPORT_ERROR_MESSAGES,
+  type ExportCatalogEntry,
+  type ExportPreview,
 } from "@cantiara/api/data-export";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
@@ -14,6 +15,7 @@ import {
   setExportHandoff,
   takeExportHandoff,
 } from "../../../lib/export-handoff";
+import { exportSelectionRefusal } from "../../../lib/export-refusal";
 import { ExportPreviewPanel } from "../../components/export-preview-panel";
 import { ExportView } from "../export-view";
 
@@ -44,6 +46,17 @@ const preview: ExportPreview = {
 };
 
 const DISABLED_EXPORT = /<button[^>]*disabled=""[^>]*>Export</;
+
+describe("Export selection refusal", () => {
+  test("a selection the schema refuses locally answers visibly, with the server's limit wording", () => {
+    expect(exportSelectionRefusal({ issues: [{ path: ["recordIds"] }] })).toBe(
+      EXPORT_ERROR_MESSAGES.limit_exceeded,
+    );
+    expect(
+      exportSelectionRefusal({ issues: [{ path: ["filters", "status"] }] }),
+    ).toBe("Preview could not be built. Check the selection and try again.");
+  });
+});
 
 describe("Export view", () => {
   test("names Export with JSON and CSV only, and no other surface", () => {
@@ -85,6 +98,25 @@ describe("Export preview panel", () => {
     expect(html).toContain("never included");
     expect(html).toContain("EU region");
     expect(html).toContain("2 relations to records outside");
+  });
+
+  test("offers every record about to leave for review", () => {
+    const html = render({
+      ...preview,
+      records: [
+        { id: "w1", label: "CAN-1 First" },
+        { id: "w2", label: "CAN-2 Second" },
+      ],
+    });
+    expect(html).toContain("2 records leave in this file");
+    expect(html).toContain("review each one");
+    // The label list is rendered only once the founder opens the details.
+    expect(html).not.toContain('aria-label="Records in this file"');
+    expect(
+      render({ ...preview, records: [{ id: "w1", label: "CAN-1 First" }] }),
+    ).toContain("1 record leaves in this file. Open the list to review it.");
+    // An empty selection offers no records section.
+    expect(render(preview)).not.toContain(">Records<");
   });
 
   test("disables confirm while the format has no producer", () => {

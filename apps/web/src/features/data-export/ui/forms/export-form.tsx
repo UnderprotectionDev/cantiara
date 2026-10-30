@@ -23,12 +23,13 @@ import {
 } from "@cantiara/ui/components/radio-group";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import { type FormEvent, useState } from "react";
 import {
   type ExportHandoff,
   handoffRecordIds,
   handoffWorkTypes,
 } from "../../lib/export-handoff";
+import { exportSelectionRefusal } from "../../lib/export-refusal";
 
 const IDS_SEPARATOR = /[\s,]+/;
 
@@ -121,10 +122,16 @@ export function ExportForm({
         recordType: value.recordType,
       });
       if (parsed.success) {
+        setRefusal(null);
         onPreview(parsed.data);
+      } else {
+        // A locally refused selection never calls the preview: it answers
+        // visibly instead of leaving the Preview button dead.
+        setRefusal(exportSelectionRefusal(parsed.error));
       }
     },
   });
+  const [refusal, setRefusal] = useState<string | null>(null);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -299,6 +306,11 @@ export function ExportForm({
           </fieldset>
         )}
       </form.Field>
+      {refusal ? (
+        <p className="text-destructive text-sm" role="alert">
+          {refusal}
+        </p>
+      ) : null}
       <Button
         disabled={
           disabled || (handoff ? viewTypes.length === 0 : projects.length === 0)

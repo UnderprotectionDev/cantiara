@@ -7,7 +7,7 @@ import {
   type ExportPreview,
 } from "@cantiara/api/data-export";
 import { Button } from "@cantiara/ui/components/button";
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 function Section({ children, title }: { children: ReactNode; title: string }) {
   return (
@@ -48,6 +48,38 @@ function ExportOnlyNotice() {
         update or restore a diagram, and it holds only the link to any external
         source, never that source's content.
       </p>
+    </Section>
+  );
+}
+
+/**
+ * Every record about to leave, offered for review. The list only renders once
+ * the founder opens it, so a 10,000-row preview article stays light.
+ */
+function RecordsSection({ records }: { records: ExportPreview["records"] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Section title="Records">
+      <details
+        className="text-sm"
+        onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}
+      >
+        <summary>
+          {records.length === 1
+            ? "1 record leaves in this file. Open the list to review it."
+            : `${records.length} records leave in this file. Open the list to review each one.`}
+        </summary>
+        {open ? (
+          <ul
+            aria-label="Records in this file"
+            className="max-h-48 space-y-1 overflow-y-auto pt-2"
+          >
+            {records.map((record) => (
+              <li key={record.id}>{record.label || record.id}</li>
+            ))}
+          </ul>
+        ) : null}
+      </details>
     </Section>
   );
 }
@@ -120,6 +152,9 @@ export function ExportPreviewPanel({
           whichever comes first.
         </p>
       </Section>
+      {preview.records.length > 0 ? (
+        <RecordsSection records={preview.records} />
+      ) : null}
       <Section title="Fields">
         <ul aria-label="Fields exported" className="text-sm">
           {preview.fields.map((field) => (

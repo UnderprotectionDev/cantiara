@@ -35,7 +35,6 @@ import {
 } from "@cantiara/api/data-export";
 import { isSecretKey, stripSecrets } from "@cantiara/api/data-export-secrets";
 
-import { buildCsvTable } from "./csv-export-producer";
 import {
   type ExportViewVerifier,
   verifyExportView,
@@ -465,14 +464,16 @@ export function createSelectedExport(options: {
       records,
       relations,
     };
+    // The producer builds the CSV table once; the escape report comes from its
+    // own manifest so the rows are never serialized twice.
+    const artifact = producers[parsed.format]?.produce(dataset);
     const escapes =
-      parsed.format === "CSV" ? buildCsvTable(dataset).escapes : undefined;
+      parsed.format === "CSV" ? artifact?.manifest.escapes : undefined;
     if (escapes) {
       manifest.escapes = escapes;
     }
     // The estimate measures the real artifact (manifest, pretty-printing, CSV
     // quoting), so a passed preview cannot fail later for size.
-    const artifact = producers[parsed.format]?.produce(dataset);
     const estimatedBytes = byteLength(
       artifact?.bytes ??
         JSON.stringify({
