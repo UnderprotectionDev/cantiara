@@ -46,6 +46,11 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "../src/features/custom-fields/server/custom-fields-mutation-database";
+import { createDatabaseDataImport } from "../src/features/data-import/server/data-import-database";
+import {
+  createEphemeralImportKeyRing,
+  createImportSealer,
+} from "../src/features/data-import/server/data-import-envelope";
 import { createDatabaseDocumentSurfaceCancellations } from "../src/features/documents/server/document-surface-cancellations";
 import { createDatabaseDocumentTagRenameWriter } from "../src/features/documents/server/document-tag-rename-database";
 import { createDatabaseDocumentTransfers } from "../src/features/documents/server/document-transfers-database";
@@ -375,6 +380,10 @@ const app = createApp({
   customFields,
   customFieldMutationContracts,
   corsOrigin: webOrigin,
+  dataImport: createDatabaseDataImport(
+    database,
+    createImportSealer(createEphemeralImportKeyRing()),
+  ),
   database,
   documentMutationContracts,
   documents,
@@ -628,6 +637,7 @@ async function createE2EFixture(fixtureKey: string) {
           starterConfiguration: "Blank Project",
         })
       : null;
+  const importProject = await createImportFixture(fixtureKey, founder.id);
   const documentsProject = await createDocumentsFixture(fixtureKey, founder.id);
   if (tagsProject) {
     await workLifecycle.create(founder.id, {
@@ -745,6 +755,7 @@ async function createE2EFixture(fixtureKey: string) {
     calendarProject?.id ??
     scopeTreeProject?.id ??
     tagsProject?.id ??
+    importProject?.id ??
     documentsProject?.id ??
     bulkEditProgressFixture?.projectId;
 
@@ -764,6 +775,16 @@ async function createE2EFixture(fixtureKey: string) {
       ? { usedInSourceProjectId, usedInSourceWorkId }
       : {}),
   };
+}
+
+function createImportFixture(fixtureKey: string, accountId: string) {
+  return fixtureKey === "data-import"
+    ? projectShell.create(accountId, {
+        name: "Import Acceptance",
+        shortCode: "IMP",
+        starterConfiguration: "Blank Project",
+      })
+    : Promise.resolve(null);
 }
 
 async function createResearchConsentFixture(

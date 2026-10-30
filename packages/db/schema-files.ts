@@ -48,6 +48,7 @@ export const primarySchemaFiles = [
   "./src/schema/production-incident.ts",
   "./src/schema/project-update.ts",
   "./src/schema/trash.ts",
+  "./src/schema/data-import.ts",
   "./src/schema/priority-metrics.ts",
   "./src/schema/personal-reminders.ts",
   "./src/schema/backlog.ts",

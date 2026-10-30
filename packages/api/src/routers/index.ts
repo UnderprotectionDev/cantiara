@@ -106,6 +106,18 @@ import {
   dailyFocusMembershipInputSchema,
 } from "../daily-focus";
 import {
+  applyImportInputSchema,
+  cancelImportInputSchema,
+  ImportConflictError,
+  ImportReceiptNotFoundError,
+  ImportRefusedError,
+  ImportScopeNotFoundError,
+  ImportStagingExpiredError,
+  previewImportInputSchema,
+  reopenImportPreviewInputSchema,
+  reopenImportReceiptInputSchema,
+} from "../data-import";
+import {
   decisionSupersessionCommandSchema,
   decisionSupersessionSelectionSchema,
 } from "../decision-supersession";
@@ -4717,6 +4729,45 @@ function requireTrash(context: Context) {
   }
   return context.trash;
 }
+function requireDataImport(context: Context) {
+  if (!context.dataImport) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.dataImport;
+}
+async function dataImportRead<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    if (error instanceof ImportRefusedError) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: error.message,
+      });
+    }
+    if (error instanceof ImportConflictError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        defined: true,
+        message: error.message,
+      });
+    }
+    if (
+      error instanceof ImportScopeNotFoundError ||
+      error instanceof ImportStagingExpiredError ||
+      error instanceof ImportReceiptNotFoundError
+    ) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        defined: true,
+        message: error.message,
+      });
+    }
+    throw error;
+  }
+}
 function requireTrashEarlyDelete(context: Context) {
   const { earlyDelete } = requireTrash(context);
   if (!earlyDelete) {
@@ -4897,6 +4948,41 @@ function requireExternalSurfaceManagement(context: Context) {
   return context.externalSurfaceManagement;
 }
 export const appRouter = {
+  previewImport: protectedProcedure
+    .input(previewImportInputSchema)
+    .handler(({ context, input }) =>
+      dataImportRead(() =>
+        requireDataImport(context).preview(context.session.user.id, input),
+      ),
+    ),
+  reopenImportPreview: protectedProcedure
+    .input(reopenImportPreviewInputSchema)
+    .handler(({ context, input }) =>
+      dataImportRead(() =>
+        requireDataImport(context).reopen(context.session.user.id, input),
+      ),
+    ),
+  applyImport: protectedProcedure
+    .input(applyImportInputSchema)
+    .handler(({ context, input }) =>
+      dataImportRead(() =>
+        requireDataImport(context).apply(context.session.user.id, input),
+      ),
+    ),
+  cancelImport: protectedProcedure
+    .input(cancelImportInputSchema)
+    .handler(({ context, input }) =>
+      dataImportRead(() =>
+        requireDataImport(context).cancel(context.session.user.id, input),
+      ),
+    ),
+  reopenImportReceipt: protectedProcedure
+    .input(reopenImportReceiptInputSchema)
+    .handler(({ context, input }) =>
+      dataImportRead(() =>
+        requireDataImport(context).receipt(context.session.user.id, input),
+      ),
+    ),
   trash: protectedProcedure
     .input(trashOverviewInputSchema)
     .handler(async ({ context, input }) => {

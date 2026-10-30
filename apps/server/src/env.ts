@@ -12,6 +12,7 @@ const httpsProtocolPattern = /^https$/;
 
 const sensitiveEnvKeys = [
   "BETTER_AUTH_SECRET",
+  "DATA_IMPORT_KEY_RING",
   "DATABASE_URL",
   "GITHUB_APP_KEY_RING",
   "GITHUB_APP_PRIVATE_KEY",
@@ -126,6 +127,9 @@ export function createServerEnv(
         })
         .optional(),
       DATABASE_URL: z.string().min(1),
+      /** Versioned keys for the encrypted import staging area; unset keeps an in-process key. */
+      DATA_IMPORT_KEY_RING: z.string().min(1).optional(),
+      DATA_IMPORT_KEY_VERSION: z.coerce.number().int().positive().default(1),
       GITHUB_APP_ID: z.coerce.number().int().positive().optional(),
       GITHUB_APP_KEY_RING: z.string().min(1).optional(),
       GITHUB_APP_KEY_VERSION: z.coerce.number().int().positive().default(1),
