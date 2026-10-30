@@ -30,6 +30,9 @@ export async function openWorkRecordFromKanbanList(page: Page, title?: string) {
     throw new Error("The Work preview has no full-page destination.");
   }
 
+  // Sonner pauses toast timers while the pointer rests over them; the row
+  // button can sit under a toast stack, which then keeps covering this link.
+  await page.mouse.move(0, 0);
   await fullPageLink.click();
   await expect(page).toHaveURL(new URL(fullPageHref, sourceViewUrl).href);
 }

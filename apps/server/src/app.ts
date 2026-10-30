@@ -101,6 +101,7 @@ import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
 import { appRouter } from "@cantiara/api/routers/index";
 import type { SchemaArtifactsAccess } from "@cantiara/api/schema-artifacts";
 import type { ScreensAccess } from "@cantiara/api/screens";
+import type { SecurityRedactionAccess } from "@cantiara/api/security-redaction";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
 import type { SmartLinkPreviewAccess } from "@cantiara/api/smart-link-preview";
 import type { SourceEvidenceAccess } from "@cantiara/api/source-evidence";
@@ -289,6 +290,7 @@ export interface AppDependencies {
   roadmapHorizon?: RoadmapHorizonAccess;
   schemaArtifacts?: SchemaArtifactsAccess;
   screens?: ScreensAccess;
+  securityRedaction?: SecurityRedactionAccess;
   smartCollections?: SmartCollectionsAccess;
   smartLinkPreview?: SmartLinkPreviewAccess;
   sourceEvidence?: SourceEvidenceAccess;
@@ -746,6 +748,7 @@ export function createApp(dependencies: AppDependencies) {
       releaseEvidence: dependencies.releaseEvidence,
       projectHistory: dependencies.projectHistory,
       projectUpdates: dependencies.projectUpdates,
+      securityRedaction: dependencies.securityRedaction,
       trash: dependencies.trash,
       dataImport: dependencies.dataImport,
       linkSharing: dependencies.linkSharing,
