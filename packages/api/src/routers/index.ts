@@ -631,6 +631,14 @@ import {
   setScreenLifecycleInputSchema,
 } from "../screens";
 import {
+  applySecurityRedactionInputSchema,
+  SECURITY_REDACTION_OPERATION_ID,
+  SecurityRedactionGrantRejectedError,
+  SecurityRedactionSpreadIncompleteError,
+  SecurityRedactionTypedNameMismatchError,
+  securityRedactionPreviewInputSchema,
+} from "../security-redaction";
+import {
   createSmartCollectionInputSchema,
   SmartCollectionConflictError,
   SmartCollectionUnavailableError,
@@ -4803,6 +4811,49 @@ async function trashWrite<T>(
     return rethrowProjectShellMutationError(error, targetId);
   }
 }
+function requireSecurityRedaction(context: Context) {
+  if (!context.securityRedaction) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.securityRedaction;
+}
+async function securityRedactionWrite<T>(
+  write: () => Promise<T | null>,
+): Promise<T> {
+  try {
+    const result = await write();
+    if (!result) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return result;
+  } catch (error) {
+    if (error instanceof SecurityRedactionTypedNameMismatchError) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "The Account or Project name does not match.",
+      });
+    }
+    if (error instanceof SecurityRedactionSpreadIncompleteError) {
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        cause: error,
+        data: { code: error.code, failed: error.failed },
+        defined: true,
+        message: error.message,
+      });
+    }
+    if (error instanceof SecurityRedactionGrantRejectedError) {
+      throw new ORPCError("FORBIDDEN", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: error.message,
+      });
+    }
+    throw error;
+  }
+}
 async function projectUpdateWrite<T>(
   targetId: string,
   write: () => Promise<T | null>,
@@ -4901,6 +4952,43 @@ export const appRouter = {
             confirmation.consume(
               sessionPrincipal(context.session),
               "early-permanent-delete",
+              grant,
+              context.clientKey,
+            ),
+        ),
+      );
+    }),
+  previewSecurityRedaction: protectedProcedure
+    .input(securityRedactionPreviewInputSchema)
+    .handler(({ context, input }) =>
+      securityRedactionWrite(() =>
+        requireSecurityRedaction(context).preview(
+          {
+            accountId: context.session.user.id,
+            accountName: context.session.user.name,
+          },
+          input,
+        ),
+      ),
+    ),
+  applySecurityRedaction: protectedProcedure
+    .input(applySecurityRedactionInputSchema)
+    .handler(({ context, input }) => {
+      const confirmation = context.githubIdentityConfirmation;
+      if (!confirmation) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return securityRedactionWrite(() =>
+        requireSecurityRedaction(context).apply(
+          {
+            accountId: context.session.user.id,
+            accountName: context.session.user.name,
+          },
+          input,
+          (grant) =>
+            confirmation.consume(
+              sessionPrincipal(context.session),
+              SECURITY_REDACTION_OPERATION_ID,
               grant,
               context.clientKey,
             ),
