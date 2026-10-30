@@ -19,7 +19,10 @@ import {
 import { desktopOrigins, env } from "./env";
 import { createDatabaseAccountAdmission } from "./features/account-access/server/account-admission";
 import { createGitHubAvailability } from "./features/account-access/server/github-availability";
-import { CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH } from "./features/account-access/server/github-identity-confirmation";
+import {
+  accountActorAlias,
+  CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH,
+} from "./features/account-access/server/github-identity-confirmation";
 import { createDatabaseGitHubIdentityConfirmation } from "./features/account-access/server/github-identity-confirmation-database";
 import { createDatabaseAccountSessionAccess } from "./features/account-access/server/session-access-database";
 import { createDatabaseTauriSessionAccess } from "./features/account-access/server/tauri-session-database";
@@ -151,6 +154,20 @@ import { createNeonDisposableDatabase } from "./features/schema-artifacts/server
 import { createSchemaArtifacts } from "./features/schema-artifacts/server/schema-artifacts";
 import { createDatabaseMigrationArtifacts } from "./features/schema-artifacts/server/schema-artifacts-database";
 import { createDatabaseScreens } from "./features/screens/server/screens-database";
+import { createSecurityRedaction } from "./features/security-redaction/server/security-redaction";
+import {
+  createDatabaseSecurityRedactionLocators,
+  createDatabaseSecurityRedactionReplayTexts,
+  createDatabaseSecurityRedactionTargets,
+  createSurfaceCacheRedactionTarget,
+  derivedSearchIndexTarget,
+} from "./features/security-redaction/server/security-redaction-database";
+import { createDatabaseSecurityRedactionEventLog } from "./features/security-redaction/server/security-redaction-events-database";
+import {
+  createSecurityRedactionReplay,
+  deriveSecurityRedactionReplayKey,
+} from "./features/security-redaction/server/security-redaction-replay";
+import { createSecurityRedactionSpread } from "./features/security-redaction/server/security-redaction-spread";
 import { createSmartCollectionSubscriptionSignalWorker } from "./features/smart-collections/server/smart-collection-subscription-signal-worker";
 import {
   createDatabaseSmartCollections,
@@ -399,6 +416,44 @@ const linkSharingReplay = createDatabaseLinkSharingReplay(
 );
 export const externalSurfaceResponseCache =
   createMemoryExternalSurfaceResponseCache();
+/**
+ * Security Redaction (spec 78 #504, #505): the gate, the preview and the
+ * spread. Real stores: Document current content, Document record history,
+ * External Surface snapshots and the surface delivery cache; search is derived
+ * from current content. Export staging has no store yet, so it previews as not
+ * searched and apply reports it `not-wired`.
+ */
+const securityRedactionSpread = createSecurityRedactionSpread([
+  ...createDatabaseSecurityRedactionTargets(db),
+  derivedSearchIndexTarget,
+  createSurfaceCacheRedactionTarget(db, externalSurfaceResponseCache),
+]);
+const securityRedactionEvents =
+  createDatabaseSecurityRedactionEventLog(securityEventDb);
+const securityRedactionReplayKey = deriveSecurityRedactionReplayKey(
+  env.BETTER_AUTH_SECRET,
+);
+export const securityRedaction = createSecurityRedaction({
+  locators: createDatabaseSecurityRedactionLocators(db),
+  projectName: async (accountId, projectId) =>
+    (await projectShell.find(accountId, projectId))?.name ?? null,
+  recording: {
+    actorAlias: accountActorAlias,
+    log: securityRedactionEvents,
+    replayKey: securityRedactionReplayKey,
+  },
+  spread: securityRedactionSpread,
+});
+/**
+ * Re-applies logged redactions to a restored store before access opens. The
+ * production trigger and log store belong to the access gate of spec 85.
+ */
+export const securityRedactionReplay = createSecurityRedactionReplay({
+  events: securityRedactionEvents,
+  key: securityRedactionReplayKey,
+  spread: securityRedactionSpread,
+  texts: createDatabaseSecurityRedactionReplayTexts(db),
+});
 export const externalSurfacePurges = createSurfacePurges({
   store: createDatabaseSurfacePurges(db),
   targets: [
