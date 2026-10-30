@@ -30,10 +30,26 @@ export async function ownsProject(
   return Boolean(owned);
 }
 
+/** A filter the record type does not support is refused, never ignored. */
+export function refuseUnsupportedFilters(
+  input: { filters: Record<string, string>; recordType: ExportRecordType },
+  supportedFilters: readonly string[] = [],
+): void {
+  for (const key of Object.keys(input.filters)) {
+    if (!supportedFilters.includes(key)) {
+      throw new ExportError(
+        "source_unavailable",
+        `The filter ${key} is not supported for ${input.recordType}.`,
+      );
+    }
+  }
+}
+
 /**
  * The guard every database source reader starts with: it refuses a filter the
  * type does not support, then answers whether the scope is the account's own.
- * `false` means the scope is not accessible (the seam reports it as such).
+ * `null` means the scope is not accessible (the seam reports it as such);
+ * otherwise it is the readable Project id.
  */
 export async function guardExportRead(
   database: Database,
@@ -44,16 +60,26 @@ export async function guardExportRead(
     scope: ExportScope;
   },
   supportedFilters: readonly string[] = [],
-): Promise<boolean> {
-  for (const key of Object.keys(input.filters)) {
-    if (!supportedFilters.includes(key)) {
-      throw new ExportError(
-        "source_unavailable",
-        `The filter ${key} is not supported for ${input.recordType}.`,
-      );
-    }
+): Promise<string | null> {
+  refuseUnsupportedFilters(input, supportedFilters);
+  const projectId = projectScopeId(input.scope, input.recordType);
+  return (await ownsProject(database, input.accountId, projectId))
+    ? projectId
+    : null;
+}
+
+/** A Project reader answers only a Project scope; any other scope is refused. */
+export function projectScopeId(
+  scope: ExportScope,
+  recordType: ExportRecordType,
+): string {
+  if (scope.kind !== "project") {
+    throw new ExportError(
+      "source_unavailable",
+      `${recordType} is exported per Project, not for a Workspace scope.`,
+    );
   }
-  return await ownsProject(database, input.accountId, input.scope.projectId);
+  return scope.projectId;
 }
 
 /**

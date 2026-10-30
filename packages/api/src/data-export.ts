@@ -77,9 +77,11 @@ export function exportFamilyOf(recordType: ExportRecordType): string {
 const identifier = z.string().trim().min(1).max(255);
 
 /** One selected scope per operation. */
-export const exportScopeSchema = z
-  .object({ kind: z.literal("project"), projectId: identifier })
-  .strict();
+export const exportScopeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("project"), projectId: identifier }).strict(),
+  /** The account's own Workspace; the server derives it, a client never names one. */
+  z.object({ kind: z.literal("workspace") }).strict(),
+]);
 export type ExportScope = z.infer<typeof exportScopeSchema>;
 
 /**
@@ -314,35 +316,4 @@ export interface SelectedExportAccess {
     accountId: string,
     input: ExportProduceInput,
   ) => Promise<ExportArtifact>;
-}
-
-/** Key names that mark Secret class data; matched case-insensitively. */
-const SECRET_KEY_PATTERN =
-  /(password|passphrase|secret|token|apikey|api_key|credential|cookie|authorization|privatekey|private_key|hash|digest|salt)/i;
-
-export function isSecretKey(key: string): boolean {
-  return SECRET_KEY_PATTERN.test(key);
-}
-
-/**
- * Removes Secret class values wherever they sit, by key name, and returns the
- * removed key names (never values). Applied centrally by the seam so no source
- * reader or format producer can bypass it.
- */
-export function stripSecrets<T>(value: T, removed: Set<string>): T {
-  if (Array.isArray(value)) {
-    return value.map((item) => stripSecrets(item, removed)) as T;
-  }
-  if (value && typeof value === "object" && !(value instanceof Date)) {
-    const output: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value)) {
-      if (isSecretKey(key)) {
-        removed.add(key);
-        continue;
-      }
-      output[key] = stripSecrets(item, removed);
-    }
-    return output as T;
-  }
-  return value;
 }

@@ -27,10 +27,9 @@ import {
   exportProduceInputSchema,
   exportRequestSchema,
   isExportRecordType,
-  isSecretKey,
   type SelectedExportAccess,
-  stripSecrets,
 } from "@cantiara/api/data-export";
+import { isSecretKey, stripSecrets } from "@cantiara/api/data-export-secrets";
 
 import { buildCsvTable } from "./csv-export-producer";
 

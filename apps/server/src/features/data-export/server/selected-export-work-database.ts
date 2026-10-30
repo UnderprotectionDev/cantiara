@@ -10,6 +10,10 @@ import {
   guardExportRead,
   readCustomFields,
 } from "./selected-export-database-support";
+import {
+  dedupeRelations,
+  readExtraRelations,
+} from "./selected-export-relations-database";
 
 const WORK_FIELDS: ExportField[] = [
   { key: "key", label: "Key" },
@@ -44,8 +48,9 @@ export function createDatabaseWorkExportSource(
   return {
     fields: () => WORK_FIELDS,
     async read(input) {
-      const { filters, limit, recordIds, recordType, scope } = input;
-      if (!(await guardExportRead(database, input, ["status"]))) {
+      const { filters, limit, recordIds, recordType } = input;
+      const projectId = await guardExportRead(database, input, ["status"]);
+      if (!projectId) {
         return null;
       }
       const rows = await database
@@ -53,7 +58,7 @@ export function createDatabaseWorkExportSource(
         .from(work)
         .where(
           and(
-            eq(work.projectId, scope.projectId),
+            eq(work.projectId, projectId),
             eq(work.type, recordType),
             isNull(work.trashedAt),
             filters.status ? eq(work.status, filters.status) : undefined,
@@ -76,8 +81,8 @@ export function createDatabaseWorkExportSource(
               .where(
                 and(
                   inArray(workRelation.sourceWorkId, ids),
+                  eq(workRelation.sourceRecordType, "Work"),
                   isNull(workRelation.deletedAt),
-                  eq(workRelation.targetRecordType, "Work"),
                 ),
               ),
             database
@@ -85,13 +90,13 @@ export function createDatabaseWorkExportSource(
               .from(workExternalExecutionHandoff)
               .where(inArray(workExternalExecutionHandoff.workId, ids))
               .orderBy(asc(workExternalExecutionHandoff.createdAt)),
-            readCustomFields(database, scope.projectId, recordType, ids),
+            readCustomFields(database, projectId, recordType, ids),
           ])
         : [
             [],
             [],
             [],
-            await readCustomFields(database, scope.projectId, recordType, []),
+            await readCustomFields(database, projectId, recordType, []),
           ];
       const keysOf = (id: string, current: string) => {
         const keys = allocations
@@ -142,11 +147,14 @@ export function createDatabaseWorkExportSource(
             updatedAt: row.updatedAt.toISOString(),
           },
         })),
-        relations: relationRows.map((relation) => ({
-          fromRecordId: relation.sourceWorkId,
-          kind: relation.kind,
-          toRecordId: relation.targetRecordId,
-        })),
+        relations: dedupeRelations([
+          ...relationRows.map((relation) => ({
+            fromRecordId: relation.sourceWorkId,
+            kind: relation.kind,
+            toRecordId: relation.targetRecordId,
+          })),
+          ...(await readExtraRelations(database, recordType, ids)),
+        ]),
       };
     },
   };

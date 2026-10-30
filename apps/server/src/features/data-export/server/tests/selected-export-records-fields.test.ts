@@ -1,4 +1,4 @@
-import { isSecretKey } from "@cantiara/api/data-export";
+import { isSecretKey } from "@cantiara/api/data-export-secrets";
 import type { Database } from "@cantiara/db";
 import { describe, expect, test } from "vitest";
 

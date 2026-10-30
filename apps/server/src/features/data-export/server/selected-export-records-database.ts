@@ -20,6 +20,7 @@ import {
   guardExportRead,
   readCustomFields,
 } from "./selected-export-database-support";
+import { readExtraRelations } from "./selected-export-relations-database";
 
 type RecordTable = PgTable & {
   id: PgColumn;
@@ -244,8 +245,9 @@ function createFamilyReader(
   return {
     fields: () => fieldsOf(family),
     async read(input) {
-      const { limit, recordIds, recordType, scope } = input;
-      if (!(await guardExportRead(database, input))) {
+      const { limit, recordIds, recordType } = input;
+      const projectId = await guardExportRead(database, input);
+      if (!projectId) {
         return null;
       }
       const { table } = family;
@@ -254,7 +256,7 @@ function createFamilyReader(
         .from(table)
         .where(
           and(
-            eq(table.projectId, scope.projectId),
+            eq(table.projectId, projectId),
             table.trashedAt ? isNull(table.trashedAt) : undefined,
             recordIds?.length ? inArray(table.id, [...recordIds]) : undefined,
           ),
@@ -263,7 +265,7 @@ function createFamilyReader(
         .limit(limit)) as Record<string, unknown>[];
       const custom = await readCustomFields(
         database,
-        scope.projectId,
+        projectId,
         recordType,
         rows.map((row) => String(row.id)),
       );
@@ -286,7 +288,11 @@ function createFamilyReader(
       return {
         customFieldDefinitions: custom.definitions,
         records,
-        relations: [],
+        relations: await readExtraRelations(
+          database,
+          recordType,
+          records.map((record) => record.id),
+        ),
       };
     },
   };
@@ -318,8 +324,9 @@ function createSourceReader(database: Database): ExportSourceReader {
   return {
     fields: () => SOURCE_FIELDS,
     async read(input) {
-      const { limit, recordIds, recordType, scope } = input;
-      if (!(await guardExportRead(database, input))) {
+      const { limit, recordIds, recordType } = input;
+      const projectId = await guardExportRead(database, input);
+      if (!projectId) {
         return null;
       }
       const rows = await database
@@ -344,7 +351,7 @@ function createSourceReader(database: Database): ExportSourceReader {
         )
         .where(
           and(
-            eq(source.projectId, scope.projectId),
+            eq(source.projectId, projectId),
             recordIds?.length ? inArray(source.id, [...recordIds]) : undefined,
           ),
         )
@@ -352,7 +359,7 @@ function createSourceReader(database: Database): ExportSourceReader {
         .limit(limit);
       const custom = await readCustomFields(
         database,
-        scope.projectId,
+        projectId,
         recordType,
         rows.map((row) => row.id),
       );

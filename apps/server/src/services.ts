@@ -70,6 +70,7 @@ import { jsonExportProducer } from "./features/data-export/server/json-export-pr
 import { createSelectedExport } from "./features/data-export/server/selected-export";
 import { createDatabaseRecordExportSources } from "./features/data-export/server/selected-export-records-database";
 import { createDatabaseWorkExportSource } from "./features/data-export/server/selected-export-work-database";
+import { createDatabaseWorkspaceExportSources } from "./features/data-export/server/selected-export-workspace-database";
 import { createDatabaseDocumentSurfaceCancellations } from "./features/documents/server/document-surface-cancellations";
 import { createDatabaseDocumentTagRenameWriter } from "./features/documents/server/document-tag-rename-database";
 import { createDatabaseDocumentTransfers } from "./features/documents/server/document-transfers-database";
@@ -400,6 +401,7 @@ export const selectedExport = createSelectedExport({
   producers: { CSV: csvExportProducer, JSON: jsonExportProducer },
   sources: {
     ...createDatabaseRecordExportSources(db),
+    ...createDatabaseWorkspaceExportSources(db),
     ...Object.fromEntries(
       workExportTypes.map((recordType) => [recordType, workExportSource]),
     ),
