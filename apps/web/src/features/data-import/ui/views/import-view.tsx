@@ -39,6 +39,20 @@ export function ImportView({
   } | null>(null);
 
   const [actionError, setActionError] = useState<string | null>(null);
+  const [appliedCount, setAppliedCount] = useState(0);
+
+  // Apply Import stores its key before it runs, so remounting afterwards lets
+  // the reopen section pick up the key of the apply that just ran.
+  const apply = useCallback(
+    async (input: ApplyImportInput) => {
+      try {
+        return await onApply(input);
+      } finally {
+        setAppliedCount((count) => count + 1);
+      }
+    },
+    [onApply],
+  );
 
   const previewFile = useCallback(
     async (input: PreviewImportInput) => {
@@ -91,7 +105,7 @@ export function ImportView({
       </header>
       <ImportFileForm onPreview={previewFile} projects={projects} />
       {onReopenReceipt ? (
-        <ImportReceiptReopen onReopen={onReopenReceipt} />
+        <ImportReceiptReopen key={appliedCount} onReopen={onReopenReceipt} />
       ) : null}
       {actionError ? (
         <p className="text-destructive text-sm" role="alert">
@@ -107,7 +121,7 @@ export function ImportView({
           />
           <ImportApplyPanel
             key={`${shown.preview.stagingId}:${shown.preview.finalSetFingerprint}`}
-            onApply={onApply}
+            onApply={apply}
             onCancel={cancel}
             preview={shown.preview}
           />

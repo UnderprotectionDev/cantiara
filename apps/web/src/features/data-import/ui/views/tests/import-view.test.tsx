@@ -250,6 +250,22 @@ test("after the commit barrier the status is Finalizing and Cancel is gone", asy
   expect(onCancel).not.toHaveBeenCalled();
 });
 
+test("the reopen control appears right after Apply Import stored its key", async () => {
+  const onApply = vi.fn(() =>
+    Promise.resolve({ receipt, replayed: false, status: "committed" } as const),
+  );
+  mount(
+    vi.fn(() => Promise.resolve(validPreview)),
+    { onApply, onReopenReceipt: vi.fn() },
+  );
+  await choose([new File(["Name\nSlip\n"], "risks.csv")], "project:p1", "Risk");
+  expect(button("Reopen receipt")).toBeUndefined();
+
+  await click("Apply Import");
+
+  expect(button("Reopen receipt")).toBeDefined();
+});
+
 test("Cancel before Apply Import releases the staged file and clears the preview", async () => {
   const onPreview = vi.fn(() => Promise.resolve(validPreview));
   const onCancel = vi.fn(() => Promise.resolve({ status: "cancelled" }));

@@ -182,7 +182,10 @@ function toProductionIncident(record: IncidentRecord): ProjectSourceRecord {
   });
 }
 
-function toRisk(record: RiskRecord): ProjectSourceRecord {
+function toRisk({
+  trashedAt: _trashedAt,
+  ...record
+}: RiskRecord): ProjectSourceRecord {
   return riskRecordSchema.parse({
     ...record,
     createdAt: record.createdAt.toISOString(),
