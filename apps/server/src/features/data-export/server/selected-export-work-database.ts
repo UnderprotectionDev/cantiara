@@ -15,6 +15,14 @@ import {
   readExtraRelations,
 } from "./selected-export-relations-database";
 
+const WORK_TYPES = [
+  "Feature",
+  "Bug",
+  "Task",
+  "Research",
+  "Improvement",
+] as const;
+
 const WORK_FIELDS: ExportField[] = [
   { key: "key", label: "Key" },
   { key: "title", label: "Title" },
@@ -59,7 +67,9 @@ export function createDatabaseWorkExportSource(
         .where(
           and(
             eq(work.projectId, projectId),
-            eq(work.type, recordType),
+            recordType === "Work"
+              ? inArray(work.type, [...WORK_TYPES])
+              : eq(work.type, recordType),
             isNull(work.trashedAt),
             filters.status ? eq(work.status, filters.status) : undefined,
             recordIds?.length ? inArray(work.id, [...recordIds]) : undefined,
@@ -90,13 +100,23 @@ export function createDatabaseWorkExportSource(
               .from(workExternalExecutionHandoff)
               .where(inArray(workExternalExecutionHandoff.workId, ids))
               .orderBy(asc(workExternalExecutionHandoff.createdAt)),
-            readCustomFields(database, projectId, recordType, ids),
+            readCustomFields(
+              database,
+              projectId,
+              recordType === "Work" ? WORK_TYPES : recordType,
+              ids,
+            ),
           ])
         : [
             [],
             [],
             [],
-            await readCustomFields(database, projectId, recordType, []),
+            await readCustomFields(
+              database,
+              projectId,
+              recordType === "Work" ? WORK_TYPES : recordType,
+              [],
+            ),
           ];
       const keysOf = (id: string, current: string) => {
         const keys = allocations

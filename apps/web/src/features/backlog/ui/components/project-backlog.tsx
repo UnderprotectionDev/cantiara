@@ -452,29 +452,34 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   return (
     <section className="mt-5 space-y-3">
       <ExportListAction
-        describe={() => ({
-          filters: {},
-          recordIdsByType: groupRecordIdsByType(
-            displayedWorks.flatMap((work) => {
-              const type = profilesById.get(work.id)?.type;
-              return type ? [{ id: work.id, type }] : [];
-            }),
-          ),
-          scope: scopeForProjects([projectId]),
-          view: {
-            kind: "Work list",
-            name: "Backlog",
-            ...(presentation === "Field"
-              ? {
-                  sort: {
-                    direction: "asc" as const,
-                    field: field === "Status" ? "status" : "title",
-                  },
-                }
-              : {}),
-          },
-          visibleFields: WORK_LIST_EXPORT_FIELDS,
-        })}
+        describe={() => {
+          // The on-screen order: current Work first, then the deferred group.
+          const onScreen = [...current, ...deferred].flatMap((work) => {
+            const type = profilesById.get(work.id)?.type;
+            return type ? [{ id: work.id, type }] : [];
+          });
+          return {
+            filters: {},
+            listedIds: onScreen.map((work) => work.id),
+            recordIdsByType: groupRecordIdsByType(onScreen),
+            scope: scopeForProjects([projectId]),
+            view: {
+              kind: "Work list",
+              name: "Backlog",
+              // Manual, Priority and Date orders are not a record column, so
+              // the file keeps the order shown instead of the key order.
+              ...(presentation === "Field"
+                ? {
+                    sort: {
+                      direction: "asc" as const,
+                      field: field === "Status" ? "status" : "title",
+                    },
+                  }
+                : { order: "listed" as const }),
+            },
+            visibleFields: WORK_LIST_EXPORT_FIELDS,
+          };
+        }}
         label="Backlog"
       />
       <BacklogSortControls

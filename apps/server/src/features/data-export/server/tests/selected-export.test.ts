@@ -295,6 +295,7 @@ describe("Selected Export closed catalog", () => {
   test("lists exactly the PRD 13 types, no Document", () => {
     const types = setup()
       .catalog()
+      .filter((entry) => !entry.exportOnly)
       .map((entry) => entry.recordType);
     expect(types).toEqual(
       EXPORT_CATALOG.flatMap((entry) => [...entry.recordTypes]),

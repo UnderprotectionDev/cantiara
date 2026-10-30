@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
-import { EXPORT_CATALOG } from "@cantiara/api/data-export";
+import {
+  EXPORT_CATALOG,
+  EXPORT_DIAGRAM_TYPE,
+  EXPORT_WORK_FAMILY,
+} from "@cantiara/api/data-export";
 import {
   createExternalSurfaceAccess,
   createMemoryExternalSurfaceResponseCache,
@@ -70,6 +74,8 @@ import { jsonExportProducer } from "./features/data-export/server/json-export-pr
 import { createPdfExportProducer } from "./features/data-export/server/pdf-export-producer";
 import { renderExportPdf } from "./features/data-export/server/pdf-export-renderer";
 import { createSelectedExport } from "./features/data-export/server/selected-export";
+import { ownsProject } from "./features/data-export/server/selected-export-database-support";
+import { createDiagramExportSource } from "./features/data-export/server/selected-export-diagram-source";
 import { createDatabaseRecordExportSources } from "./features/data-export/server/selected-export-records-database";
 import { createDatabaseWorkExportSource } from "./features/data-export/server/selected-export-work-database";
 import { createDatabaseWorkspaceExportSources } from "./features/data-export/server/selected-export-workspace-database";
@@ -410,8 +416,17 @@ export const selectedExport = createSelectedExport({
     ...createDatabaseRecordExportSources(db),
     ...createDatabaseWorkspaceExportSources(db),
     ...Object.fromEntries(
-      workExportTypes.map((recordType) => [recordType, workExportSource]),
+      [...workExportTypes, EXPORT_WORK_FAMILY].map((recordType) => [
+        recordType,
+        workExportSource,
+      ]),
     ),
+    // Export-only: a diagram is never imported as create, update or restore.
+    [EXPORT_DIAGRAM_TYPE]: createDiagramExportSource({
+      diagrams: technicalDiagrams,
+      ownsProject: (accountId, projectId) =>
+        ownsProject(db, accountId, projectId),
+    }),
   },
   viewVerifier: createSmartCollectionExportVerifier(smartCollections),
 });

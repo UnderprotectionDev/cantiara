@@ -1,4 +1,9 @@
-import type { ExportScope, ExportView } from "@cantiara/api/data-export";
+import {
+  EXPORT_CATALOG,
+  EXPORT_WORK_FAMILY,
+  type ExportScope,
+  type ExportView,
+} from "@cantiara/api/data-export";
 
 /**
  * What a list screen hands to the Export surface: the on-screen scope, the
@@ -9,6 +14,11 @@ import type { ExportScope, ExportView } from "@cantiara/api/data-export";
  */
 export interface ExportHandoff {
   filters: Record<string, string>;
+  /**
+   * Every shown record id in on-screen order. Only a mixed Work list needs it:
+   * the per-type groups lose the order across types.
+   */
+  listedIds?: string[];
   recordIdsByType: Record<string, string[]>;
   scope: ExportScope;
   view: ExportView;
@@ -58,3 +68,32 @@ export function scopeForProjects(projectIds: readonly string[]): ExportScope {
 
 /** Work columns every Work list shows, in on-screen order. */
 export const WORK_LIST_EXPORT_FIELDS = ["key", "title", "type", "status"];
+
+const WORK_TYPES: readonly string[] = EXPORT_CATALOG[0].recordTypes;
+
+/** The Work types a list shows; two or more make it a mixed Work list. */
+export function handoffWorkTypes(handoff: ExportHandoff): string[] {
+  return WORK_TYPES.filter(
+    (type) => (handoff.recordIdsByType[type]?.length ?? 0) > 0,
+  );
+}
+
+/**
+ * The ids one Export request carries. `Work` is the whole Work family of a
+ * mixed list in one operation, kept in on-screen order when the list gave it.
+ */
+export function handoffRecordIds(
+  handoff: ExportHandoff,
+  recordType: string,
+): string[] {
+  if (recordType !== EXPORT_WORK_FAMILY) {
+    return handoff.recordIdsByType[recordType] ?? [];
+  }
+  const all = new Set(
+    handoffWorkTypes(handoff).flatMap(
+      (type) => handoff.recordIdsByType[type] ?? [],
+    ),
+  );
+  const listed = handoff.listedIds?.filter((id) => all.has(id));
+  return listed && listed.length === all.size ? listed : [...all];
+}

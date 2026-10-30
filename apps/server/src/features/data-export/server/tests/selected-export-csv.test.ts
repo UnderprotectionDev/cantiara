@@ -247,6 +247,7 @@ describe("Selected Export exact view", () => {
       "id",
       "kind",
       "name",
+      "order",
       "sort",
     ]);
     expect(

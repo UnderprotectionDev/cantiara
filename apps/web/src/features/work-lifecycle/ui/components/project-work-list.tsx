@@ -478,11 +478,14 @@ function BulkEditSelectionControls({
       <ExportListAction
         describe={() => ({
           filters: {},
+          listedIds: exportedWorks.map((work) => work.id),
           recordIdsByType: groupRecordIdsByType(exportedWorks),
           scope: scopeForProjects([projectId]),
           view: {
             kind: "Work list",
             name: archived ? "Work records (Archived)" : "Work records",
+            // The file keeps the order the list shows.
+            order: "listed",
           },
           visibleFields: WORK_LIST_EXPORT_FIELDS,
         })}

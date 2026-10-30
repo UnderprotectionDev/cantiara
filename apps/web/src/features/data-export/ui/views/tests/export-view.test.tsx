@@ -9,6 +9,7 @@ import { describe, expect, test } from "vitest";
 import {
   type ExportHandoff,
   groupRecordIdsByType,
+  handoffRecordIds,
   scopeForProjects,
   setExportHandoff,
   takeExportHandoff,
@@ -194,5 +195,83 @@ describe("Export from a list screen", () => {
     expect(html).toContain("not a tagged PDF");
     expect(html).toContain("Use CSV instead");
     expect(html).toContain("2 Projects");
+  });
+});
+
+describe("Mixed Work list and export-only diagram", () => {
+  const workCatalog: ExportCatalogEntry[] = [
+    { available: true, family: "Work", recordType: "Task" },
+    { available: true, family: "Work", recordType: "Bug" },
+    {
+      available: true,
+      exportOnly: true,
+      family: "Technical Diagram",
+      recordType: "Technical Diagram",
+    },
+  ];
+  const mixed: ExportHandoff = {
+    filters: {},
+    listedIds: ["b1", "t1", "b2"],
+    recordIdsByType: { Bug: ["b1", "b2"], Task: ["t1"] },
+    scope: scopeForProjects(["p1"]),
+    view: { kind: "Work list", name: "Backlog", order: "listed" },
+  };
+
+  test("a list of two Work types offers Work (all types) in on-screen order", () => {
+    expect(handoffRecordIds(mixed, "Work")).toEqual(["b1", "t1", "b2"]);
+    expect(handoffRecordIds(mixed, "Bug")).toEqual(["b1", "b2"]);
+    const html = renderToStaticMarkup(
+      <ExportView
+        catalog={workCatalog}
+        handoff={mixed}
+        onPreview={() => Promise.reject(new Error("unused"))}
+        onProduce={() => Promise.reject(new Error("unused"))}
+        projects={[{ id: "p1", name: "Alpha" }]}
+      />,
+    );
+    expect(html).toContain("Work (all types)");
+    expect(html).toContain("3 Work (all types) records");
+  });
+
+  test("a single Work type offers no all-types option", () => {
+    const html = renderToStaticMarkup(
+      <ExportView
+        catalog={workCatalog}
+        handoff={{ ...mixed, recordIdsByType: { Task: ["t1"] } }}
+        onPreview={() => Promise.reject(new Error("unused"))}
+        onProduce={() => Promise.reject(new Error("unused"))}
+        projects={[{ id: "p1", name: "Alpha" }]}
+      />,
+    );
+    expect(html).not.toContain("Work (all types)");
+  });
+
+  test("the diagram is listed as export only and the panel says it cannot be imported", () => {
+    const form = renderToStaticMarkup(
+      <ExportView
+        catalog={workCatalog}
+        onPreview={() => Promise.reject(new Error("unused"))}
+        onProduce={() => Promise.reject(new Error("unused"))}
+        projects={[{ id: "p1", name: "Alpha" }]}
+      />,
+    );
+    expect(form).toContain("Technical Diagram (export only, JSON)");
+    const panel = renderToStaticMarkup(
+      <ExportPreviewPanel
+        disabled={false}
+        onCancel={() => undefined}
+        onConfirm={() => undefined}
+        preview={{
+          ...preview,
+          exportOnly: true,
+          format: "JSON",
+          formatAvailable: true,
+          recordType: "Technical Diagram",
+        }}
+        produced={null}
+      />,
+    );
+    expect(panel).toContain("export-only");
+    expect(panel).toContain("never that source");
   });
 });

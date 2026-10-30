@@ -1,6 +1,6 @@
 import {
   ExportError,
-  type ExportRecordType,
+  type ExportSubject,
   exportFamilyOf,
   type exportRequestSchema,
   exportScopeProjectIds,
@@ -68,7 +68,7 @@ function sameFilters(
 export async function verifyExportView(input: {
   accountId: string;
   parsed: ReturnType<typeof exportRequestSchema.parse>;
-  recordType: ExportRecordType;
+  recordType: ExportSubject;
   verifier?: ExportViewVerifier;
 }): Promise<VerifiedExportView> {
   const { accountId, parsed, recordType, verifier } = input;

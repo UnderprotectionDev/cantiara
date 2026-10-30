@@ -3,6 +3,7 @@ import {
   type ExportField,
   type ExportRecordType,
   type ExportScope,
+  type ExportSubject,
 } from "@cantiara/api/data-export";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
@@ -66,7 +67,7 @@ async function ownWorkspaceId(
   database: Database,
   accountId: string,
   scope: ExportScope,
-  recordType: ExportRecordType,
+  recordType: ExportSubject,
 ): Promise<string | null> {
   if (scope.kind !== "workspace") {
     throw new ExportError(

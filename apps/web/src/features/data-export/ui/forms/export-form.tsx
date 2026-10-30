@@ -1,8 +1,10 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Fields bind to their own form state.
 
 import {
+  EXPORT_DIAGRAM_TYPE,
   EXPORT_FORMATS,
   EXPORT_LABEL,
+  EXPORT_WORK_FAMILY,
   type ExportCatalogEntry,
   type ExportFormat,
   type ExportRequest,
@@ -22,7 +24,11 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import type { FormEvent } from "react";
-import type { ExportHandoff } from "../../lib/export-handoff";
+import {
+  type ExportHandoff,
+  handoffRecordIds,
+  handoffWorkTypes,
+} from "../../lib/export-handoff";
 
 const IDS_SEPARATOR = /[\s,]+/;
 
@@ -31,11 +37,11 @@ function parseIds(text: string): string[] {
 }
 
 function viewSummary(handoff: ExportHandoff, recordType: string): string {
-  const ids = handoff.recordIdsByType[recordType]?.length ?? 0;
+  const ids = handoffRecordIds(handoff, recordType).length;
   const filters = Object.entries(handoff.filters);
   return [
     `${handoff.view.kind} "${handoff.view.name}"`,
-    `${ids} ${recordType} ${ids === 1 ? "record" : "records"}`,
+    `${ids} ${recordType === EXPORT_WORK_FAMILY ? "Work (all types)" : recordType} ${ids === 1 ? "record" : "records"}`,
     filters.length > 0
       ? `Filters: ${filters.map(([key, value]) => `${key} = ${value}`).join(", ")}`
       : "No filters",
@@ -66,10 +72,15 @@ export function ExportForm({
   projects: ReadonlyArray<{ id: string; name: string }>;
 }) {
   const families = [...new Set(catalog.map((entry) => entry.family))];
+  // Two or more Work types in one list export together: Work is one family.
+  const mixedWork = handoff ? handoffWorkTypes(handoff).length > 1 : false;
   const viewTypes = handoff
-    ? Object.keys(handoff.recordIdsByType).filter((type) =>
-        catalog.some((entry) => entry.recordType === type && entry.available),
-      )
+    ? [
+        ...(mixedWork ? [EXPORT_WORK_FAMILY as string] : []),
+        ...Object.keys(handoff.recordIdsByType).filter((type) =>
+          catalog.some((entry) => entry.recordType === type && entry.available),
+        ),
+      ]
     : [];
   const formats = handoff
     ? EXPORT_FORMATS
@@ -89,7 +100,7 @@ export function ExportForm({
       const base = handoff
         ? {
             filters: handoff.filters,
-            recordIds: handoff.recordIdsByType[value.recordType] ?? [],
+            recordIds: handoffRecordIds(handoff, value.recordType),
             scope: handoff.scope,
             view: handoff.view,
             visibleFields: handoff.visibleFields,
@@ -159,11 +170,22 @@ export function ExportForm({
             <NativeSelect
               disabled={disabled}
               id="export-type"
-              onChange={(event) => field.handleChange(event.target.value)}
+              onChange={(event) => {
+                field.handleChange(event.target.value);
+                if (event.target.value === EXPORT_DIAGRAM_TYPE) {
+                  // Export-only: JSON is the one format a diagram offers.
+                  form.setFieldValue("format", "JSON");
+                }
+              }}
               value={field.state.value}
             >
               {families.map((family) => (
                 <optgroup key={family} label={family}>
+                  {mixedWork && family === "Work" ? (
+                    <NativeSelectOption value={EXPORT_WORK_FAMILY}>
+                      Work (all types)
+                    </NativeSelectOption>
+                  ) : null}
                   {catalog
                     .filter(
                       (entry) =>
@@ -177,6 +199,7 @@ export function ExportForm({
                         value={entry.recordType}
                       >
                         {entry.recordType}
+                        {entry.exportOnly ? " (export only, JSON)" : ""}
                         {entry.available ? "" : " (not available yet)"}
                       </NativeSelectOption>
                     ))}
@@ -250,19 +273,28 @@ export function ExportForm({
               }
               value={field.state.value}
             >
-              {formats.map((format) => (
-                <label
-                  className="flex items-center gap-2 text-sm"
-                  htmlFor={`export-format-${format}`}
-                  key={format}
-                >
-                  <RadioGroupItem
-                    id={`export-format-${format}`}
-                    value={format}
-                  />
-                  {format}
-                </label>
-              ))}
+              <form.Subscribe selector={(state) => state.values.recordType}>
+                {(recordType) =>
+                  formats
+                    .filter(
+                      (format) =>
+                        recordType !== EXPORT_DIAGRAM_TYPE || format === "JSON",
+                    )
+                    .map((format) => (
+                      <label
+                        className="flex items-center gap-2 text-sm"
+                        htmlFor={`export-format-${format}`}
+                        key={format}
+                      >
+                        <RadioGroupItem
+                          id={`export-format-${format}`}
+                          value={format}
+                        />
+                        {format}
+                      </label>
+                    ))
+                }
+              </form.Subscribe>
             </RadioGroup>
           </fieldset>
         )}

@@ -40,6 +40,25 @@ function Download({ artifact }: { artifact: ExportArtifact }) {
   );
 }
 
+function ExportOnlyNotice() {
+  return (
+    <Section title="Export only">
+      <p className="text-sm" role="note">
+        This diagram file is export-only. It cannot be imported to create,
+        update or restore a diagram, and it holds only the link to any external
+        source, never that source's content.
+      </p>
+    </Section>
+  );
+}
+
+function viewOrderText(view: NonNullable<ExportPreview["view"]>): string {
+  if (view.sort) {
+    return `, sorted by ${view.sort.field} (${view.sort.direction === "asc" ? "ascending" : "descending"})`;
+  }
+  return view.order === "listed" ? ", in the order shown on screen" : "";
+}
+
 function scopeLabel(scope: ExportPreview["scope"]): string {
   if (scope.kind === "workspace") {
     return "the Workspace";
@@ -139,11 +158,8 @@ export function ExportPreviewPanel({
         <Section title="View">
           <p className="text-sm">
             {preview.view.kind} "{preview.view.name}"
-            {preview.view.sort
-              ? `, sorted by ${preview.view.sort.field} (${preview.view.sort.direction === "asc" ? "ascending" : "descending"})`
-              : ""}
-            . This is a one-time snapshot: it creates no saved view, report or
-            subscription.
+            {viewOrderText(preview.view)}. This is a one-time snapshot: it
+            creates no saved view, report or subscription.
           </p>
         </Section>
       ) : null}
@@ -177,6 +193,7 @@ export function ExportPreviewPanel({
           ) : null}
         </Section>
       ) : null}
+      {preview.exportOnly ? <ExportOnlyNotice /> : null}
       <Section title="Secret">
         <p className="text-sm">
           Secrets, share tokens and link passwords are never included.

@@ -59,6 +59,23 @@ export const EXPORT_CATALOG = [
   },
 ] as const;
 
+/**
+ * Technical Diagram JSON is export-only (spec 79 US13): the catalog kind sits
+ * beside the 20 round-trip types and never inherits ADR-0005's round-trip
+ * promise. A Diagram View and a Diagram Version are components of a diagram,
+ * not independent record types, so they are not listed and stay unlisted.
+ */
+export const EXPORT_DIAGRAM_TYPE = "Technical Diagram" as const;
+export const EXPORT_ONLY_CATALOG = [
+  { family: "Technical Diagram", recordTypes: [EXPORT_DIAGRAM_TYPE] },
+] as const;
+
+/**
+ * A Work export may cover every Work type of one list in one operation. Work is
+ * one record family, so this is still one family per operation.
+ */
+export const EXPORT_WORK_FAMILY = "Work" as const;
+
 export const EXPORT_RECORD_TYPES = EXPORT_CATALOG.flatMap(
   (entry) => entry.recordTypes,
 ) as unknown as readonly ExportRecordType[];
@@ -72,7 +89,33 @@ export function isExportRecordType(value: unknown): value is ExportRecordType {
   );
 }
 
-export function exportFamilyOf(recordType: ExportRecordType): string {
+/** What one request exports: a catalog type, the whole Work family or a diagram. */
+export type ExportSubject =
+  | ExportRecordType
+  | typeof EXPORT_WORK_FAMILY
+  | typeof EXPORT_DIAGRAM_TYPE;
+
+export function isExportOnlyRecordType(
+  value: unknown,
+): value is typeof EXPORT_DIAGRAM_TYPE {
+  return value === EXPORT_DIAGRAM_TYPE;
+}
+
+export function isExportSubject(value: unknown): value is ExportSubject {
+  return (
+    isExportRecordType(value) ||
+    value === EXPORT_WORK_FAMILY ||
+    isExportOnlyRecordType(value)
+  );
+}
+
+export function exportFamilyOf(recordType: ExportSubject): string {
+  if (recordType === EXPORT_WORK_FAMILY) {
+    return "Work";
+  }
+  if (isExportOnlyRecordType(recordType)) {
+    return EXPORT_ONLY_CATALOG[0].family;
+  }
   const entry = EXPORT_CATALOG.find((candidate) =>
     (candidate.recordTypes as readonly string[]).includes(recordType),
   );
@@ -141,6 +184,12 @@ export const exportViewSchema = z
     id: identifier.optional(),
     kind: z.enum(EXPORT_VIEW_KINDS),
     name: z.string().trim().min(1).max(200),
+    /**
+     * `listed`: the file keeps the order of `recordIds` (the on-screen order of
+     * a manual or priority order that no column can express). A `sort` column
+     * wins when both are present.
+     */
+    order: z.literal("listed").optional(),
     sort: z
       .object({
         direction: z.enum(["asc", "desc"]),
@@ -214,6 +263,8 @@ export interface ExportPreview {
   /** CSV only: cells escaped as data; absent for JSON, which stays raw. */
   escapes?: ExportEscapeReport;
   estimatedBytes: number;
+  /** Export-only (Technical Diagram): no import-create promise. */
+  exportOnly?: boolean;
   fields: ExportField[];
   filters: Record<string, string>;
   fingerprint: string;
@@ -229,7 +280,7 @@ export interface ExportPreview {
   pdfNotice?: { alternative: ExportFormat; limitation: string };
   recordCount: number;
   records: Array<{ id: string; label: string }>;
-  recordType: ExportRecordType;
+  recordType: ExportSubject;
   /** Relations whose both ends are in the selection. */
   relations: ExportRelationPreview[];
   /** Relations dropped because one end is not selected: a count only. */
@@ -245,11 +296,13 @@ export interface ExportPreview {
 export interface ExportManifest {
   /** CSV only: formula-like cells escaped as data. */
   escapes?: ExportEscapeReport;
+  /** Export-only kinds (Technical Diagram) carry no import-create promise. */
+  exportOnly?: true;
   filters: Record<string, string>;
   format: ExportFormat;
   producedAt: string;
   recordCount: number;
-  recordType: ExportRecordType;
+  recordType: ExportSubject;
   schemaVersion: typeof EXPORT_SCHEMA_VERSION;
   scope: ExportScope;
   /** Present for an exact-view snapshot: view name, kind and sort. */
@@ -368,8 +421,10 @@ export const WORKSPACE_SCOPED_RECORD_TYPES: readonly ExportRecordType[] = [
 
 export interface ExportCatalogEntry {
   available: boolean;
+  /** True for a kind that exports but never imports (Technical Diagram). */
+  exportOnly?: boolean;
   family: string;
-  recordType: ExportRecordType;
+  recordType: ExportRecordType | typeof EXPORT_DIAGRAM_TYPE;
 }
 
 export interface SelectedExportAccess {

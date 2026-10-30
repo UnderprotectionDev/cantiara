@@ -1,6 +1,6 @@
 import type {
-  ExportRecordType,
   ExportRelationPreview,
+  ExportSubject,
 } from "@cantiara/api/data-export";
 import type { Database } from "@cantiara/db";
 import {
@@ -39,8 +39,8 @@ const relation = (
 ): ExportRelationPreview => ({ fromRecordId, kind, toRecordId });
 
 /** The `target_record_type` an Evidence binding names for a record type. */
-function evidenceTargetType(recordType: ExportRecordType): string {
-  return ["Feature", "Bug", "Task", "Research", "Improvement"].includes(
+function evidenceTargetType(recordType: ExportSubject): string {
+  return ["Work", "Feature", "Bug", "Task", "Research", "Improvement"].includes(
     recordType,
   )
     ? "Work"
@@ -48,7 +48,7 @@ function evidenceTargetType(recordType: ExportRecordType): string {
 }
 
 /** Evidence and Origin bindings carry across every Project-owned family. */
-function evidenceRelations(recordType: ExportRecordType): RelationReader {
+function evidenceRelations(recordType: ExportSubject): RelationReader {
   return async (database, ids) => {
     const rows = await database
       .select({
@@ -132,7 +132,7 @@ const currentAffiliations =
     );
   };
 
-const RELATIONS: Partial<Record<ExportRecordType, RelationReader[]>> = {
+const RELATIONS: Partial<Record<ExportSubject, RelationReader[]>> = {
   Company: [
     currentAffiliations("companyId"),
     async (database, ids) => {
@@ -258,8 +258,16 @@ const RELATIONS: Partial<Record<ExportRecordType, RelationReader[]>> = {
   ],
 };
 
-for (const work of ["Feature", "Bug", "Task", "Research", "Improvement"]) {
-  RELATIONS[work as ExportRecordType] = [
+// "Work" is the mixed-type Work list; it reads what every Work type reads.
+for (const work of [
+  "Work",
+  "Feature",
+  "Bug",
+  "Task",
+  "Research",
+  "Improvement",
+]) {
+  RELATIONS[work as ExportSubject] = [
     goalMembers("Work"),
     async (database, ids) => {
       const rows = await database
@@ -273,7 +281,7 @@ for (const work of ["Feature", "Bug", "Task", "Research", "Improvement"]) {
 }
 
 /** Types whose records Evidence bindings can name (Contact and Company not). */
-const NO_EVIDENCE: ExportRecordType[] = ["Contact", "Company", "Source"];
+const NO_EVIDENCE: ExportSubject[] = ["Contact", "Company", "Source"];
 
 /** One relation once, whichever reader or direction produced it. */
 export function dedupeRelations(
@@ -300,7 +308,7 @@ export function dedupeRelations(
  */
 export async function readExtraRelations(
   database: Database,
-  recordType: ExportRecordType,
+  recordType: ExportSubject,
   ids: readonly string[],
 ): Promise<ExportRelationPreview[]> {
   if (ids.length === 0) {

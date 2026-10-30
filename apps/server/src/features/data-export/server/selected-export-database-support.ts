@@ -1,7 +1,7 @@
 import type {
   ExportCustomFieldDefinition,
-  ExportRecordType,
   ExportScope,
+  ExportSubject,
 } from "@cantiara/api/data-export";
 import { ExportError } from "@cantiara/api/data-export";
 import type { Database } from "@cantiara/db";
@@ -32,7 +32,7 @@ export async function ownsProject(
 
 /** A filter the record type does not support is refused, never ignored. */
 export function refuseUnsupportedFilters(
-  input: { filters: Record<string, string>; recordType: ExportRecordType },
+  input: { filters: Record<string, string>; recordType: ExportSubject },
   supportedFilters: readonly string[] = [],
 ): void {
   for (const key of Object.keys(input.filters)) {
@@ -56,7 +56,7 @@ export async function guardExportRead(
   input: {
     accountId: string;
     filters: Record<string, string>;
-    recordType: ExportRecordType;
+    recordType: ExportSubject;
     scope: ExportScope;
   },
   supportedFilters: readonly string[] = [],
@@ -71,7 +71,7 @@ export async function guardExportRead(
 /** A Project reader answers only a Project scope; any other scope is refused. */
 export function projectScopeId(
   scope: ExportScope,
-  recordType: ExportRecordType,
+  recordType: ExportSubject,
 ): string {
   if (scope.kind !== "project") {
     throw new ExportError(
@@ -89,9 +89,10 @@ export function projectScopeId(
 export async function readCustomFields(
   database: Database,
   projectId: string,
-  recordType: string,
+  recordTypes: string | readonly string[],
   recordIds: readonly string[],
 ) {
+  const wanted = typeof recordTypes === "string" ? [recordTypes] : recordTypes;
   const rows = await database
     .select()
     .from(customFieldDefinition)
@@ -102,7 +103,7 @@ export async function readCustomFields(
       ),
     );
   const definitions: ExportCustomFieldDefinition[] = rows
-    .filter((row) => row.recordTypes.includes(recordType))
+    .filter((row) => wanted.some((type) => row.recordTypes.includes(type)))
     .map((row) => ({
       id: row.id,
       name: row.name,

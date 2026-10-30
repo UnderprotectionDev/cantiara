@@ -1,8 +1,10 @@
 import {
+  EXPORT_DIAGRAM_TYPE,
   EXPORT_MAX_BYTES,
   EXPORT_MAX_CONCURRENT,
   EXPORT_MAX_ROWS,
   EXPORT_NATURE_NOTE,
+  EXPORT_ONLY_CATALOG,
   EXPORT_PDF_LIMITATION,
   EXPORT_RECORD_TYPES,
   EXPORT_RESIDENCY_NOTE,
@@ -19,16 +21,16 @@ import {
   type ExportPreview,
   type ExportProduceInput,
   type ExportRecordExtras,
-  type ExportRecordType,
   type ExportRelationPreview,
   type ExportRequest,
   type ExportScope,
+  type ExportSubject,
   type ExportView,
   exportFamilyOf,
   exportProduceInputSchema,
   exportRequestSchema,
   exportScopeProjectIds,
-  isExportRecordType,
+  isExportSubject,
   type SelectedExportAccess,
 } from "@cantiara/api/data-export";
 import { isSecretKey, stripSecrets } from "@cantiara/api/data-export-secrets";
@@ -66,21 +68,19 @@ export interface ExportSourceRead {
  * stripped by the seam, so an adapter cannot bypass the rule by forgetting it.
  */
 export interface ExportSourceReader {
-  fields: (recordType: ExportRecordType) => ExportField[];
+  fields: (recordType: ExportSubject) => ExportField[];
   /** `null` when the scope is not accessible to the account. */
   read: (input: {
     accountId: string;
     filters: Record<string, string>;
     limit: number;
     recordIds?: readonly string[];
-    recordType: ExportRecordType;
+    recordType: ExportSubject;
     scope: ExportScope;
   }) => Promise<ExportSourceRead | null>;
 }
 
-export type ExportSources = Partial<
-  Record<ExportRecordType, ExportSourceReader>
->;
+export type ExportSources = Partial<Record<ExportSubject, ExportSourceReader>>;
 
 /** In-process limiter: a refusal is visible, there is no queue or silent long job. */
 export function createExportCapacity(max = EXPORT_MAX_CONCURRENT) {
@@ -158,10 +158,21 @@ const LOSSES: Record<ExportFormat, ExportLoss[]> = {
  */
 function sortForView(
   records: ExportSourceRecord[],
-  sort: { direction: "asc" | "desc"; field: string } | undefined,
+  view: ExportView | undefined,
   visibleKeys: readonly string[],
+  listedIds: readonly string[] | undefined,
 ): ExportSourceRecord[] {
+  const { sort } = view ?? {};
   if (!(sort && visibleKeys.includes(sort.field) && !isSecretKey(sort.field))) {
+    // A manual or priority order has no column: the on-screen id order stands.
+    if (view?.order === "listed" && listedIds) {
+      const position = new Map(listedIds.map((id, index) => [id, index]));
+      return [...records].sort(
+        (left, right) =>
+          (position.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+          (position.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+      );
+    }
     return records;
   }
   const factor = sort.direction === "asc" ? 1 : -1;
@@ -258,7 +269,7 @@ async function readScope(
     accountId: string;
     filters: Record<string, string>;
     recordIds?: readonly string[];
-    recordType: ExportRecordType;
+    recordType: ExportSubject;
     scope: ReturnType<typeof exportRequestSchema.parse>["scope"];
   },
 ): Promise<ExportSourceRead | null> {
@@ -341,10 +352,16 @@ export function createSelectedExport(options: {
     request: ExportRequest,
   ): Promise<ClosedWorld> {
     const parsed = exportRequestSchema.parse(request);
-    if (!isExportRecordType(parsed.recordType)) {
+    if (!isExportSubject(parsed.recordType)) {
       throw new ExportError("unlisted_family");
     }
     const { recordType } = parsed;
+    if (recordType === EXPORT_DIAGRAM_TYPE && parsed.format !== "JSON") {
+      throw new ExportError(
+        "format_unavailable",
+        "Technical Diagram is export-only JSON; CSV and PDF are not offered.",
+      );
+    }
     if (parsed.format === "PDF" && !parsed.view) {
       throw new ExportError(
         "format_unavailable",
@@ -390,7 +407,7 @@ export function createSelectedExport(options: {
 
   function shape(
     parsed: ReturnType<typeof exportRequestSchema.parse>,
-    recordType: ExportRecordType,
+    recordType: ExportSubject,
     reader: ExportSourceReader,
     read: ExportSourceRead,
     verified: { recordIds?: string[] },
@@ -408,8 +425,9 @@ export function createSelectedExport(options: {
     const view = exportedView(parsed.view, visibleKeys);
     const selected = sortForView(
       read.records.filter((record) => !requested || requested.has(record.id)),
-      view?.sort,
+      view,
       visibleKeys,
+      verified.recordIds,
     );
     const selectedIds = new Set(selected.map((record) => record.id));
     const records = selected.map((record) =>
@@ -426,7 +444,10 @@ export function createSelectedExport(options: {
     );
     const relations = stripSecrets(closed, secrets);
 
+    const exportOnly =
+      recordType === EXPORT_DIAGRAM_TYPE ? ({ exportOnly: true } as const) : {};
     const manifest: ExportDataset["manifest"] = {
+      ...exportOnly,
       filters: parsed.filters,
       format: parsed.format,
       producedAt: now().toISOString(),
@@ -471,6 +492,7 @@ export function createSelectedExport(options: {
       preview: {
         ...(escapes ? { escapes } : {}),
         estimatedBytes,
+        ...exportOnly,
         fields,
         filters: parsed.filters,
         format: parsed.format,
@@ -523,11 +545,22 @@ export function createSelectedExport(options: {
 
   return {
     catalog() {
-      return EXPORT_RECORD_TYPES.map((recordType) => ({
-        available: Boolean(options.sources[recordType]),
-        family: exportFamilyOf(recordType),
-        recordType,
-      }));
+      return [
+        ...EXPORT_RECORD_TYPES.map((recordType) => ({
+          available: Boolean(options.sources[recordType]),
+          family: exportFamilyOf(recordType),
+          recordType,
+        })),
+        // Export-only kinds sit beside the round-trip types, never among them.
+        ...EXPORT_ONLY_CATALOG.flatMap((entry) =>
+          entry.recordTypes.map((recordType) => ({
+            available: Boolean(options.sources[recordType]),
+            exportOnly: true,
+            family: entry.family,
+            recordType,
+          })),
+        ),
+      ];
     },
 
     async preview(accountId, request) {
