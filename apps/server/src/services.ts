@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import {
@@ -19,7 +19,10 @@ import {
 import { desktopOrigins, env } from "./env";
 import { createDatabaseAccountAdmission } from "./features/account-access/server/account-admission";
 import { createGitHubAvailability } from "./features/account-access/server/github-availability";
-import { CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH } from "./features/account-access/server/github-identity-confirmation";
+import {
+  accountActorAlias,
+  CONFIRM_GITHUB_IDENTITY_CALLBACK_PATH,
+} from "./features/account-access/server/github-identity-confirmation";
 import { createDatabaseGitHubIdentityConfirmation } from "./features/account-access/server/github-identity-confirmation-database";
 import { createDatabaseAccountSessionAccess } from "./features/account-access/server/session-access-database";
 import { createDatabaseTauriSessionAccess } from "./features/account-access/server/tauri-session-database";
@@ -153,10 +156,13 @@ import { createDatabaseScreens } from "./features/screens/server/screens-databas
 import { createSecurityRedaction } from "./features/security-redaction/server/security-redaction";
 import {
   createDatabaseSecurityRedactionLocators,
+  createDatabaseSecurityRedactionReplayTexts,
   createDatabaseSecurityRedactionTargets,
   createSurfaceCacheRedactionTarget,
   derivedSearchIndexTarget,
 } from "./features/security-redaction/server/security-redaction-database";
+import { createDatabaseSecurityRedactionEventLog } from "./features/security-redaction/server/security-redaction-events-database";
+import { createSecurityRedactionReplay } from "./features/security-redaction/server/security-redaction-replay";
 import { createSecurityRedactionSpread } from "./features/security-redaction/server/security-redaction-spread";
 import { createSmartCollectionSubscriptionSignalWorker } from "./features/smart-collections/server/smart-collection-subscription-signal-worker";
 import {
@@ -408,15 +414,38 @@ export const externalSurfaceResponseCache =
  * from current content. Export staging has no store yet, so it previews as not
  * searched and apply reports it `not-wired`.
  */
+const securityRedactionSpread = createSecurityRedactionSpread([
+  ...createDatabaseSecurityRedactionTargets(db),
+  derivedSearchIndexTarget,
+  createSurfaceCacheRedactionTarget(db, externalSurfaceResponseCache),
+]);
+const securityRedactionEvents =
+  createDatabaseSecurityRedactionEventLog(securityEventDb);
+// A key of its own derived from the server secret, so the replay digest of a
+// redaction event cannot be recomputed without it.
+const securityRedactionReplayKey = createHmac("sha256", env.BETTER_AUTH_SECRET)
+  .update("security-redaction:replay:v1")
+  .digest("hex");
 export const securityRedaction = createSecurityRedaction({
   locators: createDatabaseSecurityRedactionLocators(db),
   projectName: async (accountId, projectId) =>
     (await projectShell.find(accountId, projectId))?.name ?? null,
-  spread: createSecurityRedactionSpread([
-    ...createDatabaseSecurityRedactionTargets(db),
-    derivedSearchIndexTarget,
-    createSurfaceCacheRedactionTarget(db, externalSurfaceResponseCache),
-  ]),
+  recording: {
+    actorAlias: accountActorAlias,
+    log: securityRedactionEvents,
+    replayKey: securityRedactionReplayKey,
+  },
+  spread: securityRedactionSpread,
+});
+/**
+ * Re-applies logged redactions to a restored store before access opens. The
+ * production trigger and log store belong to the access gate of spec 85.
+ */
+export const securityRedactionReplay = createSecurityRedactionReplay({
+  events: securityRedactionEvents,
+  key: securityRedactionReplayKey,
+  spread: securityRedactionSpread,
+  texts: createDatabaseSecurityRedactionReplayTexts(db),
 });
 export const externalSurfacePurges = createSurfacePurges({
   store: createDatabaseSurfacePurges(db),

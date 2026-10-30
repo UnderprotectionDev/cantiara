@@ -25,6 +25,8 @@ import {
 import { project } from "@cantiara/db/schema/project";
 import { and, eq, inArray, or, type SQLWrapper, sql } from "drizzle-orm";
 
+import type { SecurityRedactionReplayTexts } from "./security-redaction-replay";
+
 /**
  * Real stores behind the Security Redaction spread (spec 78 #505): Document
  * current content (title, body, inline tags, conflict drafts), the record
@@ -69,7 +71,7 @@ async function workspaceIdOf(executor: Executor, accountId: string) {
 /** Documents of the scope: an Account's Personal Wiki and Projects, or one Project. */
 async function scopedDocumentCondition(
   executor: Executor,
-  request: SecurityRedactionRequest,
+  request: Pick<SecurityRedactionRequest, "accountId" | "scope">,
 ) {
   if (request.scope.kind === "Project") {
     return eq(document.projectId, request.scope.projectId);
@@ -519,3 +521,32 @@ export const derivedSearchIndexTarget: SecurityRedactionTargetAdapter = {
   kind: "search-index",
   remove: () => Promise.resolve(null),
 };
+
+/**
+ * The replay anchor over restored Documents: title, body and inline tags of
+ * every Document in the scope, trashed ones included (a restore brings them
+ * back). Reads only; the value is found by digest, never by a stored copy.
+ */
+export function createDatabaseSecurityRedactionReplayTexts(
+  database: Database,
+): SecurityRedactionReplayTexts {
+  return async (request) => {
+    const condition = await scopedDocumentCondition(database, request);
+    if (!condition) {
+      return [];
+    }
+    const rows = await database
+      .select({
+        body: document.body,
+        inlineTags: document.inlineTags,
+        title: document.title,
+      })
+      .from(document)
+      .where(condition);
+    return rows.flatMap((row) => [
+      row.title,
+      row.body,
+      JSON.stringify(row.inlineTags ?? []),
+    ]);
+  };
+}

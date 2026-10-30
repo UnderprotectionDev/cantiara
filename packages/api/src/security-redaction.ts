@@ -8,8 +8,9 @@ import type { ConfirmGitHubIdentityOperationId } from "./context";
  * ownership, the typed Account or Project name (never the record title), then
  * the Account Access `Confirm GitHub Identity` grant consumed exactly once for
  * the `security-redaction` operation. #505 spreads the removal across the
- * closed targets right after the grant is consumed; the event and replay are
- * #506. The sensitive value is a transient input: it is never
+ * closed targets right after the grant is consumed; #506 then appends the
+ * secret-free irreversible `security-redaction.applied` event and replays it
+ * after a restore. The sensitive value is a transient input: it is never
  * stored, logged or echoed in any response.
  */
 
@@ -267,4 +268,68 @@ export interface SecurityRedactionAccess {
     actor: SecurityRedactionActor,
     input: SecurityRedactionPreviewInput,
   ) => Promise<SecurityRedactionPreview | null>;
+}
+
+/** The irreversible security event type of one applied redaction (spec 78 #506). */
+export const SECURITY_REDACTION_EVENT_TYPE = "security-redaction.applied";
+
+/**
+ * How replay finds the value again without it being stored: a per-event random
+ * salt, the value length and a server-keyed HMAC-SHA256 of the salted value.
+ * Without the server key the digest cannot be guessed even for a short value.
+ */
+export interface SecurityRedactionReplayLocator {
+  digest: string;
+  length: number;
+  salt: string;
+}
+
+/**
+ * Secret-free: an event type, a time, the aliased actor, the scope and the
+ * operation id. No name, email, message, field value or secret.
+ */
+export interface SecurityRedactionEvent {
+  actorAlias: string;
+  id: string;
+  occurredAt: string;
+  operationId: string;
+  replay: SecurityRedactionReplayLocator;
+  /** `Account:<accountId>` or `Project:<accountId>:<projectId>`. */
+  scopeAlias: string;
+  type: typeof SECURITY_REDACTION_EVENT_TYPE;
+  version: 1;
+}
+
+/**
+ * The append/replay port of the security event log. The log never lives in the
+ * primary restore unit; the production store is the access gate of spec 85.
+ */
+export interface SecurityRedactionEventLog {
+  append: (event: SecurityRedactionEvent) => Promise<void>;
+  list: () => Promise<SecurityRedactionEvent[]>;
+}
+
+export function securityRedactionScopeAlias(
+  accountId: string,
+  scope: SecurityRedactionScope,
+) {
+  return scope.kind === "Account"
+    ? `Account:${accountId}`
+    : `Project:${accountId}:${scope.projectId}`;
+}
+
+export function parseSecurityRedactionScopeAlias(
+  alias: string,
+): { accountId: string; scope: SecurityRedactionScope } | null {
+  const [kind, accountId, projectId, ...rest] = alias.split(":");
+  if (!accountId || rest.length > 0) {
+    return null;
+  }
+  if (kind === "Account" && projectId === undefined) {
+    return { accountId, scope: { kind: "Account" } };
+  }
+  if (kind === "Project" && projectId) {
+    return { accountId, scope: { kind: "Project", projectId } };
+  }
+  return null;
 }
