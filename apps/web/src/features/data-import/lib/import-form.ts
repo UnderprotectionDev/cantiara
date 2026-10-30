@@ -1,5 +1,6 @@
 import {
   type ImportCatalogType,
+  type ImportPreview,
   type ImportScope,
   type PreviewImportInput,
   previewImportInputSchema,
@@ -62,4 +63,30 @@ export function importErrorText(error: unknown) {
   return error instanceof Error && error.message
     ? error.message
     : "The file could not be previewed. Try again.";
+}
+
+/** A fresh idempotency key per confirmed preview; a retry reuses it. */
+export function newApplyKey() {
+  return `import-${crypto.randomUUID()}`;
+}
+
+/** Why Apply Import cannot run on this preview yet, or null. */
+export function applyBlockedReason(preview: ImportPreview) {
+  if (preview.invalidTotal > 0) {
+    return `${preview.invalidTotal} invalid row${preview.invalidTotal === 1 ? "" : "s"} must be corrected in the file or dropped with Exclude row before you apply.`;
+  }
+  if (preview.counts.create + preview.counts.updateExisting === 0) {
+    return "The final set has no row to write.";
+  }
+  return null;
+}
+
+/** The excluded row numbers after one row is dropped or taken back. */
+export function toggleExcludedRow(
+  excluded: readonly number[],
+  rowNumber: number,
+) {
+  return excluded.includes(rowNumber)
+    ? excluded.filter((row) => row !== rowNumber)
+    : [...excluded, rowNumber].sort((a, b) => a - b);
 }

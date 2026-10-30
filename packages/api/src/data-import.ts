@@ -4,12 +4,18 @@ import { z } from "zod";
  * Standard Import seam (spec 80, ticket 01): one file in, a write-free mapping
  * and diff preview out. The preview reads the file and the target scope, stages
  * the encrypted bytes for at most 24 hours and changes no primary record,
- * relation or search entry. `Apply Import` (atomic, idempotent finalize) is a
- * later ticket that extends `DataImportAccess`; nothing here commits.
+ * relation or search entry. `Apply Import` (ticket 02) is the separate, atomic
+ * and idempotent finalize through the Mutation Contract's import-origin slice:
+ * every record and relation is written once or none is, and the durable
+ * receipt can be reopened.
  */
 
 export const IMPORT_LABEL = "Import";
-/** Shown only as a note until the Apply ticket ships the real confirmation. */
+/** The separate confirmation after the exact diff (ADR-0004). */
+export const IMPORT_APPLY_LABEL = "Apply Import";
+/** Shown after the commit barrier instead of a fake Cancel. */
+export const IMPORT_FINALIZING_LABEL = "Finalizing";
+export const IMPORT_RECEIPT_LABEL = "Import receipt";
 export const IMPORT_PREVIEW_NOTE =
   "Preview only. Nothing has been written to your records.";
 
@@ -155,6 +161,11 @@ export const previewImportInputSchema = z
     content: z.string().max(IMPORT_MAX_BYTES * 4),
     fileCount: z.number().int().min(1).max(10_000).default(1),
     fileName: z.string().trim().min(1).max(255),
+    /** Rows the founder explicitly dropped from the final set (1-based). */
+    excludedRows: z
+      .array(z.number().int().min(1).max(IMPORT_MAX_ROWS))
+      .max(IMPORT_MAX_ROWS)
+      .optional(),
     mapping: z.record(z.string().max(255), mappingTarget).optional(),
     rowChoices: z.record(z.string().max(12), importRowChoiceSchema).optional(),
     scope: importScopeSchema,
@@ -167,6 +178,39 @@ export const reopenImportPreviewInputSchema = z
   .strict();
 export type ReopenImportPreviewInput = z.infer<
   typeof reopenImportPreviewInputSchema
+>;
+
+const idempotencyKey = z.string().trim().min(8).max(255);
+
+/** `Apply Import`: the confirmation of the exact, previewed final set. */
+export const applyImportInputSchema = z
+  .object({
+    /** The preview's `finalSetFingerprint`: Apply writes exactly that set. */
+    finalSetFingerprint: z
+      .string()
+      .trim()
+      .regex(/^[0-9a-f]{64}$/i),
+    idempotencyKey,
+    stagingId: identifier,
+  })
+  .strict();
+export type ApplyImportInput = z.input<typeof applyImportInputSchema>;
+
+/** Cancel is a staging release; it exists only before the commit barrier. */
+export const cancelImportInputSchema = z
+  .object({
+    /** When the Apply Import already finished, Cancel returns its receipt. */
+    idempotencyKey: idempotencyKey.optional(),
+    stagingId: identifier,
+  })
+  .strict();
+export type CancelImportInput = z.input<typeof cancelImportInputSchema>;
+
+export const reopenImportReceiptInputSchema = z
+  .object({ idempotencyKey })
+  .strict();
+export type ReopenImportReceiptInput = z.input<
+  typeof reopenImportReceiptInputSchema
 >;
 
 export const IMPORT_REFUSAL_CODES = [
@@ -183,6 +227,12 @@ export const IMPORT_REFUSAL_CODES = [
   "catalog-type-required",
   "scope-mismatch",
   "invalid-mapping",
+  "invalid-rows-remain",
+  "unresolved-conflict",
+  "empty-final-set",
+  "preview-changed",
+  "apply-in-progress",
+  "apply-unavailable",
 ] as const;
 export type ImportRefusalCode = (typeof IMPORT_REFUSAL_CODES)[number];
 
@@ -204,10 +254,27 @@ export class ImportScopeNotFoundError extends Error {
   }
 }
 
+export class ImportReceiptNotFoundError extends Error {
+  constructor() {
+    super("No import receipt was found for this key.");
+    this.name = "ImportReceiptNotFoundError";
+  }
+}
+
 export class ImportStagingExpiredError extends Error {
   constructor() {
     super("The staged import is gone. Choose the file again.");
     this.name = "ImportStagingExpiredError";
+  }
+}
+
+/** The same idempotency key carried a different final set. */
+export class ImportConflictError extends Error {
+  readonly code = "CONFLICT" as const;
+
+  constructor(options?: ErrorOptions) {
+    super("Conflict", options);
+    this.name = "ImportConflictError";
   }
 }
 
@@ -231,6 +298,8 @@ export interface ImportRowPreview {
   /** Update-existing rows offer the three choices; the chosen one is echoed. */
   choice?: ImportRowChoice;
   choices?: readonly ImportRowChoice[];
+  /** The founder dropped this row from the final set. */
+  excluded?: boolean;
   /** A permanently deleted or retired origin: a fresh product id is minted. */
   newIdentity?: {
     previousOrigin: string;
@@ -257,6 +326,8 @@ export interface ImportPreview {
   catalogType: ImportCatalogType | null;
   counts: {
     create: number;
+    /** Rows the founder dropped from the final set. */
+    excluded: number;
     invalid: number;
     skip: number;
     total: number;
@@ -265,6 +336,8 @@ export interface ImportPreview {
   expiresAt: string;
   family: ImportFamily;
   fileName: string;
+  /** SHA-256 of the exact final set; `Apply Import` must echo it. */
+  finalSetFingerprint: string;
   format: ImportFileFormat;
   invalidRows: ImportRowPreview[];
   invalidTotal: number;
@@ -287,12 +360,61 @@ export interface ImportPreview {
   stagingId: string;
 }
 
+export type ImportReceiptStatus = "committed" | "rolled-back";
+
+/** The durable result of one `Apply Import`; reopenable by its key. */
+export interface ImportReceipt {
+  catalogType: ImportCatalogType | null;
+  completedAt: string;
+  counts: {
+    created: number;
+    excluded: number;
+    skipped: number;
+    updated: number;
+  };
+  family: ImportFamily;
+  fileName: string;
+  finalSetFingerprint: string;
+  idempotencyKey: string;
+  /** Provider/file scope the origins were kept under, when the file had any. */
+  provenance: string | null;
+  /** Why a rollback happened; absent on a commit. */
+  reason?: string;
+  scopeLabel: string;
+  status: ImportReceiptStatus;
+  /** Server follow-up id of a rollback; carries no private content. */
+  supportReference?: string;
+}
+
+export type ImportApplyResult =
+  | { receipt: ImportReceipt; replayed: boolean; status: ImportReceiptStatus }
+  /** The commit barrier is passed: full commit or full rollback is coming. */
+  | { label: typeof IMPORT_FINALIZING_LABEL; status: "finalizing" };
+
+export type ImportCancelResult =
+  | { status: "cancelled" }
+  | { label: typeof IMPORT_FINALIZING_LABEL; status: "finalizing" }
+  | { receipt: ImportReceipt; status: ImportReceiptStatus };
+
 export interface DataImportAccess {
+  apply: (
+    accountId: string,
+    input: ApplyImportInput,
+    now?: Date,
+  ) => Promise<ImportApplyResult>;
+  cancel: (
+    accountId: string,
+    input: CancelImportInput,
+  ) => Promise<ImportCancelResult>;
   preview: (
     accountId: string,
     input: PreviewImportInput,
     now?: Date,
   ) => Promise<ImportPreview>;
+  receipt: (
+    accountId: string,
+    input: ReopenImportReceiptInput,
+  ) => Promise<ImportReceipt>;
   reopen: (
     accountId: string,
     input: ReopenImportPreviewInput,

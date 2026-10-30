@@ -1665,7 +1665,7 @@ _Avoid_: Son yazan kazanır, kural sırası, otomatik uzlaştırma
 ## Taşınabilirlik
 
 **Aşamalı import**:
-Ana kayıt yazmadan doğrulanan, açık son önizleme ve kullanıcı onayından sonra tek [atomik ve idempotent kesinleştirme](docs/adr/0004-atomik-idempotent-kesinlestirme.md) ya da tam rollback makbuzuyla biten CSV/JSON işlemi.
+Ana kayıt yazmadan doğrulanan, açık son önizleme ve kullanıcı onayından sonra tek [atomik ve idempotent kesinleştirme](docs/adr/0004-atomik-idempotent-kesinlestirme.md) ya da tam rollback makbuzuyla biten CSV/JSON işlemi. UI: `Import`, onay `Apply Import`, sonuç `Import receipt`, bariyer sonrası `Finalizing`.
 _Avoid_: Arka planda sessiz yazma, kayıt bazlı kısmi başarı, belirsiz son durum
 
 **JSON dışa aktarma şeması**:
