@@ -46,6 +46,7 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "../src/features/custom-fields/server/custom-fields-mutation-database";
+import { createDatabaseSelectedExport } from "../src/features/data-export/server/selected-export-database";
 import { createDatabaseDocumentSurfaceCancellations } from "../src/features/documents/server/document-surface-cancellations";
 import { createDatabaseDocumentTagRenameWriter } from "../src/features/documents/server/document-tag-rename-database";
 import { createDatabaseDocumentTransfers } from "../src/features/documents/server/document-transfers-database";
@@ -384,6 +385,11 @@ const app = createApp({
     createDatabaseDocumentSurfaceCancellations(securityEventDatabase),
   ),
   smartCollections,
+  selectedExport: createDatabaseSelectedExport({
+    db: database,
+    smartCollections,
+    technicalDiagrams,
+  }),
   moodboardMutationContracts,
   moodboardPersonalViews,
   moodboards,

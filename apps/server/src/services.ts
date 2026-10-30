@@ -2,11 +2,6 @@ import { createHash } from "node:crypto";
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import {
-  EXPORT_CATALOG,
-  EXPORT_DIAGRAM_TYPE,
-  EXPORT_WORK_FAMILY,
-} from "@cantiara/api/data-export";
-import {
   createExternalSurfaceAccess,
   createMemoryExternalSurfaceResponseCache,
 } from "@cantiara/api/external-surface-access";
@@ -69,17 +64,7 @@ import {
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseDailyFocus } from "./features/daily-focus/server/daily-focus-database";
-import { csvExportProducer } from "./features/data-export/server/csv-export-producer";
-import { jsonExportProducer } from "./features/data-export/server/json-export-producer";
-import { createPdfExportProducer } from "./features/data-export/server/pdf-export-producer";
-import { renderExportPdf } from "./features/data-export/server/pdf-export-renderer";
-import { createSelectedExport } from "./features/data-export/server/selected-export";
-import { ownsProject } from "./features/data-export/server/selected-export-database-support";
-import { createDiagramExportSource } from "./features/data-export/server/selected-export-diagram-source";
-import { createDatabaseRecordExportSources } from "./features/data-export/server/selected-export-records-database";
-import { createDatabaseWorkExportSource } from "./features/data-export/server/selected-export-work-database";
-import { createDatabaseWorkspaceExportSources } from "./features/data-export/server/selected-export-workspace-database";
-import { createSmartCollectionExportVerifier } from "./features/data-export/server/smart-collection-export-verifier";
+import { createDatabaseSelectedExport } from "./features/data-export/server/selected-export-database";
 import { createDatabaseDocumentSurfaceCancellations } from "./features/documents/server/document-surface-cancellations";
 import { createDatabaseDocumentTagRenameWriter } from "./features/documents/server/document-tag-rename-database";
 import { createDatabaseDocumentTransfers } from "./features/documents/server/document-transfers-database";
@@ -402,33 +387,10 @@ export const trash = {
       (await projectShell.find(accountId, projectId))?.name ?? null,
   }),
 };
-// Work has its own reader; the plain project-scoped types share one factory.
-const workExportSource = createDatabaseWorkExportSource(db);
-const workExportTypes =
-  EXPORT_CATALOG.find((entry) => entry.family === "Work")?.recordTypes ?? [];
-export const selectedExport = createSelectedExport({
-  producers: {
-    CSV: csvExportProducer,
-    JSON: jsonExportProducer,
-    PDF: createPdfExportProducer({ render: renderExportPdf }),
-  },
-  sources: {
-    ...createDatabaseRecordExportSources(db),
-    ...createDatabaseWorkspaceExportSources(db),
-    ...Object.fromEntries(
-      [...workExportTypes, EXPORT_WORK_FAMILY].map((recordType) => [
-        recordType,
-        workExportSource,
-      ]),
-    ),
-    // Export-only: a diagram is never imported as create, update or restore.
-    [EXPORT_DIAGRAM_TYPE]: createDiagramExportSource({
-      diagrams: technicalDiagrams,
-      ownsProject: (accountId, projectId) =>
-        ownsProject(db, accountId, projectId),
-    }),
-  },
-  viewVerifier: createSmartCollectionExportVerifier(smartCollections),
+export const selectedExport = createDatabaseSelectedExport({
+  db,
+  smartCollections,
+  technicalDiagrams,
 });
 const trashMaintenance = createTrashMaintenance(trashExpiry, trashEventLog);
 const linkSharingReplay = createDatabaseLinkSharingReplay(
