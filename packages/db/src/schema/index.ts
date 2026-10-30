@@ -10,6 +10,7 @@ export * from "./completion-effects";
 export * from "./contact";
 export * from "./custom-fields";
 export * from "./daily-focus";
+export * from "./data-import";
 export * from "./decision";
 export * from "./document";
 export * from "./document-template";
