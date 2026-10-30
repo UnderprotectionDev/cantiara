@@ -7,6 +7,11 @@ import { RedactForm } from "../redact-form";
 const NOT_PASSWORD_COPY = /password|MFA|refresh your session/i;
 const noop = () => undefined;
 
+/** Only the visible copy: the value input's `type="password"` attribute is fine. */
+function visibleText(html: string) {
+  return html.replace(/<[^>]*>/g, " ");
+}
+
 const preview: SecurityRedactionPreview = {
   detectionLimit: "Cantiara does not detect secrets in free Markdown.",
   locators: [
@@ -53,6 +58,7 @@ describe("RedactForm", () => {
     expect(html).toContain("Not searched yet: Cache");
     expect(html).toContain("Confirm GitHub Identity");
     expect(html).toContain("Type the Project name Atlas to confirm");
-    expect(html).not.toMatch(NOT_PASSWORD_COPY);
+    expect(html).toContain("Reason");
+    expect(visibleText(html)).not.toMatch(NOT_PASSWORD_COPY);
   });
 });

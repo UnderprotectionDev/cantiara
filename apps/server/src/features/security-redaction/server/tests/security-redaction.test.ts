@@ -64,7 +64,10 @@ function setup() {
       ),
     recording: {
       actorAlias: () => Promise.resolve("alias"),
-      log: { append: () => Promise.resolve(), list: () => Promise.resolve([]) },
+      log: {
+        append: () => Promise.resolve(),
+        list: () => Promise.resolve({ events: [], unreadable: 0 }),
+      },
       replayKey: "test-key",
     },
   });
@@ -74,6 +77,7 @@ const project = { kind: "Project", projectId: "project-1" } as const;
 const apply = (overrides: Record<string, unknown> = {}) =>
   ({
     grant: "grant-1",
+    reason: "Leaked key",
     scope: project,
     sensitiveValue: VALUE,
     typedName: "Atlas",
@@ -121,7 +125,9 @@ describe("Security Redaction apply gate", () => {
     const result = await setup().apply(ACTOR, apply(), consume);
 
     expect(result).toEqual({
+      actorAlias: "alias",
       passedAt: NOW.toISOString(),
+      reason: "Leaked key",
       removal: {
         targets: SECURITY_REDACTION_LOCATOR_KINDS.map((kind) => ({
           copies: 0,

@@ -11,6 +11,7 @@ export function useSecurityRedaction(scope: SecurityRedactionScope) {
   return {
     apply: (confirmation: {
       grant: string;
+      reason: string;
       sensitiveValue: string;
       typedName: string;
     }) => client.applySecurityRedaction({ ...confirmation, scope }),

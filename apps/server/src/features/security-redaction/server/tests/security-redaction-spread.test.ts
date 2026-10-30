@@ -116,6 +116,7 @@ const project = { kind: "Project", projectId: "project-1" } as const;
 const input = (overrides: Record<string, unknown> = {}) =>
   ({
     grant: "grant-1",
+    reason: "Leaked key",
     scope: project,
     sensitiveValue: SECRET,
     typedName: "Atlas",
@@ -131,7 +132,10 @@ function setup(targets: SecurityRedactionTargetAdapter[]) {
       ),
     recording: {
       actorAlias: () => Promise.resolve("alias"),
-      log: { append: () => Promise.resolve(), list: () => Promise.resolve([]) },
+      log: {
+        append: () => Promise.resolve(),
+        list: () => Promise.resolve({ events: [], unreadable: 0 }),
+      },
       replayKey: "test-key",
     },
     spread: createSecurityRedactionSpread(targets),

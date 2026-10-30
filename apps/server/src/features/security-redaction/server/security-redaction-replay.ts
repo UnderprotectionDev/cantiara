@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 import {
   parseSecurityRedactionScopeAlias,
+  SECURITY_REDACTION_REPLAY_KEY_VERSION,
   type SecurityRedactionEvent,
   type SecurityRedactionEventLog,
   type SecurityRedactionReplayLocator,
@@ -44,7 +45,12 @@ export function securityRedactionReplayLocator(
   value: string,
   salt: string,
 ): SecurityRedactionReplayLocator {
-  return { digest: digestOf(key, salt, value), length: value.length, salt };
+  return {
+    digest: digestOf(key, salt, value),
+    keyVersion: SECURITY_REDACTION_REPLAY_KEY_VERSION,
+    length: value.length,
+    salt,
+  };
 }
 
 function sameDigest(left: string, right: string) {
@@ -85,7 +91,9 @@ export type SecurityRedactionReplayTexts = (request: {
 export interface SecurityRedactionReplayResult {
   /** Events whose value was found again and removed. */
   reapplied: number;
-  /** Events whose scope alias could not be read; never silently skipped. */
+  /** Events whose digest was made by an older server key; rotation orphaned them. */
+  staleKey: number;
+  /** Events whose scope alias or stored row could not be read; never skipped silently. */
   unreadable: number;
 }
 
@@ -100,9 +108,14 @@ export function createSecurityRedactionReplay(options: {
   spread: SecurityRedactionSpread;
   texts: SecurityRedactionReplayTexts;
 }): SecurityRedactionReplay {
-  const { events, key, spread, texts } = options;
+  const { key, spread, texts } = options;
 
   async function reapply(event: SecurityRedactionEvent) {
+    // An event of an older server key cannot be replayed with this key; it is
+    // reported, never silently skipped.
+    if (event.replay.keyVersion !== SECURITY_REDACTION_REPLAY_KEY_VERSION) {
+      return "staleKey" as const;
+    }
     const target = parseSecurityRedactionScopeAlias(event.scopeAlias);
     if (!target) {
       return "unreadable" as const;
@@ -122,13 +135,18 @@ export function createSecurityRedactionReplay(options: {
     async replay() {
       const result: SecurityRedactionReplayResult = {
         reapplied: 0,
+        staleKey: 0,
         unreadable: 0,
       };
-      for (const event of await events.list()) {
+      const { events, unreadable } = await options.events.list();
+      result.unreadable += unreadable;
+      for (const event of events) {
         // biome-ignore lint/performance/noAwaitInLoops: One event at a time keeps each removal ordered and bounded.
         const outcome = await reapply(event);
         if (outcome === "reapplied") {
           result.reapplied += 1;
+        } else if (outcome === "staleKey") {
+          result.staleKey += 1;
         } else if (outcome === "unreadable") {
           result.unreadable += 1;
         }

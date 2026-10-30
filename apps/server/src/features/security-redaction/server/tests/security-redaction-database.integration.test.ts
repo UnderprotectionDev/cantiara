@@ -200,7 +200,7 @@ describeDatabase("Security Redaction PostgreSQL stores", () => {
         actorAlias: () => Promise.resolve("alias"),
         log: {
           append: () => Promise.resolve(),
-          list: () => Promise.resolve([]),
+          list: () => Promise.resolve({ events: [], unreadable: 0 }),
         },
         replayKey: "test-key",
       },
@@ -247,6 +247,7 @@ describeDatabase("Security Redaction PostgreSQL stores", () => {
         scope: scope(),
         sensitiveValue: SECRET,
         typedName: "Atlas",
+        reason: "Leaked key",
       },
       () => Promise.resolve(true),
     );
@@ -365,6 +366,7 @@ describeDatabase("Security Redaction PostgreSQL stores", () => {
           scope: { kind: "Account" },
           sensitiveValue: SECRET,
           typedName: "Founder",
+          reason: "Leaked key",
         },
         () => Promise.resolve(true),
       );

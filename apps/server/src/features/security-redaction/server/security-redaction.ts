@@ -75,19 +75,25 @@ export function createSecurityRedaction(
 
   async function record(
     actor: SecurityRedactionActor,
-    input: { scope: SecurityRedactionScope; sensitiveValue: string },
+    input: {
+      reason: string;
+      scope: SecurityRedactionScope;
+      sensitiveValue: string;
+    },
     occurredAt: string,
-  ) {
+  ): Promise<{ actorAlias: string }> {
     const { recording } = options;
     const operationId = (recording.newOperationId ?? randomUUID)();
     const salt = (
       recording.newSalt ?? (() => randomBytes(16).toString("hex"))
     )();
+    const actorAlias = await recording.actorAlias(actor.accountId);
     await recording.log.append({
-      actorAlias: await recording.actorAlias(actor.accountId),
+      actorAlias,
       id: `security-redaction:${operationId}`,
       occurredAt,
       operationId,
+      reason: input.reason,
       replay: securityRedactionReplayLocator(
         recording.replayKey,
         input.sensitiveValue,
@@ -97,6 +103,7 @@ export function createSecurityRedaction(
       type: SECURITY_REDACTION_EVENT_TYPE,
       version: 1,
     });
+    return { actorAlias };
   }
 
   return {
@@ -149,14 +156,16 @@ export function createSecurityRedaction(
       const passedAt = now().toISOString();
       // The event comes first: a crash or a partly failed spread has already
       // removed the value from some targets, and replay can finish the job.
-      await record(actor, input, passedAt);
+      const { actorAlias } = await record(actor, input, passedAt);
       const removal = await spread.spread({
         accountId: actor.accountId,
         scope: input.scope,
         sensitiveValue: input.sensitiveValue,
       });
       return {
+        actorAlias,
         passedAt,
+        reason: input.reason,
         removal,
         scope: input.scope,
         status: "redacted",

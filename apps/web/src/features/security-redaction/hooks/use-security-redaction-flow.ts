@@ -4,9 +4,42 @@ import type {
 } from "@cantiara/api/security-redaction";
 import { useState } from "react";
 
+type ApplyFailure =
+  | { code: "GRANT_REJECTED" }
+  | { code: "NAME_MISMATCH" }
+  | { code: "SPREAD_INCOMPLETE" }
+  | { code: "UNKNOWN" };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/**
+ * The oRPC failure kinds of `applySecurityRedaction`: a name mismatch burns
+ * nothing, a rejected grant needs a fresh confirmation and a partial spread
+ * has already removed some copies while leaving the event for replay.
+ */
+export function parseApplyFailure(error: unknown): ApplyFailure {
+  if (!isRecord(error)) {
+    return { code: "UNKNOWN" };
+  }
+  const data = isRecord(error.data) ? error.data : error;
+  if (data.code === "SECURITY_REDACTION_TYPED_NAME_MISMATCH") {
+    return { code: "NAME_MISMATCH" };
+  }
+  if (data.code === "SECURITY_REDACTION_GRANT_REJECTED") {
+    return { code: "GRANT_REJECTED" };
+  }
+  if (data.code === "SECURITY_REDACTION_SPREAD_INCOMPLETE") {
+    return { code: "SPREAD_INCOMPLETE" };
+  }
+  return { code: "UNKNOWN" };
+}
+
 export interface SecurityRedactionCalls {
   apply: (confirmation: {
     grant: string;
+    reason: string;
     sensitiveValue: string;
     typedName: string;
   }) => Promise<SecurityRedactionGateResult>;
@@ -69,7 +102,7 @@ export function useSecurityRedactionFlow(calls: SecurityRedactionCalls) {
     }
   }
 
-  async function redact(typedName: string) {
+  async function redact(typedName: string, reason: string) {
     if (!review?.grant) {
       return;
     }
@@ -79,15 +112,32 @@ export function useSecurityRedactionFlow(calls: SecurityRedactionCalls) {
       setResult(
         await calls.apply({
           grant: review.grant,
+          reason,
           sensitiveValue: review.sensitiveValue,
           typedName,
         }),
       );
       setReview(null);
-    } catch {
+    } catch (caught) {
       // The grant is single-use: a failed attempt needs a fresh confirmation.
       setReview((current) => (current ? { ...current, grant: null } : null));
-      setError("Could not redact. Check the name and confirm again.");
+      switch (parseApplyFailure(caught).code) {
+        case "NAME_MISMATCH":
+          setError("Could not redact. Check the name and confirm again.");
+          break;
+        case "GRANT_REJECTED":
+          setError(
+            "Confirm GitHub Identity was not accepted. Confirm again to redact.",
+          );
+          break;
+        case "SPREAD_INCOMPLETE":
+          setError(
+            "Some copies could not be removed yet. Confirm again to retry; the removal is already recorded.",
+          );
+          break;
+        default:
+          setError("Could not redact. Confirm identity again to retry.");
+      }
     } finally {
       setBusy(false);
     }

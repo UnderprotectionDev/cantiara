@@ -15,8 +15,9 @@ import { RedactForm } from "../forms/redact-form";
 
 /**
  * Entry of Security Redaction: a `Redact` button that opens the review. The
- * result states how many copies were cleaned and names the spread targets that
- * have no store yet, so it never claims a target is clean that was not reached.
+ * result shows the mark, time, reason, actor aliases and how many copies were
+ * cleaned, and names the spread targets that have no store yet, so it never
+ * claims a target is clean that was not reached.
  */
 export function SecurityRedactionPanel({
   calls,
@@ -57,7 +58,9 @@ export function SecurityRedactionPanel({
       )}
       {flow.result ? (
         <p role="status">
-          {REDACTED_FOR_SECURITY_LABEL}.{" "}
+          {REDACTED_FOR_SECURITY_LABEL}. {flow.result.reason}{" "}
+          {new Date(flow.result.passedAt).toLocaleString()} (
+          {flow.result.actorAlias}).{" "}
           {flow.result.removal.targets.reduce(
             (total, target) => total + target.copies,
             0,

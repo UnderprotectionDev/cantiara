@@ -1,5 +1,6 @@
 import {
   SECURITY_REDACTION_EVENT_TYPE,
+  SECURITY_REDACTION_REPLAY_KEY_VERSION,
   type SecurityRedactionEvent,
   type SecurityRedactionEventLog,
 } from "@cantiara/api/security-redaction";
@@ -9,20 +10,23 @@ import { asc, eq } from "drizzle-orm";
 
 /**
  * The existing `security_event` table, no new column: the scope alias, the
- * operation id and the replay locator (length, salt, keyed digest) are packed
- * into `target_session_alias` like the Trash event packs its target alias.
- * Only aliases and a keyed digest are written, never a value.
+ * operation id, the key version, the founder's reason and the replay locator
+ * (length, salt, keyed digest) are packed into `target_session_alias` like the
+ * Trash event packs its target alias. Only aliases, the reason and a keyed
+ * digest are written, never a value.
  */
 const SEPARATOR = "|";
 
 export function packSecurityRedactionTarget(event: SecurityRedactionEvent) {
-  // Ids may hold `|` or `:`, so the free-text components are escaped.
+  // Ids, the reason and the scope may hold `|` or `:`, so free text is escaped.
   return [
     encodeURIComponent(event.scopeAlias),
     encodeURIComponent(event.operationId),
     String(event.replay.length),
     event.replay.salt,
     event.replay.digest,
+    String(event.replay.keyVersion),
+    encodeURIComponent(event.reason),
   ].join(SEPARATOR);
 }
 
@@ -30,23 +34,45 @@ export function unpackSecurityRedactionTarget(
   packed: string,
 ): Pick<
   SecurityRedactionEvent,
-  "operationId" | "replay" | "scopeAlias"
+  "operationId" | "reason" | "replay" | "scopeAlias"
 > | null {
   const [encodedScope, encodedOperation, length, salt, digest, ...rest] =
     packed.split(SEPARATOR);
   const size = Number(length);
+  // A row of the current shape appends key version and escaped reason; an
+  // older row carries only the locator and reads back with today's defaults.
+  if (rest.length !== 0 && rest.length !== 2) {
+    return null;
+  }
   if (
-    rest.length > 0 ||
-    !(encodedScope && encodedOperation && salt && digest) ||
-    !Number.isInteger(size) ||
+    !(
+      encodedScope &&
+      encodedOperation &&
+      salt &&
+      digest &&
+      Number.isInteger(size)
+    ) ||
     size <= 0
   ) {
     return null;
   }
+  const [keyVersion, encodedReason] = rest;
+  let version = SECURITY_REDACTION_REPLAY_KEY_VERSION;
+  let reason = "";
+  if (keyVersion !== undefined) {
+    version = Number(keyVersion);
+    if (!Number.isInteger(version) || version <= 0) {
+      return null;
+    }
+  }
   try {
+    if (encodedReason !== undefined) {
+      reason = decodeURIComponent(encodedReason);
+    }
     return {
       operationId: decodeURIComponent(encodedOperation),
-      replay: { digest, length: size, salt },
+      reason,
+      replay: { digest, keyVersion: version, length: size, salt },
       scopeAlias: decodeURIComponent(encodedScope),
     };
   } catch {
@@ -78,21 +104,25 @@ export function createDatabaseSecurityRedactionEventLog(
         .from(securityEvent)
         .where(eq(securityEvent.type, SECURITY_REDACTION_EVENT_TYPE))
         .orderBy(asc(securityEvent.occurredAt));
-      return rows.flatMap((row): SecurityRedactionEvent[] => {
+      const events: SecurityRedactionEvent[] = [];
+      let unreadable = 0;
+      for (const row of rows) {
         const target = unpackSecurityRedactionTarget(row.targetSessionAlias);
-        return target
-          ? [
-              {
-                actorAlias: row.actorAlias,
-                id: row.id,
-                occurredAt: row.occurredAt.toISOString(),
-                type: SECURITY_REDACTION_EVENT_TYPE,
-                version: 1,
-                ...target,
-              },
-            ]
-          : [];
-      });
+        if (!target) {
+          // A row that cannot be read back is counted, never skipped silently.
+          unreadable += 1;
+          continue;
+        }
+        events.push({
+          actorAlias: row.actorAlias,
+          id: row.id,
+          occurredAt: row.occurredAt.toISOString(),
+          type: SECURITY_REDACTION_EVENT_TYPE,
+          version: 1,
+          ...target,
+        });
+      }
+      return { events, unreadable };
     },
   };
 }

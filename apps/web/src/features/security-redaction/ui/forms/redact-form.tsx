@@ -8,6 +8,7 @@ import {
 } from "@cantiara/api/security-redaction";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
+import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useEffect, useRef } from "react";
 
@@ -36,13 +37,14 @@ export function RedactForm({
   onCancel: () => void;
   onConfirmIdentity: () => void;
   onPreview: (sensitiveValue: string) => void;
-  onSubmit: (typedName: string) => void;
+  /** Receives the typed name and the audit reason. */
+  onSubmit: (typedName: string, reason: string) => void;
   preview: SecurityRedactionPreview | null;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const form = useForm({
-    defaultValues: { sensitiveValue: "", typedName: "" },
-    onSubmit: ({ value }) => onSubmit(value.typedName),
+    defaultValues: { reason: "", sensitiveValue: "", typedName: "" },
+    onSubmit: ({ value }) => onSubmit(value.typedName, value.reason),
   });
   const name = preview?.typedNameTarget.name;
 
@@ -163,15 +165,38 @@ export function RedactForm({
               </label>
             )}
           </form.Field>
+          <form.Field name="reason">
+            {(field) => (
+              <label
+                className="block space-y-1 text-sm"
+                htmlFor="redact-reason"
+              >
+                <span>Reason</span>
+                <Textarea
+                  className="min-h-16"
+                  disabled={busy}
+                  id="redact-reason"
+                  name={field.name}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  value={field.state.value}
+                />
+              </label>
+            )}
+          </form.Field>
         </>
       ) : null}
       {error ? <p role="alert">{error}</p> : null}
       <div className="flex gap-2">
         {preview ? (
-          <form.Subscribe selector={(state) => state.values.typedName}>
-            {(typedName) => (
+          <form.Subscribe selector={(state) => state.values}>
+            {({ reason, typedName }) => (
               <Button
-                disabled={busy || !grant || typedName !== name}
+                disabled={
+                  busy ||
+                  !grant ||
+                  typedName !== name ||
+                  reason.trim().length === 0
+                }
                 type="submit"
                 variant="destructive"
               >

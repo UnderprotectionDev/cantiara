@@ -20,7 +20,7 @@ function setup(consume = vi.fn(() => Promise.resolve(true))) {
         actorAlias: () => Promise.resolve("alias"),
         log: {
           append: () => Promise.resolve(),
-          list: () => Promise.resolve([]),
+          list: () => Promise.resolve({ events: [], unreadable: 0 }),
         },
         replayKey: "test-key",
       },
@@ -35,6 +35,7 @@ function setup(consume = vi.fn(() => Promise.resolve(true))) {
 
 const request = {
   grant: "g",
+  reason: "Leaked key",
   scope: { kind: "Project", projectId: "project-1" },
   sensitiveValue: VALUE,
   typedName: "Atlas",

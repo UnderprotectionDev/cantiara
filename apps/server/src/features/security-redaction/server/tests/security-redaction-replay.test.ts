@@ -3,6 +3,7 @@ import {
   redactJson,
   redactText,
   SECURITY_REDACTION_EVENT_TYPE,
+  SECURITY_REDACTION_REPLAY_KEY_VERSION,
   type SecurityRedactionEvent,
   type SecurityRedactionEventLog,
   SecurityRedactionGrantRejectedError,
@@ -41,7 +42,7 @@ function eventLog() {
       }
       return Promise.resolve();
     },
-    list: () => Promise.resolve([...events]),
+    list: () => Promise.resolve({ events: [...events], unreadable: 0 }),
   };
   return { events, log };
 }
@@ -162,6 +163,7 @@ function setup(
       ACTOR,
       {
         grant: "grant-1",
+        reason: "Leaked key",
         scope: project,
         sensitiveValue: value,
         typedName: "Atlas",
@@ -194,6 +196,10 @@ describe("Security Redaction event", () => {
       version: 1,
     });
     expect(event?.replay.length).toBe(SECRET.length);
+    expect(event?.reason).toBe("Leaked key");
+    expect(event?.replay.keyVersion).toBe(
+      SECURITY_REDACTION_REPLAY_KEY_VERSION,
+    );
     const serialised = JSON.stringify(event);
     expect(serialised).not.toContain(SECRET);
     expect(serialised).not.toContain("Mert");
@@ -240,6 +246,7 @@ describe("Security Redaction event", () => {
         ACTOR,
         {
           grant: "bad",
+          reason: "Other reason",
           scope: project,
           sensitiveValue: SECRET,
           typedName: "Atlas",
@@ -280,7 +287,8 @@ describe("Security Redaction event", () => {
       id: "security-redaction:op|1",
       occurredAt: NOW.toISOString(),
       operationId: "op|1:x%",
-      replay: { digest: "ab12", length: 7, salt: "cd34" },
+      reason: "reason with | pipe and %25 escapes",
+      replay: { digest: "ab12", keyVersion: 1, length: 7, salt: "cd34" },
       scopeAlias: "Project:account-1:pro|ject:1",
       type: SECURITY_REDACTION_EVENT_TYPE,
       version: 1,
@@ -289,9 +297,31 @@ describe("Security Redaction event", () => {
       unpackSecurityRedactionTarget(packSecurityRedactionTarget(event)),
     ).toEqual({
       operationId: event.operationId,
+      reason: event.reason,
       replay: event.replay,
       scopeAlias: event.scopeAlias,
     });
+  });
+
+  test("a legacy locator-only row still unpacks and a corrupt row is refused", () => {
+    const legacy = "Project%3Aaccount-1%3Aproject-1|op-1|7|cd34|ab12";
+    expect(unpackSecurityRedactionTarget(legacy)).toEqual({
+      operationId: "op-1",
+      reason: "",
+      replay: {
+        digest: "ab12",
+        keyVersion: SECURITY_REDACTION_REPLAY_KEY_VERSION,
+        length: 7,
+        salt: "cd34",
+      },
+      scopeAlias: "Project:account-1:project-1",
+    });
+    // A truncated row of neither shape is refused.
+    expect(
+      unpackSecurityRedactionTarget(
+        "Project%3Aaccount-1%3Aproject-1|op-1|7|cd34|ab12|1",
+      ),
+    ).toBeNull();
   });
 
   test("the event packs into the existing security log columns without a value", () => {
@@ -300,7 +330,8 @@ describe("Security Redaction event", () => {
       id: "security-redaction:op-1",
       occurredAt: NOW.toISOString(),
       operationId: "op-1",
-      replay: { digest: "ab12", length: 7, salt: "cd34" },
+      reason: "Leaked key",
+      replay: { digest: "ab12", keyVersion: 1, length: 7, salt: "cd34" },
       scopeAlias: "Project:account-1:project-1",
       type: SECURITY_REDACTION_EVENT_TYPE,
       version: 1,
@@ -308,6 +339,7 @@ describe("Security Redaction event", () => {
     const packed = packSecurityRedactionTarget(event);
     expect(unpackSecurityRedactionTarget(packed)).toEqual({
       operationId: "op-1",
+      reason: "Leaked key",
       replay: event.replay,
       scopeAlias: event.scopeAlias,
     });
@@ -361,7 +393,11 @@ describe("Security Redaction replay", () => {
 
     const result = await replay.replay();
 
-    expect(result).toEqual({ reapplied: 1, unreadable: 0 });
+    expect(result).toEqual({
+      reapplied: 1,
+      staleKey: 0,
+      unreadable: 0,
+    });
     expect(restored.world.readable().join()).not.toContain(SECRET);
     restored.world.restore("d2");
     expect(restored.world.readable().join()).not.toContain(SECRET);
@@ -384,6 +420,7 @@ describe("Security Redaction replay", () => {
 
     expect(await harness.replay.replay()).toEqual({
       reapplied: 0,
+      staleKey: 0,
       unreadable: 0,
     });
     expect(harness.spread.spread).not.toHaveBeenCalled();
@@ -416,7 +453,13 @@ describe("Security Redaction replay", () => {
       id: "security-redaction:bad",
       occurredAt: NOW.toISOString(),
       operationId: "bad",
-      replay: { digest: "ab", length: 3, salt: "cd" },
+      reason: "Leaked key",
+      replay: {
+        digest: "ab",
+        keyVersion: SECURITY_REDACTION_REPLAY_KEY_VERSION,
+        length: 3,
+        salt: "cd",
+      },
       scopeAlias: "nonsense",
       type: SECURITY_REDACTION_EVENT_TYPE,
       version: 1,
@@ -427,6 +470,61 @@ describe("Security Redaction replay", () => {
       spread: { spread: vi.fn() },
       texts: () => Promise.resolve([]),
     });
-    expect(await replay.replay()).toEqual({ reapplied: 0, unreadable: 1 });
+    expect(await replay.replay()).toEqual({
+      reapplied: 0,
+      staleKey: 0,
+      unreadable: 1,
+    });
+  });
+
+  test("an event of a different server key version is reported stale, never silently skipped", async () => {
+    const { log } = eventLog();
+    await log.append({
+      actorAlias: "alias",
+      id: "security-redaction:other-key",
+      occurredAt: NOW.toISOString(),
+      operationId: "other-key",
+      reason: "Leaked key",
+      replay: {
+        digest: "ab",
+        keyVersion: SECURITY_REDACTION_REPLAY_KEY_VERSION + 1,
+        length: 3,
+        salt: "cd",
+      },
+      scopeAlias: "Project:account-1:project-1",
+      type: SECURITY_REDACTION_EVENT_TYPE,
+      version: 1,
+    });
+    const spread = { spread: vi.fn(() => Promise.resolve({ targets: [] })) };
+    const replay = createSecurityRedactionReplay({
+      events: log,
+      key: KEY,
+      spread,
+      texts: () => Promise.resolve([]),
+    });
+    expect(await replay.replay()).toEqual({
+      reapplied: 0,
+      staleKey: 1,
+      unreadable: 0,
+    });
+    expect(spread.spread).not.toHaveBeenCalled();
+  });
+
+  test("rows the log itself cannot read back are counted as unreadable", async () => {
+    const log = {
+      append: () => Promise.resolve(),
+      list: () => Promise.resolve({ events: [], unreadable: 2 }),
+    } satisfies SecurityRedactionEventLog;
+    const replay = createSecurityRedactionReplay({
+      events: log,
+      key: KEY,
+      spread: { spread: vi.fn() },
+      texts: () => Promise.resolve([]),
+    });
+    expect(await replay.replay()).toEqual({
+      reapplied: 0,
+      staleKey: 0,
+      unreadable: 2,
+    });
   });
 });

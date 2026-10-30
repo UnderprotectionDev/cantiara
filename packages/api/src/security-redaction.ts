@@ -75,10 +75,12 @@ export type SecurityRedactionPreviewInput = z.input<
 
 export const applySecurityRedactionInputSchema = z
   .object({
+    /** The founder's audit reason, kept content-free of the value itself. */
     grant: z.string().min(1).max(512),
     scope: securityRedactionScopeSchema,
     sensitiveValue,
     typedName: z.string().min(1).max(200),
+    reason: z.string().trim().min(1).max(1000),
   })
   .strict();
 export type ApplySecurityRedactionInput = z.input<
@@ -124,7 +126,10 @@ export interface SecurityRedactionSpreadResult {
 
 /** What apply returns once the grant is consumed and the spread ran. */
 export interface SecurityRedactionGateResult {
+  /** The aliased actor of the applied redaction, from the appended event. */
+  actorAlias: string;
   passedAt: string;
+  reason: string;
   removal: SecurityRedactionSpreadResult;
   scope: SecurityRedactionScope;
   status: "redacted";
@@ -274,30 +279,47 @@ export interface SecurityRedactionAccess {
 export const SECURITY_REDACTION_EVENT_TYPE = "security-redaction.applied";
 
 /**
+ * The replay digest key version. A rotation of the server secret orphans every
+ * older locator, so each event records which key version made its digest and
+ * replay can report stale events instead of silently losing them.
+ */
+export const SECURITY_REDACTION_REPLAY_KEY_VERSION = 1;
+
+/**
  * How replay finds the value again without it being stored: a per-event random
  * salt, the value length and a server-keyed HMAC-SHA256 of the salted value.
  * Without the server key the digest cannot be guessed even for a short value.
+ * `keyVersion` names the server key that made the digest.
  */
 export interface SecurityRedactionReplayLocator {
   digest: string;
+  keyVersion: number;
   length: number;
   salt: string;
 }
 
 /**
- * Secret-free: an event type, a time, the aliased actor, the scope and the
- * operation id. No name, email, message, field value or secret.
+ * Secret-free: an event type, a time, the aliased actor, the scope, the
+ * operation id and the founder's reason. No name, email, message, field value
+ * or secret.
  */
 export interface SecurityRedactionEvent {
   actorAlias: string;
   id: string;
   occurredAt: string;
   operationId: string;
+  reason: string;
   replay: SecurityRedactionReplayLocator;
   /** `Account:<accountId>` or `Project:<accountId>:<projectId>`. */
   scopeAlias: string;
   type: typeof SECURITY_REDACTION_EVENT_TYPE;
   version: 1;
+}
+
+export interface SecurityRedactionEventList {
+  events: SecurityRedactionEvent[];
+  /** Rows that could not be read back; replay must never skip them silently. */
+  unreadable: number;
 }
 
 /**
@@ -306,7 +328,8 @@ export interface SecurityRedactionEvent {
  */
 export interface SecurityRedactionEventLog {
   append: (event: SecurityRedactionEvent) => Promise<void>;
-  list: () => Promise<SecurityRedactionEvent[]>;
+  /** `unreadable` counts every event lost to an unusable stored row. */
+  list: () => Promise<SecurityRedactionEventList>;
 }
 
 export function securityRedactionScopeAlias(
