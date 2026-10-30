@@ -8,7 +8,7 @@ import { createMemoryDataImport } from "./data-import-memory-store";
 
 const ACCOUNT = "account-1";
 const IMPORT_PROCEDURE = /import/i;
-const APPLY_PROCEDURE = /apply|commit|finalize/i;
+const RESTORE_PROCEDURE = /restore|zip|folder|workspace/i;
 
 function setup(authenticated = true) {
   const harness = createMemoryDataImport({ accountId: ACCOUNT });
@@ -24,13 +24,82 @@ function setup(authenticated = true) {
 const scope = { kind: "project", projectId: "project-1" } as const;
 
 describe("Standard Import RPC seam", () => {
-  test("exposes preview and reopen only; Apply Import is not part of this slice", () => {
+  test("exposes preview, Apply Import, cancel and receipt reopen, and no restore path", () => {
     const procedures = Object.keys(appRouter).filter((name) =>
       IMPORT_PROCEDURE.test(name),
     );
 
-    expect(procedures.sort()).toEqual(["previewImport", "reopenImportPreview"]);
-    expect(procedures.some((name) => APPLY_PROCEDURE.test(name))).toBe(false);
+    expect(procedures.sort()).toEqual([
+      "applyImport",
+      "cancelImport",
+      "previewImport",
+      "reopenImportPreview",
+      "reopenImportReceipt",
+    ]);
+    expect(procedures.some((name) => RESTORE_PROCEDURE.test(name))).toBe(false);
+  });
+
+  test("applies once, replays the receipt, and answers a changed set as CONFLICT", async () => {
+    const { client, written } = setup();
+    const preview = await client.previewImport({
+      catalogType: "Task",
+      content: "Title\nWrite brief",
+      fileName: "tasks.csv",
+      scope,
+    });
+    const confirm = {
+      finalSetFingerprint: preview.finalSetFingerprint,
+      idempotencyKey: "rpc-key-00001",
+      stagingId: preview.stagingId,
+    };
+
+    const first = await client.applyImport(confirm);
+    const replay = await client.applyImport(confirm);
+    const reopened = await client.reopenImportReceipt({
+      idempotencyKey: "rpc-key-00001",
+    });
+
+    expect(first).toMatchObject({ replayed: false, status: "committed" });
+    expect(replay).toMatchObject({ replayed: true, status: "committed" });
+    expect(reopened).toMatchObject({ counts: { created: 1 } });
+    expect(written.records).toHaveLength(1);
+    const other = await client.previewImport({
+      catalogType: "Task",
+      content: "Title\nSomething else",
+      fileName: "tasks.csv",
+      scope,
+    });
+    await expect(
+      client.applyImport({
+        ...confirm,
+        finalSetFingerprint: other.finalSetFingerprint,
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
+  test("answers an Apply refusal with a stable code and cancel with its status", async () => {
+    const { client, written } = setup();
+    const preview = await client.previewImport({
+      catalogType: "Task",
+      content: "Title,Note\nValid,a\n,b",
+      fileName: "tasks.csv",
+      scope,
+    });
+
+    await expect(
+      client.applyImport({
+        finalSetFingerprint: preview.finalSetFingerprint,
+        idempotencyKey: "rpc-key-00002",
+        stagingId: preview.stagingId,
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      data: { code: "invalid-rows-remain" },
+    });
+    await expect(
+      client.cancelImport({ stagingId: preview.stagingId }),
+    ).resolves.toEqual({ status: "cancelled" });
+    expect(written.records).toHaveLength(0);
   });
 
   test("previews a CSV file and reopens it from staging", async () => {

@@ -106,11 +106,16 @@ import {
   dailyFocusMembershipInputSchema,
 } from "../daily-focus";
 import {
+  applyImportInputSchema,
+  cancelImportInputSchema,
+  ImportConflictError,
+  ImportReceiptNotFoundError,
   ImportRefusedError,
   ImportScopeNotFoundError,
   ImportStagingExpiredError,
   previewImportInputSchema,
   reopenImportPreviewInputSchema,
+  reopenImportReceiptInputSchema,
 } from "../data-import";
 import {
   decisionSupersessionCommandSchema,
@@ -4734,9 +4739,17 @@ async function dataImportRead<T>(read: () => Promise<T>): Promise<T> {
         message: error.message,
       });
     }
+    if (error instanceof ImportConflictError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        defined: true,
+        message: error.message,
+      });
+    }
     if (
       error instanceof ImportScopeNotFoundError ||
-      error instanceof ImportStagingExpiredError
+      error instanceof ImportStagingExpiredError ||
+      error instanceof ImportReceiptNotFoundError
     ) {
       throw new ORPCError("NOT_FOUND", {
         cause: error,
@@ -4896,6 +4909,27 @@ export const appRouter = {
     .handler(({ context, input }) =>
       dataImportRead(() =>
         requireDataImport(context).reopen(context.session.user.id, input),
+      ),
+    ),
+  applyImport: protectedProcedure
+    .input(applyImportInputSchema)
+    .handler(({ context, input }) =>
+      dataImportRead(() =>
+        requireDataImport(context).apply(context.session.user.id, input),
+      ),
+    ),
+  cancelImport: protectedProcedure
+    .input(cancelImportInputSchema)
+    .handler(({ context, input }) =>
+      dataImportRead(() =>
+        requireDataImport(context).cancel(context.session.user.id, input),
+      ),
+    ),
+  reopenImportReceipt: protectedProcedure
+    .input(reopenImportReceiptInputSchema)
+    .handler(({ context, input }) =>
+      dataImportRead(() =>
+        requireDataImport(context).receipt(context.session.user.id, input),
       ),
     ),
   trash: protectedProcedure

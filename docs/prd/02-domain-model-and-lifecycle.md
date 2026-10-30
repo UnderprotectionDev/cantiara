@@ -1072,6 +1072,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Çatışma | `Conflict` | Aynı idempotency veya teslim kimliğinin farklı payload taşıması |
 | İptal | `Cancel` | Yalnız commit bariyerinden önceki hazırlama iptali |
 | Sonlandırılıyor | `Finalizing` | Commit bariyerinden sonra iptalin uygulanmadığı durum |
+| İçe aktarma | `Import` | Tek dosyayı eşleme ve fark önizlemesinden sonra kayıtlara dönüştüren Aşamalı import girişi; önizleme hiçbir kaydı değiştirmez |
+| İçe aktarmayı uygula | `Apply Import` | Önizlenen nihai kümeyi atomik ve idempotent yazan ayrı onay; ya hepsi bir kez yazılır ya hiçbiri |
+| İçe aktarma makbuzu | `Import receipt` | `Apply Import` sonucunun kalıcı tam commit veya tam rollback makbuzu; bağlantı koptuktan sonra aynı sonuçla yeniden açılır |
 | Güncel değer | `Current value` | Güncel olmayan taban revizyonunda reddedilen yazmanın gösterdiği mevcut kayıt değeri |
 | Revizyon | `Revision` | Hedef kaydın Kayıt geçmişindeki güncel değişiklik sırası; Mutation Contract yazmasının taban güncelliği bu değerle karşılaştırılır |
 | Güvenli geri alma | `Undo` | Tersi deterministik hesaplanan alan, ilişki, görünüm üstverisi veya atomik dönüşümde ilgisiz sonraki değişikliği sarmadan uygulanan geri alma; aynı alandaki yeni değer `Conflict` üretir, kalıcı silme, güvenlik redaksiyonu, dış sistem mutasyonu ve yayınlanmış statik export geri alınmaz |

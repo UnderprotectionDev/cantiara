@@ -1,11 +1,16 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Row buttons close over their own row number.
 import {
   IMPORT_PREVIEW_NOTE,
   type ImportPreview,
   type ImportRowPreview,
 } from "@cantiara/api/data-import";
+import { Button } from "@cantiara/ui/components/button";
 import { useEffect, useRef } from "react";
 
 function describeRow(row: ImportRowPreview) {
+  if (row.excluded) {
+    return "Dropped from the final set";
+  }
   if (row.action === "invalid") {
     return `Invalid: ${row.problems.join(" ")}`;
   }
@@ -20,9 +25,11 @@ function describeRow(row: ImportRowPreview) {
 
 function RowTable({
   caption,
+  onToggleRow,
   rows,
 }: {
   caption: string;
+  onToggleRow?: (rowNumber: number) => void;
   rows: readonly ImportRowPreview[];
 }) {
   return (
@@ -36,9 +43,14 @@ function RowTable({
           <th className="pr-3 pb-1 font-medium" scope="col">
             Result
           </th>
-          <th className="pb-1 font-medium" scope="col">
+          <th className="pr-3 pb-1 font-medium" scope="col">
             Values
           </th>
+          {onToggleRow ? (
+            <th className="pb-1 font-medium" scope="col">
+              Final set
+            </th>
+          ) : null}
         </tr>
       </thead>
       <tbody>
@@ -48,11 +60,24 @@ function RowTable({
               {row.rowNumber}
             </th>
             <td className="pr-3">{describeRow(row)}</td>
-            <td className="break-words text-muted-foreground">
+            <td className="break-words pr-3 text-muted-foreground">
               {Object.entries(row.values)
                 .map(([field, value]) => `${field}: ${value}`)
                 .join("; ")}
             </td>
+            {onToggleRow ? (
+              <td>
+                <Button
+                  aria-label={`${row.excluded ? "Include row" : "Exclude row"} ${row.rowNumber}`}
+                  onClick={() => onToggleRow(row.rowNumber)}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  {row.excluded ? "Include row" : "Exclude row"}
+                </Button>
+              </td>
+            ) : null}
           </tr>
         ))}
       </tbody>
@@ -65,7 +90,15 @@ function RowTable({
  * rows are new, matched or invalid. Focus moves to its heading when it
  * appears so keyboard and screen reader users land on the result.
  */
-export function ImportPreviewPanel({ preview }: { preview: ImportPreview }) {
+export function ImportPreviewPanel({
+  excludedRows = [],
+  onToggleRow,
+  preview,
+}: {
+  excludedRows?: readonly number[];
+  onToggleRow?: (rowNumber: number) => void;
+  preview: ImportPreview;
+}) {
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     heading.current?.focus();
@@ -101,6 +134,7 @@ export function ImportPreviewPanel({ preview }: { preview: ImportPreview }) {
           ["Create", counts.create],
           ["Update existing", counts.updateExisting],
           ["Skip", counts.skip],
+          ["Dropped", counts.excluded],
           ["Invalid", counts.invalid],
         ].map(([label, value]) => (
           <div key={label}>
@@ -161,9 +195,32 @@ export function ImportPreviewPanel({ preview }: { preview: ImportPreview }) {
       {preview.invalidRows.length > 0 ? (
         <section aria-label="Invalid rows" className="space-y-1">
           <RowTable
-            caption={`Invalid rows (${preview.invalidTotal}). Correct them in the file or leave them out before you apply.`}
+            caption={`Invalid rows (${preview.invalidTotal}). Correct them in the file or drop them before you apply.`}
+            onToggleRow={onToggleRow}
             rows={preview.invalidRows}
           />
+        </section>
+      ) : null}
+
+      {excludedRows.length > 0 && onToggleRow ? (
+        <section aria-label="Dropped rows" className="space-y-1 text-sm">
+          <h4 className="font-medium">Dropped rows</h4>
+          <ul className="space-y-1">
+            {excludedRows.map((rowNumber) => (
+              <li className="flex items-center gap-2" key={rowNumber}>
+                <span>Row {rowNumber}</span>
+                <Button
+                  aria-label={`Include row ${rowNumber}`}
+                  onClick={() => onToggleRow(rowNumber)}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Include row
+                </Button>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 

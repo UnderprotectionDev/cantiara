@@ -17,6 +17,14 @@ import {
   reopenImportPreviewInputSchema,
 } from "@cantiara/api/data-import";
 
+import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
+
+import {
+  createImportApply,
+  type ImportApplyPorts,
+  type ImportFinalRow,
+  type ImportFinalSet,
+} from "./data-import-apply";
 import type { ImportSealer, SealedImport } from "./data-import-envelope";
 import {
   checkScope,
@@ -41,6 +49,8 @@ export type StagedImportRequest = Omit<
 
 export interface StagedImport {
   accountId: string;
+  /** Idempotency key of the Apply Import that claimed this file. */
+  applyingKey?: string | null;
   byteSize: number;
   createdAt: Date;
   expiresAt: Date;
@@ -55,9 +65,22 @@ export interface StagedImport {
  * most 24 hours and is not part of any primary store or search index.
  */
 export interface ImportStagingStore {
+  /** Claims the file for one Apply Import key; false when another key holds it. */
+  claim: (accountId: string, id: string, key: string) => Promise<boolean>;
   get: (accountId: string, id: string) => Promise<StagedImport | null>;
   purgeExpired: (now: Date) => Promise<number>;
   put: (staged: StagedImport) => Promise<void>;
+  /** Drops the claim after a refusal or a rollback so the file can be retried. */
+  release: (accountId: string, id: string) => Promise<void>;
+  /**
+   * Deletes the staged file. Without `force` a file already claimed by an
+   * Apply Import stays: that import is past the point where Cancel exists.
+   */
+  remove: (
+    accountId: string,
+    id: string,
+    options: { force: boolean },
+  ) => Promise<"claimed" | "missing" | "removed">;
 }
 
 export interface ImportScopeFacts {
@@ -80,6 +103,8 @@ export interface ImportOriginQuery {
 }
 
 export interface DataImportPorts {
+  /** Apply Import: the Mutation Contract import-origin slice and receipts. */
+  apply: ImportApplyPorts;
   newId?: () => string;
   /** Earlier import origins for exact-match diff; read only. */
   origins: (
@@ -111,19 +136,24 @@ function rowKeyOf(row: ParsedRow) {
 }
 
 interface PlannedRows {
+  /** Untruncated mapped values per row number: what Apply writes. */
+  fullValues: Map<number, Record<string, string>>;
   originColumn: string | null;
+  /** Living record ids of the rows that match an earlier origin. */
+  recordIds: Map<number, string>;
   rows: ImportRowPreview[];
 }
 
 function mappedValues(
   row: ParsedRow,
   targets: ReadonlyMap<string, string | null>,
+  shorten: boolean,
 ) {
   const values: Record<string, string> = {};
   for (const [column, target] of targets) {
     const cell = row.cells[column]?.trim() ?? "";
     if (target && target !== "origin" && cell !== "") {
-      values[target] = truncate(cell);
+      values[target] = shorten ? truncate(cell) : cell;
     }
   }
   return values;
@@ -180,6 +210,7 @@ function buildRows(
   requiredFields: readonly string[],
   origins: ReadonlyMap<string, ImportOriginState>,
   choices: Record<string, ImportRowChoice> | undefined,
+  excludedRows: ReadonlySet<number>,
 ): PlannedRows {
   const originColumn =
     [...targets.entries()].find(([, target]) => target === "origin")?.[0] ??
@@ -188,8 +219,11 @@ function buildRows(
     [...targets.values()].filter((target): target is string => Boolean(target)),
   );
   const seenOrigins = new Set<string>();
+  const fullValues = new Map<number, Record<string, string>>();
+  const recordIds = new Map<number, string>();
   const rows = parsed.rows.map((row): ImportRowPreview => {
-    const values = mappedValues(row, targets);
+    const values = mappedValues(row, targets, true);
+    fullValues.set(row.rowNumber, mappedValues(row, targets, false));
     const problems = [
       ...row.problems,
       ...missingRequired(requiredFields, mappedFields, values),
@@ -197,31 +231,42 @@ function buildRows(
     const originKey = originColumn
       ? row.cells[originColumn]?.trim() || undefined
       : undefined;
-    if (originKey && seenOrigins.has(originKey)) {
-      problems.push(`Origin key "${originKey}" appears twice in the file.`);
+    const excluded = excludedRows.has(row.rowNumber);
+    if (!excluded) {
+      if (originKey && seenOrigins.has(originKey)) {
+        problems.push(`Origin key "${originKey}" appears twice in the file.`);
+      }
+      if (originKey) {
+        seenOrigins.add(originKey);
+      }
     }
-    if (originKey) {
-      seenOrigins.add(originKey);
+    const known = originKey ? origins.get(originKey) : undefined;
+    if (known?.state === "living") {
+      recordIds.set(row.rowNumber, known.recordId);
     }
-    return classifyRow(
+    const classified = classifyRow(
       { originKey, problems, rowNumber: row.rowNumber, values },
-      originKey ? origins.get(originKey) : undefined,
+      known,
       choices?.[rowKeyOf(row)],
     );
+    return excluded ? { ...classified, excluded: true } : classified;
   });
-  return { originColumn, rows };
+  return { fullValues, originColumn, recordIds, rows };
 }
 
 function countRows(rows: readonly ImportRowPreview[]) {
   const counts = {
     create: 0,
+    excluded: 0,
     invalid: 0,
     skip: 0,
     total: rows.length,
     updateExisting: 0,
   };
   for (const row of rows) {
-    if (row.action === "invalid") {
+    if (row.excluded) {
+      counts.excluded += 1;
+    } else if (row.action === "invalid") {
       counts.invalid += 1;
     } else if (row.action === "create") {
       counts.create += 1;
@@ -256,12 +301,49 @@ function originNote(
   };
 }
 
+export interface AnalyzedImport {
+  body: Omit<ImportPreview, "expiresAt" | "stagingId">;
+  final: ImportFinalSet;
+}
+
+function finalRow(row: ImportRowPreview, planned: PlannedRows): ImportFinalRow {
+  return {
+    originKey: row.originKey ?? null,
+    recordId: planned.recordIds.get(row.rowNumber) ?? null,
+    rowNumber: row.rowNumber,
+    values: planned.fullValues.get(row.rowNumber) ?? {},
+  };
+}
+
+/** Splits the previewed rows into the exact set Apply Import would write. */
+function selectFinalRows(planned: PlannedRows) {
+  const creates: ImportFinalRow[] = [];
+  const updates: ImportFinalRow[] = [];
+  let conflicts = 0;
+  let skipped = 0;
+  for (const row of planned.rows) {
+    if (row.excluded || row.action === "invalid") {
+      continue;
+    }
+    if (row.action === "create") {
+      creates.push(finalRow(row, planned));
+    } else if (row.choice === "skip") {
+      skipped += 1;
+    } else if (row.choice === "resolve conflict") {
+      conflicts += 1;
+    } else {
+      updates.push(finalRow(row, planned));
+    }
+  }
+  return { conflicts, creates, skipped, updates };
+}
+
 async function analyze(
   accountId: string,
   request: StagedImportRequest,
   content: string,
   ports: DataImportPorts,
-): Promise<Omit<ImportPreview, "expiresAt" | "stagingId">> {
+): Promise<AnalyzedImport> {
   const parsed = parseImportFile({
     catalogType: request.catalogType,
     content,
@@ -306,24 +388,70 @@ async function analyze(
     required,
     origins,
     request.rowChoices,
+    new Set(request.excludedRows ?? []),
   );
-  const invalid = planned.rows.filter((row) => row.action === "invalid");
-  return {
+  const invalid = planned.rows.filter(
+    (row) => row.action === "invalid" && !row.excluded,
+  );
+  const selected = selectFinalRows(planned);
+  const provenance = planned.originColumn ? parsed.provider : null;
+  const counts = countRows(planned.rows);
+  const fingerprint = await fingerprintMutationPayload({
     catalogType: parsed.catalogType,
-    counts: countRows(planned.rows),
+    creates: selected.creates.map((row) => ({ ...row })),
     family: parsed.family,
     fileName: request.fileName,
-    format: parsed.format,
-    invalidRows: invalid.slice(0, IMPORT_PREVIEW_INVALID_LIMIT),
-    invalidTotal: invalid.length,
-    losses: [...parsed.losses, ...losses],
-    mapping: mapping.entries,
-    mappingTargets: mapping.targetOptions,
-    origin: originNote(planned.originColumn, parsed.provider, parsed),
-    primaryWrites: "none",
-    rows: planned.rows.slice(0, IMPORT_PREVIEW_ROW_LIMIT),
-    rowsTruncated: planned.rows.length > IMPORT_PREVIEW_ROW_LIMIT,
-    scope: { kind: request.scope.kind, label: facts.label },
+    provenance,
+    scope: request.scope,
+    skipped: selected.skipped,
+    updates: selected.updates.map((row) => ({ ...row })),
+  });
+  return {
+    body: {
+      catalogType: parsed.catalogType,
+      counts,
+      family: parsed.family,
+      fileName: request.fileName,
+      finalSetFingerprint: fingerprint,
+      format: parsed.format,
+      invalidRows: invalid.slice(0, IMPORT_PREVIEW_INVALID_LIMIT),
+      invalidTotal: invalid.length,
+      losses: [...parsed.losses, ...losses],
+      mapping: mapping.entries,
+      mappingTargets: mapping.targetOptions,
+      origin: originNote(planned.originColumn, parsed.provider, parsed),
+      primaryWrites: "none",
+      rows: planned.rows.slice(0, IMPORT_PREVIEW_ROW_LIMIT),
+      rowsTruncated: planned.rows.length > IMPORT_PREVIEW_ROW_LIMIT,
+      scope: { kind: request.scope.kind, label: facts.label },
+    },
+    final: {
+      catalogType: parsed.catalogType,
+      conflicts: selected.conflicts,
+      counts: {
+        created: selected.creates.length,
+        excluded: counts.excluded,
+        skipped: selected.skipped,
+        updated: selected.updates.length,
+      },
+      creates: selected.creates,
+      family: parsed.family,
+      fileName: request.fileName,
+      fingerprint,
+      invalid: invalid.length,
+      mappedFields: [
+        ...new Set(
+          [...mapping.targets.values()].filter(
+            (target): target is string =>
+              Boolean(target) && target !== "origin",
+          ),
+        ),
+      ],
+      provenance,
+      scope: request.scope,
+      scopeLabel: facts.label,
+      updates: selected.updates,
+    },
   };
 }
 
@@ -338,11 +466,36 @@ function requiredFieldsOf(type: ImportCatalogType | null) {
  */
 export function createDataImport(ports: DataImportPorts): DataImportAccess {
   const newId = ports.newId ?? randomUUID;
+
+  async function openStaged(accountId: string, stagingId: string, now: Date) {
+    const staged = await ports.staging.get(accountId, stagingId);
+    if (!staged || staged.expiresAt.getTime() <= now.getTime()) {
+      throw new ImportStagingExpiredError();
+    }
+    let content: string;
+    try {
+      content = ports.sealer.open(staged.sealed, aad(accountId, stagingId));
+    } catch {
+      // biome-ignore lint/style/useErrorCause: The cipher error must not travel with the refusal.
+      throw new ImportStagingExpiredError();
+    }
+    return {
+      analysis: await analyze(accountId, staged.request, content, ports),
+      staged,
+    };
+  }
+
+  const applier = createImportApply({
+    openStaged,
+    ports: { apply: ports.apply, scopes: ports.scopes, staging: ports.staging },
+  });
+
   return {
+    ...applier,
     async preview(accountId, rawInput, now = new Date()) {
       const input = previewImportInputSchema.parse(rawInput);
       const { content, ...request } = input;
-      const body = await analyze(accountId, request, content, ports);
+      const { body } = await analyze(accountId, request, content, ports);
       await ports.staging.purgeExpired(now);
       const id = newId();
       const expiresAt = new Date(now.getTime() + IMPORT_STAGING_TTL_MS);
@@ -361,20 +514,9 @@ export function createDataImport(ports: DataImportPorts): DataImportAccess {
 
     async reopen(accountId, rawInput, now = new Date()) {
       const { stagingId } = reopenImportPreviewInputSchema.parse(rawInput);
-      const staged = await ports.staging.get(accountId, stagingId);
-      if (!staged || staged.expiresAt.getTime() <= now.getTime()) {
-        throw new ImportStagingExpiredError();
-      }
-      let content: string;
-      try {
-        content = ports.sealer.open(staged.sealed, aad(accountId, stagingId));
-      } catch {
-        // biome-ignore lint/style/useErrorCause: The cipher error must not travel with the refusal.
-        throw new ImportStagingExpiredError();
-      }
-      const body = await analyze(accountId, staged.request, content, ports);
+      const { analysis, staged } = await openStaged(accountId, stagingId, now);
       return {
-        ...body,
+        ...analysis.body,
         expiresAt: staged.expiresAt.toISOString(),
         stagingId,
       };
