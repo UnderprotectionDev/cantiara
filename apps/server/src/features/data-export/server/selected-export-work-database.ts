@@ -1,5 +1,4 @@
 import type { ExportField } from "@cantiara/api/data-export";
-import { ExportError } from "@cantiara/api/data-export";
 import type { Database } from "@cantiara/db";
 import { workRelation } from "@cantiara/db/schema/relation";
 import { work, workKeyAllocation } from "@cantiara/db/schema/work";
@@ -8,7 +7,7 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import type { ExportSourceReader } from "./selected-export";
 import {
-  ownsProject,
+  guardExportRead,
   readCustomFields,
 } from "./selected-export-database-support";
 
@@ -44,16 +43,9 @@ export function createDatabaseWorkExportSource(
 ): ExportSourceReader {
   return {
     fields: () => WORK_FIELDS,
-    async read({ accountId, filters, limit, recordIds, recordType, scope }) {
-      for (const key of Object.keys(filters)) {
-        if (key !== "status") {
-          throw new ExportError(
-            "source_unavailable",
-            `The filter ${key} is not supported for ${recordType}.`,
-          );
-        }
-      }
-      if (!(await ownsProject(database, accountId, scope.projectId))) {
+    async read(input) {
+      const { filters, limit, recordIds, recordType, scope } = input;
+      if (!(await guardExportRead(database, input, ["status"]))) {
         return null;
       }
       const rows = await database

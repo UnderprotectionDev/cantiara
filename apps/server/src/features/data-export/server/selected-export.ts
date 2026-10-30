@@ -6,6 +6,7 @@ import {
   EXPORT_RECORD_TYPES,
   EXPORT_RESIDENCY_NOTE,
   EXPORT_SCHEMA_VERSION,
+  type ExportArtifact,
   type ExportCustomFieldDefinition,
   type ExportDataset,
   type ExportDatasetRecord,
@@ -21,6 +22,7 @@ import {
   type ExportRelationPreview,
   type ExportRequest,
   type ExportScope,
+  type ExportView,
   exportFamilyOf,
   exportProduceInputSchema,
   exportRequestSchema,
@@ -93,8 +95,8 @@ export function createExportCapacity(max = EXPORT_MAX_CONCURRENT) {
   };
 }
 
-function byteLength(value: unknown): number {
-  return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+function byteLength(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
 }
 
 async function sha256(text: string): Promise<string> {
@@ -131,11 +133,16 @@ const LOSSES: Record<ExportFormat, ExportLoss[]> = {
   JSON: [],
 };
 
+/**
+ * Sorting reads only a visible column. A hidden, inaccessible or secret-named
+ * field never orders the output, so the order cannot disclose it.
+ */
 function sortForView(
   records: ExportSourceRecord[],
   sort: { direction: "asc" | "desc"; field: string } | undefined,
+  visibleKeys: readonly string[],
 ): ExportSourceRecord[] {
-  if (!sort) {
+  if (!(sort && visibleKeys.includes(sort.field) && !isSecretKey(sort.field))) {
     return records;
   }
   const factor = sort.direction === "asc" ? 1 : -1;
@@ -147,6 +154,18 @@ function sortForView(
     (left, right) =>
       factor * text(left).localeCompare(text(right), "en", { numeric: true }),
   );
+}
+
+/** A sort on a column that is not exported is dropped from the view too. */
+function exportedView(
+  view: ExportView | undefined,
+  visibleKeys: readonly string[],
+): ExportView | undefined {
+  if (!view) {
+    return undefined;
+  }
+  const { sort, ...rest } = view;
+  return sort && visibleKeys.includes(sort.field) ? view : rest;
 }
 
 function chooseColumns(
@@ -210,7 +229,10 @@ function projectRecord(
 }
 
 interface ClosedWorld {
+  /** The finished artifact, produced inside the capacity window. */
+  artifact?: ExportArtifact;
   dataset: ExportDataset;
+  fingerprint: string;
   preview: Omit<ExportPreview, "fingerprint" | "formatAvailable">;
 }
 
@@ -260,7 +282,10 @@ export function createSelectedExport(options: {
       if (read.records.length > EXPORT_MAX_ROWS) {
         throw new ExportError("limit_exceeded");
       }
-      return shape(parsed, recordType, reader, read);
+      // Shaping, serialization and hashing stay inside the capacity window.
+      const world = shape(parsed, recordType, reader, read);
+      world.fingerprint = await fingerprint(world);
+      return world;
     } finally {
       release();
     }
@@ -282,9 +307,11 @@ export function createSelectedExport(options: {
     const visibleKeys = fields.map((field) => field.key);
 
     const requested = parsed.recordIds ? new Set(parsed.recordIds) : null;
+    const view = exportedView(parsed.view, visibleKeys);
     const selected = sortForView(
       read.records.filter((record) => !requested || requested.has(record.id)),
-      parsed.view?.sort,
+      view?.sort,
+      visibleKeys,
     );
     const selectedIds = new Set(selected.map((record) => record.id));
     const records = selected.map((record) =>
@@ -301,15 +328,6 @@ export function createSelectedExport(options: {
     );
     const relations = stripSecrets(closed, secrets);
 
-    const estimatedBytes = byteLength({
-      customFieldDefinitions,
-      records,
-      relations,
-    });
-    if (estimatedBytes > EXPORT_MAX_BYTES) {
-      throw new ExportError("limit_exceeded");
-    }
-
     const manifest: ExportDataset["manifest"] = {
       filters: parsed.filters,
       format: parsed.format,
@@ -318,7 +336,7 @@ export function createSelectedExport(options: {
       recordType,
       schemaVersion: EXPORT_SCHEMA_VERSION,
       scope: parsed.scope,
-      ...(parsed.view ? { view: parsed.view } : {}),
+      ...(view ? { view } : {}),
       visibleFields: visibleKeys,
     };
     const dataset: ExportDataset = {
@@ -333,8 +351,25 @@ export function createSelectedExport(options: {
     if (escapes) {
       manifest.escapes = escapes;
     }
+    // The estimate measures the real artifact (manifest, pretty-printing, CSV
+    // quoting), so a passed preview cannot fail later for size.
+    const artifact = producers[parsed.format]?.produce(dataset);
+    const estimatedBytes = byteLength(
+      artifact?.bytes ??
+        JSON.stringify({
+          customFieldDefinitions,
+          manifest,
+          records,
+          relations,
+        }),
+    );
+    if (estimatedBytes > EXPORT_MAX_BYTES) {
+      throw new ExportError("limit_exceeded");
+    }
     return {
+      artifact,
       dataset,
+      fingerprint: "",
       preview: {
         ...(escapes ? { escapes } : {}),
         estimatedBytes,
@@ -356,7 +391,7 @@ export function createSelectedExport(options: {
         residency: EXPORT_RESIDENCY_NOTE,
         scope: parsed.scope,
         secretsExcluded: [...secrets].sort(),
-        ...(parsed.view ? { view: parsed.view } : {}),
+        ...(view ? { view } : {}),
       },
     };
   }
@@ -393,7 +428,7 @@ export function createSelectedExport(options: {
       const world = await closeWorld(accountId, request);
       return {
         ...world.preview,
-        fingerprint: await fingerprint(world),
+        fingerprint: world.fingerprint,
         formatAvailable: Boolean(producers[world.preview.format]),
       };
     },
@@ -403,21 +438,13 @@ export function createSelectedExport(options: {
         exportProduceInputSchema.parse(input);
       const world = await closeWorld(accountId, request);
       // No artifact exists before the founder confirmed this exact preview.
-      if ((await fingerprint(world)) !== previewFingerprint) {
+      if (world.fingerprint !== previewFingerprint) {
         throw new ExportError("preview_required");
       }
-      const producer = producers[world.dataset.manifest.format];
-      if (!producer) {
+      if (!world.artifact) {
         throw new ExportError("format_unavailable");
       }
-      const artifact = producer.produce(world.dataset);
-      // The 25 MB cap holds for the finished bytes too, not only the estimate.
-      if (
-        new TextEncoder().encode(artifact.bytes).byteLength > EXPORT_MAX_BYTES
-      ) {
-        throw new ExportError("limit_exceeded");
-      }
-      return artifact;
+      return world.artifact;
     },
   };
 }

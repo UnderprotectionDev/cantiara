@@ -1,5 +1,4 @@
 import type { ExportField, ExportRecordType } from "@cantiara/api/data-export";
-import { ExportError } from "@cantiara/api/data-export";
 import type { Database } from "@cantiara/db";
 import { assumption } from "@cantiara/db/schema/assumption";
 import { decision } from "@cantiara/db/schema/decision";
@@ -13,12 +12,12 @@ import { researchSession } from "@cantiara/db/schema/research-session";
 import { risk } from "@cantiara/db/schema/risk";
 import { source, sourceVersion } from "@cantiara/db/schema/source";
 import { validationRecord } from "@cantiara/db/schema/validation-record";
-import { and, asc, eq, getTableColumns, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 
 import type { ExportSourceReader, ExportSourceRecord } from "./selected-export";
 import {
-  ownsProject,
+  guardExportRead,
   readCustomFields,
 } from "./selected-export-database-support";
 
@@ -31,12 +30,17 @@ type RecordTable = PgTable & {
 interface RecordFamily {
   /** Owned observation columns that leave as components inside the owner. */
   components?: Record<string, string[]>;
+  /**
+   * The only columns that leave, in column order. Internal columns (revision,
+   * Project scope, Trash bookkeeping, actor or account ids, fingerprints) are
+   * never listed, so a new schema column stays private until it is added here.
+   */
+  fields: string[];
   label: (row: Record<string, unknown>) => string;
+  /** Reads the field values when they are not plain columns of the row. */
+  rowValues?: (row: Record<string, unknown>) => Record<string, unknown>;
   table: RecordTable;
 }
-
-/** Columns that never leave: the Project scope and Trash bookkeeping. */
-const BASE_EXCLUDE = ["projectId", "trashedAt"];
 
 function textOf(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -47,26 +51,152 @@ function label(...keys: string[]) {
     keys.map((key) => textOf(row[key])).find(Boolean) ?? textOf(row.id);
 }
 
+const STAMPS = ["createdAt", "updatedAt"];
+
+/**
+ * Research Session keeps its fields in one validated `data` document. Only the
+ * session's own fields leave: captured content (consent gated), the consent
+ * recorder and the revision stay in the Workspace.
+ */
+const RESEARCH_SESSION_FIELDS = [
+  "title",
+  "purpose",
+  "questionGuide",
+  "status",
+  "scheduledAt",
+  "durationMinutes",
+  "channel",
+  "facilitator",
+  "scopeNote",
+  "participantContactId",
+  "consent",
+  "consentNote",
+  ...STAMPS,
+];
+
 const FAMILIES: Partial<Record<ExportRecordType, RecordFamily>> = {
-  Assumption: { label: label("title", "statement"), table: assumption },
-  Decision: { label: label("title"), table: decision },
-  Feedback: { label: label("title"), table: feedback },
-  Milestone: { label: label("title"), table: projectMilestone },
-  "Open Question": { label: label("title", "question"), table: openQuestion },
-  "Production Incident": { label: label("title"), table: productionIncident },
-  "Project Goal": { label: label("title"), table: projectGoal },
+  Assumption: {
+    fields: ["title", "statement", "rationale", "life", ...STAMPS],
+    label: label("title", "statement"),
+    table: assumption,
+  },
+  Decision: {
+    fields: [
+      "title",
+      "decision",
+      "rationale",
+      "life",
+      "withdrawnAt",
+      "withdrawalRationale",
+      ...STAMPS,
+    ],
+    label: label("title"),
+    table: decision,
+  },
+  Feedback: {
+    fields: [
+      "title",
+      "originalMessage",
+      "channel",
+      "occurredAt",
+      "url",
+      "status",
+      ...STAMPS,
+    ],
+    label: label("title"),
+    table: feedback,
+  },
+  Milestone: {
+    fields: ["title", "description", "status", "targetDate", ...STAMPS],
+    label: label("title"),
+    table: projectMilestone,
+  },
+  "Open Question": {
+    fields: [
+      "title",
+      "question",
+      "context",
+      "answer",
+      "rationale",
+      "life",
+      ...STAMPS,
+    ],
+    label: label("title", "question"),
+    table: openQuestion,
+  },
+  "Production Incident": {
+    fields: [
+      "title",
+      "status",
+      "occurredAt",
+      "detectedHow",
+      "impact",
+      "rootCause",
+      "resolution",
+      "learning",
+      ...STAMPS,
+    ],
+    label: label("title"),
+    table: productionIncident,
+  },
+  "Project Goal": {
+    fields: [
+      "title",
+      "description",
+      "intendedOutcome",
+      "observedOutcomeLearning",
+      ...STAMPS,
+    ],
+    label: label("title"),
+    table: projectGoal,
+  },
   "Project Release": {
     // Erişim and Sonuç gözlemi are owned components, never standalone types.
     components: {
       accessObservation: ["accessEvidence"],
       outcomeObservation: ["outcomeEvidence"],
     },
+    fields: [
+      "name",
+      "versionLabel",
+      "description",
+      "audience",
+      "intendedOutcome",
+      "primaryAccessPath",
+      "status",
+      ...STAMPS,
+    ],
     label: label("name", "versionLabel"),
     table: projectRelease,
   },
-  "Research Session": { label: label("id"), table: researchSession },
-  Risk: { label: label("title"), table: risk },
-  "Validation Record": { label: label("title"), table: validationRecord },
+  "Research Session": {
+    fields: RESEARCH_SESSION_FIELDS,
+    label: label("title"),
+    rowValues: (row) => ({
+      ...((row.data as Record<string, unknown> | null) ?? {}),
+      id: row.id,
+    }),
+    table: researchSession,
+  },
+  Risk: {
+    fields: [
+      "title",
+      "description",
+      "impact",
+      "probability",
+      "response",
+      "rationale",
+      "life",
+      ...STAMPS,
+    ],
+    label: label("title"),
+    table: risk,
+  },
+  "Validation Record": {
+    fields: ["title", "method", "result", "context", "status", ...STAMPS],
+    label: label("title"),
+    table: validationRecord,
+  },
 };
 
 function fieldLabel(key: string): string {
@@ -79,13 +209,7 @@ function plain(value: unknown): unknown {
 }
 
 function fieldsOf(family: RecordFamily): ExportField[] {
-  const hidden = new Set([
-    ...BASE_EXCLUDE,
-    ...Object.values(family.components ?? {}).flat(),
-  ]);
-  return Object.keys(getTableColumns(family.table))
-    .filter((key) => !hidden.has(key))
-    .map((key) => ({ key, label: fieldLabel(key) }));
+  return family.fields.map((key) => ({ key, label: fieldLabel(key) }));
 }
 
 const SOURCE_FIELDS: ExportField[] = [
@@ -95,20 +219,9 @@ const SOURCE_FIELDS: ExportField[] = [
   { key: "provider", label: "Provider" },
   { key: "externalRecordType", label: "External record type" },
   { key: "externalId", label: "External ID" },
-  { key: "revision", label: "Revision" },
   { key: "createdAt", label: "Created" },
   { key: "updatedAt", label: "Updated" },
 ];
-
-function rejectFilters(filters: Record<string, string>, recordType: string) {
-  const [key] = Object.keys(filters);
-  if (key) {
-    throw new ExportError(
-      "source_unavailable",
-      `The filter ${key} is not supported for ${recordType}.`,
-    );
-  }
-}
 
 function componentsOf(family: RecordFamily, row: Record<string, unknown>) {
   const components: Record<string, unknown[]> = {};
@@ -130,9 +243,9 @@ function createFamilyReader(
 ): ExportSourceReader {
   return {
     fields: () => fieldsOf(family),
-    async read({ accountId, filters, limit, recordIds, recordType, scope }) {
-      rejectFilters(filters, recordType);
-      if (!(await ownsProject(database, accountId, scope.projectId))) {
+    async read(input) {
+      const { limit, recordIds, recordType, scope } = input;
+      if (!(await guardExportRead(database, input))) {
         return null;
       }
       const { table } = family;
@@ -154,11 +267,11 @@ function createFamilyReader(
         recordType,
         rows.map((row) => String(row.id)),
       );
-      const fieldKeys = fieldsOf(family).map((field) => field.key);
       const records: ExportSourceRecord[] = rows.map((row) => {
+        const fromRow = family.rowValues ? family.rowValues(row) : row;
         const values: Record<string, unknown> = {};
-        for (const key of fieldKeys) {
-          values[key] = plain(row[key]);
+        for (const key of family.fields) {
+          values[key] = plain(fromRow[key]) ?? null;
         }
         return {
           ...(family.components
@@ -166,7 +279,7 @@ function createFamilyReader(
             : {}),
           customFieldValues: custom.values.get(String(row.id)),
           id: String(row.id),
-          label: family.label(row),
+          label: family.label(fromRow),
           values,
         };
       });
@@ -204,9 +317,9 @@ export function createDatabaseRecordExportSources(
 function createSourceReader(database: Database): ExportSourceReader {
   return {
     fields: () => SOURCE_FIELDS,
-    async read({ accountId, filters, limit, recordIds, recordType, scope }) {
-      rejectFilters(filters, recordType);
-      if (!(await ownsProject(database, accountId, scope.projectId))) {
+    async read(input) {
+      const { limit, recordIds, recordType, scope } = input;
+      if (!(await guardExportRead(database, input))) {
         return null;
       }
       const rows = await database
@@ -217,7 +330,6 @@ function createSourceReader(database: Database): ExportSourceReader {
           externalRecordType: sourceVersion.externalRecordType,
           id: source.id,
           provider: sourceVersion.provider,
-          revision: source.revision,
           title: sourceVersion.title,
           updatedAt: source.updatedAt,
           url: sourceVersion.url,
@@ -256,7 +368,6 @@ function createSourceReader(database: Database): ExportSourceReader {
             externalId: row.externalId,
             externalRecordType: row.externalRecordType,
             provider: row.provider,
-            revision: row.revision,
             title: row.title,
             updatedAt: row.updatedAt.toISOString(),
             url: row.url,

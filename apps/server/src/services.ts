@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
+import { EXPORT_CATALOG } from "@cantiara/api/data-export";
 import {
   createExternalSurfaceAccess,
   createMemoryExternalSurfaceResponseCache,
@@ -393,15 +394,15 @@ export const trash = {
 };
 // Work has its own reader; the plain project-scoped types share one factory.
 const workExportSource = createDatabaseWorkExportSource(db);
+const workExportTypes =
+  EXPORT_CATALOG.find((entry) => entry.family === "Work")?.recordTypes ?? [];
 export const selectedExport = createSelectedExport({
   producers: { CSV: csvExportProducer, JSON: jsonExportProducer },
   sources: {
     ...createDatabaseRecordExportSources(db),
-    Bug: workExportSource,
-    Feature: workExportSource,
-    Improvement: workExportSource,
-    Research: workExportSource,
-    Task: workExportSource,
+    ...Object.fromEntries(
+      workExportTypes.map((recordType) => [recordType, workExportSource]),
+    ),
   },
 });
 const trashMaintenance = createTrashMaintenance(trashExpiry, trashEventLog);

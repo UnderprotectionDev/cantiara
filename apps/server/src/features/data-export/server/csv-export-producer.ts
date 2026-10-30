@@ -63,9 +63,18 @@ export function buildCsvTable(dataset: ExportDataset): CsvTable {
       return cell.text;
     }),
   );
+  // Header cells are text too and take the same escape; they count in the
+  // total but are not listed (a cell is named by record and field).
+  const header = dataset.fields.map((field) => {
+    const cell = escapeFormulaCell(field.label);
+    if (cell.escaped) {
+      escapes.count += 1;
+    }
+    return cell.text;
+  });
   return {
     escapes,
-    header: dataset.fields.map((field) => field.label),
+    header,
     rows,
   };
 }

@@ -106,12 +106,15 @@ import {
   dailyFocusMembershipInputSchema,
 } from "../daily-focus";
 import {
-  EXPORT_ERROR_MESSAGES,
-  ExportError,
   exportCatalogInputSchema,
   exportProduceInputSchema,
   exportRequestSchema,
 } from "../data-export";
+import {
+  exportCatalogHandler,
+  exportPreviewHandler,
+  exportProduceHandler,
+} from "../data-export-handlers";
 import {
   decisionSupersessionCommandSchema,
   decisionSupersessionSelectionSchema,
@@ -4710,33 +4713,6 @@ function requireProjectUpdates(context: Context) {
   }
   return context.projectUpdates;
 }
-function requireSelectedExport(context: Context) {
-  if (!context.selectedExport) {
-    throw new ORPCError("INTERNAL_SERVER_ERROR");
-  }
-  return context.selectedExport;
-}
-/** Selected Export refusals keep a stable `data.code` the Export surface shows. */
-async function exportRefusal<T>(run: () => Promise<T>): Promise<T> {
-  try {
-    return await run();
-  } catch (error) {
-    if (error instanceof ExportError) {
-      throw new ORPCError(
-        error.code === "capacity_exceeded"
-          ? "TOO_MANY_REQUESTS"
-          : "BAD_REQUEST",
-        {
-          cause: error,
-          data: { code: error.code },
-          defined: true,
-          message: error.detail ?? EXPORT_ERROR_MESSAGES[error.code],
-        },
-      );
-    }
-    throw error;
-  }
-}
 function requireTrash(context: Context) {
   if (!context.trash) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -4882,21 +4858,13 @@ function requireExternalSurfaceManagement(context: Context) {
 export const appRouter = {
   exportCatalog: protectedProcedure
     .input(exportCatalogInputSchema)
-    .handler(({ context }) => requireSelectedExport(context).catalog()),
+    .handler(({ context }) => exportCatalogHandler(context)),
   exportPreview: protectedProcedure
     .input(exportRequestSchema)
-    .handler(({ context, input }) =>
-      exportRefusal(() =>
-        requireSelectedExport(context).preview(context.session.user.id, input),
-      ),
-    ),
+    .handler(({ context, input }) => exportPreviewHandler(context, input)),
   exportProduce: protectedProcedure
     .input(exportProduceInputSchema)
-    .handler(({ context, input }) =>
-      exportRefusal(() =>
-        requireSelectedExport(context).produce(context.session.user.id, input),
-      ),
-    ),
+    .handler(({ context, input }) => exportProduceHandler(context, input)),
   trash: protectedProcedure
     .input(trashOverviewInputSchema)
     .handler(async ({ context, input }) => {

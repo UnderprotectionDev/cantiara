@@ -1,4 +1,9 @@
-import type { ExportCustomFieldDefinition } from "@cantiara/api/data-export";
+import type {
+  ExportCustomFieldDefinition,
+  ExportRecordType,
+  ExportScope,
+} from "@cantiara/api/data-export";
+import { ExportError } from "@cantiara/api/data-export";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import {
@@ -23,6 +28,32 @@ export async function ownsProject(
     )
     .limit(1);
   return Boolean(owned);
+}
+
+/**
+ * The guard every database source reader starts with: it refuses a filter the
+ * type does not support, then answers whether the scope is the account's own.
+ * `false` means the scope is not accessible (the seam reports it as such).
+ */
+export async function guardExportRead(
+  database: Database,
+  input: {
+    accountId: string;
+    filters: Record<string, string>;
+    recordType: ExportRecordType;
+    scope: ExportScope;
+  },
+  supportedFilters: readonly string[] = [],
+): Promise<boolean> {
+  for (const key of Object.keys(input.filters)) {
+    if (!supportedFilters.includes(key)) {
+      throw new ExportError(
+        "source_unavailable",
+        `The filter ${key} is not supported for ${input.recordType}.`,
+      );
+    }
+  }
+  return await ownsProject(database, input.accountId, input.scope.projectId);
 }
 
 /**

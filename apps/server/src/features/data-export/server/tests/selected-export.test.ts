@@ -351,7 +351,19 @@ describe("Selected Export limits", () => {
     ).rejects.toMatchObject({ code: "limit_exceeded" });
   });
 
-  test("refuses a finished artifact over 25 MB", async () => {
+  test("measures the real artifact, so a passed preview cannot fail on size later", async () => {
+    const selected = setup();
+    const preview = await selected.preview("a1", request);
+    const artifact = await selected.produce("a1", {
+      ...request,
+      previewFingerprint: preview.fingerprint,
+    });
+    expect(preview.estimatedBytes).toBe(
+      new TextEncoder().encode(artifact.bytes).byteLength,
+    );
+  });
+
+  test("refuses at preview when the finished artifact is over 25 MB", async () => {
     const big: ExportFormatProducer = {
       format: "JSON",
       produce: (dataset) => ({
@@ -362,13 +374,41 @@ describe("Selected Export limits", () => {
       }),
     };
     const selected = setup(reader(), { producers: { JSON: big } });
+    await expect(selected.preview("a1", request)).rejects.toMatchObject({
+      code: "limit_exceeded",
+    });
+  });
+
+  test("holds capacity while the artifact is serialized", async () => {
+    let held = 0;
+    let heldDuringProduce = -1;
+    const capacity = {
+      acquire() {
+        held += 1;
+        return () => {
+          held -= 1;
+        };
+      },
+    };
+    const watching: ExportFormatProducer = {
+      format: "JSON",
+      produce: (dataset) => {
+        heldDuringProduce = held;
+        return jsonProducer.produce(dataset);
+      },
+    };
+    const selected = setup(reader(), {
+      capacity,
+      producers: { JSON: watching },
+    });
     const preview = await selected.preview("a1", request);
-    await expect(
-      selected.produce("a1", {
-        ...request,
-        previewFingerprint: preview.fingerprint,
-      }),
-    ).rejects.toMatchObject({ code: "limit_exceeded" });
+    heldDuringProduce = -1;
+    await selected.produce("a1", {
+      ...request,
+      previewFingerprint: preview.fingerprint,
+    });
+    expect(heldDuringProduce).toBe(1);
+    expect(held).toBe(0);
   });
 
   test("refuses concurrent capacity overflow visibly and recovers after", async () => {
@@ -397,6 +437,62 @@ describe("Selected Export limits", () => {
     const selected = setup(failing, { capacity: createExportCapacity(1) });
     await expect(selected.preview("a1", request)).rejects.toThrow("boom");
     await expect(selected.preview("a1", request)).rejects.toThrow("boom");
+  });
+});
+
+describe("Selected Export exact-view sort", () => {
+  const sorted = (field: string, visibleFields: string[]) =>
+    setup().preview("a1", {
+      ...request,
+      view: {
+        kind: "Work list",
+        name: "View",
+        sort: { direction: "asc", field },
+      },
+      visibleFields,
+    });
+
+  test("ignores a sort on a hidden field and does not name it", async () => {
+    const preview = await sorted("status", ["title"]);
+    expect(preview.records.map((record) => record.id)).toEqual(["w1", "w2"]);
+    expect(preview.view?.sort).toBeUndefined();
+  });
+
+  test("ignores a sort on a secret-named field", async () => {
+    const preview = await sorted("shareToken", ["title", "shareToken"]);
+    expect(preview.view?.sort).toBeUndefined();
+  });
+
+  test("still sorts on a visible field", async () => {
+    const preview = await sorted("status", ["title", "status"]);
+    expect(preview.records.map((record) => record.id)).toEqual(["w2", "w1"]);
+    expect(preview.view?.sort?.field).toBe("status");
+  });
+});
+
+describe("Selected Export during Account Closure freeze", () => {
+  test("has no closure-state gate: the same call works and readers see no closure input", async () => {
+    // No closure-state concept exists in code yet (spec 84). The contract is
+    // that the seam depends only on the account id and the request.
+    const seen: string[] = [];
+    const source = reader();
+    const { read } = source;
+    source.read = (input) => {
+      seen.push(...Object.keys(input));
+      return read(input);
+    };
+    const selected = setup(source);
+    expect(selected.preview).toHaveLength(2);
+    expect(selected.produce).toHaveLength(2);
+    await selected.preview("frozen-account", request);
+    expect(seen.sort()).toEqual([
+      "accountId",
+      "filters",
+      "limit",
+      "recordIds",
+      "recordType",
+      "scope",
+    ]);
   });
 });
 

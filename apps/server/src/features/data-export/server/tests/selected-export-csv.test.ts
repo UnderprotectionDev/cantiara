@@ -190,6 +190,30 @@ describe("Selected Export CSV", () => {
   });
 });
 
+describe("Selected Export CSV header", () => {
+  test("escapes a formula-like header cell like any other cell", async () => {
+    const hostile: ExportSourceReader = {
+      fields: () => [{ key: "title", label: "=HYPERLINK(1)" }],
+      read: async () => ({
+        records: [{ id: "w1", label: "W1", values: { title: "ok" } }],
+        relations: [],
+      }),
+    };
+    const selected = createSelectedExport({
+      producers: { CSV: csvExportProducer },
+      sources: { Task: hostile },
+    });
+    const preview = await selected.preview("a1", request);
+    const artifact = await selected.produce("a1", {
+      ...request,
+      previewFingerprint: preview.fingerprint,
+    });
+    const parsed = Papa.parse<string[]>(artifact.bytes.trim());
+    expect(parsed.data[0]).toEqual(["'=HYPERLINK(1)"]);
+    expect(preview.escapes?.count).toBe(1);
+  });
+});
+
 describe("Selected Export exact view", () => {
   const view = {
     kind: "Smart Collection",
