@@ -6,7 +6,9 @@ import {
   EXPORT_RECORD_TYPES,
   EXPORT_RESIDENCY_NOTE,
   EXPORT_SCHEMA_VERSION,
+  type ExportCustomFieldDefinition,
   type ExportDataset,
+  type ExportDatasetRecord,
   ExportError,
   type ExportField,
   type ExportFormat,
@@ -14,6 +16,7 @@ import {
   type ExportLoss,
   type ExportPreview,
   type ExportProduceInput,
+  type ExportRecordExtras,
   type ExportRecordType,
   type ExportRelationPreview,
   type ExportRequest,
@@ -28,7 +31,7 @@ import {
 } from "@cantiara/api/data-export";
 
 /** One record as a source reader hands it over, before the seam closes the world. */
-export interface ExportSourceRecord {
+export interface ExportSourceRecord extends ExportRecordExtras {
   id: string;
   label: string;
   values: Record<string, unknown>;
@@ -40,6 +43,8 @@ export interface ExportSourceRead {
    * the output never shows an empty or placeholder column for it.
    */
   accessibleFields?: readonly string[];
+  /** Definitions of the selected scope that apply to the record type. */
+  customFieldDefinitions?: ExportCustomFieldDefinition[];
   records: ExportSourceRecord[];
   relations: ExportRelationPreview[];
 }
@@ -206,15 +211,37 @@ export function createSelectedExport(options: {
       (record) => !requested || requested.has(record.id),
     );
     const selectedIds = new Set(selected.map((record) => record.id));
-    const records = selected.map((record) => {
+    const records = selected.map((record): ExportDatasetRecord => {
       const values: Record<string, unknown> = {};
       for (const key of visibleKeys) {
         if (key in record.values) {
           values[key] = record.values[key];
         }
       }
-      return { id: record.id, values: stripSecrets(values, secrets) };
+      const extras = stripSecrets(
+        {
+          components: record.components,
+          customFieldValues: record.customFieldValues,
+          keyHistory: record.keyHistory,
+          origin: record.origin,
+        } satisfies ExportRecordExtras,
+        secrets,
+      );
+      const output: ExportDatasetRecord = {
+        id: record.id,
+        values: stripSecrets(values, secrets),
+      };
+      for (const [name, value] of Object.entries(extras)) {
+        if (value !== undefined) {
+          (output as unknown as Record<string, unknown>)[name] = value;
+        }
+      }
+      return output;
     });
+    const customFieldDefinitions = stripSecrets(
+      read.customFieldDefinitions ?? [],
+      secrets,
+    );
     const closed = read.relations.filter(
       (relation) =>
         selectedIds.has(relation.fromRecordId) &&
@@ -222,7 +249,11 @@ export function createSelectedExport(options: {
     );
     const relations = stripSecrets(closed, secrets);
 
-    const estimatedBytes = byteLength({ records, relations });
+    const estimatedBytes = byteLength({
+      customFieldDefinitions,
+      records,
+      relations,
+    });
     if (estimatedBytes > EXPORT_MAX_BYTES) {
       throw new ExportError("limit_exceeded");
     }
@@ -238,7 +269,13 @@ export function createSelectedExport(options: {
       visibleFields: visibleKeys,
     } satisfies ExportDataset["manifest"];
     return {
-      dataset: { fields, manifest, records, relations },
+      dataset: {
+        customFieldDefinitions,
+        fields,
+        manifest,
+        records,
+        relations,
+      },
       preview: {
         estimatedBytes,
         fields,
@@ -265,9 +302,11 @@ export function createSelectedExport(options: {
 
   /** The fingerprint covers what leaves, not the production time. */
   function fingerprint(world: ClosedWorld) {
-    const { manifest, records, relations } = world.dataset;
+    const { customFieldDefinitions, manifest, records, relations } =
+      world.dataset;
     return sha256(
       JSON.stringify({
+        customFieldDefinitions,
         filters: manifest.filters,
         format: manifest.format,
         records,

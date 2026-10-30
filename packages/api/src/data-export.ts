@@ -161,11 +161,42 @@ export interface ExportManifest {
   visibleFields: string[];
 }
 
+/** Where a record came from (capture provenance); raw, as stored. */
+export type ExportOrigin = Record<string, unknown>;
+
+/** A selected-scope custom field definition carried by JSON. */
+export interface ExportCustomFieldDefinition {
+  id: string;
+  name: string;
+  options: string[];
+  recordTypes: string[];
+  type: string;
+}
+
+/**
+ * Extras only the structured JSON format carries. Components are owned by the
+ * record (Work `externalExecutionHandoffs`, Project Release `accessObservation`
+ * and `outcomeObservation`); they never export as a standalone type.
+ */
+export interface ExportRecordExtras {
+  components?: Record<string, unknown[]>;
+  customFieldValues?: Record<string, unknown>;
+  /** Every key this record has held, current key included, oldest first. */
+  keyHistory?: string[];
+  origin?: ExportOrigin | null;
+}
+
+export interface ExportDatasetRecord extends ExportRecordExtras {
+  id: string;
+  values: Record<string, unknown>;
+}
+
 /** The closed-world data a format producer may serialize. Secret-free. */
 export interface ExportDataset {
+  customFieldDefinitions: ExportCustomFieldDefinition[];
   fields: ExportField[];
   manifest: ExportManifest;
-  records: Array<{ id: string; values: Record<string, unknown> }>;
+  records: ExportDatasetRecord[];
   relations: ExportRelationPreview[];
 }
 

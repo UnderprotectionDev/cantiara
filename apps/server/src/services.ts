@@ -64,7 +64,9 @@ import {
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseDailyFocus } from "./features/daily-focus/server/daily-focus-database";
+import { jsonExportProducer } from "./features/data-export/server/json-export-producer";
 import { createSelectedExport } from "./features/data-export/server/selected-export";
+import { createDatabaseRecordExportSources } from "./features/data-export/server/selected-export-records-database";
 import { createDatabaseWorkExportSource } from "./features/data-export/server/selected-export-work-database";
 import { createDatabaseDocumentSurfaceCancellations } from "./features/documents/server/document-surface-cancellations";
 import { createDatabaseDocumentTagRenameWriter } from "./features/documents/server/document-tag-rename-database";
@@ -388,10 +390,12 @@ export const trash = {
       (await projectShell.find(accountId, projectId))?.name ?? null,
   }),
 };
-// Work is the first source reader; each later record type registers its own.
+// Work has its own reader; the plain project-scoped types share one factory.
 const workExportSource = createDatabaseWorkExportSource(db);
 export const selectedExport = createSelectedExport({
+  producers: { JSON: jsonExportProducer },
   sources: {
+    ...createDatabaseRecordExportSources(db),
     Bug: workExportSource,
     Feature: workExportSource,
     Improvement: workExportSource,

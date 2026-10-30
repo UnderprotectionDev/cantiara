@@ -1,12 +1,16 @@
 import type { ExportField } from "@cantiara/api/data-export";
 import { ExportError } from "@cantiara/api/data-export";
 import type { Database } from "@cantiara/db";
-import { workspace } from "@cantiara/db/schema/auth";
-import { project } from "@cantiara/db/schema/project";
-import { work } from "@cantiara/db/schema/work";
+import { workRelation } from "@cantiara/db/schema/relation";
+import { work, workKeyAllocation } from "@cantiara/db/schema/work";
+import { workExternalExecutionHandoff } from "@cantiara/db/schema/work-external-handoff";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import type { ExportSourceReader } from "./selected-export";
+import {
+  ownsProject,
+  readCustomFields,
+} from "./selected-export-database-support";
 
 const WORK_FIELDS: ExportField[] = [
   { key: "key", label: "Key" },
@@ -30,7 +34,10 @@ const WORK_FIELDS: ExportField[] = [
 /**
  * Read-only source of the five Work types for Selected Export. Only the
  * owning account's non-Trash Work of one Project is read, at most `limit`
- * rows; it never writes. Work relations are a later extension of this reader.
+ * rows; it never writes. Besides the field values it hands over the Work-key
+ * history, origin, custom field values, relations (the seam keeps only those
+ * whose both ends are selected) and the owned external execution handoffs.
+ * Handoff package Markdown and request fingerprints stay in the Workspace.
  */
 export function createDatabaseWorkExportSource(
   database: Database,
@@ -46,18 +53,7 @@ export function createDatabaseWorkExportSource(
           );
         }
       }
-      const [owned] = await database
-        .select({ id: project.id })
-        .from(project)
-        .innerJoin(workspace, eq(project.workspaceId, workspace.id))
-        .where(
-          and(
-            eq(project.id, scope.projectId),
-            eq(workspace.ownerAccountId, accountId),
-          ),
-        )
-        .limit(1);
-      if (!owned) {
+      if (!(await ownsProject(database, accountId, scope.projectId))) {
         return null;
       }
       const rows = await database
@@ -74,9 +70,66 @@ export function createDatabaseWorkExportSource(
         )
         .orderBy(asc(work.number))
         .limit(limit);
+      const ids = rows.map((row) => row.id);
+      const [allocations, relationRows, handoffs, custom] = ids.length
+        ? await Promise.all([
+            database
+              .select()
+              .from(workKeyAllocation)
+              .where(inArray(workKeyAllocation.workId, ids))
+              .orderBy(asc(workKeyAllocation.reservedAt)),
+            database
+              .select()
+              .from(workRelation)
+              .where(
+                and(
+                  inArray(workRelation.sourceWorkId, ids),
+                  isNull(workRelation.deletedAt),
+                  eq(workRelation.targetRecordType, "Work"),
+                ),
+              ),
+            database
+              .select()
+              .from(workExternalExecutionHandoff)
+              .where(inArray(workExternalExecutionHandoff.workId, ids))
+              .orderBy(asc(workExternalExecutionHandoff.createdAt)),
+            readCustomFields(database, scope.projectId, recordType, ids),
+          ])
+        : [
+            [],
+            [],
+            [],
+            await readCustomFields(database, scope.projectId, recordType, []),
+          ];
+      const keysOf = (id: string, current: string) => {
+        const keys = allocations
+          .filter((row) => row.workId === id)
+          .map((row) => row.key);
+        return keys.includes(current) ? keys : [...keys, current];
+      };
       return {
+        customFieldDefinitions: custom.definitions,
         records: rows.map((row) => ({
+          components: {
+            externalExecutionHandoffs: handoffs
+              .filter((handoff) => handoff.workId === row.id)
+              .map((handoff) => ({
+                cancellationReason: handoff.cancellationReason,
+                constraints: handoff.constraints,
+                createdAt: handoff.createdAt.toISOString(),
+                executor: handoff.executor,
+                expectedOutput: handoff.expectedOutput,
+                id: handoff.handoffId,
+                purpose: handoff.purpose,
+                reconcileDecision: handoff.reconcileDecision,
+                result: handoff.result,
+                status: handoff.status,
+              })),
+          },
+          customFieldValues: custom.values.get(row.id),
           id: row.id,
+          keyHistory: keysOf(row.id, row.key),
+          origin: workOrigin(row),
           label: `${row.key} ${row.title}`,
           values: {
             closureReason: row.closureReason,
@@ -97,8 +150,24 @@ export function createDatabaseWorkExportSource(
             updatedAt: row.updatedAt.toISOString(),
           },
         })),
-        relations: [],
+        relations: relationRows.map((relation) => ({
+          fromRecordId: relation.sourceWorkId,
+          kind: relation.kind,
+          toRecordId: relation.targetRecordId,
+        })),
       };
     },
   };
+}
+
+function workOrigin(row: typeof work.$inferSelect) {
+  const origin = {
+    captureProvenance: row.captureProvenance ?? null,
+    originComponentId: row.originComponentId,
+    originLocation: row.originLocation ?? null,
+    originOwnerRecordId: row.originOwnerRecordId,
+    originSourceVersion: row.originSourceVersion,
+    recreatedFromWorkKey: row.recreatedFromWorkKey,
+  };
+  return Object.values(origin).some((value) => value !== null) ? origin : null;
 }
