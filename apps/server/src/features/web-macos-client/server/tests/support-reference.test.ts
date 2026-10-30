@@ -249,6 +249,48 @@ describe("Client Shell Support reference", () => {
     });
   });
 
+  test("preserves a Selected Export refusal code in the Support envelope", async () => {
+    const rawResponse = Response.json(
+      {
+        code: "BAD_REQUEST",
+        data: { code: "unlisted_family" },
+        defined: true,
+        message: "This record type is not part of Export.",
+        status: 400,
+      },
+      { status: 400 },
+    );
+
+    const response = await decorateSupportFailureResponse(rawResponse, {
+      requestId: "trace-secret",
+    });
+    const body = (await response.json()) as FailureResponseBody & {
+      code: string;
+      defined: boolean;
+    };
+
+    expect(body).toMatchObject({
+      code: "BAD_REQUEST",
+      data: { code: "unlisted_family", reasonCode: "unexpected" },
+      defined: true,
+      message: "This record type is not part of Export.",
+    });
+    expect(response.status).toBe(400);
+  });
+
+  test("keeps an unknown BAD_REQUEST code out of the Support envelope", async () => {
+    const response = await decorateSupportFailureResponse(
+      Response.json(
+        { code: "BAD_REQUEST", data: { code: "secret_detail" }, defined: true },
+        { status: 400 },
+      ),
+      { requestId: "trace-secret" },
+    );
+    const body = (await response.json()) as { data: Record<string, unknown> };
+
+    expect(body.data.code).toBeUndefined();
+  });
+
   test("preserves the current value from a stale mutation response", async () => {
     const currentValue = {
       appearance: "Light",
