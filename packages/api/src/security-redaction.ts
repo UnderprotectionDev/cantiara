@@ -7,12 +7,17 @@ import type { ConfirmGitHubIdentityOperationId } from "./context";
  * removal interface. This slice (#504) owns the preview and the apply gate:
  * ownership, the typed Account or Project name (never the record title), then
  * the Account Access `Confirm GitHub Identity` grant consumed exactly once for
- * the `security-redaction` operation. Removal and propagation are #505, the
- * event and replay #506. The sensitive value is a transient input: it is never
+ * the `security-redaction` operation. #505 spreads the removal across the
+ * closed targets right after the grant is consumed; the event and replay are
+ * #506. The sensitive value is a transient input: it is never
  * stored, logged or echoed in any response.
  */
 
 export const REDACT_LABEL = "Redact";
+/** Shown for a broken reference to redacted content; never a last-known body. */
+export const REDACTED_FOR_SECURITY_LABEL = "Redacted for security";
+/** The content-free mark that takes the place of a removed value inside a copy. */
+export const REDACTED_VALUE_MARK = "value redacted";
 export const CONFIRM_GITHUB_IDENTITY_LABEL = "Confirm GitHub Identity";
 export const SECURITY_REDACTION_OPERATION_ID =
   "security-redaction" satisfies ConfirmGitHubIdentityOperationId;
@@ -98,15 +103,30 @@ export interface SecurityRedactionPreview {
   typedNameTarget: { kind: "Account" | "Project"; name: string };
 }
 
-/**
- * What #504 returns after the gate: honest about removal. `removal` becomes
- * a real result when #505 implements `SecurityRedactionSpread`.
- */
+/** How one spread target ended. Counts only; never a value or an excerpt. */
+export interface SecurityRedactionTargetOutcome {
+  /** Copies cleaned in this target. */
+  copies: number;
+  kind: SecurityRedactionLocatorKind;
+  /**
+   * `removed` the target held copies and they are gone; `nothing-found` the
+   * target is wired and held none; `no-stored-copy` the target is derived from
+   * another one and keeps no copy of its own; `not-wired` no store exists yet,
+   * so the target was not cleaned and is not claimed clean.
+   */
+  status: "removed" | "nothing-found" | "no-stored-copy" | "not-wired";
+}
+
+export interface SecurityRedactionSpreadResult {
+  targets: SecurityRedactionTargetOutcome[];
+}
+
+/** What apply returns once the grant is consumed and the spread ran. */
 export interface SecurityRedactionGateResult {
   passedAt: string;
-  removal: "not-performed";
+  removal: SecurityRedactionSpreadResult;
   scope: SecurityRedactionScope;
-  status: "gate-passed";
+  status: "redacted";
 }
 
 /** What both the locator sources and the spread port receive. */
@@ -117,12 +137,80 @@ export interface SecurityRedactionRequest {
 }
 
 /**
- * The port #505 implements: removal from current content, every history
- * revision, External Surface snapshots, search, export staging and cache. It
- * is called by the apply gate only after the grant is consumed.
+ * The one removal interface: current content, every history revision,
+ * External Surface snapshots, search, export staging and cache. Apply calls it
+ * only after the grant is consumed; 81 and 84 reach it through apply and never
+ * reimplement it.
  */
 export interface SecurityRedactionSpread {
-  spread: (request: SecurityRedactionRequest) => Promise<unknown>;
+  spread: (
+    request: SecurityRedactionRequest,
+  ) => Promise<SecurityRedactionSpreadResult>;
+}
+
+/**
+ * One spread target. `remove` is irreversible and returns the number of
+ * copies cleaned; a `null` return means the target keeps no copy of its own.
+ */
+export interface SecurityRedactionTargetAdapter {
+  kind: SecurityRedactionLocatorKind;
+  remove: (request: SecurityRedactionRequest) => Promise<number | null>;
+}
+
+/** Some targets failed; the value is gone from the others. Names kinds only. */
+export class SecurityRedactionSpreadIncompleteError extends Error {
+  readonly code = "SECURITY_REDACTION_SPREAD_INCOMPLETE" as const;
+  readonly failed: SecurityRedactionLocatorKind[];
+
+  constructor(failed: SecurityRedactionLocatorKind[]) {
+    super("Redaction did not reach every copy.");
+    this.name = "SecurityRedactionSpreadIncompleteError";
+    this.failed = failed;
+  }
+}
+
+/**
+ * Replaces every occurrence of `value` inside one string with the content-free
+ * mark. Pure and idempotent.
+ */
+export function redactText(text: string, value: string): string {
+  return value && text.includes(value)
+    ? text.split(value).join(REDACTED_VALUE_MARK)
+    : text;
+}
+
+/**
+ * Deep-redacts strings (and object keys) inside a JSON value, keeping its
+ * shape. `changed` tells the caller whether a copy was found.
+ */
+export function redactJson(
+  input: unknown,
+  value: string,
+): { changed: boolean; value: unknown } {
+  if (typeof input === "string") {
+    const next = redactText(input, value);
+    return { changed: next !== input, value: next };
+  }
+  if (Array.isArray(input)) {
+    let changed = false;
+    const items = input.map((item) => {
+      const result = redactJson(item, value);
+      changed ||= result.changed;
+      return result.value;
+    });
+    return { changed, value: changed ? items : input };
+  }
+  if (input && typeof input === "object") {
+    let changed = false;
+    const entries = Object.entries(input).map(([key, item]) => {
+      const result = redactJson(item, value);
+      const nextKey = redactText(key, value);
+      changed ||= result.changed || nextKey !== key;
+      return [nextKey, result.value] as const;
+    });
+    return { changed, value: changed ? Object.fromEntries(entries) : input };
+  }
+  return { changed: false, value: input };
 }
 
 /** Finds the copies of one value in one spread target; reads only. */
@@ -165,8 +253,9 @@ export type SecurityRedactionGrantConsumer = (
 export interface SecurityRedactionAccess {
   /**
    * Fixed order so a refusal never writes: ownership, typed name, then the
-   * grant is consumed exactly once. `null` when the Project is not the
-   * Account's. Performs no removal in #504.
+   * grant is consumed exactly once, then the spread runs. `null` when the
+   * Project is not the Account's. Throws
+   * `SecurityRedactionSpreadIncompleteError` when a wired target failed.
    */
   apply: (
     actor: SecurityRedactionActor,

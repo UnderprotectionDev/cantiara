@@ -634,6 +634,7 @@ import {
   applySecurityRedactionInputSchema,
   SECURITY_REDACTION_OPERATION_ID,
   SecurityRedactionGrantRejectedError,
+  SecurityRedactionSpreadIncompleteError,
   SecurityRedactionTypedNameMismatchError,
   securityRedactionPreviewInputSchema,
 } from "../security-redaction";
@@ -4832,6 +4833,14 @@ async function securityRedactionWrite<T>(
         data: { code: error.code },
         defined: true,
         message: "The Account or Project name does not match.",
+      });
+    }
+    if (error instanceof SecurityRedactionSpreadIncompleteError) {
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        cause: error,
+        data: { code: error.code, failed: error.failed },
+        defined: true,
+        message: error.message,
       });
     }
     if (error instanceof SecurityRedactionGrantRejectedError) {

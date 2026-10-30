@@ -1,5 +1,9 @@
 import type { SecurityRedactionScope } from "@cantiara/api/security-redaction";
-import { REDACT_LABEL } from "@cantiara/api/security-redaction";
+import {
+  REDACT_LABEL,
+  REDACTED_FOR_SECURITY_LABEL,
+  SECURITY_REDACTION_LOCATOR_LABELS,
+} from "@cantiara/api/security-redaction";
 import { Button } from "@cantiara/ui/components/button";
 import { useCallback, useState } from "react";
 import { useSecurityRedaction } from "../../hooks/use-security-redaction";
@@ -11,8 +15,8 @@ import { RedactForm } from "../forms/redact-form";
 
 /**
  * Entry of Security Redaction: a `Redact` button that opens the review. The
- * result states that the gate passed and that no removal has run yet, so it
- * never claims the value is gone.
+ * result states how many copies were cleaned and names the spread targets that
+ * have no store yet, so it never claims a target is clean that was not reached.
  */
 export function SecurityRedactionPanel({
   calls,
@@ -53,7 +57,20 @@ export function SecurityRedactionPanel({
       )}
       {flow.result ? (
         <p role="status">
-          Identity and name confirmed. Removal has not run yet.
+          {REDACTED_FOR_SECURITY_LABEL}.{" "}
+          {flow.result.removal.targets.reduce(
+            (total, target) => total + target.copies,
+            0,
+          )}{" "}
+          copies removed.
+          {flow.result.removal.targets.some(
+            (target) => target.status === "not-wired",
+          )
+            ? ` Not cleaned yet: ${flow.result.removal.targets
+                .filter((target) => target.status === "not-wired")
+                .map((target) => SECURITY_REDACTION_LOCATOR_LABELS[target.kind])
+                .join(", ")}.`
+            : ""}
         </p>
       ) : null}
     </section>

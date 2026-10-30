@@ -1,4 +1,5 @@
 import {
+  SECURITY_REDACTION_LOCATOR_KINDS,
   SecurityRedactionGrantRejectedError,
   type SecurityRedactionLocatorSource,
   SecurityRedactionTypedNameMismatchError,
@@ -110,15 +111,21 @@ describe("Security Redaction preview", () => {
 });
 
 describe("Security Redaction apply gate", () => {
-  test("passes with the matching name and consumes the grant once, removing nothing", async () => {
+  test("passes with the matching name and consumes the grant once, then spreads with every target not wired", async () => {
     const consume = grantDouble();
     const result = await setup().apply(ACTOR, apply(), consume);
 
     expect(result).toEqual({
       passedAt: NOW.toISOString(),
-      removal: "not-performed",
+      removal: {
+        targets: SECURITY_REDACTION_LOCATOR_KINDS.map((kind) => ({
+          copies: 0,
+          kind,
+          status: "not-wired",
+        })),
+      },
       scope: project,
-      status: "gate-passed",
+      status: "redacted",
     });
     expect(consume).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(result)).not.toContain(VALUE);
@@ -130,7 +137,7 @@ describe("Security Redaction apply gate", () => {
       apply({ scope: { kind: "Account" }, typedName: "Mert" }),
       grantDouble(),
     );
-    expect(result?.status).toBe("gate-passed");
+    expect(result?.status).toBe("redacted");
   });
 
   test("rejects a missing grant", async () => {

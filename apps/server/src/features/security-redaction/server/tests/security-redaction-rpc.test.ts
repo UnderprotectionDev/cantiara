@@ -64,7 +64,7 @@ describe("Security Redaction RPC", () => {
 
     consume.mockResolvedValueOnce(true);
     await expect(client.applySecurityRedaction(request)).resolves.toMatchObject(
-      { removal: "not-performed", status: "gate-passed" },
+      { status: "redacted" },
     );
   });
 

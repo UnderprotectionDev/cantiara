@@ -336,6 +336,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Geri çekme | `Withdrawal` | Önceki kayda bağlı, gerekçeli yeni olay; sonucu güncel kanıt olmaktan çıkarır, özgün bildirim silinmez |
 | Güvenlik redaksiyonu | `Redact` | Hassas değerin etkisini önizleyip `Confirm GitHub Identity` grant'ini tüketen ve etkilenen Hesap veya Proje adının yazıldığı geri döndürülemez kaldırma eylemi; parola, MFA veya oturum yenileme değildir, Çöp Kutusu veya yerinde düzenleme değildir |
 | Güvenlik redaksiyonu işareti | `Redact value` | Hassas değerin yerine içeriksiz işaret, zaman, gerekçe ve aktör gösterir; Çöp Kutusu veya yerinde yeniden yazma değildir |
+| Güvenlik redaksiyonu sonucu | `Redacted for security` | Redaksiyon uygulandıktan sonra sonuç durumu ve kırık referans nedeni; yalnız işaret, zaman, gerekçe ve aktörü gösterir, son bilinen gövdeyi göstermez |
 | Kapanıştan sonra yeni bağlam | `New context after close` | Kapalı kayda sonradan gelen düzeltme, geri çekme veya redaksiyon sinyali; inceleme durumunu geri almaz |
 | Yerine geçer (Oturum Testi) | `Supersedes` | Aynı uzman türdeki kesin Oturum Testleri arasında yönlü, döngüsüz ilişki; iki tarihsel sonucu ve teknik bağlam farkını korur, hiçbirini yazmaz |
 | Yerine geçildi (Oturum Testi) | `Superseded` | `Supersedes` ilişkisinin eski ucu; sonuç silinmez, çelişki karşılaştırmasından çıkar |

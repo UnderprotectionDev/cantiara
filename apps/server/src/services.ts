@@ -151,6 +151,13 @@ import { createSchemaArtifacts } from "./features/schema-artifacts/server/schema
 import { createDatabaseMigrationArtifacts } from "./features/schema-artifacts/server/schema-artifacts-database";
 import { createDatabaseScreens } from "./features/screens/server/screens-database";
 import { createSecurityRedaction } from "./features/security-redaction/server/security-redaction";
+import {
+  createDatabaseSecurityRedactionLocators,
+  createDatabaseSecurityRedactionTargets,
+  createSurfaceCacheRedactionTarget,
+  derivedSearchIndexTarget,
+} from "./features/security-redaction/server/security-redaction-database";
+import { createSecurityRedactionSpread } from "./features/security-redaction/server/security-redaction-spread";
 import { createSmartCollectionSubscriptionSignalWorker } from "./features/smart-collections/server/smart-collection-subscription-signal-worker";
 import {
   createDatabaseSmartCollections,
@@ -387,15 +394,6 @@ export const trash = {
       (await projectShell.find(accountId, projectId))?.name ?? null,
   }),
 };
-/**
- * Security Redaction (spec 78 #504): the gate and preview only. No locator
- * source is registered until #505, so every spread target previews as not
- * searched and nothing is removed.
- */
-export const securityRedaction = createSecurityRedaction({
-  projectName: async (accountId, projectId) =>
-    (await projectShell.find(accountId, projectId))?.name ?? null,
-});
 const trashMaintenance = createTrashMaintenance(trashExpiry, trashEventLog);
 const linkSharingReplay = createDatabaseLinkSharingReplay(
   db,
@@ -403,6 +401,23 @@ const linkSharingReplay = createDatabaseLinkSharingReplay(
 );
 export const externalSurfaceResponseCache =
   createMemoryExternalSurfaceResponseCache();
+/**
+ * Security Redaction (spec 78 #504, #505): the gate, the preview and the
+ * spread. Real stores: Document current content, Document record history,
+ * External Surface snapshots and the surface delivery cache; search is derived
+ * from current content. Export staging has no store yet, so it previews as not
+ * searched and apply reports it `not-wired`.
+ */
+export const securityRedaction = createSecurityRedaction({
+  locators: createDatabaseSecurityRedactionLocators(db),
+  projectName: async (accountId, projectId) =>
+    (await projectShell.find(accountId, projectId))?.name ?? null,
+  spread: createSecurityRedactionSpread([
+    ...createDatabaseSecurityRedactionTargets(db),
+    derivedSearchIndexTarget,
+    createSurfaceCacheRedactionTarget(db, externalSurfaceResponseCache),
+  ]),
+});
 export const externalSurfacePurges = createSurfacePurges({
   store: createDatabaseSurfacePurges(db),
   targets: [
