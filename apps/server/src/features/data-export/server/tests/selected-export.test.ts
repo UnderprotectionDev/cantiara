@@ -142,6 +142,7 @@ describe("Selected Export closed-world preview", () => {
       "relations",
       "types",
       "identities",
+      "structure",
     ]);
     expect(json.lost).toEqual([]);
   });

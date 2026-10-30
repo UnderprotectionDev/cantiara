@@ -30,6 +30,8 @@ import {
   stripSecrets,
 } from "@cantiara/api/data-export";
 
+import { buildCsvTable } from "./csv-export-producer";
+
 /** One record as a source reader hands it over, before the seam closes the world. */
 export interface ExportSourceRecord extends ExportRecordExtras {
   id: string;
@@ -120,9 +122,92 @@ const LOSSES: Record<ExportFormat, ExportLoss[]> = {
       detail: "Stable record identities are not a round-trip key in this file.",
       kind: "identities",
     },
+    {
+      detail:
+        "Custom field values, key history, origin and nested components are not carried; only the visible columns are.",
+      kind: "structure",
+    },
   ],
   JSON: [],
 };
+
+function sortForView(
+  records: ExportSourceRecord[],
+  sort: { direction: "asc" | "desc"; field: string } | undefined,
+): ExportSourceRecord[] {
+  if (!sort) {
+    return records;
+  }
+  const factor = sort.direction === "asc" ? 1 : -1;
+  const text = (record: ExportSourceRecord) => {
+    const value = record.values[sort.field];
+    return value === null || value === undefined ? "" : String(value);
+  };
+  return [...records].sort(
+    (left, right) =>
+      factor * text(left).localeCompare(text(right), "en", { numeric: true }),
+  );
+}
+
+function chooseColumns(
+  visibleFields: readonly string[] | undefined,
+  allFields: readonly ExportField[],
+  accessibleFields: readonly string[] | undefined,
+  secrets: Set<string>,
+): { fields: ExportField[]; hiddenFields: ExportField[] } {
+  const accessible = accessibleFields ? new Set(accessibleFields) : null;
+  const known: ExportField[] = [];
+  for (const field of allFields) {
+    if (isSecretKey(field.key)) {
+      secrets.add(field.key);
+    } else if (!accessible || accessible.has(field.key)) {
+      known.push(field);
+    }
+  }
+  if (!visibleFields) {
+    return { fields: known, hiddenFields: [] };
+  }
+  // The caller's order is the column order (exact view).
+  const wanted = new Set(visibleFields);
+  return {
+    fields: visibleFields.flatMap((key) =>
+      known.filter((field) => field.key === key),
+    ),
+    hiddenFields: known.filter((field) => !wanted.has(field.key)),
+  };
+}
+
+function projectRecord(
+  record: ExportSourceRecord,
+  visibleKeys: readonly string[],
+  secrets: Set<string>,
+): ExportDatasetRecord {
+  const values: Record<string, unknown> = {};
+  for (const key of visibleKeys) {
+    if (key in record.values) {
+      values[key] = record.values[key];
+    }
+  }
+  const extras = stripSecrets(
+    {
+      components: record.components,
+      customFieldValues: record.customFieldValues,
+      keyHistory: record.keyHistory,
+      origin: record.origin,
+    } satisfies ExportRecordExtras,
+    secrets,
+  );
+  const output: ExportDatasetRecord = {
+    id: record.id,
+    values: stripSecrets(values, secrets),
+  };
+  for (const [name, value] of Object.entries(extras)) {
+    if (value !== undefined) {
+      (output as unknown as Record<string, unknown>)[name] = value;
+    }
+  }
+  return output;
+}
 
 interface ClosedWorld {
   dataset: ExportDataset;
@@ -188,56 +273,23 @@ export function createSelectedExport(options: {
     read: ExportSourceRead,
   ): ClosedWorld {
     const secrets = new Set<string>();
-    const accessible = read.accessibleFields
-      ? new Set(read.accessibleFields)
-      : null;
-    const known: ExportField[] = [];
-    for (const field of reader.fields(recordType)) {
-      if (isSecretKey(field.key)) {
-        secrets.add(field.key);
-      } else if (!accessible || accessible.has(field.key)) {
-        known.push(field);
-      }
-    }
-    const wanted = parsed.visibleFields ? new Set(parsed.visibleFields) : null;
-    const fields = known.filter((field) => !wanted || wanted.has(field.key));
-    const hiddenFields = known.filter(
-      (field) => wanted && !wanted.has(field.key),
+    const { fields, hiddenFields } = chooseColumns(
+      parsed.visibleFields,
+      reader.fields(recordType),
+      read.accessibleFields,
+      secrets,
     );
     const visibleKeys = fields.map((field) => field.key);
 
     const requested = parsed.recordIds ? new Set(parsed.recordIds) : null;
-    const selected = read.records.filter(
-      (record) => !requested || requested.has(record.id),
+    const selected = sortForView(
+      read.records.filter((record) => !requested || requested.has(record.id)),
+      parsed.view?.sort,
     );
     const selectedIds = new Set(selected.map((record) => record.id));
-    const records = selected.map((record): ExportDatasetRecord => {
-      const values: Record<string, unknown> = {};
-      for (const key of visibleKeys) {
-        if (key in record.values) {
-          values[key] = record.values[key];
-        }
-      }
-      const extras = stripSecrets(
-        {
-          components: record.components,
-          customFieldValues: record.customFieldValues,
-          keyHistory: record.keyHistory,
-          origin: record.origin,
-        } satisfies ExportRecordExtras,
-        secrets,
-      );
-      const output: ExportDatasetRecord = {
-        id: record.id,
-        values: stripSecrets(values, secrets),
-      };
-      for (const [name, value] of Object.entries(extras)) {
-        if (value !== undefined) {
-          (output as unknown as Record<string, unknown>)[name] = value;
-        }
-      }
-      return output;
-    });
+    const records = selected.map((record) =>
+      projectRecord(record, visibleKeys, secrets),
+    );
     const customFieldDefinitions = stripSecrets(
       read.customFieldDefinitions ?? [],
       secrets,
@@ -258,7 +310,7 @@ export function createSelectedExport(options: {
       throw new ExportError("limit_exceeded");
     }
 
-    const manifest = {
+    const manifest: ExportDataset["manifest"] = {
       filters: parsed.filters,
       format: parsed.format,
       producedAt: now().toISOString(),
@@ -266,17 +318,25 @@ export function createSelectedExport(options: {
       recordType,
       schemaVersion: EXPORT_SCHEMA_VERSION,
       scope: parsed.scope,
+      ...(parsed.view ? { view: parsed.view } : {}),
       visibleFields: visibleKeys,
-    } satisfies ExportDataset["manifest"];
+    };
+    const dataset: ExportDataset = {
+      customFieldDefinitions,
+      fields,
+      manifest,
+      records,
+      relations,
+    };
+    const escapes =
+      parsed.format === "CSV" ? buildCsvTable(dataset).escapes : undefined;
+    if (escapes) {
+      manifest.escapes = escapes;
+    }
     return {
-      dataset: {
-        customFieldDefinitions,
-        fields,
-        manifest,
-        records,
-        relations,
-      },
+      dataset,
       preview: {
+        ...(escapes ? { escapes } : {}),
         estimatedBytes,
         fields,
         filters: parsed.filters,
@@ -296,6 +356,7 @@ export function createSelectedExport(options: {
         residency: EXPORT_RESIDENCY_NOTE,
         scope: parsed.scope,
         secretsExcluded: [...secrets].sort(),
+        ...(parsed.view ? { view: parsed.view } : {}),
       },
     };
   }
@@ -313,6 +374,7 @@ export function createSelectedExport(options: {
         recordType: manifest.recordType,
         relations,
         scope: manifest.scope,
+        view: manifest.view,
         visibleFields: manifest.visibleFields,
       }),
     );

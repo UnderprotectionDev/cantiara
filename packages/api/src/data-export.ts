@@ -83,6 +83,31 @@ export const exportScopeSchema = z
 export type ExportScope = z.infer<typeof exportScopeSchema>;
 
 /**
+ * The exact on-screen view a CSV snapshot captures (a Work list, a Smart
+ * Collection or a cross-project list). It is only carried into the preview and
+ * manifest; it never creates a named view, a report record or a subscription.
+ */
+export const EXPORT_VIEW_KINDS = [
+  "Work list",
+  "Smart Collection",
+  "Cross-project list",
+] as const;
+export const exportViewSchema = z
+  .object({
+    kind: z.enum(EXPORT_VIEW_KINDS),
+    name: z.string().trim().min(1).max(200),
+    sort: z
+      .object({
+        direction: z.enum(["asc", "desc"]),
+        field: identifier,
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type ExportView = z.infer<typeof exportViewSchema>;
+
+/**
  * The record type is validated against the catalog by the server so that an
  * unlisted type is refused with a stable code, not a schema error.
  */
@@ -93,6 +118,8 @@ export const exportRequestSchema = z
     recordIds: z.array(identifier).max(EXPORT_MAX_ROWS).optional(),
     recordType: z.string().trim().min(1).max(100),
     scope: exportScopeSchema,
+    /** Optional exact-view descriptor; `visibleFields` then orders columns. */
+    view: exportViewSchema.optional(),
     /** Subset of the type's fields to export; omitted means every field. */
     visibleFields: z.array(identifier).max(200).optional(),
   })
@@ -123,7 +150,24 @@ export interface ExportLoss {
   kind: "relations" | "types" | "identities" | "structure";
 }
 
+/** A cell whose value looked like a formula and was escaped as data. */
+export interface ExportEscapedCell {
+  field: string;
+  recordId: string;
+}
+
+/** The CSV formula-escape transformation report (preview and manifest). */
+export interface ExportEscapeReport {
+  cells: ExportEscapedCell[];
+  /** Total escaped cells; `cells` lists at most `EXPORT_ESCAPE_REPORT_CELLS`. */
+  count: number;
+}
+
+export const EXPORT_ESCAPE_REPORT_CELLS = 200;
+
 export interface ExportPreview {
+  /** CSV only: cells escaped as data; absent for JSON, which stays raw. */
+  escapes?: ExportEscapeReport;
   estimatedBytes: number;
   fields: ExportField[];
   filters: Record<string, string>;
@@ -147,10 +191,13 @@ export interface ExportPreview {
   scope: ExportScope;
   /** Secret classes removed from the output; names only, never values. */
   secretsExcluded: string[];
+  view?: ExportView;
 }
 
 /** The source manifest every output carries. Not a live sync or second truth. */
 export interface ExportManifest {
+  /** CSV only: formula-like cells escaped as data. */
+  escapes?: ExportEscapeReport;
   filters: Record<string, string>;
   format: ExportFormat;
   producedAt: string;
@@ -158,6 +205,9 @@ export interface ExportManifest {
   recordType: ExportRecordType;
   schemaVersion: typeof EXPORT_SCHEMA_VERSION;
   scope: ExportScope;
+  /** Present for an exact-view snapshot: view name, kind and sort. */
+  view?: ExportView;
+  /** Column order for CSV. */
   visibleFields: string[];
 }
 

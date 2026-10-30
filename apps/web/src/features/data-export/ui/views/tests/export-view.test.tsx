@@ -86,4 +86,17 @@ describe("Export preview panel", () => {
       DISABLED_EXPORT,
     );
   });
+
+  test("reports formula escapes and the view snapshot nature for CSV", () => {
+    const html = render({
+      ...preview,
+      escapes: { cells: [{ field: "title", recordId: "w1" }], count: 1 },
+      formatAvailable: true,
+      view: { kind: "Smart Collection", name: "Needs review" },
+    });
+    expect(html).toContain("Spreadsheet safety");
+    expect(html).toContain("1 cells that start with");
+    expect(html).toContain("JSON keeps these values as they are");
+    expect(html).toContain("creates no saved view, report or subscription");
+  });
 });

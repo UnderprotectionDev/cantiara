@@ -120,6 +120,28 @@ export function ExportPreviewPanel({
           </ul>
         </Section>
       ) : null}
+      {preview.view ? (
+        <Section title="View">
+          <p className="text-sm">
+            {preview.view.kind} "{preview.view.name}"
+            {preview.view.sort
+              ? `, sorted by ${preview.view.sort.field} (${preview.view.sort.direction === "asc" ? "ascending" : "descending"})`
+              : ""}
+            . This is a one-time snapshot: it creates no saved view, report or
+            subscription.
+          </p>
+        </Section>
+      ) : null}
+      {preview.escapes ? (
+        <Section title="Spreadsheet safety">
+          <p className="text-sm">
+            {preview.escapes.count === 0
+              ? "No cell looks like a formula."
+              : `${preview.escapes.count} cells that start with =, +, -, @, a tab or a carriage return get a leading ' so a spreadsheet reads them as data.`}{" "}
+            JSON keeps these values as they are.
+          </p>
+        </Section>
+      ) : null}
       <Section title="Secret">
         <p className="text-sm">
           Secrets, share tokens and link passwords are never included.

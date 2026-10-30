@@ -64,6 +64,7 @@ import {
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseDailyFocus } from "./features/daily-focus/server/daily-focus-database";
+import { csvExportProducer } from "./features/data-export/server/csv-export-producer";
 import { jsonExportProducer } from "./features/data-export/server/json-export-producer";
 import { createSelectedExport } from "./features/data-export/server/selected-export";
 import { createDatabaseRecordExportSources } from "./features/data-export/server/selected-export-records-database";
@@ -393,7 +394,7 @@ export const trash = {
 // Work has its own reader; the plain project-scoped types share one factory.
 const workExportSource = createDatabaseWorkExportSource(db);
 export const selectedExport = createSelectedExport({
-  producers: { JSON: jsonExportProducer },
+  producers: { CSV: csvExportProducer, JSON: jsonExportProducer },
   sources: {
     ...createDatabaseRecordExportSources(db),
     Bug: workExportSource,
