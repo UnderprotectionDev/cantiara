@@ -6,7 +6,7 @@ import {
   type PreviewImportInput,
 } from "@cantiara/api/data-import";
 import { useCallback, useState } from "react";
-import { toggleExcludedRow } from "../../lib/import-form";
+import { importErrorText, toggleExcludedRow } from "../../lib/import-form";
 import { ImportApplyPanel } from "../components/import-apply-panel";
 import { ImportPreviewPanel } from "../components/import-preview-panel";
 import ImportFileForm, {
@@ -34,9 +34,12 @@ export function ImportView({
     preview: ImportPreview;
   } | null>(null);
 
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const previewFile = useCallback(
     async (input: PreviewImportInput) => {
       const result = await onPreview(input);
+      setActionError(null);
       setShown({ input, preview: result });
       return result;
     },
@@ -54,7 +57,7 @@ export function ImportView({
           shown.input.excludedRows ?? [],
           rowNumber,
         ),
-      }).catch(() => undefined);
+      }).catch((caught) => setActionError(importErrorText(caught)));
     },
     [previewFile, shown],
   );
@@ -64,8 +67,11 @@ export function ImportView({
       return;
     }
     onCancel(shown.preview.stagingId)
-      .then(() => setShown(null))
-      .catch(() => undefined);
+      .then(() => {
+        setActionError(null);
+        setShown(null);
+      })
+      .catch((caught) => setActionError(importErrorText(caught)));
   }, [onCancel, shown]);
 
   return (
@@ -80,6 +86,11 @@ export function ImportView({
         </p>
       </header>
       <ImportFileForm onPreview={previewFile} projects={projects} />
+      {actionError ? (
+        <p className="text-destructive text-sm" role="alert">
+          {actionError}
+        </p>
+      ) : null}
       {shown ? (
         <>
           <ImportPreviewPanel

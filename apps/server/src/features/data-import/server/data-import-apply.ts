@@ -424,6 +424,7 @@ export function createImportApply({ openStaged, ports }: ApplyContext) {
           return { label: IMPORT_FINALIZING_LABEL, status: "finalizing" };
         }
         if (error instanceof MutationConflictError) {
+          await ports.staging.release(accountId, input.stagingId);
           // biome-ignore lint/style/useErrorCause: The contract error carries no more than the conflict itself.
           throw new ImportConflictError();
         }
