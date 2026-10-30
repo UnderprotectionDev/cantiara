@@ -135,7 +135,7 @@ function toValidationRecord(record: typeof validationRecord.$inferSelect) {
   });
 }
 
-function toDecision(record: DecisionRecord) {
+function toDecision({ trashedAt: _trashedAt, ...record }: DecisionRecord) {
   return decisionRecordSchema.parse({
     ...record,
     createdAt: record.createdAt.toISOString(),
@@ -182,7 +182,10 @@ function toProductionIncident(record: IncidentRecord): ProjectSourceRecord {
   });
 }
 
-function toRisk(record: RiskRecord): ProjectSourceRecord {
+function toRisk({
+  trashedAt: _trashedAt,
+  ...record
+}: RiskRecord): ProjectSourceRecord {
   return riskRecordSchema.parse({
     ...record,
     createdAt: record.createdAt.toISOString(),

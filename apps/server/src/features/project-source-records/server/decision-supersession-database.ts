@@ -198,7 +198,7 @@ function adapter(
         .parse(marker?.value ?? {});
       const graph: DecisionSupersessionGraph = {
         ...savedTransition,
-        records: rows.map((row) =>
+        records: rows.map(({ trashedAt: _trashedAt, ...row }) =>
           decisionRecordSchema.parse({
             ...row,
             sourceType: "Decision",
