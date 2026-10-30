@@ -21,6 +21,16 @@ import {
  * is a second trigger for the one removal engine, never a second engine.
  */
 
+/**
+ * A key of its own derived from the server secret, so the replay digest of a
+ * redaction event cannot be recomputed without it.
+ */
+export function deriveSecurityRedactionReplayKey(secret: string) {
+  return createHmac("sha256", secret)
+    .update("security-redaction:replay:v1")
+    .digest("hex");
+}
+
 function digestOf(key: string, salt: string, value: string) {
   return createHmac("sha256", key)
     .update(salt)

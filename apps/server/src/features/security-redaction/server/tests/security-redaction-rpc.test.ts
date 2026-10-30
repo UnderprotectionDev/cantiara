@@ -16,6 +16,14 @@ function setup(consume = vi.fn(() => Promise.resolve(true))) {
         Promise.resolve(
           accountId === ACCOUNT && projectId === "project-1" ? "Atlas" : null,
         ),
+      recording: {
+        actorAlias: () => Promise.resolve("alias"),
+        log: {
+          append: () => Promise.resolve(),
+          list: () => Promise.resolve([]),
+        },
+        replayKey: "test-key",
+      },
     }),
     session: {
       session: { id: "session" },

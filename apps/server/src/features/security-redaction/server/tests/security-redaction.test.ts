@@ -62,6 +62,11 @@ function setup() {
       Promise.resolve(
         accountId === "account-1" && projectId === "project-1" ? "Atlas" : null,
       ),
+    recording: {
+      actorAlias: () => Promise.resolve("alias"),
+      log: { append: () => Promise.resolve(), list: () => Promise.resolve([]) },
+      replayKey: "test-key",
+    },
   });
 }
 

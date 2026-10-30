@@ -16,9 +16,10 @@ import { asc, eq } from "drizzle-orm";
 const SEPARATOR = "|";
 
 export function packSecurityRedactionTarget(event: SecurityRedactionEvent) {
+  // Ids may hold `|` or `:`, so the free-text components are escaped.
   return [
-    event.scopeAlias,
-    event.operationId,
+    encodeURIComponent(event.scopeAlias),
+    encodeURIComponent(event.operationId),
     String(event.replay.length),
     event.replay.salt,
     event.replay.digest,
@@ -31,18 +32,26 @@ export function unpackSecurityRedactionTarget(
   SecurityRedactionEvent,
   "operationId" | "replay" | "scopeAlias"
 > | null {
-  const [scopeAlias, operationId, length, salt, digest, ...rest] =
+  const [encodedScope, encodedOperation, length, salt, digest, ...rest] =
     packed.split(SEPARATOR);
   const size = Number(length);
   if (
     rest.length > 0 ||
-    !(scopeAlias && operationId && salt && digest) ||
+    !(encodedScope && encodedOperation && salt && digest) ||
     !Number.isInteger(size) ||
     size <= 0
   ) {
     return null;
   }
-  return { operationId, replay: { digest, length: size, salt }, scopeAlias };
+  try {
+    return {
+      operationId: decodeURIComponent(encodedOperation),
+      replay: { digest, length: size, salt },
+      scopeAlias: decodeURIComponent(encodedScope),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Append-only, idempotent on the event id; a production store is spec 85's. */

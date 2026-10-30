@@ -1,4 +1,4 @@
-import { createHash, createHmac } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import {
@@ -162,7 +162,10 @@ import {
   derivedSearchIndexTarget,
 } from "./features/security-redaction/server/security-redaction-database";
 import { createDatabaseSecurityRedactionEventLog } from "./features/security-redaction/server/security-redaction-events-database";
-import { createSecurityRedactionReplay } from "./features/security-redaction/server/security-redaction-replay";
+import {
+  createSecurityRedactionReplay,
+  deriveSecurityRedactionReplayKey,
+} from "./features/security-redaction/server/security-redaction-replay";
 import { createSecurityRedactionSpread } from "./features/security-redaction/server/security-redaction-spread";
 import { createSmartCollectionSubscriptionSignalWorker } from "./features/smart-collections/server/smart-collection-subscription-signal-worker";
 import {
@@ -421,11 +424,9 @@ const securityRedactionSpread = createSecurityRedactionSpread([
 ]);
 const securityRedactionEvents =
   createDatabaseSecurityRedactionEventLog(securityEventDb);
-// A key of its own derived from the server secret, so the replay digest of a
-// redaction event cannot be recomputed without it.
-const securityRedactionReplayKey = createHmac("sha256", env.BETTER_AUTH_SECRET)
-  .update("security-redaction:replay:v1")
-  .digest("hex");
+const securityRedactionReplayKey = deriveSecurityRedactionReplayKey(
+  env.BETTER_AUTH_SECRET,
+);
 export const securityRedaction = createSecurityRedaction({
   locators: createDatabaseSecurityRedactionLocators(db),
   projectName: async (accountId, projectId) =>

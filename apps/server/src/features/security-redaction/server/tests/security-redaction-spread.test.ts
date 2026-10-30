@@ -12,6 +12,7 @@ import {
 import { describe, expect, test, vi } from "vitest";
 
 import { createSecurityRedaction } from "../security-redaction";
+import { createSurfaceCacheRedactionTarget } from "../security-redaction-database";
 import { createSecurityRedactionSpread } from "../security-redaction-spread";
 
 const ACTOR = { accountId: "account-1", accountName: "Mert" };
@@ -128,6 +129,11 @@ function setup(targets: SecurityRedactionTargetAdapter[]) {
       Promise.resolve(
         accountId === "account-1" && projectId === "project-1" ? "Atlas" : null,
       ),
+    recording: {
+      actorAlias: () => Promise.resolve("alias"),
+      log: { append: () => Promise.resolve(), list: () => Promise.resolve([]) },
+      replayKey: "test-key",
+    },
     spread: createSecurityRedactionSpread(targets),
   });
 }
@@ -331,5 +337,24 @@ describe("redaction helpers", () => {
       },
     });
     expect(redactJson({ a: "clean" }, "zzz").changed).toBe(false);
+  });
+});
+
+describe("Security Redaction surface cache target", () => {
+  test("a cache without purge is reported not-wired, never a clean zero", async () => {
+    const target = createSurfaceCacheRedactionTarget(
+      {} as never,
+      {
+        get: () => Promise.resolve(null),
+        set: () => Promise.resolve(),
+      } as never,
+    );
+    expect(
+      await target.remove({
+        accountId: "account-1",
+        scope: { kind: "Account" },
+        sensitiveValue: SECRET,
+      }),
+    ).toBeNull();
   });
 });

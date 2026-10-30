@@ -22,11 +22,11 @@ import { createSecurityRedactionSpread } from "./security-redaction-spread";
  * Security Redaction (spec 78 #504, #505): preview and apply. The gate order
  * is fixed so a refusal never writes: ownership, the typed Account or Project
  * name (never a record title), then the Account Access grant is consumed
- * exactly once; right after, apply calls the `SecurityRedactionSpread` port
- * and then appends one secret-free `security-redaction.applied` event (#506),
- * which replay uses after a restore (`security-redaction-replay.ts`). If the
- * append fails the removal has already happened and is irreversible, so the
- * error surfaces; applying the same value again is safe. The sensitive value
+ * exactly once; right after, apply appends one secret-free
+ * `security-redaction.applied` event (#506) and only then calls the
+ * `SecurityRedactionSpread` port, so a crash mid-spread still leaves the event
+ * for replay after a restore (`security-redaction-replay.ts`). If the append
+ * fails nothing was removed and the error surfaces; applying again is safe. The sensitive value
  * only travels to the locator sources, the spread and the keyed replay digest
  * and is never stored, logged or returned.
  */
@@ -48,8 +48,8 @@ export interface SecurityRedactionOptions {
   now?: () => Date;
   /** The Project's current name, or `null` when it is not the Account's. */
   projectName: (accountId: string, projectId: string) => Promise<string | null>;
-  /** Without it no event is written (a test double or an unwired environment). */
-  recording?: SecurityRedactionRecording;
+  /** Required: an applied redaction must always leave its replay event. */
+  recording: SecurityRedactionRecording;
   /** The removal across the closed spread targets; without it nothing is wired. */
   spread?: SecurityRedactionSpread;
 }
@@ -79,9 +79,6 @@ export function createSecurityRedaction(
     occurredAt: string,
   ) {
     const { recording } = options;
-    if (!recording) {
-      return;
-    }
     const operationId = (recording.newOperationId ?? randomUUID)();
     const salt = (
       recording.newSalt ?? (() => randomBytes(16).toString("hex"))
@@ -150,25 +147,17 @@ export function createSecurityRedaction(
         throw new SecurityRedactionGrantRejectedError();
       }
       const passedAt = now().toISOString();
-      // A partly failed spread still removed the value from some targets, so
-      // the event is written either way and replay can finish the job.
-      const outcome = await spread
-        .spread({
-          accountId: actor.accountId,
-          scope: input.scope,
-          sensitiveValue: input.sensitiveValue,
-        })
-        .then(
-          (removal) => ({ removal }),
-          (error: unknown) => ({ error }),
-        );
+      // The event comes first: a crash or a partly failed spread has already
+      // removed the value from some targets, and replay can finish the job.
       await record(actor, input, passedAt);
-      if ("error" in outcome) {
-        throw outcome.error;
-      }
+      const removal = await spread.spread({
+        accountId: actor.accountId,
+        scope: input.scope,
+        sensitiveValue: input.sensitiveValue,
+      });
       return {
         passedAt,
-        removal: outcome.removal,
+        removal,
         scope: input.scope,
         status: "redacted",
       };

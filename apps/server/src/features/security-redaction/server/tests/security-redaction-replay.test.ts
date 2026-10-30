@@ -262,6 +262,38 @@ describe("Security Redaction event", () => {
     expect(harness.events).toHaveLength(1);
   });
 
+  test("the event is appended before the spread, so a crash mid-spread still leaves it", async () => {
+    const harness = setup(rowsWith(SECRET));
+    let seen = -1;
+    harness.spread.spread.mockImplementationOnce(() => {
+      seen = harness.events.length;
+      return Promise.reject(new Error("crash"));
+    });
+    await expect(harness.apply()).rejects.toThrow("crash");
+    expect(seen).toBe(1);
+    expect(harness.events).toHaveLength(1);
+  });
+
+  test("ids holding the separator or a colon survive pack and unpack", () => {
+    const event: SecurityRedactionEvent = {
+      actorAlias: "alias",
+      id: "security-redaction:op|1",
+      occurredAt: NOW.toISOString(),
+      operationId: "op|1:x%",
+      replay: { digest: "ab12", length: 7, salt: "cd34" },
+      scopeAlias: "Project:account-1:pro|ject:1",
+      type: SECURITY_REDACTION_EVENT_TYPE,
+      version: 1,
+    };
+    expect(
+      unpackSecurityRedactionTarget(packSecurityRedactionTarget(event)),
+    ).toEqual({
+      operationId: event.operationId,
+      replay: event.replay,
+      scopeAlias: event.scopeAlias,
+    });
+  });
+
   test("the event packs into the existing security log columns without a value", () => {
     const event: SecurityRedactionEvent = {
       actorAlias: "alias",

@@ -500,8 +500,9 @@ export function createSurfaceCacheRedactionTarget(
   return {
     kind: "cache",
     async remove(request) {
+      // No purge on the cache: report not-wired, never a clean zero.
       if (!cache.purge) {
-        return 0;
+        return null;
       }
       const surfaceIds = await scopedSurfaceIds(database, request);
       for (const surfaceId of surfaceIds) {

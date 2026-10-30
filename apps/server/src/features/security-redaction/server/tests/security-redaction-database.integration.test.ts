@@ -196,6 +196,14 @@ describeDatabase("Security Redaction PostgreSQL stores", () => {
       locators: createDatabaseSecurityRedactionLocators(database),
       now: () => NOW,
       projectName: () => Promise.resolve("Atlas"),
+      recording: {
+        actorAlias: () => Promise.resolve("alias"),
+        log: {
+          append: () => Promise.resolve(),
+          list: () => Promise.resolve([]),
+        },
+        replayKey: "test-key",
+      },
       spread: createSecurityRedactionSpread([
         ...createDatabaseSecurityRedactionTargets(database),
         derivedSearchIndexTarget,
