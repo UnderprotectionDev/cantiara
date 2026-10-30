@@ -106,6 +106,13 @@ import {
   dailyFocusMembershipInputSchema,
 } from "../daily-focus";
 import {
+  ImportRefusedError,
+  ImportScopeNotFoundError,
+  ImportStagingExpiredError,
+  previewImportInputSchema,
+  reopenImportPreviewInputSchema,
+} from "../data-import";
+import {
   decisionSupersessionCommandSchema,
   decisionSupersessionSelectionSchema,
 } from "../decision-supersession";
@@ -4709,6 +4716,37 @@ function requireTrash(context: Context) {
   }
   return context.trash;
 }
+function requireDataImport(context: Context) {
+  if (!context.dataImport) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.dataImport;
+}
+async function dataImportRead<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    if (error instanceof ImportRefusedError) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: error.message,
+      });
+    }
+    if (
+      error instanceof ImportScopeNotFoundError ||
+      error instanceof ImportStagingExpiredError
+    ) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        defined: true,
+        message: error.message,
+      });
+    }
+    throw error;
+  }
+}
 function requireTrashEarlyDelete(context: Context) {
   const { earlyDelete } = requireTrash(context);
   if (!earlyDelete) {
@@ -4846,6 +4884,20 @@ function requireExternalSurfaceManagement(context: Context) {
   return context.externalSurfaceManagement;
 }
 export const appRouter = {
+  previewImport: protectedProcedure
+    .input(previewImportInputSchema)
+    .handler(({ context, input }) =>
+      dataImportRead(() =>
+        requireDataImport(context).preview(context.session.user.id, input),
+      ),
+    ),
+  reopenImportPreview: protectedProcedure
+    .input(reopenImportPreviewInputSchema)
+    .handler(({ context, input }) =>
+      dataImportRead(() =>
+        requireDataImport(context).reopen(context.session.user.id, input),
+      ),
+    ),
   trash: protectedProcedure
     .input(trashOverviewInputSchema)
     .handler(async ({ context, input }) => {
