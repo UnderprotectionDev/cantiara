@@ -3,6 +3,7 @@
 import {
   EXPORT_LABEL,
   type ExportArtifact,
+  type ExportFormat,
   type ExportPreview,
 } from "@cantiara/api/data-export";
 import { Button } from "@cantiara/ui/components/button";
@@ -18,13 +19,15 @@ function Section({ children, title }: { children: ReactNode; title: string }) {
 }
 
 function Download({ artifact }: { artifact: ExportArtifact }) {
-  const url = useMemo(
-    () =>
-      URL.createObjectURL(
-        new Blob([artifact.bytes], { type: artifact.mediaType }),
-      ),
-    [artifact],
-  );
+  const url = useMemo(() => {
+    const content =
+      artifact.encoding === "base64"
+        ? Uint8Array.from(atob(artifact.bytes), (char) => char.charCodeAt(0))
+        : artifact.bytes;
+    return URL.createObjectURL(
+      new Blob([content], { type: artifact.mediaType }),
+    );
+  }, [artifact]);
   useEffect(() => () => URL.revokeObjectURL(url), [url]);
   return (
     <a
@@ -37,6 +40,15 @@ function Download({ artifact }: { artifact: ExportArtifact }) {
   );
 }
 
+function scopeLabel(scope: ExportPreview["scope"]): string {
+  if (scope.kind === "workspace") {
+    return "the Workspace";
+  }
+  return scope.kind === "project"
+    ? "one Project"
+    : `${scope.projectIds.length} Projects`;
+}
+
 /**
  * The closed-world review shown before anything is produced: what leaves, what
  * is left out, what the format loses, what is never included, and the limits.
@@ -46,12 +58,14 @@ export function ExportPreviewPanel({
   disabled,
   onCancel,
   onConfirm,
+  onUseAlternative,
   preview,
   produced,
 }: {
   disabled: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  onUseAlternative?: (format: ExportFormat) => void;
   preview: ExportPreview;
   produced: ExportArtifact | null;
 }) {
@@ -80,9 +94,10 @@ export function ExportPreviewPanel({
       </h3>
       <Section title="Scope">
         <p className="text-sm">
-          {preview.recordCount} {preview.recordType} records of one Project,
-          about {Math.max(1, Math.ceil(preview.estimatedBytes / 1024))} KB.
-          Limit: {preview.limits.maxRows.toLocaleString("en-US")} rows or 25 MB,
+          {preview.recordCount} {preview.recordType} records of{" "}
+          {scopeLabel(preview.scope)}, about{" "}
+          {Math.max(1, Math.ceil(preview.estimatedBytes / 1024))} KB. Limit:{" "}
+          {preview.limits.maxRows.toLocaleString("en-US")} rows or 25 MB,
           whichever comes first.
         </p>
       </Section>
@@ -140,6 +155,26 @@ export function ExportPreviewPanel({
               : `${preview.escapes.count} cells that start with =, +, -, @, a tab or a carriage return get a leading ' so a spreadsheet reads them as data.`}{" "}
             JSON keeps these values as they are.
           </p>
+        </Section>
+      ) : null}
+      {preview.pdfNotice ? (
+        <Section title="PDF accessibility">
+          <p className="text-sm" role="note">
+            {preview.pdfNotice.limitation}
+          </p>
+          {onUseAlternative ? (
+            <Button
+              disabled={disabled}
+              onClick={() => {
+                onUseAlternative(preview.pdfNotice?.alternative ?? "CSV");
+              }}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Use {preview.pdfNotice.alternative} instead
+            </Button>
+          ) : null}
         </Section>
       ) : null}
       <Section title="Secret">

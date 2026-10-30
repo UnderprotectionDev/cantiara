@@ -216,7 +216,7 @@ describe("Selected Export CSV header", () => {
 
 describe("Selected Export exact view", () => {
   const view = {
-    kind: "Smart Collection",
+    kind: "Work list",
     name: "Needs review",
     sort: { direction: "asc", field: "key" },
   } as const;
@@ -244,6 +244,7 @@ describe("Selected Export exact view", () => {
 
   test("describes the view only; it names no view, report or subscription", () => {
     expect(Object.keys(exportViewSchema.shape).sort()).toEqual([
+      "id",
       "kind",
       "name",
       "sort",
@@ -261,7 +262,7 @@ describe("Selected Export exact view", () => {
 
 describe("Selected Export forbidden formats", () => {
   test("has no XLS, Atom or Word path", async () => {
-    const formats = ["XLS", "XLSX", "Atom", "Word", "DOCX", "PDF"];
+    const formats = ["XLS", "XLSX", "Atom", "Word", "DOCX"];
     for (const format of formats) {
       expect(exportFormatSchema.safeParse(format).success).toBe(false);
     }
@@ -273,7 +274,8 @@ describe("Selected Export forbidden formats", () => {
     expect(attempts.every((attempt) => attempt.status === "rejected")).toBe(
       true,
     );
-    expect(exportFormatSchema.options).toEqual(["JSON", "CSV"]);
+    // PDF is accepted only as an exact-view snapshot (see the views test).
+    expect(exportFormatSchema.options).toEqual(["JSON", "CSV", "PDF"]);
     expect(
       EXPORT_CATALOG.flatMap((entry) => [...entry.recordTypes]),
     ).not.toContain("Document" as never);

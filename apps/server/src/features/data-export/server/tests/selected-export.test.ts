@@ -303,8 +303,8 @@ describe("Selected Export closed catalog", () => {
     expect(types).toHaveLength(20);
   });
 
-  test("offers only JSON and CSV", () => {
-    for (const format of ["Markdown", "PDF", "XLS", "Atom", "Word"]) {
+  test("offers only JSON and CSV, plus PDF for exact views", () => {
+    for (const format of ["Markdown", "XLS", "Atom", "Word"]) {
       expect(exportFormatSchema.safeParse(format).success).toBe(false);
     }
   });

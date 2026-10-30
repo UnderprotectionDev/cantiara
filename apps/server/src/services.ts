@@ -67,10 +67,13 @@ import {
 import { createDatabaseDailyFocus } from "./features/daily-focus/server/daily-focus-database";
 import { csvExportProducer } from "./features/data-export/server/csv-export-producer";
 import { jsonExportProducer } from "./features/data-export/server/json-export-producer";
+import { createPdfExportProducer } from "./features/data-export/server/pdf-export-producer";
+import { renderExportPdf } from "./features/data-export/server/pdf-export-renderer";
 import { createSelectedExport } from "./features/data-export/server/selected-export";
 import { createDatabaseRecordExportSources } from "./features/data-export/server/selected-export-records-database";
 import { createDatabaseWorkExportSource } from "./features/data-export/server/selected-export-work-database";
 import { createDatabaseWorkspaceExportSources } from "./features/data-export/server/selected-export-workspace-database";
+import { createSmartCollectionExportVerifier } from "./features/data-export/server/smart-collection-export-verifier";
 import { createDatabaseDocumentSurfaceCancellations } from "./features/documents/server/document-surface-cancellations";
 import { createDatabaseDocumentTagRenameWriter } from "./features/documents/server/document-tag-rename-database";
 import { createDatabaseDocumentTransfers } from "./features/documents/server/document-transfers-database";
@@ -398,7 +401,11 @@ const workExportSource = createDatabaseWorkExportSource(db);
 const workExportTypes =
   EXPORT_CATALOG.find((entry) => entry.family === "Work")?.recordTypes ?? [];
 export const selectedExport = createSelectedExport({
-  producers: { CSV: csvExportProducer, JSON: jsonExportProducer },
+  producers: {
+    CSV: csvExportProducer,
+    JSON: jsonExportProducer,
+    PDF: createPdfExportProducer({ render: renderExportPdf }),
+  },
   sources: {
     ...createDatabaseRecordExportSources(db),
     ...createDatabaseWorkspaceExportSources(db),
@@ -406,6 +413,7 @@ export const selectedExport = createSelectedExport({
       workExportTypes.map((recordType) => [recordType, workExportSource]),
     ),
   },
+  viewVerifier: createSmartCollectionExportVerifier(smartCollections),
 });
 const trashMaintenance = createTrashMaintenance(trashExpiry, trashEventLog);
 const linkSharingReplay = createDatabaseLinkSharingReplay(
