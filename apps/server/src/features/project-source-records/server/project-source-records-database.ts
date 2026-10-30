@@ -135,7 +135,7 @@ function toValidationRecord(record: typeof validationRecord.$inferSelect) {
   });
 }
 
-function toDecision(record: DecisionRecord) {
+function toDecision({ trashedAt: _trashedAt, ...record }: DecisionRecord) {
   return decisionRecordSchema.parse({
     ...record,
     createdAt: record.createdAt.toISOString(),
