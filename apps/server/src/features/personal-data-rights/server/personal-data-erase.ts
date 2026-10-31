@@ -231,3 +231,29 @@ export function contentFreeSession(
   }
   return result;
 }
+
+/**
+ * The content-free pinned text of one evidence binding: the captured excerpt
+ * and the before/after context become the mark and the range collapses onto
+ * the mark, so a stored pin still satisfies `versionPinnedEvidenceSchema`
+ * (`end - start === excerpt.length`) when a read reparses it. The bound source
+ * identity stays, so the link keeps its shape. Idempotent.
+ */
+export function contentFreePin(pin: unknown): unknown {
+  const pinned = asRecord(pin);
+  if (
+    !pinned ||
+    typeof pinned.excerpt !== "string" ||
+    pinned.excerpt === REDACTED_VALUE_MARK
+  ) {
+    return pin;
+  }
+  return {
+    ...pinned,
+    before: "",
+    after: "",
+    excerpt: REDACTED_VALUE_MARK,
+    start: 0,
+    end: REDACTED_VALUE_MARK.length,
+  };
+}

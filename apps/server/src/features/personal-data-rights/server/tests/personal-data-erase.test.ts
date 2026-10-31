@@ -12,7 +12,11 @@ import {
   SecurityRedactionTypedNameMismatchError,
 } from "@cantiara/api/security-redaction";
 import { describe, expect, test } from "vitest";
-import { contentFreeSession, personalValues } from "../personal-data-erase";
+import {
+  contentFreePin,
+  contentFreeSession,
+  personalValues,
+} from "../personal-data-erase";
 import { createPersonalDataRights } from "../personal-data-package";
 
 const ACCOUNT = { accountId: "account-1", accountName: "Mert Demirkaya" };
@@ -493,5 +497,46 @@ describe("Personal Data Rights: Erase Personal Data", () => {
     expect(parsed.participantContactId).toBe("contact-ada");
     expect(parsed.content[0].content.kind).toBe("Participant quote");
     expect(parsed.content[1].content.fileId).toBe("f1");
+  });
+
+  test("the Evidence pin tombstone is content-free and stays schema-valid", () => {
+    const pin = {
+      after: " later notes",
+      before: "notes on ",
+      end: 41,
+      excerpt: "Ada, write to ada@example.com please",
+      source: {
+        componentId: null,
+        projectId: "p1",
+        recordId: "doc-1",
+        recordType: "Document",
+        revision: 3,
+      },
+      start: 12,
+    };
+    const erased = contentFreePin(pin) as typeof pin;
+    expect(erased).toMatchObject({
+      after: "",
+      before: "",
+      excerpt: "value redacted",
+      source: pin.source,
+      start: 0,
+    });
+    // A stored pin is reparsed on reads (versionPinnedEvidenceSchema), so the
+    // exact-text-range invariant must survive the tombstone.
+    expect(
+      erased.end - erased.start === erased.excerpt.length && erased.end > 0,
+    ).toBe(true);
+    expect(JSON.stringify(erased)).not.toContain("Ada Lovelace");
+    expect(JSON.stringify(erased)).not.toContain("ada@example.com");
+    // Idempotent: already-marked pins are written back unchanged.
+    expect(contentFreePin(erased)).toEqual(erased);
+  });
+
+  test("a pin without a captured excerpt is left alone", () => {
+    expect(contentFreePin(null)).toBeNull();
+    expect(contentFreePin({ source: { recordId: "doc-1" } })).toEqual({
+      source: { recordId: "doc-1" },
+    });
   });
 });

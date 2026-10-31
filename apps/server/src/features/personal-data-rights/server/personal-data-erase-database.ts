@@ -14,16 +14,27 @@ import {
   workspaceContactEmail,
   workspaceContactFeedback,
 } from "@cantiara/db/schema/contact";
-import { evidenceBinding } from "@cantiara/db/schema/evidence";
+import {
+  evidenceBinding,
+  evidenceBindingHistory,
+} from "@cantiara/db/schema/evidence";
 import { feedback } from "@cantiara/db/schema/feedback";
 import { project } from "@cantiara/db/schema/project";
 import { researchSession } from "@cantiara/db/schema/research-session";
 import { securityEvent } from "@cantiara/db/schema/security-event";
 import type { SecurityEventDatabase } from "@cantiara/db/security-events";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
-import { contentFreeSession } from "./personal-data-erase";
+import { contentFreePin, contentFreeSession } from "./personal-data-erase";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+function redactByValue(text: string, values: readonly string[]): string {
+  let next = text;
+  for (const value of values) {
+    next = redactText(next, value);
+  }
+  return next;
+}
 
 async function tombstoneContact(
   transaction: Transaction,
@@ -120,7 +131,12 @@ async function tombstoneResearch(
   return sessions.map((row) => row.id);
 }
 
-/** Founder interpretation text is redacted by value; roles and ids stay. */
+/**
+ * The evidence that names the Contact: the Founder interpretation text is
+ * redacted by value, the captured pin becomes content-free (bound source
+ * identity stays) and the binding history rows that still hold older
+ * interpretation text are redacted by value. Roles, ids, times and links stay.
+ */
 async function tombstoneEvidence(
   transaction: Transaction,
   workspaceId: string,
@@ -134,6 +150,7 @@ async function tombstoneEvidence(
     .select({
       id: evidenceBinding.id,
       interpretation: evidenceBinding.interpretation,
+      pin: evidenceBinding.pin,
     })
     .from(evidenceBinding)
     .where(
@@ -146,21 +163,63 @@ async function tombstoneEvidence(
       ),
     );
   let changed = 0;
+  const bindingIds: string[] = [];
   for (const binding of bindings) {
-    if (!binding.interpretation) {
+    bindingIds.push(binding.id);
+    const interpretation = binding.interpretation
+      ? redactByValue(binding.interpretation, values)
+      : binding.interpretation;
+    const pin = contentFreePin(binding.pin);
+    if (interpretation === binding.interpretation && pin === binding.pin) {
       continue;
     }
-    let text = binding.interpretation;
-    for (const value of values) {
-      text = redactText(text, value);
+    const patch: {
+      interpretation?: string | null;
+      pin?: unknown;
+    } = {};
+    if (interpretation !== binding.interpretation) {
+      patch.interpretation = interpretation;
     }
-    if (text !== binding.interpretation) {
-      await transaction
-        .update(evidenceBinding)
-        .set({ interpretation: text })
-        .where(eq(evidenceBinding.id, binding.id));
-      changed += 1;
+    if (pin !== binding.pin) {
+      patch.pin = pin as typeof binding.pin;
     }
+    await transaction
+      .update(evidenceBinding)
+      .set(patch)
+      .where(eq(evidenceBinding.id, binding.id));
+    changed += 1;
+  }
+  // Earlier edits keep their old interpretation text in the binding history;
+  // the Security Redaction (78) spread does not reach these rows.
+  if (bindingIds.length === 0) {
+    return changed;
+  }
+  const historyRows = await transaction
+    .select({
+      id: evidenceBindingHistory.id,
+      interpretation: evidenceBindingHistory.interpretation,
+      previousInterpretation: evidenceBindingHistory.previousInterpretation,
+    })
+    .from(evidenceBindingHistory)
+    .where(inArray(evidenceBindingHistory.evidenceBindingId, bindingIds));
+  for (const row of historyRows) {
+    const interpretation = row.interpretation
+      ? redactByValue(row.interpretation, values)
+      : row.interpretation;
+    const previousInterpretation = row.previousInterpretation
+      ? redactByValue(row.previousInterpretation, values)
+      : row.previousInterpretation;
+    if (
+      interpretation === row.interpretation &&
+      previousInterpretation === row.previousInterpretation
+    ) {
+      continue;
+    }
+    await transaction
+      .update(evidenceBindingHistory)
+      .set({ interpretation, previousInterpretation })
+      .where(eq(evidenceBindingHistory.id, row.id));
+    changed += 1;
   }
   return changed;
 }
@@ -169,7 +228,8 @@ async function tombstoneEvidence(
  * The content-free tombstone of one Contact's own records (spec 81 #517). It
  * runs after Security Redaction (78) removed every other copy and is not a
  * spread: it only reaches this Contact's name, email aliases, Feedback and the
- * Research and evidence that name them. Ids, times, statuses and links stay so
+ * Research and evidence that name them, including the bound pins and the
+ * evidence-binding history rows. Ids, times, statuses and links stay so
  * history keeps its shape; nothing moves through Trash. Idempotent.
  */
 export function createDatabasePersonalDataEraser(
