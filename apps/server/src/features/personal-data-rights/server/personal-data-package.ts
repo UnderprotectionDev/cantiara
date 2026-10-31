@@ -1,12 +1,8 @@
 import { stripSecrets } from "@cantiara/api/data-export-secrets";
 import {
   erasePersonalDataInputSchema,
-  PERSONAL_DATA_ERASE_REASON,
   PERSONAL_DATA_EXCLUSIONS,
   PERSONAL_DATA_PACKAGE_NOTICE,
-  PERSONAL_DATA_SPECIAL_CATEGORY_WARNING,
-  PERSONAL_DATA_VALUE_MAX_LENGTH,
-  type PersonalDataActor,
   type PersonalDataArtifact,
   type PersonalDataAudit,
   type PersonalDataEraser,
@@ -22,14 +18,16 @@ import {
   personalDataPreviewInputSchema,
   personalDataProduceInputSchema,
 } from "@cantiara/api/personal-data-rights";
-import {
-  SecurityRedactionGrantRejectedError,
-  type SecurityRedactionLocator,
-  type SecurityRedactionLocatorKind,
-  SecurityRedactionSpreadIncompleteError,
-  type SecurityRedactionTargetOutcome,
-  SecurityRedactionTypedNameMismatchError,
+import type {
+  SecurityRedactionLocator,
+  SecurityRedactionLocatorKind,
 } from "@cantiara/api/security-redaction";
+import {
+  eraseNotices,
+  personalValues,
+  redactValues,
+  sameLocator,
+} from "./personal-data-erase";
 
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest(
@@ -41,7 +39,7 @@ async function sha256(text: string): Promise<string> {
   ).join("");
 }
 
-function contactLabel(snapshot: PersonalDataSnapshot): string {
+function personLabel(snapshot: PersonalDataSnapshot): string {
   return (
     snapshot.contact.displayName ??
     snapshot.contact.emails[0] ??
@@ -52,7 +50,7 @@ function contactLabel(snapshot: PersonalDataSnapshot): string {
 function sources(snapshot: PersonalDataSnapshot): PersonalDataPreviewSource[] {
   return [
     {
-      items: [{ id: snapshot.contact.id, label: contactLabel(snapshot) }],
+      items: [{ id: snapshot.contact.id, label: personLabel(snapshot) }],
       kind: "Contact",
     },
     {
@@ -86,6 +84,60 @@ function sources(snapshot: PersonalDataSnapshot): PersonalDataPreviewSource[] {
   ];
 }
 
+const PERSON_NOTE_KINDS = new Set([
+  "Identifying personal note",
+  "Observation",
+  "Participant quote",
+]);
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/**
+ * The Research Session as it concerns this Contact. Free text the founder
+ * wrote about the session or about other people (purpose, question guide,
+ * scope note, consent note, facilitator, Founder interpretation notes) and the
+ * participant id stay out; what remains is when and how the session ran, the
+ * consent and the notes captured about the participant.
+ */
+function researchView(data: unknown) {
+  const session = record(data) ?? {};
+  const notes = (Array.isArray(session.content) ? session.content : []).flatMap(
+    (entry) => {
+      const captured = record(entry);
+      const content = record(captured?.content);
+      if (!(content && PERSON_NOTE_KINDS.has(String(content.kind)))) {
+        return [];
+      }
+      if (
+        content.kind === "Observation" &&
+        !content.containsPersonalInformation
+      ) {
+        return [];
+      }
+      return [
+        {
+          kind: content.kind,
+          speakerLabel: content.speakerLabel ?? null,
+          text: content.text,
+        },
+      ];
+    },
+  );
+  return {
+    channel: session.channel ?? null,
+    consent: session.consent ?? null,
+    durationMinutes: session.durationMinutes ?? null,
+    notes,
+    scheduledAt: session.scheduledAt ?? null,
+    status: session.status ?? null,
+    title: session.title ?? null,
+  };
+}
+
 /** The package body: only the five listed sources, secrets stripped centrally. */
 function packageBody(snapshot: PersonalDataSnapshot, removed: Set<string>) {
   return stripSecrets(
@@ -99,8 +151,19 @@ function packageBody(snapshot: PersonalDataSnapshot, removed: Set<string>) {
       },
       emailAliases: snapshot.contact.emails,
       feedback: snapshot.feedback,
-      relatedEvidence: snapshot.evidence,
-      research: snapshot.research,
+      // Ids, role and kind only: the founder's interpretation text may name others.
+      relatedEvidence: snapshot.evidence.map((item) => ({
+        createdAt: item.createdAt,
+        id: item.id,
+        role: item.role,
+        sourceRecordId: item.sourceRecordId,
+        targetRecordId: item.targetRecordId,
+        targetRecordType: item.targetRecordType,
+      })),
+      research: snapshot.research.map((item) => ({
+        id: item.id,
+        ...researchView(item.data),
+      })),
     },
     removed,
   );
@@ -141,7 +204,7 @@ function markdownOf(
       `### ${item.title}`,
       "",
       "```json",
-      JSON.stringify(item.data, null, 2),
+      JSON.stringify(item, null, 2),
       "```",
       "",
     ]),
@@ -149,9 +212,7 @@ function markdownOf(
     "",
     ...body.relatedEvidence.map(
       (item) =>
-        `- ${item.role}: ${item.sourceRecordId} -> ${item.targetRecordId} (${item.targetRecordType})${
-          item.interpretation ? `, ${item.interpretation}` : ""
-        }`,
+        `- ${item.role}: ${item.sourceRecordId} -> ${item.targetRecordId} (${item.targetRecordType})`,
     ),
     "",
   ];
@@ -170,127 +231,6 @@ export interface PersonalDataRightsOptions {
   now?: () => Date;
   /** The Security Redaction (78) interface; the only removal path. */
   redaction?: PersonalDataRedaction;
-}
-
-/**
- * The personal values the erase hands to Security Redaction, longest first so
- * a message that contains a name is removed before the name itself. A value
- * above the 78 limit is not passed as a locator; the tombstone still clears
- * it from the Contact's own Feedback.
- */
-export function personalValues(snapshot: PersonalDataSnapshot): string[] {
-  const candidates = [
-    snapshot.contact.displayName,
-    ...snapshot.contact.emails,
-    ...snapshot.feedback.map((item) => item.originalMessage),
-  ];
-  const unique = new Set<string>();
-  for (const value of candidates) {
-    if (value && value.length <= PERSONAL_DATA_VALUE_MAX_LENGTH) {
-      unique.add(value);
-    }
-  }
-  return [...unique].sort((a, b) => b.length - a.length || a.localeCompare(b));
-}
-
-const ERASE_NOTICES = [
-  "Erasing is irreversible. The name, email aliases and original messages are removed from every place listed, and no restore brings them back.",
-  "A content-free tombstone stays so ids, times and links keep their shape.",
-  "This is not Trash and not Account closure: the record is not moved anywhere, and your Account and Workspace stay as they are.",
-  PERSONAL_DATA_SPECIAL_CATEGORY_WARNING,
-];
-
-const STATUS_RANK: SecurityRedactionTargetOutcome["status"][] = [
-  "not-wired",
-  "no-stored-copy",
-  "nothing-found",
-  "removed",
-];
-
-/** `removed` outranks the quieter statuses when one target ran for several values. */
-function mergedStatus(
-  earlier: SecurityRedactionTargetOutcome["status"] | undefined,
-  next: SecurityRedactionTargetOutcome["status"],
-): SecurityRedactionTargetOutcome["status"] {
-  return earlier && STATUS_RANK.indexOf(earlier) > STATUS_RANK.indexOf(next)
-    ? earlier
-    : next;
-}
-
-function sameLocator(a: SecurityRedactionLocator, b: SecurityRedactionLocator) {
-  return (
-    a.kind === b.kind &&
-    a.location === b.location &&
-    a.recordId === b.recordId &&
-    a.recordKind === b.recordKind
-  );
-}
-
-function redactionRefusal(error: unknown): unknown {
-  if (error instanceof SecurityRedactionTypedNameMismatchError) {
-    return new PersonalDataError("name_mismatch", { cause: error });
-  }
-  if (error instanceof SecurityRedactionGrantRejectedError) {
-    return new PersonalDataError("grant_rejected", { cause: error });
-  }
-  if (error instanceof SecurityRedactionSpreadIncompleteError) {
-    return new PersonalDataError("spread_incomplete", { cause: error });
-  }
-  return error;
-}
-
-/**
- * Calls Security Redaction apply once per personal value and sums the per
- * target outcomes. The shared `consumeOnce` makes every call ride on one
- * grant; a Contact with no value still consumes it, so the gate is the same.
- */
-async function redactValues({
-  actor,
-  consumeOnce,
-  input,
-  redaction,
-  values,
-}: {
-  actor: PersonalDataActor;
-  consumeOnce: PersonalDataGrantConsumer;
-  input: { grant: string; typedName: string };
-  redaction: PersonalDataRedaction;
-  values: readonly string[];
-}): Promise<SecurityRedactionTargetOutcome[]> {
-  const outcomes = new Map<
-    SecurityRedactionLocatorKind,
-    SecurityRedactionTargetOutcome
-  >();
-  try {
-    if (values.length === 0 && !(await consumeOnce(input.grant))) {
-      throw new SecurityRedactionGrantRejectedError();
-    }
-    for (const sensitiveValue of values) {
-      // biome-ignore lint/performance/noAwaitInLoops: values apply in declared order, longest first.
-      const result = await redaction.apply(
-        actor,
-        {
-          grant: input.grant,
-          reason: PERSONAL_DATA_ERASE_REASON,
-          scope: { kind: "Account" },
-          sensitiveValue,
-          typedName: input.typedName,
-        },
-        () => consumeOnce(input.grant),
-      );
-      for (const target of result?.removal.targets ?? []) {
-        const earlier = outcomes.get(target.kind);
-        outcomes.set(target.kind, {
-          copies: (earlier?.copies ?? 0) + target.copies,
-          kind: target.kind,
-          status: mergedStatus(earlier?.status, target.status),
-        });
-      }
-    }
-  } catch (error) {
-    throw redactionRefusal(error);
-  }
-  return [...outcomes.values()];
 }
 
 /**
@@ -346,7 +286,7 @@ export function createPersonalDataRights(
       if (input.typedName !== actor.accountName) {
         throw new PersonalDataError("name_mismatch");
       }
-      const values = personalValues(snapshot);
+      const { values, oversized } = personalValues(snapshot);
       // The grant is bound to this erase and consumed exactly once, however
       // many values Security Redaction is called for.
       let consumed: Promise<boolean> | null = null;
@@ -361,11 +301,15 @@ export function createPersonalDataRights(
         redaction,
         values,
       });
-      const tombstone = await eraser.tombstone(
-        actor.accountId,
-        snapshot.contact.id,
-        values,
-      );
+      // 78 already removed the other copies and cannot be undone: a failing
+      // tombstone is a named refusal, never a silent partial erase.
+      const tombstone = await eraser
+        .tombstone(actor.accountId, snapshot.contact.id, values)
+        .catch((error: unknown) => {
+          throw new PersonalDataError("tombstone_incomplete", {
+            cause: error,
+          });
+        });
       await options.audit?.record({
         accountId: actor.accountId,
         at: now().toISOString(),
@@ -374,6 +318,7 @@ export function createPersonalDataRights(
       });
       return {
         contactId: snapshot.contact.id,
+        notRedacted: oversized,
         removal: outcomes,
         status: "erased",
         tombstone,
@@ -388,7 +333,8 @@ export function createPersonalDataRights(
       );
       const copies: SecurityRedactionLocator[] = [];
       const notSearched = new Set<SecurityRedactionLocatorKind>();
-      for (const sensitiveValue of personalValues(snapshot)) {
+      const { oversized, values } = personalValues(snapshot);
+      for (const sensitiveValue of values) {
         // biome-ignore lint/performance/noAwaitInLoops: preview reads are cheap and ordered.
         const found = await redaction.preview(actor, {
           scope: { kind: "Account" },
@@ -405,10 +351,10 @@ export function createPersonalDataRights(
       }
       return {
         contactId: snapshot.contact.id,
-        contactLabel: contactLabel(snapshot),
+        contactLabel: personLabel(snapshot),
         copies,
         fingerprint,
-        notices: ERASE_NOTICES,
+        notices: eraseNotices(oversized),
         notSearched: [...notSearched],
         sources: sources(snapshot),
         typedNameTarget: { kind: "Account", name: actor.accountName },
@@ -419,7 +365,7 @@ export function createPersonalDataRights(
       const { fingerprint, snapshot } = await load(accountId, input.contactId);
       return {
         contactId: snapshot.contact.id,
-        contactLabel: contactLabel(snapshot),
+        contactLabel: personLabel(snapshot),
         excluded: PERSONAL_DATA_EXCLUSIONS,
         fingerprint,
         notice: PERSONAL_DATA_PACKAGE_NOTICE,
@@ -442,7 +388,7 @@ export function createPersonalDataRights(
               null,
               2,
             )
-          : markdownOf(body, contactLabel(snapshot));
+          : markdownOf(body, personLabel(snapshot));
       await options.audit?.record({
         accountId,
         at: now().toISOString(),

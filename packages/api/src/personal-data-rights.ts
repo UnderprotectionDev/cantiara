@@ -109,8 +109,19 @@ export const PERSONAL_DATA_ERROR_MESSAGES = {
     "Erase Personal Data did not reach every copy. Retry after confirming GitHub identity again.",
   preview_required:
     "Review the preview of this person package before exporting it.",
+  tombstone_incomplete:
+    "Security Redaction removed the shared copies, but the Contact's own records were not fully cleared. Confirm GitHub identity again and retry Erase Personal Data.",
 } as const;
 export type PersonalDataErrorCode = keyof typeof PERSONAL_DATA_ERROR_MESSAGES;
+
+export function isPersonalDataErrorCode(
+  value: unknown,
+): value is PersonalDataErrorCode {
+  return (
+    typeof value === "string" &&
+    Object.hasOwn(PERSONAL_DATA_ERROR_MESSAGES, value)
+  );
+}
 
 export class PersonalDataError extends Error {
   readonly code: PersonalDataErrorCode;
@@ -135,7 +146,6 @@ export interface PersonalDataSnapshot {
   evidence: Array<{
     createdAt: string;
     id: string;
-    interpretation: string | null;
     role: string;
     sourceRecordId: string;
     targetRecordId: string;
@@ -217,6 +227,12 @@ export interface PersonalDataTombstoneCounts {
 
 export interface PersonalDataEraseResult {
   contactId: string;
+  /**
+   * Personal values longer than the 78 limit. They were not handed to
+   * Security Redaction, so copies outside the Contact's own records are not
+   * cleaned for them. Count only, never a value.
+   */
+  notRedacted: number;
   /** Per spread target outcome of Security Redaction, counts only. */
   removal: SecurityRedactionTargetOutcome[];
   status: "erased";

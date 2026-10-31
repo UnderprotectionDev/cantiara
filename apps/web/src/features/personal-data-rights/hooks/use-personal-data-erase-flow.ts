@@ -1,9 +1,10 @@
-import type {
-  PersonalDataErasePreview,
-  PersonalDataEraseResult,
+import {
+  ERASE_PERSONAL_DATA_LABEL,
+  type PersonalDataErasePreview,
+  type PersonalDataEraseResult,
 } from "@cantiara/api/personal-data-rights";
 import { useState } from "react";
-import { personalDataRefusalMessage } from "../lib/personal-data-refusal";
+import { usePersonalDataAction } from "./use-personal-data-action";
 
 /**
  * The Erase Personal Data review state. The impact preview comes first, the
@@ -22,9 +23,8 @@ export function usePersonalDataEraseFlow({
   ) => Promise<PersonalDataEraseResult>;
   onPreview: (contactId: string) => Promise<PersonalDataErasePreview>;
 }) {
-  const [pending, setPending] = useState(false);
-  const [identityPending, setIdentityPending] = useState(false);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const main = usePersonalDataAction(ERASE_PERSONAL_DATA_LABEL);
+  const identity = usePersonalDataAction(ERASE_PERSONAL_DATA_LABEL);
   const [preview, setPreview] = useState<PersonalDataErasePreview | null>(null);
   const [grant, setGrant] = useState<string | null>(null);
   const [result, setResult] = useState<PersonalDataEraseResult | null>(null);
@@ -33,49 +33,37 @@ export function usePersonalDataEraseFlow({
     setPreview(null);
     setGrant(null);
     setResult(null);
-    setRefusal(null);
+    main.setRefusal(null);
+    identity.setRefusal(null);
   }
 
   async function review(contactId: string) {
     reset();
-    setPending(true);
-    try {
+    await main.run(async () => {
       setPreview(await onPreview(contactId));
-    } catch (error) {
-      setRefusal(personalDataRefusalMessage(error, "Erase Personal Data"));
-    } finally {
-      setPending(false);
-    }
+    });
   }
 
   async function confirmIdentity() {
-    setIdentityPending(true);
-    setRefusal(null);
-    try {
+    main.setRefusal(null);
+    await identity.run(async () => {
       setGrant(await onConfirmIdentity());
-    } catch (error) {
-      setRefusal(personalDataRefusalMessage(error, "Erase Personal Data"));
-    } finally {
-      setIdentityPending(false);
-    }
+    });
   }
 
   async function erase(typedName: string) {
     if (!(preview && grant)) {
       return;
     }
-    setPending(true);
-    setRefusal(null);
-    try {
-      setResult(await onErase(preview, { grant, typedName }));
-      setPreview(null);
-    } catch (error) {
-      setRefusal(personalDataRefusalMessage(error, "Erase Personal Data"));
-    } finally {
+    identity.setRefusal(null);
+    await main.run(
+      async () => {
+        setResult(await onErase(preview, { grant, typedName }));
+        setPreview(null);
+      },
       // A grant is single-use: a refused or failed erase needs a fresh one.
-      setGrant(null);
-      setPending(false);
-    }
+      () => setGrant(null),
+    );
   }
 
   return {
@@ -83,10 +71,10 @@ export function usePersonalDataEraseFlow({
     confirmIdentity,
     erase,
     grant,
-    identityPending,
-    pending,
+    identityPending: identity.pending,
+    pending: main.pending,
     preview,
-    refusal,
+    refusal: main.refusal ?? identity.refusal,
     result,
     review,
   };

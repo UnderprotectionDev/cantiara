@@ -7,6 +7,7 @@ import {
   PERSONAL_DATA_ERROR_MESSAGES,
   type PersonalDataErasePreviewInput,
   PersonalDataError,
+  type PersonalDataErrorCode,
   type PersonalDataPreviewInput,
   type PersonalDataProduceInput,
 } from "./personal-data-rights";
@@ -31,19 +32,24 @@ function requirePersonalDataRights(context: Context) {
   return context.personalDataRights;
 }
 
-function refusalStatus(code: PersonalDataError["code"]) {
-  if (code === "contact_not_found") {
-    return "NOT_FOUND";
-  }
-  return code === "grant_rejected" ? "FORBIDDEN" : "BAD_REQUEST";
-}
+const REFUSAL_STATUS: Record<
+  PersonalDataErrorCode,
+  "BAD_REQUEST" | "FORBIDDEN" | "INTERNAL_SERVER_ERROR" | "NOT_FOUND"
+> = {
+  contact_not_found: "NOT_FOUND",
+  grant_rejected: "FORBIDDEN",
+  name_mismatch: "BAD_REQUEST",
+  preview_required: "BAD_REQUEST",
+  spread_incomplete: "BAD_REQUEST",
+  tombstone_incomplete: "INTERNAL_SERVER_ERROR",
+};
 
 async function personalDataRefusal<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (error) {
     if (error instanceof PersonalDataError) {
-      throw new ORPCError(refusalStatus(error.code), {
+      throw new ORPCError(REFUSAL_STATUS[error.code], {
         cause: error,
         data: { code: error.code },
         defined: true,

@@ -1,10 +1,11 @@
-import type {
-  PersonalDataArtifact,
-  PersonalDataFormat,
-  PersonalDataPreview,
+import {
+  EXPORT_PERSONAL_DATA_LABEL,
+  type PersonalDataArtifact,
+  type PersonalDataFormat,
+  type PersonalDataPreview,
 } from "@cantiara/api/personal-data-rights";
 import { useState } from "react";
-import { personalDataRefusalMessage } from "../lib/personal-data-refusal";
+import { usePersonalDataAction } from "./use-personal-data-action";
 
 /**
  * The Export Personal Data review state. The preview comes first and nothing
@@ -20,38 +21,27 @@ export function usePersonalDataFlow({
     format: PersonalDataFormat,
   ) => Promise<PersonalDataArtifact>;
 }) {
-  const [pending, setPending] = useState(false);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const { pending, refusal, run, setRefusal } = usePersonalDataAction(
+    EXPORT_PERSONAL_DATA_LABEL,
+  );
   const [preview, setPreview] = useState<PersonalDataPreview | null>(null);
   const [produced, setProduced] = useState<PersonalDataArtifact | null>(null);
 
   async function review(contactId: string) {
-    setPending(true);
-    setRefusal(null);
     setProduced(null);
     setPreview(null);
-    try {
+    await run(async () => {
       setPreview(await onPreview(contactId));
-    } catch (error) {
-      setRefusal(personalDataRefusalMessage(error));
-    } finally {
-      setPending(false);
-    }
+    });
   }
 
   async function confirm(format: PersonalDataFormat) {
     if (!preview) {
       return;
     }
-    setPending(true);
-    setRefusal(null);
-    try {
+    await run(async () => {
       setProduced(await onProduce(preview, format));
-    } catch (error) {
-      setRefusal(personalDataRefusalMessage(error));
-    } finally {
-      setPending(false);
-    }
+    });
   }
 
   return {

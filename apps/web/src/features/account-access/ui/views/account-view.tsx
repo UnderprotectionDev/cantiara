@@ -1,4 +1,5 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
+import { EXPORT_PERSONAL_DATA_LABEL } from "@cantiara/api/personal-data-rights";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
@@ -25,7 +26,7 @@ export default function AccountView({ accountId }: { accountId: string }) {
       <ExtensionLinksSection formattingPreferences={formattingPreferences} />
       <p className="text-sm">
         <Link className="underline" to="/account/personal-data">
-          Export Personal Data
+          {EXPORT_PERSONAL_DATA_LABEL}
         </Link>
       </p>
     </main>

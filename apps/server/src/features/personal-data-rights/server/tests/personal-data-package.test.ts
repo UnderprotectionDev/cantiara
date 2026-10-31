@@ -26,7 +26,6 @@ function snapshot(
       {
         createdAt: "2026-03-01T00:00:00.000Z",
         id: "evidence-1",
-        interpretation: "Shows the export need",
         role: "Supporting",
         sourceRecordId: "feedback-1",
         targetRecordId: "decision-1",
@@ -46,7 +45,36 @@ function snapshot(
     ],
     research: [
       {
-        data: { consent: "Allowed", title: "Interview", sessionToken: "abc" },
+        data: {
+          channel: "Video",
+          consent: "Allowed",
+          content: [
+            {
+              consentAtCapture: "Allowed",
+              content: {
+                id: "n1",
+                kind: "Participant quote",
+                speakerLabel: "Ada",
+                text: "I want my data back",
+              },
+            },
+            {
+              consentAtCapture: "Allowed",
+              content: {
+                id: "n2",
+                kind: "Founder interpretation",
+                text: "Grace Hopper said the opposite",
+              },
+            },
+          ],
+          facilitator: "Grace Hopper",
+          participantContactId: "contact-ada",
+          purpose: "Compare with Grace Hopper's interview",
+          scopeNote: "Also ask about Alan Turing",
+          sessionToken: "abc",
+          status: "Completed",
+          title: "Interview",
+        },
         id: "research-1",
         title: "Interview",
       },
@@ -134,8 +162,53 @@ describe("Personal Data Rights: Export Personal Data", () => {
       "Please let me export my data.",
     );
     expect(artifact.bytes).not.toContain("sessionToken");
-    expect(artifact.secretsExcluded).toContain("sessionToken");
     expect(artifact.mediaType).toBe("application/json");
+  });
+
+  test("Research keeps what concerns the Contact and drops other people", async () => {
+    const { access } = rights();
+    const preview = await access.preview("account-1", {
+      contactId: "contact-ada",
+    });
+    for (const format of ["JSON", "Markdown"] as const) {
+      // biome-ignore lint/performance/noAwaitInLoops: two formats, in order.
+      const artifact = await access.produce("account-1", {
+        contactId: "contact-ada",
+        format,
+        previewFingerprint: preview.fingerprint,
+      });
+      expect(artifact.bytes).toContain("I want my data back");
+      for (const other of [
+        "Grace Hopper",
+        "Alan Turing",
+        "facilitator",
+        "purpose",
+        "participantContactId",
+      ]) {
+        expect(artifact.bytes).not.toContain(other);
+      }
+    }
+  });
+
+  test("evidence interpretation text, which may name others, is not packaged", async () => {
+    const base = snapshot();
+    const { access } = rights({
+      ...base,
+      evidence: base.evidence.map((item) => ({
+        ...item,
+        interpretation: "Grace Hopper disagreed",
+      })),
+    } as PersonalDataSnapshot);
+    const preview = await access.preview("account-1", {
+      contactId: "contact-ada",
+    });
+    const artifact = await access.produce("account-1", {
+      contactId: "contact-ada",
+      format: "JSON",
+      previewFingerprint: preview.fingerprint,
+    });
+    expect(artifact.bytes).not.toContain("Grace Hopper");
+    expect(artifact.bytes).toContain("evidence-1");
   });
 
   test("a credential inside a Feedback message is removed", async () => {

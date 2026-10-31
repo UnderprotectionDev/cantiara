@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 // biome-ignore-all lint/performance/noJsxPropsBind: Test handlers are inline doubles.
-import type {
-  PersonalDataErasePreview,
-  PersonalDataPreview,
+import {
+  ERASE_PERSONAL_DATA_LABEL,
+  EXPORT_PERSONAL_DATA_LABEL,
+  type PersonalDataErasePreview,
+  type PersonalDataPreview,
 } from "@cantiara/api/personal-data-rights";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
@@ -86,9 +88,20 @@ describe("Export Personal Data view", () => {
 
   test("a refusal code shows its stable message", () => {
     expect(
-      personalDataRefusalMessage({ data: { code: "preview_required" } }),
+      personalDataRefusalMessage(
+        { data: { code: "preview_required" } },
+        EXPORT_PERSONAL_DATA_LABEL,
+      ),
     ).toContain("Review the preview");
-    expect(personalDataRefusalMessage(new Error("x"))).toContain("Try again");
+    expect(
+      personalDataRefusalMessage(new Error("x"), ERASE_PERSONAL_DATA_LABEL),
+    ).toContain("Erase Personal Data could not be completed");
+    expect(
+      personalDataRefusalMessage(
+        { data: { code: "tombstone_incomplete" } },
+        ERASE_PERSONAL_DATA_LABEL,
+      ),
+    ).toContain("not fully cleared");
   });
 
   test("erase review lists impact and copies, and gates on grant plus typed Account name", () => {

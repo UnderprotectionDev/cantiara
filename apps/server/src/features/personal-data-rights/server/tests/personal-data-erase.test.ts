@@ -12,6 +12,7 @@ import {
   SecurityRedactionTypedNameMismatchError,
 } from "@cantiara/api/security-redaction";
 import { describe, expect, test } from "vitest";
+import { contentFreeSession, personalValues } from "../personal-data-erase";
 import { createPersonalDataRights } from "../personal-data-package";
 
 const ACCOUNT = { accountId: "account-1", accountName: "Mert Demirkaya" };
@@ -50,7 +51,15 @@ const PUBLISHED_COPY: SecurityRedactionLocator = {
   recordKind: "External Surface",
 };
 
-function setup({ grants = ["grant-1"] }: { grants?: string[] } = {}) {
+function setup({
+  grants = ["grant-1"],
+  failTombstone = false,
+  read = snapshot,
+}: {
+  failTombstone?: boolean;
+  grants?: string[];
+  read?: () => PersonalDataSnapshot;
+} = {}) {
   const writes: string[] = [];
   const spreadRequests: SecurityRedactionRequest[] = [];
   const events: { reason: string; scope: string }[] = [];
@@ -107,7 +116,7 @@ function setup({ grants = ["grant-1"] }: { grants?: string[] } = {}) {
   const access = createPersonalDataRights(
     {
       read: (_accountId, contactId) =>
-        Promise.resolve(contactId === "contact-ada" ? snapshot() : null),
+        Promise.resolve(contactId === "contact-ada" ? read() : null),
     },
     {
       audit: {
@@ -118,6 +127,9 @@ function setup({ grants = ["grant-1"] }: { grants?: string[] } = {}) {
       },
       eraser: {
         tombstone: (_accountId, contactId, values) => {
+          if (failTombstone) {
+            return Promise.reject(new Error("db down"));
+          }
           writes.push("tombstone");
           tombstones.push({ contactId, values });
           return Promise.resolve({
@@ -378,5 +390,108 @@ describe("Personal Data Rights: Erase Personal Data", () => {
       empty.erase(ACCOUNT, input, harness.consume),
     ).resolves.toMatchObject({ status: "erased" });
     expect(harness.writes).toEqual(["tombstone"]);
+  });
+
+  test("a tombstone failure after Security Redaction is a named refusal, not silent", async () => {
+    const harness = setup({ failTombstone: true });
+    await expect(erase(harness)).rejects.toMatchObject({
+      code: "tombstone_incomplete",
+    });
+    expect(harness.writes).toContain("spread");
+    expect(harness.audit).toEqual([]);
+  });
+
+  test("a message over the 78 limit is reported as not redacted, never silently dropped", async () => {
+    const long = "x".repeat(4097);
+    const harness = setup({
+      read: () => {
+        const base = snapshot();
+        return {
+          ...base,
+          feedback: base.feedback.map((item) => ({
+            ...item,
+            originalMessage: long,
+          })),
+        };
+      },
+    });
+    const preview = await harness.access.previewErase(ACCOUNT, {
+      contactId: "contact-ada",
+    });
+    expect(preview.notices.join(" ")).toContain(
+      "longer than Security Redaction accepts",
+    );
+    const result = await erase(harness);
+    expect(result.notRedacted).toBe(1);
+    expect(
+      harness.spreadRequests.some((request) => request.sensitiveValue === long),
+    ).toBe(false);
+    expect(JSON.stringify(result)).not.toContain(long);
+    expect(personalValues(snapshot()).oversized).toBe(0);
+  });
+
+  test("the result reports removed published copies and cache cleanup counts from 78", async () => {
+    const result = await erase(setup());
+    expect(result.notRedacted).toBe(0);
+    expect(result.removal).toEqual(
+      expect.arrayContaining([
+        { copies: 3, kind: "external-surface-snapshot", status: "removed" },
+        { copies: 3, kind: "cache", status: "removed" },
+      ]),
+    );
+  });
+
+  test("Contact and Feedback are not restorable: 78 is the only removal path and Trash is never written", async () => {
+    const harness = setup();
+    await erase(harness);
+    // Only Security Redaction events, its spread and the one tombstone write;
+    // no move, no Trash row, no restore point is created.
+    expect(new Set(harness.writes)).toEqual(
+      new Set(["event", "spread", "tombstone"]),
+    );
+    expect(
+      harness.events.every((event) => event.reason === "Erase Personal Data"),
+    ).toBe(true);
+    expect(harness.tombstones).toHaveLength(1);
+  });
+
+  test("the Research tombstone marks every note and free-text field of the participation", () => {
+    const data = {
+      consentNote: "Grace asked to keep it quiet",
+      content: [
+        {
+          consentAtCapture: "Allowed",
+          content: {
+            id: "n1",
+            kind: "Participant quote",
+            speakerLabel: "Ada",
+            text: "my words",
+          },
+        },
+        {
+          consentAtCapture: "Allowed",
+          content: {
+            fileId: "f1",
+            fileVersionId: "v1",
+            id: "n2",
+            kind: "File Attachment",
+          },
+        },
+      ],
+      participantContactId: "contact-ada",
+      revision: 4,
+      scopeNote: "Ada Lovelace only",
+      status: "Completed",
+      title: "Interview with Ada Lovelace",
+    };
+    const erased = JSON.stringify(contentFreeSession(data, ["Ada Lovelace"]));
+    for (const text of ["Grace asked", "my words", "Ada Lovelace", '"Ada"']) {
+      expect(erased).not.toContain(text);
+    }
+    const parsed = JSON.parse(erased);
+    expect(parsed.revision).toBe(4);
+    expect(parsed.participantContactId).toBe("contact-ada");
+    expect(parsed.content[0].content.kind).toBe("Participant quote");
+    expect(parsed.content[1].content.fileId).toBe("f1");
   });
 });

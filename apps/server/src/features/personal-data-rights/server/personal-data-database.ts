@@ -113,7 +113,6 @@ export function createDatabasePersonalDataReader(
             .select({
               createdAt: evidenceBinding.createdAt,
               id: evidenceBinding.id,
-              interpretation: evidenceBinding.interpretation,
               role: evidenceBinding.role,
               sourceRecordId: evidenceBinding.sourceRecordId,
               targetRecordId: evidenceBinding.targetRecordId,

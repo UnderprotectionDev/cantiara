@@ -5,7 +5,6 @@ import type {
 } from "@cantiara/api/personal-data-rights";
 import {
   REDACTED_VALUE_MARK,
-  redactJson,
   redactText,
 } from "@cantiara/api/security-redaction";
 import type { Database } from "@cantiara/db";
@@ -22,6 +21,7 @@ import { researchSession } from "@cantiara/db/schema/research-session";
 import { securityEvent } from "@cantiara/db/schema/security-event";
 import type { SecurityEventDatabase } from "@cantiara/db/security-events";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
+import { contentFreeSession } from "./personal-data-erase";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -111,10 +111,7 @@ async function tombstoneResearch(
       ),
     );
   for (const session of sessions) {
-    let data: unknown = session.data;
-    for (const value of values) {
-      data = redactJson(data, value).value;
-    }
+    const data = contentFreeSession(session.data, values);
     await transaction
       .update(researchSession)
       .set({ data: data as typeof session.data })

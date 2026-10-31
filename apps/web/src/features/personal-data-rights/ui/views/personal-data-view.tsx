@@ -129,6 +129,9 @@ export function PersonalDataView({
           )
             ? ` ${PERSONAL_DATA_COPIES_REMOVED_LABEL}`
             : ""}
+          {erase.result.notRedacted > 0
+            ? ` ${erase.result.notRedacted} long original ${erase.result.notRedacted === 1 ? "message was" : "messages were"} not searched for in shared copies.`
+            : ""}
         </p>
       ) : null}
       <p aria-live="polite" className="sr-only">
