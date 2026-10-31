@@ -41,6 +41,7 @@ import type {
   MoodboardsAccess,
 } from "./moodboards";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
+import type { PersonalDataRightsAccess } from "./personal-data-rights";
 import type { PersonalRemindersAccess } from "./personal-reminders";
 import type { PlannedTestsAccess } from "./planned-tests";
 import type {
@@ -230,6 +231,7 @@ export interface Context {
   moodboardSnapshots?: MoodboardSnapshotsAccess;
   moodboards?: MoodboardsAccess;
   mutationContract?: MutationContract<MutationPayload>;
+  personalDataRights?: PersonalDataRightsAccess;
   personalReminders?: PersonalRemindersAccess;
   plannedTests?: PlannedTestsAccess;
   prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;

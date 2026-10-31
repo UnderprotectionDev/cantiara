@@ -113,6 +113,8 @@ import { createDatabaseMoodboardPersonalViews } from "./features/moodboards/serv
 import { createDatabaseMoodboardSnapshots } from "./features/moodboards/server/moodboard-snapshots-database";
 import { createDatabaseMoodboards } from "./features/moodboards/server/moodboards-database";
 import { createDatabaseMoodboardMutationContracts } from "./features/moodboards/server/moodboards-mutation-database";
+import { createDatabasePersonalDataReader } from "./features/personal-data-rights/server/personal-data-database";
+import { createPersonalDataRights } from "./features/personal-data-rights/server/personal-data-package";
 import { createPersonalReminderWorker } from "./features/personal-reminders/server/personal-reminder-worker";
 import { createDatabasePersonalReminders } from "./features/personal-reminders/server/personal-reminders-database";
 import { createDatabasePlannedTests } from "./features/planned-tests/server/planned-tests-database";
@@ -410,6 +412,9 @@ export const trash = {
       (await projectShell.find(accountId, projectId))?.name ?? null,
   }),
 };
+export const personalDataRights = createPersonalDataRights(
+  createDatabasePersonalDataReader(db),
+);
 export const selectedExport = createDatabaseSelectedExport({
   db,
   smartCollections,

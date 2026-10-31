@@ -1714,6 +1714,10 @@ _Avoid_: Küresel otomatik failover, kesinti sonrası onay, herkese açık içer
 Hassas bir değeri güncel içerikten ve onu taşıyan bütün geçmiş revizyonlardan geri döndürülemez biçimde kaldıran, içeriksiz denetim izi bırakan güvenlik işlemi.
 _Avoid_: Normal düzenleme, çöp kutusu, kalıcı kayıt silme
 
+**Kişisel veri dışa aktarma**:
+Kurucunun tek bir Contact için o kişinin Contact kaydını, e-posta takma değerlerini, Geri Bildirimini, Araştırmasını ve ilişkili kanıtını kapalı dünya önizlemesinden sonra okunabilir JSON veya Markdown paketinde topladığı eylem; secret, oturum, başka Contact ve operatör günlüğü girmez, ürün içi restore biçimi değildir ([database-first güvenlik tabanı](docs/prd/13-data-security-and-portability.md#database-first-guvenlik-tabani)). UI: `Export Personal Data`.
+_Avoid_: Çalışma Alanı çıkış paketi, Hesap kapatma arşivi, Seçili kayıt dışa aktarma, restore paketi, CRM dışa aktarma
+
 **Geri döndürülemez güvenlik olay günlüğü**:
 Bir restore sonrasında yedekten daha yeni güvenlik kararlarını yeniden uygulamak için [ayrı korunan sürümlü olay sınırı](docs/adr/0003-restore-guvenlik-olay-gunlugu.md).
 _Avoid_: Normal kayıt geçmişi, yalnız silme listesi, restore sonrası manuel kontrol listesi

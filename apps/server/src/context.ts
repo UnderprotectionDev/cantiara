@@ -53,6 +53,7 @@ import type {
   MutationContract,
   MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
+import type { PersonalDataRightsAccess } from "@cantiara/api/personal-data-rights";
 import type { PersonalRemindersAccess } from "@cantiara/api/personal-reminders";
 import type { PlannedTestsAccess } from "@cantiara/api/planned-tests";
 import type {
@@ -169,6 +170,7 @@ export interface CreateContextOptions {
   moodboardSnapshots?: MoodboardSnapshotsAccess;
   moodboards?: MoodboardsAccess;
   mutationContract?: MutationContract<MutationPayload>;
+  personalDataRights?: PersonalDataRightsAccess;
   personalReminders?: PersonalRemindersAccess;
   plannedTests?: PlannedTestsAccess;
   prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
@@ -323,6 +325,7 @@ export async function createContext({
   releaseEvidence,
   projectHistory,
   projectUpdates,
+  personalDataRights,
   selectedExport,
   trash,
   dataImport,
@@ -439,6 +442,7 @@ export async function createContext({
     releaseEvidence,
     projectHistory,
     projectUpdates,
+    personalDataRights,
     selectedExport,
     trash,
     dataImport,
