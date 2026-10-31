@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { contactLabel } from "@/features/contacts/lib/contact-label";
 import { orpc } from "@/utils/orpc";
 import {
+  usePersonalDataErase,
+  usePersonalDataErasePreview,
   usePersonalDataPreview,
   usePersonalDataProduce,
 } from "../../hooks/use-personal-data-requests";
@@ -13,6 +15,8 @@ export default function PersonalDataSurface() {
   const contacts = useQuery(orpc.contacts.queryOptions());
   const preview = usePersonalDataPreview();
   const produce = usePersonalDataProduce();
+  const previewErase = usePersonalDataErasePreview();
+  const erase = usePersonalDataErase();
 
   if (contacts.isPending) {
     return <p role="status">Loading {EXPORT_PERSONAL_DATA_LABEL}…</p>;
@@ -26,7 +30,10 @@ export default function PersonalDataSurface() {
         id: contact.id,
         label: contactLabel(contact),
       }))}
+      onConfirmIdentity={erase.confirmIdentity}
+      onErase={erase.erase}
       onPreview={preview}
+      onPreviewErase={previewErase}
       onProduce={produce}
     />
   );

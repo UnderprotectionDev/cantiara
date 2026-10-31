@@ -114,6 +114,10 @@ import { createDatabaseMoodboardSnapshots } from "./features/moodboards/server/m
 import { createDatabaseMoodboards } from "./features/moodboards/server/moodboards-database";
 import { createDatabaseMoodboardMutationContracts } from "./features/moodboards/server/moodboards-mutation-database";
 import { createDatabasePersonalDataReader } from "./features/personal-data-rights/server/personal-data-database";
+import {
+  createDatabasePersonalDataAudit,
+  createDatabasePersonalDataEraser,
+} from "./features/personal-data-rights/server/personal-data-erase-database";
 import { createPersonalDataRights } from "./features/personal-data-rights/server/personal-data-package";
 import { createPersonalReminderWorker } from "./features/personal-reminders/server/personal-reminder-worker";
 import { createDatabasePersonalReminders } from "./features/personal-reminders/server/personal-reminders-database";
@@ -412,9 +416,6 @@ export const trash = {
       (await projectShell.find(accountId, projectId))?.name ?? null,
   }),
 };
-export const personalDataRights = createPersonalDataRights(
-  createDatabasePersonalDataReader(db),
-);
 export const selectedExport = createDatabaseSelectedExport({
   db,
   smartCollections,
@@ -467,6 +468,22 @@ export const securityRedaction = createSecurityRedaction({
   },
   spread: securityRedactionSpread,
 });
+/**
+ * Personal Data Rights (spec 81): the person package and `Erase Personal Data`.
+ * Erase reaches every copy only through the Security Redaction interface above;
+ * the eraser tombstones the Contact's own records afterwards.
+ */
+export const personalDataRights = createPersonalDataRights(
+  createDatabasePersonalDataReader(db),
+  {
+    audit: createDatabasePersonalDataAudit({
+      actorAlias: accountActorAlias,
+      database: securityEventDb,
+    }),
+    eraser: createDatabasePersonalDataEraser(db),
+    redaction: securityRedaction,
+  },
+);
 /**
  * Re-applies logged redactions to a restored store before access opens. The
  * production trigger and log store belong to the access gate of spec 85.

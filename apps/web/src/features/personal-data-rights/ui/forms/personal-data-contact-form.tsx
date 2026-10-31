@@ -17,10 +17,12 @@ export function PersonalDataContactForm({
   contacts,
   disabled,
   onPreview,
+  onPreviewErase,
 }: {
   contacts: ReadonlyArray<{ id: string; label: string }>;
   disabled: boolean;
   onPreview: (contactId: string) => void;
+  onPreviewErase: (contactId: string) => void;
 }) {
   const [refusal, setRefusal] = useState<string | null>(null);
   const form = useForm({
@@ -72,9 +74,27 @@ export function PersonalDataContactForm({
           {refusal}
         </p>
       ) : null}
-      <Button disabled={disabled || contacts.length === 0} type="submit">
-        Preview package
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={disabled || contacts.length === 0} type="submit">
+          Preview package
+        </Button>
+        <Button
+          disabled={disabled || contacts.length === 0}
+          onClick={() => {
+            const { contactId } = form.state.values;
+            if (!contactId) {
+              setRefusal("Choose a Contact first.");
+              return;
+            }
+            setRefusal(null);
+            onPreviewErase(contactId);
+          }}
+          type="button"
+          variant="outline"
+        >
+          Preview erase
+        </Button>
+      </div>
     </form>
   );
 }

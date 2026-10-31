@@ -1,10 +1,14 @@
 // @vitest-environment happy-dom
 // biome-ignore-all lint/performance/noJsxPropsBind: Test handlers are inline doubles.
-import type { PersonalDataPreview } from "@cantiara/api/personal-data-rights";
+import type {
+  PersonalDataErasePreview,
+  PersonalDataPreview,
+} from "@cantiara/api/personal-data-rights";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { personalDataRefusalMessage } from "../../../lib/personal-data-refusal";
 import { PersonalDataPreviewPanel } from "../../components/personal-data-preview-panel";
+import { PersonalDataEraseForm } from "../../forms/personal-data-erase-form";
 import { PersonalDataView } from "../personal-data-view";
 
 const NAMES_OTHER_FLOWS = /exit package|close account|restore/i;
@@ -21,6 +25,30 @@ const preview: PersonalDataPreview = {
   ],
 };
 
+const SUBMIT_DISABLED = /<button type="submit"[^>]*disabled=""/;
+const NAMES_PASSWORD_OR_MFA = /password|mfa|two-factor|one-time code/i;
+
+const erasePreview: PersonalDataErasePreview = {
+  contactId: "c1",
+  contactLabel: "Ada Lovelace",
+  copies: [
+    {
+      kind: "external-surface-snapshot",
+      location: "snapshot",
+      recordId: "surface-1",
+      recordKind: "External Surface",
+    },
+  ],
+  fingerprint: "f",
+  notices: [
+    "Erasing is irreversible.",
+    "Special-category data is not a first-product data type.",
+  ],
+  notSearched: ["export-staging"],
+  sources: [{ items: [{ id: "c1", label: "Ada Lovelace" }], kind: "Contact" }],
+  typedNameTarget: { kind: "Account", name: "Mert" },
+};
+
 const never = () => Promise.reject(new Error("unused"));
 
 describe("Export Personal Data view", () => {
@@ -28,7 +56,10 @@ describe("Export Personal Data view", () => {
     const html = renderToStaticMarkup(
       <PersonalDataView
         contacts={[{ id: "c1", label: "Ada Lovelace" }]}
+        onConfirmIdentity={never}
+        onErase={never}
         onPreview={never}
+        onPreviewErase={never}
         onProduce={never}
       />,
     );
@@ -58,5 +89,29 @@ describe("Export Personal Data view", () => {
       personalDataRefusalMessage({ data: { code: "preview_required" } }),
     ).toContain("Review the preview");
     expect(personalDataRefusalMessage(new Error("x"))).toContain("Try again");
+  });
+
+  test("erase review lists impact and copies, and gates on grant plus typed Account name", () => {
+    const html = renderToStaticMarkup(
+      <PersonalDataEraseForm
+        busy={false}
+        grant={null}
+        identityPending={false}
+        onCancel={() => undefined}
+        onConfirmIdentity={() => undefined}
+        onErase={() => undefined}
+        preview={erasePreview}
+      />,
+    );
+    expect(html).toContain("Erase Personal Data");
+    expect(html).toContain("External Surface snapshot");
+    expect(html).toContain("Export staging");
+    expect(html).toContain("Special-category data");
+    expect(html).toContain("Confirm GitHub Identity");
+    expect(html).toContain("Type the Account name");
+    // Submit stays disabled without the grant.
+    expect(html).toMatch(SUBMIT_DISABLED);
+    expect(html).not.toMatch(NAMES_PASSWORD_OR_MFA);
+    expect(html).not.toMatch(NAMES_OTHER_FLOWS);
   });
 });

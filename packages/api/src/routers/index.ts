@@ -341,10 +341,14 @@ import {
   type MutationReceipt,
 } from "../mutation-and-undo";
 import {
+  erasePersonalDataInputSchema,
+  personalDataErasePreviewInputSchema,
   personalDataPreviewInputSchema,
   personalDataProduceInputSchema,
 } from "../personal-data-rights";
 import {
+  personalDataEraseHandler,
+  personalDataErasePreviewHandler,
   personalDataPreviewHandler,
   personalDataProduceHandler,
 } from "../personal-data-rights-handlers";
@@ -4976,6 +4980,14 @@ export const appRouter = {
     .handler(({ context, input }) =>
       personalDataProduceHandler(context, input),
     ),
+  previewPersonalDataErase: protectedProcedure
+    .input(personalDataErasePreviewInputSchema)
+    .handler(({ context, input }) =>
+      personalDataErasePreviewHandler(context, input),
+    ),
+  erasePersonalData: protectedProcedure
+    .input(erasePersonalDataInputSchema)
+    .handler(({ context, input }) => personalDataEraseHandler(context, input)),
   exportCatalog: protectedProcedure
     .input(exportCatalogInputSchema)
     .handler(({ context }) => exportCatalogHandler(context)),
