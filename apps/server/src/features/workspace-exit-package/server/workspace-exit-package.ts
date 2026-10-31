@@ -112,6 +112,17 @@ export function createWorkspaceExitPackage(deps: {
     async produce({ accountId, ...input }) {
       const parsed = produceExitPackageInputSchema.safeParse(input);
       if (!parsed.success) {
+        if (
+          parsed.error.issues.length > 0 &&
+          parsed.error.issues.every(
+            (issue) => issue.path[0] === "downloadWindowMs",
+          )
+        ) {
+          throw new ExitPackageError(
+            "invalid_download_window",
+            "The download window is a positive number of milliseconds.",
+          );
+        }
         throw new ExitPackageError(
           "invalid_password",
           "Enter a password of at least 12 characters.",

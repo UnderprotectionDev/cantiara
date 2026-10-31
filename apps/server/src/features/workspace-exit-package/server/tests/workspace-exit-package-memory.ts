@@ -3,7 +3,7 @@ import type { ExitPackageSuccess } from "@cantiara/api/workspace-exit-package";
 import type {
   ExitPackageStore,
   StoredExitPackage,
-} from "./workspace-exit-package";
+} from "../workspace-exit-package";
 
 /** In-process store: spec 82 ships the seam, the durable adapter comes with the product surface. */
 export function createMemoryExitPackageStore() {

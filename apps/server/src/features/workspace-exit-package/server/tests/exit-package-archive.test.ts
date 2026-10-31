@@ -166,6 +166,22 @@ describe("Workspace Exit Package archive", () => {
     );
   });
 
+  test("refuses a JSON source file that is not readable JSON as a typed error", () => {
+    expect(() =>
+      assembleExitPackage(
+        [
+          {
+            content: "{ not json",
+            family: "content",
+            kind: "json",
+            path: "content/broken.json",
+          },
+        ],
+        at,
+      ),
+    ).toThrow(ExitPackageError);
+  });
+
   test("round-trips through the published container layout and detects tampering", () => {
     const packed = packExitPackage(assembleExitPackage(fixture, at));
     const unpacked = unpackExitPackage(packed);

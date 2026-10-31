@@ -7,7 +7,7 @@ import { describe, expect, test } from "vitest";
 import { unpackExitPackage } from "../exit-package-archive";
 import { openExitPackage } from "../exit-package-envelope";
 import { createWorkspaceExitPackage } from "../workspace-exit-package";
-import { createMemoryExitPackageStore } from "../workspace-exit-package-memory";
+import { createMemoryExitPackageStore } from "./workspace-exit-package-memory";
 
 const password = "unique-pass-phrase-7731";
 const files: ExitSourceFile[] = [
@@ -85,6 +85,11 @@ describe("Workspace Exit Package production", () => {
     expect(await code(exit.produce({ accountId: "other", password }))).toBe(
       "source_unavailable",
     );
+    expect(
+      await code(
+        exit.produce({ accountId: "a1", downloadWindowMs: 0, password }),
+      ),
+    ).toBe("invalid_download_window");
   });
 
   test("download closes at expiry and on revoke", async () => {

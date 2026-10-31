@@ -67,8 +67,20 @@ function cleanFile(file: ExitSourceFile, removed: Set<string>): Uint8Array {
       ? file.content
       : decoder.decode(file.content);
   if (file.kind === "json") {
+    let value: unknown;
+    try {
+      value = JSON.parse(text);
+    } catch (error) {
+      throw Object.assign(
+        new ExitPackageError(
+          "package_unreadable",
+          "A JSON file meant for the package is not readable JSON.",
+        ),
+        { cause: error },
+      );
+    }
     return encoder.encode(
-      JSON.stringify(stripSecrets(JSON.parse(text), removed), null, 2),
+      JSON.stringify(stripSecrets(value, removed), null, 2),
     );
   }
   const lines = text.split("\n").map((line) => {
