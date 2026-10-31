@@ -1,5 +1,7 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
+import { EXPORT_PERSONAL_DATA_LABEL } from "@cantiara/api/personal-data-rights";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 
 import ExtensionLinksSection from "@/features/capture-triage/ui/components/extension-links-section";
 import { accountPreferencesQueryOptions } from "@/utils/orpc";
@@ -22,6 +24,11 @@ export default function AccountView({ accountId }: { accountId: string }) {
         formattingPreferences={formattingPreferences}
       />
       <ExtensionLinksSection formattingPreferences={formattingPreferences} />
+      <p className="text-sm">
+        <Link className="underline" to="/account/personal-data">
+          {EXPORT_PERSONAL_DATA_LABEL}
+        </Link>
+      </p>
     </main>
   );
 }

@@ -341,6 +341,18 @@ import {
   type MutationReceipt,
 } from "../mutation-and-undo";
 import {
+  erasePersonalDataInputSchema,
+  personalDataErasePreviewInputSchema,
+  personalDataPreviewInputSchema,
+  personalDataProduceInputSchema,
+} from "../personal-data-rights";
+import {
+  personalDataEraseHandler,
+  personalDataErasePreviewHandler,
+  personalDataPreviewHandler,
+  personalDataProduceHandler,
+} from "../personal-data-rights-handlers";
+import {
   cancelPersonalReminderInputSchema,
   cancelWorkReviewLaterInputSchema,
   createPersonalReminderInputSchema,
@@ -4958,6 +4970,24 @@ function requireExternalSurfaceManagement(context: Context) {
   return context.externalSurfaceManagement;
 }
 export const appRouter = {
+  previewPersonalDataExport: protectedProcedure
+    .input(personalDataPreviewInputSchema)
+    .handler(({ context, input }) =>
+      personalDataPreviewHandler(context, input),
+    ),
+  exportPersonalData: protectedProcedure
+    .input(personalDataProduceInputSchema)
+    .handler(({ context, input }) =>
+      personalDataProduceHandler(context, input),
+    ),
+  previewPersonalDataErase: protectedProcedure
+    .input(personalDataErasePreviewInputSchema)
+    .handler(({ context, input }) =>
+      personalDataErasePreviewHandler(context, input),
+    ),
+  erasePersonalData: protectedProcedure
+    .input(erasePersonalDataInputSchema)
+    .handler(({ context, input }) => personalDataEraseHandler(context, input)),
   exportCatalog: protectedProcedure
     .input(exportCatalogInputSchema)
     .handler(({ context }) => exportCatalogHandler(context)),

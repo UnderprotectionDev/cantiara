@@ -1,11 +1,18 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import { accountPreferencesQueryOptions, orpc } from "@/utils/orpc";
 
 import AccountView from "../account-view";
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to }: { children: ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
+}));
 
 describe("Sessions view", () => {
   test("exposes the accessible session journey without exposing a token", () => {
@@ -64,6 +71,8 @@ describe("Sessions view", () => {
     expect(html).toContain("Browser: Firefox");
     expect(html).toContain("Last use");
     expect(html).toContain("Revoke");
+    expect(html).toContain('href="/account/personal-data"');
+    expect(html).toContain("Export Personal Data");
     expect(html).not.toContain("session-secret");
     expect(html).not.toContain("extension-token");
   });
