@@ -9,6 +9,7 @@ import {
   useArchivedProjects,
   useDeletePreview,
   useDeleteProject,
+  useRestoreToArchive,
   useRetirementTransition,
 } from "../../hooks/use-project-retirement";
 import { ArchiveView } from "../views/archive-view";
@@ -22,6 +23,14 @@ export default function ArchiveSurface() {
   const [deleting, setDeleting] = useState<ArchivedProjectEntry | null>(null);
   const preview = useDeletePreview(deleting?.project.id ?? null);
   const remove = useDeleteProject();
+  const restore = useRestoreToArchive();
+
+  let errorMessage: string | null = null;
+  if (restore.isError) {
+    errorMessage = "Restore to Archive did not complete. Try again.";
+  } else if (transition.isError) {
+    errorMessage = "Unarchive did not complete. Try again.";
+  }
 
   return (
     <ArchiveView
@@ -49,12 +58,19 @@ export default function ArchiveSurface() {
           : null
       }
       error={archived.isError}
-      errorMessage={
-        transition.isError ? "Unarchive did not complete. Try again." : null
-      }
+      errorMessage={errorMessage}
       formatting={preferences.data ?? DEFAULT_ACCOUNT_PREFERENCES}
       loading={archived.isPending}
       onDelete={setDeleting}
+      onRestore={(entry: ArchivedProjectEntry) => {
+        if (entry.trash) {
+          restore.mutate({
+            baseRevision: entry.trash.baseRevision,
+            entryId: entry.trash.entryId,
+            projectId: entry.project.id,
+          });
+        }
+      }}
       onUnarchive={(entry: ArchivedProjectEntry) =>
         transition.mutate({
           action: "unarchive",
@@ -63,7 +79,8 @@ export default function ArchiveSurface() {
         })
       }
       pendingProjectId={
-        transition.isPending ? transition.variables?.projectId : null
+        (restore.isPending ? restore.variables?.projectId : null) ??
+        (transition.isPending ? transition.variables?.projectId : null)
       }
       projects={archived.data?.projects ?? []}
     />

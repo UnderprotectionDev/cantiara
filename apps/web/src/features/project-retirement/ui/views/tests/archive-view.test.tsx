@@ -26,6 +26,7 @@ const entry: ArchivedProjectEntry = {
     shortCode: "ATL",
     status: "Completed",
   },
+  trash: null,
   securityActions: [
     {
       action: "surface-revoke",
@@ -134,6 +135,39 @@ describe("Archive view", () => {
     expect(html).toContain("acme/atlas");
     expect(html).toContain("In Trash");
     expect(html).toContain("does not republish");
+    expect(html).not.toContain("Keep approved surface");
+  });
+
+  test("marks a Project in Trash, offers Restore to Archive and hides Unarchive and Delete Project", () => {
+    const trashed: ArchivedProjectEntry = {
+      ...entry,
+      trash: {
+        baseRevision: 3,
+        entryId: "e1",
+        expiresAt: "2026-12-02T00:00:00.000Z",
+        groupId: "g1",
+        mark: "In Trash",
+        trashedAt: "2026-11-02T00:00:00.000Z",
+      },
+    };
+    const html = renderToStaticMarkup(
+      <ArchiveView
+        error={false}
+        loading={false}
+        onDelete={() => undefined}
+        onRestore={() => undefined}
+        onUnarchive={() => undefined}
+        projects={[trashed]}
+      />,
+    );
+    expect(html).toContain("In Trash");
+    expect(html).toContain("Restore to Archive");
+    expect(html).toContain(
+      "Restoring returns the Project to Archive. No surface is republished and GitHub stays disconnected.",
+    );
+    expect(html).toContain("Republishing requires a new approval.");
+    expect(html).not.toContain("Delete Project");
+    expect(html).not.toContain(">Unarchive<");
     expect(html).not.toContain("Keep approved surface");
   });
 

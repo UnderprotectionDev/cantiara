@@ -44,6 +44,7 @@ Kurucu Projeyi Arşiv görünümüne alır: salt okunur, hareketsiz; GitHub eşi
 - **Seam (one).** Project Retirement. Trash, External Surface revoke, GitHub reconnect are adapters.
 - **Modules under test.** Project Retirement only. 77 clock and 14 revoke are doubles. Account closure is a counterpart (unauthorized as Project delete).
 - **Prior art.** Trash move/restore tests on 77. Synthetic [Proje silme ve dış yüzey](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari).
+- **Restore and Trash marker.** Restore is `restoreProjectToArchive` on the Project Retirement seam over a stateful Trash double: same identities back, the archive column never written, no surface/token/GitHub port called, stale base revision restores nothing, same key replays. A Project whose group waits in Trash stays archived and is marked `In Trash` in the Archive view (derived from the Trash overview, no Project Trash kind or column); `Delete Project` and `Unarchive` are refused for it (`project_in_trash`) and `Restore to Archive` is offered.
 - **Required counterparts.** Archive ≠ Trash; restore ≠ republish; `Keep approved surface` forbidden; children not independently deletable; GitHub not implicit.
 
 ## Out of Scope

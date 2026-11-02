@@ -100,7 +100,11 @@ function build(initial: RetirementProject, rows: SurfaceRow[] = [surface()]) {
       relations: () => Promise.resolve([]),
       revokeSurface: () => Promise.resolve(null),
     },
-    trash: { moveGroup: () => Promise.resolve(null) },
+    trash: {
+      moveGroup: () => Promise.resolve(null),
+      overview: () => Promise.resolve({ entries: [], retentionDays: 30 }),
+      restore: () => Promise.resolve(null),
+    },
     inFlight: () =>
       Promise.resolve([{ kind: "Import" as const, state: "Applying" }]),
     integrations: () =>
@@ -247,7 +251,10 @@ describe("Archive view", () => {
     const text = JSON.stringify(await retirement.list(ACCOUNT));
     expect(text).not.toContain("Delete Project");
     expect(text).not.toContain("Keep approved surface");
-    expect(text.toLowerCase()).not.toContain("trash");
+    // Only the explicit "not in Trash" marker (`trash: null`) may appear.
+    expect(text.toLowerCase().replace('"trash":null', "")).not.toContain(
+      "trash",
+    );
   });
 });
 

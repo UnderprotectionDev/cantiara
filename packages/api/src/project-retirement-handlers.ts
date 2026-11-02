@@ -9,6 +9,7 @@ import {
   type PreviewDeleteProjectInput,
   ProjectRetirementError,
   type ProjectRetirementErrorCode,
+  type RestoreProjectToArchiveInput,
   type UnarchiveProjectInput,
 } from "./project-retirement";
 
@@ -35,6 +36,8 @@ const REFUSAL_STATUS: Record<
   already_archived: "CONFLICT",
   empty_delete_group: "CONFLICT",
   not_archived: "CONFLICT",
+  not_in_trash: "CONFLICT",
+  project_in_trash: "CONFLICT",
   project_archived: "CONFLICT",
   project_not_found: "NOT_FOUND",
 };
@@ -66,6 +69,13 @@ function refusal(error: unknown): never {
       data: { code: String(error.code) },
       defined: true,
       message: "Conflict",
+    });
+  }
+  if (error.code === "TRASH_RESTORE_CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: "TRASH_RESTORE_CONFLICT" },
+      defined: true,
+      message: "Restore needs a decision. Nothing was rebound.",
     });
   }
   if (error.code === "TRASH_KEEP_SURFACE_NOT_ALLOWED") {
@@ -146,6 +156,18 @@ export function deleteProjectHandler(
 ) {
   return guarded(() =>
     requireProjectRetirement(context).deleteProject(
+      context.session.user.id,
+      input,
+    ),
+  );
+}
+
+export function restoreProjectToArchiveHandler(
+  context: RetirementHandlerContext,
+  input: RestoreProjectToArchiveInput,
+) {
+  return guarded(() =>
+    requireProjectRetirement(context).restoreToArchive(
       context.session.user.id,
       input,
     ),

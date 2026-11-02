@@ -21,13 +21,20 @@ import {
   deleteProjectInputSchema,
   type InFlightWork,
   type LivingRelation,
+  PROJECT_IN_TRASH_MARK,
   type PreviewArchiveProjectInput,
   type PreviewDeleteProjectInput,
   type ProjectRetirementAccess,
   ProjectRetirementError,
+  type ProjectTrash,
   previewArchiveProjectInputSchema,
   previewDeleteProjectInputSchema,
+  REPUBLISH_APPROVAL_NOTICE,
+  RESTORE_TO_ARCHIVE_RESULT,
+  type RestoredProject,
+  type RestoreProjectToArchiveInput,
   type RetirementProject,
+  restoreProjectToArchiveInputSchema,
   type UnarchiveProjectInput,
   unarchiveProjectInputSchema,
 } from "@cantiara/api/project-retirement";
@@ -101,8 +108,12 @@ export interface ProjectRetirementPorts {
     accountId: string,
     projectId: string,
   ) => Promise<SurfaceRow[] | null>;
-  /** The 77 Trash clock; only the group move is used. */
-  trash: Pick<TrashAccess, "moveGroup">;
+  /**
+   * The 77 Trash clock: the group move, the overview that tells whether the
+   * group waits in Trash, and the group restore. No surface or GitHub port
+   * exists next to it, so a restore cannot republish or reconnect.
+   */
+  trash: Pick<TrashAccess, "moveGroup" | "overview" | "restore">;
 }
 
 function livingSurface(row: SurfaceRow): ArchivedSurface {
@@ -200,11 +211,42 @@ export function createProjectRetirement(
     if (!(archived || current.archivedAt)) {
       throw new ProjectRetirementError("not_archived");
     }
+    if (!archived) {
+      await notInTrash(accountId, input.projectId);
+    }
     const next = await store.transition(accountId, { ...input, archived });
     if (!next) {
       throw new ProjectRetirementError("project_not_found");
     }
     return next;
+  }
+
+  /** The Project's delete group in Trash, if any; one deterministic entry names it. */
+  async function projectTrash(
+    accountId: string,
+    projectId: string,
+  ): Promise<ProjectTrash | null> {
+    const overview = await ports.trash.overview(accountId, projectId);
+    const [entry] = (overview?.entries ?? [])
+      .filter((candidate) => candidate.groupId !== null)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    if (!entry?.groupId) {
+      return null;
+    }
+    return {
+      baseRevision: entry.revision,
+      entryId: entry.id,
+      expiresAt: entry.expiresAt,
+      groupId: entry.groupId,
+      mark: PROJECT_IN_TRASH_MARK,
+      trashedAt: entry.trashedAt,
+    };
+  }
+
+  async function notInTrash(accountId: string, projectId: string) {
+    if (await projectTrash(accountId, projectId)) {
+      throw new ProjectRetirementError("project_in_trash");
+    }
   }
 
   async function archivedProject(accountId: string, projectId: string) {
@@ -227,6 +269,7 @@ export function createProjectRetirement(
     ): Promise<DeletedProject> {
       const input = deleteProjectInputSchema.parse(raw);
       const current = await archivedProject(accountId, input.projectId);
+      await notInTrash(accountId, input.projectId);
       if (current.revision !== input.baseRevision) {
         throw Object.assign(new Error("stale"), {
           code: "STALE_BASE_REVISION",
@@ -278,6 +321,7 @@ export function createProjectRetirement(
     ): Promise<DeleteProjectPreview> {
       const input = previewDeleteProjectInputSchema.parse(raw);
       const project = await archivedProject(accountId, input.projectId);
+      await notInTrash(accountId, input.projectId);
       const [rows, integrations, group, relations] = await Promise.all([
         ports.surfaces(accountId, project.id),
         ports.integrations(accountId, project.id),
@@ -311,6 +355,7 @@ export function createProjectRetirement(
         archived.map(async (project) => ({
           githubNotice: ARCHIVE_GITHUB_NOTICE,
           project,
+          trash: await projectTrash(accountId, project.id),
           ...(await living(accountId, project)),
         })),
       );
@@ -344,6 +389,43 @@ export function createProjectRetirement(
         project,
         stops: [...ARCHIVE_STOPPED_ACTIVITIES],
         ...keep,
+      };
+    },
+
+    async restoreToArchive(
+      accountId,
+      raw: RestoreProjectToArchiveInput,
+    ): Promise<RestoredProject> {
+      const input = restoreProjectToArchiveInputSchema.parse(raw);
+      const current = await store.find(accountId, input.projectId);
+      if (!current) {
+        throw new ProjectRetirementError("project_not_found");
+      }
+      // A repeat of a finished restore finds no entry any more and replays
+      // through Trash's receipt; an entry that is no group member is no Project.
+      const overview = await ports.trash.overview(accountId, input.projectId);
+      const entry = overview?.entries.find(
+        (candidate) => candidate.id === input.entryId,
+      );
+      if (entry && entry.groupId === null) {
+        throw new ProjectRetirementError("not_in_trash");
+      }
+      const result = await ports.trash.restore(accountId, {
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        entryId: input.entryId,
+        projectId: input.projectId,
+      });
+      if (!result) {
+        throw new ProjectRetirementError("not_in_trash");
+      }
+      return {
+        githubNotice: ARCHIVE_GITHUB_NOTICE,
+        groupId: result.groupId,
+        notices: [RESTORE_TO_ARCHIVE_RESULT, REPUBLISH_APPROVAL_NOTICE],
+        projectId: result.projectId,
+        records: result.records,
+        restoredAt: result.restoredAt,
       };
     },
 
