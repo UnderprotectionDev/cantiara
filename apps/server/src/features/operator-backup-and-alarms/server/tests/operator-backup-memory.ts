@@ -101,6 +101,27 @@ export function createBackupWorld(start = new Date("2026-11-02T10:00:00Z")) {
     dropObject(key: string) {
       objects.delete(key);
     },
+    /** Permanent delete: the row and its original object both go. */
+    removeAttachment(key: string) {
+      rows.delete(key);
+      objects.delete(key);
+    },
+    rowRefs: (): ObjectRef[] => [...rows.values()],
+    storedRefs: (): ObjectRef[] =>
+      [...objects.values()].map(({ key, sha256, size }) => ({
+        key,
+        sha256,
+        size,
+      })),
+    /** Primary restore: rows and originals return to exactly these refs. */
+    resetPrimary(refs: readonly ObjectRef[]) {
+      rows.clear();
+      objects.clear();
+      for (const ref of refs) {
+        rows.set(ref.key, ref);
+        objects.set(ref.key, { ...ref, uploadedAt: new Date(clock.now) });
+      }
+    },
     store,
     verified,
   };
