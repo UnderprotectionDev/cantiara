@@ -143,6 +143,7 @@ import {
   createDatabaseInFlightWork,
   createDatabaseProjectRetirementStore,
 } from "./features/project-retirement/server/project-retirement-database";
+import { createDatabaseDeleteGroup } from "./features/project-retirement/server/project-retirement-delete-group-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "./features/project-source-records/server/project-source-records-database";
@@ -608,6 +609,11 @@ const retirementIntegrations = async (accountId: string, projectId: string) =>
     }),
   );
 export const projectRetirement = createProjectRetirement({
+  deleteGroup: createDatabaseDeleteGroup(db, {
+    revokeSurface: (accountId, surfaceId) =>
+      externalSurfaceManagement.remove(accountId, { surfaceId }),
+  }),
+  trash,
   inFlight: createDatabaseInFlightWork(db, {
     integrations: retirementIntegrations,
   }),

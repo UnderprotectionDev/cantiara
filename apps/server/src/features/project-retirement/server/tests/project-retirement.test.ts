@@ -95,6 +95,12 @@ function createStore(initial: RetirementProject) {
 function build(initial: RetirementProject, rows: SurfaceRow[] = [surface()]) {
   const fixture = createStore(initial);
   const retirement = createProjectRetirement({
+    deleteGroup: {
+      members: () => Promise.resolve([]),
+      relations: () => Promise.resolve([]),
+      revokeSurface: () => Promise.resolve(null),
+    },
+    trash: { moveGroup: () => Promise.resolve(null) },
     inFlight: () =>
       Promise.resolve([{ kind: "Import" as const, state: "Applying" }]),
     integrations: () =>

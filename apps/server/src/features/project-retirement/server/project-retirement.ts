@@ -11,15 +11,27 @@ import {
   type ArchiveSecurityActionItem,
   type ArchiveView,
   archiveProjectInputSchema,
+  DELETE_RESTORE_NOTICE,
+  DELETE_RETAINED_NOTICE,
+  DELETE_TRASH_NOTICE,
+  type DeletedProject,
+  type DeleteGroupMember,
+  type DeleteProjectInput,
+  type DeleteProjectPreview,
+  deleteProjectInputSchema,
   type InFlightWork,
+  type LivingRelation,
   type PreviewArchiveProjectInput,
+  type PreviewDeleteProjectInput,
   type ProjectRetirementAccess,
   ProjectRetirementError,
   previewArchiveProjectInputSchema,
+  previewDeleteProjectInputSchema,
   type RetirementProject,
   type UnarchiveProjectInput,
   unarchiveProjectInputSchema,
 } from "@cantiara/api/project-retirement";
+import type { TrashAccess, TrashRecordKind } from "@cantiara/api/trash";
 
 /** A GitHub link as the archive sees it: the connection state, nothing else. */
 export interface RetirementIntegration {
@@ -53,7 +65,29 @@ export interface ProjectRetirementStore {
   ) => Promise<RetirementProject | null>;
 }
 
+/**
+ * The Proje silme grubu as the Project knows it: the canonical main records,
+ * owned components and External Surfaces (never Workspace, Account or Personal
+ * Wiki records), the living relations from other scopes, and the terminal
+ * revoke of one External Surface (which also ends its visitor sessions).
+ */
+export interface RetirementDeleteGroupPort {
+  /** Members that are not yet in Trash, read after the surfaces are revoked. */
+  members: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<DeleteGroupMember[]>;
+  /** Living relations in other scopes that point into the group. */
+  relations: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<LivingRelation[]>;
+  /** Terminal revoke through the shared External Surface path; idempotent. */
+  revokeSurface: (accountId: string, surfaceId: string) => Promise<unknown>;
+}
+
 export interface ProjectRetirementPorts {
+  deleteGroup: RetirementDeleteGroupPort;
   /** Exact state of in-flight import, upload, automation and sync work. */
   inFlight: (accountId: string, projectId: string) => Promise<InFlightWork[]>;
   /** GitHub links of the Project; the archive only reads and never re-enables them. */
@@ -67,6 +101,8 @@ export interface ProjectRetirementPorts {
     accountId: string,
     projectId: string,
   ) => Promise<SurfaceRow[] | null>;
+  /** The 77 Trash clock; only the group move is used. */
+  trash: Pick<TrashAccess, "moveGroup">;
 }
 
 function livingSurface(row: SurfaceRow): ArchivedSurface {
@@ -171,8 +207,103 @@ export function createProjectRetirement(
     return next;
   }
 
+  async function archivedProject(accountId: string, projectId: string) {
+    const current = await store.find(accountId, projectId);
+    if (!current) {
+      throw new ProjectRetirementError("project_not_found");
+    }
+    if (!current.archivedAt) {
+      throw new ProjectRetirementError("not_archived");
+    }
+    return current;
+  }
+
   return {
     archive: (accountId, input) => transition(accountId, input, true),
+
+    async deleteProject(
+      accountId,
+      raw: DeleteProjectInput,
+    ): Promise<DeletedProject> {
+      const input = deleteProjectInputSchema.parse(raw);
+      const current = await archivedProject(accountId, input.projectId);
+      if (current.revision !== input.baseRevision) {
+        throw Object.assign(new Error("stale"), {
+          code: "STALE_BASE_REVISION",
+          currentRevision: current.revision,
+        });
+      }
+      // Terminal and access-reducing, so it comes first: an External Surface
+      // can enter Trash only once revoked, and a retry finds them revoked.
+      const rows = (await ports.surfaces(accountId, input.projectId)) ?? [];
+      const active = rows.filter((row) => row.status === "Active");
+      await Promise.all(
+        active.map((row) =>
+          ports.deleteGroup.revokeSurface(accountId, row.surfaceId),
+        ),
+      );
+      const members = await ports.deleteGroup.members(
+        accountId,
+        input.projectId,
+      );
+      if (members.length === 0) {
+        throw new ProjectRetirementError("empty_delete_group");
+      }
+      const entries = await ports.trash.moveGroup(accountId, {
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        members: members.map((member) => ({
+          baseRevision: member.baseRevision,
+          recordId: member.recordId,
+          recordKind: member.recordKind as TrashRecordKind,
+        })),
+        projectId: input.projectId,
+      });
+      const [first] = entries ?? [];
+      if (!(entries && first)) {
+        throw new ProjectRetirementError("project_not_found");
+      }
+      return {
+        expiresAt: first.expiresAt,
+        groupId: first.groupId,
+        projectId: input.projectId,
+        records: entries.length,
+        revokedSurfaceIds: active.map((row) => row.surfaceId),
+        trashedAt: first.trashedAt,
+      };
+    },
+
+    async previewDelete(
+      accountId,
+      raw: PreviewDeleteProjectInput,
+    ): Promise<DeleteProjectPreview> {
+      const input = previewDeleteProjectInputSchema.parse(raw);
+      const project = await archivedProject(accountId, input.projectId);
+      const [rows, integrations, group, relations] = await Promise.all([
+        ports.surfaces(accountId, project.id),
+        ports.integrations(accountId, project.id),
+        ports.deleteGroup.members(accountId, project.id),
+        ports.deleteGroup.relations(accountId, project.id),
+      ]);
+      const revokedSurfaces = (rows ?? [])
+        .filter((row) => row.status === "Active")
+        .map(livingSurface);
+      return {
+        group,
+        integrationsStop: integrations,
+        keepApprovedSurface: { available: false },
+        notices: [
+          DELETE_TRASH_NOTICE,
+          DELETE_RETAINED_NOTICE,
+          DELETE_RESTORE_NOTICE,
+        ],
+        project,
+        relations,
+        revokedSurfaces,
+        visitorSessionsEnd: revokedSurfaces.some(
+          (surface) => surface.visibility === "Link",
+        ),
+      };
+    },
 
     async list(accountId): Promise<ArchiveView> {
       const archived = await store.listArchived(accountId);

@@ -3,8 +3,10 @@ import { ORPCError } from "@orpc/server";
 import type { Context } from "./context";
 import {
   type ArchiveProjectInput,
+  type DeleteProjectInput,
   PROJECT_RETIREMENT_ERROR_MESSAGES,
   type PreviewArchiveProjectInput,
+  type PreviewDeleteProjectInput,
   ProjectRetirementError,
   type ProjectRetirementErrorCode,
   type UnarchiveProjectInput,
@@ -31,6 +33,7 @@ const REFUSAL_STATUS: Record<
   "BAD_REQUEST" | "CONFLICT" | "NOT_FOUND"
 > = {
   already_archived: "CONFLICT",
+  empty_delete_group: "CONFLICT",
   not_archived: "CONFLICT",
   project_archived: "CONFLICT",
   project_not_found: "NOT_FOUND",
@@ -54,6 +57,23 @@ function refusal(error: unknown): never {
   }
   if (error.code === "APPLY_FAILED" && error.cause) {
     refusal(error.cause);
+  }
+  if (
+    error.code === "TRASH_ALREADY_TRASHED" ||
+    error.code === "TRASH_SURFACE_NOT_REVOKED"
+  ) {
+    throw new ORPCError("CONFLICT", {
+      data: { code: String(error.code) },
+      defined: true,
+      message: "Conflict",
+    });
+  }
+  if (error.code === "TRASH_KEEP_SURFACE_NOT_ALLOWED") {
+    throw new ORPCError("BAD_REQUEST", {
+      data: { code: "TRASH_KEEP_SURFACE_NOT_ALLOWED" },
+      defined: true,
+      message: "Keep approved surface is not allowed when deleting a Project.",
+    });
   }
   if (error.code === "CONFLICT") {
     throw new ORPCError("CONFLICT", {
@@ -105,6 +125,30 @@ export function archiveProjectHandler(
 ) {
   return guarded(() =>
     requireProjectRetirement(context).archive(context.session.user.id, input),
+  );
+}
+
+export function previewDeleteProjectHandler(
+  context: RetirementHandlerContext,
+  input: PreviewDeleteProjectInput,
+) {
+  return guarded(() =>
+    requireProjectRetirement(context).previewDelete(
+      context.session.user.id,
+      input,
+    ),
+  );
+}
+
+export function deleteProjectHandler(
+  context: RetirementHandlerContext,
+  input: DeleteProjectInput,
+) {
+  return guarded(() =>
+    requireProjectRetirement(context).deleteProject(
+      context.session.user.id,
+      input,
+    ),
   );
 }
 

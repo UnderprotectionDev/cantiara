@@ -17,6 +17,31 @@ export function useArchivePreview(projectId: string, enabled: boolean) {
   );
 }
 
+/** The Delete Project preview; the server refuses a Project that is not archived. */
+export function useDeletePreview(projectId: string | null) {
+  return useQuery(
+    orpc.previewDeleteProject.queryOptions({
+      enabled: projectId !== null,
+      input: { projectId: projectId ?? "" },
+    }),
+  );
+}
+
+/** `Delete Project`: online only, never carries a surface disposition. */
+export function useDeleteProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { baseRevision: number; projectId: string }) =>
+      runOnlineOnlyWrite(() =>
+        client.deleteProject({
+          ...input,
+          clientIdempotencyKey: crypto.randomUUID(),
+        }),
+      ),
+    onSettled: () => queryClient.invalidateQueries(),
+  });
+}
+
 /**
  * `Archive Project` and `Unarchive`, online only, on the shared revision
  * barrier: the revision comes from the preview or the Archive view, and a

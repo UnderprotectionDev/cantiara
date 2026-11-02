@@ -7,8 +7,9 @@ import { describe, expect, test } from "vitest";
 import { createProjectRetirement } from "../project-retirement";
 
 const ACCOUNT = "account-1";
-const RETIREMENT_PROCEDURE = /archiveProject|ArchivedProjects|ArchiveProject/;
-const PROJECT_DELETE_PROCEDURE = /^(delete|trash|restore)Project$/i;
+const RETIREMENT_PROCEDURE =
+  /archiveProject|ArchivedProjects|ArchiveProject|^(preview)?(D|d)eleteProject$/;
+const PROJECT_DELETE_PROCEDURE = /^(trash|restore)Project$/i;
 
 function setup(authenticated = true) {
   let current: RetirementProject = {
@@ -20,6 +21,12 @@ function setup(authenticated = true) {
     status: "Abandoned",
   };
   const retirement = createProjectRetirement({
+    deleteGroup: {
+      members: () => Promise.resolve([]),
+      relations: () => Promise.resolve([]),
+      revokeSurface: () => Promise.resolve(null),
+    },
+    trash: { moveGroup: () => Promise.resolve(null) },
     inFlight: () => Promise.resolve([]),
     integrations: () => Promise.resolve([]),
     store: {
@@ -55,14 +62,16 @@ function setup(authenticated = true) {
 }
 
 describe("Project Retirement RPC seam", () => {
-  test("exposes archive, preview, list and unarchive, and no delete", () => {
+  test("exposes archive, delete-from-archive, preview, list and unarchive, and no Trash or restore shortcut", () => {
     const names = Object.keys(appRouter).filter((name) =>
       RETIREMENT_PROCEDURE.test(name),
     );
     expect(names.sort()).toEqual([
       "archiveProject",
+      "deleteProject",
       "listArchivedProjects",
       "previewArchiveProject",
+      "previewDeleteProject",
       "unarchiveProject",
     ]);
     expect(
@@ -70,6 +79,25 @@ describe("Project Retirement RPC seam", () => {
         PROJECT_DELETE_PROCEDURE.test(name),
       ),
     ).toBe(false);
+  });
+
+  test("answers delete of an Active Project as CONFLICT and rejects Keep approved surface", async () => {
+    const client = setup();
+    await expect(
+      client.deleteProject({
+        baseRevision: 0,
+        clientIdempotencyKey: "k-del",
+        projectId: "project-1",
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(
+      client.deleteProject({
+        baseRevision: 0,
+        clientIdempotencyKey: "k-keep",
+        projectId: "project-1",
+        surfaceDisposition: "keep",
+      } as never),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   test("archives, lists, and unarchives while the status stays Abandoned", async () => {
