@@ -202,10 +202,12 @@ describe("Project Retirement preview", () => {
     ]);
     expect(preview.securityActions.map((entry) => entry.action)).toEqual([
       "surface-revoke",
+      "security-redaction",
       "token-rotation",
       "session-end",
       "password-rotation",
       "integration-disconnect",
+      "integration-secret-rotation",
     ]);
     expect(preview.githubNotice).toBe(ARCHIVE_GITHUB_NOTICE);
     expect(writes).toEqual([]);

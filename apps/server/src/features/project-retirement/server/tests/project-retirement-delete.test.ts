@@ -64,7 +64,11 @@ const MEMBERS: DeleteGroupMember[] = [
   },
 ];
 
-function build(current: RetirementProject = project()) {
+function build(
+  current: RetirementProject = project(),
+  options: { failMoves?: number } = {},
+) {
+  let failures = options.failMoves ?? 0;
   const events: string[] = [];
   const moves: MoveProjectDeleteGroupInput[] = [];
   const revoked: string[] = [];
@@ -108,6 +112,10 @@ function build(current: RetirementProject = project()) {
       // One group id, one trashed instant, one expiry for every member.
       moveGroup: (_account, input) => {
         events.push("move");
+        if (failures > 0) {
+          failures -= 1;
+          return Promise.reject(new Error("trash unavailable"));
+        }
         moves.push(input);
         return Promise.resolve(
           input.members.map(
@@ -168,7 +176,16 @@ describe("Project Retirement delete from Archive", () => {
       projectId: "project-1",
     });
 
-    expect(preview.group).toEqual(MEMBERS);
+    // Active surfaces join the group even though they are revoked only at commit.
+    expect(preview.group).toEqual([
+      ...MEMBERS,
+      {
+        baseRevision: 1,
+        label: "N",
+        recordId: "surface-2",
+        recordKind: "External Surface",
+      },
+    ]);
     expect(preview.revokedSurfaces.map((entry) => entry.surfaceId)).toEqual([
       "surface-1",
       "surface-2",
@@ -227,5 +244,20 @@ describe("Project Retirement delete from Archive", () => {
       "members",
       "projectId",
     ]);
+  });
+
+  it("keeps surfaces revoked and the Project untrashed when the move fails, and a retry with the same key succeeds", async () => {
+    const { moves, retirement, revoked } = build(project(), { failMoves: 1 });
+
+    await expect(retirement.deleteProject(ACCOUNT, COMMAND)).rejects.toThrow(
+      "trash unavailable",
+    );
+    expect(revoked.sort()).toEqual(["surface-1", "surface-2"]);
+    expect(moves).toEqual([]);
+
+    const deleted = await retirement.deleteProject(ACCOUNT, COMMAND);
+    expect(deleted.groupId).toBe("group-1");
+    expect(moves).toHaveLength(1);
+    expect(moves[0]?.clientIdempotencyKey).toBe(COMMAND.clientIdempotencyKey);
   });
 });

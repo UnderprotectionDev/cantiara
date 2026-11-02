@@ -54,8 +54,14 @@ function entry(
  * a repeated key replays the first receipt. It records every call so the test
  * can prove no surface, token or GitHub port was touched.
  */
-function build(options: { inTrash?: boolean; plainEntry?: boolean } = {}) {
-  const { inTrash = true, plainEntry = false } = options;
+function build(
+  options: {
+    foreign?: TrashEntry[];
+    inTrash?: boolean;
+    plainEntry?: boolean;
+  } = {},
+) {
+  const { foreign = [], inTrash = true, plainEntry = false } = options;
   let entries: TrashEntry[] = [];
   if (inTrash) {
     entries = [
@@ -67,6 +73,7 @@ function build(options: { inTrash?: boolean; plainEntry?: boolean } = {}) {
   if (plainEntry) {
     entries = [{ ...entry("e-plain", "work-9", "Work"), groupId: null }];
   }
+  entries = [...entries, ...foreign];
   const receipts = new Map<string, RestoreResult>();
   const restores: RestoreFromTrashInput[] = [];
   const calls: string[] = [];
@@ -169,6 +176,23 @@ describe("Project Retirement restore to Archive", () => {
     });
     const clean = await build({ inTrash: false }).retirement.list(ACCOUNT);
     expect(clean.projects[0]?.trash).toBeNull();
+  });
+
+  it("names only this Project's own delete group, never another group in the overview", async () => {
+    const other = {
+      ...entry("e-0", "work-77", "Work", "group-0"),
+      projectId: "project-2",
+    } as TrashEntry;
+    const { retirement } = build({ foreign: [other] });
+    const view = await retirement.list(ACCOUNT);
+    expect(view.projects[0]?.trash).toMatchObject({
+      entryId: "e-a",
+      groupId: "group-1",
+    });
+    const onlyForeign = build({ foreign: [other], inTrash: false });
+    expect(
+      (await onlyForeign.retirement.list(ACCOUNT)).projects[0]?.trash,
+    ).toBeNull();
   });
 
   it("refuses a second Delete Project and Unarchive while the group is in Trash", async () => {

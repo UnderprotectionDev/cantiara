@@ -74,6 +74,26 @@ describe("Archive view", () => {
     expect(html).toContain("Unarchive");
   });
 
+  test("exposes Unarchive and Delete Project as named, keyboard-focusable buttons", () => {
+    const container = document.createElement("div");
+    container.innerHTML = renderToStaticMarkup(
+      <ArchiveView
+        error={false}
+        loading={false}
+        onDelete={() => undefined}
+        onUnarchive={() => undefined}
+        projects={[entry]}
+      />,
+    );
+    const buttons = [...container.querySelectorAll("button")];
+    for (const name of ["Unarchive", "Delete Project"]) {
+      const button = buttons.find((item) => item.textContent?.trim() === name);
+      expect(button, name).toBeDefined();
+      expect(button?.disabled).toBe(false);
+      expect(button?.getAttribute("tabindex")).not.toBe("-1");
+    }
+  });
+
   test("points at Reconnect and never offers Keep approved surface", () => {
     const html = render([entry]);
     expect(html).toContain("Unarchive does not re-enable GitHub");

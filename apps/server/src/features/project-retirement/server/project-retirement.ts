@@ -143,7 +143,10 @@ function surfaceActions(
     state: surface.sourceState,
     title: surface.title,
   };
-  const actions: ArchiveSecurityActionItem["action"][] = ["surface-revoke"];
+  const actions: ArchiveSecurityActionItem["action"][] = [
+    "surface-revoke",
+    "security-redaction",
+  ];
   if (row.visibility === "Link") {
     actions.push("token-rotation", "session-end");
     if (row.passwordProtected) {
@@ -160,16 +163,20 @@ function surfaceActions(
 function integrationActions(
   integrations: RetirementIntegration[],
 ): ArchiveSecurityActionItem[] {
-  return integrations.map((integration) => ({
-    action: "integration-disconnect",
-    label: ARCHIVE_SECURITY_ACTION_LABELS["integration-disconnect"],
-    source: {
-      id: integration.id,
-      kind: "GitHub repository link",
-      state: integration.state,
-      title: integration.label,
-    },
-  }));
+  return integrations.flatMap((integration) =>
+    (["integration-disconnect", "integration-secret-rotation"] as const).map(
+      (action) => ({
+        action,
+        label: ARCHIVE_SECURITY_ACTION_LABELS[action],
+        source: {
+          id: integration.id,
+          kind: "GitHub repository link",
+          state: integration.state,
+          title: integration.label,
+        },
+      }),
+    ),
+  );
 }
 
 export function createProjectRetirement(
@@ -227,8 +234,20 @@ export function createProjectRetirement(
     projectId: string,
   ): Promise<ProjectTrash | null> {
     const overview = await ports.trash.overview(accountId, projectId);
-    const [entry] = (overview?.entries ?? [])
-      .filter((candidate) => candidate.groupId !== null)
+    // Only this Project's own group entries count, and only one group: the
+    // latest delete group (a restored group leaves no entry), then the lowest
+    // entry id inside it. Another Project's group is never selected.
+    const own = (overview?.entries ?? []).filter(
+      (candidate) =>
+        candidate.groupId !== null && candidate.projectId === projectId,
+    );
+    const [latest] = [...own].sort(
+      (a, b) =>
+        b.trashedAt.localeCompare(a.trashedAt) ||
+        (a.groupId ?? "").localeCompare(b.groupId ?? ""),
+    );
+    const [entry] = own
+      .filter((candidate) => candidate.groupId === latest?.groupId)
       .sort((a, b) => a.id.localeCompare(b.id));
     if (!entry?.groupId) {
       return null;
@@ -328,11 +347,21 @@ export function createProjectRetirement(
         ports.deleteGroup.members(accountId, project.id),
         ports.deleteGroup.relations(accountId, project.id),
       ]);
-      const revokedSurfaces = (rows ?? [])
-        .filter((row) => row.status === "Active")
-        .map(livingSurface);
+      const activeRows = (rows ?? []).filter((row) => row.status === "Active");
+      const revokedSurfaces = activeRows.map(livingSurface);
+      // Active surfaces are revoked at commit and then join the group; the
+      // preview runs before that, so list them here too.
+      const listed = new Set(group.map((member) => member.recordId));
+      const pending: DeleteGroupMember[] = activeRows
+        .filter((row) => !listed.has(row.surfaceId))
+        .map((row) => ({
+          baseRevision: row.revision,
+          label: row.source.title || row.source.kind,
+          recordId: row.surfaceId,
+          recordKind: "External Surface",
+        }));
       return {
-        group,
+        group: [...group, ...pending],
         integrationsStop: integrations,
         keepApprovedSurface: { available: false },
         notices: [

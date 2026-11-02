@@ -50,7 +50,12 @@ function refusal(error: unknown): never {
   if (error instanceof ProjectRetirementError) {
     throw new ORPCError(REFUSAL_STATUS[error.code], {
       cause: error,
-      data: { code: error.code },
+      // One client code for an archived Project, the same one the shared
+      // Project seam emits (`rethrowProjectShellError`).
+      data: {
+        code:
+          error.code === "project_archived" ? "PROJECT_READ_ONLY" : error.code,
+      },
       defined: true,
       message: PROJECT_RETIREMENT_ERROR_MESSAGES[error.code],
     });
