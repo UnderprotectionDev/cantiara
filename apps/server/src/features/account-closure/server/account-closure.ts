@@ -1,5 +1,6 @@
 import {
   ACCOUNT_CLOSURE_CANCEL_OPERATION_ID,
+  ACCOUNT_CLOSURE_FREEZE_DAYS,
   ACCOUNT_CLOSURE_FREEZE_MS,
   ACCOUNT_CLOSURE_FREEZE_NOTE,
   ACCOUNT_CLOSURE_PACKAGE_NOTE,
@@ -73,7 +74,8 @@ const ALLOWED: Record<
 > = {
   closing: ["access-reducing", "restore-replay"],
   deleted: [],
-  deleting: [],
+  /** A claimed Account keeps only the non-resurrecting security obligations. */
+  deleting: ["access-reducing", "restore-replay"],
   frozen: ["cancel-close", "export", "access-reducing", "restore-replay"],
   living: [
     "normal",
@@ -145,6 +147,14 @@ export function createAccountClosure(options: AccountClosureOptions) {
 
   async function requireFrozen(accountId: string) {
     const record = await current(accountId);
+    if (record.state === "deleted" || record.state === "deleting") {
+      throw new AccountClosureError(
+        "account_closed",
+        record.state === "deleted"
+          ? "This Account was permanently deleted."
+          : "This Account is being permanently deleted.",
+      );
+    }
     if (record.state !== "frozen" || freezeElapsed(record)) {
       throw new AccountClosureError(
         "not_frozen",
@@ -235,8 +245,8 @@ export function createAccountClosure(options: AccountClosureOptions) {
       }
       if (freezeElapsed(existing)) {
         throw new AccountClosureError(
-          "account_closed",
-          "The 30-day hold has ended. Closing can no longer be cancelled.",
+          "freeze_elapsed",
+          `The ${ACCOUNT_CLOSURE_FREEZE_DAYS}-day hold has ended. Closing can no longer be cancelled.`,
         );
       }
       if (
@@ -327,12 +337,21 @@ export function createAccountClosure(options: AccountClosureOptions) {
       if (!freezeElapsed(record)) {
         throw new AccountClosureError(
           "freeze_not_elapsed",
-          "The 30-day hold has not ended.",
+          `The ${ACCOUNT_CLOSURE_FREEZE_DAYS}-day hold has not ended.`,
         );
       }
-      // A package from an earlier, cancelled freeze does not count.
+      // A package from an earlier, cancelled freeze does not count. The gate
+      // is on parsed instants: a non-Zulu `producedAt` string must not pass
+      // lexicographically, and an unparsable one fails closed.
       const success = await exitPackage.successfulProduction({ accountId });
-      if (!success || success.producedAt < record.freezeStartedAt) {
+      const producedAt = success ? Date.parse(success.producedAt) : Number.NaN;
+      const freezeStartedAt = Date.parse(record.freezeStartedAt);
+      if (
+        !success ||
+        Number.isNaN(producedAt) ||
+        Number.isNaN(freezeStartedAt) ||
+        producedAt < freezeStartedAt
+      ) {
         throw new AccountClosureError(
           "package_required",
           "Produce a Workspace Exit Package before the Account can be deleted.",

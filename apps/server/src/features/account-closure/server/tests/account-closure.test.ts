@@ -2,13 +2,15 @@ import { ACCOUNT_CLOSURE_START_OPERATION_ID } from "@cantiara/api/account-closur
 import { describe, expect, test } from "vitest";
 import { createAccountClosure } from "../account-closure";
 import {
+  CLOSURE_ACTOR,
   createDeletionDoubles,
   createDrainDouble,
   createExitPackageDouble,
+  createGrantDouble,
   createMemoryClosureStore,
 } from "./account-closure-memory";
 
-const ACTOR = { accountId: "account-1", accountName: "Mert Demirkaya" };
+const ACTOR = CLOSURE_ACTOR;
 const BOUNDARY = { at: "2026-03-01T00:00:00.000Z", boundaryId: "event-42" };
 
 function setup(drainOverrides = {}) {
@@ -25,17 +27,10 @@ function setup(drainOverrides = {}) {
     now: () => new Date("2026-03-01T00:00:00.000Z"),
     store,
   });
-  // Grant double from Account Access: one grant per operation, usable once.
-  const grants = new Map([[ACCOUNT_CLOSURE_START_OPERATION_ID, "grant-start"]]);
-  const consumed: string[] = [];
-  const consume = (operationId: string, grant: string) => {
-    consumed.push(operationId);
-    if (grants.get(operationId as never) === grant) {
-      grants.delete(operationId as never);
-      return Promise.resolve(true);
-    }
-    return Promise.resolve(false);
-  };
+  const grants = createGrantDouble({
+    [ACCOUNT_CLOSURE_START_OPERATION_ID]: "grant-start",
+  });
+  const { consume, consumed } = grants;
   return { calls, closure, consume, consumed, store };
 }
 

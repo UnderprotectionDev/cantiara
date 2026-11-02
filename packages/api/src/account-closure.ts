@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import type { ConfirmGitHubIdentityOperationId } from "./context";
+import type {
+  ExitPackageDownload,
+  ExitPackageSuccess,
+} from "./workspace-exit-package";
 import {
   EXIT_NATURE_NOTE,
   EXIT_PASSWORD_NOTE,
@@ -36,8 +40,7 @@ export const ACCOUNT_CLOSURE_REGION = "eu";
 export const ACCOUNT_CLOSURE_PASSWORD_LOSS_NOTE = EXIT_PASSWORD_NOTE;
 export const ACCOUNT_CLOSURE_RESIDENCY_NOTE = EXIT_RESIDENCY_NOTE;
 export const ACCOUNT_CLOSURE_PACKAGE_NOTE = EXIT_NATURE_NOTE;
-export const ACCOUNT_CLOSURE_FREEZE_NOTE =
-  "After closing, your Account is held for 30 days. You can cancel closing or download your Workspace Exit Package during that time. After 30 days the Account and Workspace are permanently deleted, and only if at least one Workspace Exit Package was produced.";
+export const ACCOUNT_CLOSURE_FREEZE_NOTE = `After closing, your Account is held for ${ACCOUNT_CLOSURE_FREEZE_DAYS} days. You can cancel closing or download your Workspace Exit Package during that time. After ${ACCOUNT_CLOSURE_FREEZE_DAYS} days the Account and Workspace are permanently deleted, and only if at least one Workspace Exit Package was produced.`;
 
 export const ACCOUNT_CLOSURE_STATES = [
   "living",
@@ -72,7 +75,12 @@ export interface AccountClosureActor {
   accountName: string;
 }
 
-/** Consumes the Account Access grant exactly once for the given operation. */
+/**
+ * Consume the grant only after the refusals the spec names: a lost concurrent
+ * transition (another start or cancel wins the CAS) still spends the grant,
+ * and no refund exists. The race is an accepted edge: the grant is a fresh
+ * Confirm GitHub Identity card either way.
+ */
 export type AccountClosureGrantConsumer = (
   operationId: ConfirmGitHubIdentityOperationId,
   grant: string,
@@ -169,7 +177,8 @@ export interface AccountClosureStore {
   ) => Promise<boolean>;
 }
 
-/** 82, read side only: the module never reimplements the package. */
+/** 82, read side only: the module never reimplements the package. The member
+ * types are derived from the 82 contract so the shapes cannot drift apart. */
 export interface AccountClosureExitPackage {
   download: (token: string) => Promise<Uint8Array>;
   produce: (input: {
@@ -177,12 +186,12 @@ export interface AccountClosureExitPackage {
     downloadWindowMs?: number;
     password: string;
   }) => Promise<{
-    download: { expiresAt: string; packageId: string; token: string };
+    download: ExitPackageDownload;
     packageId: string;
   }>;
   successfulProduction: (input: {
     accountId: string;
-  }) => Promise<{ packageId: string; producedAt: string } | null>;
+  }) => Promise<ExitPackageSuccess | null>;
 }
 
 /**
@@ -193,7 +202,9 @@ export interface AccountClosureRemoval {
   removeAccountAndWorkspace: (accountId: string) => Promise<void>;
 }
 
-/** Content-free, irreversible record that 85 replays (pseudonymous alias only). */
+/**
+ * Content-free, irreversible record that 85 replays (pseudonymous alias only).
+ */
 export interface AccountDeleteTombstone {
   accountAlias: string;
   id: string;
@@ -205,6 +216,11 @@ export interface AccountDeleteTombstone {
 }
 export interface AccountClosureTombstoneLog {
   alias: (accountId: string) => Promise<string>;
+  /**
+   * An idempotent write: the store must replace any earlier tombstone with the
+   * same `id`, never append a second entry for one Account (removal failures
+   * make the delete job rerun against the irreversible log).
+   */
   append: (tombstone: AccountDeleteTombstone) => Promise<void>;
 }
 
@@ -218,6 +234,7 @@ export type AccountClosureErrorCode =
   | "already_closing"
   | "cancel_first"
   | "closing_in_progress"
+  | "freeze_elapsed"
   | "freeze_not_elapsed"
   | "grant_rejected"
   | "name_mismatch"

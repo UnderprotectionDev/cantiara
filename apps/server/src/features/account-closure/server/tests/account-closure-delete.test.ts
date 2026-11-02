@@ -144,8 +144,8 @@ describe("Permanent delete (spec 84)", () => {
     });
   });
 
-  test("a failed removal keeps the freeze and a rerun finishes the job", async () => {
-    const { closure, elapse, heal, store } = await frozen(true);
+  test("a failed removal keeps the freeze and a rerun finishes the job without a second tombstone", async () => {
+    const { closure, deletion, elapse, heal, store } = await frozen(true);
     await closure.produceExitPackage(
       CLOSURE_ACTOR.accountId,
       "correct horse battery",
@@ -155,9 +155,36 @@ describe("Permanent delete (spec 84)", () => {
       closure.permanentDelete(CLOSURE_ACTOR.accountId),
     ).rejects.toMatchObject({ code: "removal_incomplete" });
     expect(store.records.get(CLOSURE_ACTOR.accountId)?.state).toBe("deleting");
+    expect(deletion.tombstones).toHaveLength(1);
+    const [first] = deletion.tombstones;
+    expect(first).toBeDefined();
     heal();
     const record = await closure.permanentDelete(CLOSURE_ACTOR.accountId);
     expect(record.state).toBe("deleted");
+    // The irreversible log keeps one entry per Account: the rerun upserts.
+    expect(deletion.tombstones).toHaveLength(1);
+    expect(deletion.tombstones[0]).toEqual(first);
+  });
+
+  test("while a removal is claimed, the security obligations keep passing and normal work stays closed", async () => {
+    const { closure, elapse, store } = await frozen(true);
+    await closure.produceExitPackage(
+      CLOSURE_ACTOR.accountId,
+      "correct horse battery",
+    );
+    elapse();
+    await expect(
+      closure.permanentDelete(CLOSURE_ACTOR.accountId),
+    ).rejects.toMatchObject({ code: "removal_incomplete" });
+    await closure.authorizeWrite(CLOSURE_ACTOR.accountId, "access-reducing");
+    await closure.authorizeWrite(CLOSURE_ACTOR.accountId, "restore-replay");
+    await expect(
+      closure.authorizeWrite(CLOSURE_ACTOR.accountId, "normal"),
+    ).rejects.toMatchObject({ code: "account_closed" });
+    expect(await closure.externalAccessOpen(CLOSURE_ACTOR.accountId)).toBe(
+      false,
+    );
+    expect(store.records.get(CLOSURE_ACTOR.accountId)?.state).toBe("deleting");
   });
 
   test("after delete the old Account id has no session, surface or workspace write, and cannot cancel", async () => {
@@ -235,13 +262,60 @@ describe("Permanent delete (spec 84)", () => {
       closure.cancel(CLOSURE_ACTOR, { grant: "x" }, () =>
         Promise.resolve(true),
       ),
-    ).rejects.toMatchObject({ code: "account_closed" });
+    ).rejects.toMatchObject({ code: "freeze_elapsed" });
     await expect(
       closure.produceExitPackage(
         CLOSURE_ACTOR.accountId,
         "correct horse battery",
       ),
     ).rejects.toMatchObject({ code: "not_frozen" });
+  });
+
+  test("the gate compares instants, not strings: a stale non-Zulu package stamp cannot pass", async () => {
+    const { closure, elapse, exitPackage } = await frozen();
+    // Lexicographically this sorts after the freeze start, but as an instant
+    // it is 2026-02-28T23:00:00Z, the day before the freeze began.
+    exitPackage.successfulProduction = () =>
+      Promise.resolve({
+        packageId: "stale-offset",
+        producedAt: "2026-03-01T02:00:00+03:00",
+      });
+    elapse();
+    await expect(
+      closure.permanentDelete(CLOSURE_ACTOR.accountId),
+    ).rejects.toMatchObject({ code: "package_required" });
+  });
+
+  test("an unparsable package stamp fails closed", async () => {
+    const { closure, elapse, exitPackage } = await frozen();
+    exitPackage.successfulProduction = () =>
+      Promise.resolve({
+        packageId: "unparsable",
+        producedAt: "not a timestamp",
+      });
+    elapse();
+    await expect(
+      closure.permanentDelete(CLOSURE_ACTOR.accountId),
+    ).rejects.toMatchObject({ code: "package_required" });
+  });
+
+  test("after delete, package production and download answer account_closed, not a hold message", async () => {
+    const { closure, elapse } = await frozen();
+    await closure.produceExitPackage(
+      CLOSURE_ACTOR.accountId,
+      "correct horse battery",
+    );
+    elapse();
+    await closure.permanentDelete(CLOSURE_ACTOR.accountId);
+    await expect(
+      closure.produceExitPackage(
+        CLOSURE_ACTOR.accountId,
+        "correct horse battery",
+      ),
+    ).rejects.toMatchObject({ code: "account_closed" });
+    await expect(
+      closure.downloadExitPackage(CLOSURE_ACTOR.accountId, "token-1"),
+    ).rejects.toMatchObject({ code: "account_closed" });
   });
 
   test("a package from an earlier freeze does not satisfy the gate", async () => {

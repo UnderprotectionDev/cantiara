@@ -150,9 +150,17 @@ export function createDeletionDoubles() {
     signIn,
     tombstoneLog: {
       alias: () => Promise.resolve("alias-7f3a"),
+      /** Upsert by id: the irreversible log keeps one entry per Account. */
       append: (tombstone: AccountDeleteTombstone) => {
         calls.push("tombstone");
-        tombstones.push(tombstone);
+        const existing = tombstones.findIndex(
+          (entry) => entry.id === tombstone.id,
+        );
+        if (existing >= 0) {
+          tombstones[existing] = tombstone;
+        } else {
+          tombstones.push(tombstone);
+        }
         return Promise.resolve();
       },
     },
