@@ -72,6 +72,7 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: başk
 | React Resizable Panels | shadcn/ui Resizable bileşeninin panel boyutlandırma primitive'i |
 | Tailwind CSS | Arayüz stilleri |
 | Lucide React | Uygulama ikonları ve Wireframe semantic component ikon kaynağı |
+| Geist Sans + Geist Mono (Variable) | Üretim UI tipografisi: Geist Sans arayüz metni, Geist Mono ID, sayı ve veri; OFL-1.1, henüz uygulamaya paketlenmedi (DESIGN.md Known Gaps) |
 | Sonner | Uygulama toast bildirimleri (`sonner`); `@cantiara/ui` Sonner sarmalayıcısını sağlar, ayrı bir toast sistemi eklenmez |
 | TanStack Query | Sunucu verisi ve önbellek |
 | TanStack Store | Bileşenler arasında paylaşılan istemci, inspector, toolbar ve Wireframe editör oturumu durumu |

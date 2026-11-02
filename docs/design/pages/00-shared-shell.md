@@ -337,7 +337,7 @@ Yalnız gövde kayar, başlık ve alt şerit sabit kalır.
 - **Proje alanları:** Daima erişilir girişler (`Overview`, `Tags`, `Smart Collection`, `All Tools`), etkin çekirdek alanlar, ince ayırıcı, pinli ek alanlar. Pinlenmemiş etkin alanlar yalnız `All Tools` içindedir (→ `08.2`). `Design` tek seferde bir iç hedef gösterir (iç hedef listesi → `13.1`). Seçili giriş `aria-current="location"`.
 - **Configuration Mode:** Mod açıkken günlük yüzey ve gezinme yapılandırma yüzeyine döner; düğme Proje başlığındadır (→ `08.1`); açıkken etiketi `Exit Configuration Mode` olur (→ `08.1`).
 - **Araçlar:** Komut Paleti tetiği `Command Palette` etiketi ve `Ctrl+K` / `⌘K` ipucu, solunda `Switch Project` ve `Create` hızlı eylemleri; 768'de yalnız ikon kalır, hızlı eylemler gizlenir; `Search` (`Ctrl+/`) → `02.7`; `Favorites`, `Notification Center` → `00.2`; `Active Working Set` boşken pasif, doluyken üye sayısı (bildirim sayısı değildir) → `00.3`. `Notification Center` için okunmamış sayı rozeti çizilmez.
-- **Hesap:** `Account menu` tetiği 1440'ta `Deniz Aksoy`, 768'de `D` gösterir. Açık menü içeriği ve artboard'ı → `01.3`; Appearance değerleri (`Light`/`Dark`) → `01.6`.
+- **Hesap:** `Account menu` tetiği 1440'ta `Alex Morgan`, 768'de `A` gösterir. Açık menü içeriği ve artboard'ı → `01.3`; Appearance değerleri (`Light`/`Dark`) → `01.6`.
 - **Skip link:** İlk Tab durağı; `Skip to main content` odağı ana içerik alanına taşır.
 
 ### Durumlar
