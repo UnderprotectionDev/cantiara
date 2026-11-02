@@ -61,6 +61,7 @@ async function frozen(removalFails = false) {
     elapse: () => {
       clock.at = new Date(START.getTime() + ACCOUNT_CLOSURE_FREEZE_MS);
     },
+    exitPackage,
     heal: () => {
       failing = false;
     },
@@ -153,7 +154,7 @@ describe("Permanent delete (spec 84)", () => {
     await expect(
       closure.permanentDelete(CLOSURE_ACTOR.accountId),
     ).rejects.toMatchObject({ code: "removal_incomplete" });
-    expect(store.records.get(CLOSURE_ACTOR.accountId)?.state).toBe("frozen");
+    expect(store.records.get(CLOSURE_ACTOR.accountId)?.state).toBe("deleting");
     heal();
     const record = await closure.permanentDelete(CLOSURE_ACTOR.accountId);
     expect(record.state).toBe("deleted");
@@ -204,5 +205,55 @@ describe("Permanent delete (spec 84)", () => {
     await expect(
       closure.authorizeWrite(CLOSURE_ACTOR.accountId, "normal"),
     ).rejects.toMatchObject({ code: "account_closed" });
+  });
+
+  test("once delete is claimed, cancel is refused and a rerun resumes", async () => {
+    const { closure, elapse, store } = await frozen(true);
+    await closure.produceExitPackage(
+      CLOSURE_ACTOR.accountId,
+      "correct horse battery",
+    );
+    elapse();
+    await expect(
+      closure.permanentDelete(CLOSURE_ACTOR.accountId),
+    ).rejects.toMatchObject({ code: "removal_incomplete" });
+    await expect(
+      closure.cancel(CLOSURE_ACTOR, { grant: "x" }, () =>
+        Promise.resolve(true),
+      ),
+    ).rejects.toMatchObject({ code: "account_closed" });
+    await expect(
+      closure.authorizeWrite(CLOSURE_ACTOR.accountId, "normal"),
+    ).rejects.toMatchObject({ code: "account_closed" });
+    expect(store.records.get(CLOSURE_ACTOR.accountId)?.state).toBe("deleting");
+  });
+
+  test("cancel is refused once the 30 days have ended, and the package no longer starts", async () => {
+    const { closure, elapse } = await frozen();
+    elapse();
+    await expect(
+      closure.cancel(CLOSURE_ACTOR, { grant: "x" }, () =>
+        Promise.resolve(true),
+      ),
+    ).rejects.toMatchObject({ code: "account_closed" });
+    await expect(
+      closure.produceExitPackage(
+        CLOSURE_ACTOR.accountId,
+        "correct horse battery",
+      ),
+    ).rejects.toMatchObject({ code: "not_frozen" });
+  });
+
+  test("a package from an earlier freeze does not satisfy the gate", async () => {
+    const { closure, elapse, exitPackage } = await frozen();
+    exitPackage.successfulProduction = () =>
+      Promise.resolve({
+        packageId: "old",
+        producedAt: "2026-01-01T00:00:00.000Z",
+      });
+    elapse();
+    await expect(
+      closure.permanentDelete(CLOSURE_ACTOR.accountId),
+    ).rejects.toMatchObject({ code: "package_required" });
   });
 });

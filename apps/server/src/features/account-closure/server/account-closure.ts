@@ -73,6 +73,7 @@ const ALLOWED: Record<
 > = {
   closing: ["access-reducing", "restore-replay"],
   deleted: [],
+  deleting: [],
   frozen: ["cancel-close", "export", "access-reducing", "restore-replay"],
   living: [
     "normal",
@@ -135,8 +136,16 @@ export function createAccountClosure(options: AccountClosureOptions) {
     return { receipt, record: frozen };
   }
 
+  function freezeElapsed(record: AccountClosureRecord): boolean {
+    return (
+      record.freezeEndsAt !== null &&
+      now().getTime() >= Date.parse(record.freezeEndsAt)
+    );
+  }
+
   async function requireFrozen(accountId: string) {
-    if ((await current(accountId)).state !== "frozen") {
+    const record = await current(accountId);
+    if (record.state !== "frozen" || freezeElapsed(record)) {
       throw new AccountClosureError(
         "not_frozen",
         "The Workspace Exit Package is available while the Account is on hold.",
@@ -209,7 +218,7 @@ export function createAccountClosure(options: AccountClosureOptions) {
       consumeGrant: AccountClosureGrantConsumer,
     ): Promise<AccountClosureRecord> {
       const existing = await current(actor.accountId);
-      if (existing.state === "deleted") {
+      if (existing.state === "deleted" || existing.state === "deleting") {
         throw new AccountClosureError(
           "account_closed",
           "This Account was permanently deleted.",
@@ -223,6 +232,12 @@ export function createAccountClosure(options: AccountClosureOptions) {
       }
       if (existing.state !== "frozen") {
         throw new AccountClosureError("not_closing", "Nothing is closing.");
+      }
+      if (freezeElapsed(existing)) {
+        throw new AccountClosureError(
+          "account_closed",
+          "The 30-day hold has ended. Closing can no longer be cancelled.",
+        );
       }
       if (
         !(await consumeGrant(ACCOUNT_CLOSURE_CANCEL_OPERATION_ID, input.grant))
@@ -299,22 +314,39 @@ export function createAccountClosure(options: AccountClosureOptions) {
           "This Account was permanently deleted.",
         );
       }
-      if (record.state !== "frozen" || !record.freezeEndsAt) {
+      if (
+        (record.state !== "frozen" && record.state !== "deleting") ||
+        !record.freezeEndsAt ||
+        !record.freezeStartedAt
+      ) {
         throw new AccountClosureError(
           "not_frozen",
           "Only an Account on hold can be permanently deleted.",
         );
       }
-      if (now().getTime() < Date.parse(record.freezeEndsAt)) {
+      if (!freezeElapsed(record)) {
         throw new AccountClosureError(
           "freeze_not_elapsed",
           "The 30-day hold has not ended.",
         );
       }
-      if (!(await exitPackage.successfulProduction({ accountId }))) {
+      // A package from an earlier, cancelled freeze does not count.
+      const success = await exitPackage.successfulProduction({ accountId });
+      if (!success || success.producedAt < record.freezeStartedAt) {
         throw new AccountClosureError(
           "package_required",
           "Produce a Workspace Exit Package before the Account can be deleted.",
+        );
+      }
+      // Claim first: from here cancel is refused, and a rerun resumes.
+      const deleting: AccountClosureRecord = { ...record, state: "deleting" };
+      if (
+        record.state === "frozen" &&
+        !(await store.transition(accountId, "frozen", deleting))
+      ) {
+        throw new AccountClosureError(
+          "account_closed",
+          "The Account is no longer on hold.",
         );
       }
       const deletedAt = now().toISOString();
@@ -333,7 +365,7 @@ export function createAccountClosure(options: AccountClosureOptions) {
         throw Object.assign(
           new AccountClosureError(
             "removal_incomplete",
-            "Permanent delete did not finish. The Account stays on hold and the job can run again.",
+            "Permanent delete did not finish. The job can run again.",
           ),
           { cause: error },
         );
@@ -343,7 +375,7 @@ export function createAccountClosure(options: AccountClosureOptions) {
         deletedAt,
         state: "deleted",
       };
-      if (!(await store.transition(accountId, "frozen", deleted))) {
+      if (!(await store.transition(accountId, "deleting", deleted))) {
         throw new AccountClosureError(
           "account_closed",
           "The Account is no longer on hold.",
@@ -370,7 +402,7 @@ export function createAccountClosure(options: AccountClosureOptions) {
       if (ALLOWED[state].includes(kind)) {
         return;
       }
-      if (state === "deleted") {
+      if (state === "deleted" || state === "deleting") {
         throw new AccountClosureError(
           "account_closed",
           "This Account was permanently deleted.",

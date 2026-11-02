@@ -43,6 +43,8 @@ export const ACCOUNT_CLOSURE_STATES = [
   "living",
   "closing",
   "frozen",
+  /** Permanent delete claimed the Account: cancel is gone, the job may rerun. */
+  "deleting",
   "deleted",
 ] as const;
 export type AccountClosureState = (typeof ACCOUNT_CLOSURE_STATES)[number];
