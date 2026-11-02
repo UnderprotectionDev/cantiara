@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import { createAccountClosure } from "../account-closure";
 import {
   createDrainDouble,
+  createExitPackageDouble,
   createMemoryClosureStore,
 } from "./account-closure-memory";
 
@@ -15,6 +16,7 @@ function setup(drainOverrides = {}) {
   const closure = createAccountClosure({
     boundary: { fix: () => Promise.resolve(BOUNDARY) },
     drain,
+    exitPackage: createExitPackageDouble(),
     now: () => new Date("2026-03-01T00:00:00.000Z"),
     store,
   });

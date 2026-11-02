@@ -1,4 +1,5 @@
 import {
+  ACCOUNT_CLOSURE_CANCEL_OPERATION_ID,
   ACCOUNT_CLOSURE_FREEZE_MS,
   ACCOUNT_CLOSURE_FREEZE_NOTE,
   ACCOUNT_CLOSURE_PACKAGE_NOTE,
@@ -9,6 +10,7 @@ import {
   type AccountClosureActor,
   type AccountClosureDrain,
   AccountClosureError,
+  type AccountClosureExitPackage,
   type AccountClosureGrantConsumer,
   type AccountClosureRecord,
   type AccountClosureSecurityBoundary,
@@ -30,6 +32,7 @@ import {
 export interface AccountClosureOptions {
   boundary: AccountClosureSecurityBoundary;
   drain: AccountClosureDrain;
+  exitPackage: AccountClosureExitPackage;
   now?: () => Date;
   store: AccountClosureStore;
 }
@@ -75,7 +78,7 @@ const ALLOWED: Record<
 };
 
 export function createAccountClosure(options: AccountClosureOptions) {
-  const { boundary, drain, store } = options;
+  const { boundary, drain, exitPackage, store } = options;
   const now = options.now ?? (() => new Date());
 
   async function current(accountId: string): Promise<AccountClosureRecord> {
@@ -123,6 +126,15 @@ export function createAccountClosure(options: AccountClosureOptions) {
       );
     }
     return { receipt, record: frozen };
+  }
+
+  async function requireFrozen(accountId: string) {
+    if ((await current(accountId)).state !== "frozen") {
+      throw new AccountClosureError(
+        "not_frozen",
+        "The Workspace Exit Package is available while the Account is on hold.",
+      );
+    }
   }
 
   return {
@@ -176,6 +188,92 @@ export function createAccountClosure(options: AccountClosureOptions) {
         );
       }
       return runDrain(closing);
+    },
+
+    /**
+     * Cancel is as serious as start: the Account Access grant for
+     * `account-closure-cancel`, consumed once. Open for the whole freeze;
+     * success returns the Account to living (revoked surfaces, sessions and
+     * integrations stay revoked: they are not undeleted).
+     */
+    async cancel(
+      actor: AccountClosureActor,
+      input: { grant: string },
+      consumeGrant: AccountClosureGrantConsumer,
+    ): Promise<AccountClosureRecord> {
+      const existing = await current(actor.accountId);
+      if (existing.state === "deleted") {
+        throw new AccountClosureError(
+          "account_closed",
+          "This Account was permanently deleted.",
+        );
+      }
+      if (existing.state === "closing") {
+        throw new AccountClosureError(
+          "closing_in_progress",
+          "Closing is still finishing. Cancel closing opens when the hold starts.",
+        );
+      }
+      if (existing.state !== "frozen") {
+        throw new AccountClosureError("not_closing", "Nothing is closing.");
+      }
+      if (
+        !(await consumeGrant(ACCOUNT_CLOSURE_CANCEL_OPERATION_ID, input.grant))
+      ) {
+        throw new AccountClosureError(
+          "grant_rejected",
+          "Confirm GitHub Identity again to cancel closing.",
+        );
+      }
+      const living = LIVING(actor.accountId);
+      if (!(await store.transition(actor.accountId, "frozen", living))) {
+        throw new AccountClosureError(
+          "account_closed",
+          "The Account is no longer on hold.",
+        );
+      }
+      return living;
+    },
+
+    /**
+     * The frozen dataset (fixed security-event boundary) that 79 selected
+     * export and 82 read; `null` outside the freeze.
+     */
+    async frozenSet(
+      accountId: string,
+    ): Promise<{ boundary: SecurityEventBoundary; endsAt: string } | null> {
+      const record = await current(accountId);
+      return record.state === "frozen" &&
+        record.securityBoundary &&
+        record.freezeEndsAt
+        ? { boundary: record.securityBoundary, endsAt: record.freezeEndsAt }
+        : null;
+    },
+
+    /**
+     * Produces the 82 Workspace Exit Package for the frozen set and keeps it
+     * downloadable for the 30-day window. Producing or downloading never
+     * touches the record, so residency stays EU.
+     */
+    async produceExitPackage(accountId: string, password: string) {
+      await requireFrozen(accountId);
+      const production = await exitPackage.produce({
+        accountId,
+        downloadWindowMs: ACCOUNT_CLOSURE_FREEZE_MS,
+        password,
+      });
+      return {
+        ...production,
+        passwordLossNote: ACCOUNT_CLOSURE_PASSWORD_LOSS_NOTE,
+      };
+    },
+
+    async downloadExitPackage(
+      accountId: string,
+      token: string,
+    ): Promise<Uint8Array> {
+      await requireFrozen(accountId);
+      return exitPackage.download(token);
     },
 
     /** Runs the drain again for an Account left in `Closing`. */

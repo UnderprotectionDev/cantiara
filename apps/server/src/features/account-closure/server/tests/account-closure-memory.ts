@@ -1,5 +1,6 @@
 import type {
   AccountClosureDrain,
+  AccountClosureExitPackage,
   AccountClosureRecord,
   AccountClosureStore,
 } from "@cantiara/api/account-closure";
@@ -52,4 +53,56 @@ export function createDrainDouble(
     ...overrides,
   };
   return { calls, drain };
+}
+
+/** 82 double: records the window it was asked for and the success flag. */
+export function createExitPackageDouble() {
+  const produced: { accountId: string; downloadWindowMs?: number }[] = [];
+  const exitPackage: AccountClosureExitPackage = {
+    download: (token) =>
+      token === "token-1"
+        ? Promise.resolve(new Uint8Array([1, 2, 3]))
+        : Promise.reject(new Error("unknown token")),
+    produce: ({ accountId, downloadWindowMs }) => {
+      produced.push({ accountId, downloadWindowMs });
+      return Promise.resolve({
+        download: {
+          expiresAt: "2026-03-31T00:00:00.000Z",
+          packageId: "package-1",
+          token: "token-1",
+        },
+        packageId: "package-1",
+      });
+    },
+    successfulProduction: () =>
+      Promise.resolve(
+        produced.length > 0
+          ? { packageId: "package-1", producedAt: "2026-03-02T00:00:00.000Z" }
+          : null,
+      ),
+  };
+  return Object.assign(exitPackage, { produced });
+}
+
+export const CLOSURE_ACTOR = {
+  accountId: "account-1",
+  accountName: "Mert Demirkaya",
+};
+
+/**
+ * Account Access grant double: one grant per operation id, usable once, so a
+ * start grant can never cancel and a replay is refused.
+ */
+export function createGrantDouble(grants: Record<string, string>) {
+  const unused = new Map(Object.entries(grants));
+  const consumed: string[] = [];
+  const consume = (operationId: string, grant: string) => {
+    consumed.push(operationId);
+    if (unused.get(operationId) === grant) {
+      unused.delete(operationId);
+      return Promise.resolve(true);
+    }
+    return Promise.resolve(false);
+  };
+  return { consume, consumed };
 }
