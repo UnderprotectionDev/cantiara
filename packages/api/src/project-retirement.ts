@@ -115,6 +115,8 @@ export const PROJECT_RETIREMENT_ERROR_CODES = [
   "not_archived",
   "project_archived",
   "empty_delete_group",
+  "project_in_trash",
+  "not_in_trash",
 ] as const;
 export type ProjectRetirementErrorCode =
   (typeof PROJECT_RETIREMENT_ERROR_CODES)[number];
@@ -126,7 +128,9 @@ export const PROJECT_RETIREMENT_ERROR_MESSAGES: Record<
   already_archived: "The Project is already archived.",
   empty_delete_group: "The Project has no record to move to Trash.",
   not_archived: "The Project is not archived.",
+  not_in_trash: "The Project is not in Trash.",
   project_archived: PROJECT_ARCHIVED_READ_ONLY_MESSAGE,
+  project_in_trash: "The Project is in Trash. Restore it to Archive first.",
   project_not_found: "Project is unavailable.",
 };
 
@@ -247,9 +251,33 @@ export const archivePreviewSchema = z.object({
 });
 export type ArchivePreview = z.infer<typeof archivePreviewSchema>;
 
+export const RESTORE_TO_ARCHIVE_LABEL = "Restore to Archive";
+export const RESTORE_TO_ARCHIVE_RESULT =
+  "Restoring returns the Project to Archive. No surface is republished and GitHub stays disconnected.";
+export const REPUBLISH_APPROVAL_NOTICE =
+  "Republishing requires a new approval.";
+export const PROJECT_IN_TRASH_MARK = "In Trash";
+
+/**
+ * A Project whose delete group waits in Trash. The Project row itself stays
+ * archived (it is not a Trash kind), so the Archive view marks it instead.
+ */
+export const projectTrashSchema = z.object({
+  /** The group entry a restore names; its revision is the restore base revision. */
+  baseRevision: z.number().int().nonnegative(),
+  entryId: z.string(),
+  expiresAt: z.string(),
+  groupId: z.string(),
+  mark: z.literal(PROJECT_IN_TRASH_MARK),
+  trashedAt: z.string(),
+});
+export type ProjectTrash = z.infer<typeof projectTrashSchema>;
+
 export const archivedProjectEntrySchema = z.object({
   githubNotice: z.string(),
   project: retirementProjectSchema,
+  /** `null` while the Project is in the Archive proper. */
+  trash: projectTrashSchema.nullable(),
   securityActions: z.array(archiveSecurityActionItemSchema),
   surfaces: z.array(archivedSurfaceSchema),
 });
@@ -298,6 +326,39 @@ export const livingRelationSchema = z.object({
   targetLabel: z.string(),
 });
 export type LivingRelation = z.infer<typeof livingRelationSchema>;
+
+/**
+ * `Restore to Archive`: the group entry (from the Archive view) and its Trash
+ * revision. Strict, so no surface or GitHub choice can ride along.
+ */
+export const restoreProjectToArchiveInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: z.string().trim().min(1).max(255),
+    entryId: identifier,
+    projectId: identifier,
+  })
+  .strict();
+export type RestoreProjectToArchiveInput = z.infer<
+  typeof restoreProjectToArchiveInputSchema
+>;
+
+export const restoredProjectSchema = z.object({
+  githubNotice: z.string(),
+  groupId: z.string().nullable(),
+  notices: z.array(z.string()),
+  projectId: z.string(),
+  /** The same identities that went to Trash, never copies. */
+  records: z.array(
+    z.object({
+      recordId: z.string(),
+      recordKind: z.string(),
+      revision: z.number().int().nonnegative(),
+    }),
+  ),
+  restoredAt: z.string(),
+});
+export type RestoredProject = z.infer<typeof restoredProjectSchema>;
 
 export const deleteProjectPreviewSchema = z.object({
   group: z.array(deleteGroupMemberSchema),
@@ -352,6 +413,15 @@ export interface ProjectRetirementAccess {
     accountId: string,
     input: PreviewDeleteProjectInput,
   ) => Promise<DeleteProjectPreview>;
+  /**
+   * `Restore to Archive`: the whole delete group returns under the same
+   * identities and the Project stays archived. Surfaces and GitHub are never
+   * touched: a revoked surface stays revoked, nothing is republished.
+   */
+  restoreToArchive: (
+    accountId: string,
+    input: RestoreProjectToArchiveInput,
+  ) => Promise<RestoredProject>;
   /** Leaves the Archive. GitHub stays paused until the canonical `Reconnect`. */
   unarchive: (
     accountId: string,

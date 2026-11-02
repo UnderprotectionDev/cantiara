@@ -485,6 +485,7 @@ import {
   listArchivedProjectsInputSchema,
   previewArchiveProjectInputSchema,
   previewDeleteProjectInputSchema,
+  restoreProjectToArchiveInputSchema,
   unarchiveProjectInputSchema,
 } from "../project-retirement";
 import {
@@ -493,6 +494,7 @@ import {
   listArchivedProjectsHandler,
   previewArchiveProjectHandler,
   previewDeleteProjectHandler,
+  restoreProjectToArchiveHandler,
   unarchiveProjectHandler,
 } from "../project-retirement-handlers";
 import {
@@ -5015,6 +5017,11 @@ export const appRouter = {
   deleteProject: protectedProcedure
     .input(deleteProjectInputSchema)
     .handler(({ context, input }) => deleteProjectHandler(context, input)),
+  restoreProjectToArchive: protectedProcedure
+    .input(restoreProjectToArchiveInputSchema)
+    .handler(({ context, input }) =>
+      restoreProjectToArchiveHandler(context, input),
+    ),
   unarchiveProject: protectedProcedure
     .input(unarchiveProjectInputSchema)
     .handler(({ context, input }) => unarchiveProjectHandler(context, input)),

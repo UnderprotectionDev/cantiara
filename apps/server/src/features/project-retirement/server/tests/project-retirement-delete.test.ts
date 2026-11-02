@@ -103,6 +103,8 @@ function build(current: RetirementProject = project()) {
     surfaces: () =>
       Promise.resolve([surface("surface-1"), surface("surface-2")]),
     trash: {
+      overview: () => Promise.resolve({ entries: [], retentionDays: 30 }),
+      restore: () => Promise.resolve(null),
       // One group id, one trashed instant, one expiry for every member.
       moveGroup: (_account, input) => {
         events.push("move");

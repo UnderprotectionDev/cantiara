@@ -42,6 +42,25 @@ export function useDeleteProject() {
   });
 }
 
+/** `Restore to Archive`: online only; the entry and its revision come from the Archive view. */
+export function useRestoreToArchive() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      baseRevision: number;
+      entryId: string;
+      projectId: string;
+    }) =>
+      runOnlineOnlyWrite(() =>
+        client.restoreProjectToArchive({
+          ...input,
+          clientIdempotencyKey: crypto.randomUUID(),
+        }),
+      ),
+    onSettled: () => queryClient.invalidateQueries(),
+  });
+}
+
 /**
  * `Archive Project` and `Unarchive`, online only, on the shared revision
  * barrier: the revision comes from the preview or the Archive view, and a

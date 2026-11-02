@@ -8,7 +8,7 @@ import { createProjectRetirement } from "../project-retirement";
 
 const ACCOUNT = "account-1";
 const RETIREMENT_PROCEDURE =
-  /archiveProject|ArchivedProjects|ArchiveProject|^(preview)?(D|d)eleteProject$/;
+  /archiveProject|ArchivedProjects|ArchiveProject|^(preview)?(D|d)eleteProject$|^restoreProjectToArchive$/;
 const PROJECT_DELETE_PROCEDURE = /^(trash|restore)Project$/i;
 
 function setup(authenticated = true) {
@@ -26,7 +26,11 @@ function setup(authenticated = true) {
       relations: () => Promise.resolve([]),
       revokeSurface: () => Promise.resolve(null),
     },
-    trash: { moveGroup: () => Promise.resolve(null) },
+    trash: {
+      moveGroup: () => Promise.resolve(null),
+      overview: () => Promise.resolve({ entries: [], retentionDays: 30 }),
+      restore: () => Promise.resolve(null),
+    },
     inFlight: () => Promise.resolve([]),
     integrations: () => Promise.resolve([]),
     store: {
@@ -62,7 +66,7 @@ function setup(authenticated = true) {
 }
 
 describe("Project Retirement RPC seam", () => {
-  test("exposes archive, delete-from-archive, preview, list and unarchive, and no Trash or restore shortcut", () => {
+  test("exposes archive, delete-from-archive, restore-to-Archive, preview, list and unarchive, and no Trash or Active-restore shortcut", () => {
     const names = Object.keys(appRouter).filter((name) =>
       RETIREMENT_PROCEDURE.test(name),
     );
@@ -72,6 +76,7 @@ describe("Project Retirement RPC seam", () => {
       "listArchivedProjects",
       "previewArchiveProject",
       "previewDeleteProject",
+      "restoreProjectToArchive",
       "unarchiveProject",
     ]);
     expect(

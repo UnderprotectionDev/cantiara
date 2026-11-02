@@ -8,6 +8,9 @@ import {
   ARCHIVE_LABEL,
   type ArchivedProjectEntry,
   DELETE_PROJECT_LABEL,
+  REPUBLISH_APPROVAL_NOTICE,
+  RESTORE_TO_ARCHIVE_LABEL,
+  RESTORE_TO_ARCHIVE_RESULT,
   UNARCHIVE_LABEL,
 } from "@cantiara/api/project-retirement";
 import { Badge } from "@cantiara/ui/components/badge";
@@ -21,6 +24,7 @@ function EntryCard({
   entry,
   formatting,
   onDelete,
+  onRestore,
   onUnarchive,
   pending,
 }: {
@@ -28,10 +32,11 @@ function EntryCard({
   entry: ArchivedProjectEntry;
   formatting: AccountPreferences;
   onDelete?: (entry: ArchivedProjectEntry) => void;
+  onRestore?: (entry: ArchivedProjectEntry) => void;
   onUnarchive: (entry: ArchivedProjectEntry) => void;
   pending: boolean;
 }) {
-  const { project } = entry;
+  const { project, trash } = entry;
   return (
     <li
       className="space-y-4 rounded-lg border p-4"
@@ -42,6 +47,7 @@ function EntryCard({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold text-lg">{project.name}</h3>
             <Badge variant="secondary">{project.status}</Badge>
+            {trash ? <Badge variant="destructive">{trash.mark}</Badge> : null}
           </div>
           <p className="text-muted-foreground text-sm">
             {project.shortCode}
@@ -50,16 +56,29 @@ function EntryCard({
               : ""}
           </p>
         </div>
-        <Button
-          className="min-h-11"
-          disabled={pending}
-          onClick={() => onUnarchive(entry)}
-          type="button"
-          variant="outline"
-        >
-          {UNARCHIVE_LABEL}
-        </Button>
-        {onDelete ? (
+        {trash && onRestore ? (
+          <Button
+            className="min-h-11"
+            disabled={pending}
+            onClick={() => onRestore(entry)}
+            type="button"
+            variant="outline"
+          >
+            {RESTORE_TO_ARCHIVE_LABEL}
+          </Button>
+        ) : null}
+        {trash ? null : (
+          <Button
+            className="min-h-11"
+            disabled={pending}
+            onClick={() => onUnarchive(entry)}
+            type="button"
+            variant="outline"
+          >
+            {UNARCHIVE_LABEL}
+          </Button>
+        )}
+        {onDelete && !trash ? (
           <Button
             className="min-h-11"
             disabled={pending}
@@ -71,6 +90,13 @@ function EntryCard({
           </Button>
         ) : null}
       </div>
+      {trash ? (
+        <p className="text-muted-foreground text-sm">
+          The Project group is in Trash until{" "}
+          {formatAccountDateTime(trash.expiresAt, formatting)}.{" "}
+          {RESTORE_TO_ARCHIVE_RESULT} {REPUBLISH_APPROVAL_NOTICE}
+        </p>
+      ) : null}
       {deletePanel}
 
       <section aria-label="Living External Surfaces" className="space-y-1">
@@ -133,6 +159,7 @@ export function ArchiveView({
   formatting = DEFAULT_ACCOUNT_PREFERENCES,
   loading,
   onDelete,
+  onRestore,
   onUnarchive,
   pendingProjectId,
   projects,
@@ -144,6 +171,7 @@ export function ArchiveView({
   formatting?: AccountPreferences;
   loading: boolean;
   onDelete?: (entry: ArchivedProjectEntry) => void;
+  onRestore?: (entry: ArchivedProjectEntry) => void;
   onUnarchive: (entry: ArchivedProjectEntry) => void;
   pendingProjectId?: string | null;
   projects: readonly ArchivedProjectEntry[];
@@ -177,6 +205,7 @@ export function ArchiveView({
               formatting={formatting}
               key={entry.project.id}
               onDelete={onDelete}
+              onRestore={onRestore}
               onUnarchive={onUnarchive}
               pending={pendingProjectId === entry.project.id}
             />
