@@ -8,6 +8,7 @@ import { describe, expect, test } from "vitest";
 import { createAccountClosure } from "../account-closure";
 import {
   CLOSURE_ACTOR,
+  createDeletionDoubles,
   createDrainDouble,
   createExitPackageDouble,
   createGrantDouble,
@@ -20,10 +21,14 @@ const STARTED = new Date("2026-03-01T00:00:00.000Z");
 async function frozen() {
   const store = createMemoryClosureStore();
   const exitPackage = createExitPackageDouble();
+  const deletion = createDeletionDoubles();
   const closure = createAccountClosure({
     boundary: { fix: () => Promise.resolve(BOUNDARY) },
     drain: createDrainDouble().drain,
     exitPackage,
+    identity: deletion.identity,
+    removal: deletion.removal,
+    tombstones: deletion.tombstoneLog,
     now: () => STARTED,
     store,
   });
@@ -162,10 +167,14 @@ describe("Hesap kapanma dondurması (spec 84)", () => {
 
   test("the package is not available outside the freeze", async () => {
     const store = createMemoryClosureStore();
+    const deletion = createDeletionDoubles();
     const closure = createAccountClosure({
       boundary: { fix: () => Promise.resolve(BOUNDARY) },
       drain: createDrainDouble().drain,
       exitPackage: createExitPackageDouble(),
+      identity: deletion.identity,
+      removal: deletion.removal,
+      tombstones: deletion.tombstoneLog,
       store,
     });
     await expect(

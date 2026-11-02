@@ -2,6 +2,7 @@ import { ACCOUNT_CLOSURE_START_OPERATION_ID } from "@cantiara/api/account-closur
 import { describe, expect, test } from "vitest";
 import { createAccountClosure } from "../account-closure";
 import {
+  createDeletionDoubles,
   createDrainDouble,
   createExitPackageDouble,
   createMemoryClosureStore,
@@ -13,10 +14,14 @@ const BOUNDARY = { at: "2026-03-01T00:00:00.000Z", boundaryId: "event-42" };
 function setup(drainOverrides = {}) {
   const store = createMemoryClosureStore();
   const { calls, drain } = createDrainDouble(drainOverrides);
+  const deletion = createDeletionDoubles();
   const closure = createAccountClosure({
     boundary: { fix: () => Promise.resolve(BOUNDARY) },
     drain,
     exitPackage: createExitPackageDouble(),
+    identity: deletion.identity,
+    removal: deletion.removal,
+    tombstones: deletion.tombstoneLog,
     now: () => new Date("2026-03-01T00:00:00.000Z"),
     store,
   });

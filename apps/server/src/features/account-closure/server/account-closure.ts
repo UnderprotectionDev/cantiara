@@ -12,9 +12,12 @@ import {
   AccountClosureError,
   type AccountClosureExitPackage,
   type AccountClosureGrantConsumer,
+  type AccountClosureIdentity,
   type AccountClosureRecord,
+  type AccountClosureRemoval,
   type AccountClosureSecurityBoundary,
   type AccountClosureStore,
+  type AccountClosureTombstoneLog,
   type AccountClosureWriteKind,
   type ClosingReceipt,
   type SecurityEventBoundary,
@@ -33,8 +36,11 @@ export interface AccountClosureOptions {
   boundary: AccountClosureSecurityBoundary;
   drain: AccountClosureDrain;
   exitPackage: AccountClosureExitPackage;
+  identity: AccountClosureIdentity;
   now?: () => Date;
+  removal: AccountClosureRemoval;
   store: AccountClosureStore;
+  tombstones: AccountClosureTombstoneLog;
 }
 
 export interface AccountClosureStatus {
@@ -78,7 +84,8 @@ const ALLOWED: Record<
 };
 
 export function createAccountClosure(options: AccountClosureOptions) {
-  const { boundary, drain, exitPackage, store } = options;
+  const { boundary, drain, exitPackage, identity, removal, store, tombstones } =
+    options;
   const now = options.now ?? (() => new Date());
 
   async function current(accountId: string): Promise<AccountClosureRecord> {
@@ -274,6 +281,75 @@ export function createAccountClosure(options: AccountClosureOptions) {
     ): Promise<Uint8Array> {
       await requireFrozen(accountId);
       return exitPackage.download(token);
+    },
+
+    /**
+     * The job at the end of the freeze. There is no early path: it refuses
+     * before 30 days and without at least one successful 82 production. Order
+     * is fixed so a crash stays replayable: the content-free tombstone first
+     * (85 replays it), then the one 78 removal, then the GitHub id is freed,
+     * then the record closes for good. A failed removal leaves the freeze, so
+     * the job can run again.
+     */
+    async permanentDelete(accountId: string): Promise<AccountClosureRecord> {
+      const record = await current(accountId);
+      if (record.state === "deleted") {
+        throw new AccountClosureError(
+          "account_closed",
+          "This Account was permanently deleted.",
+        );
+      }
+      if (record.state !== "frozen" || !record.freezeEndsAt) {
+        throw new AccountClosureError(
+          "not_frozen",
+          "Only an Account on hold can be permanently deleted.",
+        );
+      }
+      if (now().getTime() < Date.parse(record.freezeEndsAt)) {
+        throw new AccountClosureError(
+          "freeze_not_elapsed",
+          "The 30-day hold has not ended.",
+        );
+      }
+      if (!(await exitPackage.successfulProduction({ accountId }))) {
+        throw new AccountClosureError(
+          "package_required",
+          "Produce a Workspace Exit Package before the Account can be deleted.",
+        );
+      }
+      const deletedAt = now().toISOString();
+      try {
+        await tombstones.append({
+          accountAlias: await tombstones.alias(accountId),
+          id: `account-delete:${accountId}`,
+          occurredAt: deletedAt,
+          retention: "restore-window-plus-30-days",
+          type: "account-delete",
+          version: 1,
+        });
+        await removal.removeAccountAndWorkspace(accountId);
+        await identity.release(accountId);
+      } catch (error) {
+        throw Object.assign(
+          new AccountClosureError(
+            "removal_incomplete",
+            "Permanent delete did not finish. The Account stays on hold and the job can run again.",
+          ),
+          { cause: error },
+        );
+      }
+      const deleted: AccountClosureRecord = {
+        ...record,
+        deletedAt,
+        state: "deleted",
+      };
+      if (!(await store.transition(accountId, "frozen", deleted))) {
+        throw new AccountClosureError(
+          "account_closed",
+          "The Account is no longer on hold.",
+        );
+      }
+      return deleted;
     },
 
     /** Runs the drain again for an Account left in `Closing`. */

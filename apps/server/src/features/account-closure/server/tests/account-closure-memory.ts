@@ -3,6 +3,7 @@ import type {
   AccountClosureExitPackage,
   AccountClosureRecord,
   AccountClosureStore,
+  AccountDeleteTombstone,
 } from "@cantiara/api/account-closure";
 
 export function createMemoryClosureStore(): AccountClosureStore & {
@@ -105,4 +106,56 @@ export function createGrantDouble(grants: Record<string, string>) {
     return Promise.resolve(false);
   };
   return { consume, consumed };
+}
+
+/**
+ * Doubles for the terminal removal: the 78 removal, the 85 tombstone log and
+ * the 01 identity directory (stable GitHub user id -> Account id).
+ */
+export function createDeletionDoubles() {
+  const calls: string[] = [];
+  const tombstones: AccountDeleteTombstone[] = [];
+  const directory = new Map<string, string>();
+  let counter = 0;
+  const signIn = (githubUserId: string) => {
+    const existing = directory.get(githubUserId);
+    if (existing) {
+      return existing;
+    }
+    counter += 1;
+    const accountId = `account-new-${counter}`;
+    directory.set(githubUserId, accountId);
+    return accountId;
+  };
+  return {
+    calls,
+    directory,
+    identity: {
+      release: (accountId: string) => {
+        calls.push("release-identity");
+        for (const [githubUserId, owner] of directory) {
+          if (owner === accountId) {
+            directory.delete(githubUserId);
+          }
+        }
+        return Promise.resolve();
+      },
+    },
+    removal: {
+      removeAccountAndWorkspace: (accountId: string) => {
+        calls.push(`remove:${accountId}`);
+        return Promise.resolve();
+      },
+    },
+    signIn,
+    tombstoneLog: {
+      alias: () => Promise.resolve("alias-7f3a"),
+      append: (tombstone: AccountDeleteTombstone) => {
+        calls.push("tombstone");
+        tombstones.push(tombstone);
+        return Promise.resolve();
+      },
+    },
+    tombstones,
+  };
 }
