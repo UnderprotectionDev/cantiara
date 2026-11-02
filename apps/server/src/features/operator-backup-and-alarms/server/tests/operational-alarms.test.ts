@@ -117,6 +117,51 @@ describe("Operator Backup and Alarms: S1 within five minutes", () => {
     expect(world.gate.allows("external-surface")).toBe(false);
   });
 
+  test("S1 latency is measured through notifier delivery", async () => {
+    const { alarms, detect, world } = setup();
+    world.faults.deliveryDelayMs = 6 * MINUTE;
+    const alarm = await alarms.handle(detect("health", 1));
+    expect(alarm?.latencyMs).toBe(6 * MINUTE);
+    expect(world.alarms[0]?.latencyMs).toBe(6 * MINUTE);
+    expect(world.errors.map((e) => e.code)).toEqual(["S1_ALARM_LATE"]);
+    expect(alarm ? s1TimingEvidence(alarm) : null).toBe(false);
+  });
+
+  test("a failed delivery is never within target", async () => {
+    const { alarms, detect, world } = setup();
+    world.faults.deliveryFails = true;
+    const alarm = await alarms.handle(detect("health", 1));
+    expect(world.errors.map((e) => e.code)).toEqual(["ALARM_DELIVERY_FAILED"]);
+    expect(alarm ? s1TimingEvidence(alarm) : null).toBe(false);
+  });
+
+  test("failed containment is recorded as containment-failed, not close-external-access", async () => {
+    const { detect, world } = setup();
+    const alarms = createOperationalAlarms({
+      gate: {
+        ...world.controller,
+        close() {
+          throw new Error("gate broken");
+        },
+      },
+      newAlarmId: world.newAlarmId,
+      notifier: world.notifier,
+      now: world.now,
+      store: world.store,
+    });
+    const alarm = await alarms.handle(detect("health", 1));
+    expect(alarm?.containment).toBe("containment-failed");
+    expect(world.errors.map((e) => e.code)).toEqual(["CONTAINMENT_FAILED"]);
+    const evidence = alarm ? s1TimingEvidenceOf(alarm) : null;
+    expect(evidence?.containment).toBe("containment-failed");
+    expect(evidence?.withinTarget).toBe(true);
+    expect(
+      evaluateReleaseCandidate({
+        operationalRecovery: { ...goodEvidence(), s1: evidence ?? undefined },
+      }).reasons,
+    ).toEqual(["S1_CONTAINMENT_FAILED"]);
+  });
+
   test("a backup failure is an S1 that needs no access closure", async () => {
     const { alarms, detect, world } = setup();
     const alarm = await alarms.handle(detect("backup-failure", 1));
@@ -147,11 +192,27 @@ describe("Operator Backup and Alarms: S2", () => {
     ).toBe("2026-11-09T23:59:59.999Z");
   });
 
+  test.each([
+    ["Saturday", "2026-11-07T09:00:00.000Z"],
+    ["Sunday", "2026-11-08T23:00:00.000Z"],
+  ])("a %s S2 is due on Monday end of day UTC", (_day, detectedAt) => {
+    expect(triageDeadline(new Date(detectedAt)).toISOString()).toBe(
+      "2026-11-09T23:59:59.999Z",
+    );
+  });
+
+  test("a Thursday S2 is due on Friday, not the weekend", () => {
+    expect(
+      triageDeadline(new Date("2026-11-05T16:00:00.000Z")).toISOString(),
+    ).toBe("2026-11-06T23:59:59.999Z");
+  });
+
   test("an alarm record carries no on-call, support queue or incident fields", async () => {
     const { alarms, detect } = setup();
     const alarm = await alarms.handle(detect("queue-latency", 15 * MINUTE));
     expect(Object.keys(alarm ?? {}).sort()).toEqual([
       "containment",
+      "delivered",
       "detectedAt",
       "id",
       "latencyMs",

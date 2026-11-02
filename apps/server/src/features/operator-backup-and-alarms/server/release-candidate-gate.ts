@@ -20,6 +20,7 @@ export type RcBlockReason =
   | "RPO_EVIDENCE_MISSING"
   | "RPO_OUTSIDE_TARGET"
   | "RTO_OUTSIDE_TARGET"
+  | "S1_CONTAINMENT_FAILED"
   | "S1_EVIDENCE_MISSING"
   | "S1_OUTSIDE_TARGET";
 
@@ -66,6 +67,9 @@ export function evaluateReleaseCandidate(
       evidence.s1.latencyMs > S1_ALARM_TARGET_MS
     ) {
       reasons.push("S1_OUTSIDE_TARGET");
+    }
+    if (evidence.s1.containment === "containment-failed") {
+      reasons.push("S1_CONTAINMENT_FAILED");
     }
   } else {
     reasons.push("S1_EVIDENCE_MISSING");

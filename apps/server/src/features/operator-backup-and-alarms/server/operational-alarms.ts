@@ -22,11 +22,14 @@ export type AlarmMetric =
 
 export type AlarmSeverity = "S1" | "S2";
 
-export type ContainmentAction = "close-external-access" | "none";
+export type ContainmentAction =
+  | "close-external-access"
+  | "containment-failed"
+  | "none";
 
 export interface AlarmDefinition {
   /** Fail-closed action that is safe to take without a human. */
-  containment: ContainmentAction;
+  containment: Exclude<ContainmentAction, "containment-failed">;
   metric: AlarmMetric;
   /** Value at or above which the severity applies; omitted = never. */
   s1AtOrAbove?: number;
@@ -73,6 +76,8 @@ export interface AlarmDetection {
 
 export interface OperationalAlarm {
   containment: ContainmentAction;
+  /** False when the notifier call failed; the alarm never reached a human. */
+  delivered: boolean;
   detectedAt: string;
   id: string;
   latencyMs: number;
@@ -134,7 +139,12 @@ export function classifySeverity(
   return null;
 }
 
-/** End of the next business day (UTC), skipping Saturday and Sunday. */
+/**
+ * S2 triage deadline: the end (23:59:59.999 UTC) of the next UTC business day
+ * after detection. Business days are Monday to Friday; Friday, Saturday and
+ * Sunday detections all land on the following Monday, which is the next
+ * business day. Public holidays are not modelled.
+ */
 export function triageDeadline(detectedAt: Date): Date {
   const due = new Date(detectedAt);
   do {
@@ -158,21 +168,23 @@ export function createOperationalAlarms(deps: OperationalAlarmDeps) {
     });
   }
 
-  function contain(
+  /** Resolves true when containment is not needed or succeeded. */
+  async function contain(
     definition: AlarmDefinition,
     alarmId: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (definition.containment !== "close-external-access") {
-      return Promise.resolve();
+      return true;
     }
     try {
       // No human approval: the closed gate is the safe default.
       deps.gate.close(`s1-containment:${definition.metric}`);
-      return Promise.resolve();
+      return true;
     } catch (cause) {
-      return recordError(alarmId, "CONTAINMENT_FAILED", [
+      await recordError(alarmId, "CONTAINMENT_FAILED", [
         cause instanceof Error ? cause.name : "UNKNOWN",
       ]);
+      return false;
     }
   }
 
@@ -190,13 +202,19 @@ export function createOperationalAlarms(deps: OperationalAlarmDeps) {
       const id = deps.newAlarmId();
       const detectedAt = new Date(detection.detectedAt);
 
+      const contained =
+        severity === "S1" ? await contain(definition, id) : true;
+      let containment: ContainmentAction = "none";
       if (severity === "S1") {
-        await contain(definition, id);
+        containment = contained ? definition.containment : "containment-failed";
       }
 
-      const raisedAt = deps.now();
-      const alarm: OperationalAlarm = {
-        containment: severity === "S1" ? definition.containment : "none",
+      const build = (
+        raisedAt: Date,
+        wasDelivered: boolean,
+      ): OperationalAlarm => ({
+        containment,
+        delivered: wasDelivered,
         detectedAt: detectedAt.toISOString(),
         id,
         latencyMs: raisedAt.getTime() - detectedAt.getTime(),
@@ -207,18 +225,23 @@ export function createOperationalAlarms(deps: OperationalAlarmDeps) {
         ...(severity === "S2"
           ? { triageDueAt: triageDeadline(detectedAt).toISOString() }
           : {}),
-      };
+      });
+
+      let delivered = true;
+      try {
+        await deps.notifier.raise(build(deps.now(), true));
+      } catch (cause) {
+        delivered = false;
+        await recordError(id, "ALARM_DELIVERY_FAILED", [
+          cause instanceof Error ? cause.name : "UNKNOWN",
+        ]);
+      }
+      // The clock is read AFTER delivery: S1 latency includes the notifier.
+      const alarm = build(deps.now(), delivered);
       await deps.store.saveAlarm(alarm);
       if (severity === "S1" && alarm.latencyMs > S1_ALARM_TARGET_MS) {
         await recordError(id, "S1_ALARM_LATE", [
           `latencyMs:${alarm.latencyMs}`,
-        ]);
-      }
-      try {
-        await deps.notifier.raise(alarm);
-      } catch (cause) {
-        await recordError(id, "ALARM_DELIVERY_FAILED", [
-          cause instanceof Error ? cause.name : "UNKNOWN",
         ]);
       }
       return alarm;
@@ -249,6 +272,6 @@ export function s1TimingEvidenceOf(
     detectedAt: alarm.detectedAt,
     latencyMs: alarm.latencyMs,
     raisedAt: alarm.raisedAt,
-    withinTarget: alarm.latencyMs <= S1_ALARM_TARGET_MS,
+    withinTarget: alarm.delivered && alarm.latencyMs <= S1_ALARM_TARGET_MS,
   };
 }
