@@ -59,6 +59,7 @@ import type { ProjectClosureSummaryAccess } from "./project-closure-summary";
 import type { ProjectGoalsAccess } from "./project-goals";
 import type { ProjectHistoryAccess } from "./project-history";
 import type { ProjectReleasePlanningAccess } from "./project-release-planning";
+import type { ProjectRetirementAccess } from "./project-retirement";
 import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
@@ -245,6 +246,7 @@ export interface Context {
   projectGoals?: ProjectGoalsAccess;
   projectHistory?: ProjectHistoryAccess;
   projectReleasePlanning?: ProjectReleasePlanningAccess;
+  projectRetirement?: ProjectRetirementAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;

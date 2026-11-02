@@ -480,6 +480,18 @@ import {
   setProjectReleaseScopeInputSchema,
 } from "../project-release-planning";
 import {
+  archiveProjectInputSchema,
+  listArchivedProjectsInputSchema,
+  previewArchiveProjectInputSchema,
+  unarchiveProjectInputSchema,
+} from "../project-retirement";
+import {
+  archiveProjectHandler,
+  listArchivedProjectsHandler,
+  previewArchiveProjectHandler,
+  unarchiveProjectHandler,
+} from "../project-retirement-handlers";
+import {
   applyProjectShellConfigurationChange,
   createProjectInputSchema,
   createProjectMutationInputSchema,
@@ -2694,6 +2706,19 @@ function completionEffectsPreferencesSnapshotFromReceipt(
 function rethrowProjectShellError(error: unknown): never {
   if (!isRecord(error)) {
     throw error;
+  }
+
+  if (error.code === "APPLY_FAILED" && isRecord(error.cause)) {
+    rethrowProjectShellError(error.cause);
+  }
+
+  // Archived Projects are read-only: fail closed at the shared Project seam.
+  if (error.code === "project_archived") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: "PROJECT_READ_ONLY" },
+      defined: true,
+      message: "Project is archived",
+    });
   }
 
   if (error.code === "SHORT_CODE_CONFLICT") {
@@ -4970,6 +4995,20 @@ function requireExternalSurfaceManagement(context: Context) {
   return context.externalSurfaceManagement;
 }
 export const appRouter = {
+  previewArchiveProject: protectedProcedure
+    .input(previewArchiveProjectInputSchema)
+    .handler(({ context, input }) =>
+      previewArchiveProjectHandler(context, input),
+    ),
+  archiveProject: protectedProcedure
+    .input(archiveProjectInputSchema)
+    .handler(({ context, input }) => archiveProjectHandler(context, input)),
+  unarchiveProject: protectedProcedure
+    .input(unarchiveProjectInputSchema)
+    .handler(({ context, input }) => unarchiveProjectHandler(context, input)),
+  listArchivedProjects: protectedProcedure
+    .input(listArchivedProjectsInputSchema)
+    .handler(({ context }) => listArchivedProjectsHandler(context)),
   previewPersonalDataExport: protectedProcedure
     .input(personalDataPreviewInputSchema)
     .handler(({ context, input }) =>

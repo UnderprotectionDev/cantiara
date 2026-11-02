@@ -138,6 +138,11 @@ import { createDatabaseProjectGoals } from "./features/project-goals/server/proj
 import { createProjectActivity } from "./features/project-history/server/project-activity";
 import { createDatabaseProjectActivityStore } from "./features/project-history/server/project-activity-database";
 import { createDatabaseProjectHistory } from "./features/project-history/server/project-history-database";
+import { createProjectRetirement } from "./features/project-retirement/server/project-retirement";
+import {
+  createDatabaseInFlightWork,
+  createDatabaseProjectRetirementStore,
+} from "./features/project-retirement/server/project-retirement-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "./features/project-source-records/server/project-source-records-database";
@@ -589,6 +594,29 @@ const configuredGitHub = createConfiguredGitHubIntegration(db, {
   privateKey: env.GITHUB_APP_PRIVATE_KEY,
 });
 export const gitHubIntegration = configuredGitHub.integration;
+/**
+ * Project Retirement (spec 83): archive to read-only through the shared
+ * revision barrier. GitHub is only read; `Unarchive` never reconnects a link,
+ * the canonical `Reconnect` of spec 61 does.
+ */
+const retirementIntegrations = async (accountId: string, projectId: string) =>
+  (await gitHubIntegration.overview(accountId, projectId)).links.map(
+    (link) => ({
+      id: link.id,
+      label: `${link.owner}/${link.name}`,
+      state: link.stopReason ?? link.connection,
+    }),
+  );
+export const projectRetirement = createProjectRetirement({
+  inFlight: createDatabaseInFlightWork(db, {
+    integrations: retirementIntegrations,
+  }),
+  integrations: retirementIntegrations,
+  store: createDatabaseProjectRetirementStore(db),
+  surfaces: async (accountId, projectId) =>
+    (await externalSurfaceManagement.list(accountId, { projectId }))?.rows ??
+    null,
+});
 export const gitHubWebhookInbox = configuredGitHub.webhookInbox({
   bootstrapSecret: env.GITHUB_WEBHOOK_SECRET,
   enqueue: (deliveryId) => gitHubWebhookWorker.enqueue(deliveryId),

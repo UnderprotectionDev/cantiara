@@ -4,6 +4,7 @@ import {
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "@cantiara/api/mutation-contract-database";
+import { assertArchivedProjectAllows } from "@cantiara/api/project-retirement";
 import type {
   ProjectProfile,
   ProjectShellMutationContracts,
@@ -244,6 +245,10 @@ async function updateProjectShellRecord(
   if (!ownedProject || nextProject.id !== ownedProject.record.id) {
     return null;
   }
+
+  // Archived Projects are read-only: a Project shell write is a normal write,
+  // so it fails closed here, inside the revision barrier.
+  assertArchivedProjectAllows(ownedProject.record, "content-edit");
 
   const shortCodeChanged =
     ownedProject.record.shortCode !== nextProject.shortCode;
