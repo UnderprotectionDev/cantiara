@@ -10,6 +10,7 @@ import ProjectShellSurface, {
 
 export default function ProjectShellView({
   accountId,
+  archiveArea,
   githubArea,
   productionArea,
   projectHistoryArea,
@@ -24,6 +25,7 @@ export default function ProjectShellView({
   workHistoryArea,
 }: {
   accountId?: string;
+  archiveArea?: ReactNode;
   githubArea?: ReactNode;
   productionArea?: ProjectProductionArea;
   projectHistoryArea?: ReactNode;
@@ -76,6 +78,7 @@ export default function ProjectShellView({
       <ProjectShellSurface
         accountFormattingPreferences={formattingPreferences}
         accountId={accountId}
+        archiveArea={archiveArea}
         githubArea={githubArea}
         linkSharingArea={linkSharingArea}
         productionArea={productionArea}
