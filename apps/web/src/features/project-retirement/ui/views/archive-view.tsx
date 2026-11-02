@@ -7,21 +7,27 @@ import {
 import {
   ARCHIVE_LABEL,
   type ArchivedProjectEntry,
+  DELETE_PROJECT_LABEL,
   UNARCHIVE_LABEL,
 } from "@cantiara/api/project-retirement";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
 import { Link } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 
 function EntryCard({
+  deletePanel,
   entry,
   formatting,
+  onDelete,
   onUnarchive,
   pending,
 }: {
+  deletePanel?: ReactNode;
   entry: ArchivedProjectEntry;
   formatting: AccountPreferences;
+  onDelete?: (entry: ArchivedProjectEntry) => void;
   onUnarchive: (entry: ArchivedProjectEntry) => void;
   pending: boolean;
 }) {
@@ -53,7 +59,19 @@ function EntryCard({
         >
           {UNARCHIVE_LABEL}
         </Button>
+        {onDelete ? (
+          <Button
+            className="min-h-11"
+            disabled={pending}
+            onClick={() => onDelete(entry)}
+            type="button"
+            variant="destructive"
+          >
+            {DELETE_PROJECT_LABEL}
+          </Button>
+        ) : null}
       </div>
+      {deletePanel}
 
       <section aria-label="Living External Surfaces" className="space-y-1">
         <h4 className="font-medium text-sm">Living External Surfaces</h4>
@@ -106,22 +124,26 @@ function EntryCard({
 
 /**
  * Archive: archived Projects with their living External Surfaces and open
- * security actions. It offers `Unarchive` only; Project deletion is not
- * presented here yet.
+ * security actions. `Delete Project` lives only here, on an archived Project.
  */
 export function ArchiveView({
+  deletePanel,
   error,
   errorMessage,
   formatting = DEFAULT_ACCOUNT_PREFERENCES,
   loading,
+  onDelete,
   onUnarchive,
   pendingProjectId,
   projects,
 }: {
+  /** The delete preview of one Project, rendered inside its card. */
+  deletePanel?: { node: ReactNode; projectId: string } | null;
   error: boolean;
   errorMessage?: string | null;
   formatting?: AccountPreferences;
   loading: boolean;
+  onDelete?: (entry: ArchivedProjectEntry) => void;
   onUnarchive: (entry: ArchivedProjectEntry) => void;
   pendingProjectId?: string | null;
   projects: readonly ArchivedProjectEntry[];
@@ -146,9 +168,15 @@ export function ArchiveView({
         <ul className="space-y-3">
           {projects.map((entry) => (
             <EntryCard
+              deletePanel={
+                deletePanel?.projectId === entry.project.id
+                  ? deletePanel.node
+                  : null
+              }
               entry={entry}
               formatting={formatting}
               key={entry.project.id}
+              onDelete={onDelete}
               onUnarchive={onUnarchive}
               pending={pendingProjectId === entry.project.id}
             />

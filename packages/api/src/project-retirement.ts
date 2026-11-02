@@ -114,6 +114,7 @@ export const PROJECT_RETIREMENT_ERROR_CODES = [
   "already_archived",
   "not_archived",
   "project_archived",
+  "empty_delete_group",
 ] as const;
 export type ProjectRetirementErrorCode =
   (typeof PROJECT_RETIREMENT_ERROR_CODES)[number];
@@ -123,6 +124,7 @@ export const PROJECT_RETIREMENT_ERROR_MESSAGES: Record<
   string
 > = {
   already_archived: "The Project is already archived.",
+  empty_delete_group: "The Project has no record to move to Trash.",
   not_archived: "The Project is not archived.",
   project_archived: PROJECT_ARCHIVED_READ_ONLY_MESSAGE,
   project_not_found: "Project is unavailable.",
@@ -258,12 +260,86 @@ export const archiveViewSchema = z.object({
 });
 export type ArchiveView = z.infer<typeof archiveViewSchema>;
 
+export const DELETE_PROJECT_LABEL = "Delete Project";
+export const DELETE_PROJECT_CONFIRM_LABEL = "Move to Trash";
+export const DELETE_RESTORE_NOTICE =
+  "Restore returns the group to the Archive. It does not republish any External Surface or re-enable GitHub; publishing again needs a new External Surface, URL or token and an explicit approval.";
+export const DELETE_RETAINED_NOTICE =
+  "Workspace, Account and Personal Wiki records are not deleted.";
+export const DELETE_TRASH_NOTICE =
+  "The whole group enters Trash as one unit on one 30-day clock.";
+export const DELETED_TARGET_MARK = "In Trash";
+
+export const previewDeleteProjectInputSchema = z
+  .object({ projectId: identifier })
+  .strict();
+export type PreviewDeleteProjectInput = z.infer<
+  typeof previewDeleteProjectInputSchema
+>;
+
+/** Strict: a `surfaceDisposition` (`Keep approved surface`) is refused, not ignored. */
+export const deleteProjectInputSchema = z.object(transitionShape).strict();
+export type DeleteProjectInput = z.infer<typeof deleteProjectInputSchema>;
+
+/** One member of the Proje silme grubu, as the preview names it. */
+export const deleteGroupMemberSchema = z.object({
+  baseRevision: z.number().int().nonnegative(),
+  label: z.string(),
+  recordId: z.string(),
+  recordKind: z.string(),
+});
+export type DeleteGroupMember = z.infer<typeof deleteGroupMemberSchema>;
+
+/** A living relation in another scope whose target goes to Trash with the group. */
+export const livingRelationSchema = z.object({
+  mark: z.literal(DELETED_TARGET_MARK),
+  scope: z.string(),
+  sourceLabel: z.string(),
+  targetLabel: z.string(),
+});
+export type LivingRelation = z.infer<typeof livingRelationSchema>;
+
+export const deleteProjectPreviewSchema = z.object({
+  group: z.array(deleteGroupMemberSchema),
+  integrationsStop: z.array(
+    z.object({ id: z.string(), label: z.string(), state: z.string() }),
+  ),
+  /** `Keep approved surface` is never offered on this preview. */
+  keepApprovedSurface: z.object({ available: z.literal(false) }),
+  notices: z.array(z.string()),
+  project: retirementProjectSchema,
+  relations: z.array(livingRelationSchema),
+  /** Active surfaces revoked terminally, immediately. */
+  revokedSurfaces: z.array(archivedSurfaceSchema),
+  visitorSessionsEnd: z.boolean(),
+});
+export type DeleteProjectPreview = z.infer<typeof deleteProjectPreviewSchema>;
+
+export const deletedProjectSchema = z.object({
+  expiresAt: z.string(),
+  groupId: z.string().nullable(),
+  projectId: z.string(),
+  records: z.number().int().nonnegative(),
+  revokedSurfaceIds: z.array(z.string()),
+  trashedAt: z.string(),
+});
+export type DeletedProject = z.infer<typeof deletedProjectSchema>;
+
 export interface ProjectRetirementAccess {
   /** Moves the Project to read-only through the shared revision barrier; the status stays. */
   archive: (
     accountId: string,
     input: ArchiveProjectInput,
   ) => Promise<RetirementProject>;
+  /**
+   * `Delete Project` (Archive only): terminal-revokes the Project's External
+   * Surfaces and visitor sessions, then hands the whole delete group to Trash
+   * as one 30-day unit. Never keeps a surface.
+   */
+  deleteProject: (
+    accountId: string,
+    input: DeleteProjectInput,
+  ) => Promise<DeletedProject>;
   /** The `Archive` view: archived Projects, living surfaces and open security actions. */
   list: (accountId: string) => Promise<ArchiveView>;
   /** Read-only: writes nothing. */
@@ -271,6 +347,11 @@ export interface ProjectRetirementAccess {
     accountId: string,
     input: PreviewArchiveProjectInput,
   ) => Promise<ArchivePreview>;
+  /** Read-only delete preview; refused unless the Project is archived. */
+  previewDelete: (
+    accountId: string,
+    input: PreviewDeleteProjectInput,
+  ) => Promise<DeleteProjectPreview>;
   /** Leaves the Archive. GitHub stays paused until the canonical `Reconnect`. */
   unarchive: (
     accountId: string,

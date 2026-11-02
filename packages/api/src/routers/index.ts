@@ -481,14 +481,18 @@ import {
 } from "../project-release-planning";
 import {
   archiveProjectInputSchema,
+  deleteProjectInputSchema,
   listArchivedProjectsInputSchema,
   previewArchiveProjectInputSchema,
+  previewDeleteProjectInputSchema,
   unarchiveProjectInputSchema,
 } from "../project-retirement";
 import {
   archiveProjectHandler,
+  deleteProjectHandler,
   listArchivedProjectsHandler,
   previewArchiveProjectHandler,
+  previewDeleteProjectHandler,
   unarchiveProjectHandler,
 } from "../project-retirement-handlers";
 import {
@@ -5003,6 +5007,14 @@ export const appRouter = {
   archiveProject: protectedProcedure
     .input(archiveProjectInputSchema)
     .handler(({ context, input }) => archiveProjectHandler(context, input)),
+  previewDeleteProject: protectedProcedure
+    .input(previewDeleteProjectInputSchema)
+    .handler(({ context, input }) =>
+      previewDeleteProjectHandler(context, input),
+    ),
+  deleteProject: protectedProcedure
+    .input(deleteProjectInputSchema)
+    .handler(({ context, input }) => deleteProjectHandler(context, input)),
   unarchiveProject: protectedProcedure
     .input(unarchiveProjectInputSchema)
     .handler(({ context, input }) => unarchiveProjectHandler(context, input)),

@@ -1,6 +1,9 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Test renders pass inline no-op handlers.
 // @vitest-environment happy-dom
-import type { ArchivedProjectEntry } from "@cantiara/api/project-retirement";
+import {
+  type ArchivedProjectEntry,
+  DELETE_RESTORE_NOTICE,
+} from "@cantiara/api/project-retirement";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
@@ -9,6 +12,7 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: ReactNode }) => <a href="#x">{children}</a>,
 }));
 
+import { DeletePreviewPanel } from "../../components/delete-preview-panel";
 import { ArchiveView } from "../archive-view";
 
 const entry: ArchivedProjectEntry = {
@@ -69,11 +73,67 @@ describe("Archive view", () => {
     expect(html).toContain("Unarchive");
   });
 
-  test("points at Reconnect and offers no delete in this ticket", () => {
+  test("points at Reconnect and never offers Keep approved surface", () => {
     const html = render([entry]);
     expect(html).toContain("Unarchive does not re-enable GitHub");
     expect(html).toContain("Reconnect");
-    expect(html).not.toContain("Delete Project");
+    expect(html).not.toContain("Keep approved surface");
+  });
+
+  test("offers Delete Project only when the Archive supplies the handler", () => {
+    expect(render([entry])).not.toContain("Delete Project");
+    const html = renderToStaticMarkup(
+      <ArchiveView
+        error={false}
+        loading={false}
+        onDelete={() => undefined}
+        onUnarchive={() => undefined}
+        projects={[entry]}
+      />,
+    );
+    expect(html).toContain("Delete Project");
+  });
+
+  test("the delete preview lists the group, revocations, relations and no-republish notice without Keep approved surface", () => {
+    const html = renderToStaticMarkup(
+      <DeletePreviewPanel
+        busy={false}
+        onCancel={() => undefined}
+        onConfirm={() => undefined}
+        preview={{
+          group: [
+            {
+              baseRevision: 1,
+              label: "Ship",
+              recordId: "w1",
+              recordKind: "Work",
+            },
+          ],
+          integrationsStop: [
+            { id: "l1", label: "acme/atlas", state: "Connected" },
+          ],
+          keepApprovedSurface: { available: false },
+          notices: [DELETE_RESTORE_NOTICE],
+          project: entry.project,
+          relations: [
+            {
+              mark: "In Trash",
+              scope: "Project other",
+              sourceLabel: "Other work",
+              targetLabel: "Ship",
+            },
+          ],
+          revokedSurfaces: entry.surfaces,
+          visitorSessionsEnd: true,
+        }}
+      />,
+    );
+    expect(html).toContain("Work: Ship");
+    expect(html).toContain("revoked now, terminal");
+    expect(html).toContain("Visitor sessions end immediately.");
+    expect(html).toContain("acme/atlas");
+    expect(html).toContain("In Trash");
+    expect(html).toContain("does not republish");
     expect(html).not.toContain("Keep approved surface");
   });
 
