@@ -32,29 +32,29 @@ Anti-referanslar: sağlık skorları, widget dashboard'ları, krem SaaS landing'
 | [DS.17 · Record Representations](#ds17--record-representations) | Kaydın göründüğü biçimler |
 
 ## DS.0 · Decisions
-- [ ] Kararlar tamam
+- [x] Kararlar tamam
 
 > Bu bölümün tek çıktısı: her satır karar verilip Paper token'ı olarak yazılır, sonra `Karar` sütunu doldurulur.
 
 | # | Karar | Kapsam | Kısıtlar | Karar |
 |---|---|---|---|---|
-| 1 | Mood ve görsel yön | Tek cümlelik yön, mood kelimesi | `PRODUCT.md` kişiliği ve anti-referansları | açık |
-| 2 | Renk rolleri | Zemin, yükseltilmiş yüzey, metin, sessiz metin, ayırıcı, birincil eylem, odak halkası, seçim | Gövde metni ≥4.5:1 kontrast; anlam yalnız renkle aktarılmaz (WCAG 2.2 AA, [PRD 15](../../prd/15-product-quality.md)) | açık |
-| 3 | Semantik renkler | Success, warning, danger, info; durum rozetleri | Her durum metin veya ikonla da okunur; Light ve Dark ayrı doğrulanır | açık |
-| 4 | Light / Dark | İki tema token'ı; `Appearance` kuralı → `01.6` | [spec 02](../../specs/02-account-preferences/spec.md); "tema sistemi" değildir, Proje rengi yoktur | açık |
-| 5 | Tipografi | Font ailesi; display, heading, subhead, body, label, caption, mono/data; ağırlık; satır yüksekliği | %200 ölçekte okunur; uzun içerik kırılır; İş anahtarı ve tarihte tabular rakam | açık |
-| 6 | Spacing ölçeği | Temel birim; bileşen içi, grup arası, bölge arası | Yoğun liste ile geniş okuma yüzeyi aynı ölçekten çıkar | açık |
-| 7 | Yoğunluk | Liste ve tablo satır yüksekliği | Linear sınıfı araç kullanıcısı; satır başına tek bilgi hattı | açık |
-| 8 | Layout ızgarası | 1440 içerik genişliği, kenar boşluğu, kabuk kolonları, 768 kırılımı | 768'de hiçbir eylem kaybolmaz, yalnız yer değiştirir | açık |
-| 9 | Radius | Kontrol, yüzey, dialog, rozet | Radius dekor değildir | açık |
-| 10 | Kenar ve gölge | Ayırıcı, yükselti seviyeleri (popover, dialog, toast) | Yükselti yalnız katman anlamı taşır | açık |
-| 11 | İkonografi | Boyut, çizgi kalınlığı, ikon + metin kuralı | Set [tech-stack](../../tech-stack.md) kararıyla **Lucide React**; yalnız ikonlu kontrolün erişilebilir adı var | set seçili |
-| 12 | Odak | Odak halkası biçimi, kalınlığı, ofseti | Her etkileşimli öğede görünür odak | açık |
-| 13 | Motion | Süreler, easing, giriş/çıkış | `prefers-reduced-motion`; Bitiriş efekti ≤1,2 sn, odağı ve girdiyi almaz ([spec 23](../../specs/23-completion-effects/spec.md)) | açık |
-| 14 | Veri gösterimi | Tarih, saat, sayı; göreli zaman | `Locale`, `Time zone`, `Date format`, `First day of week`; arayüz dili İngilizce | açık |
-| 15 | Kanvas temelleri | Zemin, ızgara, seçim, bağlantı çizgisi, kilit işareti | Wall, User Flow, Wireframe, Moodboard, Technical Diagram ortak; her kanvasın erişilebilir outline'ı var | açık |
-| 16 | Metin tonu | Boş durum, hata, onay metinleri | Sakin, kesin; sözlük `_Avoid_` listeleri bağlayıcı | açık |
-| 17 | Gezinme biçimi | [Navigation](00-shared-shell.md#0011--navigation) içeriğinin yerleşimi: yan, üst veya birleşim; 768'de katlanma | İçerik 00.11'de sabit; biçim yalnız yerleşimi belirler; hiçbir hedef kaybolmaz | açık |
+| 1 | Mood ve görsel yön | Tek cümlelik yön, mood kelimesi | `PRODUCT.md` kişiliği ve anti-referansları | "Exact, quiet, durable": nötr soğuk gri yüzeyler hiyerarşiyi taşır, renk yalnız anlam taşıdığında görünür → [`DESIGN.md`](../../../DESIGN.md) › Overview |
+| 2 | Renk rolleri | Zemin, yükseltilmiş yüzey, metin, sessiz metin, ayırıcı, birincil eylem, odak halkası, seçim | Gövde metni ≥4.5:1 kontrast; anlam yalnız renkle aktarılmaz (WCAG 2.2 AA, [PRD 15](../../prd/15-product-quality.md)) | Light ve Dark nötr merdiven (`sidebar` → `canvas` → `surface`), `ink` / `ink-muted` / `ink-subtle`, `hairline`, `primary`, `focus-ring`, `selection`; kontrol sınırı ayrı rol: `control-border` (Light `#8a8a90`, Dark `#6e6e6e`, ≥3:1); Dark Primary soft açık dolgu `#c8c8c8` + `#141414` metin, çerçevesiz; turuncu metin yalnız ≥18px veya ≥14px bold, seçili satırda yok → [`DESIGN.md`](../../../DESIGN.md) › Colors |
+| 3 | Semantik renkler | Success, warning, danger, info; durum rozetleri | Her durum metin veya ikonla da okunur; Light ve Dark ayrı doğrulanır | Rol başına base / text / bg / border: In Progress amber, Blocked = accent turuncu, Done sıcak gri, In Review yeşil, Urgent kırmızı, Decision indigo, Todo mavi, Document teal, Release ve Cancelled nötr; etiket daima text adımı → [`DESIGN.md`](../../../DESIGN.md) › Semantic roles; olumlu sonuç (geçen Test, pozitif delta, success alert) ayrı `success` rolü; durumlar şekille de ayrışır (yarı dolu, pasta, onay, kesikli, sekizgen); seçili satır sol çentik + onay işareti taşır → [`DESIGN.md`](../../../DESIGN.md) › Status |
+| 4 | Light / Dark | İki tema token'ı; `Appearance` kuralı → `01.6` | [spec 02](../../specs/02-account-preferences/spec.md); "tema sistemi" değildir, Proje rengi yoktur | İki ayrı token seti (`*-dark` ayrı seçimdir, ters çevirme değildir); `System` yok → [`DESIGN.md`](../../../DESIGN.md) › Colors |
+| 5 | Tipografi | Font ailesi; display, heading, subhead, body, label, caption, mono/data; ağırlık; satır yüksekliği | %200 ölçekte okunur; uzun içerik kırılır; İş anahtarı ve tarihte tabular rakam | Inter Variable (`cv11`, tabular) arayüz; Geist Mono anahtar, metrik, delta, veri tarihi; `greeting` 26 / `title` 14 / `body` 13 / `label` 12 / `button` 12.5 / `metric` 26 mono / `mono` 11.5 → [`DESIGN.md`](../../../DESIGN.md) › Typography |
+| 6 | Spacing ölçeği | Temel birim; bileşen içi, grup arası, bölge arası | Yoğun liste ile geniş okuma yüzeyi aynı ölçekten çıkar | 2px temel adım; çalışma değerleri 4 / 6 / 10 / 14 / 16 / 24; kart iç boşluğu 14 16, kart ızgarası aralığı 10–12 → [`DESIGN.md`](../../../DESIGN.md) › Spacing System |
+| 7 | Yoğunluk | Liste ve tablo satır yüksekliği | Linear sınıfı araç kullanıcısı; satır başına tek bilgi hattı | Liste satırı 38px, yan boşluk 16px; tek satır chip; operate yoğunluğu → [`DESIGN.md`](../../../DESIGN.md) › Density |
+| 8 | Layout ızgarası | 1440 içerik genişliği, kenar boşluğu, kabuk kolonları, 768 kırılımı | 768'de hiçbir eylem kaybolmaz, yalnız yer değiştirir | Sol sidebar 240px + akışkan içerik; liste, tablo, board tam genişlik; Belge, Wiki ve Karar gövdesi en çok 720px okuma kolonu; çerçeve boşluğu 20 / 32 / 40 (`sm` / `md` / `lg`); 768'de sidebar ikon rayına iner |
+| 9 | Radius | Kontrol, yüzey, dialog, rozet | Radius dekor değildir | `hair` 2 (tick, bar), `sm` 6 (chip, rozet, tooltip), `md` 7 (buton, input), `lg` 12 (menü, popover), `card` 20 (kart, dialog, uygulama çerçevesi), `pill` 999 → [`DESIGN.md`](../../../DESIGN.md) › Shapes |
+| 10 | Kenar ve gölge | Ayırıcı, yükselti seviyeleri (popover, dialog, toast) | Yükselti yalnız katman anlamı taşır | Kart = `surface` + 1px `hairline`, gölgesiz; gölge yalnız seviye 3'te (menü, popover, tooltip, dialog, toast) → [`DESIGN.md`](../../../DESIGN.md) › Elevation & Depth |
+| 11 | İkonografi | Boyut, çizgi kalınlığı, ikon + metin kuralı | Set [tech-stack](../../tech-stack.md) kararıyla **Lucide React**; yalnız ikonlu kontrolün erişilebilir adı var | Lucide 16px, stroke 1.5; kart başlığı ikon tile'ı 28px, glyph 14px; ikon + metin aralığı 6px, dikey ortalı; ikon rengi yalnız domain anlamı varsa rol rengi, yoksa `ink-muted`; yalnız ikonlu kontrol erişilebilir ad ve tooltip taşır |
+| 12 | Odak | Odak halkası biçimi, kalınlığı, ofseti | Her etkileşimli öğede görünür odak | 2px `focus-ring` / `focus-ring-dark` outline, 2px offset, her etkileşimli öğede → [`DESIGN.md`](../../../DESIGN.md) › Elevation & Depth |
+| 13 | Motion | Süreler, easing, giriş/çıkış | `prefers-reduced-motion`; Bitiriş efekti ≤1,2 sn, odağı ve girdiyi almaz ([spec 23](../../specs/23-completion-effects/spec.md)) | Hover 100ms, menü ve popover 150ms, dialog ve panel 200ms; `ease-out` giriş, çıkış girişin 2/3'ü; yalnız opaklık + en çok 4px kayma; `prefers-reduced-motion` altında yalnız opaklık; Bitiriş efekti spec 23 sınırında |
+| 14 | Veri gösterimi | Tarih, saat, sayı; göreli zaman | `Locale`, `Time zone`, `Date format`, `First day of week`; arayüz dili İngilizce | 7 günden yeni: göreli (`2h ago`, `Yesterday`, `Tue`); daha eski: mutlak (`22 Oct`), başka yılsa `22 Oct 2025`; tooltip'te tam tarih, saat ve saat dilimi; biçim Hesap `Locale` / `Date format`'tan, varsayılan `en-GB`; veri satırında tarih ve sayı Geist Mono, tabular |
+| 15 | Kanvas temelleri | Zemin, ızgara, seçim, bağlantı çizgisi, kilit işareti | Wall, User Flow, Wireframe, Moodboard, Technical Diagram ortak; her kanvasın erişilebilir outline'ı var | Zemin `canvas`; 20px nokta ızgara `hairline-strong`; seçim 1.5px `ink` çerçeve; bağlantı çizgisi 1.5px `ink-subtle`; kilit küçük Lucide `Lock` glyph'i, renksiz; kanvas kabuğu → `13.2` |
+| 16 | Metin tonu | Boş durum, hata, onay metinleri | Sakin, kesin; sözlük `_Avoid_` listeleri bağlayıcı | Sakin ve kesin: ne oldu + ne yapılır, tek cümle; ünlem, emoji, "Oops" ve espri yok; boş durum neyin burada olacağını söyler; yıkıcı onay neyin silindiğini ve geri alınıp alınamayacağını söyler |
+| 17 | Gezinme biçimi | [Navigation](00-shared-shell.md#0011--navigation) içeriğinin yerleşimi: yan, üst veya birleşim; 768'de katlanma | İçerik 00.11'de sabit; biçim yalnız yerleşimi belirler; hiçbir hedef kaybolmaz | Sol sidebar: kişisel yüzeyler ve Proje alanları solda, araçlar ve Hesap sidebar başında; 768'de ikon rayı, etiket tooltip'te, `More` menüsü kalır; hiçbir hedef kaybolmaz |
 
 ## DS.1 · Color roles
 **Artboard'lar**
@@ -307,7 +307,7 @@ Bileşeni başka bir bölüm ya da ekran tanımlıyorsa bu tablo yalnız adını
 | Varsayım | başlık · yaşam | — | `Clients read reminders on mobile first` · `Refuted` | [12.6](12-decisions.md#126--assumptions) |
 | Açık Soru | başlık · yaşam | — | `Which email provider handles aliases correctly?` · `Answered` | [12.8](12-decisions.md#128--open-questions) |
 | Kaynak | başlık · alan adı | tazelik, kaynak türü | `Receive Stripe events in your webhook endpoint` · `stripe.com` | [11.1](11-discovery.md#111--sources) |
-| Geri Bildirim | başlık · durum | kanal, zaman, kişi | `Reminders land in spam with Gmail alias` · Email · `Reviewed` · Elif Kaya | [11.8](11-discovery.md#118--feedback) |
+| Geri Bildirim | başlık · durum | kanal, zaman, kişi | `Reminders land in spam with Gmail alias` · Email · `Reviewed` · Emma Clark | [11.8](11-discovery.md#118--feedback) |
 | Araştırma Oturumu | başlık · durum | zaman, kanal, katılımcı (izinliyse) | `Interview: chasing late invoices` · `Completed` · Video call | [11.5](11-discovery.md#115--research-sessions) |
 | Doğrulama Kaydı | başlık · durum | — | `Fake-door pricing page` · Active | [11.12](11-discovery.md#1112--validation-records) |
 | Ekran, Akış, Moodboard, Wall | başlık · önizleme | kayıt sayısı (Wall: kart sayısı) | `MVP story (14)` | [13.1](13-design.md#131--design) |
@@ -316,8 +316,8 @@ Bileşeni başka bir bölüm ya da ekran tanımlıyorsa bu tablo yalnız adını
 | Test Oturumu | başlık · inceleme durumu | yürüten türü, yürüten, raporlayan, giriş yolu, rapor zamanı | `Codex · Gmail alias regression` · `Unreviewed` · `MCP` | [15.7](15-tests.md#157--test-sessions) |
 | Proje Sürümü | ad · durum | `Version label`, kapsam sayısı, GitHub Release/tag | `tidekit 1.0` · `v1.0.0` · `Preparing` | [16.1](16-releases.md#161--project-releases) |
 | Üretim Olayı | başlık · durum | `Occurred at`, etki özeti, ilişki sayısı | `Reminder emails delayed 3 hours` · `Watching` | [17.1](17-production.md#171--production-incidents) |
-| Kişi | görünen ad (yoksa ilk e-posta, yoksa `Unnamed Contact`) | güncel Şirket | `Elif Kaya` · `Studio Kiraz` | [06.1](06-contacts.md#061--contacts) |
-| Şirket | ad | Kişi sayısı | `Studio Kiraz · 1 Contact` | [06.1](06-contacts.md#061--contacts) |
+| Kişi | görünen ad (yoksa ilk e-posta, yoksa `Unnamed Contact`) | güncel Şirket | `Emma Clark` · `Brightwave Studio` | [06.1](06-contacts.md#061--contacts) |
+| Şirket | ad | Kişi sayısı | `Brightwave Studio · 1 Contact` | [06.1](06-contacts.md#061--contacts) |
 | Yakalama öğesi | metin | zaman, köken, mini şablon alanları | `Idea: weekly digest of overdue invoices` | [03.1](03-capture.md#031--capture-inbox) |
 | Proje Hedefi | başlık | canlı özet | `Freelancers get paid within 7 days` | [08.6](08-project-shell-and-overview.md#086--project-goals) |
 

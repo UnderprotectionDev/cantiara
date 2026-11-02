@@ -140,7 +140,7 @@ Orta boy dialog: özet cümlesi ve yazılacak değişikliklerin özellik listesi
 
 ### Durumlar
 #### Field conflicts
-`Field conflicts` satırı dolu: `Display name: keeps Elif Kaya, drops E. Kaya`.
+`Field conflicts` satırı dolu: `Display name: keeps Emma Clark, drops E. Clark`.
 #### Error
 `Contacts could not be merged. The Merge Preview was refreshed; review it and confirm again.`; önizleme yenilenmiş hâliyle kalır.
 #### Merged
