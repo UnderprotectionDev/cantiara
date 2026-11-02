@@ -123,6 +123,30 @@ export function assertDeploymentRegion(
 }
 
 /**
+ * Whether a starting process must run the region check. An unset NODE_ENV is
+ * unknown, not an approval: an unverified production environment fails closed
+ * (spec 85 story 15). Explicitly set non-production environments are not
+ * production and pass without a check.
+ */
+export type RegionCheckGate =
+  | { action: "fail-closed"; reason: string }
+  | { action: "pass" }
+  | { action: "verify" };
+
+export function deploymentRegionCheckGate(
+  nodeEnv: string | undefined,
+): RegionCheckGate {
+  if (nodeEnv === undefined || nodeEnv.trim() === "") {
+    return {
+      action: "fail-closed",
+      reason:
+        "NODE_ENV is unset; the production environment cannot be verified",
+    };
+  }
+  return nodeEnv === "production" ? { action: "verify" } : { action: "pass" };
+}
+
+/**
  * Reads placement facts from the process environment. Only host names and
  * region labels are taken from URLs; credentials are never read out.
  */

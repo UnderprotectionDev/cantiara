@@ -17,6 +17,7 @@ export const BACKUP_UNIT_KIND = "database-and-object-manifest" as const;
 export type BackupFailureCode =
   | "CADENCE_TOO_LONG"
   | "NOT_A_BACKUP_UNIT"
+  | "OBJECT_LIST_UNAVAILABLE"
   | "OBJECT_MISMATCH"
   | "ORPHAN_DATABASE_REFERENCE"
   | "ORPHAN_OBJECT"
@@ -234,13 +235,19 @@ export function createOperatorBackup(deps: OperatorBackupDeps) {
      */
     async run(): Promise<BackupRunResult> {
       let snapshot: DatabaseSnapshot;
-      let objects: readonly ObjectRef[];
       try {
         snapshot = await deps.database.capture();
-        objects = await deps.objects.list(snapshot.pointAt);
       } catch {
         return await fail([
           { code: "SNAPSHOT_UNAVAILABLE", details: ["capture"] },
+        ]);
+      }
+      let objects: readonly ObjectRef[];
+      try {
+        objects = await deps.objects.list(snapshot.pointAt);
+      } catch {
+        return await fail([
+          { code: "OBJECT_LIST_UNAVAILABLE", details: ["list"] },
         ]);
       }
       const problems = compareUnitSides(snapshot, objects);

@@ -45,6 +45,8 @@ export const REPLAY_EVENT_VERSION = 1;
 export type RestoreFailureCode =
   | "CIPHERTEXT_REWRITTEN"
   | "DENIAL_NOT_ENFORCED"
+  | "DENIAL_PROOF_UNAVAILABLE"
+  | "INTEGRITY_CHECK_UNAVAILABLE"
   | "INTEGRITY_FAILED"
   | "LOG_NOT_SEPARATE"
   | "LOG_UNAVAILABLE"
@@ -52,6 +54,7 @@ export type RestoreFailureCode =
   | "NO_VERIFIED_UNIT"
   | "PRIMARY_RESTORE_FAILED"
   | "REPLAY_FAILED"
+  | "RESTORE_FAILED"
   | "UNREGISTERED_EVENT_TYPE"
   | "UNSUPPORTED_EVENT_VERSION";
 
@@ -197,8 +200,14 @@ export function createOperatorRestore(deps: OperatorRestoreDeps) {
   }
 
   async function checkIntegrity(manifest: BackupUnitManifest): Promise<void> {
-    const rows = await deps.primary.rowObjectRefs();
-    const stored = await deps.primary.storedObjects();
+    let rows: readonly ObjectRef[];
+    let stored: readonly ObjectRef[];
+    try {
+      rows = await deps.primary.rowObjectRefs();
+      stored = await deps.primary.storedObjects();
+    } catch (cause) {
+      throw new RestoreStop("INTEGRITY_CHECK_UNAVAILABLE", { cause });
+    }
     const problems = compareUnitSides(
       { objectRefs: rows, pointAt: new Date(0), snapshotId: "" },
       stored,
@@ -252,8 +261,17 @@ export function createOperatorRestore(deps: OperatorRestoreDeps) {
       if (!DENYING_EFFECTS.has(effect.kind)) {
         continue;
       }
-      // biome-ignore lint/performance/noAwaitInLoops: Sequential proof keeps the details ordered.
-      if (!(await deps.target.isDenied(effect))) {
+      let denied: boolean;
+      try {
+        // biome-ignore lint/performance/noAwaitInLoops: Sequential proof keeps the details ordered.
+        denied = await deps.target.isDenied(effect);
+      } catch (cause) {
+        throw new RestoreStop("DENIAL_PROOF_UNAVAILABLE", {
+          cause,
+          details: [effect.targetAlias],
+        });
+      }
+      if (!denied) {
         notDenied.push(`${effect.kind}:${effect.targetAlias}`);
       }
     }
@@ -318,8 +336,11 @@ export function createOperatorRestore(deps: OperatorRestoreDeps) {
         deps.gate.close("restore-failed");
         const failure: RestoreFailureRecord = {
           at: deps.now().toISOString(),
-          code: error instanceof RestoreStop ? error.code : "REPLAY_FAILED",
-          details: error instanceof RestoreStop ? error.details : [],
+          code: error instanceof RestoreStop ? error.code : "RESTORE_FAILED",
+          details:
+            error instanceof RestoreStop
+              ? error.details
+              : [error instanceof Error ? error.name : "UNKNOWN"],
         };
         await deps.evidence.saveFailure(failure);
         return { failure, status: "failed" };

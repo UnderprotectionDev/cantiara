@@ -116,6 +116,21 @@ describe("Operator Backup and Alarms: backup unit", () => {
     expect(world.verified).toHaveLength(0);
   });
 
+  test("an object store outage is its own failure record, not a snapshot problem", async () => {
+    const { backup, world } = setup();
+    world.addAttachment(objectRef("a/one"));
+    world.outage.objects = true;
+
+    const result = await backup.run();
+
+    expect(result.status).toBe("failed");
+    expect(world.failures[0]?.code).toBe("OBJECT_LIST_UNAVAILABLE");
+    expect(world.failures[0]?.details).toEqual([
+      "OBJECT_LIST_UNAVAILABLE:list",
+    ]);
+    expect(world.verified).toHaveLength(0);
+  });
+
   test("a recorded unit re-verifies and then fails when either side is lost", async () => {
     const { backup, world } = setup();
     world.addAttachment(objectRef("a/one"));

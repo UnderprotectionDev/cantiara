@@ -24,7 +24,10 @@ export function createBackupWorld(start = new Date("2026-11-02T10:00:00Z")) {
   const snapshots = new Map<string, DatabaseSnapshot>();
   const verified: BackupUnitRecord[] = [];
   const failures: BackupFailureRecord[] = [];
-  const outage: { database: boolean } = { database: false };
+  const outage: { database: boolean; objects: boolean } = {
+    database: false,
+    objects: false,
+  };
   let snapshotCounter = 0;
 
   const database: DatabaseSnapshotPort = {
@@ -46,11 +49,13 @@ export function createBackupWorld(start = new Date("2026-11-02T10:00:00Z")) {
 
   const objectStore: OriginalObjectStorePort = {
     list: (upTo) =>
-      Promise.resolve(
-        [...objects.values()]
-          .filter((object) => object.uploadedAt <= upTo)
-          .map(({ key, sha256, size }) => ({ key, sha256, size })),
-      ),
+      outage.objects
+        ? Promise.reject(new Error("object store unavailable"))
+        : Promise.resolve(
+            [...objects.values()]
+              .filter((object) => object.uploadedAt <= upTo)
+              .map(({ key, sha256, size }) => ({ key, sha256, size })),
+          ),
   };
 
   const store: BackupStorePort = {

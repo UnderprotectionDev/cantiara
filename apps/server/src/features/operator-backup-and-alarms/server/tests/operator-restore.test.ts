@@ -220,6 +220,41 @@ describe("Operator Backup and Alarms: restore drill", () => {
     );
     expect(s.world.gate.allows("external-surface")).toBe(false);
   });
+
+  test("an integrity probe outage is its own failure code and keeps access closed", async () => {
+    const s = setup();
+    await seedOlderBackupWithNewerEvents(s);
+    const primary = {
+      ...s.world.primary,
+      rowObjectRefs: () => Promise.reject(new Error("probe down")),
+    };
+
+    const result = await s.restoreWith({ primary }).run();
+
+    expect(result.status === "failed" && result.failure.code).toBe(
+      "INTEGRITY_CHECK_UNAVAILABLE",
+    );
+    expect(s.world.gate.allows("origin-asset")).toBe(false);
+  });
+
+  test("a denial probe outage is its own failure code and keeps access closed", async () => {
+    const s = setup();
+    await seedOlderBackupWithNewerEvents(s);
+    const target = {
+      ...s.world.target,
+      isDenied: () => Promise.reject(new Error("probe down")),
+    };
+
+    const result = await s.restoreWith({ target }).run();
+
+    expect(result.status === "failed" && result.failure.code).toBe(
+      "DENIAL_PROOF_UNAVAILABLE",
+    );
+    expect(result.status === "failed" && result.failure.details).toEqual([
+      "visitor-1",
+    ]);
+    expect(s.world.gate.allows("visitor-session")).toBe(false);
+  });
 });
 
 describe("Operator Backup and Alarms: restore key and ciphertext", () => {

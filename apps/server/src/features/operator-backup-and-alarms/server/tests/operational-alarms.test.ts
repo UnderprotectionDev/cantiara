@@ -6,6 +6,7 @@ import { describe, expect, test } from "vitest";
 import {
   assertDeploymentRegion,
   DeploymentRegionError,
+  deploymentRegionCheckGate,
   deploymentRegionFromEnv,
   verifyDeploymentRegion,
 } from "../eu-deployment-region";
@@ -364,6 +365,29 @@ describe("Operator Backup and Alarms: production EU region assertion", () => {
     });
     expect(JSON.stringify(config)).not.toContain("secret");
     expect(verifyDeploymentRegion(config).ok).toBe(true);
+  });
+
+  test("an unset NODE_ENV fails closed instead of silently skipping the check", () => {
+    expect(deploymentRegionCheckGate(undefined)).toEqual({
+      action: "fail-closed",
+      reason:
+        "NODE_ENV is unset; the production environment cannot be verified",
+    });
+    expect(deploymentRegionCheckGate("")).toEqual({
+      action: "fail-closed",
+      reason:
+        "NODE_ENV is unset; the production environment cannot be verified",
+    });
+  });
+
+  test("explicitly set environments gate the check without assuming production", () => {
+    expect(deploymentRegionCheckGate("development")).toEqual({
+      action: "pass",
+    });
+    expect(deploymentRegionCheckGate("test")).toEqual({ action: "pass" });
+    expect(deploymentRegionCheckGate("production")).toEqual({
+      action: "verify",
+    });
   });
 });
 
