@@ -26,7 +26,10 @@ export default function ArchiveSurface() {
   const restore = useRestoreToArchive();
 
   let errorMessage: string | null = null;
-  if (restore.isError) {
+  if (remove.isError) {
+    errorMessage =
+      "Delete Project did not complete. Review the preview and try again.";
+  } else if (restore.isError) {
     errorMessage = "Restore to Archive did not complete. Try again.";
   } else if (transition.isError) {
     errorMessage = "Unarchive did not complete. Try again.";

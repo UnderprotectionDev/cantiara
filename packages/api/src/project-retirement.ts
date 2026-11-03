@@ -112,6 +112,7 @@ export class ProjectRetirementError extends Error {
 export const PROJECT_RETIREMENT_ERROR_CODES = [
   "project_not_found",
   "already_archived",
+  "build_in_public_surface",
   "not_archived",
   "project_archived",
   "empty_delete_group",
@@ -126,6 +127,8 @@ export const PROJECT_RETIREMENT_ERROR_MESSAGES: Record<
   string
 > = {
   already_archived: "The Project is already archived.",
+  build_in_public_surface:
+    "A Build in Public surface must be removed from its own view before deleting.",
   empty_delete_group: "The Project has no record to move to Trash.",
   not_archived: "The Project is not archived.",
   not_in_trash: "The Project is not in Trash.",
@@ -296,6 +299,13 @@ export const DELETE_RETAINED_NOTICE =
   "Workspace, Account and Personal Wiki records are not deleted.";
 export const DELETE_TRASH_NOTICE =
   "The whole group enters Trash as one unit on one 30-day clock.";
+/**
+ * Build in Public has no revoke through the shared External Surface path
+ * ("removed from its own surface"), so the preview names it instead of
+ * promising a revocation the delete cannot perform.
+ */
+export const DELETE_OWN_REMOVAL_NOTICE =
+  "A Build in Public surface keeps living until it is removed from its own view. It is not revoked by Delete Project.";
 export const DELETED_TARGET_MARK = "In Trash";
 
 export const previewDeleteProjectInputSchema = z
@@ -372,6 +382,11 @@ export const deleteProjectPreviewSchema = z.object({
   relations: z.array(livingRelationSchema),
   /** Active surfaces revoked terminally, immediately. */
   revokedSurfaces: z.array(archivedSurfaceSchema),
+  /**
+   * Active Build in Public surfaces: the shared External Surface path cannot
+   * revoke them, so they are named instead of promised.
+   */
+  ownRemovalSurfaces: z.array(archivedSurfaceSchema),
   visitorSessionsEnd: z.boolean(),
 });
 export type DeleteProjectPreview = z.infer<typeof deleteProjectPreviewSchema>;

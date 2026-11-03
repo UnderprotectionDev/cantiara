@@ -2,6 +2,7 @@
 // @vitest-environment happy-dom
 import {
   type ArchivedProjectEntry,
+  DELETE_OWN_REMOVAL_NOTICE,
   DELETE_RESTORE_NOTICE,
 } from "@cantiara/api/project-retirement";
 import type { ReactNode } from "react";
@@ -145,6 +146,7 @@ describe("Archive view", () => {
             },
           ],
           revokedSurfaces: entry.surfaces,
+          ownRemovalSurfaces: [],
           visitorSessionsEnd: true,
         }}
       />,
@@ -156,6 +158,32 @@ describe("Archive view", () => {
     expect(html).toContain("In Trash");
     expect(html).toContain("does not republish");
     expect(html).not.toContain("Keep approved surface");
+  });
+
+  test("names a Build in Public surface as own removal instead of promised revocation", () => {
+    const [bip] = entry.surfaces;
+    const html = renderToStaticMarkup(
+      <DeletePreviewPanel
+        busy={false}
+        onCancel={() => undefined}
+        onConfirm={() => undefined}
+        preview={{
+          group: [],
+          integrationsStop: [],
+          keepApprovedSurface: { available: false },
+          notices: [DELETE_RESTORE_NOTICE, DELETE_OWN_REMOVAL_NOTICE],
+          project: entry.project,
+          relations: [],
+          revokedSurfaces: [],
+          ownRemovalSurfaces: [bip],
+          visitorSessionsEnd: false,
+        }}
+      />,
+    );
+    expect(html).toContain("Build in Public surfaces to remove first");
+    expect(html).toContain("Launch notes · Link · not revoked here");
+    expect(html).toContain("It is not revoked by Delete Project.");
+    expect(html).not.toContain("revoked now, terminal");
   });
 
   test("marks a Project in Trash, offers Restore to Archive and hides Unarchive and Delete Project", () => {

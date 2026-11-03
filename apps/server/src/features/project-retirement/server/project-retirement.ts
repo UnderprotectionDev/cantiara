@@ -11,6 +11,7 @@ import {
   type ArchiveSecurityActionItem,
   type ArchiveView,
   archiveProjectInputSchema,
+  DELETE_OWN_REMOVAL_NOTICE,
   DELETE_RESTORE_NOTICE,
   DELETE_RETAINED_NOTICE,
   DELETE_TRASH_NOTICE,
@@ -299,6 +300,11 @@ export function createProjectRetirement(
       // can enter Trash only once revoked, and a retry finds them revoked.
       const rows = (await ports.surfaces(accountId, input.projectId)) ?? [];
       const active = rows.filter((row) => row.status === "Active");
+      // The shared path cannot revoke Build in Public: it is removed from its
+      // own view. Name the refusal before anything is revoked or moved.
+      if (active.some((row) => row.visibility === "Build in Public")) {
+        throw new ProjectRetirementError("build_in_public_surface");
+      }
       await Promise.all(
         active.map((row) =>
           ports.deleteGroup.revokeSurface(accountId, row.surfaceId),
@@ -348,11 +354,15 @@ export function createProjectRetirement(
         ports.deleteGroup.relations(accountId, project.id),
       ]);
       const activeRows = (rows ?? []).filter((row) => row.status === "Active");
-      const revokedSurfaces = activeRows.map(livingSurface);
+      const revocable = activeRows.filter(
+        (row) => row.visibility !== "Build in Public",
+      );
+      const revokedSurfaces = revocable.map(livingSurface);
       // Active surfaces are revoked at commit and then join the group; the
-      // preview runs before that, so list them here too.
+      // preview runs before that, so list them here too. Build in Public is
+      // not revoked by this path, so it is named, not promised.
       const listed = new Set(group.map((member) => member.recordId));
-      const pending: DeleteGroupMember[] = activeRows
+      const pending: DeleteGroupMember[] = revocable
         .filter((row) => !listed.has(row.surfaceId))
         .map((row) => ({
           baseRevision: row.revision,
@@ -360,6 +370,9 @@ export function createProjectRetirement(
           recordId: row.surfaceId,
           recordKind: "External Surface",
         }));
+      const ownRemoval = activeRows
+        .filter((row) => row.visibility === "Build in Public")
+        .map(livingSurface);
       return {
         group: [...group, ...pending],
         integrationsStop: integrations,
@@ -368,10 +381,12 @@ export function createProjectRetirement(
           DELETE_TRASH_NOTICE,
           DELETE_RETAINED_NOTICE,
           DELETE_RESTORE_NOTICE,
+          ...(ownRemoval.length > 0 ? [DELETE_OWN_REMOVAL_NOTICE] : []),
         ],
         project,
         relations,
         revokedSurfaces,
+        ownRemovalSurfaces: ownRemoval,
         visitorSessionsEnd: revokedSurfaces.some(
           (surface) => surface.visibility === "Link",
         ),
@@ -436,7 +451,11 @@ export function createProjectRetirement(
       const entry = overview?.entries.find(
         (candidate) => candidate.id === input.entryId,
       );
-      if (entry && entry.groupId === null) {
+      if (
+        entry &&
+        (entry.groupId === null || entry.projectId !== input.projectId)
+      ) {
+        // A plain entry or another Project's entry is no Project group here.
         throw new ProjectRetirementError("not_in_trash");
       }
       const result = await ports.trash.restore(accountId, {

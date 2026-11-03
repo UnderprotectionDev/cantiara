@@ -483,6 +483,7 @@ import {
   archiveProjectInputSchema,
   deleteProjectInputSchema,
   listArchivedProjectsInputSchema,
+  PROJECT_ARCHIVED_READ_ONLY_MESSAGE,
   previewArchiveProjectInputSchema,
   previewDeleteProjectInputSchema,
   restoreProjectToArchiveInputSchema,
@@ -2723,7 +2724,7 @@ function rethrowProjectShellError(error: unknown): never {
     throw new ORPCError("CONFLICT", {
       data: { code: "PROJECT_READ_ONLY" },
       defined: true,
-      message: "Project is archived",
+      message: PROJECT_ARCHIVED_READ_ONLY_MESSAGE,
     });
   }
 

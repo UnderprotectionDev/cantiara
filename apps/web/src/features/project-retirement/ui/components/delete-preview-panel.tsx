@@ -57,6 +57,13 @@ export function DeletePreviewPanel({
         )}
         title="External Surfaces revoked immediately"
       />
+      <List
+        items={preview.ownRemovalSurfaces.map(
+          (surface) =>
+            `${surface.title} · ${surface.visibility} · not revoked here`,
+        )}
+        title="Build in Public surfaces to remove first"
+      />
       {preview.visitorSessionsEnd ? (
         <p className="text-sm">Visitor sessions end immediately.</p>
       ) : null}

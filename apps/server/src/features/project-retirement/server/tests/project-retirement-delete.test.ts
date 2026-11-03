@@ -1,5 +1,6 @@
 import type { SurfaceRow } from "@cantiara/api/external-surface-management";
 import {
+  DELETE_OWN_REMOVAL_NOTICE,
   DELETE_RESTORE_NOTICE,
   DELETED_TARGET_MARK,
   type DeleteGroupMember,
@@ -66,7 +67,7 @@ const MEMBERS: DeleteGroupMember[] = [
 
 function build(
   current: RetirementProject = project(),
-  options: { failMoves?: number } = {},
+  options: { failMoves?: number; surfaces?: SurfaceRow[] } = {},
 ) {
   let failures = options.failMoves ?? 0;
   const events: string[] = [];
@@ -105,7 +106,9 @@ function build(
       transition: () => Promise.reject(new Error("no archive write on delete")),
     },
     surfaces: () =>
-      Promise.resolve([surface("surface-1"), surface("surface-2")]),
+      Promise.resolve(
+        options.surfaces ?? [surface("surface-1"), surface("surface-2")],
+      ),
     trash: {
       overview: () => Promise.resolve({ entries: [], retentionDays: 30 }),
       restore: () => Promise.resolve(null),
@@ -259,5 +262,41 @@ describe("Project Retirement delete from Archive", () => {
     expect(deleted.groupId).toBe("group-1");
     expect(moves).toHaveLength(1);
     expect(moves[0]?.clientIdempotencyKey).toBe(COMMAND.clientIdempotencyKey);
+  });
+
+  it("refuses the delete with nothing revoked while a Build in Public surface is active", async () => {
+    const buildInPublic = surface("surface-bip", "Build in Public");
+    const { events, moves, retirement, revoked } = build(project(), {
+      surfaces: [surface("surface-1"), buildInPublic],
+    });
+
+    await expect(
+      retirement.deleteProject(ACCOUNT, COMMAND),
+    ).rejects.toMatchObject({ code: "build_in_public_surface" });
+    expect(events).toEqual([]);
+    expect(moves).toEqual([]);
+    expect(revoked).toEqual([]);
+  });
+
+  it("names the Build in Public surface in the preview instead of promising its revocation", async () => {
+    const buildInPublic = surface("surface-bip", "Build in Public");
+    const { retirement } = build(project(), {
+      surfaces: [surface("surface-1"), buildInPublic],
+    });
+
+    const preview = await retirement.previewDelete(ACCOUNT, {
+      projectId: "project-1",
+    });
+
+    expect(preview.revokedSurfaces.map((entry) => entry.surfaceId)).toEqual([
+      "surface-1",
+    ]);
+    expect(preview.ownRemovalSurfaces.map((entry) => entry.surfaceId)).toEqual([
+      "surface-bip",
+    ]);
+    expect(preview.notices).toContain(DELETE_OWN_REMOVAL_NOTICE);
+    expect(
+      preview.group.find((member) => member.recordId === "surface-bip"),
+    ).toBeUndefined();
   });
 });

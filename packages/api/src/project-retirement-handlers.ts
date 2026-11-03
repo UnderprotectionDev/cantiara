@@ -34,6 +34,7 @@ const REFUSAL_STATUS: Record<
   "BAD_REQUEST" | "CONFLICT" | "NOT_FOUND"
 > = {
   already_archived: "CONFLICT",
+  build_in_public_surface: "CONFLICT",
   empty_delete_group: "CONFLICT",
   not_archived: "CONFLICT",
   not_in_trash: "CONFLICT",
@@ -65,6 +66,16 @@ function refusal(error: unknown): never {
   }
   if (error.code === "APPLY_FAILED" && error.cause) {
     refusal(error.cause);
+  }
+  if (error.code === "EXTERNAL_SURFACE_STATE_INVALID") {
+    // The shared External Surface path named the gap itself; a raw error
+    // must not surface as an unnamed 500.
+    throw new ORPCError("CONFLICT", {
+      cause: error,
+      data: { code: "EXTERNAL_SURFACE_STATE_INVALID" },
+      defined: true,
+      message: "The External Surface must be removed from its own view first.",
+    });
   }
   if (
     error.code === "TRASH_ALREADY_TRASHED" ||

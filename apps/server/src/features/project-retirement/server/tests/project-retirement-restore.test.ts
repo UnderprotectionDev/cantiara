@@ -296,6 +296,22 @@ describe("Project Retirement restore to Archive", () => {
     ).rejects.toMatchObject({ code: "not_in_trash" });
   });
 
+  it("refuses an entry id that belongs to another Project's group", async () => {
+    const other = {
+      ...entry("e-foreign", "work-77", "Group", "group-9"),
+      projectId: "project-2",
+    } as TrashEntry;
+    const { restores, retirement } = build({ foreign: [other] });
+
+    await expect(
+      retirement.restoreToArchive(ACCOUNT, {
+        ...COMMAND,
+        entryId: "e-foreign",
+      }),
+    ).rejects.toMatchObject({ code: "not_in_trash" });
+    expect(restores).toEqual([]);
+  });
+
   it("rejects a surface or GitHub choice riding on the command", async () => {
     const { restores, retirement } = build();
     await expect(
