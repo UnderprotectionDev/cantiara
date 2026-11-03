@@ -63,6 +63,7 @@ export default function Header() {
               <ShellNavLink to="/shares-and-publications">
                 Shares and Publications
               </ShellNavLink>
+              <ShellNavLink to="/archive">Archive</ShellNavLink>
               <ShellNavLink to="/export">Export</ShellNavLink>
               <ShellNavLink to="/import">Import</ShellNavLink>
             </nav>
@@ -101,6 +102,7 @@ function ShellNavLink({
 }: {
   children: string;
   to:
+    | "/archive"
     | "/calendar"
     | "/capture"
     | "/contacts"

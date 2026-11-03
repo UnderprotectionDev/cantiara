@@ -71,6 +71,7 @@ import type { ProjectClosureSummaryAccess } from "@cantiara/api/project-closure-
 import type { ProjectGoalsAccess } from "@cantiara/api/project-goals";
 import type { ProjectHistoryAccess } from "@cantiara/api/project-history";
 import type { ProjectReleasePlanningAccess } from "@cantiara/api/project-release-planning";
+import type { ProjectRetirementAccess } from "@cantiara/api/project-retirement";
 import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
@@ -184,6 +185,7 @@ export interface CreateContextOptions {
   projectGoals?: ProjectGoalsAccess;
   projectHistory?: ProjectHistoryAccess;
   projectReleasePlanning?: ProjectReleasePlanningAccess;
+  projectRetirement?: ProjectRetirementAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
@@ -326,6 +328,7 @@ export async function createContext({
   projectHistory,
   projectUpdates,
   personalDataRights,
+  projectRetirement,
   selectedExport,
   trash,
   dataImport,
@@ -443,6 +446,7 @@ export async function createContext({
     projectHistory,
     projectUpdates,
     personalDataRights,
+    projectRetirement,
     selectedExport,
     trash,
     dataImport,

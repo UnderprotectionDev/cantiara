@@ -509,6 +509,7 @@ function projectUncertaintySurface(
 
 function ProjectShellContent({
   accountId,
+  archiveArea,
   accountFormattingPreferences,
   githubArea,
   project,
@@ -527,6 +528,7 @@ function ProjectShellContent({
 }: {
   accountId?: string;
   accountFormattingPreferences: AccountPreferences;
+  archiveArea?: ReactNode;
   githubArea?: ReactNode;
   productionArea?: ProjectProductionArea;
   project: ProjectProfile;
@@ -844,6 +846,7 @@ function ProjectShellContent({
         status={status}
         toggleConfigurationMode={toggleConfigurationMode}
       />
+      {archiveArea}
 
       {!configurationMode && showExplanation ? (
         <aside
