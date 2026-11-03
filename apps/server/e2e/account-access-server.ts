@@ -80,6 +80,12 @@ import { createDatabaseProjectGoals } from "../src/features/project-goals/server
 import { createProjectActivity } from "../src/features/project-history/server/project-activity";
 import { createDatabaseProjectActivityStore } from "../src/features/project-history/server/project-activity-database";
 import { createDatabaseProjectHistory } from "../src/features/project-history/server/project-history-database";
+import { createProjectRetirement } from "../src/features/project-retirement/server/project-retirement";
+import {
+  createDatabaseInFlightWork,
+  createDatabaseProjectRetirementStore,
+} from "../src/features/project-retirement/server/project-retirement-database";
+import { createDatabaseDeleteGroup } from "../src/features/project-retirement/server/project-retirement-delete-group-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "../src/features/project-source-records/server/project-source-records-database";
@@ -352,6 +358,26 @@ const smartLinkPreview = createSmartLinkPreview({
   },
 });
 
+// The fixture server has no External Surface, GitHub or Trash adapters, so
+// the Project page's archive control reads an empty set of each. Archive and
+// Unarchive still run on the real store and revision barrier.
+const projectRetirement = createProjectRetirement({
+  deleteGroup: createDatabaseDeleteGroup(database, {
+    revokeSurface: () => Promise.resolve(null),
+  }),
+  inFlight: createDatabaseInFlightWork(database, {
+    integrations: () => Promise.resolve([]),
+  }),
+  integrations: () => Promise.resolve([]),
+  store: createDatabaseProjectRetirementStore(database),
+  surfaces: () => Promise.resolve([]),
+  trash: {
+    moveGroup: () => Promise.resolve(null),
+    overview: () => Promise.resolve(null),
+    restore: () => Promise.resolve(null),
+  },
+});
+
 const app = createApp({
   documentEvidence: createDatabaseDocumentEvidence(database),
   sourcesAndFreshness: createDatabaseSourcesAndFreshness(database),
@@ -413,6 +439,7 @@ const app = createApp({
   githubIdentityConfirmation,
   nodeEnv: "test",
   projectGoals: createDatabaseProjectGoals(database),
+  projectRetirement,
   valueChain: createDatabaseValueChain(database),
   projectSourceRecords,
   personalReminders,
