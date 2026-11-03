@@ -11,6 +11,7 @@ import { z } from "zod";
 const httpsProtocolPattern = /^https$/;
 
 const sensitiveEnvKeys = [
+  "BACKUP_KEY_RING",
   "BETTER_AUTH_SECRET",
   "DATA_IMPORT_KEY_RING",
   "DATABASE_URL",
@@ -126,6 +127,9 @@ export function createServerEnv(
           return !(url.username || url.password);
         })
         .optional(),
+      /** Versioned keys of the Operasyonel yedek scope; separate from every other key ring. */
+      BACKUP_KEY_RING: z.string().min(1).optional(),
+      BACKUP_KEY_VERSION: z.coerce.number().int().positive().default(1),
       DATABASE_URL: z.string().min(1),
       /** Versioned keys for the encrypted import staging area; unset keeps an in-process key. */
       DATA_IMPORT_KEY_RING: z.string().min(1).optional(),

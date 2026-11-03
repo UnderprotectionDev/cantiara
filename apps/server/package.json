@@ -7,7 +7,7 @@
     "check-types": "tsc -b ../../packages/api && tsc --noEmit",
     "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "dev": "bun --env-file=.env.local scripts/dev-server.ts",
-    "start": "bun run dist/index.mjs",
+    "start": "bun scripts/verify-eu-deployment.ts && bun run dist/index.mjs",
     "start:egress": "bun --no-env-file dist/smart-link-egress.mjs",
     "test": "vitest run"
   },
