@@ -356,7 +356,7 @@ The palette is a small, fixed vocabulary. **One orange** (`{colors.done}` #ea6a0
 - **Sidebar** (`{colors.sidebar}` #f3f3f3): app sidebar and page frame.
 - **Canvas** (`{colors.canvas}` #f5f5f9): page background behind cards; list group headers.
 - **Surface** (`{colors.surface}` #ffffff): cards, list body, detail panel, popovers.
-- **Surface Hover** (`{colors.surface-hover}` #f4f4f5) and **Surface Selected** (`{colors.surface-selected}` #e8e8eb): list row hover and selection — kept a visible step apart.
+- **Surface Hover** (`{colors.surface-hover}` #f4f4f5) and **Surface Selected** (`{colors.surface-selected}` #dedee2): list row hover and selection — kept a visible step apart.
 - **Surface Subtle** (`{colors.surface-subtle}` #f0f0f0): subtle buttons, neutral status chip.
 - **Icon Tile** (`{colors.icon-tile}` #f2f2f3): background of neutral card header icon tiles (no domain meaning). Tiles with a domain meaning use that role's `-bg` and `-border`.
 - **Hairline** (`{colors.hairline}` #e7e6ec) / **Hairline Strong** (`{colors.hairline-strong}` #d4d4d4): card and divider borders (decorative, exempt from 3:1). **Control Border** (`{colors.control-border}` #8a8a90, 3.2:1 on canvas): the outline of inputs, selects, checkboxes, radios and the off switch track.
@@ -385,7 +385,7 @@ Each role has a base (icons, dots, fills), a text step (AA on its background), a
 | System | Lavender categorical slot (System, 7th series only with marker and dash) | `#a78bfa` | `#b9a3f5` |
 | Document | Document, Docs | `#0f766e` / `#0f766e` | `#5eead4` / `#5eead4` |
 | Release | Release chip (neutral by design) | `#8b8b95` / `#686876` | `#9a9aa6` / `#b6b6bf` |
-| Cancelled | Cancelled status | `#b2b2b7` | `#6b6b6f` |
+| Cancelled | Cancelled status | `#8a8a90` | `#6b6b6f` |
 
 ### Data colors
 - **Release progress** (sidebar Release card, Release stat, Release readiness "Work done"): Done = `{colors.done}` orange, In review = `{colors.in-review}` green, empty = `{colors.track}` / `{colors.track-dark}`; the segments are tall rounded pills. The same metric always uses this treatment.
@@ -536,3 +536,4 @@ Roles: `in-progress`, `blocked`, `done`, `in-review`, `success`, `urgent`, `deci
 - Source of truth for this palette: `.context/design-research/v69/` (theme `ember-indigo-6-tuned5`).
 - Palette round synced from Paper DS · Palette Compare (Final + Light charts): Light canvas `#f5f5f9`, ink `#22222a` / `#58586a`, hairline `#e7e6ec`, track `#cdcdd4`, Done = Accent orange `#ea6a0c`, In review `#00963e`, Todo `#2563eb`, accent text `#c2410c`, `info-chart` `#0e9cc4`, tinted icon tiles. Dark values follow the Paper tokens.
 - Palette changes after v69 (approved in the Paper decision round): Dark Primary soft light fill, `control-border`, `success` / `in-review` / neutral `done` split, softer Dark hairlines and hover/selected steps, lighter track and link underline, Dark danger fill `#d42a38`. Danger button states are component states, not tokens: Light hover `#c52836` / pressed `#b32331`; Dark hover `#c42634` / pressed `#b32230`.
+- Paper `DS · Palette Explorations` keeps one superseded round (Direction 5: Done `#f08a24`, Dark canvas `#111113`, Dark ink `#e6e7de`). It is history only; the tokens in this file and in Paper `DS · Foundations` are binding.
