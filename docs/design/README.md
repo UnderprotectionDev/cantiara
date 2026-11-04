@@ -58,7 +58,7 @@ Her ekran yalnız içeriği söyler: amaç, artboard adları, bölgeler (içerik
 
 Bütün ekranlar aynı kurgusal Workspace'i kullanır. Başka proje veya kişi uydurulmaz.
 
-- **Kurucu:** Deniz Aksoy (GitHub `denizaksoy`).
+- **Kurucu:** Alex Morgan (GitHub `alexmorgan`).
 - **Luma:** `Solo SaaS`, serbest çalışanlar için fatura hatırlatıcı. Kısa kodu `LUMA`, aktif. Aşamaları: `Discovery` Tamamlandı, `MVP` Aktif, `Beta` Hazır, `Launch` Planlanmadı. Ana örnek projedir.
 - **tidekit:** `Open Source Library`, TypeScript tarih yardımcıları. Kısa kodu `TIDE`, aktif. GitHub, Releases (`v0.9.0`, `v1.0.0`) ve Build in Public ekranlarında kullanılır.
 - **Ferry:** `Mobile Application`. Kısa kodu `FRY`, arşivli. Arşiv ve salt okunur durumlarda kullanılır.
@@ -68,5 +68,5 @@ Bütün ekranlar aynı kurgusal Workspace'i kullanır. Başka proje veya kişi u
   - `LUMA-58 Onboarding checklist copy` (Task)
   - `LUMA-63 Research: late-payment etiquette` (Research)
 - **Wiki:** `Pricing heuristics`, `Weekly review template`, `How I write specs`.
-- **Kişiler:** `Elif Kaya` (`Studio Kiraz`), `Marco Rossi` (`Rossi Design`).
+- **Kişiler:** `Emma Clark` (`Brightwave Studio`), `Daniel Reed` (`Reed Design`).
 - **Bugün:** Perşembe, 2026-10-22.

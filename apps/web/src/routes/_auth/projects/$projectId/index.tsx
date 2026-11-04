@@ -10,6 +10,7 @@ import ProjectActivitySurface from "@/features/project-history/ui/components/pro
 import StoryTimelineSurface from "@/features/project-history/ui/components/story-timeline-surface";
 import WorkRecordHistorySurface from "@/features/project-history/ui/components/work-record-history-surface";
 import ProjectReleasesView from "@/features/project-release-planning/ui/views/project-releases-view";
+import ProjectArchiveControl from "@/features/project-retirement/ui/components/project-archive-control";
 import ProjectShellView from "@/features/project-shell/ui/views/project-shell-view";
 import ProjectUpdatesSurface from "@/features/project-updates/ui/components/project-updates-surface";
 import ReleaseEvidencePackSurface from "@/features/release-evidence/ui/components/release-evidence-pack-surface";
@@ -68,6 +69,9 @@ function RouteComponent() {
   return (
     <ProjectShellView
       accountId={session.data?.user.id}
+      archiveArea={
+        <ProjectArchiveControl key={projectId} projectId={projectId} />
+      }
       githubArea={
         <GitHubIntegrationSurface key={projectId} projectId={projectId} />
       }

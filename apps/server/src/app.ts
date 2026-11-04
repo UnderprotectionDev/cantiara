@@ -78,6 +78,7 @@ import type { ProjectClosureSummaryAccess } from "@cantiara/api/project-closure-
 import type { ProjectGoalsAccess } from "@cantiara/api/project-goals";
 import type { ProjectHistoryAccess } from "@cantiara/api/project-history";
 import type { ProjectReleasePlanningAccess } from "@cantiara/api/project-release-planning";
+import type { ProjectRetirementAccess } from "@cantiara/api/project-retirement";
 import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
@@ -276,6 +277,7 @@ export interface AppDependencies {
   projectGoals?: ProjectGoalsAccess;
   projectHistory?: ProjectHistoryAccess;
   projectReleasePlanning?: ProjectReleasePlanningAccess;
+  projectRetirement?: ProjectRetirementAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
@@ -753,6 +755,7 @@ export function createApp(dependencies: AppDependencies) {
       projectHistory: dependencies.projectHistory,
       projectUpdates: dependencies.projectUpdates,
       personalDataRights: dependencies.personalDataRights,
+      projectRetirement: dependencies.projectRetirement,
       selectedExport: dependencies.selectedExport,
       securityRedaction: dependencies.securityRedaction,
       trash: dependencies.trash,

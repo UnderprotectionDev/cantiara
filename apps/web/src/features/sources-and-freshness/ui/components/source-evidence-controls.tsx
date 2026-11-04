@@ -244,6 +244,11 @@ function SourceEvidenceUses({
     import("react").SetStateAction<{ use?: SourceEvidenceUse } | null>
   >;
 }) {
+  // The uses query can report a newer Source revision before the Source record
+  // prop refreshes; a review sent now would carry the stale expectedSourceRevision.
+  const sourceBehind = Boolean(
+    uses.data?.signal && uses.data.signal.versionRevision > source.revision,
+  );
   return open ? (
     <>
       <SourceEvidenceFeedback
@@ -258,7 +263,7 @@ function SourceEvidenceUses({
           key={use.id}
           onCompare={begin}
           onKeep={save}
-          pending={pending}
+          pending={pending || sourceBehind}
           preferences={preferences}
           readOnly={readOnly}
           source={source}
