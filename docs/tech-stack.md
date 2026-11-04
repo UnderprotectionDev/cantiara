@@ -72,6 +72,7 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: başk
 | React Resizable Panels | shadcn/ui Resizable bileşeninin panel boyutlandırma primitive'i |
 | Tailwind CSS | Arayüz stilleri |
 | Lucide React | Uygulama ikonları ve Wireframe semantic component ikon kaynağı |
+| Marka logosu (SVG) | Kanonik kaynak `apps/web/public/logo.svg` (tek dosya, mürekkep `#22222A` zemin üstünde krem `#EAE6D9` C); web favicon'u `apps/web/index.html` içinde buna bağlanır. Tauri masaüstü ve tarayıcı eklentisi ikonları henüz bu kaynaktan üretilmedi; üretildiklerinde bu satır güncellenir |
 | Geist Sans + Geist Mono (Variable) | Üretim UI tipografisi: Geist Sans arayüz metni, Geist Mono ID, sayı ve veri; OFL-1.1, henüz uygulamaya paketlenmedi (DESIGN.md Known Gaps) |
 | Sonner | Uygulama toast bildirimleri (`sonner`); `@cantiara/ui` Sonner sarmalayıcısını sağlar, ayrı bir toast sistemi eklenmez |
 | TanStack Query | Sunucu verisi ve önbellek |
