@@ -1,29 +1,29 @@
 ---
 version: alpha
 name: Cantiara
-description: "A quiet, exact project operating system for one founder. Neutral cool-gray surfaces (light #f8f8f8 / dark #121212) carry all hierarchy; color appears only when it means something. One orange (#f97316) is both the accent and Done (progress that has shipped), amber is In Progress, vivid green is review and passed outcomes, red is Blocked, Urgent and failed, violet is Decision, blue is Todo and Capture, mint-teal is Document. Geist Sans sets the interface; Geist Mono sets IDs, numbers, and deltas. Cards are flat panels with hairline borders; depth comes from a tonal surface ladder, not shadows."
+description: "A quiet, exact project operating system for one founder. Neutral cool-gray surfaces (light #f5f5f9 / dark #121311) carry all hierarchy; color appears only when it means something. One orange (#ea6a0c) is both the accent and Done (progress that has shipped), amber is In Progress, vivid green is review and passed outcomes, red is Blocked, Urgent and failed, violet is Decision, blue is Todo and Capture, cyan is Cycle time, mint-teal is Document. Geist Sans sets the interface; Geist Mono sets IDs, numbers, and deltas. Cards are flat panels with hairline borders; depth comes from a tonal surface ladder, not shadows."
 
 colors:
   # Light neutrals
   sidebar: "#f3f3f3"
-  canvas: "#f8f8f8"
+  canvas: "#f5f5f9"
   surface: "#ffffff"
   surface-hover: "#f4f4f5"
   surface-selected: "#dedee2"
   surface-subtle: "#f0f0f0"
   icon-tile: "#f2f2f3"
-  hairline: "#e8e8e8"
+  hairline: "#e7e6ec"
   hairline-strong: "#d4d4d4"
-  ink: "#232326"
-  ink-muted: "#56565b"
+  ink: "#22222a"
+  ink-muted: "#58586a"
   ink-subtle: "#6a6a6e"
-  primary: "#232326"
+  primary: "#22222a"
   on-primary: "#fafafa"
   focus-ring: "#3a3a3c"
   tooltip: "#3a3a3e"
   on-tooltip: "#f7f7f7"
-  track: "#d9d9de"
-  in-review: "#00b34a"
+  track: "#cdcdd4"
+  in-review: "#00963e"
   in-review-text: "#005a25"
   in-review-bg: "#e6f7ed"
   in-review-border: "#8cddae"
@@ -39,17 +39,17 @@ colors:
   in-progress-text: "#795900"
   in-progress-bg: "#fef7e6"
   in-progress-border: "#f9dc8c"
-  in-progress-chart: "#f5b301"
+  in-progress-chart: "#c98a00"
   blocked: "#e5384a"
   blocked-text: "#721c25"
   blocked-bg: "#fcebed"
   blocked-border: "#f3a5ae"
-  accent-text: "#ea580c"
-  done: "#f97316"
+  accent-text: "#c2410c"
+  done: "#ea6a0c"
   done-text: "#7c3a0b"
   done-bg: "#fef1e8"
   done-border: "#fcc096"
-  done-readiness: "#f97316"
+  done-readiness: "#ea6a0c"
   urgent: "#e5303f"
   urgent-text: "#c01f2d"
   urgent-bg: "#fdeded"
@@ -59,7 +59,7 @@ colors:
   decision-text: "#362e74"
   decision-bg: "#f0effd"
   decision-border: "#bdb6f4"
-  todo: "#2f7df6"
+  todo: "#2563eb"
   todo-text: "#183e7b"
   todo-bg: "#eaf2fe"
   todo-border: "#a1c4fb"
@@ -149,6 +149,9 @@ colors:
   bar-opened-dark: "#eead89"
   bar-completed-dark: "#726dc4"
   cancelled-dark: "#6b6b6f"
+  # Added from the approved Paper palette
+  primary-border-dark: "#c8c8c8"
+  info-chart: "#0e9cc4"
 
 typography:
   greeting:
@@ -335,15 +338,15 @@ components:
 
 Cantiara is a personal project operating system for one founder who already lives in Linear-class tools. The interface is **exact, quiet, durable**: neutral cool-gray surfaces, hairline borders, and type do the structural work, and color is spent only where it carries meaning — a status, an outcome, a Decision, a Release.
 
-Both modes are first-class. Light mode is a cool white canvas (`{colors.canvas}` #f8f8f8) with white cards; dark mode is a near-black, neutral (never warm or brown) ladder from `{colors.sidebar-dark}` #0e0e0e through `{colors.canvas-dark}` #121311 to `{colors.surface-dark}` #1a1b19 cards. The dark ladder was chosen so cards separate clearly from the canvas while vivid status colors do not glow.
+Both modes are first-class. Light mode is a cool white canvas (`{colors.canvas}` #f5f5f9) with white cards; dark mode is a near-black, neutral (never warm or brown) ladder from `{colors.sidebar-dark}` #0e0e0e through `{colors.canvas-dark}` #121311 to `{colors.surface-dark}` #1a1b19 cards. The dark ladder was chosen so cards separate clearly from the canvas while vivid status colors do not glow.
 
-The palette is a small, fixed vocabulary. **One orange** (`{colors.done}` #f97316) is both the brand accent and the Done state, so orange always means "this has moved forward." Amber is In Progress, vivid green is In review and passed Tests, red is Blocked, Urgent and failed Tests, violet is Decision, blue is Todo and Capture, mint-teal is Document. Every pair that appears side by side is measured to stay distinguishable (OKLab ΔE ≥ 15). Under color-vision deficiency orange, green and red sit close, so status never relies on color alone: every status chip also carries its own glyph and fill style (see Status pill).
+The palette is a small, fixed vocabulary. **One orange** (`{colors.done}` #ea6a0c) is both the brand accent and the Done state, so orange always means "this has moved forward." Amber is In Progress, vivid green is In review and passed Tests, red is Blocked, Urgent and failed Tests, violet is Decision, blue is Todo and Capture, cyan is Cycle time, mint-teal is Document. Every pair that appears side by side is measured to stay distinguishable (OKLab ΔE ≥ 15). Under color-vision deficiency orange, green and red sit close, so status never relies on color alone: every status chip also carries its own glyph and fill style (see Status pill).
 
 **Key Characteristics:**
 - Neutral cool grays only; no warm blacks, no beige, no brown tints in any tinted background.
 - Color = meaning. A colored element without a domain meaning is a defect.
 - One orange: accent and Done share a hue; there is no second accent.
-- Icon tiles are neutral; only the glyph carries color.
+- Icon tiles take their domain color as a tint (`-bg` fill, `-border` edge) with a colored glyph; tiles without a domain meaning stay neutral.
 - Deltas and numbers are Geist Mono text with a trend icon, never a filled pill.
 - Depth comes from the tonal surface ladder and hairlines; shadows appear only on floating layers.
 
@@ -351,13 +354,13 @@ The palette is a small, fixed vocabulary. **One orange** (`{colors.done}` #f9731
 
 ### Neutrals — light
 - **Sidebar** (`{colors.sidebar}` #f3f3f3): app sidebar and page frame.
-- **Canvas** (`{colors.canvas}` #f8f8f8): page background behind cards; list group headers.
+- **Canvas** (`{colors.canvas}` #f5f5f9): page background behind cards; list group headers.
 - **Surface** (`{colors.surface}` #ffffff): cards, list body, detail panel, popovers.
 - **Surface Hover** (`{colors.surface-hover}` #f4f4f5) and **Surface Selected** (`{colors.surface-selected}` #e8e8eb): list row hover and selection — kept a visible step apart.
 - **Surface Subtle** (`{colors.surface-subtle}` #f0f0f0): subtle buttons, neutral status chip.
-- **Icon Tile** (`{colors.icon-tile}` #f2f2f3): background of every card header icon tile.
-- **Hairline** (`{colors.hairline}` #e8e8e8) / **Hairline Strong** (`{colors.hairline-strong}` #d4d4d4): card and divider borders (decorative, exempt from 3:1). **Control Border** (`{colors.control-border}` #8a8a90, 3.2:1 on canvas): the outline of inputs, selects, checkboxes, radios and the off switch track.
-- **Ink** (`{colors.ink}` #232326), **Ink Muted** (`{colors.ink-muted}` #56565b), **Ink Subtle** (`{colors.ink-subtle}` #6a6a6e).
+- **Icon Tile** (`{colors.icon-tile}` #f2f2f3): background of neutral card header icon tiles (no domain meaning). Tiles with a domain meaning use that role's `-bg` and `-border`.
+- **Hairline** (`{colors.hairline}` #e7e6ec) / **Hairline Strong** (`{colors.hairline-strong}` #d4d4d4): card and divider borders (decorative, exempt from 3:1). **Control Border** (`{colors.control-border}` #8a8a90, 3.2:1 on canvas): the outline of inputs, selects, checkboxes, radios and the off switch track.
+- **Ink** (`{colors.ink}` #22222a), **Ink Muted** (`{colors.ink-muted}` #58586a), **Ink Subtle** (`{colors.ink-subtle}` #6a6a6e).
 
 ### Neutrals — dark
 - **Sidebar** `{colors.sidebar-dark}` #0e0e0e → **Canvas** `{colors.canvas-dark}` #121311 → **Surface** `{colors.surface-dark}` #1a1b19 → **Selected** `{colors.surface-selected-dark}` #404040 → **Hover / Icon Tile / Subtle** `{colors.surface-hover-dark}` #2e2e2e.
@@ -371,13 +374,14 @@ Each role has a base (icons, dots, fills), a text step (AA on its background), a
 | Role | Domain meaning | Light base / text | Dark base / text |
 |---|---|---|---|
 | In Progress | Work status | `#f2b200` / `#795900` | `#ffc53d` / `#ffdc8b` |
-| Done = Accent | Work status, brand accent, Release progress, Readiness "Work done" | `#f97316` / `#7c3a0b` | `#f97316` / `#f58b2c` dark · `#fbab73` |
+| Done = Accent | Work status, brand accent, Release progress, Readiness "Work done" | `#ea6a0c` / `#7c3a0b` | `#f58b2c` / `#fbab73` |
 | Blocked | Work status (outline chip), blocked Work | `#e5384a` / `#721c25` | `#ff5a6a` / `#ff9ca6` |
-| In review / Passed | Review status, passed Tests, positive delta | `#00b34a` / `#005a25` | `#00c853` / `#66de98` |
+| In review | Review status, Release progress tip | `#00963e` / `#005a25` | `#00c853` / `#66de98` |
+| Passed = Success | Passed Tests, positive delta, success alerts | `#00b34a` / `#005a25` | `#00c853` / `#66de98` |
 | Urgent | Priority, Bug, failed Tests, negative delta, destructive | `#e5303f` / `#c01f2d` | `#f0404f` / `#ff6b76` |
 | Decision | Decision, "Completed" series, Decisions resolved | `#6c5ce7` / `#362e74` | `#7a6cf8` / `#afa7fb` |
-| Todo | Todo status, Feature, Capture | `#2f7df6` / `#183e7b` | `#4c8dff` / `#9cc7ff` |
-| Info | Live and healthy-neutral signals, Memory series, hint banners | `#25b7e0` / `#0e5f78` | `#3ccbea` / `#7fddf2` |
+| Todo | Todo status, Feature, Capture | `#2563eb` / `#183e7b` | `#4c8dff` / `#9cc7ff` |
+| Info | Cycle time (chart tone `#0e9cc4`), live and healthy-neutral signals, Memory series, hint banners | `#25b7e0` / `#0e5f78` | `#3ccbea` / `#7fddf2` |
 | System | Lavender categorical slot (System, 7th series only with marker and dash) | `#a78bfa` | `#b9a3f5` |
 | Document | Document, Docs | `#0f766e` / `#0f766e` | `#5eead4` / `#5eead4` |
 | Release | Release chip (neutral by design) | `#8b8b95` / `#686876` | `#9a9aa6` / `#b6b6bf` |
@@ -445,14 +449,14 @@ Shadows are reserved for level 3: light `0 12px 32px rgb(0 0 0 / .18)`, dark `0 
 ## Components
 
 ### Buttons
-- **Primary** (`button-primary`): dark fill `#232326` with white text in light mode; soft light fill `#c8c8c8` with `#141414` text and no border in dark mode (hover `#d6d6d6`, pressed `#b8b8b8`; the focus ring is offset by a dark gap so it reads against the light fill). At most one Primary per surface (e.g. New Work).
+- **Primary** (`button-primary`): dark fill `#22222a` with white text in light mode; soft light fill `#c8c8c8` with `#141414` text and no border in dark mode (hover `#d6d6d6`, pressed `#b8b8b8`; the focus ring is offset by a dark gap so it reads against the light fill). At most one Primary per surface (e.g. New Work).
 - **Secondary**: light — white with hairline-strong border; dark — transparent with hairline-strong border. The label identifies the control, so the border stays decorative (`hairline-strong`), not `control-border`.
 - **Subtle**: tone fill, no border. **Ghost**: text only, ink-muted.
 - **Delete**: light — solid `{colors.danger-fill}`; dark — urgent tint. Irreversible confirmations (Archive Project dialog) use solid red in both modes.
 - **Disabled**: flat light-gray fill with faded text; never a lowered-opacity Primary.
 
 ### Cards & icon tiles
-Cards are `{colors.surface}` with a 1px hairline and `{rounded.card}`. Every card header icon sits in a neutral 28px tile; the glyph takes the domain color (Work done orange, Cycle time amber, Test pass rate red, Open Decisions violet, Work opened ink, Release readiness orange, Test runs green). Cards without a domain meaning (Insights, Work by status) use an ink glyph. KPI cards carry no colored side rule.
+Cards are `{colors.surface}` with a 1px hairline and `{rounded.card}`. Every card header icon sits in a 28px tile with an 8px radius that takes its domain color as a tint (`-bg` fill, `-border` edge) and a colored glyph: Work done and Work per week orange, Cycle time cyan, Test pass rate and Test runs green, Open Decisions violet, Work opened vs completed blue, Release readiness orange, Documents mint-teal. Cards without a domain meaning (Insights, Work by status) keep a neutral tile and an ink glyph. KPI cards carry no colored side rule.
 
 ### Status
 - **Status pill** (In Progress, Blocked, Passed, Failed, Decision, Feature): role background + role border + role text, plus a glyph. Outcome states are solid (Done orange, Passed green, Failed red; dark ink text on the fill, white on light Failed), active states are tinted (In review, In Progress, Decision), Todo is dashed and Blocked is an outline, so no two states differ by hue alone.
@@ -479,7 +483,7 @@ Text selection `{colors.selection}` / `{colors.selection-dark}`, caret in ink, t
 - Map every color to a glossary meaning before using it.
 - Use the text step of a role for any colored label.
 - Keep Release progress orange + green on a gray track everywhere it appears.
-- Keep icon tiles neutral and color only the glyph.
+- Tint an icon tile with its domain color (`-bg`, `-border`) and color the glyph; tiles without a domain meaning stay neutral.
 - Validate any new categorical pair (ΔE ≥ 15 normal, ≥ 8 CVD) before shipping.
 - Keep one Primary per surface.
 - Hover (`{colors.surface-hover-dark}` #2e2e2e) and selected (`{colors.surface-selected-dark}` / `{colors.selection-dark}` #404040) rows carry a 2px left notch and a check on selected, so state does not depend on fill contrast alone.
@@ -487,11 +491,11 @@ Text selection `{colors.selection}` / `{colors.selection-dark}`, caret in ink, t
 ### Don't
 - Don't use warm blacks, brown-tinted backgrounds, beige, or pink tints.
 - Don't introduce a second accent or use orange for emphasis that is not Done/accent.
-- Don't fill tags, deltas, or icon tiles with color.
+- Don't fill tags or deltas with color, and don't tint an icon tile without a domain meaning.
 - Don't use gray for data bars or pale grays for meaningful light-mode states.
 - Don't use purple chips or decorative gradients.
 - Don't use a pure-white-filled Primary button in dark mode; the soft light fill is `#c8c8c8`.
-- Don't set text in `{colors.accent-text}` (#ea580c, 3.35:1) below 18px or 14px bold, nor on a selected row; use ink text and keep the orange for dots, icons and bars.
+- Don't set text in `{colors.accent-text}` (#c2410c) below 18px or 14px bold, nor on a selected row; use ink text and keep the orange for dots, icons and bars.
 
 ## Responsive Behavior
 
@@ -508,7 +512,7 @@ Target mapping for `packages/ui/src/styles/globals.css` (`:root` light, `.dark` 
 | Page / card / popover | `bg-background`, `bg-card`, `bg-popover` |
 | Ink levels | `text-foreground`, `text-muted-foreground`, `text-subtle-foreground` |
 | Row hover / selected | `hover:bg-accent`, `bg-selected` |
-| Icon tile | `bg-icon-tile` + glyph `text-done` / `text-blocked` … |
+| Icon tile | neutral `bg-icon-tile`, or `bg-{role}-bg border-{role}-border` + glyph `text-{role}` |
 | Status pill | `bg-{role}-bg text-{role}-text border-{role}-border` |
 | Status icon / dot / fill | `text-{role}` / `bg-{role}` |
 | Release progress | `bg-done` (done), `bg-in-review`, `bg-track` |
@@ -530,4 +534,5 @@ Roles: `in-progress`, `blocked`, `done`, `in-review`, `success`, `urgent`, `deci
 - Geist Sans and Geist Mono are not yet loaded by the app (no font package in the repository).
 - Per-surface responsive layouts (card grid steps, detail panel placement) are owned by each surface spec, not this file.
 - Source of truth for this palette: `.context/design-research/v69/` (theme `ember-indigo-6-tuned5`).
+- Palette round synced from Paper DS · Palette Compare (Final + Light charts): Light canvas `#f5f5f9`, ink `#22222a` / `#58586a`, hairline `#e7e6ec`, track `#cdcdd4`, Done = Accent orange `#ea6a0c`, In review `#00963e`, Todo `#2563eb`, accent text `#c2410c`, `info-chart` `#0e9cc4`, tinted icon tiles. Dark values follow the Paper tokens.
 - Palette changes after v69 (approved in the Paper decision round): Dark Primary soft light fill, `control-border`, `success` / `in-review` / neutral `done` split, softer Dark hairlines and hover/selected steps, lighter track and link underline, Dark danger fill `#d42a38`. Danger button states are component states, not tokens: Light hover `#c52836` / pressed `#b32331`; Dark hover `#c42634` / pressed `#b32230`.
