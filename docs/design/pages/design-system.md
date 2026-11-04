@@ -1,6 +1,6 @@
 # Design System
 
-Foundations ve Components tek bir Paper sayfasında durur. Önce DS.0 kararları verilir, sonra bileşenler çizilir; bütün ekranlar bunları klonlar.
+Foundations, Components ve Patterns ayrı Paper sayfalarında durur (`DS · Foundations`, `DS · Components`, `DS · Patterns`); `DS · Palette Explorations` bağlayıcı değildir, yalnız geçmiş paleti tutar. Önce DS.0 kararları verilir, sonra bileşenler çizilir; bütün ekranlar bunları klonlar.
 
 Bağlayıcı ilkeler ([`PRODUCT.md`](../../../PRODUCT.md)):
 - Kişilik "Exact, quiet, durable".
@@ -14,10 +14,14 @@ Anti-referanslar: sağlık skorları, widget dashboard'ları, krem SaaS landing'
 |---|---|
 | [DS.0 · Decisions](#ds0--decisions) | Karar listesi; Paper token'ları |
 | [DS.1 · Color roles](#ds1--color-roles) | Light ve Dark renk rolleri |
+| [DS.1b–1d · Color in context, Data widgets, Data visualization](#ds1b1d--color-in-context-and-data-visualization) | Rengin bağlamda kullanımı, veri görselleştirme |
 | [DS.2 · Type scale](#ds2--type-scale) | Tip ölçeği |
 | [DS.3 · Spacing, density, grid](#ds3--spacing-density-grid) | Boşluk, yoğunluk, ızgara |
 | [DS.4 · Radius, border, elevation, focus](#ds4--radius-border-elevation-focus) | Kenar, yükselti, odak |
+| [DS.3b · Responsive](#ds3b--responsive) | Kırılımlar ve bölge davranışı |
+| [DS.4b–4d · Layering, Keyboard and focus, Accessibility](#ds4b4d--layering-keyboard-and-focus-accessibility) | Katman sırası, klavye, erişilebilirlik |
 | [DS.5 · Icons and motion](#ds5--icons-and-motion) | İkon kuralları, motion |
+| [DS.5b · Data display and canvas](#ds5b--data-display-and-canvas) | Tarih, sayı ve kanvas zemini |
 | [DS.6 · Actions and forms](#ds6--actions-and-forms) | Buton ve form primitive'leri |
 | [DS.7 · Navigation and layers](#ds7--navigation-and-layers) | Gezinme, dialog, menü |
 | [DS.8 · Feedback and data](#ds8--feedback-and-data) | Toast, alert, tablo, liste |
@@ -30,6 +34,9 @@ Anti-referanslar: sağlık skorları, widget dashboard'ları, krem SaaS landing'
 | [DS.15 · State Patterns](#ds15--state-patterns) | Boş, yükleniyor, hata durumları |
 | [DS.16 · Dialog and Panel Frames](#ds16--dialog-and-panel-frames) | Dialog ve panel çerçevesi |
 | [DS.17 · Record Representations](#ds17--record-representations) | Kaydın göründüğü biçimler |
+| [DS.18 · Bulk selection and filters](#ds18--bulk-selection-and-filters) | Toplu seçim, filtre oluşturucu |
+| [DS.19 · Settings and error pages](#ds19--settings-and-error-pages) | Ayar şablonu, hata ve kimlik sayfaları |
+| [DS.20 · Interaction states](#ds20--interaction-states) | Sürükle-bırak, satır içi düzenleme, onay ve arama |
 
 ## DS.0 · Decisions
 - [x] Kararlar tamam
@@ -42,7 +49,7 @@ Anti-referanslar: sağlık skorları, widget dashboard'ları, krem SaaS landing'
 | 2 | Renk rolleri | Zemin, yükseltilmiş yüzey, metin, sessiz metin, ayırıcı, birincil eylem, odak halkası, seçim | Gövde metni ≥4.5:1 kontrast; anlam yalnız renkle aktarılmaz (WCAG 2.2 AA, [PRD 15](../../prd/15-product-quality.md)) | Light ve Dark nötr merdiven (`sidebar` → `canvas` → `surface`), `ink` / `ink-muted` / `ink-subtle`, `hairline`, `primary`, `focus-ring`, `selection`; kontrol sınırı ayrı rol: `control-border` (Light `#8a8a90`, Dark `#6e6e6e`, ≥3:1); Dark Primary soft açık dolgu `#c8c8c8` + `#141414` metin, çerçevesiz; turuncu metin yalnız ≥18px veya ≥14px bold, seçili satırda yok → [`DESIGN.md`](../../../DESIGN.md) › Colors |
 | 3 | Semantik renkler | Success, warning, danger, info; durum rozetleri | Her durum metin veya ikonla da okunur; Light ve Dark ayrı doğrulanır | Rol başına base / text / bg / border: In Progress amber, Done = accent turuncu, Blocked kırmızı, In Review yeşil, Urgent kırmızı, Decision indigo, Todo mavi, Document teal, Release ve Cancelled nötr; etiket daima text adımı → [`DESIGN.md`](../../../DESIGN.md) › Semantic roles; olumlu sonuç (geçen Test, pozitif delta, success alert) ayrı `success` rolü; durumlar şekille de ayrışır (yarı dolu, göz, onay, kesikli, daire); seçili satır sol çentik + onay işareti taşır → [`DESIGN.md`](../../../DESIGN.md) › Status |
 | 4 | Light / Dark | İki tema token'ı; `Appearance` kuralı → `01.6` | [spec 02](../../specs/02-account-preferences/spec.md); "tema sistemi" değildir, Proje rengi yoktur | İki ayrı token seti (`*-dark` ayrı seçimdir, ters çevirme değildir); `System` yok → [`DESIGN.md`](../../../DESIGN.md) › Colors |
-| 5 | Tipografi | Font ailesi; display, heading, subhead, body, label, caption, mono/data; ağırlık; satır yüksekliği | %200 ölçekte okunur; uzun içerik kırılır; İş anahtarı ve tarihte tabular rakam | Inter Variable (`cv11`, tabular) arayüz; Geist Mono anahtar, metrik, delta, veri tarihi; `greeting` 26 / `title` 14 / `body` 13 / `label` 12 / `button` 12.5 / `metric` 26 mono / `mono` 11.5 → [`DESIGN.md`](../../../DESIGN.md) › Typography |
+| 5 | Tipografi | Font ailesi; display, heading, subhead, body, label, caption, mono/data; ağırlık; satır yüksekliği | %200 ölçekte okunur; uzun içerik kırılır; İş anahtarı ve tarihte tabular rakam | Geist Sans (Variable, tabular) arayüz; Geist Mono anahtar, metrik, delta, veri tarihi; `greeting` 26 / `title` 14 / `body` 13 / `label` 12 / `button` 12.5 / `metric` 26 mono / `mono` 11.5 → [`DESIGN.md`](../../../DESIGN.md) › Typography |
 | 6 | Spacing ölçeği | Temel birim; bileşen içi, grup arası, bölge arası | Yoğun liste ile geniş okuma yüzeyi aynı ölçekten çıkar | 2px temel adım; çalışma değerleri 4 / 6 / 10 / 14 / 16 / 24; kart iç boşluğu 14 16, kart ızgarası aralığı 10–12 → [`DESIGN.md`](../../../DESIGN.md) › Spacing System |
 | 7 | Yoğunluk | Liste ve tablo satır yüksekliği | Linear sınıfı araç kullanıcısı; satır başına tek bilgi hattı | Liste satırı 38px, yan boşluk 16px; tek satır chip; operate yoğunluğu → [`DESIGN.md`](../../../DESIGN.md) › Density |
 | 8 | Layout ızgarası | 1440 içerik genişliği, kenar boşluğu, kabuk kolonları, 768 kırılımı | 768'de hiçbir eylem kaybolmaz, yalnız yer değiştirir | Sol sidebar 240px + akışkan içerik; liste, tablo, board tam genişlik; Belge, Wiki ve Karar gövdesi en çok 720px okuma kolonu; çerçeve boşluğu 20 / 32 / 40 (`sm` / `md` / `lg`); 768'de sidebar ikon rayına iner |
@@ -87,9 +94,40 @@ Karar 9, 10, 12: radius örnekleri, ayırıcı, popover/dialog/toast katmanları
 
 Karar 11, 13: Lucide boyut ve çizgi örnekleri, ikon + metin hizası, motion süre tablosu.
 
+## DS.1b–1d · Color in context and data visualization
+**Artboard'lar** (her biri Light ve Dark)
+- `DS.1b · Foundations · Color in context`
+- `DS.1c · Color in context · Data widgets`
+- `DS.1c · Color in context · Work screen`
+- `DS.1c · Color in context · Home dashboard`
+- `DS.1c · Color in context · Base UI in context`
+- `DS.1d · Foundations · Data visualization`
+
+Karar 2, 3: roller gerçek yüzeylerde (rozet, ilerleme, dağılım, delta, ikon tile). Veri görselleştirme: seri paleti, rampalar, grafik anatomisi, küçük grafikler; renk tek başına anlam taşımaz, her seri işaret ve çizgi biçimiyle de ayrışır.
+
+## DS.3b · Responsive
+**Artboard'lar**
+- `DS.3b · Foundations · Responsive` (Light ve Dark)
+
+Karar 8: kırılımlar, 1440'tan 390'a bölge davranışı, dört şema.
+
+## DS.4b–4d · Layering, Keyboard and focus, Accessibility
+**Artboard'lar** (her biri Light ve Dark)
+- `DS.4b · Foundations · Layering`
+- `DS.4c · Foundations · Keyboard and focus`
+- `DS.4d · Foundations · Accessibility`
+
+Karar 10, 12: adlandırılmış z-index seviyeleri ve scrim; kısayol haritaları, odak sırası, roving tabindex, skip link; ölçülen kontrast çiftleri, hedef boyutları, renk dışı ipuçları, canlı bölgeler, hata özeti.
+
+## DS.5b · Data display and canvas
+**Artboard'lar**
+- `DS.5b · Foundations · Data display and canvas` (Light ve Dark)
+
+Karar 14, 15: tarih ve sayı kuralları, kanvas zemini ve seçimi, ürün sesi.
+
 ## DS.6 · Actions and forms
 **Artboard'lar**
-- `DS.6 · Components · Actions and forms`
+- `DS.6 · Components · 01 · Actions`, `02 · Form controls`, `03 · Form controls (2)`, `04 · Inputs`, `05 · Selection controls`, `30 · Date range and relative date picker`, `31 · Tag and multi-select input`, `32 · File upload and dropzone` (her biri Light ve Dark)
 
 Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve error.
 
@@ -100,7 +138,7 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 
 ## DS.7 · Navigation and layers
 **Artboard'lar**
-- `DS.7 · Components · Navigation and layers`
+- `DS.7 · Components · 06 · Command and combobox`, `07 · Navigation and date`, `08 · Navigation`, `09 · Sidebar`, `10 · Menus and popovers`, `11 · Overlays`, `19 · Layers`, `23 · Command palette results`, `24 · Mention and slash menu`, `33 · Split pane and stepper` (her biri Light ve Dark)
 
 | Grup | Bileşenler | Varyantlar |
 |---|---|---|
@@ -109,7 +147,7 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 
 ## DS.8 · Feedback and data
 **Artboard'lar**
-- `DS.8 · Components · Feedback and data`
+- `DS.8 · Components · 12 · Feedback`, `13 · Feedback and layout`, `14 · Data and media`, `15 · Data and disclosure`, `16 · Table`, `17 · Lists and messaging`, `18 · Text and layout`, `20 · Loading and trace`, `25 · Tree view`, `26 · Timeline and Gantt`, `27 · Diff and code viewer`, `28 · Notification and inbox`, `29 · Avatar group and progress ring`, `34 · Toast stack and optimistic states` (her biri Light ve Dark)
 
 | Grup | Bileşenler | Varyantlar |
 |---|---|---|
@@ -118,7 +156,7 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 
 ## DS.9 · Product components
 **Artboard'lar**
-- `DS.9 · Components · Product components`
+- `DS.9 · Components · 21 · Product components (1)`, `22 · Product components (2)` (her biri Light ve Dark)
 
 Bileşeni başka bir bölüm ya da ekran tanımlıyorsa bu tablo yalnız adını ve sahibini gösterir; label ve varyantlar sahibinde durur.
 
@@ -325,3 +363,36 @@ Tablo satır metasının tek sahibidir: bir ayrıntı iki ekranda farklıysa tab
 
 **Spec:** [33](../../specs/33-record-discovery/spec.md), [39](../../specs/39-favorites/spec.md), [28](../../specs/28-unified-calendar/spec.md).
 
+## DS.18 · Bulk selection and filters
+> Toplu seçim modeli ve filtre oluşturucu; [DS.14](#ds14--collection-views) araç çubuğunun ayrıntısı.
+
+**Artboard'lar** (her biri Light ve Dark)
+- `DS.18 · Bulk selection and filters · Bulk bar · 1440`
+- `DS.18 · Bulk selection and filters · Selection model · 1440`
+- `DS.18 · Bulk selection and filters · Filter builder and saved views · 1440`
+
+- **Bulk bar:** seçili sayı ve `Bulk Edit` girişi; diyalog → `20.8`.
+- **Seçim modeli:** satır ve kart seçiminin nasıl çalıştığı ([DS.14](#ds14--collection-views) `Multi-select` ile uyumlu).
+- **Filtre oluşturucu ve `Saved views`:** filtre kurma ve kayıtlı görünümler.
+
+**Spec:** [22](../../specs/22-bulk-editing/spec.md), [34](../../specs/34-smart-collections/spec.md).
+
+## DS.19 · Settings and error pages
+> Ayar sayfaları için ortak şablon; hata ve kimlik doğrulama sayfaları.
+
+**Artboard'lar** (her biri Light ve Dark)
+- `DS.19 · Settings and error pages · Settings template · 1440`
+- `DS.19 · Settings and error pages · Error and auth pages · 1440`
+
+- **Settings template:** ayar sayfalarının ortak iskeleti; kaydetme hatası [DS.16](#ds16--dialog-and-panel-frames) form hata kalıbını izler.
+- **Error and auth pages:** sakin ve kesin metin; ne oldu + ne yapılır (karar 16).
+
+## DS.20 · Interaction states
+> Her işaretçi hareketinin klavye karşılığı olan etkileşim durumları.
+
+**Artboard'lar** (her biri Light ve Dark)
+- `DS.20 · Interaction states · Drag and drop and inline edit · 1440`
+- `DS.20 · Interaction states · Confirmation, activity and search · 1440`
+
+- **Sürükle-bırak ve satır içi düzenleme:** satır içi düzenleme `Enter` ile kaydeder, `Esc` ile iptal eder ve hatayı değerin durduğu yerde bildirir.
+- **Onay, etkinlik ve arama:** onay, etkinlik ve arama durumlarının ortak biçimi.
