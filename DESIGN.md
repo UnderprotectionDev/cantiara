@@ -1,7 +1,7 @@
 ---
 version: alpha
 name: Cantiara
-description: "A quiet, exact project operating system for one founder. Neutral cool-gray surfaces (light #f7f7fa / dark #121311) carry all hierarchy; color appears only when it means something. One orange (#ea6a0c) is both the accent and Done (progress that has shipped), amber is In Progress, vivid green is review and passed outcomes, red is Blocked, Urgent and failed, violet is Decision, blue is Todo and Capture, cyan is Cycle time, mint-teal is Document. Geist Sans sets the interface; Geist Mono sets IDs, numbers, and deltas. Cards are flat panels with hairline borders; depth comes from a tonal surface ladder, not shadows."
+description: "A quiet, exact project operating system for one founder. Neutral cool-gray surfaces (light #f7f7fa / dark #121311) carry all hierarchy; color appears only when it means something. One orange (#ea6a0c) is both the accent and Closed · Completed (progress that has shipped), amber is In Progress, vivid green is passed outcomes, red is Blocked, Urgent and failed, violet is Decision, blue is Not Started and Capture, cyan is Cycle time, mint-teal is Document. Geist Sans sets the interface; Geist Mono sets IDs, numbers, and deltas. Cards are flat panels with hairline borders; depth comes from a tonal surface ladder, not shadows."
 
 colors:
   # Light neutrals
@@ -349,12 +349,12 @@ Cantiara is a personal project operating system for one founder who already live
 
 Both modes are first-class. Light mode is a cool white canvas (`{colors.canvas}` #f7f7fa) with white cards; dark mode is a near-black, neutral (never warm or brown) ladder from `{colors.sidebar-dark}` #0e0e0e through `{colors.canvas-dark}` #121311 to `{colors.surface-dark}` #1a1b19 cards. The dark ladder was chosen so cards separate clearly from the canvas while vivid status colors do not glow.
 
-The palette is a small, fixed vocabulary. **One orange** (`{colors.done}` #ea6a0c) is both the brand accent and the Done state, so orange always means "this has moved forward." Amber is In Progress, vivid green is In review and passed Tests, red is Blocked, Urgent and failed Tests, violet is Decision, blue is Todo and Capture, cyan is Cycle time, mint-teal is Document. Every pair that appears side by side is measured to stay distinguishable (OKLab ΔE ≥ 15). Under color-vision deficiency orange, green and red sit close, so status never relies on color alone: every status chip also carries its own glyph and fill style (see Status pill).
+The palette is a small, fixed vocabulary. **One orange** (`{colors.done}` #ea6a0c) is both the brand accent and the Closed · Completed state, so orange always means "this has moved forward." Amber is In Progress, vivid green is passed Tests and other success outcomes (not a Work status), red is Blocked, Urgent and failed Tests, violet is Decision, blue is Not Started and Capture, cyan is Cycle time, mint-teal is Document. Every pair that appears side by side is measured to stay distinguishable (OKLab ΔE ≥ 15). Under color-vision deficiency orange, green and red sit close, so status never relies on color alone: every status chip also carries its own glyph and fill style (see Status pill).
 
 **Key Characteristics:**
 - Neutral cool grays only; no warm blacks, no beige, no brown tints in any tinted background.
 - Color = meaning. A colored element without a domain meaning is a defect.
-- One orange: accent and Done share a hue; there is no second accent.
+- One orange: accent and Closed · Completed share a hue; there is no second accent.
 - Icon tiles take their domain color as a tint (`-bg` fill, `-border` edge) with a colored glyph; tiles without a domain meaning stay neutral.
 - Deltas and numbers are Geist Mono text with a trend icon, never a filled pill.
 - Depth comes from the tonal surface ladder and hairlines; shadows appear only on floating layers.
@@ -380,27 +380,27 @@ The palette is a small, fixed vocabulary. **One orange** (`{colors.done}` #ea6a0
 ### Semantic roles
 Each role has a base (icons, dots, fills), a text step (AA on its background), a tinted background, and a border. Use the text step for any label; never set text in the base color.
 
-| Role | Domain meaning | Light base / text | Dark base / text |
-|---|---|---|---|
-| In Progress | Work status | `#f2b200` / `#795900` | `#ffc53d` / `#ffdc8b` |
-| Done = Accent | Work status, brand accent, Release progress, Readiness "Work done" | `#ea6a0c` / `#7c3a0b` | `#f58b2c` / `#fbab73` |
-| Blocked | Work status (outline chip), blocked Work | `#e5384a` / `#721c25` | `#ff5a6a` / `#ff9ca6` |
-| In review | Review status, Release progress tip | `#00963e` / `#005a25` | `#00c853` / `#66de98` |
-| Passed = Success | Passed Tests, positive delta, success alerts | `#00b34a` / `#005a25` | `#00c853` / `#66de98` |
-| Urgent | Priority, Bug, failed Tests, negative delta, destructive | `#e5303f` / `#c01f2d` | `#f0404f` / `#ff6b76` |
-| Decision | Decision, "Completed" series, Decisions resolved | `#6c5ce7` / `#362e74` | `#7a6cf8` / `#afa7fb` |
-| Todo | Todo status, Feature, Capture | `#2563eb` / `#183e7b` | `#4c8dff` / `#9cc7ff` |
-| Info | Cycle time (chart tone `#0e9cc4`), live and healthy-neutral signals, Memory series, hint banners | `#25b7e0` / `#0e5f78` | `#3ccbea` / `#7fddf2` |
-| System | Lavender categorical slot (System, 7th series only with marker and dash) | `#a78bfa` | `#b9a3f5` |
-| Document | Document, Docs | `#0f766e` / `#0f766e` | `#5eead4` / `#5eead4` |
-| Release | Release chip (neutral by design) | `#8b8b95` / `#686876` | `#9a9aa6` / `#b6b6bf` |
-| Cancelled | Cancelled status | `#8a8a90` | `#6b6b6f` |
+| Role | Product label | Domain meaning | Light base / text | Dark base / text |
+|---|---|---|---|---|
+| In Progress | In Progress | Work status | `#f2b200` / `#795900` | `#ffc53d` / `#ffdc8b` |
+| Done = Accent | Closed · Completed | Work status (Closed with result Completed), brand accent, Release progress, Readiness "Work done" | `#ea6a0c` / `#7c3a0b` | `#f58b2c` / `#fbab73` |
+| Blocked | Blocked | Work status (outline chip), blocked Work | `#e5384a` / `#721c25` | `#ff5a6a` / `#ff9ca6` |
+| In review | none (Passed / success outcomes; not a Work status) | Passed or success outcome, Release progress tip | `#00963e` / `#005a25` | `#00c853` / `#66de98` |
+| Passed = Success | Passed | Passed Tests, positive delta, success alerts | `#00b34a` / `#005a25` | `#00c853` / `#66de98` |
+| Urgent | Urgent | Priority, Bug, failed Tests, negative delta, destructive | `#e5303f` / `#c01f2d` | `#f0404f` / `#ff6b76` |
+| Decision | Decision | Decision, "Completed" series, Decisions resolved | `#6c5ce7` / `#362e74` | `#7a6cf8` / `#afa7fb` |
+| Todo | Not Started | Not Started Work status, Feature, Capture | `#2563eb` / `#183e7b` | `#4c8dff` / `#9cc7ff` |
+| Info | none | Cycle time (chart tone `#0e9cc4`), live and healthy-neutral signals, Memory series, hint banners | `#25b7e0` / `#0e5f78` | `#3ccbea` / `#7fddf2` |
+| System | none | Lavender categorical slot (System, 7th series only with marker and dash) | `#a78bfa` | `#b9a3f5` |
+| Document | Document | Document, Docs | `#0f766e` / `#0f766e` | `#5eead4` / `#5eead4` |
+| Release | Release | Release chip (neutral by design) | `#8b8b95` / `#686876` | `#9a9aa6` / `#b6b6bf` |
+| Cancelled | Abandoned (Work result) · Cancelled (Release, Reminder) | Abandoned Work result, Cancelled Release or Reminder | `#8a8a90` | `#6b6b6f` |
 
 ### Data colors
-- **Release progress** (sidebar Release card, Release stat, Release readiness "Work done"): Done = `{colors.done}` orange, In review = `{colors.in-review}` green, empty = `{colors.track}` / `{colors.track-dark}`; the segments are tall rounded pills. The Release hero also ends in the green In review tip. The same metric always uses this treatment.
-- **Status distribution** lives only in the Work by status donut: In Progress `{colors.in-progress-chart}` / `{colors.in-progress-chart-dark}`, Blocked red, Todo `{colors.todo-chart}` / `{colors.todo-chart-dark}`, Done orange, In review `{colors.in-review-chart}` / `{colors.in-review-chart-dark}`, Cancelled gray. Legend dots, status icons and donut arcs use the same fills.
+- **Release progress** (sidebar Release card, Release stat, Release readiness "Work done"): Closed · Completed = `{colors.done}` orange, Passed / success tip = `{colors.in-review}` green, empty = `{colors.track}` / `{colors.track-dark}`; the segments are tall rounded pills. The Release hero also ends in the green success tip. The same metric always uses this treatment.
+- **Status distribution** lives only in the Work by status donut: In Progress `{colors.in-progress-chart}` / `{colors.in-progress-chart-dark}`, Blocked red, Not Started `{colors.todo-chart}` / `{colors.todo-chart-dark}`, Closed · Completed orange, Closed · Abandoned `{colors.cancelled}` gray. Legend dots, status icons and donut arcs use the same fills.
 - **Weekly bars** (Work per week): Opened in neutral gray (ink at 25%), Completed in `{colors.bar-completed}` / `{colors.bar-completed-dark}`, the highlighted week in full ink and violet. `{colors.bar-opened}` pastel pairs stay as a documented alternative. Line charts draw Opened in ink and Completed in violet, with a dashed neutral Target line.
-- **Ink + signal** progress bars (Readiness, Release hero): the completed run is ink (light) or white (dark) pills and only the leading edge takes the metric color (orange Work done, green Tests passing, violet Decisions resolved). The **Release hero** card follows the page mode (light: white card with ink pills, dark: `{colors.surface-dark}` card with white pills): large mono percentage, an "On track" In-review-tint chip with a dot, 24 tall pills (22px wide, `{rounded.hair}` radius) with an orange then green leading edge; dark pills stay `{colors.ink-dark}`, and Mon / Wed / Fri / Sun labels.
+- **Ink + signal** progress bars (Readiness, Release hero): the completed run is ink (light) or white (dark) pills and only the leading edge takes the metric color (orange Work done, green Tests passing, violet Decisions resolved). The **Release hero** card follows the page mode (light: white card with ink pills, dark: `{colors.surface-dark}` card with white pills): large mono percentage, an "On track" success-tint chip with a dot, 24 tall pills (22px wide, `{rounded.hair}` radius) with an orange then green leading edge; dark pills stay `{colors.ink-dark}`, and Mon / Wed / Fri / Sun labels.
 - **Test runs** cells: passed `{colors.success}` (dark `{colors.test-pass-dark}`), failed `{colors.urgent}`.
 
 ## Typography
@@ -468,10 +468,10 @@ Scrims are `{colors.scrim}` (ink 40%) in light and `{colors.scrim-dark}` (black 
 Cards are `{colors.surface}` with a 1px hairline and `{rounded.card}`. Every card header icon sits in a 28px tile with an 8px radius that takes its domain color as a tint (`-bg` fill, `-border` edge) and a colored glyph: Work done and Work per week orange, Cycle time cyan, Test pass rate and Test runs green, Open Decisions violet, Work opened vs completed blue, Release readiness orange, Documents mint-teal. Cards without a domain meaning (Insights, Work by status) keep a neutral tile and an ink glyph. KPI cards carry no colored side rule.
 
 ### Status
-- **Status pill** (In Progress, Blocked, Passed, Failed, Decision, Feature): role background + role border + role text, plus a glyph. Outcome states are solid (Done orange, Failed `{colors.danger-fill}`; `{colors.on-fill}` ink text on the fill, white on light Failed), Passed is a tinted success pill with a glyph, active states are tinted (In review, In Progress, Decision). Unreviewed is a neutral chip and Watching uses Info. Status pills use the 6px radius everywhere, Todo is dashed and Blocked is an outline, so no two states differ by hue alone.
+- **Status pill** (In Progress, Blocked, Passed, Failed, Decision, Feature): role background + role border + role text, plus a glyph. Outcome states are solid (Closed · Completed orange, Failed `{colors.danger-fill}`; `{colors.on-fill}` ink text on the fill, white on light Failed), Passed is a tinted success pill with a glyph, active states are tinted (In Progress, Decision). Unreviewed is a neutral chip and Watching uses Info. Status pills use the 6px radius everywhere, Not Started is dashed and Blocked is an outline, so no two states differ by hue alone.
 - **Status chip** in the detail panel: neutral fill, ink text, colored status icon (the icon alone carries the state).
 - **Tags** (Bug, Feature, Docs): outlined, no fill; a colored dot or text step marks the type.
-- **Status icons** in lists: In Progress amber spinner arc, Blocked red slashed circle, Todo blue dashed circle, In review green eye, Done orange check, Passed green circled check, Decision violet diamond, Failed red cross.
+- **Status icons** in lists: In Progress amber spinner arc, Blocked red slashed circle, Not Started blue dashed circle, Closed · Completed orange check, Closed · Abandoned gray cross-circle, Passed green circled check, Decision violet diamond, Failed red cross.
 
 ### Data
 - **Deltas**: Geist Mono text in the role text color plus a trend icon; no pill background. Color follows meaning, not sign: a change in the good direction is Success (Cycle time down, Work done up), a change in the bad direction is Urgent (Test pass rate down, failures up); the trend icon carries the arrow direction.
@@ -499,7 +499,7 @@ Text selection `{colors.selection}` / `{colors.selection-dark}`, caret in ink, t
 
 ### Don't
 - Don't use warm blacks, brown-tinted backgrounds, beige, or pink tints.
-- Don't introduce a second accent or use orange for emphasis that is not Done/accent.
+- Don't introduce a second accent or use orange for emphasis that is not Closed · Completed/accent.
 - Don't fill tags or deltas with color, and don't tint an icon tile without a domain meaning.
 - Don't use pale grays for meaningful light-mode states; neutral gray is allowed only for the Opened series in Work per week.
 - Don't use purple chips or decorative gradients.
@@ -543,7 +543,7 @@ Roles: `in-progress`, `blocked`, `done`, `in-review`, `success`, `urgent`, `deci
 - Geist Sans and Geist Mono are not yet loaded by the app (no font package in the repository).
 - Per-surface responsive layouts (card grid steps, detail panel placement) are owned by each surface spec, not this file.
 - Source of truth for this palette: `.context/design-research/v69/` (theme `ember-indigo-6-tuned5`).
-- (Superseded by the Compare round below.) Palette round synced from Paper DS · Palette Compare (Final + Light charts): Light canvas `#f5f5f9`, ink `#22222a` / `#58586a`, hairline `#e7e6ec`, track `#cdcdd4`, Done = Accent orange `#ea6a0c`, In review `#00963e`, Todo `#2563eb`, accent text `#c2410c`, `info-chart` `#0e9cc4`, tinted icon tiles. Dark values follow the Paper tokens.
+- (Superseded by the Compare round below.) Palette round synced from Paper DS · Palette Compare (Final + Light charts): Light canvas `#f5f5f9`, ink `#22222a` / `#58586a`, hairline `#e7e6ec`, track `#cdcdd4`, Closed · Completed = Accent orange `#ea6a0c`, success green `#00963e`, Not Started `#2563eb`, accent text `#c2410c`, `info-chart` `#0e9cc4`, tinted icon tiles. Dark values follow the Paper tokens.
 - Palette changes after v69 (approved in the Paper decision round): Dark Primary soft light fill, `control-border`, `success` / `in-review` / neutral `done` split, softer Dark hairlines and hover/selected steps, lighter track and link underline, Dark danger fill `#d42a38`. Danger button states are component states, not tokens: Light hover `#c52836` / pressed `#b32331`; Dark hover `#c42634` / pressed `#b32230`.
 - Paper `DS · Palette Explorations` keeps one superseded round (Direction 5: Done `#f08a24`, Dark canvas `#111113`, Dark ink `#e6e7de`). It is history only; the tokens in this file and in Paper `DS · Foundations` are binding.
 - Palette round synced from Paper DS · Compare (this round): Light neutrals `#f1f1f6` / `#f7f7fa` / `#efeff5` / `#e3e3ec` / `#e2e2ea` / `#cfcfda` / track `#dadae4`, role tints (`#fdf0cc` `#fadde1` `#fde6d6` `#e8e6fb` `#ddeafd` `#d6f1e1` `#d6f0f8`), chart tones (`in-progress-chart` `#e0a000`, `in-review-chart` `#00a844`, `todo-chart` `#3b7bf5`), blue focus ring, 28% disabled, scrim tokens, `on-fill`, Dark one-hue neutral ladder (hover `#222421`, selected `#2f312d`). Readiness, Cycle time and the gray Work per week bars were kept as drawn. Accent text and the In Review glyph are unchanged; delta colour follows meaning (see Data).
