@@ -26,6 +26,8 @@ Bütün ekranların içinde durduğu ortak uygulama kabuğu: üst çubuk, kişis
 - `00.1 · App Frame · Skip link focused · 1440`
 - `00.1 · App Frame · Public header · 1440`
 - `00.1 · App Frame · Offline band · 1440`
+- `00.1 · App Frame · Clean list`
+- `00.1y/00.1z · Filter menu + Display options`
 
 ### Skip link
 Tanım ve label → `00.11 · Navigation` › Skip link. Bu ekran yalnız `Skip link focused` artboard'unu çizer.
@@ -73,9 +75,13 @@ Korunan rotada oturum denetimi başarısız olursa üst çubukta yalnız wordmar
 - `00.2 · Personal Shell Panel · Source view preserved · 1440`
 - `00.2 · Personal Shell Panel · Notification Center · Dark · 1440`
 - `00.2 · Personal Shell Panel · Favorites · Dark · 768`
+- `00.2 · Daily Focus · Popover`
+- `00.2b · Look again · Popover`
+- `00.5 · Notification Center · Stacked`
 
 ### Panel başlığı
 Seçili yüzeyin adı başlık olur (adlar → Yüzey geçişi); `Open full page` ve kapatma bulunur.
+- **Sayım:** `Daily Focus` başlığı kenar çubuğu rozetiyle aynı sayıyı (`2/3`, biten/toplam) ve ilerleme çubuğunu, `Look again` başlığı kenar çubuğu rozetiyle aynı sayıyı gösterir. Panelin içeriği bu sayıyı açıklar: Daily Focus listesi biten ve bekleyen satırları, Look again listesi sayılan öğeleri gösterir.
 - **Label'lar:** `Open full page`
 
 ### Yüzey geçişi
@@ -116,6 +122,7 @@ Panel kapalı başlar. Son açık yüzey, panel içi gezinme ve scroll geri gelm
 **Artboard'lar**
 - `00.3 · Active Working Set · Two items · 1440`
 - `00.3 · Active Working Set · Collapsed · 1440`
+- `00.3b · Active Working Set · Collapsed rail`
 - `00.3 · Active Working Set · Many items · 1440`
 
 ### Tepsi başlığı
@@ -124,6 +131,7 @@ Tepsinin adı ve üye sayısı, ardından kalıcı olmadığını anlatan kısa 
 
 ### Üyeler
 Her üye için türü (İş ya da Belge), anahtarı veya başlığı ve kapsamı. Üye eklenir ve çıkarılır; bu kaynak kaydı ya da planlama yüzeylerini değiştirmez, Favori ya da Günlük Odak değildir. Küçültülmüş tepsi ve üyeler kaynak görünüm bağlamı kaybedilmeden tek eylemle yeniden açılır. Üye ekleme ve çıkarma eylemlerinin label'ı spec'te yoktur (spec 72 yeni label'ları PRD 02 sözlüğüne eklemeyi şart koşar).
+- **Sabitlenmiş üye:** Sabitlenmiş üyede pin, durum ikonunun köşesinde küçük rozet olarak görünür; ikonun yerini ve boyutunu değiştirmez. Küçültülmüş rail'de (`Collapsed rail`) de aynı rozet kullanılır. Sabitleme eyleminin label'ı spec'te yoktur (spec 72 kararı bekliyor).
 - **Üye ekleme/çıkarma:** yalnız İş ve Belge kayıt başlığının taşma menüsünden (→ `DS.11`): `Add to Active Working Set` / `Remove from Active Working Set`. Arşivli ve Çöp Kutusu'ndaki kayıtta gizlidir.
 - **Küçültme/yeniden açma:** tepsi başlığında `Collapse` (mevcut ad, yeni bağlam: CONTEXT.md ve PRD 02:772'deki `Collapse`); küçültülmüş tepsinin tetiği `Show tray` (`Reopen` İş yeniden açma eylemiyle karışacağı için kullanılmaz) (`Collapsed` artboard'ı).
 - **Label'lar:** `Add to Active Working Set`, `Remove from Active Working Set`, `Collapse`, `Show tray`
@@ -268,9 +276,12 @@ Tetik [Navigation](00-shared-shell.md#0011--navigation) araç kümesinde tanıml
 **Spec:** [05 Command Palette](../../specs/05-command-palette/spec.md), [04 Mutation and Undo](../../specs/04-mutation-and-undo/spec.md)
 
 ## 00.9 · Context Record Preview
-> Kaynak kayıt, bulunulan görünüm kaybedilmeden geçici bir yan panelde okunur; derin çalışma `Open full page` ile yapılır.
+> Kaynak kayıt, bulunulan görünüm kaybedilmeden sağda sabitlenen (docked) bir yan panelde okunur; panel listeyi örtmez, derin çalışma `Open full page` ile yapılır.
 
 **Artboard'lar**
+- `00.9 · Context Record Preview · Docked · Blocked Work`
+- `00.9 · Context Record Preview · Docked · In Review Work (j/k)`
+- `00.9x · Quick Peek = same panel, held with Space`
 - `00.9 · Context Record Preview · Work · 1440`
 - `00.9 · Context Record Preview · Document · 1440`
 - `00.9 · Context Record Preview · Project read-only · 1440`
@@ -280,6 +291,10 @@ Tetik [Navigation](00-shared-shell.md#0011--navigation) araç kümesinde tanıml
 ### Başlık
 Açılan kaydın adı (eylem adı tekrar edilmez) ve açıklama satırı.
 - **Label'lar:** `Temporary preview that keeps the current source view in place.`
+
+### Yerleşim ve Quick Peek
+Panel listenin üstüne binen bir katman değildir; sağda yer açar ve liste daralır (overlay yerleşimi denendi ve reddedildi: liste sütunlarını örtüyor, ipucu balonu başlığı kapatıyordu). Panelin içeriği kaydın durumuna göre değişir (örnek: Blocked Work'te engelleyen kayıt kartı, In Review Work'te bekleyen dış kontrol kartı). `j/k` ile komşu satıra geçilir. Satırda Space basılı tutulunca aynı panel geçici görünür, bırakınca kapanır ve sekme oluşmaz; `Keep open` onu normal `Preview` sekmesine çevirir. Azaltılmış hareket tercihinde panel yalnız opaklıkla belirir.
+- **Açık karar:** Docked yerleşim, Quick Peek, `Keep open` ve sabitleme spec'te yoktur; label'lar spec 72'de karara bağlanmadan kodda kullanılmaz.
 
 ### Gövde · Work
 Sırasıyla açıklama, `Horizon`, `Planned start`, `Target date` ve varsa arşiv durumu. Koleksiyon oluşturma kontrolleri yoktur.
