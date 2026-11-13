@@ -1,11 +1,31 @@
 # Cantiara Paper Tasarım Haritası
 
-Cantiara'nın bütün arayüzü Paper'da tek bir yeni dosyada çizilir. Bu klasör hangi sayfaların olduğunu ve her ekranın içinde ne olduğunu tutar. [`pages/`](pages/) altındaki her dosya bir Paper sayfasıdır.
+Cantiara'nın arayüzü Paper'da `Cantiara/` klasöründeki 9 dosyada çizilir. Bu klasör hangi sayfaların olduğunu ve her ekranın içinde ne olduğunu tutar. [`pages/`](pages/) altındaki her dosya bir Paper sayfasıdır.
+
+## Paper dosyaları
+
+Tek dosya Paper'ın node ve artboard sınırını aştığı için tasarım 9 dosyaya bölünmüştür. Bütçe: dosya başına en çok 25k node ve 100 artboard; sayfa başına yaklaşık 12k node ve 60 artboard. Eski tek dosya `Cantiara · Product` arşivdedir; ona çizilmez.
+
+| Paper dosyası | Sayfalar |
+|---|---|
+| `Cantiara · 00 Foundations` | Index, Brand · Logo, DS · Foundations, DS · Foundations · Dark |
+| `Cantiara · 01 Components` | DS · Components, DS · Components · Dark |
+| `Cantiara · 02 Patterns` | DS · Patterns, DS · Patterns · Dark |
+| `Cantiara · 03 Shell` | 00 · Shared Shell, 20 · Shared Dialogs & States |
+| `Cantiara · 04 Account & Personal` | 01 · Account – 07 · Product Gaps |
+| `Cantiara · 05 Project Core` | 08 · Project Shell & Overview, 09 · Work |
+| `Cantiara · 06 Project Records` | 10 · Documents, 11 · Discovery, 12 · Decisions |
+| `Cantiara · 07 Project Tools` | 13 · Design, 14 · Technical Diagrams, 15 · Tests |
+| `Cantiara · 08 Delivery & Public` | 16 · Releases – 19 · Public Surfaces |
+
+- Token'ların tek kaynağı `00 Foundations`'tır. Token değişince `Copy theme` ile alınıp diğer dosyalara `Paste theme` ile yeniden yapıştırılır; dosyalar arası otomatik güncelleme yoktur.
+- `03 Shell` içindeki `00 · Shared Shell` kabuğun kanonik çizimidir: düz kabuk (sidebar | hairline | main, iç içe yuvarlak kart yok), üst çubuk yok, 48px breadcrumb başlık, liste satırları 38px, popover'lar 380px ve oksuz, kayıt panelinde 40px şerit içinde 26px düz sekmeler. Design System dosyaları ve ekran dosyaları kabuk parçalarını buradan kopyalar; yeniden çizmez.
+- `20 · Shared Dialogs & States` ekranları `02 Patterns` içindeki DS.15, DS.16 ve DS.19 desenlerinin klonudur; o desenler değişince `20` yeniden klonlanır.
 
 ## Sıra
 
 1. [Design System](pages/design-system.md): önce DS.0 kararları, sonra bileşenler ve ortak desenler (sayfa başlığı, kayıt başlığı, liste araç çubuğu, dialog çerçevesi vb.).
-2. [00 · Shared Shell](pages/00-shared-shell.md): gezinme, üst çubuk, uygulama çerçevesi.
+2. [00 · Shared Shell](pages/00-shared-shell.md): gezinme, 48px breadcrumb başlık, uygulama çerçevesi.
 3. Geri kalan sayfalar numara sırasıyla. `20 · Shared Dialogs & States` ortak dialog ve durumları bir kez tanımlar; diğer sayfalar ona referans verir.
 
 Bir parça birden çok sayfada görünüyorsa tek yerde çizilir (`Design System`, `00` veya `20`); diğer sayfalar yeniden çizmez.
@@ -50,7 +70,7 @@ Her ekran yalnız içeriği söyler: amaç, artboard adları, bölgeler (içerik
 ## Kurallar
 
 - **Genişlik:** Uygulama ekranları 1440. 768 yalnız layout'u değişen ekranlarda. 390 yalnız `19 · Public Surfaces` ve `03.8 · Web Capture` (uzantı açılır penceresi). Kimlik doğrulamalı mobil ürün kapsam dışıdır ([PRD 19](../prd/19-out-of-scope.md)).
-- **Light / Dark:** Light çizilir. Dark yalnız adında `· Dark` olan artboard'larda.
+- **Light / Dark:** Varsayılan tema Dark'tır. Ekranlar Dark çizilir; Light yalnız adında `· Light` olan artboard'larda. Design System dosyaları (00–02) iki temayı ayrı sayfalarda tutar; Dark artboard'lar `-dark` token setini kullanır.
 - **Metin:** Ekrandaki İngilizce metin spec'in kesin UI label'ıdır; terimler [`CONTEXT.md`](../../CONTEXT.md) sözlüğünü izler. Spec'te metni olmayan yerler için seçilen label'lar [PRD 02 sözlüğüne](../prd/02-domain-model-and-lifecycle.md#terim-sözlüğü) eklenmiştir.
 - **Sahiplik:** Ürün davranışının sahibi [`docs/specs/`](../specs/) ve [`docs/prd/`](../prd/). Bu harita onlarla çelişirse harita güncellenir.
 
