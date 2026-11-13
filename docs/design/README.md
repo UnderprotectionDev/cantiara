@@ -37,7 +37,7 @@ Bir parça birden çok sayfada görünüyorsa tek yerde çizilir (`Design System
 | Paper sayfası | Ekran |
 |---|---|
 | [Design System](pages/design-system.md) | 18 |
-| [00 · Shared Shell](pages/00-shared-shell.md) | 8 |
+| [00 · Shared Shell](pages/00-shared-shell.md) | 12 |
 | [01 · Account](pages/01-account.md) | 8 |
 | [02 · Workspace](pages/02-workspace.md) | 14 |
 | [03 · Capture](pages/03-capture.md) | 9 |

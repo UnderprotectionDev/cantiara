@@ -370,7 +370,7 @@ Belge açılır, `This section is missing.`; başka başlığa kaydırılmaz.
 #### Archived Project
 Arşivli Proje kayıtlarında oluşturma ve yeniden zamanlama kapalı (→ `20.21`).
 #### Deleted source
-Kaynağı kalıcı silinmiş Hatırlatma satırı içerik veya başlık göstermez; ortak kırık referans sunumu (label'lar `20.10 · Kırık uç` ve `20.19 · Durum bloğu`'ndadır; `00.4` ile aynı). `Triggered` geçmişi zamanı ve nedeni korur; yeniden zamanlama kapalıdır.
+Kaynağı kalıcı silinmiş Hatırlatma satırı içerik veya başlık göstermez; ortak kırık referans sunumu (label'lar `20.10 · Kırık uç` ve `20.19 · Durum bloğu`'ndadır; `00.9` ile aynı). `Triggered` geçmişi zamanı ve nedeni korur; yeniden zamanlama kapalıdır.
 #### Condition not available
 `Document`, `Decision` ve `Project Release` kaynaklarında `Condition` yalnız `In any case` sunar (`Only if still open` seçilemez; `Only if still open` yalnız Proje, İş, Risk, Kilometre Taşı ve Üretim Olayı için vardır). Varsayılan her zaman `In any case` seçilidir. Açıklama: `Only if still open is not available for this record type.`.
 #### Fired signal

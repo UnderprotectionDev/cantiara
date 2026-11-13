@@ -61,7 +61,7 @@ Anti-referanslar: sağlık skorları, widget dashboard'ları, krem SaaS landing'
 | 14 | Veri gösterimi | Tarih, saat, sayı; göreli zaman | `Locale`, `Time zone`, `Date format`, `First day of week`; arayüz dili İngilizce | 7 günden yeni: göreli (`2h ago`, `Yesterday`, `Tue`); daha eski: mutlak (`22 Oct`), başka yılsa `22 Oct 2025`; tooltip'te tam tarih, saat ve saat dilimi; biçim Hesap `Locale` / `Date format`'tan, varsayılan `en-GB`; veri satırında tarih ve sayı Geist Mono, tabular |
 | 15 | Kanvas temelleri | Zemin, ızgara, seçim, bağlantı çizgisi, kilit işareti | Wall, User Flow, Wireframe, Moodboard, Technical Diagram ortak; her kanvasın erişilebilir outline'ı var | Zemin `canvas`; 20px nokta ızgara `hairline-strong`; seçim 1.5px `ink` çerçeve; bağlantı çizgisi 1.5px `ink-subtle`; kilit küçük Lucide `Lock` glyph'i, renksiz; kanvas kabuğu → `13.2` |
 | 16 | Metin tonu | Boş durum, hata, onay metinleri | Sakin, kesin; sözlük `_Avoid_` listeleri bağlayıcı | Sakin ve kesin: ne oldu + ne yapılır, tek cümle; ünlem, emoji, "Oops" ve espri yok; boş durum neyin burada olacağını söyler; yıkıcı onay neyin silindiğini ve geri alınıp alınamayacağını söyler |
-| 17 | Gezinme biçimi | [Navigation](00-shared-shell.md#0011--navigation) içeriğinin yerleşimi: yan, üst veya birleşim; 768'de katlanma | İçerik 00.11'de sabit; biçim yalnız yerleşimi belirler; hiçbir hedef kaybolmaz | Sol sidebar: kişisel yüzeyler ve Proje alanları solda, araçlar ve Hesap sidebar başında; 768'de ikon rayı, etiket tooltip'te, `More` menüsü kalır; hiçbir hedef kaybolmaz |
+| 17 | Gezinme biçimi | [Navigation](00-shared-shell.md#0012--navigation) içeriğinin yerleşimi: yan, üst veya birleşim; 768'de katlanma | İçerik 00.12'de sabit; biçim yalnız yerleşimi belirler; hiçbir hedef kaybolmaz | Sol sidebar: kişisel yüzeyler ve Proje alanları solda, araçlar ve Hesap sidebar başında; 768'de ikon rayı, etiket tooltip'te, `More` menüsü kalır; hiçbir hedef kaybolmaz |
 
 ## DS.1 · Color roles
 **Artboard'lar**
@@ -169,7 +169,7 @@ Bileşeni başka bir bölüm ya da ekran tanımlıyorsa bu tablo yalnız adını
 | Relation chip, `Used in` | Kayıt detayları | → DS.13, `20.10` |
 | Tag chip | Kayıtlar | Seçili, yeni oluştur, çok sayıda |
 | Kanban card | `Board` | Normal, sürükleniyor, `Soft WIP` aşımı |
-| Context record preview | Kanban, Calendar, Roadmap, Favorites, Smart Collection | → `00.9` |
+| Context record preview | Kanban, Calendar, Roadmap, Favorites, Smart Collection | → `00.11` |
 | Empty state | Bütün listeler | → DS.15 |
 | Archived / read-only banner | Arşivli Proje ve kayıtlar | → `20.21` |
 | Offline banner | Bütün uygulama | → `20.16` |
@@ -209,7 +209,7 @@ Bileşeni başka bir bölüm ya da ekran tanımlıyorsa bu tablo yalnız adını
 - `DS.11 · Record Header · Overflow menu · 1440`
 
 - **Kimlik:** İş anahtarı (`LUMA-42`) varsa başlıkla birlikte; anahtarı olmayan kayıtlarda yalnız başlık ve tür.
-- **Eylemler (ortak):** `Add to Favorites` (→ `20.12`), `Remind me` / `Review Later` (→ `20.9`), taşma menüsü: `Share` (→ `20.4`), yalnız İş ve Belge için `Add to Active Working Set` / `Remove from Active Working Set` (→ `00.3`: label'lar ve gizleme kuralı orada), `Export` (→ `20.5`), `Archive`, `Move to Trash` (→ `20.2`). Bu liste ortak eylemlerin tek sahibidir; özellik kartları yalnız türe özgü eylemleri listeler. Kayıt türüne göre taşmaya ayrıca `Duplicate`, `Redact` (→ `20.7`) girer.
+- **Eylemler (ortak):** `Add to Favorites` (→ `20.12`), `Remind me` / `Review Later` (→ `20.9`), taşma menüsü: `Share` (→ `20.4`), yalnız İş ve Belge için `Add to Active Working Set` / `Remove from Active Working Set` (→ `00.8`: label'lar ve gizleme kuralı orada), `Export` (→ `20.5`), `Archive`, `Move to Trash` (→ `20.2`). Bu liste ortak eylemlerin tek sahibidir; özellik kartları yalnız türe özgü eylemleri listeler. Kayıt türüne göre taşmaya ayrıca `Duplicate`, `Redact` (→ `20.7`) girer.
 - **Türe özgü eylemler:** İş için `Record Action`, `Copy Context as Markdown`, `Start Work`, `Not now`; Belge için `Convert to template`. Her türün tam listesi sahibi ekran kartındadır; iskelet bu bölgedir.
 - **Durumlar:** `Archived` kayıt (İş, Belge; kayıt düzeyi arşiv) yalnız sessiz arşiv işareti ve `Unarchive` taşır; arşiv Çöp Kutusu değildir ve kayıt düzenlenebilir kalır (spec 09, 31). `In Trash` kayıtlarda yazma eylemleri gizlenir, geri yükleme eylemi görünür. Arşivli Projedeki kayıtlar salt okunurdur (→ `20.21`, spec 83).
 
@@ -315,7 +315,7 @@ Bileşeni başka bir bölüm ya da ekran tanımlıyorsa bu tablo yalnız adını
 - **Form hata kalıbı:** kaydetme hatası gövdede ve metin korunur: `<Type> could not be saved. Retry, or reload to check for changes. Your text is kept here.` + `Retry`; doğrulama `Check the <Type>.`. Güncel olmayan tabanda `Conflict` cümlesi ve `Current value` → `20.14 › Conflict`. Ekranlar yalnız tür adını (`<Type>`) ve ek alan doğrulamalarını yazar.
 - **Yıkıcı onay:** eylemin ne sildiğini ve geri alınıp alınamayacağını söyler (→ `20.2`, `20.3`).
 - **Preview before apply:** önce etki önizlemesi, sonra uygulama; Cantiara'nın birçok eyleminin kalıbıdır (`Bulk Edit`, `Import`, `Copy project structure`).
-- **Yan panel:** Personal shell, Favorites, Notification Center (→ `00.2`).
+- **Yan panel:** Personal shell (→ `00.2`), Favorites (→ `00.9`), Notification Center (→ `00.5`).
 - **Popover ve seçici:** relation picker, tag picker (→ `20.10`, `20.11`).
 - **Toast ve Undo:** sonuç bildirimi ve `Undo` (→ `20.14`).
 - **Odak:** açılışta odak dialog içine girer, kapanınca tetikleyiciye döner.
@@ -332,7 +332,7 @@ Bileşeni başka bir bölüm ya da ekran tanımlıyorsa bu tablo yalnız adını
 - `DS.17 · Record Representations · Tests, releases, production · 1440`
 - `DS.17 · Record Representations · People and capture · 1440`
 
-**Dört biçim:** *satır* (listeler, aramalar), *kart* (Board, Gallery, Wall), *kompakt etiket* (Calendar, ilişkiler, `Used in`, Favorites), *önizleme* (`00.9 · Context Record Preview`).
+**Dört biçim:** *satır* (listeler, aramalar), *kart* (Board, Gallery, Wall), *kompakt etiket* (Calendar, ilişkiler, `Used in`, Favorites), *önizleme* (`00.11 · Context Record Preview`).
 
 **Kural:** Bir kayıt her biçimde aynı çekirdeği taşır: tür işareti, anahtar (varsa), başlık, durum. Satırda çekirdeğin yanında aşağıdaki **satır meta**'sı görünür. Kart satır metasının ilk ikisini taşır. Kompakt etiket yalnız çekirdektir. Önizleme çekirdek + satır meta + kaydın kendi ilk bölümüdür.
 

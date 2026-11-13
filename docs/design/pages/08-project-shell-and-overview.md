@@ -46,7 +46,7 @@ Tek bir Projenin kabuğu ve Proje düzeyi yüzeyler: başlık, Overview, yapıla
 - `08.1 · Project Shell · Archived (Ferry) · 1440`
 
 ### Proje başlığı
-`Projects` geri bağlantısı; Proje adı ve yanında yaşam durumu rozeti; tek satırlık açıklama ("A durable home for this Project’s work and context."); `Short code` ve `Starter Configuration` okunur bilgi çifti; alt şeritte "Separate Project structure from daily Work editing." ve `Configuration Mode` düğmesi (düğmenin sahibi bu başlıktır; navigasyon durumları → `00.11`).
+`Projects` geri bağlantısı; Proje adı ve yanında yaşam durumu rozeti; tek satırlık açıklama ("A durable home for this Project’s work and context."); `Short code` ve `Starter Configuration` okunur bilgi çifti; alt şeritte "Separate Project structure from daily Work editing." ve `Configuration Mode` düğmesi (düğmenin sahibi bu başlıktır; navigasyon durumları → `00.12`).
 - **Label'lar:** `Projects`, `Short code`, `Starter Configuration`, `Configuration Mode` / açıkken `Exit Configuration Mode`; yaşam durumu `Active`, `Pending`, `Completed`, `Abandoned`.
 
 #### Başlık taşma menüsü
@@ -57,7 +57,7 @@ Projeye özgü giriş eylemleri; yeni yazma yüzeyi açmaz, yalnız ilgili ekran
 - **Label'lar:** `Shares and Publications`, `Archive`, `Closure Summary Draft`.
 
 ### Proje navigasyonu
-Proje alanları, pinli girişler, `All Tools`, `Tags`, `Smart Collection` ve `Configuration Mode` girişinin tamamı [Navigation](00-shared-shell.md#0011--navigation) bölgesinde tek ve eksiksiz tanımlıdır. Bu ekran Projeye özgü başlığı ve içerik alanını çizer; gezinmeyi yeniden tarif etmez.
+Proje alanları, pinli girişler, `All Tools`, `Tags`, `Smart Collection` ve `Configuration Mode` girişinin tamamı [Navigation](00-shared-shell.md#0012--navigation) bölgesinde tek ve eksiksiz tanımlıdır. Bu ekran Projeye özgü başlığı ve içerik alanını çizer; gezinmeyi yeniden tarif etmez.
 
 ### İçerik alanı
 Seçili yüzey: varsayılan 08.3 Overview; `All Tools` → 08.2; `Tags` → 08.11; `Smart Collection` → 08.12; diğer alanlar kendi sayfalarında çizilir.
@@ -68,15 +68,15 @@ Yalnız ilk açılışta, içerik alanının üstünde kapatılabilir not: seçi
 
 ### Durumlar
 #### Loading / Error
-Gezinme durumları → `00.11 · Navigation`. İçerik: `Loading…`; `Project is unavailable.` ve yeniden deneme (navigasyon çizilmez).
+Gezinme durumları → `00.12 · Navigation`. İçerik: `Loading…`; `Project is unavailable.` ve yeniden deneme (navigasyon çizilmez).
 #### Blank Project navigasyonu
-Navigasyon içeriği → `00.11 · Navigation · Blank Project`; burada yeniden tarif edilmez.
+Navigasyon içeriği → `00.12 · Navigation · Blank Project`; burada yeniden tarif edilmez.
 #### Gizlenmiş alan
-Gezinme davranışı → `00.11 · Gizlenmiş alan`; `All Tools` satırı `Hidden` (→ 08.2).
+Gezinme davranışı → `00.12 · Gizlenmiş alan`; `All Tools` satırı `Hidden` (→ 08.2).
 #### First-open explanation
 (Durum: İlk açılış açıklaması açık.) Yukarıdaki not görünür hâlde.
 #### Archived / read-only (Ferry)
-Ferry · `Abandoned` rozeti yanında arşiv işareti; başlığın altında `20.21 · Archived Read-only Banner` (durdurulan işlemler, açık güvenlik eylemleri ve GitHub notu orada tanımlıdır; yeniden tarif edilmez). `Configuration Mode` düğmesi pasif (durum → `00.11 · Navigation`); bütün yüzeyler okunur, yazma denetimleri gizli. Ayrıntı → 08.27.
+Ferry · `Abandoned` rozeti yanında arşiv işareti; başlığın altında `20.21 · Archived Read-only Banner` (durdurulan işlemler, açık güvenlik eylemleri ve GitHub notu orada tanımlıdır; yeniden tarif edilmez). `Configuration Mode` düğmesi pasif (durum → `00.12 · Navigation`); bütün yüzeyler okunur, yazma denetimleri gizli. Ayrıntı → 08.27.
 #### Offline
 → `20.16 · Offline`.
 
@@ -94,7 +94,7 @@ Başlık ve tek cümle: her hazır alan burada keşfedilebilir; alanı etkinleş
 - **Label'lar:** `All Tools`.
 
 ### Alan kataloğu
-Bu katalog ve alan durumlarının sahibi burasıdır; satır eylemlerinin sahibi `08.13 · Project areas`'tır (`DS.10`, `00.11` yalnız bağlanır). Kapalı on alan, sabit sırada; her satırda alan adı, durum rozeti ve `Pin to navigation`. `Overview` ve `All Tools` Proje alanı değildir, gizlenemez. Etkinleştirme, gösterme/gizleme, pin kaldırma ve pinli sırada yukarı/aşağı eylemleri `Project areas` host'unda (→ `08.13 · Project areas`) aynı satırlarda çizilir; yalnız sunum üstverisini değiştirir, kayıt oluşturmaz, taşımaz, silmez. Bu ekranda satırda yalnız durum ve `Pin to navigation` görünür; diğer denetimler için "Manage in Configuration Mode › Project areas" bağlantısı (→ `08.13`).
+Bu katalog ve alan durumlarının sahibi burasıdır; satır eylemlerinin sahibi `08.13 · Project areas`'tır (`DS.10`, `00.12` yalnız bağlanır). Kapalı on alan, sabit sırada; her satırda alan adı, durum rozeti ve `Pin to navigation`. `Overview` ve `All Tools` Proje alanı değildir, gizlenemez. Etkinleştirme, gösterme/gizleme, pin kaldırma ve pinli sırada yukarı/aşağı eylemleri `Project areas` host'unda (→ `08.13 · Project areas`) aynı satırlarda çizilir; yalnız sunum üstverisini değiştirir, kayıt oluşturmaz, taşımaz, silmez. Bu ekranda satırda yalnız durum ve `Pin to navigation` görünür; diğer denetimler için "Manage in Configuration Mode › Project areas" bağlantısı (→ `08.13`).
 - **Label'lar:** `Work`, `Documents`, `Discovery`, `Decisions`, `Design`, `Technical Diagrams`, `Tests`, `Releases`, `Production`, `GitHub`; durum `Enabled`, `Hidden`, `Available`; satır eylemi `Pin to navigation`; bağlantı `Manage in Configuration Mode › Project areas` (→ `08.13 · Project areas`). Diğer eylem label'ları → `08.13 · Project areas`.
 
 ### Durumlar

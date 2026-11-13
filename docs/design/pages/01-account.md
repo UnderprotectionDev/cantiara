@@ -53,7 +53,7 @@ Giriş yüzeyinin tek sahibi bu ekrandır; `20.20` ve `00.1` giriş bloğunu yen
 - —
 
 ### Menü
-Tetiğin altında dar menü; sırasıyla grup başlığı, Hesap kimliği satırı, gezinme öğeleri, ayraç ve `Sign Out`. Açık menünün içeriğinin ve bu artboard'ın tek sahibi burasıdır; `00.11` yalnız tetiğin yerini söyler. Tetik 1440'ta `Alex Morgan`, 768'de `A` gösterir. Menü klavyeyle açılır ve kapanır; `Sign Out` oturumu bitirir ve `01.1 · Signed out` durumuna döner. Çalışma Alanı yönetimi girişleri (`Trash`, `Shares and Publications`, `Workspace Exit Package`, `Archive`) menüde mi `More` altında mı duracağı → `00.11 · Çalışma Alanı yönetimi`; menüde dururlarsa gezinme öğeleri grubunda listelenir. Oturumsuz rotalarda menü yoktur (→ `00.1`).
+Tetiğin altında dar menü; sırasıyla grup başlığı, Hesap kimliği satırı, gezinme öğeleri, ayraç ve `Sign Out`. Açık menünün içeriğinin ve bu artboard'ın tek sahibi burasıdır; `00.12` yalnız tetiğin yerini söyler. Tetik 1440'ta `Alex Morgan`, 768'de `A` gösterir. Menü klavyeyle açılır ve kapanır; `Sign Out` oturumu bitirir ve `01.1 · Signed out` durumuna döner. Çalışma Alanı yönetimi girişleri (`Trash`, `Shares and Publications`, `Workspace Exit Package`, `Archive`) menüde mi `More` altında mı duracağı → `00.12 · Çalışma Alanı yönetimi`; menüde dururlarsa gezinme öğeleri grubunda listelenir. Oturumsuz rotalarda menü yoktur (→ `00.1`).
 - **Label'lar:** `Account menu` (tetiğin adı), `My Account`, `Sessions`, `Preferences`, `Completion effects`, `Sign Out`
 
 ### Durumlar
@@ -140,7 +140,7 @@ Formun üstünde, ilk girişte önerilen locale ve saat dilimi; öneri uygulanm�
 - **Label'lar:** `Browser suggestion`, `Use suggested locale and time zone`
 
 ### Form
-Alt alta beş alan; her birinin altında bir açıklama satırı. `Appearance` yalnız `Light` ve `Dark` taşır, `System` yoktur; iskeletteki cihaz-yerel tema anahtarı bu Hesap kaydıyla değişir, Proje başına geçersiz kılma yoktur. Kural ve seçici tek burada tanımlıdır; `00.11`, `00.1 · Appearance menu open` ve `DS.0 #4` (yalnız token kısıtı) buraya bağlanır.
+Alt alta beş alan; her birinin altında bir açıklama satırı. `Appearance` yalnız `Light` ve `Dark` taşır, `System` yoktur; iskeletteki cihaz-yerel tema anahtarı bu Hesap kaydıyla değişir, Proje başına geçersiz kılma yoktur. Kural ve seçici tek burada tanımlıdır; `00.12`, `00.1 · App Frame · Account menu open · Appearance + workspace` ve `DS.0 #4` (yalnız token kısıtı) buraya bağlanır.
 - **Label'lar:** `Locale`, `Time zone`, `Date format` (`Locale default`), `First day of week`, `Appearance` (`Light`, `Dark`), `Save`, `Saving…`
 
 ### Preview
