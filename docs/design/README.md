@@ -89,4 +89,4 @@ Bütün ekranlar aynı kurgusal Workspace'i kullanır. Başka proje veya kişi u
   - `LUMA-63 Research: late-payment etiquette` (Research)
 - **Wiki:** `Pricing heuristics`, `Weekly review template`, `How I write specs`.
 - **Kişiler:** `Emma Clark` (`Brightwave Studio`), `Daniel Reed` (`Reed Design`).
-- **Bugün:** Perşembe, 2026-10-22.
+- **Bugün:** Cuma, 2026-11-13.

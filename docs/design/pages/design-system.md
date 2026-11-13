@@ -18,8 +18,9 @@ Anti-referanslar: sağlık skorları, widget dashboard'ları, krem SaaS landing'
 | [DS.2 · Type scale](#ds2--type-scale) | Tip ölçeği |
 | [DS.3 · Spacing, density, grid](#ds3--spacing-density-grid) | Boşluk, yoğunluk, ızgara |
 | [DS.4 · Radius, border, elevation, focus](#ds4--radius-border-elevation-focus) | Kenar, yükselti, odak |
+| [DS.4e · Shell metrics](#ds4e--shell-metrics) | Shell ölçüleri, popover ve scrollbar thumb |
 | [DS.3b · Responsive](#ds3b--responsive) | Kırılımlar ve bölge davranışı |
-| [DS.4b–4d · Layering, Keyboard and focus, Accessibility](#ds4b4d--layering-keyboard-and-focus-accessibility) | Katman sırası, klavye, erişilebilirlik |
+| [DS.4b–4d · Layering, Focus and tab order, Accessibility](#ds4b4d--layering-focus-and-tab-order-accessibility) | Katman sırası, odak sırası, erişilebilirlik |
 | [DS.5 · Icons and motion](#ds5--icons-and-motion) | İkon kuralları, motion |
 | [DS.5b · Data display and canvas](#ds5b--data-display-and-canvas) | Tarih, sayı ve kanvas zemini |
 | [DS.6 · Actions and forms](#ds6--actions-and-forms) | Buton ve form primitive'leri |
@@ -52,16 +53,16 @@ Anti-referanslar: sağlık skorları, widget dashboard'ları, krem SaaS landing'
 | 5 | Tipografi | Font ailesi; display, heading, subhead, body, label, caption, mono/data; ağırlık; satır yüksekliği | %200 ölçekte okunur; uzun içerik kırılır; İş anahtarı ve tarihte tabular rakam | Geist Sans (Variable, tabular) arayüz; Geist Mono anahtar, metrik, delta, veri tarihi; `greeting` 26 / `title` 14 / `body` 13 / `label` 12 / `button` 12.5 / `metric` 26 mono / `mono` 11.5 → [`DESIGN.md`](../../../DESIGN.md) › Typography |
 | 6 | Spacing ölçeği | Temel birim; bileşen içi, grup arası, bölge arası | Yoğun liste ile geniş okuma yüzeyi aynı ölçekten çıkar | 2px temel adım; çalışma değerleri 4 / 6 / 10 / 14 / 16 / 24; kart iç boşluğu 14 16, kart ızgarası aralığı 10–12 → [`DESIGN.md`](../../../DESIGN.md) › Spacing System |
 | 7 | Yoğunluk | Liste ve tablo satır yüksekliği | Linear sınıfı araç kullanıcısı; satır başına tek bilgi hattı | Liste satırı 38px, yan boşluk 16px; tek satır chip; operate yoğunluğu → [`DESIGN.md`](../../../DESIGN.md) › Density |
-| 8 | Layout ızgarası | 1440 içerik genişliği, kenar boşluğu, kabuk kolonları, 768 kırılımı | 768'de hiçbir eylem kaybolmaz, yalnız yer değiştirir | Sol sidebar 240px + akışkan içerik; liste, tablo, board tam genişlik; Belge, Wiki ve Karar gövdesi en çok 720px okuma kolonu; çerçeve boşluğu 20 / 32 / 40 (`sm` / `md` / `lg`); 768'de sidebar ikon rayına iner |
+| 8 | Layout ızgarası | 1440 içerik genişliği, kenar boşluğu, kabuk kolonları, 768 kırılımı | 768'de hiçbir eylem kaybolmaz, yalnız yer değiştirir | Sol sidebar 240px + akışkan içerik; liste, tablo, board tam genişlik; Belge, Wiki ve Karar gövdesi en çok 720px okuma kolonu; çerçeve boşluğu 20 / 32 / 40 (`sm` / `md` / `lg`); 768'de sidebar çekmeceye (drawer) iner |
 | 9 | Radius | Kontrol, yüzey, dialog, rozet | Radius dekor değildir | `hair` 2 (tick, bar), `sm` 6 (chip, rozet, tooltip), `md` 7 (buton, input), `lg` 12 (menü, popover), `card` 20 (kart, dialog, uygulama çerçevesi), `pill` 999 → [`DESIGN.md`](../../../DESIGN.md) › Shapes |
-| 10 | Kenar ve gölge | Ayırıcı, yükselti seviyeleri (popover, dialog, toast) | Yükselti yalnız katman anlamı taşır | Kart = `surface` + 1px `hairline`, gölgesiz; gölge yalnız seviye 3'te (menü, popover, tooltip, dialog, toast) → [`DESIGN.md`](../../../DESIGN.md) › Elevation & Depth |
+| 10 | Kenar ve gölge | Ayırıcı, yükselti seviyeleri (popover, dialog, toast) | Yükselti yalnız katman anlamı taşır | Kart = `surface` + 1px `hairline`, gölgesiz; gölge yalnız seviye 3'te (menü, popover, tooltip, dialog, toast); Shell popover'ı 380px, oksuz, 1px `hairline-strong` kenar, radius 12, gölge `0 16px 40px` (Dark `#0000008C`, Light `#22222A33`); Light'ta `popover` token'ı yoktur, `surface` kullanılır, Dark'ta `popover-dark` → [`DESIGN.md`](../../../DESIGN.md) › Elevation & Depth |
 | 11 | İkonografi | Boyut, çizgi kalınlığı, ikon + metin kuralı | Set [tech-stack](../../tech-stack.md) kararıyla **Lucide React**; yalnız ikonlu kontrolün erişilebilir adı var | Lucide 16px, stroke 1.5; kart başlığı ikon tile'ı 28px, domain anlamı varsa rolün `bg` + `border` adımıyla tonlu, glyph 14px; ikon + metin aralığı 6px, dikey ortalı; ikon rengi yalnız domain anlamı varsa rol rengi, yoksa `ink-muted`; yalnız ikonlu kontrol erişilebilir ad ve tooltip taşır |
 | 12 | Odak | Odak halkası biçimi, kalınlığı, ofseti | Her etkileşimli öğede görünür odak | 2px `focus-ring` / `focus-ring-dark` outline, 2px offset, her etkileşimli öğede → [`DESIGN.md`](../../../DESIGN.md) › Elevation & Depth |
 | 13 | Motion | Süreler, easing, giriş/çıkış | `prefers-reduced-motion`; Bitiriş efekti ≤1,2 sn, odağı ve girdiyi almaz ([spec 23](../../specs/23-completion-effects/spec.md)) | Hover 100ms, menü ve popover 150ms, dialog ve panel 200ms; `ease-out` giriş, çıkış girişin 2/3'ü; yalnız opaklık + en çok 4px kayma; `prefers-reduced-motion` altında yalnız opaklık; Bitiriş efekti spec 23 sınırında |
-| 14 | Veri gösterimi | Tarih, saat, sayı; göreli zaman | `Locale`, `Time zone`, `Date format`, `First day of week`; arayüz dili İngilizce | 7 günden yeni: göreli (`2h ago`, `Yesterday`, `Tue`); daha eski: mutlak (`22 Oct`), başka yılsa `22 Oct 2025`; tooltip'te tam tarih, saat ve saat dilimi; biçim Hesap `Locale` / `Date format`'tan, varsayılan `en-GB`; veri satırında tarih ve sayı Geist Mono, tabular |
+| 14 | Veri gösterimi | Tarih, saat, sayı; göreli zaman | `Locale`, `Time zone`, `Date format`, `First day of week`; arayüz dili İngilizce | 7 günden yeni: göreli (`2h ago`, `Yesterday`, `Tue`); daha eski: mutlak (`22 Oct`), başka yılsa `22 Oct 2025`; tooltip'te tam tarih, saat ve saat dilimi; biçim Hesap `Locale` / `Date format`'tan, varsayılan `en-GB`; liste satırında hedef tarih `Date · N d` (örn. `Mon 16 · 3 d`); veri satırında tarih ve sayı Geist Mono, tabular |
 | 15 | Kanvas temelleri | Zemin, ızgara, seçim, bağlantı çizgisi, kilit işareti | Wall, User Flow, Wireframe, Moodboard, Technical Diagram ortak; her kanvasın erişilebilir outline'ı var | Zemin `canvas`; 20px nokta ızgara `hairline-strong`; seçim 1.5px `ink` çerçeve; bağlantı çizgisi 1.5px `ink-subtle`; kilit küçük Lucide `Lock` glyph'i, renksiz; kanvas kabuğu → `13.2` |
 | 16 | Metin tonu | Boş durum, hata, onay metinleri | Sakin, kesin; sözlük `_Avoid_` listeleri bağlayıcı | Sakin ve kesin: ne oldu + ne yapılır, tek cümle; ünlem, emoji, "Oops" ve espri yok; boş durum neyin burada olacağını söyler; yıkıcı onay neyin silindiğini ve geri alınıp alınamayacağını söyler |
-| 17 | Gezinme biçimi | [Navigation](00-shared-shell.md#0012--navigation) içeriğinin yerleşimi: yan, üst veya birleşim; 768'de katlanma | İçerik 00.12'de sabit; biçim yalnız yerleşimi belirler; hiçbir hedef kaybolmaz | Sol sidebar: kişisel yüzeyler ve Proje alanları solda, araçlar ve Hesap sidebar başında; 768'de ikon rayı, etiket tooltip'te, `More` menüsü kalır; hiçbir hedef kaybolmaz |
+| 17 | Gezinme biçimi | [Navigation](00-shared-shell.md#0012--navigation) içeriğinin yerleşimi: yan, üst veya birleşim; 768'de katlanma | İçerik 00.12'de sabit; biçim yalnız yerleşimi belirler; hiçbir hedef kaybolmaz | Sol sidebar: kişisel yüzeyler ve Proje alanları solda, araçlar ve Hesap sidebar başında; 768'de çekmece (drawer), `More` menüsü kalır; hiçbir hedef kaybolmaz |
 
 ## DS.1 · Color roles
 **Artboard'lar**
@@ -88,6 +89,18 @@ Karar 6, 7, 8: ölçek merdiveni, kompakt ve rahat liste satırı, 1440 ve 768 �
 
 Karar 9, 10, 12: radius örnekleri, ayırıcı, popover/dialog/toast katmanları, odak halkası.
 
+## DS.4e · Shell metrics
+> Shared Shell'in ölçü ve katman değerlerinin tek referansı.
+
+**Artboard'lar** (her biri Light ve Dark)
+- `DS.4e · Foundations · Shell metrics`
+
+- **Ölçüler:** sidebar 240, sayfa başlığı 48, liste satırı 38, kontrol 30, popover 380, kayıt sekme şeridi 40, sekme 26, scrollbar thumb 4, okuma kolonu 720. Paper token'ları: `--container-header`, `--container-popover`, `--container-tab-strip`, `--container-tab`, `--container-scrollbar`; dokuz Paper dosyasında da tanımlıdır.
+- **Yıkıcı eylem durumları:** `--color-danger-fill-hover` (`#C52836`), `--color-danger-fill-pressed` (`#B32331`), Dark `--color-danger-fill-hover-dark` (`#C42634`), `--color-danger-fill-pressed-dark` (`#B32230`); dokuz Paper dosyasında da tanımlıdır.
+- **Popover örneği:** `popover-dark` (Light'ta `surface`), 1px `hairline-strong`, radius 12, gölge metin olarak yazılır (Paper'da gölge token'ı yoktur).
+- **Overlay scrollbar thumb:** `hairline-strong`, 4px, radius `hair`, kaydırma alanının sağ kenarından 3px içeride.
+- **Work durum rolleri:** Not Started `todo`, In Progress `in-progress`, In Review `in-review` (yeşil), Blocked `blocked`, Closed `done`.
+
 ## DS.5 · Icons and motion
 **Artboard'lar**
 - `DS.5 · Foundations · Icons and motion`
@@ -111,13 +124,13 @@ Karar 2, 3: roller gerçek yüzeylerde (rozet, ilerleme, dağılım, delta, ikon
 
 Karar 8: kırılımlar, 1440'tan 390'a bölge davranışı, dört şema.
 
-## DS.4b–4d · Layering, Keyboard and focus, Accessibility
+## DS.4b–4d · Layering, Focus and tab order, Accessibility
 **Artboard'lar** (her biri Light ve Dark)
 - `DS.4b · Foundations · Layering`
-- `DS.4c · Foundations · Keyboard and focus`
+- `DS.4c · Foundations · Focus and tab order`
 - `DS.4d · Foundations · Accessibility`
 
-Karar 10, 12: adlandırılmış z-index seviyeleri ve scrim; kısayol haritaları, odak sırası, roving tabindex, skip link; ölçülen kontrast çiftleri, hedef boyutları, renk dışı ipuçları, canlı bölgeler, hata özeti.
+Karar 10, 12: adlandırılmış z-index seviyeleri ve scrim; odak sırası (Skip link, Sidebar, Page header, Main content, Record pane), roving tabindex, skip link; kısayol ipucu ve tuş simgesi yoktur; ölçülen kontrast çiftleri, hedef boyutları, renk dışı ipuçları, canlı bölgeler, hata özeti.
 
 ## DS.5b · Data display and canvas
 **Artboard'lar**
@@ -133,12 +146,12 @@ Her bileşen için default, hover, focus, pressed, disabled; varsa loading ve er
 
 | Grup | Bileşenler | Varyantlar |
 |---|---|---|
-| Eylem | Button, Button group, Toggle, Toggle group, Icon button, Kbd | Primary, secondary, ghost, destructive; boyutlar; ikonlu; yükleniyor |
+| Eylem | Button, Button group, Toggle, Toggle group, Icon button, Kbd (yalnız Command Palette düğmesindeki `⌘K`) | Primary, secondary, ghost, destructive; boyutlar; ikonlu; yükleniyor |
 | Form | Input, Input group, Textarea, Select, Native select, Combobox, Checkbox, Radio group, Switch, Slider, Date picker, Calendar, Field + Label + yardım + hata | Boş, dolu, odak, hata, disabled, salt okunur |
 
 ## DS.7 · Navigation and layers
 **Artboard'lar**
-- `DS.7 · Components · 06 · Command and combobox`, `07 · Navigation and date`, `08 · Navigation`, `09 · Sidebar`, `10 · Menus and popovers`, `11 · Overlays`, `19 · Layers`, `23 · Command palette results`, `24 · Mention and slash menu`, `33 · Split pane and stepper` (her biri Light ve Dark)
+- `DS.7 · Components · 06 · Command and combobox`, `07 · Navigation and date`, `08 · Navigation`, `09 · Sidebar`, `10 · Menus and popovers`, `11 · Overlays`, `19 · Layers`, `23 · Command palette results`, `24 · Mention and slash menu`, `33 · Split pane and stepper`, `35 · Tool popovers`, `36 · Record tab strip`, `37 · Overlay scrollbar and dates` (her biri Light ve Dark)
 
 | Grup | Bileşenler | Varyantlar |
 |---|---|---|
@@ -187,6 +200,7 @@ Bileşeni başka bir bölüm ya da ekran tanımlıyorsa bu tablo yalnız adını
 - `DS.10 · Page Header · Page with count and actions · 1440`
 - `DS.10 · Page Header · Area with view switch · 1440`
 - `DS.10 · Page Header · Archived Project · 1440`
+- `DS.10 · Shell frame · 1440` (düz kabuk: sidebar | hairline | 48px breadcrumb başlık + liste)
 
 - **Page:** Sayfa adı, açıklama, en çok bir birincil eylem. Örnekler: `Capture Inbox` + `New capture`; `Calendar` + `Day`/`Week`/`Month`/`Agenda`; `Daily Focus`.
 - **Area:** Proje alanı adı + alan içi görünüm geçişi + birincil oluşturma eylemi. Hepsi aynı iskeleti kullanır; yalnız parametreler değişir. Parametreler (görünüm geçişi ve birincil eylem) alanın ilk ekranında tanımlıdır: `Work` → `09.1`, `Documents` → `10.1`, `Discovery` → `11.1`, `Decisions` → `12.1`, `Design` → `13.1`, `Technical Diagrams` → `14.1`, `Tests` → `15.1`, `Releases` → `16.1`, `Production` → `17.1`, `GitHub` → `18.1`.
@@ -220,6 +234,8 @@ Bileşeni başka bir bölüm ya da ekran tanımlıyorsa bu tablo yalnız adını
 **Artboard'lar**
 - `DS.12 · Record Properties · Work · 1440`
 - `DS.12 · Record Properties · Work · 768`
+
+Work 1440 örneği In Review durumundadır: özellik kartı, belge tarzı `Description`, ölçüt başına `Acceptance` göstergesi, durum kartı ve GitHub satırı.
 - `DS.12 · Record Properties · Editing a field · 1440`
 - `DS.12 · Record Properties · Empty values · 1440`
 - `DS.12 · Record Properties · Read-only · 1440`
@@ -310,11 +326,15 @@ Bileşeni başka bir bölüm ya da ekran tanımlıyorsa bu tablo yalnız adını
 - `DS.16 · Dialog and Panel Frames · Side panel · 1440`
 - `DS.16 · Dialog and Panel Frames · Popover and picker · 1440`
 - `DS.16 · Dialog and Panel Frames · Toast and Undo · 1440`
+- `DS.16 · Popover card · 1440`
+- `DS.16 · Record tab strip · 1440`
 
 - **Dialog:** başlık, gövde, hata satırı, eylem satırı (iptal ya da ikincil, birincil).
 - **Form hata kalıbı:** kaydetme hatası gövdede ve metin korunur: `<Type> could not be saved. Retry, or reload to check for changes. Your text is kept here.` + `Retry`; doğrulama `Check the <Type>.`. Güncel olmayan tabanda `Conflict` cümlesi ve `Current value` → `20.14 › Conflict`. Ekranlar yalnız tür adını (`<Type>`) ve ek alan doğrulamalarını yazar.
 - **Yıkıcı onay:** eylemin ne sildiğini ve geri alınıp alınamayacağını söyler (→ `20.2`, `20.3`).
 - **Preview before apply:** önce etki önizlemesi, sonra uygulama; Cantiara'nın birçok eyleminin kalıbıdır (`Bulk Edit`, `Import`, `Copy project structure`).
+- **Popover kartı:** başlık + meta → öne çıkan kart → `Then` satırları (34px) → alt şerit (`Open full page`); 380px, oksuz (→ `00.2`, `00.3`, `00.6`, `00.7`).
+- **Kayıt sekme şeridi:** 40px şerit, 26px düz sekme; geçici sekme italik, sabitli sekme iğne, taşma `+N`; sekme bağlam menüsü `Unpin`, `Add to Favorites`, `Open full page`, `Close tab` (→ `00.11`).
 - **Yan panel:** Personal shell (→ `00.2`), Favorites (→ `00.9`), Notification Center (→ `00.5`).
 - **Popover ve seçici:** relation picker, tag picker (→ `20.10`, `20.11`).
 - **Toast ve Undo:** sonuç bildirimi ve `Undo` (→ `20.14`).
@@ -388,11 +408,12 @@ Tablo satır metasının tek sahibidir: bir ayrıntı iki ekranda farklıysa tab
 - **Error and auth pages:** sakin ve kesin metin; ne oldu + ne yapılır (karar 16).
 
 ## DS.20 · Interaction states
-> Her işaretçi hareketinin klavye karşılığı olan etkileşim durumları.
+> Sürükle-bırak, satır içi düzenleme, onay, etkinlik ve arama durumları.
 
 **Artboard'lar** (her biri Light ve Dark)
 - `DS.20 · Interaction states · Drag and drop and inline edit · 1440`
 - `DS.20 · Interaction states · Confirmation, activity and search · 1440`
+- `DS.20 · Interaction states · Favorites drag-to-add · 1440` (hayalet chip, kesikli `Drop to add to Favorites` hedefi → `00.9`)
 
 - **Sürükle-bırak ve satır içi düzenleme:** satır içi düzenleme `Enter` ile kaydeder, `Esc` ile iptal eder ve hatayı değerin durduğu yerde bildirir.
 - **Onay, etkinlik ve arama:** onay, etkinlik ve arama durumlarının ortak biçimi.
