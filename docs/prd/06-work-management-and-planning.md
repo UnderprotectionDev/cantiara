@@ -58,11 +58,11 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 - **İş veya Özellik ilerlemesi gösterilen yüzeylerde ilişkili açık Risk ve Açık Soru kayıtları durum, kapsam ve kontrol listesi ilerlemesinin yanında taranabilir biçimde sunulur.** Bu görünürlük tamamlanma ile belirsizliği aynılaştırmaz; yeni bir belirsizlik alanı oluşturmaz ve işin durumunu ya da Özelliğin türetilen ilerlemesini değiştirmez.
 
-- **İlk ürünün ortak İş akışı durumları `Not Started`, `In Progress`, `Blocked` ve terminal `Closed` değerleridir.** Terminal olmayan durumlar arasında serbest geçiş vardır; kullanıcı tanımlı geçiş grafiği, durum bazlı izin veya doğrulama kapısı yoktur. Kullanıcıya dönük adlar Yapılandırma modunda değiştirilebilir fakat bu dört korunan semantik silinemez, başka anlam için kullanılamaz ve yeni durum değeri eklenemez.
+- **İlk ürünün ortak İş akışı durumları bu sırayla `Not Started`, `In Progress`, `In Review`, `Blocked` ve terminal `Closed` değerleridir.** Terminal olmayan durumlar arasında serbest geçiş vardır; kullanıcı tanımlı geçiş grafiği, durum bazlı izin veya doğrulama kapısı yoktur. Kullanıcıya dönük adlar Yapılandırma modunda değiştirilebilir fakat bu dört korunan semantik silinemez, başka anlam için kullanılamaz ve yeni durum değeri eklenemez.
 
 - **İş akışı durumu işin akıştaki yerini; ayrı kapanış sonucu ise işin nasıl kapandığını gösterir.** `Closed` durumuna her geçiş `Tamamlandı` (`UI: Completed`) veya `Vazgeçildi` (`UI: Abandoned`) sonucunu seçtirir ve isteğe bağlı gerekçe taşıyabilir. Kapatma açık kullanıcı eylemiyle veya açıkça etkinleştirilmiş hazır PR-merge kuralıyla; yeniden açma yalnız açık kullanıcı eylemiyle gerçekleşir. Önceki sonuç, gerekçe ve durum değişiklikleri geçmişte korunur. Vazgeçilen işler tamamlanmış işlerden ayrı izlenir ve otomatik arşivlenmez.
 
-- **Terminal iş akışı durumundaki her İş bir kapanış sonucu taşır.** Kullanıcı bir İşi Kanban hareketi veya başka bir durum eylemiyle `Closed` durumuna aldığında `Completed` ya da `Abandoned` sonucunu seçen açık kapatma adımı gösterilir; isteğe bağlı gerekçe aynı adımda eklenebilir. Kapatma iptal edilirse durum değişikliği uygulanmaz. Kapanmış bir İşi yeniden açmak açık onay ve `Not Started`, `In Progress` veya `Blocked` hedeflerinden birini seçmeyi gerektirir; etkin kapanış sonucu kaldırılır, önceki sonuç ve gerekçe geçmişte korunur.
+- **Terminal iş akışı durumundaki her İş bir kapanış sonucu taşır.** Kullanıcı bir İşi Kanban hareketi veya başka bir durum eylemiyle `Closed` durumuna aldığında `Completed` ya da `Abandoned` sonucunu seçen açık kapatma adımı gösterilir; isteğe bağlı gerekçe aynı adımda eklenebilir. Kapatma iptal edilirse durum değişikliği uygulanmaz. Kapanmış bir İşi yeniden açmak açık onay ve `Not Started`, `In Progress`, `In Review` veya `Blocked` hedeflerinden birini seçmeyi gerektirir; etkin kapanış sonucu kaldırılır, önceki sonuç ve gerekçe geçmişte korunur.
 
 - **Kullanıcının başlattığı kapatma adımında tamamlanmamış kontrol listesi maddesi veya aktif blokaj ilişkisi bulunuyorsa aynı yüzey engelleyici olmayan bir `Kapanış kontrolü` gösterir.** Kontrol kalan checklist maddelerini ve işin hâlâ engellendiği ya da başka işleri engellediği kesin aktif ilişkileri kaynaklarıyla listeler; `İşe dön` ve `Yine de kapat` seçenekleri sunar. Kullanıcı yine de kapatırken isteğe bağlı gerekçe ekleyebilir. Kontrol hiçbir blokajı otomatik çözmez, kapatmayı zorunlu olarak engellemez ve genel zorunlu alan, approval veya kullanıcı tanımlı geçiş kapısı sistemine genişlemez.
 
@@ -189,7 +189,7 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 ### Kanban
 
-- **Kanban iş öğelerini durumlarına göre sütunlarda gösterir; durum sütunları arasındaki kart hareketi ana işin durumuna yansır.**
+- **Kanban iş öğelerini durumlarına göre `Not Started`, `In Progress`, `In Review`, `Blocked` ve `Closed` sütunlarında gösterir; durum sütunları arasındaki kart hareketi ana işin durumuna yansır.**
 
 - **Kapanmış işlerde `Tamamlandı` veya `Vazgeçildi` sonucu aynı terminal iş akışı durumunda bulunsalar bile kart üzerinde ayırt edilir.** Sonuç yalnız açık kapatma veya yeniden açma eylemiyle değişir.
 

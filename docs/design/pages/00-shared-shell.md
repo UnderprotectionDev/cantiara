@@ -26,6 +26,7 @@ Numaralandırma: `00.3`–`00.7` "Comes to me" araçlarıdır, `00.8` ve `00.9` 
 
 **Artboard'lar**
 - `00.1 · App Frame · Clean list`
+- `00.1 · App Frame · Clean list · Grouped by Status` (`Display` değeri `Status groups`: Not Started, In Progress, In Review, Blocked, Closed)
 - `00.1 · App Frame · Keyboard focus path`
 - `00.1 · App Frame · Offline band`
 - `00.1 · App Frame · Assign to… popover`

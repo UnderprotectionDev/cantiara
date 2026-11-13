@@ -4,34 +4,34 @@ Projenin `Production` alanı: Üretim Olayları.
 
 | Ekran | Ne çizilir |
 |---|---|
-| [17.1 · Production Incidents](#171--production-incidents) | Durum gruplu olay listesi |
+| [17.1 · Production Incidents](#171--production-incidents) | durum gruplu olay listesi |
 | [17.2 · Production Incident Detail](#172--production-incident-detail) | olay kaydı ve ilişkiler |
-| [17.3 · Record Production Incident](#173--record-production-incident) | Kısa oluşturma dialog'u |
+| [17.3 · Record Production Incident](#173--record-production-incident) | kısa oluşturma dialog'u |
 
 ## 17.1 · Production Incidents
 > Proje'nin Üretim Olaylarını durum ve zamanla listelemek.
 
 **Artboard'lar**
 - `17.1 · Production Incidents · Default · 1440`
-- `17.1 · Production Incidents · Empty · 1440`
 
 ### Alan başlığı
-Başlık eylem alanında `Export` (→ `20.5`) ve `Import` (→ `20.6`; Proje kapsamı önceden dolu).
+Başlık iskeleti → DS.10 (Area). Başlık eylem alanında `Export` (→ `20.5`) ve `Import` (→ `20.6`; Proje kapsamı önceden dolu).
 - **Label'lar:** `Production`, `Production Incident`; `Record Production Incident`; `Export`, `Import` (→ `20.5`, `20.6`).
 
 ### Olay listesi
-Tek liste; `Open` ve `Watching` üstte, `Resolved` altta ayrı grup. Satır metası → DS.17. Bu ekrana özgü ek: `Occurred at`, etki özeti, ilişki sayısı.
+Tek liste; `Open` ve `Watching` bir grupta, `Resolved` ayrı grupta. Satır metası → DS.17. Bu ekrana özgü ek: `Occurred at`, etki özeti, ilişki sayısı. TTD/TTI/TTR, kesinti süresi, güvenilirlik grafiği veya trend yoktur (spec 66 #11).
 - **Label'lar:** `Open`, `Watching`, `Resolved`, `Occurred at`, `Impact`.
 
 ### Durumlar
 #### Empty
-Tek cümle: kayıt bir Bug değildir, olay sonrası öğrenim içindir; otomatik oluşmaz. + oluşturma eylemi.
+Tek cümle: kayıt bir Bug değildir, olay sonrası öğrenim içindir; alarm veya Sentry olayından otomatik oluşmaz. + `Record Production Incident`.
+- **Label'lar:** `No Production Incidents yet. An incident is a learning record, not a Bug, and is never created from an alert or Sentry event.`, `Record Production Incident`.
 #### Loading
-Liste yükleniyor satırı (erişilebilir yüklenme durumu; spec bu ekran için ayrı label vermez).
+`Loading Production Incidents…`
 #### Error
-Liste okunamadı + `Retry` (→ `20.15`).
+`Production Incidents are unavailable.` + `Retry` (→ `20.15`).
 #### Archived project
-Ferry: salt okunur.
+Ferry: salt okunur, oluşturma yok; bant → `20.21`.
 
 **Spec:** [66 Üretim Olayı Öğrenimi](../../specs/66-production-incidents/spec.md)
 
@@ -43,23 +43,23 @@ Ferry: salt okunur.
 - `17.2 · Production Incident Detail · Open · 1440`
 
 ### Kayıt başlığı
-Kayıt türü, başlık, durum.
+Kayıt türü, başlık, durum; kayıt eylemleri → DS.11 (`Remind me` → `20.9`). Durum değişikliği kimseyi çağırmaz (pager/nöbet yok).
 - **Label'lar:** `Production Incident`, `Open`, `Watching`, `Resolved`, `Remind me`.
 
 ### Olay alanları
-Sol geniş sütun, anlatı sırasıyla: zaman, etki, tespit biçimi, çözüm, kök neden, öğrenim; her biri düzenlenebilir metin.
+Zaman, etki, tespit biçimi, çözüm, kök neden, öğrenim; her biri düzenlenebilir metin.
 - **Label'lar:** `Occurred at`, `Impact`, `Detected how`, `Resolution`, `Root cause`, `Learning`.
 
 ### Özel alanlar
 Üretim Olayına bağlı Proje özel alanları; satır ve boş değer kuralı → DS.12.
 
-### İlişkiler
-Sağ dar sütun; türlere göre gruplu bağlar: Bug, GitHub PR, Proje Sürümü, Risk, Karar.
-- **Label'lar:** `Related records`; tür adları `Bug`, `Pull request`, `Project Release`, `Risk`, `Decision`.
+### Bağlı kayıtlar
+Aynı Projenin Bug, GitHub PR, Proje Sürümü, Risk ve Kararına türlere göre gruplu bağlar. Seçim → `20.10 · Relation Picker & Used in`. Bağlamak veya bağı kaldırmak bağlanan kaydın durumunu yazmaz; olay otomatik Bug veya Risk üretmez.
+- **Label'lar:** `Linked records`, `Link record`, `Remove link` (PRD 02 › Üretim Olayı bağları); grup başlıkları `Bug`, `GitHub PR`, `Project Release`, `Risk`, `Decision`. PR satırı GitHub dış kaydıdır (→ `18.7`).
 
-### Takip
-Sağ sütunda takip eylemi; önizleme ve onay `20.22 · Create Follow-up Work` (Üretim Olayı kaynağı) ile yapılır, burada yeniden tarif edilmez.
-- **Label'lar:** `Create follow-up work`.
+### Takip İşi
+Takip eylemi ve bu olaydan doğmuş takip İşlerinin listesi. Önizleme, onay ve `Preview changed` durumu `20.22 · Create Follow-up Work` (Üretim Olayı kaynağı) ile yapılır, burada yeniden tarif edilmez. Takip İşi olayın durumunu değiştirmez.
+- **Label'lar:** `Follow-up work`, `Create follow-up work` (önizleme → `20.22`).
 
 ### Durumlar
 #### Default
@@ -69,7 +69,7 @@ Alanların çoğu boş; boşluklar `—`, eksiklik uyarısı yok.
 #### Resolved
 Çözüm ve öğrenim dolu; kayıt düzenlenebilir kalır.
 #### Loading
-Kayıt yükleniyor (erişilebilir yüklenme durumu; spec bu ekran için ayrı label vermez).
+`Loading Production Incident…`
 #### Error
 Kayıt bulunamadı veya bu Projeye ait değil → `20.19 · Not Found`.
 
@@ -80,11 +80,10 @@ Kayıt bulunamadı veya bu Projeye ait değil → `20.19 · Not Found`.
 
 **Artboard'lar**
 - `17.3 · Record Production Incident · Default · 1440`
-- —
 
 ### Alanlar
-Orta boy dialog; kısa form, durum varsayılanı `Open`.
-- **Label'lar:** `Title`; `Occurred at`, `Impact`, `Detected how`; durum varsayılanı `Open`.
+Kısa form; durum varsayılanı `Open`. Bug, Risk veya İş olmadan da oluşturulur.
+- **Label'lar:** `Record Production Incident` (dialog başlığı ve onay eylemi), `Title`, `Occurred at`, `Impact`, `Detected how`, `Cancel`.
 
 ### Özel alanlar
 Üretim Olayına bağlı Proje özel alanları, formun altında; satır ve boş değer kuralı → DS.12.
@@ -94,6 +93,7 @@ Orta boy dialog; kısa form, durum varsayılanı `Open`.
 Boş form, odak başlıkta.
 #### Validation error
 Başlık veya zaman eksik; alan yanında hata.
+- **Label'lar:** `Enter a title and when the incident began.`
 
 **Spec:** [66 Üretim Olayı Öğrenimi](../../specs/66-production-incidents/spec.md)
 

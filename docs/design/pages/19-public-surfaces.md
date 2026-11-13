@@ -4,15 +4,15 @@ Ziyaretçiye dönük, salt okunur Dış yüzeyler.
 
 | Ekran | Ne çizilir |
 |---|---|
-| [19.1 · Public Frame & Shared Blocks](#191--public-frame--shared-blocks) | Ziyaretçi çerçevesi ve ortak bloklar |
-| [19.2 · Link Share Password Gate](#192--link-share-password-gate) | Ortada tek parola formu |
-| [19.3 · Link Share Viewer](#193--link-share-viewer) | Paylaşılan kök varyantları (Roadmap ana) |
-| [19.4 · Published Wiki Page](#194--published-wiki-page) | Tek sütun Belge okuma görünümü |
+| [19.1 · Public Frame & Shared Blocks](#191--public-frame--shared-blocks) | ziyaretçi çerçevesi ve ortak bloklar |
+| [19.2 · Link Share Password Gate](#192--link-share-password-gate) | tek parola formu |
+| [19.3 · Link Share Viewer](#193--link-share-viewer) | paylaşılan kök varyantları (Roadmap ana) |
+| [19.4 · Published Wiki Page](#194--published-wiki-page) | Belge okuma görünümü |
 | [19.5 · Build in Public · Project View](#195--build-in-public--project-view) | Proje özeti, gezinme, üyeler, gelişim akışı |
-| [19.6 · Build in Public · Roadmap](#196--build-in-public--roadmap) | Herkese açık durum grupları |
-| [19.7 · Build in Public · Changelog](#197--build-in-public--changelog) | Kronolojik sürüm girdileri |
-| [19.8 · Link Access Ended](#198--link-access-ended) | İçeriksiz tek mesaj |
-| [19.9 · 410 Gone](#199--410-gone) | Boş gövdeli tarayıcı görünümü |
+| [19.6 · Build in Public · Roadmap](#196--build-in-public--roadmap) | herkese açık durum grupları |
+| [19.7 · Build in Public · Changelog](#197--build-in-public--changelog) | kronolojik sürüm girdileri |
+| [19.8 · Link Access Ended](#198--link-access-ended) | içeriksiz tek mesaj |
+| [19.9 · 410 Gone](#199--410-gone) | boş gövdeli tarayıcı görünümü |
 
 ## 19.1 · Public Frame & Shared Blocks
 > Bütün Dış yüzeylerin paylaştığı ziyaretçi çerçevesini ve tekrar eden blokları (snapshot etiketi, YouTube kartı, dondurulmuş canlı blok, Dosya Eki görüntüleyici) tek yerde tanımlamak; 19.3–19.7 bunları yeniden çizmez, buraya referans verir.
@@ -23,12 +23,12 @@ Ziyaretçiye dönük, salt okunur Dış yüzeyler.
 - `19.1 · Public Frame & Shared Blocks · YouTube before load · 1440`
 - `19.1 · Public Frame & Shared Blocks · YouTube loaded · 1440`
 
-390: aynı sütun tam genişlik; başlık iki satıra kırılır, blok kartları tam genişlikte alt alta.
+`Components` artboard'ı (1440 ve 390) yüzey başlığı, snapshot etiketi, dondurulmuş canlı blok, Dosya Eki görüntüleyici ve alt bilgiyi birlikte gösterir; YouTube kartı ayrı iki artboard'dadır (`YouTube before load`, `YouTube loaded`).
 
-`Components` artboard'ı (1440 ve 390) yüzey başlığı, snapshot etiketi, dondurulmuş canlı blok, Dosya Eki görüntüleyici ve alt bilgiyi yan yana gösterir; YouTube kartı ayrı iki artboard'dadır (`YouTube before load`, `YouTube loaded`).
+Ziyaretçi kurucu kabuğunu devralmaz: `00` gezinmesi, Hesap menüsü, Komut Paleti ve Evrensel Arama yoktur; Paylaşım erişim oturumu Hesap oturumu değildir (spec 73 #19, spec 01 #33). Kabuksuz marka kromu → `00.12 · Navigation` › Marka.
 
 ### Yüzey başlığı
-Üstte ince başlık: yüzey başlığı (Wiki'de Belge başlığı; Build in Public'te yayın başlığı, alanı `08.24 · Yayın başlığı, özeti ve adresi`'nde tanımlı; bağlantı paylaşımında paylaşılan kökün adı), isteğe bağlı Proje logosu (yalnız Build in Public Roadmap ve changelog), snapshot etiketi, son kapsam onay zamanı (yalnız bağlantı paylaşımı).
+Yüzey başlığı (Wiki'de Belge başlığı; Build in Public'te yayın başlığı, alanı `08.24 · Yayın başlığı, özeti ve adresi`'nde tanımlı; bağlantı paylaşımında paylaşılan kökün adı), isteğe bağlı Proje logosu (yalnız Build in Public Roadmap ve changelog), snapshot etiketi, son kapsam onay zamanı (yalnız bağlantı paylaşımı).
 - **Label'lar:** `Approved snapshot`, `Some fields live`, `Live`; Build in Public başlık/özet label'ları → `08.24`. Genel `Current` etiketi hiçbir yerde kullanılmaz.
 
 ### Snapshot etiketi
@@ -49,7 +49,7 @@ Bileşen ve label seti `20.13 · File Attachment Viewer · Önizleme`'dedir, yen
 - **Label'lar:** → `20.13`; bileşen kullanılamazsa `Unavailable`.
 
 ### Alt bilgi
-Altta sessiz alt bilgi: ürün adı, tek satır "salt okunur" açıklaması. Görüntülenme sayısı, abonelik, iletişim formu yoktur.
+Sessiz alt bilgi: ürün adı, tek satır salt okunur açıklaması. Görüntülenme sayısı, son erişim, yorum, oy, abonelik, geri bildirim kutusu ve iletişim formu yoktur (spec 73/74/75, PRD 19).
 - **Label'lar:** `This page is read-only.`
 
 ### Durumlar
@@ -62,7 +62,7 @@ Statik kart (`11.1`); sayfa açılırken üçüncü tarafa istek yoktur.
 #### YouTube loaded
 Kartın yerini oynatıcı alır; etiket ve özgün URL `11.1`'deki gibi oynatıcının altında kalır.
 #### Kaldırılan öğe
-Kapsamdan çıkarılan içerik boşluk, sayaç, sıra atlaması, boş grup başlığı veya kırık çizgi bırakmaz; komşu bloklar boşluk yokmuş gibi akar.
+Kapsamdan çıkarılan içerik boşluk, sayaç, sıra atlaması, boş grup başlığı veya kırık çizgi bırakmaz; yayımlanmamış bekleyen bir farkın varlığı da sezdirilmez (spec 73 #37).
 
 **Spec:** [73 Link Sharing](../../specs/73-link-sharing/spec.md), [74 Wiki Publishing](../../specs/74-wiki-publishing/spec.md), [75 Build in Public](../../specs/75-build-in-public/spec.md), [14 File Attachments](../../specs/14-file-attachments/spec.md) (kesin Dosya Eki sürümü). Sayfa geneli katkı veren: [76 External Surface Management](../../specs/76-external-surface-management/spec.md) (durum adları), [65 Release Communication](../../specs/65-release-communication/spec.md) (changelog içeriği), [01 Account Access](../../specs/01-account-access/spec.md) (ziyaretçi oturumu Hesap oturumu değildir).
 
@@ -72,14 +72,12 @@ Kapsamdan çıkarılan içerik boşluk, sayaç, sıra atlaması, boş grup başl
 **Artboard'lar**
 - `19.2 · Link Share Password Gate · Default · 1440`
 - `19.2 · Link Share Password Gate · Default · 390`
-- `19.2 · Link Share Password Gate · Error · 1440`
 - `19.2 · Link Share Password Gate · Cooldown · 1440`
-- `19.2 · Link Share Password Gate · Error · 390`
 
-390: aynı blok tam genişlik, klavye açıkken parola alanı görünür kalır.
+390'da klavye açıkken parola alanı görünür kalır.
 
 ### Parola formu
-Ekran ortasında tek dar form bloğu, başka içerik yok: kısa açıklama (bu bağlantı ortak bir parolayla korunuyor), parola alanı, gönderme eylemi. Paylaşılan kökün adı, kurucu adı veya kapsam ipucu gösterilmez.
+Tek form, başka içerik yok: kısa açıklama (bu bağlantı ortak bir parolayla korunuyor), parola alanı, gönderme eylemi. Paylaşılan kökün adı, kurucu adı veya kapsam ipucu gösterilmez.
 - **Label'lar:** `Enter the password to view this page.`, `Password`, `View`.
 
 ### Durumlar
@@ -87,10 +85,12 @@ Ekran ortasında tek dar form bloğu, başka içerik yok: kısa açıklama (bu b
 Boş parola alanı, odak alanda.
 #### Error
 Yanlış parola veya geçersiz token aynı genel hatayı gösterir; yüzeyin var olduğu, parolanın varlığı veya kaçıncı deneme olduğu söylenmez.
+- **Label'lar:** `The link or password is not valid.`
 #### Cooldown
-Tekrarlanan denemeden sonra artan bekleme süresi: gönderme eylemi devre dışı, kalan süre metin olarak; yine genel dil.
+Tekrarlanan denemeden sonra artan bekleme süresi: `View` devre dışı, kalan süre metin olarak; yine genel dil.
+- **Label'lar:** `Too many attempts. Try again in <time>.`
 #### Parolasız bağlantı
-Parola yoksa bu ekran görünmez; token doğrulaması arka planda yapılır ve ziyaretçi doğrudan temiz URL'deki 19.3'e iner.
+Parola yoksa bu ekran görünmez; token doğrulaması arka planda yapılır ve ziyaretçi doğrudan temiz URL'deki `19.3`'e iner.
 
 **Spec:** [73 Link Sharing](../../specs/73-link-sharing/spec.md)
 
@@ -99,7 +99,6 @@ Parola yoksa bu ekran görünmez; token doğrulaması arka planda yapılır ve z
 
 **Artboard'lar**
 - `19.3 · Link Share Viewer · Roadmap · 1440`
-- `19.3 · Link Share Viewer · Roadmap · 768`
 - `19.3 · Link Share Viewer · Roadmap · 390`
 - `19.3 · Link Share Viewer · Single Work · 1440`
 - `19.3 · Link Share Viewer · Single Work · 390`
@@ -136,7 +135,11 @@ Genel, içeriksiz hata; yüzey bilgisini sızdırmaz. Asset isteği reddedilirse
 #### Long content / Many items
 Roadmap'te uzun gruplar dikey akar; sayfalama veya "N daha" sayacı yoktur (sayaç gizli kapsamı ele verebilir).
 #### Oturum sona erdi
-12 saat dolduğunda veya tarayıcı kapanıp açıldığında sonraki istek 19.8'e düşer; açık sayfa sessizce eski içeriği göstermeye devam etmez.
+12 saat dolduğunda veya tarayıcı kapanıp açıldığında sonraki istek `19.8`'e düşer; açık sayfa sessizce eski içeriği göstermeye devam etmez.
+#### Revoked
+`Revoke` sonrası sayfa ve asset istekleri → `19.9`.
+#### Kaynağı Çöp Kutusunda
+Tekil kaynağı Çöp Kutusuna alınırken korunan yüzey donmuş Onaylı snapshot revizyonunu göstermeye devam eder; `410 Gone` değildir ve canlı güncelleme ima etmez (spec 76).
 
 **Spec:** [73 Link Sharing](../../specs/73-link-sharing/spec.md), [14 File Attachments](../../specs/14-file-attachments/spec.md)
 
@@ -148,23 +151,27 @@ Roadmap'te uzun gruplar dikey akar; sayfalama veya "N daha" sayacı yoktur (saya
 - `19.4 · Published Wiki Page · Default · 390`
 - `19.4 · Published Wiki Page · With frozen block and YouTube · 1440`
 
-390: tek sütun, bölüm listesi başlığın altında katlanır.
-
 ### Belge başlığı
 Belge başlığı, isteğe bağlı Belgeye özgü herkese açık özet (`Public summary`; alanın sahibi `05.4`), `Approved snapshot` etiketi (→ `19.1`); isteğe bağlı başlık içi bölüm listesi yalnız Belge başlıklarından türetilir.
 - **Label'lar:** `Public summary` (→ `05.4`); `Approved snapshot` (→ `19.1`).
 
 ### Belge gövdesi
 Onaylı sürümün Markdown okuma görünümü; yalnız onaylanan çocuk belgeler, ekler, satır içi referanslar ve gömüler. Onaylanmamış referans düz metin olarak kalır veya hiç görünmez; geri bağlantı listesi yoktur.
-- **Label'lar:** `Live external source` (YouTube varsa).
+- **Label'lar:** `Live external source` (YouTube varsa → `19.1`).
+
+Yorum, oy, geri bildirim, abonelik ve ortak düzenleme yoktur; parola kapısı yoktur (yayın bearer paylaşım değildir, spec 74).
 
 ### Durumlar
+#### Default
+Onaylı Belge, `Approved snapshot` etiketiyle; gömü yok.
+#### With frozen block and YouTube
+Onaylı canlı blok tarih etiketli salt okunur snapshot olarak (`Snapshot`, `As of` → `19.1`) ve tıklayınca yüklenen YouTube kartı (→ `19.1`).
 #### Loading
-19.1 Loading.
+`19.1` Loading.
 #### Unpublished
-Kurucu `Unpublish` ettiğinde URL → 19.9 `410 Gone`; yaşam döngüsü yönetimi → `02.13`.
+Kurucu `Unpublish` ettiğinde URL → `19.9` `410 Gone`; yaşam döngüsü yönetimi → `02.13`.
 #### Long content
-Uzun Belge tek sütunda akar; bölüm listesi yapışkan değil, başta durur.
+Uzun Belge kesintisiz akar; bölüm listesi yalnız Belge başlıklarından türetilir.
 
 **Spec:** [74 Wiki Publishing](../../specs/74-wiki-publishing/spec.md), [73 Link Sharing](../../specs/73-link-sharing/spec.md) (paylaşılan erişim/cache/YouTube kuralı)
 
@@ -173,7 +180,6 @@ Uzun Belge tek sütunda akar; bölüm listesi yapışkan değil, başta durur.
 
 **Artboard'lar**
 - `19.5 · Build in Public · Project View · Default · 1440`
-- `19.5 · Build in Public · Project View · Default · 768`
 - `19.5 · Build in Public · Project View · Default · 390`
 - `19.5 · Build in Public · Project View · Featured record · 1440`
 - `19.5 · Build in Public · Project View · Founder viewing · 1440`
@@ -187,8 +193,8 @@ Proje görünümü, Roadmap (19.6), changelog (19.7) arasında geçiş. Üçü a
 - **Label'lar:** `Roadmap`, `Changelog`; Proje görünümü sekmesi `Project`.
 
 ### Öne çıkarılmış kayıt
-Kural `08.24 · Öne çıkarılan kayıt`'tadır (varsayılan kapalı, en fazla bir kayıt, bitiş zamanı); burada yalnız ziyaretçi görünümü: açıksa onaylı Proje Sürümü veya Karar üstte.
-- **Label'lar:** `Featured`.
+Kural `08.24 · Öne çıkarılan kayıt ve indeksleme`'dedir (varsayılan kapalı, en fazla bir kayıt, bitiş zamanı); burada yalnız ziyaretçi görünümü: açıksa onaylı Proje Sürümü veya Karar üstte.
+- **Label'lar:** `Featured record` (CONTEXT.md).
 
 ### Onaylı üyeler
 Onaylı Belgeler, tasarımlar, Kararlar ve seçili Proje Duvarı snapshot'ları; her biri yalnız bu revizyondaki üyeler. Canlı Çalışma Alanı sorgusu yoktur.
@@ -199,14 +205,18 @@ Yalnız kurucunun onayladığı tarihsel olaylar, kronolojik; bir Roadmap farkı
 - **Label'lar:** Bölüm başlığı `Development feed`; `Explain the change` metni kurucunun yazdığı serbest metin olarak gösterilir (etiketin kendisi ziyaretçiye gösterilmez).
 
 ### Durumlar
+#### Default
+Proje özeti, üyeler ve gelişim akışı; öne çıkarılan kayıt yok.
+#### Featured record
+Öne çıkarılan Proje Sürümü (`tidekit 1.0`) üstte `Featured record` ile; bitiş zamanı geçince kronolojik yerine döner.
 #### Loading
-19.1 Loading.
+`19.1` Loading.
 #### Empty
 Yalnız Proje özeti yayımlanmışsa üye bölümleri hiç çizilmez; "henüz bir şey yok" sahte doluluğu veya boş bölüm başlığı yoktur.
-#### Kurucu kendi sayfasında
-Oturum açmış Proje sahibi aynı sayfayı açtığında yalnız ona görünen `Open source record` ve `Review publish diff` eylemleri kayıt ve sayfa düzeyinde belirir; snapshot'ta yerinde düzenleme yoktur. `Review publish diff` sayfa 08'deki yayın farkını açar. Ziyaretçi bu kontrolleri görmez.
+#### Founder viewing
+Oturum açmış Proje sahibi aynı sayfayı açtığında yalnız ona görünen `Open source record` ve `Review publish diff` eylemleri kayıt ve sayfa düzeyinde belirir; snapshot'ta yerinde düzenleme yoktur. `Review publish diff` → `08.24 › Review publish diff`. Ziyaretçi bu kontrolleri görmez.
 #### Unpublished
-URL → 19.9 `410 Gone`.
+URL → `19.9` `410 Gone`.
 
 **Spec:** [75 Build in Public](../../specs/75-build-in-public/spec.md), [73 Link Sharing](../../specs/73-link-sharing/spec.md) (erişim adaptörü)
 
@@ -215,27 +225,25 @@ URL → 19.9 `410 Gone`.
 
 **Artboard'lar**
 - `19.6 · Build in Public · Roadmap · Default · 1440`
-- `19.6 · Build in Public · Roadmap · Default · 768`
 - `19.6 · Build in Public · Roadmap · Default · 390`
-- —
 
 ### Roadmap başlığı
 Başlık, etiketler ve gezinme `19.5`'teki gibi; fark: Roadmap indeksinin kendi başlık/özet çifti vardır (Proje'ninkini devralmaz; → `08.24`).
 - **Label'lar:** `Roadmap` (diğerleri → `19.5`).
 
 ### Durum grupları
-Herkese açık durum etiketlerine göre gruplanmış sütunlar veya bölümler (iç durumdan etikete eşleme `08.24 · Public Status Label eşlemesi`'ndedir, burada yalnız ziyaretçi görünümü): `Planned`, `In Progress`, `Completed`, `Released`; her İş kartında İşin herkese açık başlığı ve kısa özeti (yoksa onaylı başlık; alanlar `08.24 · Roadmap İşleri`'nde), Herkese açık durum etiketi, hedef tarih sunumu.
-- **Label'lar:** `Planned`, `In Progress`, `Completed`, `Released`. İç adlar (`Not Started`, `Blocked`, `Closed`, `Abandoned`) hiçbir yerde görünmez.
+Herkese açık durum etiketlerine göre gruplanmış sütunlar veya bölümler (iç durumdan etikete eşleme `08.24 · Public Status Label eşlemesi`'ndedir, burada yalnız ziyaretçi görünümü; iç `In Review` durumu `In Progress` olarak görünür): `Planned`, `In Progress`, `Completed`, `Released`; her İş kartında İşin herkese açık başlığı ve kısa özeti (yoksa onaylı başlık; alanlar `08.24 · Roadmap İşleri`'nde), Herkese açık durum etiketi, hedef tarih sunumu (`Full date`, `Month`, `Quarter` veya `Hidden`; seçim → `08.24 · Roadmap İşleri`).
+- **Label'lar:** `Planned`, `In Progress`, `Completed`, `Released`. İç adlar (`Not Started`, `In Review`, `Blocked`, `Closed`, `Abandoned`) hiçbir yerde görünmez; `In Review` Herkese açık durum etiketi olarak da kullanılamaz.
 
 ### Durumlar
 #### Loading
-19.1 Loading.
+`19.1` Loading.
 #### Empty grup
 Hiç İşi olmayan grup çizilmez.
-#### Kurucu kendi sayfasında
-→ `19.5`; fark: kurucuya yalnız kartlarda `Open source record`.
+#### Founder viewing
+→ `19.5 › Founder viewing`; fark: kartlarda `Open source record`.
 #### Unpublished
-→ 19.9.
+→ `19.9`.
 
 **Spec:** [75 Build in Public](../../specs/75-build-in-public/spec.md)
 
@@ -245,9 +253,6 @@ Hiç İşi olmayan grup çizilmez.
 **Artboard'lar**
 - `19.7 · Build in Public · Changelog · Default · 1440`
 - `19.7 · Build in Public · Changelog · Default · 390`
-- —
-
-390: aynı sütun tam genişlik.
 
 ### Changelog başlığı
 Başlık, etiketler ve gezinme `19.5`'teki gibi; fark: Changelog indeksinin kendi başlık/özet çifti vardır (Proje'ninkini devralmaz; → `08.24`).
@@ -259,11 +264,11 @@ Girdi anatomisi `16.8 · Girdi listesi`'ndeki gibi, yalnız onaylı alanlarla. Z
 
 ### Durumlar
 #### Loading
-19.1 Loading.
+`19.1` Loading.
 #### Empty
 Yayımlanmış sürüm notu yoksa changelog sekmesi gezinmede görünmez.
 #### Unpublished
-→ 19.9.
+→ `19.9`.
 
 **Spec:** [75 Build in Public](../../specs/75-build-in-public/spec.md), [65 Release Communication](../../specs/65-release-communication/spec.md) (not içeriği)
 
@@ -275,18 +280,16 @@ Yayımlanmış sürüm notu yoksa changelog sekmesi gezinmede görünmez.
 - `19.8 · Link Access Ended · Expired · 390`
 - `19.8 · Link Access Ended · Session ended · 1440`
 
-390: aynı blok tam genişlik.
-
 ### Mesaj
 Tek kısa mesaj bloğu: tek cümlelik açıklama ve yeni bağlantı isteme yönlendirmesi. Paylaşılan kökün adı, kurucu adı, son onay zamanı veya snapshot önizlemesi yoktur. Alt bilgi (`19.1 · Alt bilgi`) bu ekranda çizilmez.
 - **Label'lar:** `This link has expired.`, `Ask the person who sent the link for a new link.`
 
 ### Durumlar
 #### Expired
-Bağlantı süre dolumu. Kurucu daha sonra `Reopen the same link` derse aynı URL tekrar 19.2/19.3'e açılır; bu ekran bunu vaat etmez.
+Bağlantı süre dolumu. Kurucu daha sonra `Reopen the same link` derse aynı URL tekrar `19.2`/`19.3`'e açılır; bu ekran bunu vaat etmez.
 #### Session ended
-Temiz URL'de oturum yok (12 saat doldu, tarayıcı kapandı, başka tarayıcı, parola değişti/kaldırıldı): ziyaretçiden özgün bağlantıyı yeniden açması istenir.
-> Spec açığı: spec süre dolumu ile oturum bitişinin ziyaretçiye ayrı metinle gösterilip gösterilmeyeceğini söylemez. İkisi de içeriksiz kalmalıdır; iptal (`Revoke`) ve yayından kaldırma (`Unpublish`) bu ekranı değil 19.9'u kullanır.
+Temiz URL'de oturum yok (12 saat doldu, tarayıcı kapandı, başka tarayıcı, parola değişti/kaldırıldı): ayrı ve içeriksiz bir metinle ziyaretçiden özgün bağlantıyı yeniden açması istenir. İptal (`Revoke`) ve yayından kaldırma (`Unpublish`) bu ekranı değil `19.9`'u kullanır.
+- **Label'lar:** `Your access to this page has ended. Open the original link again.`
 
 **Spec:** [73 Link Sharing](../../specs/73-link-sharing/spec.md)
 
@@ -296,9 +299,6 @@ Temiz URL'de oturum yok (12 saat doldu, tarayıcı kapandı, başka tarayıcı, 
 **Artboard'lar**
 - `19.9 · 410 Gone · Empty response · 1440`
 - `19.9 · 410 Gone · Empty response · 390`
-- —
-
-390: aynı; ürün çerçevesi yok, tarayıcının boş gövdeli yanıt görünümü.
 
 ### Boş yanıt
 Artboard `Empty response` (1440 ve 390). Ürün çerçevesi yok; yanıt gövdesi boştur ve `noindex` taşır. Ürün logosu, mesaj, eski başlık, yeni yüzeye veya özel içeriğe yönlendirme yoktur; URL hiçbir zaman yeniden kullanılmaz.
@@ -306,6 +306,8 @@ Artboard `Empty response` (1440 ve 390). Ürün çerçevesi yok; yanıt gövdesi
 
 ### Durumlar
 #### Asset
-Aynı yanıt görsel/PDF/video byte-range isteğinde de döner; daha önce açılmış sayfadaki medya bir sonraki istekte yüklenemez (19.1 Dosya Eki görüntüleyicinin `Unavailable` hâli değil, istek düzeyinde ret).
+Aynı yanıt görsel/PDF/video byte-range isteğinde de döner; daha önce açılmış sayfadaki medya bir sonraki istekte yüklenemez (`19.1` Dosya Eki görüntüleyicinin `Unavailable` hâli değil, istek düzeyinde ret).
+#### Trashed surface
+İptal edilmiş Dış yüzey Çöp Kutusundayken ve kalıcı silindikten sonra da aynı yanıt; içerik hiçbir zaman dönmez (spec 76 #11). Tekil kaynağı Çöp Kutusunda korunan yüzey bu ekranı kullanmaz (→ `19.3 › Kaynağı Çöp Kutusunda`).
 
 **Spec:** [73 Link Sharing](../../specs/73-link-sharing/spec.md), [74 Wiki Publishing](../../specs/74-wiki-publishing/spec.md), [75 Build in Public](../../specs/75-build-in-public/spec.md)

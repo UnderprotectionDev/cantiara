@@ -18,7 +18,7 @@ Tek bir Projenin kabuğu ve Proje düzeyi yüzeyler: başlık, Overview, yapıla
 | [08.12 · Smart Collections](#0812--smart-collections) | koleksiyon listesi ve seçili görünüm |
 | [08.13 · Configuration Mode](#0813--configuration-mode) | host sütunu ve `Project areas` paneli |
 | [08.14 · Configuration · Stages](#0814--configuration--stages) | aşama satırları |
-| [08.15 · Configuration · Work statuses](#0815--configuration--work-statuses) | dört sabit durum satırı |
+| [08.15 · Configuration · Work statuses](#0815--configuration--work-statuses) | beş korunan durum satırı |
 | [08.16 · Configuration · Custom fields](#0816--configuration--custom-fields) | alan tanımları, ekleme formu, `Trash` |
 | [08.17 · Configuration · Work Templates](#0817--configuration--work-templates) | şablon listesi, form, tarih önizlemesi |
 | [08.18 · Configuration · Record Actions](#0818--configuration--record-actions) | eylem listesi ve adım formu |
@@ -26,7 +26,7 @@ Tek bir Projenin kabuğu ve Proje düzeyi yüzeyler: başlık, Overview, yapıla
 | [08.20 · Configuration · Saved views](#0820--configuration--saved-views) | sıralama ve iki eşik satırı |
 | [08.21 · Configuration · Work Context Card layout](#0821--configuration--work-context-card-layout) | bölüm listesi ve `Layout preview` |
 | [08.22 · Configuration · Backlog](#0822--configuration--backlog) | tek bildirim onay kutusu |
-| [08.23 · Configuration · Automation rules](#0823--configuration--automation-rules) | kural listesi, form, dry run |
+| [08.23 · Automation rules](#0823--automation-rules) | kural listesi, form, dry run |
 | [08.24 · Build in Public](#0824--build-in-public) | yayın ayarları ve `Review publish diff` |
 | [08.25 · Copy project structure](#0825--copy-project-structure) | taşınır/taşınmaz önizleme penceresi |
 | [08.26 · Archive Project](#0826--archive-project) | arşiv etki önizlemesi penceresi |
@@ -38,22 +38,22 @@ Tek bir Projenin kabuğu ve Proje düzeyi yüzeyler: başlık, Overview, yapıla
 
 **Artboard'lar**
 - `08.1 · Project Shell · Default · 1440`
-- `08.1 · Project Shell · Default · 768`
 - `08.1 · Project Shell · First-open explanation · 1440`
 - `08.1 · Project Shell · Blank Project · 1440`
-- `08.1 · Project Shell · Loading · 1440`
 - `08.1 · Project Shell · Error · 1440`
 - `08.1 · Project Shell · Archived (Ferry) · 1440`
 
 ### Proje başlığı
 `Projects` geri bağlantısı; Proje adı ve yanında yaşam durumu rozeti; tek satırlık açıklama ("A durable home for this Project’s work and context."); `Short code` ve `Starter Configuration` okunur bilgi çifti; alt şeritte "Separate Project structure from daily Work editing." ve `Configuration Mode` düğmesi (düğmenin sahibi bu başlıktır; navigasyon durumları → `00.12`).
 - **Label'lar:** `Projects`, `Short code`, `Starter Configuration`, `Configuration Mode` / açıkken `Exit Configuration Mode`; yaşam durumu `Active`, `Pending`, `Completed`, `Abandoned`.
+- **Spec etiketleri:** `Short code`, `Starter Configuration`, `Configuration Mode`, `Exit Configuration Mode` → spec 07 `English UI labels`; yaşam durumu, `Projects` ve iki açıklama cümlesi → PRD 02 sözlüğü.
+- **Bu ekrana özgü değil:** `Short code` burada salt okunurdur; düzenleme (`Edit Short code`, `Save Short code`, `Cancel`) Projeler listesi satırındadır (→ `02.1`). Proje oluşturma ve `Starter Configuration` değerleri (`Blank Project`, `Solo SaaS`, `Open Source Library`, `Mobile Application`) → `02.1`.
 
 #### Başlık taşma menüsü
 Projeye özgü giriş eylemleri; yeni yazma yüzeyi açmaz, yalnız ilgili ekrana götürür.
 - `Shares and Publications` → `02.13` Proje kapsamı önceden seçili.
 - `Archive` → `08.26`; yalnız aktif Projede; Arşivli Projede gizli (geri alma `Unarchive` → `08.27`).
-- `Closure Summary Draft` → `08.10`; yalnız `Completed` veya `Abandoned` Projede görünür, `Active`/`Pending`'de gösterilmez, Arşivli Projede salt okunur.
+- `Closure Summary Draft` → `08.10`; her yaşam durumunda (`Active`, `Pending`, `Completed`, `Abandoned`) görünür (spec 70 girişi yaşam durumuna bağlamaz), Arşivli Projede salt okunur.
 - **Label'lar:** `Shares and Publications`, `Archive`, `Closure Summary Draft`.
 
 ### Proje navigasyonu
@@ -65,16 +65,19 @@ Seçili yüzey: varsayılan 08.3 Overview; `All Tools` → 08.2; `Tags` → 08.1
 ### İlk açılış açıklaması
 Yalnız ilk açılışta, içerik alanının üstünde kapatılabilir not: seçilen Başlangıç yapılandırmasının hangi varsayımları neden getirdiği ve nereden değiştirilebileceği. Örnek içerik üretmez, tur değildir.
 - **Label'lar:** `Starter Configuration applied once`, `Dismiss`.
+- **Spec etiketleri:** `Starter Configuration applied once`, `Dismiss` (İlk açılış açıklamasını kapatan eylem) → PRD 02 sözlüğü.
 
 ### Durumlar
-#### Loading / Error
-Gezinme durumları → `00.12 · Navigation`. İçerik: `Loading…`; `Project is unavailable.` ve yeniden deneme (navigasyon çizilmez).
+#### Loading
+Artboard'sızdır. Gezinme iskeleti → `00.12 · Navigation · Loading project areas`. İçerik alanında `Loading…`.
+#### Error
+`Error` artboard'ı (Proje navigasyonu çizilmediği için yerleşim değişir). İçerikte `Project is unavailable.` ve yeniden deneme; gezinme durumu → `00.12 › Loading / Error`.
 #### Blank Project navigasyonu
 Navigasyon içeriği → `00.12 · Navigation · Blank Project`; burada yeniden tarif edilmez.
 #### Gizlenmiş alan
 Gezinme davranışı → `00.12 · Gizlenmiş alan`; `All Tools` satırı `Hidden` (→ 08.2).
 #### First-open explanation
-(Durum: İlk açılış açıklaması açık.) Yukarıdaki not görünür hâlde.
+`First-open explanation` artboard'ı: İlk açılış açıklaması notu açık.
 #### Archived / read-only (Ferry)
 Ferry · `Abandoned` rozeti yanında arşiv işareti; başlığın altında `20.21 · Archived Read-only Banner` (durdurulan işlemler, açık güvenlik eylemleri ve GitHub notu orada tanımlıdır; yeniden tarif edilmez). `Configuration Mode` düğmesi pasif (durum → `00.12 · Navigation`); bütün yüzeyler okunur, yazma denetimleri gizli. Ayrıntı → 08.27.
 #### Offline
@@ -94,8 +97,9 @@ Başlık ve tek cümle: her hazır alan burada keşfedilebilir; alanı etkinleş
 - **Label'lar:** `All Tools`.
 
 ### Alan kataloğu
-Bu katalog ve alan durumlarının sahibi burasıdır; satır eylemlerinin sahibi `08.13 · Project areas`'tır (`DS.10`, `00.12` yalnız bağlanır). Kapalı on alan, sabit sırada; her satırda alan adı, durum rozeti ve `Pin to navigation`. `Overview` ve `All Tools` Proje alanı değildir, gizlenemez. Etkinleştirme, gösterme/gizleme, pin kaldırma ve pinli sırada yukarı/aşağı eylemleri `Project areas` host'unda (→ `08.13 · Project areas`) aynı satırlarda çizilir; yalnız sunum üstverisini değiştirir, kayıt oluşturmaz, taşımaz, silmez. Bu ekranda satırda yalnız durum ve `Pin to navigation` görünür; diğer denetimler için "Manage in Configuration Mode › Project areas" bağlantısı (→ `08.13`).
+Bu katalog ve alan durumlarının sahibi burasıdır; satır eylemlerinin sahibi `08.13 · Project areas`'tır (`DS.10`, `00.12` yalnız bağlanır). Kapalı on alan, sabit sırada; her satırda alan adı, durum rozeti ve `Pin to navigation`. `Overview` ve `All Tools` Proje alanı değildir, gizlenemez. Etkinleştirme, gösterme/gizleme ve pin kaldırma eylemleri `Project areas` host'unda (→ `08.13 · Project areas`) aynı satırlarda çizilir; yalnız sunum üstverisini değiştirir, kayıt oluşturmaz, taşımaz, silmez. Bu ekranda satırda yalnız durum ve `Pin to navigation` görünür; diğer denetimler için `Manage in Configuration Mode › Project areas` bağlantısı (→ `08.13`).
 - **Label'lar:** `Work`, `Documents`, `Discovery`, `Decisions`, `Design`, `Technical Diagrams`, `Tests`, `Releases`, `Production`, `GitHub`; durum `Enabled`, `Hidden`, `Available`; satır eylemi `Pin to navigation`; bağlantı `Manage in Configuration Mode › Project areas` (→ `08.13 · Project areas`). Diğer eylem label'ları → `08.13 · Project areas`.
+- **Spec etiketleri:** `All Tools`, `Work`, `Technical Diagrams`, `Design`, `Pin to navigation` → spec 07 `English UI labels`; `Enabled`, `Hidden`, `Available`, `Manage in Configuration Mode › Project areas` → PRD 02 sözlüğü.
 
 ### Durumlar
 #### Blank Project
@@ -112,10 +116,6 @@ Değişiklik yazılamazsa satırın altında hata; durum eski hâlinde kalır.
 
 **Artboard'lar**
 - `08.3 · Project Overview · Default · 1440`
-- `08.3 · Project Overview · Default · 768`
-- `08.3 · Project Overview · Empty (Blank Project) · 1440`
-- `08.3 · Project Overview · Loading · 1440`
-- `08.3 · Project Overview · Module error · 1440`
 
 ### Başlık
 `Overview` başlığı; "A neutral view of this Project’s source records. Empty sections stay empty until a source record exists."; Favori ve hatırlatma denetimleri.
@@ -127,48 +127,51 @@ Değişiklik yazılamazsa satırın altında hata; durum eski hâlinde kalır.
 
 ### Project areas
 Proje Kabuğundan okunan görünür alanlar, adları ve girişleriyle.
-- **Label'lar:** `Project areas`, alt not "Visible entries from Project Shell"; boşsa `No Project areas are visible yet.`
+- **Label'lar:** `Project areas`, alt not `Visible entries from Project Shell`; boşsa `No Project areas are visible yet.`
 
 ### Modüller
 Kapalı katalog, bu sırayla: `Goals`, `Stages`, `Milestones`, `Work`, `Documents`, `Decisions`, `Risks`, `Tests`, `Production`, `Blockers`, `Dates`, `Recent changes`. Her modülde başlık, sayı, birkaç kaynak satırı.
-Kaynak girdileri: `Goals` = Proje Hedefleri (alan değil, giriş → 08.6); `Stages` = eşzamanlı aktif aşamalar; `Milestones`; `Work` = güncel İş; `Documents`; `Decisions`; `Risks`; `Tests` = aktif Test Handoff'ları, son Test Oturumları, açık Test Açıkları; `Production` = önemli Üretim Olayları; `Blockers`; `Dates` = yaklaşan veya geçmiş hedef tarihler (Hesap locale ve saat diliminde); `Recent changes`. Açık Soru ve Feature `On Track` bu ekranda yoktur.
+Kaynak girdileri: `Goals` = Proje Hedefleri (alan değil, giriş → 08.6); `Stages` = eşzamanlı aktif aşamalar; `Milestones`; `Work` = güncel İş; `Documents`; `Decisions`; `Risks`; `Tests` = aktif Test Handoff'ları, son Test Oturumları, açık Test Açıkları; `Production` = önemli Üretim Olayları; `Blockers`; `Dates` = yaklaşan veya geçmiş hedef tarihler (Hesap locale ve saat diliminde); `Recent changes`. Açık Soru, Feature `On Track` ve Kapsam Ağacı bu ekranda yoktur (modül kataloğu kapalıdır).
 - **Label'lar:** Modül adları; sayı bağlantısı `Open source record`; boş metinler `No Project Goals recorded yet.`, `No active stages recorded yet.`, `Work`/`Documents` için `No sample content was created.`, diğerleri `No source records yet.`
+- **Spec etiketleri:** `Overview`, `Open source record`, `Purpose`, `Lifecycle` ve modül adları → spec 08 `English UI labels`; boş metinler ve `Project areas` bölümünün metinleri → PRD 02 sözlüğü.
 
 ### Proje görünümleri
 Overview içinden açılan üç türetilmiş görünüm girişi: `Value Chain` (→ 08.7), `Project History` (→ 08.8), `Project Updates` (→ 08.9). Başlıkta `Create Project Update` kısayolu (→ 08.9). Bu girişler Proje navigasyonuna ve `All Tools` kataloğuna eklenmez; `Closure Summary Draft` girişi Proje başlığındadır (→ 08.1).
-- **Label'lar:** `Value Chain`, `Project History`, `Project Updates`, `Create Project Update`. Bölüm başlığı için spec etiket vermez: `Project views`.
+- **Label'lar:** `Project views`, `Value Chain`, `Project History`, `Project Updates`, `Create Project Update`.
+- **Spec etiketleri:** `Value Chain` → spec 67; `Project History` → spec 68; `Create Project Update` → spec 69; `Project views`, `Project Updates` → PRD 02 sözlüğü.
+- Spec 08 Değer Zincirini ve Manuel Proje Güncellemesini Overview modülü olarak yasaklar: bu bölüm modül değil navigasyon girişidir, yalnız girişleri ve `Create Project Update` kısayolunu taşır, bu görünümlerin içeriğini veya snapshot'ını Overview'a karıştırmaz.
 
 ### Return to Work
 Modüllerin altında 08.4 bölümü olduğu gibi gömülü.
 
 ### Yapılandırma özeti
-Sessiz okunur listeler: `Stages`, `Work statuses`, `Saved views`; aşama yoksa `No stages prepared.`
+Sessiz okunur listeler: `Stages`, `Work statuses`, `Saved views`; aşama yoksa `No stages prepared.` Bu bölüm Overview modülü değildir; sahibi Project Shell'dir (spec 07: hazır görünüm adları günlük gezinme değil, özet/yapılandırma üstverisidir).
+- **Spec etiketleri:** `Stages`, `Work statuses`, `Saved views` → spec 07 `English UI labels`; `No stages prepared.` → PRD 02 sözlüğü.
 
 ### Durumlar
 #### Empty (yeni Blank Project)
-`Purpose` boş metni; modüller kendi boş metinleriyle, sayı yok; uydurulmuş satır yok.
+Artboard'sızdır. `Purpose` boş metni; modüller kendi boş metinleriyle, sayı yok; uydurulmuş satır yok.
 #### Loading
-Modül başlıkları yerinde, satırlar yerine yükleniyor metni.
+Modül başlıkları yerinde, satırlar yerine yükleniyor metni. Artboard'sızdır.
 #### Error
-Kaynak okunamayan modül kendi yerinde hata satırı gösterir; diğer modüller çalışır.
+Kaynak okunamayan modül kendi yerinde hata satırı gösterir; diğer modüller çalışır. Artboard'sızdır.
 #### Many items
 Modül en fazla birkaç satır gösterir; kalan sayı bağlantısında.
 #### Archived (Ferry)
-Aynı modüller okunur; başlıkta arşiv şeridi (08.1).
+Aynı modüller okunur; başlıkta arşiv bandı (→ `20.21`).
 
-**Spec:** [08 Project Overview](../../specs/08-project-overview/spec.md), [37 Goals](../../specs/37-goals/spec.md) (`Goals` girişi), [36 Return to Work](../../specs/36-return-to-work/spec.md) (alt bölüm).
+**Spec:** [08 Project Overview](../../specs/08-project-overview/spec.md), [37 Goals](../../specs/37-goals/spec.md) (`Goals` girişi), [36 Return to Work](../../specs/36-return-to-work/spec.md) (alt bölüm), [07 Project Shell](../../specs/07-project-shell/spec.md) (yapılandırma özeti), [67 Value Chain](../../specs/67-value-chain/spec.md), [68 Project History](../../specs/68-project-history/spec.md), [69 Project Updates](../../specs/69-project-updates/spec.md) (Proje görünümleri girişleri).
 
 ## 08.4 · Return to Work
 > Ara verdikten sonra güncel kayıtlardan seçilmiş az sayıda gerekçeli geri dönüş kartı, tek `Next concrete step` ve son ziyaretten bu yana olayları göstermek.
 
 **Artboard'lar**
 - `08.4 · Return to Work · Default · 1440`
-- `08.4 · Return to Work · First visit · 1440`
-- `08.4 · Return to Work · Empty · 1440`
-- `08.4 · Return to Work · Error · 1440`
+
+Bu bölge Overview'da ve URL'de açıkça seçilmiş İş bağlamında aynı içerikle görünür (spec 36); içeriğin ve durumların sahibi bu ekrandır, İş bağlamındaki yeri → `09` › Return to Work.
 
 ### Başlık
-Başlık ve not: "Up to five cards from current records. Recent activity covers the last seven days; upcoming dates cover today and the next seven days."
+Başlık ve not `Up to five cards from current records. Recent activity covers the last seven days; upcoming dates cover today and the next seven days.`
 - **Label'lar:** `Return to Work`.
 
 ### Next concrete step
@@ -178,6 +181,7 @@ Bu Projenin tek etkin ipucu metni; kaynak, son güncelleme zamanı.
 ### Geri dönüş kartları
 En fazla beş kart; her kartta kaynak adı, gerekçe(ler) "·" ile, `Open source record`.
 - **Label'lar:** Gerekçeler `Recently edited`, `Recently viewed`, `Upcoming date`, `Open risk`, `Pending GitHub development signal`, `Long in the same status`; boşsa `No return cards yet.`
+- **Spec etiketleri:** `Return to Work`, `Next concrete step`, `Since you last looked`, `Tour the visual changes`, `Long in the same status`, `Open source record` → spec 36 `English UI labels`; olay ve grup adları, `Changes will appear after your next visit.`, `No changes since your last visit.` → spec 36 #294. Diğer gerekçe adları, geri bildirim metinleri, `No return cards yet.`, başlık notu ve hata metinleri → PRD 02 sözlüğü.
 
 ### Since you last looked
 Son görünür açılıştan bu yana olaylar, sabit grup sırasında; boş gruplar gizli. Her satır güncel kaynak adı, olay etiketi, Hesap biçiminde zaman, `Open source record`. Grup bloğunun üstünde destekli görsel hedef varsa `Tour the visual changes`.
@@ -190,11 +194,11 @@ Son görünür açılıştan bu yana olaylar, sabit grup sırasında; boş grupl
 
 ### Durumlar
 #### İlk ziyaret
-`Since you last looked` altında `Changes will appear after your next visit.`
+Artboard'sızdır. `Since you last looked` altında `Changes will appear after your next visit.`
 #### Değişiklik yok
 `No changes since your last visit.`
 #### Empty
-Kart yok: `No return cards yet.`; `Next concrete step` boş alan olarak.
+Artboard'sızdır. Kart yok: `No return cards yet.`; `Next concrete step` boş alan olarak.
 #### Loading
 `Loading…`
 #### Error
@@ -216,7 +220,8 @@ Kartlar okunur; `Next concrete step` salt okunur metin, `Save` yok.
 
 ### Tur paneli
 Kaynak adı, olay etiketi ve zamanı, neden gösterildiği; ilerleme (ör. 2 / 3); üst sınır aşılırsa kalan sayısı.
-- **Label'lar:** `Tour the visual changes`, `Next change`, `Close tour`, `Open remaining changes in list`, `Tour complete.`, `Loading visual change…`; atlama gerekçeleri `Skipped: this target cannot be placed in the current view.`, `Skipped: this target is inaccessible.`, `Skipped: this target was deleted.`
+- **Label'lar:** `Tour the visual changes`, `Next change`, `Close tour`, `Open remaining changes in list`, `Up to 20 visual changes`, `Tour complete.`, `Loading visual change…`; atlama gerekçeleri `Skipped: this target cannot be placed in the current view.`, `Skipped: this target is inaccessible.`, `Skipped: this target was deleted.`
+- **Spec etiketleri:** `Tour the visual changes`, `Next change`, `Close tour`, `Open remaining changes in list` → spec 36 `English UI labels`. Üst sınır (en çok 20 görsel olay) spec 36 #295'tedir; `Up to 20 visual changes`, `Tour complete.`, `Loading visual change…`, atlama gerekçeleri ve hata bildirimi → PRD 02 sözlüğü.
 
 ### Durumlar
 #### Atlanan hedef
@@ -224,9 +229,11 @@ Kaynak adı, olay etiketi ve zamanı, neden gösterildiği; ilerleme (ör. 2 / 3
 #### Tamamlandı
 `Tour complete.` ve `Close tour`.
 #### Cap reached
-(Durum: Üst sınır.) Kalan sayısı ve `Open remaining changes in list`.
+`Cap reached` artboard'ı: 20 görsel olay denendikten sonra `Up to 20 visual changes`, kalan sayısı ve `Open remaining changes in list`; bu eylem kalan ilk mevcut satıra odaklanır.
+#### Loading
+`Loading visual change…`; `Next change` pasif, `Close tour` kullanılabilir.
 #### Error
-Görünüm geri yüklenemez ve sığdırılamazsa toast: "The Roadmap viewport could not be restored or fitted."
+Görünüm geri yüklenemez ve sığdırılamazsa sonuç bildirimi `The Roadmap viewport could not be restored or fitted.`
 
 **Spec:** [36 Return to Work](../../specs/36-return-to-work/spec.md).
 
@@ -235,26 +242,26 @@ Görünüm geri yüklenemez ve sığdırılamazsa toast: "The Roadmap viewport c
 
 **Artboard'lar**
 - `08.6 · Project Goals · Detail · 1440`
-- `08.6 · Project Goals · Detail · 768`
-- `08.6 · Project Goals · Empty · 1440`
 - `08.6 · Project Goals · New Project Goal · 1440`
-- `08.6 · Project Goals · Conflict · 1440`
 
 ### Hedef listesi
 Başlıklar ve `New Project Goal`. Liste başlığı eylem alanında `Export` (→ `20.5`) ve `Import` (→ `20.6`; hedef kapsam seçili Proje, tür `Project Goal`). Arşivli Projede (`Archived (Ferry)`) `Import` kapalıdır, nedeni `20.6`'daki gibi yazılıdır (→ `20.21`); `Export` salt okunur dışa aktarım olarak açık kalır.
 - **Label'lar:** `Goals`, `Overview`, `New Project Goal`, `Export`, `Import`; boşsa `No Project Goals recorded yet.`
 
 ### Hedef detayı
-(Artboard'lar: `08.6 · Project Goals · Detail · 1440` ve `· 768`.) Başlık, açıklama, `Intended outcome`, `Observed outcome / learning`; `Edit Project Goal`.
+(Artboard: `08.6 · Project Goals · Detail · 1440`.) Başlık, açıklama, `Intended outcome`, `Observed outcome / learning`; `Edit Project Goal`.
 - **Label'lar:** `Project Goal`, `Title`, `Description`, `Intended outcome`, `Observed outcome / learning`, `Edit Project Goal`.
+- **Spec etiketleri:** `Project Goal`, `Intended outcome`, `Observed outcome / learning`, `Contributes to Goal` → spec 37 `English UI labels`; `New Project Goal`, `Edit Project Goal`, `Title`, `Description`, `Save`, `Cancel`, `Retry` → spec 37 #297; `Goals` → spec 08.
 
 ### Contributes to Goal ve Related
-Katkı veren İş, Kilometre Taşı, Proje Sürümü satırları kaynak bağlantısı olarak; ayrıca açık `Related` bağları ayrı listede. Seçici, ilişki ekleme/kaldırma ve kırık kaynak etiketleri → `20.10 · Relation Picker & Used in`.
-- **Label'lar:** `Contributes to Goal`, `Related`, `Add contribution`, `Remove contribution`; boşsa `No contributors yet.`
+Katkı veren İş, Kilometre Taşı, Proje Sürümü satırları kaynak bağlantısı olarak; ayrıca açık `Related` bağları ayrı listede. Katkı yalnız İş, Kilometre Taşı ve Proje Sürümünden gelir; Karar ve Varsayım yalnız `Related` olabilir. Seçim başarısız kaydetmede korunur. Seçici davranışı ve kırık kaynak etiketleri → `20.10 · Relation Picker & Used in`.
+- **Label'lar:** `Contributes to Goal`, `Related`, `Relation`, `Record`, `Select record`, `Add contribution`, `Remove contribution`, `Add relation`, `Remove relation`; boşsa `No contributors yet.`
+- **Spec etiketleri:** bu satırdaki eylem ve alan label'ları → spec 37 #298 Membership controls; `No contributors yet.` → PRD 02 sözlüğü.
 
 ### Live summary
 Katkı veren Research, Feature ve Kilometre Taşı kayıtlarının durum dağılımı; ilişkili açık Risk ve Açık Sorular kaynaklarıyla.
 - **Label'lar:** `Live summary`, `Status distribution`, `Open Risks and Open Questions`; boşlar `No contributing Research, Feature, or Milestone records.`, `No related open Risks or Open Questions.`
+- **Spec etiketleri:** `Live summary`, `Status distribution`, `Open Risks and Open Questions` → spec 37 #298. Boş, yükleme ve hata metinleri → PRD 02 sözlüğü. Yüzde, sağlık veya başarı hükmü yoktur.
 
 ### New Project Goal / Edit Project Goal
 Hedef oluşturma ve düzenleme editörü.
@@ -263,7 +270,7 @@ Hedef oluşturma ve düzenleme editörü.
 
 ### Durumlar
 #### Empty
-`No Project Goals recorded yet.` ve `New Project Goal`.
+Artboard'sızdır. `No Project Goals recorded yet.` ve `New Project Goal`.
 #### Loading
 `Loading Goals…`; özet için `Loading live summary…`
 #### Error
@@ -271,9 +278,9 @@ Hedef oluşturma ve düzenleme editörü.
 #### Kaydetme hatası
 Form hata kalıbı → `DS.16`; tür adı `Project Goal`.
 #### Conflict
-→ `20.14 · Conflict`; tür adı `Project Goal`.
+Artboard'sızdır → `20.14 · Conflict`; tür adı `Project Goal`.
 #### Archived (Ferry)
-Detay okunur; yazma denetimleri gizli.
+Detay okunur; yazma denetimleri (oluşturma, düzenleme, katkı ve ilişki ekleme/kaldırma) gizli.
 
 **Spec:** [37 Goals](../../specs/37-goals/spec.md).
 
@@ -282,37 +289,44 @@ Detay okunur; yazma denetimleri gizli.
 
 **Artboard'lar**
 - `08.7 · Value Chain · Default · 1440`
-- `08.7 · Value Chain · Default · 768`
 - `08.7 · Value Chain · Gap action · 1440`
-- `08.7 · Value Chain · Empty · 1440`
 
 ### Hedef seçici
-Çapa olarak bir Proje Hedefi.
-- **Label'lar:** `Value Chain`.
+Çapa olarak bir Proje Hedefi; altında türetme notu. Hedef CRUD'u bu ekranda yoktur (→ `08.6`).
+- **Label'lar:** `Value Chain`, `Derived from explicit records and relations. Nothing here is written, scored or inferred.`
+- **Spec etiketleri:** `Value Chain`, `Not linked to goal`, `Contributes to Goal` → spec 67 `English UI`; bu ekrandaki diğer metinler PRD 02 sözlüğündedir.
 
 ### Zincir
 Hedef → problem/fırsat ve kanıt → Karar → kapsam/İş → GitHub gerçeği → test → Proje Sürümü → Erişim/Sonuç gözlemleri sırasında düğümler, birden fazla dal alt alta; her düğümde kayıt adı, türü, durumu ve onu bağlayan kesin ilişki (`Contributes to Goal` veya diğer açık ilişki) ile neden gösterildiği.
-- **Düğüm etiketleri:** `Shown because: {relation}`, `Bound by {relation type}`. `Related` bağı `Contributes to Goal` sayılmaz: `A Related link does not count as a contribution to this goal.`.
+- **Düğüm etiketleri:** `Shown because: {relation}`, `Bound by {relation type}`. `Related` bağı `Contributes to Goal` sayılmaz: `A Related link does not count as a contribution to this goal.` İkinci kez ulaşılan düğüm: `Also reached from another branch; shown in full there.` İçeriği gösterilemeyen uç: `Unavailable record`.
+
+### Gaps
+Eksik adımlar sayılarıyla listelenir. Kopukluk Bildirim Merkezi sinyali veya sağlık puanı değildir.
+- **Label'lar:** `Gaps`, `No Work, Milestone or Project Release contributes to this goal.`, `No {stage} is bound to this Work.`, `No step is missing on the explicit relations. This is not a verdict.`
 
 ### Boşluk eylemi
 Zincirde eksik veya çözülemeyen adımın yanında `Fill this gap`; küçük panel iki yol sunar: `Choose an existing record` (ilişki seçici → `20.10`; seçim yalnız seçer) ve `Start a new record` (ilgili özelliğin normal oluşturma akışına gider; ilişki yazılmadığı önizlenir). Yayın kapısı değildir; başka kaydın durumunu değiştirmez.
 - **Label'lar:** `Fill this gap`, `Choose an existing record`, `Start a new record`; sabit not `Nothing is written until you save the relation in the owning feature. No other record changes status.`; hata `The record could not be opened.`.
 
 ### Not linked to goal
-Hedefe bağlanmamış ilgili İş, Karar, kanıt, test, Sürüm parçaları; sistem hedef tahmin etmez.
-- **Label'lar:** `Not linked to goal`.
+Hedefe bağlanmamış ilgili İş, Karar, kanıt, test, Sürüm parçaları kaynaklarına açılır; sistem hedef tahmin etmez.
+- **Label'lar:** `Not linked to goal`, `Related to a record in this chain, but no Contributes to Goal path reaches it.`, `Attached to {record}, which itself has no Contributes to Goal path from this goal.`, `Open source record`.
 
 ### Durumlar
 #### Empty
-Projede Hedef yok: Hedef oluşturmak için 08.6'ya giden açıklama.
+Artboard'sızdır. Projede Hedef yok: `No Project Goals recorded yet.` ve `New Project Goal` (→ `08.6`).
+#### Hedefe katkı yok
+Seçili Hedefe hiç katkı bağlı değilse `Gaps` altında `No Work, Milestone or Project Release contributes to this goal.`
 #### Gap action
 Eksik adımın paneli açık: `Choose an existing record` / `Start a new record` ve "hiçbir şey yazılmadı" notu (artboard `08.7 · Value Chain · Gap action · 1440`).
 #### Kırık/erişilemeyen adım
-Kırık uç → `20.10 · Kırık uç` (nedenler ve başlık sızmama kuralı orada); içeriksiz erişilemez düğüm.
+Kırık uç → `20.10 · Kırık uç` (nedenler ve başlık sızmama kuralı orada); içeriksiz düğüm `Unavailable record`.
+#### Erişilemeyen Hedef
+`This Project Goal is unavailable: {reason}. Records still bound to it are shown.`
 #### Loading
-Hedef seçici yerinde, zincir yerine yükleniyor metni.
+Hedef seçici yerinde, zincir yerine `Loading Value Chain…`.
 #### Error
-Zincir okunamazsa bölge içinde hata satırı ve yeniden deneme.
+Zincir okunamazsa bölge içinde `Value Chain is unavailable.` ve yeniden deneme.
 
 **Spec:** [67 Value Chain](../../specs/67-value-chain/spec.md), [37 Goals](../../specs/37-goals/spec.md) (çapa).
 
@@ -322,28 +336,27 @@ Zincir okunamazsa bölge içinde hata satırı ve yeniden deneme.
 **Artboard'lar**
 - `08.8 · Project History · Story Timeline · 1440`
 - `08.8 · Project History · Project Activity · 1440`
-- `08.8 · Project History · Project Activity · 768`
 - `08.8 · Project History · Cluster expanded · 1440`
-- `08.8 · Project History · Empty · 1440`
 
 ### Başlık
 `Project History` başlığı ve iki görünüm seçici `Story Timeline` | `Project Activity` (tek feed değildir).
 - **Label'lar:** `Project History`, `Story Timeline`, `Project Activity`.
 
 ### Story Timeline
-Yalnız önemli gerçekleşmiş olaylar: Karar, Belge, tasarım, İş, ulaşılan Kilometre Taşı, yaşam değişikliği, kod değişikliği, Üretim Olayı, deney/doğrulama sonucu, Proje Sürümü. Vazgeçilen işte gerekçe görünür. Alan düzenlemeleri yok.
-- **Label'lar:** `Story Timeline`, `Open source record`; olay türleri `Decision`, `Document`, `Design`, `Work`, `Milestone reached`, `Lifecycle change`, `Code change`, `Production Incident`, `Experiment result`; vazgeçilen işte `Abandonment rationale`.
+Yalnız önemli gerçekleşmiş olaylar: Karar, Belge, tasarım, İş, ulaşılan Kilometre Taşı, yaşam değişikliği, kod değişikliği, Üretim Olayı, deney/doğrulama sonucu, Proje Sürümü. Vazgeçilen işte gerekçe görünür. Alan düzenlemeleri yok. Hikâye Feature türündeki İş bağlamında da görünür (→ `09`); içeriğin sahibi bu ekrandır.
+- **Label'lar:** `Story Timeline`, `Open source record`; olay türleri `Decision`, `Document`, `Design`, `Work`, `Milestone reached`, `Lifecycle change`, `Code change`, `Production Incident`, `Experiment result`, `Validation result`, `Project Release`; vazgeçilen işte `Abandonment rationale` / `Abandonment rationale: {text}`.
+- **Spec etiketleri:** `Project History`, `Story Timeline`, `Project Activity`, `What changed?`, `Open source record` → spec 68 `English UI labels`; olay türleri (`Project Release`, `Validation result` dahil), filtreler, küme ve boş metinler PRD 02 sözlüğündedir.
 
 ### Project Activity
 Mevcut kayıt geçmişlerinden atomik iz; her satırda kaynak, aktör (kullanıcı, sistem otomasyonu, GitHub), olay türü, zaman, desteklenen alanlarda önceki → sonraki değer. Aynı aktörün aynı kayıttaki beş dakika içindeki güvenli alan düzenlemeleri açılır bir kümede.
 - **Label'lar:** `Project Activity`, `What changed?`, `Open source record`.
 - **Aktör etiketleri:** → `20.14 · Aktör satırı`.
 - **Filtreler:** `Filter by source` (`Any source`, `Work`, `Document`, `Decision`, `Risk`, `Automation`, `GitHub`); `Filter by event type` (`Any event type`, `Created`, `Field change`, `Status change`, `Archived`, `Relation`, `Automation`).
-- **Satır:** `Previous`, `Next` (önceki → sonraki değer); küme açıkken `Undo boundary`. Küme: `{n} changes by {actor} within 5 minutes` + `Expand` / `Collapse`.
+- **Satır:** `Previous`, `Next` (önceki → sonraki değer); küme açıkken `Undo boundary`. Küme: `{n} changes by {actor} within 5 minutes` + `Expand` / `Collapse` (mevcut adlar, yeni bağlam: PRD 02'de Kanban sütunu ve Aktif Çalışma Seti için tanımlıdır). İnsan, otomasyon ve GitHub değişiklikleri aynı kümeye girmez. Gizli değerler önceki → sonraki olarak görünmez.
 
 ### Durumlar
 #### Empty
-Yeni Projede hikâye ve etkinlik boş; ayrı metinler: `No story events yet.` / `No activity yet.`.
+Artboard'sızdır. Yeni Projede hikâye ve etkinlik boş; ayrı metinler: `No story events yet.` / `No activity yet.`
 #### Cluster expanded
 Küme açık: her atomik olay zamanı, önceki–sonraki değeri, kökeni ve geri alma sınırıyla ayrı satırda.
 #### Important events outside clusters
@@ -363,66 +376,80 @@ Geçmiş okunamazsa liste yerinde hata satırı ve yeniden deneme.
 **Artboard'lar**
 - `08.9 · Project Updates · List · 1440`
 - `08.9 · Project Updates · Create Project Update · 1440`
-- `08.9 · Project Updates · Empty · 1440`
 
 ### Güncelleme listesi
-Her girişte tarih, işaret, anlatı, bağlı kayıtlar (canlı), "o gün görülen" salt okunur snapshot (katlanmış).
-- **Label'lar:** `Project Update`, `On Track`, `At Risk`, `Off Track`, `Create Project Update`.
+Yeniden eskiye kronolojik liste. Her girişte tarih, işaret, anlatı, bağlı kayıtlar (canlı, `Open source record` ile açılır), "o gün görülen" salt okunur snapshot (katlanmış). Girişte düzenleme veya silme denetimi yoktur.
+- **Label'lar:** `Project Update`, `On Track`, `At Risk`, `Off Track`, `Create Project Update`, `Summary when written`, `Open source record`.
+- **Spec etiketleri:** `Project Update`, `On Track`, `At Risk`, `Off Track`, `Create Project Update` → spec 69 `English UI labels`; diğerleri PRD 02 sözlüğündedir (Manuel Proje Güncellemesi satırı ve Proje Güncellemesi satırları).
 
 ### Create Project Update formu
-Üç işaretten biri, kısa anlatı, ilişki seçici, kaydetme anında dondurulacak canlı özet blokları önizlemesi.
-- **Label'lar:** `Create Project Update` (kaydet), `On Track`, `At Risk`, `Off Track`; alan etiketleri `Status mark`, `Narrative`, `Related records` (Risk, Karar, Kilometre Taşı), `Live summary at save time`, `Cancel`; başarı `Project Update saved.`; liste girişinde `Summary when written` (katlanmış snapshot).
-- Kaydedilmiş güncelleme düzenlenmez ve silinmez: `A saved update cannot be edited. Write a new update instead.`.
+Üç işaretten biri, kısa anlatı, ilişki seçici, kaydetme anında dondurulacak canlı özet blokları önizlemesi (`Lifecycle`, `Purpose`, `Target date`; değer yoksa `None`). Kayıt yalnız formun açıkça kaydedilmesiyle oluşur; taslak veya atlama kayıt üretmez.
+- **Label'lar:** `Create Project Update` (kaydet), `On Track`, `At Risk`, `Off Track`; alan etiketleri `Status mark`, `Narrative`, `Linked records` (Risk, Karar, Kilometre Taşı veya diğer ana kayıtlar), `Live summary at save time`, `Lifecycle`, `Purpose`, `Target date`, `None`, `Cancel`; kaydederken `Saving…`; başarı `Project Update saved.`
+- Kaydedilmiş güncelleme düzenlenmez ve silinmez: `A saved update cannot be edited. Write a new update instead.`
+- `Linked records` → PRD 02 sözlüğü (mevcut ad, yeni bağlam: Proje Güncellemesi bağlı kayıtları; PRD 02'deki `Related records` Ürün Boşluğu bağlamındadır, burada kullanılmaz).
 
 ### Hatırlatma ayarı
-İsteğe bağlı yinelenen `Create Project Update` hatırlatması: düzenlenebilir refleksiyon sorusu, aralık, aç/duraklat/kapat.
-- **Label'lar:** `Repeating reminder`, `Reflection question`, `Interval`, `Pause reminder`, `Turn off reminder`; Bildirim Merkezinden açılışta `Skip` (kayıt yazmaz).
+Proje bazında isteğe bağlı yinelenen `Create Project Update` hatırlatması (varsayılan kapalı): düzenlenebilir refleksiyon sorusu, tercih edilen aralık ve üç durum. Vadesi gelen hatırlatma `personal-reminder` sinyali olarak Bildirim Merkezinde görünür (→ `00.5`) ve bu formu açar; yeni sinyal türü yoktur.
+- **Label'lar:** `Update reminder`, `Reflection question`, `Interval (days)`, durum `Enabled` / `Paused` / `Disabled`, `Save reminder`; Bildirim Merkezinden açılışta `Skip reminder` (güncelleme yazmaz, sonraki hatırlatmayı planlar).
+- **Spec etiketleri:** bu label'lar PRD 02 sözlüğünün Manuel Proje Güncellemesi satırındadır. PRD 02'deki `Repeating reminder`, `Interval`, `Pause reminder`, `Turn off reminder` Kişisel Planlama hatırlatmasına aittir; bu ekranda kullanılmaz.
 
 ### Durumlar
 #### Empty
-Henüz güncelleme yok; zorunlu ritim dili yok.
+Artboard'sızdır. Henüz güncelleme yok; zorunlu ritim dili yok.
 #### Form open
 Form listenin üstünde açık; altında kaydetme anında dondurulacak canlı özet blokları.
 #### Reminder opened from Notification Center
-Form, hatırlatma sorusu üstte; atlamak kayıt üretmez.
+Form, hatırlatma sorusu üstte; `Skip reminder` kayıt üretmez.
+#### Validation
+İşaret veya anlatı eksikse `Choose a mark and write a short narrative.`
+#### Loading
+`Loading Project Updates…`
 #### Error
-Kaydedilemezse form açık kalır, metin korunur, hata satırı.
+Liste okunamazsa `Project Updates are unavailable.` ve `Retry`. Kaydedilemezse form açık kalır, metin korunur: `Project Update could not be saved. Retry; your text is kept here.` Hatırlatma hataları `The reminder could not be saved. Retry.` / `The reminder could not be skipped. Retry.`
+#### Archived (Ferry)
+Liste okunur; `Create Project Update` ve hatırlatma ayarı gizli.
+
+Doğrulama, yükleme ve hata metinleri → PRD 02 sözlüğü.
 
 **Spec:** [69 Project Updates](../../specs/69-project-updates/spec.md).
 
 ## 08.10 · Closure Summary Draft
-> Tamamlanan veya vazgeçilen Proje için seçilen kayıtlardan yalnız bölüm başlıkları ve kaynak bağlantıları içeren, kaydedilene kadar kalıcı olmayan taslak üretmek.
+> Herhangi bir yaşam durumundaki Proje için (örnek Luma, `Active`) seçilen kayıtlardan yalnız bölüm başlıkları ve kaynak bağlantıları içeren, kaydedilene kadar kalıcı olmayan taslak üretmek.
 
 **Artboard'lar**
 - `08.10 · Closure Summary Draft · Select sources · 1440`
 - `08.10 · Closure Summary Draft · Preview · 1440`
 - `08.10 · Closure Summary Draft · Draft editor · 1440`
 
-Giriş: `Completed` veya `Abandoned` Proje başlığındaki `Closure Summary Draft` eylemi (→ 08.1). Taslak yalnız başlıklar ve kayıtlara bağlantılar içerir, sonuç yazmaz; `Retrospective` başlangıç iskeletiyle karıştırılmaz: "The draft contains only headings and links to your records. It writes no conclusions.".
+Giriş: Proje başlığındaki `Closure Summary Draft` eylemi (→ `08.1`; her yaşam durumunda açılır). Artboard'larda örnek Proje Luma'dır. Taslak yalnız başlıklar ve kayıtlara bağlantılar içerir, sonuç yazmaz; `Retrospective` başlangıç iskeletiyle karıştırılmaz. Kaydedilmeden kapanan taslak hiçbir kayıt bırakmaz.
+- **Label'lar:** `Closure Summary Draft`, `The draft contains only headings and links to your records. It writes no conclusions.`
+- **Spec etiketleri:** `Project Closure Summary`, `Closure Summary Draft`, `General` → spec 70 `English UI labels`; bu ekrandaki diğer metinler, `Nothing was saved.` dahil, PRD 02 sözlüğündedir.
 
 ### Kaynak seçimi
 Karar, Risk, Proje Sürümü, Belge, Üretim Olayı ve tamamlanmış İş kayıtları, türe göre gruplu onay kutuları.
-- **Label'lar:** `Select sources`; gruplar `Decisions`, `Risks`, `Project Releases`, `Documents`, `Production Incidents`, `Completed Work`.
+- **Label'lar:** `Select sources`; gruplar `Decisions`, `Risks`, `Project Releases`, `Documents`, `Production Incidents`, `Completed Work`; seçilecek kayıt yoksa grup içinde `No {heading} to select.`
 
 ### Önizleme
 Hangi kaynağın hangi başlık altına gireceği; isteğe bağlı nötr tarih karşılaştırması (öne alındı, hedefinde/sonrasında, hâlâ açık).
-- **Label'lar:** `Closure Summary Draft`; `Preview headings`, `Generate draft`, `Planned date history`; değerler `Moved`, `Before target`, `On target`, `After target`, `Still open`; not `This is a reading of existing history. It is not a score.`.
+- **Label'lar:** `Preview headings`, `Heading preview`, `Generate draft`, `Planned date history`; değerler `Moved`, `Before target`, `On target`, `After target`, `Still open`; not `This is a reading of existing history. It is not a score.`; karşılaştırılacak tarih yoksa `No selected record has a planned date.`
 
 ### Taslak editörü
-Başlık varsayılanı `Project Closure Summary`, tür `General`, Kökeni Ferry; gövdede yalnız başlıklar ve bağlantılar; yorum, sonuç veya başarı cümlesi yok.
-- **Label'lar:** `Project Closure Summary`, `General`; eylemler `Save as Document` (kayıtla `General` Belge oluşur; saklandıktan sonra Wiki kopyası → 10.10), `Discard draft` (kapatırken `Nothing was saved.`).
+Başlık varsayılanı `Project Closure Summary`, tür `General`, Kökeni kaynak Proje; gövdede yalnız başlıklar ve bağlantılar; yorum, sonuç veya başarı cümlesi yok.
+- **Label'lar:** `Project Closure Summary`, `General`; eylemler `Save as Document` (kayıtla `General` sürümlü Belge oluşur), `Discard draft` (kapatırken `Nothing was saved.`); kayıt sonrası onay `Project Closure Summary saved as a Document.` (Belgeye bağlantı) ve `Use Copy Document on the Document to copy it to the Personal Wiki.` (Kişisel Wiki kopyası → `10.10`).
 
 ### Durumlar
 #### No sources selected
-Hiç kaynak seçili değil; önizleme boş, ilerleme yok.
+Hiç kaynak seçili değil; önizlemede `No sources selected.`, ilerleme yok.
 #### Preview
 Seçili kaynakların başlık eşlemesi görünür.
 #### Draft editing
 İkinci adım: düzenlenebilir Markdown taslak.
 #### Close without saving
 Kayıt oluşmadığını söyleyen onay: `Nothing was saved.`
+#### Loading
+`Loading Closure Summary Draft…`
 #### Error
-Taslak kaydedilemezse pencere açık kalır, taslak korunur, hata satırı.
+Kaynak listesi okunamazsa `Closure Summary Draft is unavailable.` Taslak, kayıt veya tarih geçmişi isteği başarısızsa pencere açık kalır, taslak korunur: `The request could not be completed. Try again.`
 
 **Spec:** [70 Project Closure Summary](../../specs/70-project-closure-summary/spec.md).
 
@@ -431,12 +458,12 @@ Taslak kaydedilemezse pencere açık kalır, taslak korunur, hata satırı.
 
 **Artboard'lar**
 - `08.11 · Tags · Default · 1440`
-- `08.11 · Tags · Empty · 1440`
 - `08.11 · Tags · Renamed with Undo · 1440`
 
 ### Başlık
-`Tags` ve not: Workspace-wide flat tags classify reachable Work records without (klasör/ilişki/koleksiyon olmadan).
+`Tags` ve not: "Workspace-wide flat tags classify reachable Work records without changing their Project, status, or other memberships."
 - **Label'lar:** `Tags`.
+- **Spec etiketleri:** `Tags`, `Rename Tag`, `Tag`, `Tag to rename`, `New name`, `Undo`, `Tag renamed.` → spec 13 `English UI labels`; diğer metinler PRD 02 sözlüğündedir.
 
 ### Create tag
 Ad alanı ve oluşturma düğmesi (giriş eylemi). Oluşturma label'ları ve hata metinleri → `20.11 · Tag Picker`.
@@ -457,7 +484,7 @@ Her İş satırında başlık ve etiketleri; uygulama/kaldırma etkileşimi ve h
 
 ### Durumlar
 #### Empty
-`No tags yet.`
+Artboard'sızdır. `No tags yet.`
 #### Loading
 `Loading Tags…`, `Loading tagged records…`
 #### Error
@@ -476,7 +503,6 @@ Etiket yüklendikten sonra değiştiyse rename reddedilir: `Tag changed since it
 
 **Artboard'lar**
 - `08.12 · Smart Collections · List · 1440`
-- `08.12 · Smart Collections · List · 768`
 - `08.12 · Smart Collections · Table · 1440`
 - `08.12 · Smart Collections · Gallery · 1440`
 - `08.12 · Smart Collections · Insights · 1440`
@@ -508,15 +534,16 @@ Ad, kaynak türü · sunum, koşul özeti; `Subscribe`, `Notify on leave`.
 
 ### Insights (yalnız İş koleksiyonu)
 `Count`, `Status`, `Effort`, `Age`, `Time in status` dağılımları; dilimler `0–7 days`, `8–30 days`, `31+ days`, `Not set`.
-- **Label'lar:** `Insights`, `Count`, `Status`, `Effort`, `Age`, `Time in status`, `Show all records`.
+- **Label'lar:** `Insights`, `Count`, `Status`, `Effort`, `Age`, `Time in status`, `0–7 days`, `8–30 days`, `31+ days`, `Not set`, `Show all records`.
+- **Spec etiketleri:** bu ekrandaki koleksiyon label'ları → spec 34 `English UI labels`; `Focus threshold`, `In Progress count`, `Over limit` → spec 25. `Save Focus threshold`, `Check the form.`, `Smart Collection could not be saved.`, `Smart Collection is unavailable.` → PRD 02 sözlüğü; `Bulk Edit` → `20.8`.
 
 ### Durumlar
 #### Table
 Aynı üyelik kolonlu tablo; sunum değişimi durum veya sıra yazmaz.
 #### Gallery
-İzinli türlerde (Belge, Proje Duvarı, Kullanıcı Akışı, Ekran, Moodboard, Teknik Diyagram, Dosya Eki, Kaynak, Geri Bildirim) önizleme ızgarası. `Spec`.
+İzinli türlerde (Belge, Proje Duvarı, Kullanıcı Akışı, Ekran, Moodboard, Teknik Diyagram, Dosya Eki, Kaynak, Geri Bildirim) önizleme ızgarası. Spec 34 Gallery'yi sonraki dilim sayar.
 #### Named view dirty
-Görünüm değişince `Unsaved changes` ve `Save`, `Save as`, `Revert`; isteğe bağlı tek cümle `Purpose`. `Spec`.
+Görünüm değişince `Unsaved changes` ve `Save`, `Save as`, `Revert`; isteğe bağlı tek cümle `Purpose`. Spec 34 İş koleksiyonu başına birden çok adlandırılmış görünümü sonraki dilim sayar.
 #### Insights slice selected
 Seçili dilim işaretli; kayıtlar o alt kümeye süzülmüş, özetler yeniden hesaplanmış; `Show all records`.
 #### Field change preview
@@ -549,14 +576,16 @@ Başlık ve "Structure changes stay separate from daily content editing. Enterin
 - **Label'lar:** `Configuration Mode`.
 
 ### Host seçici
-`Project` grubu: `Project areas`, `Stages`. `Work` grubu: `Work statuses`, `Custom field`, `Work Template`, `Record Action`, `Priority metrics`, `Saved views`, `Work Context Card layout`, `Backlog`, otomasyon kuralları host'u, Build in Public host'u.
+`Project` grubu: `Project areas`, `Stages`. `Work` grubu: `Work statuses`, `Custom field`, `Work Template`, `Record Action`, `Priority metrics`, `Saved views`, `Work Context Card layout`, `Backlog`. Otomasyon kuralları (`08.23`) ve Build in Public (`08.24`) host değildir (spec 07 host listesi); Configuration Mode dışında Proje düzeyi yüzeylerdir.
 `Project` grubunda ayrıca `Copy project structure` eylemi (→ `08.25`; ikinci giriş `02.1` Projeler listesi satır eylemi).
+- **768:** gruplu host denetimleri yerine kompakt host seçici (spec 07); `768` artboard'ı bu farkı çizer.
 - **Label'lar:** `Project`, `Work` ve host adları, `Copy project structure`; 768 seçicide boş seçenek "Choose a surface to inspect its Project-level controls".
 
 ### Project areas paneli
 Yardım metni "These controls only change Project navigation; they do not create, move, or delete records."; `Restore default navigation`; on alanın satırları katalogla aynı sırada ve durum rozetiyle (katalog ve durum → `08.2`); satır eylemlerinin sahibi bu panelidir (08.2 yalnız durum ve `Pin to navigation` gösterir). Eylemler yalnız sunum üstverisini değiştirir; kayıt oluşturmaz, taşımaz, silmez. `Overview` ve `All Tools` satırı yoktur.
-- **Satır eylemleri:** `Enable` (`Available` alanı etkinleştirir), `Hide` / `Show`, `Pin to navigation` / `Remove pin`, pinli sırada `Move up` / `Move down`.
+- **Satır eylemleri:** `Enable` (`Available` alanı etkinleştirir), `Hide` / `Show`, `Pin to navigation` / `Remove pin`. Pinli sırayı elle değiştirme eylemi yoktur; sıra yalnız `Restore default navigation` ile varsayılana döner.
 - **Label'lar:** `Project areas`, `Restore default navigation`, `Navigation preview`, `Current pinned areas`, `Default pinned areas`, `Confirm`, `Cancel`, `None`.
+- **Spec etiketleri:** `Project areas`, `Pin to navigation`, `Restore default navigation`, `Navigation preview`, `Current pinned areas`, `Default pinned areas`, `Cancel` → spec 07 `English UI labels`; `Hide`, `Remove pin`, `Enable` → PRD 02 sözlüğü; `Show` mevcut ad, yeni bağlam (PRD 02'de İş Bağlam Kartı bölümü için tanımlıdır).
 
 ### Durumlar
 #### Host yok (ilk açılış)
@@ -566,9 +595,9 @@ Satır içi `Navigation preview`: `Current pinned areas` ve `Default pinned area
 #### Mutation error
 Panel içinde hata satırı; değerler eski hâlinde.
 #### Reload while active
-Sayfa yenilense mod açık kalır; çıkışta önceki yüzeye dönülür.
+Sayfa yenilense mod açık kalır (`#configuration`); çıkışta önceki yüzeye dönülür.
 #### Archived (Ferry)
-Mod açılamaz (08.1).
+Mod açılamaz (→ `08.1`).
 
 **Spec:** [07 Project Shell](../../specs/07-project-shell/spec.md).
 
@@ -582,6 +611,7 @@ Mod açılamaz (08.1).
 ### Aşamalar
 Açıklama: "Stages are independent presentation metadata. Several stages can be Active at once, and removing one does not delete main records." Bölüm başlığı `Stages configuration`. Her satırda ad alanı, `Status`, `Move up` / `Move down`, `Remove stage`.
 - **Label'lar:** `Stages configuration`, `Stage name`, `Add stage`, `Status`, `Move up`, `Move down`, `Save`, `Remove stage`, `Cancel`; durumlar `Not Planned`, `Ready`, `Active`, `Completed`, `Abandoned`; boş `No stages prepared.`
+- **Spec etiketleri:** `Stages`, `Status`, `Not Planned`, `Ready`, `Cancel` → spec 07 `English UI labels`; `Active` / `Completed` / `Abandoned` mevcut yaşam durumu label'larıdır; diğerleri PRD 02 sözlüğündedir. Aşama durumu İş durumu yazmaz; birden çok aşama aynı anda `Active` olabilir.
 
 ### Durumlar
 #### Empty
@@ -589,22 +619,22 @@ Açıklama: "Stages are independent presentation metadata. Several stages can be
 #### Validation
 Boş ad: `Stage name is required.`
 #### Remove preview
-Satır içinde "{stage} will leave presentation and filters. Main records are not deleted." ve `Cancel`/onay.
+Satır içinde `{name} will leave presentation and filters. Main records are not deleted.` ve `Cancel` / `Remove stage` onayı.
 #### Error
 Değişiklik yazılamazsa panelde hata satırı; değerler eski hâlinde.
 
 **Spec:** [07 Project Shell](../../specs/07-project-shell/spec.md).
 
 ## 08.15 · Configuration · Work statuses
-> Dört korunan İş durumu semantiğini silmeden görünen adlarını değiştirmek.
+> Beş korunan İş durumu semantiğini silmeden görünen adlarını değiştirmek.
 
 **Artboard'lar**
-- `08.15 · Configuration · Work statuses · 1440`
-_Ayrı artboard yok._
+- `08.15 · Configuration · Work statuses · Default · 1440`
 
 ### Durumlar listesi
-Bölüm başlığı `Work status configuration`. Dört sabit satır; her satırda korunan semantik ayrı okunur etiket olarak (`Not Started`, `In Progress`, `Blocked`, `Closed`), görünen ad alanı `Work status label`, `Save`, `Soft WIP` alanı. Açıklama: görünen adlar değişir, semantik korunur; yeni durum eklenemez.
-- **Label'lar:** `Work status configuration`, `Work status label`, `Visible label`, `Save`, `Soft WIP`, `Save Soft WIP`; semantik `Not Started`, `In Progress`, `Blocked`, `Closed`.
+Bölüm başlığı `Work status configuration`. Beş sabit satır, bu sırayla; her satırda korunan semantik ayrı okunur etiket olarak (`Not Started`, `In Progress`, `In Review`, `Blocked`, `Closed`), görünen ad alanı `Work status label`, `Save`, `Soft WIP` alanı. Açıklama: görünen adlar değişir, semantik korunur; yeni durum eklenemez.
+- **Label'lar:** `Work status configuration`, `Work status label`, `Visible label`, `Save`, `Soft WIP`, `Save Soft WIP`; semantik `Not Started`, `In Progress`, `In Review`, `Blocked`, `Closed`.
+- **Spec etiketleri:** `Work statuses` ve beş korunan semantik → spec 07; `Soft WIP` → spec 25 (durum başına, varsayılan kapalı, hareketi engellemez); `Work status configuration`, `Work status label`, `Visible label`, `Save Soft WIP` → PRD 02. Beş korunan semantiğin dışında durum eklenemez; `In Review` satırının rengi ve ikonu → `DESIGN.md` (yeşil, göz).
 
 ### Durumlar
 #### Validation
@@ -620,7 +650,6 @@ Kayıt yazılamazsa satırın altında hata; değer eski hâlinde.
 **Artboard'lar**
 - `08.16 · Configuration · Custom fields · Default · 1440`
 - `08.16 · Configuration · Custom fields · Add Single select · 1440`
-- `08.16 · Configuration · Custom fields · Empty · 1440`
 
 ### Tanım listesi
 Mevcut özel alan tanımları.
@@ -641,13 +670,13 @@ Ad, tür, seçim türlerinde seçenekler, kayıt türleri.
 
 ### Durumlar
 #### Empty
-`No Custom fields yet.` ve `Add custom field` formu.
+Artboard'sızdır. `No Custom fields yet.` ve `Add custom field` formu.
 #### Loading
 `Loading Custom fields…`
 #### Error
 `Custom fields could not be loaded. Try loading this page again.`; `Custom field could not be created.`; `Check the form.`
 #### Impact preview
-Etkilenen kayıt sayısı ve değerlerin silinmeyip gizleneceği/boşalacağı.
+Tanımı çöpe taşıma, tür bağını kaldırma veya seçenek silme öncesi etkilenen kayıt sayısı: çöpteki tanımın değerleri silinmez, gizlenir; tür bağı kaldırılınca değerler saklanır; silinen seçeneği kullanan değerler boşalır.
 
 **Spec:** [10 Custom Fields](../../specs/10-custom-fields/spec.md), [07 Project Shell](../../specs/07-project-shell/spec.md) (host).
 
@@ -701,7 +730,9 @@ Ad, adım listesi, adım ekleme.
 <details>
 <summary>Label'lar</summary>
 
-`Record Action`, `Edit Record Action`, `Name`, `Steps`, `Work status`, `Daily Focus`, `Related Work`, `Custom field`, `Add`, `Remove`, `No change`, `Ask when running`, `Add at run time`, `Remove at run time`, `True`, `False`, `Save`, `Save changes`, `Cancel`; boş `No active Custom fields are available for Work.`
+`Record Action`, `Edit Record Action`, `Name`, `Steps`, `Work status`, `Daily Focus`, `Related Work`, `Custom field`, `Add`, `Remove`, `No change`, `Ask when running`, `Add at run time`, `Remove at run time`, `True`, `False`, `Save`, `Save changes`, `Cancel`; çalışma anı girdisi türleri `Date`, `Number`, `Select`, `Relation` (PRD 02); boş `No active Custom fields are available for Work.`
+
+`Record Action`, `Related Work`, `Ask when running` → spec 21 `English UI labels`; diğerleri PRD 02 sözlüğündedir. Çalıştırma önizlemesi (`Runtime inputs`, `Preview changes`, `Finalizing`) → `09`.
 
 </details>
 
@@ -721,7 +752,6 @@ Ad, adım listesi, adım ekleme.
 **Artboard'lar**
 - `08.19 · Configuration · Priority metrics · Default · 1440`
 - `08.19 · Configuration · Priority metrics · Add metric · 1440`
-- `08.19 · Configuration · Priority metrics · Permanent delete · 1440`
 
 ### Ölçüt listesi
 Tanımlı ölçütler ve etkinlik durumu. Görüşlü Başlangıç yapılandırması varsayılan kapalı bir `Evidence strength` ölçütü sunabilir; kurucu onu etkinleştirir ve kademeyi kendisi seçer.
@@ -743,7 +773,7 @@ Ad, kısa açıklama ve beş kademe açıklaması; not: "The five ranks stay sep
 #### Error
 `Priority metrics could not be loaded. Try loading this page again.`; `Priority metric could not be saved.`; `The Trash effect could not be loaded. Try again before moving this criterion.`
 #### Permanent delete
-→ `20.3 · Permanently Delete · Ready`.
+Artboard'sızdır → `20.3 · Permanently Delete · Ready` (`Type the Project name to confirm`).
 
 **Spec:** [20 Priority](../../specs/20-priority/spec.md).
 
@@ -751,12 +781,12 @@ Ad, kısa açıklama ve beş kademe açıklaması; not: "The five ranks stay sep
 > Board ve List'in ortak kayıtlı sıralamasını, odak eşiğini ve `Long in the same status` eşiğini ayarlamak.
 
 **Artboard'lar**
-- `08.20 · Configuration · Saved views · 1440`
-_Ayrı artboard yok._
+- `08.20 · Configuration · Saved views · Default · 1440`
 
 ### Sıralama
-"Board and List use the same saved sort. Focus threshold is a visual signal and never blocks a Work status move."
+"Board and List use the same saved sort. Focus threshold is a visual signal and never blocks a Work status move." Varsayılan `Work number` artan.
 - **Label'lar:** `Sort by` (`Work number`, `Title`, `Created`, `Updated`, `Reappear date`), `Sort direction` (`Ascending`, `Descending`).
+- **Spec etiketleri:** sıralama ve `Focus threshold` → spec 25; `Long in the same status`, `Save Long in the same status` → spec 36 #296; `Saved views` → spec 07 (günlük `Planning` eylemi değildir); `Save Focus threshold` → PRD 02 sözlüğü.
 
 ### Focus threshold
 Odak eşiği alanı.
@@ -768,7 +798,7 @@ Odak eşiği alanı.
 
 ### Durumlar
 #### Invalid value
-Kaydet pasif.
+Kaydet pasif. `Long in the same status` 1–10000 dışında veya tam sayı değilse kaydedilmez; boş değer eşiği kapatır.
 #### Error
 Taslak korunur, hata satırı.
 
@@ -783,15 +813,16 @@ Taslak korunur, hata satırı.
 - `08.21 · Configuration · Work Context Card layout · Add custom section · 1440`
 
 ### Bölümler
-"Configure the same Work Context Card presentation for every Work of a" (türü); seçili türün hazır bölümleri, `Show`/`Hide`, yukarı/aşağı.
+"Configure the same Work Context Card presentation for every Work of a selected type. Work fields, relations, status semantics, and evidence stay unchanged."; seçili türün hazır bölümleri, `Show`/`Hide`, yukarı/aşağı. Düzen Başlangıç yapılandırmasına göre değişmez; gizli bölüm eksik sayılmaz.
 - **Label'lar:** `Work type`, `Sections`, `Prepared section`, `Show`, `Hide`, `Preview`.
 
 ### Layout preview
 Etkilenen türler ve bölüm farkı.
-- **Label'lar:** `Layout preview`, `Confirm`, sonra makbuzda `Undo`.
+- **Label'lar:** `Layout preview`, `Confirm`, sonra makbuzda `Undo` (yalnız düzeni geri alır).
+- **Spec etiketleri:** spec 16 bu yapılandırma yüzeyi için label vermez; `Work Context Card layout` → spec 07; bu ekrandaki diğer label'lar PRD 02 sözlüğündedir.
 
 ### Add custom section
-Desteklenen kaynaktan özel bölüm tanımı; not "Only records reachable from the open Work through the selected catalog".
+Desteklenen kaynaktan özel bölüm tanımı; not "Only records reachable from the open Work through the selected catalog condition are shown." Serbest sorgu, formül veya grafik yoktur.
 - **Label'lar:** `Add custom section`, `Section name`, `Record type`, `Relation`, `Evidence Role`, `Status condition` (`Any status`), `Condition`.
 - `Relation` seçenekleri kapalı doğrudan ilişki kataloğudur → `20.10`; `Evidence Role` seçenekleri → `12.10`. `Record type` seçenekleri canlı kaynak kümesidir (Work Context spec, issue 03). Not: `Supports` ne ilişki ne rol etiketidir; kullanılmaz.
 
@@ -807,36 +838,40 @@ Desteklenen kaynaktan özel bölüm tanımı; not "Only records reachable from t
 > `Reappear date` geldiğinde bu Proje için bildirim üretilip üretilmeyeceğini seçmek (varsayılan kapalı).
 
 **Artboard'lar**
-- `08.22 · Configuration · Backlog · 1440`
-_Ayrı artboard yok._
+- `08.22 · Configuration · Backlog · Default · 1440`
 
 ### Bildirim
 "Choose whether this Project sends a signal when Work reaches its Reappear date."
 - **Label'lar:** `Notify on Reappear date`.
+- **Spec etiketleri:** `Notify on Reappear date` → spec 26 `English UI labels`. Açık seçim `reappear-date` sinyalini `Action Required` bölümünde üretir (→ `00.5`).
 
 ### Durumlar
 #### On
-Onay kutusu işaretli.
+Onay kutusu işaretli. Açmadan önce geçmiş `Reappear date` değerleri için geriye dönük sinyal üretilmez.
 #### Error
 Kayıt yazılamazsa onay kutusu eski hâline döner, hata satırı.
 
 **Spec:** [26 Backlog](../../specs/26-backlog/spec.md).
 
-## 08.23 · Configuration · Automation rules
+## 08.23 · Automation rules
 > Kapalı katalogdan tetikleyici, koşul ve eylem kuralları tanımlamak, açıkça etkinleştirmek, dry run ile önizlemek ve hazır PR-merge kuralını yönetmek.
 
 **Artboard'lar**
-- `08.23 · Configuration · Automation rules · Default · 1440`
-- `08.23 · Configuration · Automation rules · Dry run · 1440`
-- `08.23 · Configuration · Automation rules · Conflict · 1440`
+- `08.23 · Automation rules · Default · 1440`
+- `08.23 · Automation rules · Dry run · 1440`
+- `08.23 · Automation rules · Conflict · 1440`
+
+Proje düzeyi yüzeydir; Configuration Mode host'u değildir (spec 07 host listesi).
 
 ### Kural listesi
 Hazır kurallar üstte; her kuralda ad, etkin/kapalı, son tanım sürümü. Yaşam eylemleri ortak yapılandırma etiketleridir (08.16/08.19 ile aynı).
 - **Label'lar:** `When required PRs merge, mark Work Completed`, `Enabled`, `Disabled`, `Enable`, `Disable`, `Edit`, `Move to Trash`.
+- **Spec etiketleri:** `When required PRs merge, mark Work Completed` → spec 62; form, dry run, tanım geçmişi ve çatışma metinleri PRD 02 sözlüğündedir. Otomasyonla `Completed` olan İşte Bitiriş efekti çalışmaz. Yapı kopyalama kuralları taşımaz (→ `08.25`).
 
 ### Automation rule Trash
 Çöpteki kurallar; `Restore`, `Permanently Delete` (→ `20.3 · Permanently Delete`). Not: `A rule in Trash does not run.`
 - **Label'lar:** `Automation rule Trash`, `Restore`, `Permanently Delete`.
+- **Spec etiketleri:** `Automation rule Trash` → PRD 02 sözlüğü (`08.19`'daki `Priority metric Trash` kalıbı).
 
 ### Kural formu
 Tetikleyici, isteğe bağlı koşullar, eylem — hepsi kapalı listeden; JS, HTTP veya genel GitHub olayı yok. Hazır PR-merge kuralında açıklama: en az bir `Required for completion` PR ve hepsi merge olunca kapanış `Completed`; kural kapalıyken yalnız `Mark as Completed` önerisi.
@@ -874,20 +909,22 @@ Kaynak kayıt değiştiğinde tek sonuç bildirimi ve 10 saniyelik geri alma (�
 **Artboard'lar**
 - `08.24 · Build in Public · Settings · 1440`
 - `08.24 · Build in Public · Review publish diff · 1440`
-- `08.24 · Build in Public · Unresolved placeholders · 1440`
 - `08.24 · Build in Public · Disabled · 1440`
 - `08.24 · Build in Public · Unpublish confirm · 1440`
 
+Proje düzeyi yüzeydir; Configuration Mode host'u değildir (spec 07 host listesi).
+
 ### Durum ve etkinleştirme
 Etkinleştirme ve yayın durumu (son onaylı revizyon, `Unpublished changes`).
-- **Label'lar:** `Build in Public`, `Unpublished changes`, `Review publish diff`, `Public`, `Private`; yayın durumu `Published`, `Disabled`; açma eylemi `Enable Build in Public`
+- **Label'lar:** `Build in Public`, `Unpublished changes`, `Review publish diff`, `Public`, `Private`; yayın durumu `Published`, `Disabled`; açma eylemi `Enable Build in Public`.
+- **Spec etiketleri:** `Build in Public`, `Planned`, `In Progress`, `Completed`, `Released`, `Public Status Label`, `Public title`, `Public summary`, `Unpublished changes`, `Explain the change`, `Review publish diff`, `Publish/share anyway` → spec 75 `English UI labels`; `Public` / `Private` mevcut; `Enable Build in Public`, `Publish`, `Suggested: Released`, `Use Released`, `Featured until` → PRD 02 sözlüğü; `Featured record` → `CONTEXT.md`. Görüntülenme sayacı yoktur.
 - **Yayın eylemleri:** birincil `Publish` (bu onaylı revizyonu yayımlar; analog `Publish Wiki Document`) ve `Cancel`; yayındayken `Unpublish` (`Unpublish` ve `Publish` PRD 02'de tanımlı; spec 74/76).
 - **Unpublish onayı:** → `20.4 · Yayın ayarları`; Build in Public'e özgü sonuç: iç Roadmap silinmez; ziyaretçi `410 Gone` davranışı → `19.9`; satır yaşam döngüsü (`Change expiry`, `Reactivate`, `Unpublish`) → `02.13`.
 
 ### Public Status Label eşlemesi
 İç durum → herkese açık etiket tablosu.
 - **Label'lar:** `Public Status Label`, `Planned`, `In Progress`, `Completed`, `Released`.
-- **Eşleme satırları:** `Not Started` → `Planned`; `In Progress` → `In Progress`; `Closed` + `Completed` → `Completed`; `Blocked` → etiket seçilmedi, yayımlanmaz; `Closed` + `Abandoned` → etiket seçilmedi, yayımlanmaz. Yayımlanmış Proje Sürümü üyesi İşte öneri `Suggested: Released` ve kabul eylemi `Use Released`; kabul edilene kadar snapshot değişmez.
+- **Eşleme satırları:** `Not Started` → `Planned`; `In Progress` → `In Progress`; `In Review` → `In Progress`; `Closed` + `Completed` → `Completed`; `Blocked` → etiket seçilmedi, yayımlanmaz; `Closed` + `Abandoned` → etiket seçilmedi, yayımlanmaz. Yayımlanmış Proje Sürümü üyesi İşte öneri `Suggested: Released` ve kabul eylemi `Use Released`; kabul edilene kadar snapshot değişmez. `In Review` iç durum adıdır; Public Status Label olarak yeniden kullanılamaz.
 
 ### Roadmap İşleri
 Seçili İşlerde Roadmap İşine ait `Public title`, `Public summary` (o İşin herkese açık satırı; aşağıdaki Proje yayını çiftinden bağımsız), hedef tarih sunumu.
@@ -895,7 +932,7 @@ Seçili İşlerde Roadmap İşine ait `Public title`, `Public summary` (o İşin
 
 ### Yayın başlığı, özeti ve adresi
 Proje yayınına ait `Public title`/`Public summary`: Proje görünümü, Roadmap indeksi ve changelog indeksi için üç ayrı çift; alanlar yüzeyler arasında miras almaz ve yukarıdaki Roadmap İşi çiftinden farklıdır. Ziyaretçi tarafı bu çiftleri `19.5`'ten okur; `19.x` yeniden listelemez.
-- **Yayın ayarları** (`Address`, adres çakışması, `Redirect preview`, `Allow indexing`) → `20.4 · Yayın ayarları`; Build in Public'e özgü delta bu ekranda: üç yüzey çifti ve `Featured`.
+- **Yayın ayarları** (`Address`, adres çakışması, `Redirect preview`, `Enable indexing`) → `20.4 · Yayın ayarları`; Build in Public'e özgü delta bu ekranda: üç yüzey çifti ve `Featured record`.
 
 ### Proje görünümü üyeleri
 Onay kutulu liste; yalnız onaylı Roadmap, İş, Belge, tasarım, Karar ve seçili Proje Duvarı anlık görüntü üyeleri. Proje Duvarı için kart, kesin Dosya Eki sürümü, yerleşim, grup başlığı, görsel çizgi, görünüm metni, odak sırası, renk, kırpma/döndürme/işaretleme ve canlı koleksiyon bloğu ayrı satır (→ `20.4 › Kapsam önizlemesi`). Onaysız satır varsayılan seçili değildir.
@@ -910,8 +947,8 @@ Alanlar, durum eşlemeleri, üstveri, ekler, gömülüler, seçili Proje Duvarı
 - **Label'lar:** `Review publish diff`, `Explain the change`, `Publish/share anyway`, `Open source record`.
 
 ### Öne çıkarılan kayıt ve indeksleme
-En fazla bir önceden onaylı Proje Sürümü veya Karar, bitiş zamanıyla (varsayılan kapalı). İndeksleme (`Allow indexing`, `noindex` varsayılanı, geri alınamazlık uyarısı) → `20.4 · Yayın ayarları`.
-- **Label'lar:** `Featured` (bölüm başlığı ve seçici); `Featured until`
+En fazla bir önceden onaylı Proje Sürümü veya Karar, bitiş zamanıyla (varsayılan kapalı). İndeksleme (`Enable indexing`, `noindex` varsayılanı, geri alınamazlık uyarısı) → `20.4 · Yayın ayarları`.
+- **Label'lar:** `Featured record` (bölüm başlığı ve seçici), `Featured until`.
 
 ### Gözden geçirme aralığı
 İsteğe bağlı: 7 ile 180 arasında tam gün sayısı. Aralık girilmeden `public-roadmap-review-due` sinyali üretilmez; aralık başına en fazla bir sinyal, yalnız herkese açık etiketli aktif kayıtlar için. Sinyal iç durumu, herkese açık etiketi ve yayın snapshot'ını değiştirmez.
@@ -919,7 +956,7 @@ En fazla bir önceden onaylı Proje Sürümü veya Karar, bitiş zamanıyla (var
 
 ### Durumlar
 #### Settings
-Varsayılan ayarlar görünümü: Durum ve etkinleştirme, `Public Status Label` eşlemesi, Roadmap İşleri, yayın başlığı/özeti/adresi, üye listeleri, `Featured`, gözden geçirme aralığı.
+Varsayılan ayarlar görünümü: Durum ve etkinleştirme, `Public Status Label` eşlemesi, Roadmap İşleri, yayın başlığı/özeti/adresi, üye listeleri, `Featured record`, gözden geçirme aralığı.
 #### Disabled
 Build in Public kapalı, tek açıklama ve açma eylemi.
 #### Unpublished changes
@@ -931,7 +968,7 @@ Build in Public kapalı, tek açıklama ve açma eylemi.
 #### Unpublish confirm
 Yukarıdaki `Unpublish` onayı penceresi (etkisi bir kez yukarıda yazılıdır); `Cancel` ile dönülür.
 #### Unresolved placeholders
-Liste ve `Publish/share anyway` onayı → `20.4 · Yer tutucu kontrolü` (aynı çizim; yeniden tarif edilmez).
+Artboard'sızdır. Liste ve `Publish/share anyway` onayı → `20.4 · Yer tutucu kontrolü` (aynı çizim; yeniden tarif edilmez).
 #### Error
 Yayın yazılamazsa önizleme açık kalır, hata satırı; son onaylı revizyon değişmez.
 
@@ -989,7 +1026,6 @@ Revizyon bariyeri: başka değişiklik olduysa `Conflict` / `Current value` (→
 
 **Artboard'lar**
 - `08.27 · Archive view · Default · 1440`
-- `08.27 · Archive view · Empty · 1440`
 
 ### Arşivli Projeler
 Arşivli Proje satırları: Proje adı, yaşam durumu (`Active`, `Pending`, `Completed`, `Abandoned`; değişmez), yaşayan Dış yüzey sayısı, açık güvenlik eylemi sayısı; satır eylemleri `Unarchive`, `Delete Project`; satır ayrıntıyı açar. `Archive` eylemi buradan değil Proje başlığından başlar (→ 08.1, 08.26).
@@ -1000,7 +1036,7 @@ Yaşayan Dış yüzeyler kaynak durumlarıyla; erişimi azaltan güvenlik eyleml
 
 ### Durumlar
 #### Empty
-Arşivde Proje yok.
+Artboard'sızdır. `No archived Projects.`
 #### Restored from Trash
 Çöp Kutusundan geri yüklenen Proje burada `Active` değil Arşivde, yayınları kapalı olarak görünür.
 
@@ -1015,7 +1051,7 @@ Arşivde Proje yok.
 
 ### Önizleme
 (Artboard: `Preview`.) Silinecek grup (Proje ve ona kanonik ait kayıtlar, bileşenler, Dış yüzeyler); hemen terminal iptal edilecek Proje kapsamlı Dış yüzeyler ve ziyaretçi oturumları; duracak entegrasyonlar; başka kapsamlarda yaşayıp silinmiş hedef işareti gösterecek ilişkiler; Çalışma Alanı, Hesap ve Kişisel Wiki kayıtlarının silinmeyeceği; geri yüklemenin Arşive döneceği ve hiçbir yüzeyi yeniden yayımlamayacağı. `Keep approved surface` seçeneği yoktur.
-Bu önizleme içeriğinin sahibi burasıdır; `20.2 · Project delete group` yalnız bu önizlemeye bağlanır.
+Bu önizleme içeriğinin sahibi burasıdır; `20.2` › Grup silme bağlamı (artboard `20.2 · Move to Trash · Project delete group · 1440`) yalnız bu önizlemeye bağlanır.
 - **Label'lar:** `Delete Project`, `Cancel`.
 
 ### Durumlar

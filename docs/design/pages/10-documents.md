@@ -24,12 +24,11 @@ Projenin `Documents` alanı: Belge listesi, editör, sürümler, şablonlar ve S
 
 **Artboard'lar**
 - `10.1 · Documents · Default · 1440`
-- `10.1 · Documents · Default · 768`
 - `10.1 · Documents · Empty · 1440`
 - `10.1 · Documents · Archived filter · 1440`
 
 ### Alan başlığı
-Alan adı, `Archived` süzgeci, `Create Document`, Belge içe aktarma girişi, etikete göre süzme ve alt görünüm girişi. `Import` tek Markdown dosyasını bu Projenin Belgesi olarak içe aktarır; yanında `One file · one type · one scope` notu görünür, hedef kapsam bu Proje olarak önceden dolar ve diyalog → `20.6 · Import`. Hesap kapanma dondurmasında `Import` kapalıdır ve nedeni yazılıdır (→ `20.6` Kapanış dondurması). `Filter by tag` Belge listesini Çalışma Alanı Etiket kimliğiyle daraltır (→ `08.11 · Tags`); bir Belge bu süzgeçten açılınca editör eşleşen etiket tokenının konumuna odaklanır (konumu Belge çözer, Etiket özelliği gövdeyi çözümlemez). `Spec Change Review` alt görünümü Projenin açık spec değişikliği incelemelerini açar (→ `10.16 · Spec Change Review`).
+Alan adı, `Archived` süzgeci, `Create Document`, Belge içe aktarma girişi, etikete göre süzme ve alt görünüm girişi. `Import` tek Markdown dosyasını bu Projenin Belgesi olarak içe aktarır; yanında `One file · one type · one scope` notu görünür, hedef kapsam bu Proje olarak önceden dolar ve diyalog → `20.6 · Import`. Hesap kapanma dondurmasında `Import` kapalıdır ve nedeni yazılıdır (→ `20.6 › Kapanış dondurması`). `Filter by tag` Belge listesini Çalışma Alanı Etiket kimliğiyle daraltır (→ `08.11 · Tags`); bir Belge bu süzgeçten açılınca editör eşleşen etiket tokenının konumuna odaklanır (konumu Belge çözer, Etiket özelliği gövdeyi çözümlemez). `Spec Change Review` alt görünümü Projenin açık spec değişikliği incelemelerini açar (→ `10.16 · Spec Change Review`).
 - **Label'lar:** `Documents`, `Archived`, `Create Document`, `Import`, `Filter by tag`, `Spec Change Review`.
 
 ### Belge gezinmesi
@@ -41,7 +40,7 @@ Sağ kolonda tek satır boş durum.
 - **Label'lar:** `Select a Document.`
 
 ### Project File Attachments (Documents alanında)
-Gezinmenin altında Projenin kapsamındaki `Project File Attachments` bölgesi; Dosya Eki Belge ya da global havuz değildir. Bölge gövdesi ortak `File Attachments` bileşenidir (→ `20.13 · File Attachment Viewer`). Satırda eki sahiplenen Belge görünür; sahiplik `Assign File Attachments` ile kurulur (→ `10.10`). Örnek: `etiquette-survey.csv` → `Late-payment etiquette notes`. Luma ekleri: `gmail-alias-bounce.png`, `stripe-webhook-log.txt`, `etiquette-survey.csv`, `beta-onboarding.mp4`, `ferry-assets.zip`.
+Gezinmenin altında Projenin kapsamındaki `Project File Attachments` bölgesi; Dosya Eki Belge ya da global havuz değildir. Bölge gövdesi ortak `File Attachments` bileşenidir (→ `20.13 · File Attachment Viewer`). Satırda eki sahiplenen Belge görünür; sahiplik `Assign File Attachments` ile kurulur (→ `10.10`). Örnek: `etiquette-survey.csv` → `Late-payment etiquette notes`. Luma ekleri: `gmail-alias-bounce.png`, `stripe-webhook-log.txt`, `etiquette-survey.csv`, `beta-onboarding.mp4`.
 - **Label'lar:** `Project File Attachments`, `File Attachments`, `Assign File Attachments`, `No File Attachments are available in this Project yet.` (boş durum).
 
 ### Durumlar
@@ -66,7 +65,7 @@ Uzun klasör listesi ve üç seviye girinti; uzun başlıklar satırda kırılı
 **Artboard'lar**
 - `10.2 · Document Editor · Write · 1440`
 - `10.2 · Document Editor · Write · 768`
-- `10.2 · Document Editor · Write · Dark · 1440`
+- `10.2 · Document Editor · Write · Light · 1440`
 - `10.2 · Document Editor · Markdown · 1440`
 - `10.2 · Document Editor · Preview with live blocks · 1440`
 - `10.2 · Document Editor · Broken live content · 1440`
@@ -115,6 +114,8 @@ Aynı gövdenin düzenlenebilir kaynağı ve kaynağa ekleme denetimleri: kayıt
 
 </details>
 
+- **Convert to Technical Diagram:** Önizleme, `Keep independent` / `Replace with live reference` seçimi ve `Imported Independent Copy` sonucu → `14.6 · Convert to Technical Diagram` (label'lar orada). Bu ekrana özgü: başarılı onaydan sonra Belgede oluşturulan Teknik Diyagramın başlığı ve kesin kimliğine `Open source record` bağlantısı görünür; başarısız onayda bağlantı görünmez. `Keep independent` kaynak bloğu olduğu gibi bırakır; `Replace with live reference` o bloğu Teknik Diyagram canlı bloğuna çevirir (→ Önizleme ve canlı bloklar). `Technical Diagrams` bağlantısı Belge yeniden açıldığında da Markdown görünümünde kalır.
+
 ### Önizleme (`Preview`) ve canlı bloklar
 İşlenmiş Markdown; Mermaid diyagramı, KaTeX formülü, renkli kod. Canlı bloklar kopya değil, kaynağı gösteren sınırlı kartlardır:
   - `Live Work block`: anahtar, başlık, tür, durum, öncelik, planlanan başlangıç/hedef tarihi; `Change status`, `Close`, `Open source record`.
@@ -160,6 +161,9 @@ Seçili Belge açılırken `Loading…`; İçindekiler ve sürümler iskeletle b
 `Preview` sekmesinde canlı Work bloğu, canlı bölüm ve Mermaid diyagramı birlikte.
 #### Kırık canlı içerik
 Silinmiş bölüm: `This section is missing.`; erişilemeyen kayıt: `Source record is unavailable.`; işlenemeyen Mermaid/LaTeX: hata satırı ve kaynak metin korunur. Eski içerik gösterilmez.
+#### Döngü reddi
+Bir `Read-only live section` kendi Belgesine dolaylı olarak geri dönüyorsa ekleme uygulanmadan reddedilir ve gövde değişmez (spec 31).
+- **Label'lar:** `Live Document sections cannot contain a cycle.`
 #### Find and replace açık
 Panel editör üstünde; eşleşme sayısı ve gruplu önizleme.
 #### Focus Mode
@@ -176,6 +180,8 @@ Bayat tabanla kayıt: editör üstünde kalıcı `Conflict Draft` toast'ı (→ 
 Arşivli kayıt davranışı → `DS.11 › Durumlar` (sessiz arşiv işareti, `Unarchive`, içerik düzenlenebilir kalır). Belge arşivi yalnız gezinme durumudur (spec 31); yazma eylemlerini gizleyen `In Trash` kayıt durumundan ve Arşivli Projeden (`20.21`) ayrıdır.
 #### Arşivli Proje
 Ferry: bant ve salt okunur metni → `20.21 · Archived Read-only Banner`; yönetim eylemleri yok.
+#### 768
+`Write · 768` artboard'ı: araç çubuğu tek satırda yatay kayar ve sonunda `Swipe for more formatting tools →` ipucu görünür.
 #### Long content
 Uzun spec: İçindekiler yapışkan kalır; geniş tablo yatay kaydırılır, kod bloğu kendi içinde kaydırılır.
 #### Closure Summary
@@ -226,7 +232,6 @@ Proje kabuğunun kataloğunda seçili iskeletler `Starter skeleton` listesinde g
 
 **Artboard'lar**
 - `10.4 · Document Versions · Compare · 1440`
-- —
 
 ### Sürüm listesi
 Sürümler yeniden eskiye; her satırda sürüm numarası, kayıt zamanı, başlık ve tür.
@@ -256,7 +261,7 @@ Yalnız `Version 1`; karşılaştırma boş ve açıklamalı.
 
 ### Conflict Drafts
 Bu Belgenin çözülmemiş taslakları; taslağın geçmişte, aramada, paylaşımda, yayında ve exportta yer almadığı açıklaması.
-- **Label'lar:** `Conflict Drafts`, `Conflict Draft`, `Compare`, `Rejected text is not part of Document history, search, share, publish, …`
+- **Label'lar:** `Conflict Drafts`, `Conflict Draft`, `Compare`, `Rejected text is not part of Document history, search, share, publish, or export until resolved.`
 
 ### Karşılaştırma ve sonuç
 Gövde ve başlık farkı; kurucunun düzenlediği birleşik sonuç.
@@ -290,7 +295,7 @@ Güncel olmayan bir Belge yazmasında metin korunur ve kalıcı bir toast (kapat
 
 ### Şablon listesi
 Hazır `Personal Review` (iskeleti: `Period`, `What changed?`, `What worked?`, `What was difficult?`, `Decisions and learnings`, `What will I change next?`, `Related records`) ve kapsamdaki kullanıcı şablonları; açıklama satırı şablonların isteğe bağlı olduğunu ve Belgelerin kendi kimliğini taşıdığını söyler.
-- **Label'lar:** `Document Templates`, `Document Template`, `Personal Review`, `Add Document Template`, `Edit Document Template`, `Create from template`, `Select a Document Template.`, `Templates are optional. Each Document has its own identity and never …`
+- **Label'lar:** `Document Templates`, `Document Template`, `Personal Review`, `Add Document Template`, `Edit Document Template`, `Create from template`, `Select a Document Template.`, `Templates are optional. Each Document has its own identity and never follows later template changes.`
 
 ### Şablon dialog'u
 Ad, tür ve `Skeleton` gövdesi; dialog.
@@ -317,7 +322,6 @@ Dialog ve taslak açık kalır, erişilebilir hata gösterilir.
 
 **Artboard'lar**
 - `10.7 · Convert to template · Preview · 1440`
-- —
 
 ### Önizleme (`Preview`)
 Kaynak `Version`, düzenlenebilir iskelet (kayıt referansları okunur düz metne dönmüş, canlı bloklar çıkarılmış), algılanan `{{field_name}}` yer tutucuları.
@@ -336,7 +340,6 @@ Kaynak `Version`, düzenlenebilir iskelet (kayıt referansları okunur düz metn
 
 **Artboard'lar**
 - `10.8 · Create Document from template · Default · 1440`
-- —
 
 ### Form
 `Title`, her yer tutucu için bir alan; açıklama yeni Belgenin bağımsız olduğunu söyler.
@@ -358,7 +361,7 @@ Hata metni ve korunmuş girdiler.
 
 ### Alanlar
 Klasör ve üst Belge seçimleri.
-- **Label'lar:** `Organize Document`, `Folder`, `Parent Document`, `No Parent Document`, `Preview`, `Cancel`, `Preview changes in the same Project. Document identity, content, and …`
+- **Label'lar:** `Organize Document`, `Folder`, `Parent Document`, `No Parent Document`, `Preview`, `Cancel`, `Preview changes in the same Project. Document identity, content, and child links are preserved.`
 
 ### Etki önizlemesi
 Etkilenen torunlar; çocukların kendi bağ, klasör ve arşiv durumunu koruduğu açıklaması.
@@ -395,13 +398,13 @@ Etkilenen torunlar; çocukların kendi bağ, klasör ve arşiv durumunu koruduğ
 <details>
 <summary>Label'lar</summary>
 
-`Move Document`, `Copy Document`, `Target scope`, `Personal Wiki`, `Child Documents`, `Version`, `File Attachments`, `Assign File Attachments`, `Preview`, `Apply`, `Cancel`, `Preview before Apply.`, `Copy creates a new identity with source origin, without history, …`, `Select File Attachments from this Project. Attachments already owned by …`
+`Move Document`, `Copy Document`, `Target scope`, `Personal Wiki`, `Child Documents`, `Version`, `File Attachments`, `Assign File Attachments`, `Preview`, `Apply`, `Cancel`, `Preview before Apply.`, `Copy creates a new identity with source origin, without history, children, File Attachments, relations or publication.`, `Select File Attachments from this Project. Attachments already owned by another Document cannot be reassigned.`
 
 </details>
 
 ### Önizleme
 Taşınacak Belgeler ve ekler, özel görünürlüğün korunduğu cümlesi, her kayıt referansı için kullanılabilirlik ve kaynak kapsamı, seçilmeyen çocukların kaynakta kalıp taşınan üstü kaybettiği açıklaması.
-- **Label'lar:** `File Attachments`, `Visibility remains account-only. No content becomes public.`, `Available`, `Unavailable`, `Record references retain their source scope and access requirements:`, `Unselected children remain in the source scope and lose a moved parent …`, `Copy origin`.
+- **Label'lar:** `File Attachments`, `Visibility remains account-only. No content becomes public.`, `Available`, `Unavailable`, `Record references retain their source scope and access requirements:`, `Unselected children remain in the source scope and lose a moved parent link.`, `Copy origin`.
 
 ### Durumlar
 #### Dış yüzey açık
@@ -424,11 +427,10 @@ Hedef kapsam `Personal Wiki` iken: `Target scope` varsayılanı `Personal Wiki`;
 
 **Artboard'lar**
 - `10.11 · Export Document · Preview · 1440`
-- —
 
 ### Seçim ve önizleme
 Seçimler üstte (sürüm, format), hazırlanmış statik önizleme altta.
-- **Label'lar:** `Export Document`, `Version`, `Format`, `Markdown`, `PDF`, `Preview`, `Download`, `Cancel`, `Preview before Download.`, `Live blocks become dated, read-only snapshots. No live external copy is …`, `PDF export does not guarantee tagged PDF or WCAG compliance. Markdown …`, `Source unavailable.`
+- **Label'lar:** `Export Document`, `Version`, `Format`, `Markdown`, `PDF`, `Preview`, `Download`, `Cancel`, `Preview before Download.`, `Live blocks become dated, read-only snapshots. No live external copy is created.`, `PDF export does not guarantee tagged PDF or WCAG compliance. Markdown is the accessible alternative.`, `Source unavailable.`
 
 ### Durumlar
 #### PDF uyarısı
@@ -443,7 +445,6 @@ Seçimler üstte (sürüm, format), hazırlanmış statik önizleme altta.
 
 **Artboard'lar**
 - `10.12 · Convert to record · Preview · 1440`
-- —
 
 ### Önizleme (`Preview`)
 Hedef türü, başlık, Proje, seçili metnin eşlendiği alan, kesin Belge sürümü.
@@ -465,11 +466,10 @@ Hata metni; hiçbir kayıt oluşmaz. Kişisel Wiki'de `A Project is required for
 
 **Artboard'lar**
 - `10.13 · Convert in bulk · Default · 1440`
-- —
 
 ### Satır adayları
 Her liste satırı ayrı İş adayı; seçim kutusu ve başlık. İş türü bu dialog'da seçilmez (spec 31 yalnız seçilen satırlardan hepsi-veya-hiçbiri İş oluşturmayı tanımlar).
-- **Label'lar:** `Convert in bulk`, `Choose saved list rows to create as Work. All selected rows and …`, `Cancel`.
+- **Label'lar:** `Convert in bulk`, `Choose saved list rows to create as Work. All selected rows and their version-pinned evidence are committed together.`, `Cancel`.
 
 ### Durumlar
 #### Kaydedilmemiş gövde
@@ -484,7 +484,6 @@ Hiçbir İş oluşmaz; yeniden açma istenir.
 
 **Artboard'lar**
 - `10.16 · Spec Change Review · Default · 1440`
-- `10.16 · Spec Change Review · Default · 768`
 - `10.16 · Spec Change Review · Empty · 1440`
 
 ### Kuyruk

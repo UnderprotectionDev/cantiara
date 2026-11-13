@@ -31,6 +31,8 @@ Tür grupları değil tek liste; her satır bir Teknik Diyagram kimliği: başl�
 ### Durumlar
 #### Empty
 Liste yerine tek cümle ve `New Technical Diagram`; örnek diyagram üretilmez.
+#### Loading
+Liste yerine tek yüklenme satırı: `Loading Technical Diagrams…`
 #### Error
 `Technical Diagram is unavailable.`
 #### Archived Project
@@ -46,8 +48,9 @@ Ferry: `New Technical Diagram` gizli; satırlar salt okunur editöre açılır.
 - `14.2 · New Technical Diagram · External Source Link · 1440`
 
 ### Alanlar
-Alanlar alt alta; `External Source Link` seçilince ek alan grubu açılır.
+Başlık, tür ve otorite kipi; `External Source Link` seçilince dış kaynak alanları (HTTPS URL, kaynak araç, isteğe bağlı bilinen revizyon) eklenir.
 - **Label'lar:** `New Technical Diagram`, `Title`, `Type`, `Technical Architecture`, `Data Model`, `Technical Sequence`, `Diagram Authority Mode`, `Product-authored Model`, `External Source Link`, `HTTPS URL`, `Source tool`, `Known revision (optional)`, `Create`.
+- **Seçilemeyen kipler:** `Repository-derived View` kapalı katalogdadır ama ilk üründe oluşturulamaz; seçici onu sunmaz (spec 59). `Imported Independent Copy` yalnız Mermaid dönüşümüyle (→ `14.6`) doğar; burada seçenek değildir.
 
 ### Durumlar
 #### Error
@@ -60,7 +63,6 @@ Alanlar alt alta; `External Source Link` seçilince ek alan grubu açılır.
 
 **Artboard'lar**
 - `14.3 · Technical Diagram Editor · Technical Architecture · 1440`
-- `14.3 · Technical Diagram Editor · Technical Architecture · 768`
 - `14.3 · Technical Diagram Editor · Data Model · 1440`
 - `14.3 · Technical Diagram Editor · Technical Sequence · 1440`
 - `14.3 · Technical Diagram Editor · External Source Link · 1440`
@@ -82,7 +84,7 @@ Türe göre kanonik model: Architecture `Nodes` + `Links`; Data Model `Tables` (
 </details>
 
 ### Tuval
-React Flow görünümü; düğüm konumları Diyagram Görünümü üstverisidir, model outline'dır. Yerleştirilmiş salt okunur kayıt kartları. Açıklama satırı. Zoom ve görünüm grubu (`Zoom in`, `Zoom out`, `Fit View`) ve kişisel viewport → `13.2`.
+React Flow görünümü; düğüm konumları Diyagram Görünümü üstverisidir, model outline'dır. Yerleştirilmiş salt okunur kayıt kartları. Açıklama satırı. Görünüm grubu (`Fit View` dahil), kişisel viewport, 768 katlanması ve durumları → `13.2` (sunum çerçevesi bu tuvalde yoktur).
 - **Label'lar:** `Technical Diagram canvas`, "Canvas view of the structured outline. Positions are saved on the Diagram View; the model is the outline. Your zoom, position and collapsed groups are personal and not part of the diagram."
 
 ### Edit structural model
@@ -122,7 +124,7 @@ Dışa aktarma bölgesi açık: kaynak seçimi, biçim seçimi ve önizleme meti
 #### Empty model
 Yeni diyagram: outline boş grup başlıkları, tuval boş, `Edit structural model` formları tek giriş.
 #### Loading
-Editör iskelet satırı yerine tek yüklenme metni.
+Editör iskelet satırı yerine tek yüklenme metni: `Loading Technical Diagram…`
 #### Error
 `Structural model could not be saved.`, `Element position could not be saved.`, `Diagram View could not be saved.`, `Diagram Version could not be created.`, `Diagram Version could not be restored.`, `The Technical Diagram changed after it was shown.`, `Your personal view could not be saved.`
 #### Data Model
@@ -207,17 +209,15 @@ Kaynak Belge ve revizyonu, blok konumu, hedef tür, köken ilişkisi, blok sonuc
 
 ### Durumlar
 #### Stale preview
-Belge veya seçim değiştiyse onay reddedilir, hiçbir şey yazılmaz; önizleme yenilenir.
+Belge, seçim veya blok sonucu değiştiyse onay reddedilir, hiçbir şey yazılmaz: `Preview the Mermaid conversion again.`
 #### Unsupported block
 Mermaid `flowchart` dışındaki blok türleri reddedilir, açıklama gösterilir.
 #### Error
-`Preview failed.`, `Conversion failed.`
+`Preview failed.`, `Conversion failed.`; blok seçilmeden açılırsa `No Mermaid block selected.`
 #### Kenar yok
 Dönüştürülebilir kenar yoksa onay kapalıdır.
 #### Sonuç
 Onaydan sonra editörde oluşan diyagramın adı ve `Open source record`; Markdown görünümünde `Technical Diagrams` bağlantısı görünür.
-#### Hata metinleri
-`Preview the Mermaid conversion again.`, `No Mermaid block selected.`
 
 **Spec:** [59](../../specs/59-technical-diagrams/spec.md); host Belge editörü [PRD 07](../../prd/07-documents-and-knowledge.md#uygulama-içi-markdown-belge-yönetimi).
 
@@ -232,7 +232,8 @@ Onaydan sonra editörde oluşan diyagramın adı ve `Open source record`; Markdo
 ### DDL taslağı başlığı
 Kaynak Diyagram Sürümü seçimi, model hash'i, generator sürümü, statik doğrulama sonucu, uyarı manifesti.
 - **Label'lar:** `Diagram Version`, `Statically Validated`, `Model hash`, `Generator version`, `Warning manifest`.
-- **Eylemler:** `Preview DDL` (sürüm seçildikten sonra üretim), `Copy DDL`, `Export .sql` (manifest eşlik eder); başarı `DDL copied.`, hata `DDL could not be generated.`.
+- **Eylemler:** DDL önizleme (sürüm seçildikten sonra üretim), DDL kopyalama, `Export .sql` (manifest eşlik eder); başarı `DDL copied.`, hata `DDL could not be generated.`
+- **Eylem label'ları:** `Preview DDL`, `Copy PostgreSQL DDL`, `Export .sql`.
 
 ### DDL
 Tam PostgreSQL DDL, sabit genişlikli kod bloğunda; bağımlılık sırasında. `CREATE EXTENSION` yoktur.
@@ -259,7 +260,6 @@ Sürümü olmayan Veri Modeli: önce `Diagram Version` oluşturma yönlendirmesi
 
 **Artboard'lar**
 - `14.8 · Schema Change Draft · Destructive, no Safe Down · 1440`
-- `14.8 · Schema Change Draft · Destructive, no Safe Down · 768`
 - `14.8 · Schema Change Draft · Safe Down available · 1440`
 - `14.8 · Schema Change Draft · Edited Up · 1440`
 - `14.8 · Schema Change Draft · Unsupported difference · 1440`
@@ -273,25 +273,26 @@ Kapalı katalogdan türlenmiş operasyonlar, faz sırasıyla; her satırda faz, 
 <details>
 <summary>Label'lar</summary>
 
-Yıkıcı operasyon adları spec'ten: `Drop table`, `Drop column`, `Narrow column type`, `Drop primary key`, `Drop foreign key`, `Drop unique constraint`, `Drop check constraint`, `Drop enum value`, `Drop enum type`, `Drop domain constraint`, `Drop domain`. 
-Sınıflar (PRD 11 sınıflarının İngilizce karşılığı): `Non-destructive`, `Potentially destructive`, `Unsupported`. Faz: `Phase <n>`. Satır etiketleri: `Existing data warning`, `Reverse data warning`, `Extension required`.
+Ters kanıt sağlamayan operasyon adları spec'ten: `Drop table`, `Drop column`, `Narrow column type`, `Drop primary key`, `Drop foreign key`, `Drop unique constraint`, `Drop check constraint`, `Drop enum value`, `Drop enum type`, `Drop domain constraint`, `Drop domain`. Bunlardan `Drop enum value` PRD 11'de `Unsupported` sınıfındadır (→ Durumlar › Unsupported difference); diğerleri `Potentially destructive`'dir.
+Sınıflar (PRD 02): `Non-destructive`, `Potentially destructive`, `Unsupported`. Faz: `Phase <n>`. Satır etiketleri: `Existing data warning`, `Reverse data warning`, `Extension required`.
 
-`Non-destructive` operasyonlar (PRD 11 sırası): `Create table`, `Rename table`, `Add column`, `Rename column`, `Widen column type`, `Relax nullability`, `Tighten nullability`, `Add or change default`, `Drop default`, `Add primary key`, `Add foreign key`, `Change referential action`, `Add unique constraint`, `Add check constraint`, `Add index`, `Drop index`, `Create enum type`, `Add enum value`, `Rename enum value`, `Create domain`, `Add domain constraint`. `Unsupported`: `Free-form type conversion`, `Unsupported schema object`, `Data operation`. Enum değeri kaldırma spec label'ı `Drop enum value` olarak kalır.
+`Non-destructive` operasyonlar (PRD 02, PRD 11 sırası): `Create table`, `Rename table`, `Add column`, `Rename column`, `Widen column type`, `Relax nullability`, `Tighten nullability`, `Add or change default`, `Drop default`, `Add primary key`, `Add foreign key`, `Change referential action`, `Add unique constraint`, `Add check constraint`, `Add index`, `Drop index`, `Create enum type`, `Add enum value`, `Rename enum value`, `Create domain`, `Add domain constraint`.
+`Unsupported` farklar: `Free type conversion`, `Catalog-outside schema object`, `Schema-outside data operation`, `Drop enum value`; liste başlığı `Unsupported differences`.
 
 </details>
 
 ### Up SQL
 Generator çıktısı ve kurucu düzenlemesi ayrı gösterilir (fark görünümü); düzenlenmiş metin yeniden statik doğrulanır. Veri SQL'i ve katalog dışı operasyon reddedilir.
-- **Label'lar:** `Statically Validated`, `Generated Up SQL`, `Your edit`, `Edited Up`, `Revalidate`.
+- **Label'lar:** `Statically Validated`, `Revalidate`, `Generator output vs your edit` (fark görünümü), `Edit Up SQL` (kurucu düzenlemesi), `Edited Up SQL` (düzenlenmiş Up işareti), `Discard edit`.
 
 ### Down
 Bütün operasyonlar yıkıcı değil ve ters yön iki sürümden tam belirleniyorsa Güvenli Down SQL'i; aksi halde Down yoktur.
-Kurucu düzenlemesi geçerli olsa bile `Edited Up` Down'ı düşürür: Down'ın tersi iki sürümden artık tam belirlenmez. Yıkıcı olmayan `Add enum value` de ters yönü ifade edilemediği için Down'ı düşürür. Nedeni uyarı manifestinde adlandırılan öğeyle gösterilir; kısmi Down yoktur.
+Kurucu düzenlemesi geçerli olsa bile düzenlenmiş Up Down'ı düşürür: Down'ın tersi iki sürümden artık tam belirlenmez. Yıkıcı olmayan `Add enum value` de ters yönü ifade edilemediği için Down'ı düşürür. Nedeni uyarı manifestinde adlandırılan öğeyle gösterilir; kısmi Down yoktur.
 - **Label'lar:** `Safe Down could not be produced`.
 
 ### Uyarı manifesti ve onay
 Yıkıcı uyarılar, mevcut veri uyarıları, ters yön veri uyarısı, extension gereksinimi, Down'ı düşüren operasyon.
-- **Label'lar:** `Migration Artifact`, onay `Confirm Schema Change` (`Migration Artifact` oluşturur), vazgeç `Cancel`.
+- **Label'lar:** `Migration Artifact`, `Confirm Migration Artifact`, `Cancel`.
 
 ### Durumlar
 #### Safe Down available

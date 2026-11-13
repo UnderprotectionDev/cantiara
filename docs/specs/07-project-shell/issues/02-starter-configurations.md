@@ -1,6 +1,6 @@
 # 02 — Başlangıç yapılandırmaları
 
-**What to build:** `Blank Project`, `Solo SaaS`, `Open Source Library` ve `Mobile Application` aşağıdaki tabloyu oluşturmada bir kez uygular. Dört korunan İş durumu kurulur; `Overview`, `Work`, `Documents` ve `All Tools` erişilir kalır. Örnek kayıt üretilmez. Seçim sonradan başka yapılandırmayla yeniden uygulanmaz. Blank diğer yetenekleri kapatmaz, yalnız kurmaz. İsteğe bağlı kapatılabilir ilk-açılış açıklaması tur zorlamaz.
+**What to build:** `Blank Project`, `Solo SaaS`, `Open Source Library` ve `Mobile Application` aşağıdaki tabloyu oluşturmada bir kez uygular. Beş korunan İş durumu kurulur; `Overview`, `Work`, `Documents` ve `All Tools` erişilir kalır. Örnek kayıt üretilmez. Seçim sonradan başka yapılandırmayla yeniden uygulanmaz. Blank diğer yetenekleri kapatmaz, yalnız kurmaz. İsteğe bağlı kapatılabilir ilk-açılış açıklaması tur zorlamaz.
 
 | Starter Configuration | Prepared stages | Enabled areas | Extra pinned areas | Prepared Work views |
 | --- | --- | --- | --- | --- |
@@ -14,7 +14,7 @@
 **Status:** ready-for-agent
 
 - [ ] Yukarıdaki dört satır eksiksiz uygulanır; örnek İş/Belge/Karar/geçmiş yoktur.
-- [ ] `Not Started`, `In Progress`, `Blocked`, `Closed` kurulur; Overview ve All Tools kapanmaz.
+- [ ] `Not Started`, `In Progress`, `In Review`, `Blocked`, `Closed` kurulur; Overview ve All Tools kapanmaz.
 - [ ] Seçim yalnız oluşturmada bir kez çalışır; sonradan yeniden uygulanmaz; workflow veya yayın kapısı değildir.
 - [ ] Blank iskelet/aşama kurmaz; diğer hazır alanlar All Tools’ta etkinleştirilebilir kalır.
 - [ ] İlk açılış açıklaması isteğe bağlı ve kapatılabilirdir; zorunlu tur veya örnek içerik yoktur.

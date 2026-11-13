@@ -126,7 +126,8 @@ Kaydet ve iptal düğmeleri.
 #### Create
 Boş form, `Create Planned Test Case`.
 #### New version
-Önceki sürüm değerleriyle dolu; `Change kind` görünür; altında "Past Session Tests stay bound to v3" bilgisi.
+Önceki sürüm değerleriyle dolu; `Change kind` görünür; geçmiş Oturum Testlerinin önceki kesin sürüme (v3) bağlı kaldığı bilgisi görünür.
+- **Label'lar:** `Past Session Tests stay bound to version <n>.`
 #### Validation error
 Zorunlu alan eksik: alan altında hata, odak ilk hatalı alana.
 
@@ -219,7 +220,7 @@ Boş form.
 #### Edit
 Mevcut değerlerle; `Save changes`.
 #### Validation error
-Seçili senaryoya sürüm seçilmemiş: alan hatası; `Choose a Wireframe version.` örneği.
+Seçili senaryoya veya kesin sürüm isteyen bağlam kaydına sürüm seçilmemiş: alan hatası (ör. bağlam kaydında `Choose a Wireframe version.`).
 
 **Spec:** [53 Planlı Test ve Handoff](../../specs/53-test-plan-and-handoff/spec.md)
 
@@ -330,7 +331,7 @@ Dosya alanı ve biçim ipucu.
 - **Label'lar:** `Import Test Session file`, `Test report file`, ipucu `Choose a .json, .md or .markdown file.`, boyut ipucu `Up to 5 MiB; up to 1,000 Session Tests.`
 
 ### Kabul sonucu
-Başarıda makbuz: iç oturum kimliği, dış oturum kimliği, kabul zamanı, `created` / `duplicate`; retçe sabit hata kodu, güvenli alan yolu, düzeltme açıklaması.
+Başarıda makbuz: iç oturum kimliği, dış oturum kimliği, kabul zamanı, parmak izi, `created` / `duplicate`; retçe sabit hata kodu, güvenli alan yolu, düzeltme açıklaması.
 <details>
 <summary>Label'lar</summary>
 
@@ -376,14 +377,14 @@ Başlık; oturum inceleme durumu seçimi; toplu eylem; kapatma.
 
 ### Oturum meta
 Yürüten, raporlayan, giriş yolu, zaman, teknik bağlam ve bağlı Handoff.
-- **Label'lar:** `Executor type`, `Executor`, `Reporter`, `Ingress`, `Reported at`, `Technical context`, `Technical context: unknown (no branch, commit or build recorded).`, bağlı Handoff.
+- **Label'lar:** `Executor type`, `Executor`, `Reporter`, `Ingress`, `Reported at`, `Technical context`, `Technical context: unknown (no branch, commit or build recorded).`, `Linked Test Handoff`.
 
 ### Oturum Testleri
 Her satır: seçim kutusu, başlık, ham sonuç, normalize sonuç, inceleme durumu, senaryo bağı (sürüm farkıyla), satır eylemleri.
 <details>
 <summary>Label'lar</summary>
 
-`Session Tests`, `Select <title>`, `Raw result`, `Normalized result`, `Reported`, `Current result`, `Current result: withdrawn (Withdrawal)`, `Planned Test Case: <title>`, `Bound to v1, current v3`, `Linked later`, `Link to Planned Test Case version`, `Changes since the bound version`, `Ad hoc, not bound to a Planned Test Case.`, `Purpose when recorded`, `Expected behavior when recorded`, `Correction for <title>`, `Withdrawal for <title>`, `Redact value`, `Supersedes`, `Create follow-up work` (→ `20.22 · Create Follow-up Work`, kaynak Oturum Testi), `No Session Tests.`, `A Session Test has no Trash or archive of its own.`
+`Session Tests`, `Select <title>`, `Raw result`, `Normalized result`, `Reported`, `Current result`, `Current result: withdrawn (Withdrawal)`, `Planned Test Case: <title>`, `Bound to v1, current v3`, `Linked later`, `Link to Planned Test Case version`, `Changes since the bound version`, `Ad hoc, not bound to a Planned Test Case.`, `Purpose when recorded`, `Expected behavior when recorded`, `Correction for <title>`, `Withdrawal for <title>`, `Redact` (satır eylemi → `20.7 · Redact`), `Redact value` (redakte değerin yerindeki içeriksiz işaret), `Supersedes`, `Create follow-up work` (→ `20.22 · Create Follow-up Work`, kaynak Oturum Testi), `No Session Tests.`, `A Session Test has no Trash or archive of its own.`
 
 </details>
 
@@ -429,7 +430,6 @@ Bir madde `Current result: withdrawn (Withdrawal)`; redakte değer işareti `20.
 
 **Artboard'lar**
 - `15.11 · Mark Reviewed Preview · Default · 1440`
-- —
 
 ### Önizleme
 Değişecek kesin kayıt listesi; onay ve iptal.
@@ -448,7 +448,6 @@ Boş küme metni; onay pasif.
 
 **Artboard'lar**
 - `15.12 · Close Test Session · With remaining · 1440`
-- —
 
 ### Kalan kayıtlar
 Kalan maddeler listesi ve isteğe bağlı gerekçe alanı.
@@ -474,7 +473,7 @@ Olay türü, düzeltilmiş değer ve gerekçe; özgün raporun korunduğu sabit 
 <details>
 <summary>Label'lar</summary>
 
-`Correction`, `Withdrawal`, `Redaction`, `Corrected summary`, `Reason` (zorunlu: düzeltme, geri çekme ve redaksiyon gerekçeli olaydır), sabit açıklama `This adds a new event. The original report is not edited or deleted.`, redaksiyonda açıklama ve `Redact value` → `20.7 · Redact` (yeniden yazılmaz).
+`Correction`, `Withdrawal`, `Redaction`, `Corrected summary`, `Reason` (zorunlu: düzeltme, geri çekme ve redaksiyon gerekçeli olaydır), sabit açıklama `This adds a new event. The original report is not edited or deleted.`, redaksiyonda açıklama ve `Redact` eylemi → `20.7 · Redact` (yeniden yazılmaz); uygulandıktan sonra değerin yerinde `Redact value` işareti görünür.
 
 </details>
 
@@ -493,7 +492,6 @@ Yüksek riskli onay; etkisi açıkça gösterilir → ortak `Redact` dialog'u `2
 
 **Artboard'lar**
 - `15.14 · Supersedes · Default · 1440`
-- —
 
 ### Seçim ve karşılaştırma
 İki sonuç yan yana, teknik bağlam farkı ve supersede zinciri.
@@ -555,14 +553,13 @@ Salt okunur; ilişkiler korunur.
 
 **Artboard'lar**
 - `15.17 · File Test Gap · Default · 1440`
-- —
 
 ### Alanlar
 Başlık, gerekçe ve dayanak ilişkileri.
-- **Label'lar:** `Title`, `Rationale`, `Support relations`, `Relation type` (`Feature`, `Work`, `Spec section`, `Risk`, `Project Release`, `Document`), `Whole Document`, `Selected support relations`, `Remove support relation <label>`, `This Project has no <type> to relate yet.`
+- **Label'lar:** `Title`, `Rationale`, `Support relations`, `Relation type` (`Feature`, `Work`, `Spec section`, `Risk`, `Project Release`), `Selected support relations`, `Remove support relation <label>`, `This Project has no <type> to relate yet.` `Spec section` kesin Belge revizyonundaki bölümü seçer; ayrı `Document` dayanak türü yoktur (spec 55).
 
 ### Planlama
-İsteğe bağlı senaryo sürümü veya Handoff bağı.
+İsteğe bağlı senaryo sürümü veya Handoff bağı; bağ durumu en çok `Planned` yapar, kapanış değildir (spec 55).
 - **Label'lar:** `Planning for <title>`, `Planned Test Case version`, `Test Handoff`, `Linked to the Planned Test Case version.`, `Linked to the Test Handoff.`, `Link to <title> removed.`
 
 ### Özel alanlar
@@ -635,7 +632,6 @@ Arşivlenmiş değerlendirmede snapshot ve atıf verilen oturum/Açık kimlikler
 
 **Artboard'lar**
 - `15.20 · Record Test Assessment · Default · 1440`
-- —
 
 ### Alanlar
 `15.19` başlığındaki `Record Test Assessment` eyleminden açılır. Bağlam türü ve kaydı, karar, bilinen sınırlamalar ve kesin kaynak seçimleri.

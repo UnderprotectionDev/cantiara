@@ -54,7 +54,7 @@ Kullanıcı Akışı listesi; oluşturma formu; şablondan oluşturma formu.
 #### Empty
 Yeni bir Projede dört bölüm de kendi boş metnini gösterir (`No Project Wall yet.`, `No Screens yet.`, `No User Flows yet.`, `No Moodboards yet.`); örnek kayıt veya sahte tuval üretilmez.
 #### Loading
-Her bölüm kendi yüklenme satırını gösterir (`Loading Project Walls…`, `Loading Screens…`, `Loading User Flows…`); diğer bölümler beklemez.
+Her bölüm kendi yüklenme satırını gösterir (`Loading Project Walls…`, `Loading Screens…`, `Loading User Flows…`, `Loading Moodboards…`); diğer bölümler beklemez.
 #### Error
 Bölüm düzeyinde: `Project Walls are unavailable.`, `Screens are unavailable.` + `Retry`, `User Flows are unavailable.` + `Retry`, `Moodboard is unavailable.` Bir bölümün hatası diğerlerini gizlemez.
 #### Archived Project (read-only)
@@ -74,7 +74,7 @@ Ferry: bütün oluşturma formları ve yaşam eylemleri gizli; listeler okunur, 
 - `13.2 · Canvas Chrome · Presentation frame · 1440`
 
 ### Anatomi
-`Anatomy` artboard'ı (1440 ve 768) dört bölgeyi birlikte gösterir: araç çubuğu, Outline, tuval ve kişisel viewport'un görünmez davranışı. 768'de hiçbir bölge kaybolmaz, yalnız yer değiştirir (DS.0 #8). Bölgelerin içeriği aşağıdadır.
+`Anatomy` artboard'ı (1440 ve 768) dört bölgeyi birlikte gösterir: araç çubuğu, Outline, tuval ve kişisel viewport'un görünmez davranışı. 768'de hiçbir bölge kaybolmaz, yalnız yer değiştirir (DS.0 #8); tuval ekranları (`13.3`, `13.6`, `13.8`, `13.9`, `13.12`, `14.3`) ayrı 768 artboard'u almaz. Bölgelerin içeriği aşağıdadır.
 
 ### Araç çubuğu
 Tuvale özgü oluşturma araçları (ilgili ekranda); `Undo`, `Redo`; çoklu seçimde hizalama/katman sırası; görünüm grubu: `Zoom in`, `Zoom out`, `Fit View`; tuval destekliyorsa `Fit Selection`; kaydetme eylemi (Wireframe ve Kullanıcı Akışı sürüm kaydeder); `Presentation Mode`. Bu araç çubuğu tek tanımdır: `13.3`, `13.8`, `13.9`, `13.12` ve `14.3` yalnız tuvale özgü araçları ekler. `14.3` Teknik Diyagram tuvali görünüm grubunu ve kişisel viewport'u kullanır; sunum çerçevesi yoktur.
@@ -88,15 +88,13 @@ Tuvaldeki bütün öğelerin yapılandırılmış listesi; gruplar daraltılabil
 Tuvale özgü nesneler; seçim çerçevesi; bağlantı çizgileri; daraltılmış grup özeti; canlı kayıt kartları.
 
 ### Kişisel viewport
-Görünür eleman yoktur; davranış: kurucunun son merkez, zoom ve görünüm-yerel daraltılmış grupları bu tuval için oturumlar arasında geri gelir. İçerik, arama alanı, paylaşım snapshot'ı, export girdisi veya başka kullanıcının görünümü değildir.
+Görünür eleman yoktur; davranış: kurucunun son merkez, zoom ve görünüm-yerel daraltılmış grupları bu tuval için oturumlar arasında geri gelir. Seçim, açık inceleme paneli, düzenleme kipi, çoklu seçim, hover ve kaydedilmemiş işlemler geri gelmez. `Fit View` nötr görünüme döner. İçerik, arama alanı, paylaşım snapshot'ı, export girdisi veya başka kullanıcının görünümü değildir.
 
 ### Sunum çerçevesi
 `Presentation Mode` açıkken araç çubuğu, Outline ve inceleme paneli tamamen gizlenir; tam ekran salt okunur içerik + ince üst şerit (kayıt adı, konum) + `Exit Presentation Mode`. Odak sırası olan tuvallerde (Moodboard, Proje Duvarı) alt şeritte `Previous` / `Next`; Wireframe'de prototip bağlantıları.
 - **Label'lar:** `Presentation Mode`, `Exit Presentation Mode`, `Previous`, `Next`, `Focus order`, `Nothing to present yet.`
 
 ### Durumlar
-#### Anatomy
-Bölgelerin hepsi birlikte görünür; içerik aşağıdaki bölümlerdedir.
 #### Restored viewport
 Tuval kurucunun son konumunda açılır; Outline'da daraltılmış gruplar daraltılmış görünür.
 #### Fitted after meaningless position
@@ -113,7 +111,6 @@ Sürüm kaydeden tuvallerde (Wireframe, Kullanıcı Akışı) kaydedilmemiş de�
 
 **Artboard'lar**
 - `13.3 · Wireframe Editor · Default · 1440`
-- `13.3 · Wireframe Editor · Default · 768`
 - `13.3 · Wireframe Editor · Empty · 1440`
 - `13.3 · Wireframe Editor · Block inspected · 1440`
 - `13.3 · Wireframe Editor · Linked block change preview · 1440`
@@ -130,7 +127,7 @@ Ekran adı, yaşam durumu, son kaydedilen sürüm. Ekran bağımsız ana kayıtt
 
 ### Bileşen araçları
 Kapalı semantik bileşen kümesi, her biri ikon + adla; yanında `Place live card`.
-- **Label'lar:** `Button`, `Input`, `Card`, `Table`, `Navigation`, `Chart`, `Text`, `Place live card`, `Save Version`.
+- **Label'lar:** `Button`, `Input`, `Card`, `Table`, `Navigation`, `Chart`, `Text`, `Place live card` (`Save Version` → `13.2` araç çubuğu).
 
 ### Wireframe tuvali
 El çizimi çizgiyle block'lar (anlam canonical geometride, çizgi yalnız görünüş); canlı kartlar (başlık, durum, az sinyal); metin block'ları (`Text source` ile placeholder veya canlı Markdown bölüm referansı); bağlı block'ların bağ işareti.
@@ -192,7 +189,7 @@ Hedef tür; tür İş ise İş türü; başlık (boşsa block etiketinden).
 
 ### Önizleme
 Oluşacak tek kaydın salt okunur dökümü.
-- **Label'lar:** `Convert and Bind preview`, `Target type`, `Target Project` / `Project`, `Title`, `Body`, `Origin` (kod: `Relation`), `Origin Location`, `No Screen is created.`, `Confirm`.
+- **Label'lar:** `Convert and Bind preview`, `Target type`, `Target Project` / `Project`, `Title`, `Body`, `Origin`, `Origin Location`, `No Screen is created.`, `Confirm`.
 
 ### Durumlar
 #### Preview stale
@@ -202,7 +199,7 @@ Oluşacak tek kaydın salt okunur dökümü.
 #### Created
 Panel kapanır; oluşan kayıt kendi listesinde `Origin` `Invoices` ile görünür. Kaynak block değişmeden kalır.
 #### Source item gone
-Kaynak block silinmiş veya redakte edilmiş: oluşan kayıt yaşar, `Origin` Ekrana bağlı kalır; Origin Location `Source item is gone` okur ve başka block'a kaymaz.
+Kaynak block silinmiş veya redakte edilmiş: oluşan kayıt yaşar, `Origin` Ekrana bağlı kalır; Origin Location `Source element no longer exists` okur ve başka block'a kaymaz.
 
 **Spec:** [48](../../specs/48-screens-and-wireframes/spec.md) (block), [49](../../specs/49-user-flow/spec.md) (düğüm); [PRD 02 Köken konumu](../../prd/02-domain-model-and-lifecycle.md#koken-konumu).
 
@@ -227,12 +224,10 @@ Bağın şu anki sürümü, hedef sürüm, Origin Location; açıklama.
 
 **Artboard'lar**
 - `13.6 · Wireframe Presentation Mode · Default · 1440`
-- `13.6 · Wireframe Presentation Mode · Default · 768`
 - `13.6 · Wireframe Presentation Mode · Unresolved target · 1440`
 
 ### Üst şerit
-`13.2` sunum çerçevesinin üst şeridi: Ekran adı ve sürüm, çıkış.
-- **Label'lar:** `Presentation Mode`, `Exit Presentation Mode`.
+`13.2` sunum çerçevesinin üst şeridi (label'lar → `13.2 › Sunum çerçevesi`). Bu ekrana özgü: şeritte Ekran adı ve kesin Wireframe sürümü.
 
 ### Prototip
 Kesin sürümün render'ı; tıklanabilir block'lar bağlantıyı veya göster/gizle davranışını çalıştırır. Editör aracı, inceleme paneli yoktur.
@@ -291,7 +286,6 @@ Panel içinde hata satırı.
 
 **Artboard'lar**
 - `13.8 · User Flow Editor · Default · 1440`
-- `13.8 · User Flow Editor · Default · 768`
 - `13.8 · User Flow Editor · Empty · 1440`
 - `13.8 · User Flow Editor · Outline inspected · 1440`
 - `13.8 · User Flow Editor · Unsaved changes · 1440`
@@ -358,15 +352,13 @@ Düğümsüz akış: tuval boş, tek giriş `Place node`; `This User Flow has no
 
 **Artboard'lar**
 - `13.9 · Moodboard · Default · 1440`
-- `13.9 · Moodboard · Default · 768`
 - `13.9 · Moodboard · Empty · 1440`
 - `13.9 · Moodboard · Crop editing · 1440`
 - `13.9 · Moodboard · Presentation Mode · 1440`
 
 ### Başlık ve araçlar
-Moodboard adı, ekleme araçları ve görünüm araçları.
-Görünüm araçları (zoom, `Fit View`) `13.2`'dedir; burada yeniden yazılmaz.
-- **Label'lar:** `Moodboard`, `Presentation Mode`, `Add visual`, `Add Color Swatch`.
+Moodboard adı ve ekleme araçları. Görünüm grubu ve `Presentation Mode` `13.2` araç çubuğundadır; burada yeniden yazılmaz.
+- **Label'lar:** `Moodboard`, `Add visual`, `Add Color Swatch`.
 
 ### Board
 Görseller (sunulan görünümle: kırpma ve döndürme uygulanmış), altyazı, köken işareti; renk örnekleri.
@@ -461,8 +453,6 @@ Sayfalama (PNG seçimleri ayrı görseller, PDF grupları ayrı okunur sayfalar;
 
 **Artboard'lar**
 - `13.12 · Project Wall · Default · 1440`
-- `13.12 · Project Wall · Default · 768`
-- `13.12 · Project Wall · Default · Dark · 1440`
 - `13.12 · Project Wall · Empty · 1440`
 - `13.12 · Project Wall · Customer Journey skeleton · 1440`
 - `13.12 · Project Wall · Card densities · 1440`
@@ -472,8 +462,8 @@ Sayfalama (PNG seçimleri ayrı görseller, PDF grupları ayrı okunur sayfalar;
 - `13.12 · Project Wall · Presentation Mode · 1440`
 
 ### Duvar seçimi ve başlık
-Projenin düz duvarları (iç içe duvar yok); seçili duvar adı ve yönetim eylemleri.
-- **Label'lar:** `Project Wall`, `Project Walls`, `Rename`, `Rename Project Wall`, `Delete Project Wall`, `Presentation Mode`.
+Projenin düz duvarları (iç içe duvar yok); seçili duvar adı ve yönetim eylemleri. `Presentation Mode` → `13.2` araç çubuğu.
+- **Label'lar:** `Project Wall`, `Project Walls`, `Rename`, `Rename Project Wall`, `Delete Project Wall`.
 
 ### Kart yerleştirme
 Kaynak kayıt seçimi (İş, Karar, Risk, Teknik Diyagram, Akıllı Koleksiyon); zaten duvardakiler işaretli.
@@ -529,8 +519,6 @@ Kaynağı arşivli kart `Archived`; çöpteki, kalıcı silinmiş veya erişilem
 Önerilen konumlar hayalet olarak; kilitli kartlar yerinde. "Nothing is saved until you apply".
 #### Presentation Mode
 `13.2` sunum çerçevesi; odak sırasıyla kart kart `Previous`/`Next`.
-#### Dark
-Varsayılan durumun Dark örneği (`13.12 · Project Wall · Default · Dark · 1440` artboard'ı).
 
 **Spec:** [51 Proje Duvarı](../../specs/51-project-wall/spec.md); Teknik Diyagram kartı [59](../../specs/59-technical-diagrams/spec.md).
 

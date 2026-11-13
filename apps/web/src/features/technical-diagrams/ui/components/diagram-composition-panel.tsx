@@ -175,8 +175,8 @@ export function DiagramCompositionPanel({
       <section aria-label="Record cards" className="space-y-2">
         <h4 className="font-medium">Record cards</h4>
         <p className="text-muted-foreground text-sm">
-          A record card reads the existing İş, Karar, Risk or Açık Soru live.
-          Moving it only moves the card; the record is edited in its own
+          A record card reads the existing Work, Decision, Risk or Open Question
+          live. Moving it only moves the card; the record is edited in its own
           surface.
         </p>
         {cards.length > 0 ? (

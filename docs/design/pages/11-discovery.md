@@ -23,14 +23,13 @@ Projenin `Discovery` alanı: kaynaklar, araştırma oturumları, kanıt ve geri 
 
 **Artboard'lar**
 - `11.1 · Sources · Default · 1440`
-- `11.1 · Sources · Default · 768`
 - `11.1 · Sources · Live preview · 1440`
 - `11.1 · Sources · YouTube · 1440`
 - `11.1 · Sources · Empty · 1440`
 
 ### Alan başlığı ve tür geçişi
-Kaynak listesi başlığında yalnız Kaynak üstverisini çıkaran `Export` (→ `20.5 · Export`) ve yalnız Kaynak üstverisi için `Import` (→ `20.6 · Import`).
-- **Label'lar:** `Discovery`, `Sources`, `Research Sessions`, `Feedback`, `Feed`, `Validation Records`, `Export`, `Import`.
+`Discovery` alanı Varsayımları ve Açık Soruları da tutar (spec 41, `#project-area-discovery`); ekranları kalıcı numaralarıyla `12.6 · Assumptions` ve `12.8 · Open Questions`'tadır, tür geçişi onları bu alanın girişleri olarak gösterir. Kaynak listesi başlığında yalnız Kaynak üstverisini çıkaran `Export` (→ `20.5 · Export`) ve yalnız Kaynak üstverisi için `Import` (→ `20.6 · Import`).
+- **Label'lar:** `Discovery`, `Sources`, `Research Sessions`, `Feedback`, `Feed`, `Validation Records`, `Assumptions`, `Open Questions`, `Export`, `Import`.
 
 ### URL oluşturucu ve canlı önizleme
 URL alanı; yapıştırınca geçici canlı önizleme: başlık, alan adı, varsa güvenli görsel. Önizlemenin Kaynak veya tarihsel kanıt olmadığı açık cümle. Kayıt sonrası aynı kart `Historical snapshot` olarak ayrılır.
@@ -39,7 +38,7 @@ Kaydetme adımında isteğe bağlı üç alan: sağlayıcı, dış kayıt türü
 
 ### YouTube canlı kartı
 Yalnız YouTube için; sayfa açılışında üçüncü tarafa istek atmayan statik kart: `Live external source` etiketi, özgün URL görünür metin olarak, üçüncü taraf gizlilik/çerez uyarısı, oynatıcıyı yükleyen tek eylem (autoplay yok). Yalnız video başlığı yakalanır. Kartın sahibi bu bölgedir; ziyaretçi yüzeyi aynı kartı yeniden çizmez, ziyaretçi farkıyla `19.1 · Public Frame & Shared Blocks`'tan bağlanır.
-- **Label'lar:** `Live external source`, `Load YouTube`, `Loading YouTube…`, `Loading YouTube contacts a third-party server. This live player is not …`, `Only the video title is captured; playback is live.`, `YouTube live player`, `Video unavailable. Open the original URL.`
+- **Label'lar:** `Live external source`, `Load YouTube`, `Loading YouTube…`, `Loading YouTube contacts a third-party service. This live player is not historical evidence.`, `Only the video title is captured; playback is live.`, `YouTube live player`, `Video unavailable. Open the original URL.`
 
 ### Kaynak listesi
 Kaynaklar; her satırda başlık, alan adı, onaylı sürüm, erişim zamanı, varsa `Newer Source version exists`.
@@ -55,7 +54,7 @@ Kaynaklar; her satırda başlık, alan adı, onaylı sürüm, erişim zamanı, v
 #### Güvenli fallback
 Özel/yerel ağ, HTTP(S) dışı, 20 MB üstü veya çalıştırılabilir içerik: görselsiz düz bağlantı.
 #### Vimeo ve diğer sağlayıcılar
-YouTube dışındaki sağlayıcılar güvenli zengin önizleme olarak kalır, oynatıcı yüklenmez; yapıştırılan iframe/embed kodu reddedilir (→ `Embed kodu reddedildi`).
+YouTube dışındaki sağlayıcılar güvenli zengin önizleme olarak kalır, oynatıcı yüklenmez; yapıştırılan iframe/embed kodu reddedilir (→ Durumlar › Embed kodu reddedildi).
 #### Embed kodu reddedildi
 Yapıştırılan iframe/embed kodu: `Save as Source` kapalı; oynatıcı ve bağlantı üretilmez.
 - **Label'lar:** `Embed code is not supported. Paste the page URL instead.`
@@ -116,7 +115,7 @@ Bütün kararlar ve `Recheck source` yok.
 - `11.3 · Recheck source · Compare · 1440`
 - `11.3 · Recheck source · Failed check · 1440`
 
-### Ön kontrol (`Preflight`)
+### Ön kontrol
 İstek yapılacak adres, mevcut onaylı sürüm, üçüncü taraf bağlantı uyarısı.
 - **Label'lar:** `Recheck source`, `This connects to a third-party server.`, `Close`.
 
@@ -147,7 +146,6 @@ HTTP/erişim nedeni gösterilir, aday yok, eski içerik güncel sunulmaz.
 
 **Artboard'lar**
 - `11.4 · Rebind to new version · Preview · 1440`
-- —
 
 ### Önizleme
 Eski sürüm ve aralık, yeni sürümde seçilen aralık, etkilenecek tek kullanım bağı, mevcut `Evidence Role` ve `Founder interpretation` ayrı.
@@ -189,7 +187,7 @@ Oturumun ilişkileri ortak `Relations` kayıt bölümünde (DS.13) ve relation p
 <details>
 <summary>Label'lar</summary>
 
-`Consent`, `Consent note`, `Not asked`, `Allowed`, `Not allowed`, `Not applicable`, `Consent is context, not a legal compliance judgment. You …`, `Participant quotes, identifying personal notes, file attachments, sharing and publishing are closed.` (kapalı kapı cümlesinin sahibi bu bölgedir; aşağıda yeniden yazılmaz), `Consent permits protected content. Convert still requires a preview.`
+`Consent`, `Consent note`, `Not asked`, `Allowed`, `Not allowed`, `Not applicable`, `Consent is context, not a legal compliance judgment. You remain responsible for your obligations.`, `Participant quotes, identifying personal notes, file attachments, sharing and publishing are closed.` (kapalı kapı cümlesinin sahibi bu bölgedir; aşağıda yeniden yazılmaz), `Consent permits protected content. Convert still requires a preview.`
 
 Dışarıdan bir dosya yalnız erişim ve izin altında olağan Dosya Eki olarak eklenir; dosyanın varlığı transkript ya da kanıt bağı sayılmaz.
 
@@ -204,7 +202,7 @@ Türlenmiş notlar ayrı başlıklarla: `Participant quote` alıntı bloğunda v
 <details>
 <summary>Label'lar</summary>
 
-`Notes`, `Add note`, `Edit note`, `Note type`, `Choose note type`, `Contains personal information`, `Participant quote`, `Observation`, `Founder interpretation`, `Speaker label (optional)`, `Open source record`, `Save`, `Cancel`, `Retry`, `Note saved.`, `Evidence bound.`; kanıt rozetleri `Version-pinned evidence`, `Newer version exists` → `11.2 · Kanıt kullanımları`; iki bağlama eyleminin label'ları → `11.7 · Evidence Bind`
+`Notes`, `Add note`, `Edit note`, `Note type`, `Choose note type`, `Contains personal information`, `Participant quote`, `Observation`, `Founder interpretation`, `Speaker label (optional)`, `Open source record`, `Save`, `Cancel`, `Retry`, `Note saved.`, `Evidence bound.`; kanıt rozetleri `Version-pinned evidence`, `Newer version exists` → `11.2 › Kanıt kullanımları`; iki bağlama eyleminin label'ları → `11.7 · Evidence Bind`
 
 </details>
 
@@ -226,7 +224,7 @@ Kaydetme hatası kalıbı → DS.16; tür adı `Note`. Not metni korunur; `Retry
 #### Participant quote yardımı
 `Participant quote` türü seçiliyken: `The participant’s own words. Use an anonymous Speaker label; do not copy Contact details.`
 #### Bağlı kanıt yaşamı
-Hedef kırık/arşivli/erişilemezse ortak kırık uç sunumu → `20.10 · Relation Picker & Used in · Broken targets` (yeniden tarif edilmez). Bu ekrana özgü: satır ve `Bound at` zamanı kalır; Feedback hedefi salt okunur dialogda açılır (`Feedback`, `Read-only source record.`, `Loading source record…`, `Source record is unavailable.`).
+Hedef kırık/arşivli/erişilemezse ortak kırık uç sunumu → `20.10 · Relation Picker & Used in · Broken targets` (yeniden tarif edilmez). Bu ekrana özgü: satır ve `Bound at` zamanı kalır; bağlı hedef kayıt salt okunur dialogda açılır (`Read-only source record.`, `Loading source record…`, `Source record is unavailable.`).
 #### Arşivli Proje
 Bant ve salt okunur metni → `20.21 · Archived Read-only Banner`; yeni Oturum ve not eylemleri yok.
 
@@ -237,7 +235,6 @@ Bant ve salt okunur metni → `20.21 · Archived Read-only Banner`; yeni Oturum 
 
 **Artboard'lar**
 - `11.6 · Research Session Form · Create · 1440`
-- —
 
 ### Form
 Detay kolonunda oturum alanları; izin grubundan önce isteğe bağlı `Participant` kimlik grubu (yalnız mevcut Contact seçilir, yeni Contact oluşturulmaz; seçilmezse `Unknown`; `Speaker label (optional)` Contact alanlarından doldurulmaz); Proje özel alanları (→ DS.12 özel alanlar kuralı); izin alanı form sonunda ayrı grup. Özel kategori veri uyarısı → `06.3 · Create Contact` (kişisel veri girilen alanların yanında sessiz uyarı).
@@ -261,11 +258,14 @@ Kaydetme hatası kalıbı → DS.16; tür adı `Research Session`. `Check the Re
 - `11.7 · Evidence Bind · Convert preview · 1440`
 
 ### Seçim ve hedef
-İki kip aynı dialog: mevcut kayda bağla / yeni kayda dönüştür ve bağla. Kaynak metin, aralık, hedef türü ve Projesi, hedef kayıt veya yeni başlık, İş için tür. Mevcut kayda bağlama hedefleri (`Target type`): `Work`, `Decision`, `Risk`, `Assumption`, `Open Question`, `Session Test` (çalıştırılan kayıt Oturum Testidir), `Project Release`, `Access observation`, `Outcome observation`. Dönüştürme yalnız Work, Decision, Risk, Assumption veya Open Question (Test, Project Release ve gözlem yeni kayıt olarak üretilmez; Feedback yalnız Araştırma Oturumu kaynağından). `Selected text` varsayılan olarak notun tamamıdır; `Selection start` / `Selection end` aralığı daraltır (UTF-16).
+İki kip aynı dialog: mevcut kayda bağla / yeni kayda dönüştür ve bağla. Kaynak metin, aralık, hedef türü ve Projesi, hedef kayıt veya yeni başlık, İş için tür.
+- **Hedef türleri (spec 45 sahibidir):** bütün çağıran yüzeylerde (Araştırma Oturumu notu `11.5`, Belge `10.2`, Kaynak `11.2`) ve iki kipte aynı kapalı küme: `Work`, `Decision`, `Risk`, `Assumption`, `Open Question`. `Feature` ayrı hedef türü değildir, `Work type` seçeneğidir. `Feedback` yalnız kanıt kaynağı ucudur, hedef olarak sunulmaz.
+- **Mevcut kayda bağlama ekleri:** spec 45 Evidence module uyarınca mevcut kayda bağlama ayrıca `Session Test` (çalıştırılan kayıt Oturum Testidir), `Project Release`, `Access observation` ve `Outcome observation` hedeflerini sunar; bunlar yeni kayıt olarak üretilmez.
+- **Seçim:** `Selected text` varsayılan olarak notun tamamıdır; `Selection start` / `Selection end` aralığı daraltır (UTF-16).
 <details>
 <summary>Label'lar</summary>
 
-`Bind as evidence to existing record`, `Convert to new record and bind`, `Selected text`, `Selection start`, `Selection end`, `Target type`, `Choose target type`, `Target Project`, `Target record`, `Choose target record`, `Title`, `Work type`, `Choose Work type`, `Task`, `Bug`, `Research`, `Improvement`, `Work`, `Feature`, `Feedback`, `Decision`, `Risk`, `Assumption`, `Open Question`, `Preview`, `Cancel`.
+`Bind as evidence to existing record`, `Convert to new record and bind`, `Selected text`, `Selection start`, `Selection end`, `Target type`, `Choose target type`, `Target Project`, `Target record`, `Choose target record`, `Title`, `Work type`, `Choose Work type`, `Task`, `Bug`, `Research`, `Improvement`, `Feature`, `Work`, `Decision`, `Risk`, `Assumption`, `Open Question`, `Session Test`, `Project Release`, `Access observation`, `Outcome observation`, `Preview`, `Cancel`.
 
 </details>
 
@@ -313,7 +313,7 @@ Bu Geri Bildirimin köken olduğu İşler; her İş bağında katlanabilir kanı
 <details>
 <summary>Label'lar</summary>
 
-`Origin of`, `Origin of Work`, `Reported problem`, `Suggested solution`, `Current workaround`, `Impact severity`, `Usage frequency`, `Independence`, `Audience fit`, `Unknown`, `Founder interpretation`, `Evidence Role`, `Follow-up`, `Follow up`, `Followed up`, `Outcome verified`, `None`, `Evidence quality`, `Save Evidence quality`, `Evidence quality history`, `Evidence quality saved.`, `Optional. Leave a field blank or enter Unknown. These values describe …`
+`Origin of`, `Origin of Work`, `Reported problem`, `Suggested solution`, `Current workaround`, `Impact severity`, `Usage frequency`, `Independence`, `Audience fit`, `Unknown`, `Founder interpretation`, `Evidence Role`, `Follow-up`, `Follow up`, `Followed up`, `Outcome verified`, `None`, `Evidence quality`, `Save Evidence quality`, `Evidence quality history`, `Evidence quality saved.`, `Optional. Leave a field blank or enter Unknown. These values describe this link only and are separate from the original message.`
 
 </details>
 
@@ -334,7 +334,6 @@ Salt okunur; form ve durum eylemleri yok.
 
 **Artboard'lar**
 - `11.9 · Create Feedback · Default · 1440`
-- —
 
 ### Form
 Özgün mesaj formun ana alanı; kanal, zaman, bağlantı, ekler, isteğe bağlı kimlik ve Proje özel alanları (→ DS.12). Özel kategori veri uyarısı → `06.3 · Create Contact` (kişisel veri girilen alanların yanında sessiz uyarı).
@@ -355,7 +354,6 @@ Salt okunur; form ve durum eylemleri yok.
 
 **Artboard'lar**
 - `11.10 · Convert to Work · Preview · 1440`
-- —
 
 ### Önizleme
 İş türü seçimi ve oluşacak tek İşin salt okunur önizlemesi. Önizleme çerçevesi ve ortak etiketleri (`Title`, `Description`, `Target Project`, `Cancel`, `Confirm`, tek İş cümlesi) → `20.22 · Create Follow-up Work` ortak önizlemesi (kaynak satırı: Geri Bildirim). Bu ekrana özgü: `Feature` seçilemez, hedef Proje Geri Bildirimin kendi Projesidir, köken ilişkisi ve Geri Bildirimin değişmediği cümlesi.
@@ -363,7 +361,7 @@ Salt okunur; form ve durum eylemleri yok.
 
 ### Durumlar
 #### Error
-Ortak önizleme ve onay hataları → `20.22 · Error`. Bu ekrana özgü onay hatası: `The Work could not be created. If the Feedback changed, preview again.`
+Ortak önizleme ve onay hataları → `20.22 › Error`. Bu ekrana özgü onay hatası: `The Work could not be created. If the Feedback changed, preview again.`
 
 **Spec:** [47 Geri Bildirim Kaydı ve Feed](../../specs/47-feedback/spec.md).
 
@@ -436,12 +434,12 @@ Bant ve salt okunur metni → `20.21 · Archived Read-only Banner`.
 - `11.13 · Evidence Flow · Broken sources · 1440`
 
 ### Filtre
-Kaynak türüne göre süzme.
+Kaynak türüne göre süzme. Akışın host'ları (hedefleri) yalnız İş, Karar ve Varsayımdır; `Feedback` burada yalnız kaynak türüdür.
 - **Label'lar:** `Evidence Flow`, `Source type`, `All`, `Document`, `Source`, `Feedback`, `Research Session`, `Validation Record`, `Session Test`, `File Attachment`.
 
 ### Akış
 Her satır: kaynak türü ve adı, kesin sürüm, kaynak olay zamanı, ilişki zamanı, `Evidence Role`, `Founder interpretation`, kaynak durumu; birbirine karışmayan ayrı etiketli alanlar. Skor, tema ve çoğunluk yoktur.
-- **Label'lar:** `Source event time`, `Evidence time`, `Evidence Role`, `Founder interpretation`, `Newer version exists`, `Open source record`, `Source item is gone`, `Unavailable source`; rol değerleri ve rol gizleme → `12.10 · Evidence by Evidence Role`.
+- **Label'lar:** `Source event time`, `Evidence time`, `Evidence Role`, `Founder interpretation`, `Newer version exists`, `Open source record`, `Source element no longer exists`, `Unavailable source`; rol değerleri ve rol gizleme → `12.10 · Evidence by Evidence Role`.
 
 ### Durumlar
 #### Kapalı
@@ -453,6 +451,6 @@ Panel başlığı yalnız; açılmadan sorgu yapılmaz.
 #### Error
 `Evidence Flow is unavailable.`
 #### Kırık kaynak
-Silinmiş/erişilemeyen/redakte kaynak: kırık uç sunumu ve nedenleri → `20.10 · Relation Picker & Used in · Broken targets` (yeniden yazılmaz); pin/rol/yorum ve `Open source record` gizli. Bu ekrana özgü: kaldırılmış bileşen `Source item is gone`. Arşivli kaynak `Archived` etiketiyle görünür kalır.
+Silinmiş/erişilemeyen/redakte kaynak: kırık uç sunumu ve nedenleri → `20.10 · Relation Picker & Used in · Broken targets` (yeniden yazılmaz); pin/rol/yorum ve `Open source record` gizli. Bu ekrana özgü: kaldırılmış sahipli bileşen `Source element no longer exists` (spec 45; satır başka bileşene kaymaz). Arşivli kaynak `Archived` etiketiyle görünür kalır.
 
 **Spec:** [45 Kanıt İlişkileri ve Kanıt Akışı](../../specs/45-evidence/spec.md).

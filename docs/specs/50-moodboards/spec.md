@@ -31,7 +31,7 @@ Kurucu Moodboard'u Proje tasarım ana kaydı (Tasarım type `Moodboard`) olarak 
 19. As a founder, I do not want selection, inspector, or unsaved ops restored.
 20. As a founder, I want a structured outline that can add, select, reorder, group, inspect, and open source records without a pointer.
 21. As a founder, I want the 500 visible / 750 link hard scene not to crash or corrupt (links may be sparse on a Moodboard; the budget still holds).
-22. As a founder, I want English UI `Moodboard`, `Color Swatch`, `Presentation Mode`, `Fit View`, `Open Source Record`.
+22. As a founder, I want English UI `Moodboard`, `Color Swatch`, `Presentation Mode`, `Fit View`, `Open source record`.
 23. As a founder using only a keyboard or a screen reader, I want to complete **canvas yapılandırılmış outline** on this surface.
 24. As a founder, I do not want Moodboard to be a User Flow, Wireframe, design system, theme engine, or contrast-checker product.
 25. As a founder, I do not want File Attachment markup tools owned here; visual/PDF markup stays the attachment feature.

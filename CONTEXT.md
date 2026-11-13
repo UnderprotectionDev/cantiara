@@ -165,7 +165,7 @@ Yalnız Özellikte tutulan isteğe bağlı `On Track` / `At Risk` / `Off Track` 
 _Avoid_: Proje skoru, İş akışı durumu, Manuel Proje Güncellemesi
 
 **İş akışı durumu**:
-Bir İşin Projede tanımlanan akıştaki güncel yerini gösteren, Kapanış sonucundan ayrı [değer](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı).
+Bir İşin Projede tanımlanan akıştaki güncel yerini gösteren, Kapanış sonucundan ayrı [değer](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı). Korunan beş değer bu sırayla `Not Started`, `In Progress`, `In Review`, `Blocked`, `Closed`'dur; `Closed` dışındakiler arasında serbest geçiş vardır, `Closed` kapanış adımı ister ve kurucu yeni değer ekleyemez, yalnız görünen adı değiştirebilir. UI: `Not Started`, `In Progress`, `In Review`, `Blocked`, `Closed`.
 _Avoid_: Kapanış sonucu, planlama görünümü, Proje aşaması
 
 **Kapanış sonucu**:
@@ -717,11 +717,11 @@ Risk ana kayıtlarını toplayan sıfır kurulum hazır tür dizini. UI: `All Ri
 _Avoid_: risk skoru, öncelik haritası
 
 **Varsayım**:
-Doğrulanmamış önermeyi kanıt bağlamıyla taşıyan Proje ana kaydı; Açık Soru veya Deney/Doğrulama değildir ([Varsayım ve açık soru takibi](docs/prd/09-discovery-decisions-and-design.md#varsayım-ve-açık-soru-takibi)). UI: `Assumption`.
+Doğrulanmamış önermeyi kanıt bağlamıyla taşıyan Proje ana kaydı; Açık Soru veya Deney/Doğrulama değildir ve `Discovery` Proje alanında bulunur ([Varsayım ve açık soru takibi](docs/prd/09-discovery-decisions-and-design.md#varsayım-ve-açık-soru-takibi)). UI: `Assumption`.
 _Avoid_: Açık Soru, Deney kaydı, otomatik Karar
 
 **Açık Soru**:
-Yanıt bekleyen proje belirsizliği; araştırma notu veya Geri Bildirim değildir ([Varsayım ve açık soru takibi](docs/prd/09-discovery-decisions-and-design.md#varsayım-ve-açık-soru-takibi)). UI: `Open Question`.
+Yanıt bekleyen proje belirsizliği; araştırma notu veya Geri Bildirim değildir ve `Discovery` Proje alanında bulunur ([Varsayım ve açık soru takibi](docs/prd/09-discovery-decisions-and-design.md#varsayım-ve-açık-soru-takibi)). UI: `Open Question`.
 _Avoid_: Varsayım, Geri Bildirim, araştırma notu
 
 **Deney/Doğrulama**:
@@ -867,7 +867,7 @@ _Avoid_: Akıllı bağlantı önizlemesi, bookmark, canlı web aynası
 _Avoid_: Kaynak Kaydı, sosyal gönderi, CRM fırsatı
 
 **Geri Bildirim ve Kaynak Feed'i**:
-Aynı Geri Bildirim ve uzun gövdeli Kaynak ana kayıtlarını kimlik veya kanal, zaman, ekler, proje ve ilişkili İş/Karar ile gösteren yoğun okuma görünümü; ikinci kayıt, sosyal gönderi veya Birleşik Bildirim Merkezi değildir ([Geri Bildirim ve Kaynak Feed görünümü](docs/prd/08-search-relations-and-evidence.md#geri-bildirim-ve-kaynak-feed-görünümü)). UI: `Feed`, `Open Source Record`.
+Aynı Geri Bildirim ve uzun gövdeli Kaynak ana kayıtlarını kimlik veya kanal, zaman, ekler, proje ve ilişkili İş/Karar ile gösteren yoğun okuma görünümü; ikinci kayıt, sosyal gönderi veya Birleşik Bildirim Merkezi değildir ([Geri Bildirim ve Kaynak Feed görünümü](docs/prd/08-search-relations-and-evidence.md#geri-bildirim-ve-kaynak-feed-görünümü)). UI: `Feed`, `Open source record`.
 _Avoid_: Bildirim Merkezi, evrensel arama, inbox, destek aracı, ikinci Feed kaydı
 
 **Contact**:
@@ -1040,7 +1040,7 @@ _Avoid_: Wireframe kaydı, Ekran bileşeni, flow node'u
 
 **Kullanıcı Akışı**:
 Kullanıcının arayüz hedefi ve karar yolunu canlı Ekran referanslarıyla taşıyan tasarım ana kaydı; Ekran kopyası, teknik sıra veya durum makinesi değildir.
-UI: `User Flow`, `Convert and Bind`, `Fit View`, `Open Source Record`, `Archived`, `Promote to Screen`, `Save as template`, `Create from template`, `Place live card`, `Place node`, `Rebind`
+UI: `User Flow`, `Convert and Bind`, `Fit View`, `Open source record`, `Archived`, `Promote to Screen`, `Save as template`, `Create from template`, `Place live card`, `Place node`, `Rebind`
 _Avoid_: Wireframe belgesi, Teknik Sıra, flowchart
 
 **Kayda dönüştür ve bağla**:
@@ -1055,7 +1055,7 @@ _Avoid_: live-bound template, kaynak akış kopyası
 
 **Canlı kart**:
 Kullanıcı Akışı veya Wireframe tuvaline konan salt okunur İş, Karar veya Risk görünümü; taşımak veya kaldırmak kaynak kaydı yazmaz.
-UI: `Place live card`, `Live Card`, `Open Source Record`
+UI: `Place live card`, `Live Card`, `Open source record`
 _Avoid_: kopya İş, smart-zone
 
 **Akış öğesi**:
@@ -1064,7 +1064,7 @@ UI: `Screen`, `Action`, `Decision`, `State/Outcome`, `Section`
 _Avoid_: flowchart şekli, Teknik Sıra lifeline, durum makinesi durumu, Moodboard görseli, Proje Duvarı kartı
 
 **Proje Duvarı**:
-Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open Source Record`, `Create Project Wall`, `No Project Wall yet.`, `Place live card`, `Remove from Project Wall`, `Delete Project Wall`, `Highlight`, `Visual link`, `From`, `To`, `Unbind`, `Add Visual link`, `Confirm Create Persistent Relation`, `Create Persistent Relation`, `Lock Position`, `Create Group`, `Collapse group`, `Expand group`, `Delete group`, `Create from Sitemap`, `Create from Customer Journey`, `Presentation Mode`, `Open all in source`, `Focus order`, `Live`, `Exact`, `Shared source`, `Fit View`, `Outline`, `Inspect`, `Group`, `Align`, `Move up`, `Move down`, `Bind`, `Group selection`, `Align Left`, `Align Center`, `Align Right`, `Align Top`, `Align Middle`, `Align Bottom`, `Distribute Horizontally`, `Distribute Vertically`, `Bring to Front`, `Send to Back`, `Preview Auto-layout`, `Apply Auto-layout`, `Undo Auto-layout`, `Open group`, `Show full wall`, `This group is no longer available.`, `Rename`, `Rename Project Wall`, `Select a card`, `Select a record`, `No group`, `No highlight`, `Relation kind`, `Snapshot group`, `Wall narrative`.
+Mevcut ana kayıtların canlı kartlarıyla proje anlatısını uzamsal yerleşimde kuran, yalnız Proje kapsamındaki düz Tasarım kaydı; yerleşim kaynak kaydı yazmaz ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Project Wall`, `Compact`, `Preview`, `Detailed`, `Open source record`, `Create Project Wall`, `No Project Wall yet.`, `Place live card`, `Remove from Project Wall`, `Delete Project Wall`, `Highlight`, `Visual link`, `From`, `To`, `Unbind`, `Add Visual link`, `Confirm Create Persistent Relation`, `Create Persistent Relation`, `Lock Position`, `Create Group`, `Collapse group`, `Expand group`, `Delete group`, `Create from Sitemap`, `Create from Customer Journey`, `Presentation Mode`, `Open all in source`, `Focus order`, `Live`, `Exact`, `Shared source`, `Fit View`, `Outline`, `Inspect`, `Group`, `Align`, `Move up`, `Move down`, `Bind`, `Group selection`, `Align Left`, `Align Center`, `Align Right`, `Align Top`, `Align Middle`, `Align Bottom`, `Distribute Horizontally`, `Distribute Vertically`, `Bring to Front`, `Send to Back`, `Preview Auto-layout`, `Apply Auto-layout`, `Undo Auto-layout`, `Open group`, `Show full wall`, `This group is no longer available.`, `Rename`, `Rename Project Wall`, `Select a card`, `Select a record`, `No group`, `No highlight`, `Relation kind`, `Snapshot group`, `Wall narrative`.
 _Avoid_: iç içe duvar, çalışma alanı duvarı, Sketch card, duvara özgü not, kopya kayıt, görsel-çizgi-ilişki
 
 **Görsel bağlantı**:
@@ -1095,7 +1095,7 @@ _Avoid_: İş şablonu, Belge şablonu, live-bound kopya
 
 **Canlı Wireframe kartı**:
 Wireframe yüzeyine konmuş salt okunur İş, Karar veya Risk referansı; taşımak kaynak kaydı yazmaz.
-UI: `Place live card`, `Open Source Record`
+UI: `Place live card`, `Open source record`
 _Avoid_: planlama tahtası, Kullanım bağı, Proje Duvarı kartı
 
 **Bağlı Wireframe bloğu**:
@@ -1138,7 +1138,7 @@ _Avoid_: recent-context, paylaşım görünümü, export viewport
 
 **Yapılandırılmış outline**:
 İşaretçi olmadan ekleme, seçme, sıralama, gruplama, inceleme ve kaynak açmayı sunan canvas listesi; salt okunur yedek değildir.
-UI: `Outline`, `Open Source Record`, `Inspect`, `Group`, `Move up`, `Move down`, `Collapse`, `Expand`, `Remove Block`, `Align Left`, `Align Right`, `Align Top`, `Align Bottom`, `Align Center`, `Align Middle`, `Add to outline`, `Group selection into Section`, `Bind`, `Unbind`
+UI: `Outline`, `Open source record`, `Inspect`, `Group`, `Move up`, `Move down`, `Collapse`, `Expand`, `Remove Block`, `Align Left`, `Align Right`, `Align Top`, `Align Bottom`, `Align Center`, `Align Middle`, `Add to outline`, `Group selection into Section`, `Bind`, `Unbind`
 _Avoid_: salt okunur katman listesi
 
 **Görünüm kırpması**:
@@ -1263,7 +1263,7 @@ Tekil Wiki sayfasının varsayılan `noindex` durumunu yalnız kurucunun açık 
 _Avoid_: SEO etkinleştirme, otomatik indeksleme, sitemap kaydı
 
 **Herkese açık durum etiketi**:
-Bir İşin iç İş akışı durumunu değiştirmeden yalnız herkese açık Roadmap sunumunda gösterilen Proje bazlı ziyaretçi etiketi ([eşleme sözleşmesi](docs/prd/14-sharing-and-public-publishing.md#iç-durumların-herkese-açık-sunumu)). Başlangıç eşlemesi `Not Started→Planned`, `In Progress→In Progress`, `Closed+Completed→Completed`; `Blocked` ve `Closed+Abandoned` eşlemesizdir ve kurucu açık etiket seçmeden yayımlanamaz; yayımlanmış Proje Sürümü üyeliği yalnız `Released` önerir, onaysız uygulanmaz; etiket bir iç durum adını (`Blocked`, `Closed`, `Abandoned`, `Not Started`) yeniden kullanamaz. İç durum değişimi etiketi, etiket de iç durumu kendiliğinden değiştirmez. UI: `Public Status Label`, `Planned`, `In Progress`, `Completed`, `Released`.
+Bir İşin iç İş akışı durumunu değiştirmeden yalnız herkese açık Roadmap sunumunda gösterilen Proje bazlı ziyaretçi etiketi ([eşleme sözleşmesi](docs/prd/14-sharing-and-public-publishing.md#iç-durumların-herkese-açık-sunumu)). Başlangıç eşlemesi `Not Started→Planned`, `In Progress→In Progress`, `In Review→In Progress`, `Closed+Completed→Completed`; `Blocked` ve `Closed+Abandoned` eşlemesizdir ve kurucu açık etiket seçmeden yayımlanamaz; yayımlanmış Proje Sürümü üyeliği yalnız `Released` önerir, onaysız uygulanmaz; etiket bir iç durum adını (`In Review`, `Blocked`, `Closed`, `Abandoned`, `Not Started`) yeniden kullanamaz. İç durum değişimi etiketi, etiket de iç durumu kendiliğinden değiştirmez. UI: `Public Status Label`, `Planned`, `In Progress`, `Completed`, `Released`.
 _Avoid_: İş akışı durumu, ikinci herkese açık İş, otomatik yayın kararı
 
 **Build in Public**:

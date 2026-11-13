@@ -1,6 +1,6 @@
 # 12 · Decisions
 
-Projenin `Decisions` alanı: Kararlar, Riskler, Varsayımlar ve Açık Sorular. Doğrulama kayıtları bu dosyada değildir (→ `11.12 · Validation Records`).
+Projenin `Decisions` alanı (Kararlar ve Riskler) ile kanıt rolleri. Varsayımlar (`12.6`, `12.7`) ve Açık Sorular (`12.8`, `12.9`) `Discovery` alanında açılır (spec 41); ekran numaraları kalıcı olduğu için bu dosyada kalır. Doğrulama kayıtları bu dosyada değildir (→ `11.12 · Validation Records`).
 
 | Ekran | Ne çizilir |
 |---|---|
@@ -20,17 +20,16 @@ Projenin `Decisions` alanı: Kararlar, Riskler, Varsayımlar ve Açık Sorular. 
 
 **Artboard'lar**
 - `12.1 · Decisions · Default · 1440`
-- `12.1 · Decisions · Default · 768`
 - `12.1 · Decisions · Superseded · 1440`
 - `12.1 · Decisions · Withdrawn · 1440`
 - `12.1 · Decisions · Empty · 1440`
 
 ### Alan başlığı ve tür geçişi
-Yerleşim: `Assumptions` ve `Open Questions` bu alanda yer alır (PRD 02 Proje alanı kataloğu, CONTEXT). Spec 41 ve uygulanan kod (`#project-area-discovery`) aynı kayıtları `Discovery` altında açar; bu kaynak çelişkisi çözülene kadar harita PRD'yi izler.
-- **Label'lar:** `Decisions`, `Risks`, `Assumptions`, `Open Questions`.
+`Decisions` alanının tür geçişi Kararlar ve Riskler arasındadır. `Assumptions` ve `Open Questions` bu alanda değil, `Discovery` alanının tür geçişindedir (→ `11.1 › Alan başlığı ve tür geçişi`; spec 41, `#project-area-discovery`).
+- **Label'lar:** `Decisions`, `Risks`.
 
 ### Karar listesi
-Bütün yaşamlar tarihsel gezinme için listelenir; satırda başlık ve yaşam. Başlıkta `Export` (→ `20.5 · Export`) ve `Import` (→ `20.6 · Import`).
+Bütün yaşamlar tarihsel gezinme için listelenir; satırda başlık ve yaşam. Projeler arası `All Decisions` dizini ve `Search` ise varsayılan olarak `Valid` Kararları gösterir, diğer yaşamlar `Status` filtresiyle bulunur → `02.7 · Search`, `02.8 · Type index` (spec 38). Başlıkta `Export` (→ `20.5 · Export`) ve `Import` (→ `20.6 · Import`).
 - **Label'lar:** `Decisions`, `Create`, `Valid`, `Superseded`, `Withdrawn`, `Export`, `Import`.
 
 ### Başlık bölgesi
@@ -88,7 +87,7 @@ Yeni Karar için yerine geçilecek Kararların seçimi ve isteğe bağlı geçi�
 
 ### Supersession preview
 Her iki tarafın hüküm metni, gerekçesi ve mevcut kanıtı; değişecek yaşamlar; ilişkili kayıtların taşınmadığı açıklaması.
-- **Label'lar:** `Supersession preview`, `Supersedes`, `Evidence`, `Valid → Superseded`, `Confirm supersession`, `Saving…`, `Only full replacement uses Supersedes. Related records and their status, …`
+- **Label'lar:** `Supersession preview`, `Supersedes`, `Evidence`, `Valid → Superseded`, `Confirm supersession`, `Saving…`, `Only full replacement uses Supersedes. Related records and their status, priority and planning stay unchanged.`
 
 ### Remove supersession
 Aynı önizleme `Superseded → Valid` yönünde; halef ve diğer zincir bağları korunur. Önizlemede isteğe bağlı `Transition rationale` alanı bulunur (seçim formundaki aynı label); girilen gerekçe yerine geçme geçmişinde saklanır.
@@ -157,6 +156,8 @@ Risk türüne bağlı Proje özel alanları. Özel alanlar: satır ve boş değe
 `Title`, `Description`, `Impact`, `Probability`, `Response/mitigation`, `Save`, `Saving…`, `Cancel`; `Check the form.`; kaydetme hatası ve çatışma kalıbı → DS.16 ve `20.14 › Conflict`, tür adı `Risk`; `Risk saved.`
 #### Accepted
 Başlık altında `A known Risk remains recorded when accepted.` ve kabul gerekçesi.
+#### Open sinyali
+Risk `Open` ile oluşturulduğunda veya `Open`'a geri döndüğünde `open-risk` Dikkat sinyali üretilir; sunumu → `00.5 · Notification Center`. `Mitigating`, yüksek etki/olasılık veya zamanın geçmesi sinyal üretmez; sinyal takip İşi veya sağlık hükmü doğurmaz (spec 40). Bu ekran yeni label üretmez.
 #### Arşivli Proje
 Okunur; yazma yok → `20.21 · Archived Read-only Banner`.
 
@@ -189,12 +190,12 @@ Boş kabul gerekçesi alan hatası; aynı duruma geçiş çatışması.
 - `12.6 · Assumptions · Empty · 1440`
 
 ### Liste
-Varsayımlar başlık ve yaşamla. Başlıkta `Export` (→ `20.5 · Export`) ve `Import` (→ `20.6 · Import`).
+Yer: `Discovery` alanı (→ `11.1 › Alan başlığı ve tür geçişi`). Varsayımlar başlık ve yaşamla. Başlıkta `Export` (→ `20.5 · Export`) ve `Import` (→ `20.6 · Import`).
 - **Label'lar:** `Assumption`, `Create`, `Open`, `Confirmed`, `Refuted`, `No longer applicable`, `Export`, `Import`.
 
 ### Detay
 Önerme, gerekçe, kanıt veya kanıt yok satırı; yaşam butonları. Kanıt satırı yerine `Evidence by Evidence Role` bölgesi çağrılır (→ `12.10 · Evidence by Evidence Role`; kesin sürüm ve alıntı orada); altında katlanır `Evidence Flow` (→ `11.13 · Evidence Flow`). Kanıt yoksa `No evidence linked.` kalır.
-- **Label'lar:** `Statement`, `Rationale`, `Evidence by Evidence Role`, `Evidence Flow`, `Version`, `No evidence linked.`, `Edit`.
+- **Label'lar:** `Statement`, `Rationale`, `Evidence`, `Evidence by Evidence Role`, `Evidence Flow`, `Version`, `No evidence linked.`, `Edit`.
 
 ### Özel alanlar
 Varsayım türüne bağlı Proje özel alanları. Özel alanlar: satır ve boş değer kuralı → DS.12.
@@ -227,7 +228,7 @@ Seçilen yaşam; `Confirmed`/`Refuted` için gerekçe ve kanıt; `Open`/`No long
 
 ### Durumlar
 #### Error
-`Evidence is unavailable. Choose it again before saving.`; `Evidence choices are unavailable. You can save a Rationale or continue …`
+`Evidence is unavailable. Choose it again before saving.`; `Evidence choices are unavailable. You can save a Rationale or continue without new evidence.`
 #### Conflict
 Çatışma kalıbı → `20.14 › Conflict` ve DS.16; tür adları `Assumption or Evidence`.
 
@@ -242,15 +243,15 @@ Seçilen yaşam; `Confirmed`/`Refuted` için gerekçe ve kanıt; `Open`/`No long
 - `12.8 · Open Questions · Empty · 1440`
 
 ### Liste
-Açık Sorular başlık ve yaşamla. Başlıkta `Export` (→ `20.5 · Export`) ve `Import` (→ `20.6 · Import`).
+Yer: `Discovery` alanı (→ `11.1 › Alan başlığı ve tür geçişi`). Açık Sorular başlık ve yaşamla. Başlıkta `Export` (→ `20.5 · Export`) ve `Import` (→ `20.6 · Import`).
 - **Label'lar:** `Open Question`, `Create`, `Open`, `Answered`, `No longer applicable`, `Export`, `Import`.
 
 ### Detay
 Soru, bağlam, yanıt, gerekçe ve kanıt; yaşam eylemleri. Kanıt satırı yerine `Evidence by Evidence Role` bölgesi çağrılır (→ `12.10 · Evidence by Evidence Role`). Açık Soru Kanıt Akışı göstermez (akış İş, Karar ve Varsayımdadır).
-- **Label'lar:** `Question`, `Context`, `Answer`, `Rationale`, `Evidence by Evidence Role`, `No evidence linked.`, `Answered`, `No longer applicable`.
+- **Label'lar:** `Question`, `Context`, `Answer`, `Rationale`, `Evidence`, `Evidence by Evidence Role`, `No evidence linked.`, `Answered`, `No longer applicable`.
 
 ### Oluşturma formu
-`Create` ile açılan form (kaynak çelişkisi: spec 41 bu yüzeyi `Discovery` altında anar; PRD 02/04 ve CONTEXT `Decisions` der, harita `Decisions`'ta bırakır).
+`Discovery` alanındaki `Create` ile açılan form.
 - **Label'lar:** `Title`, `Question`, `Context`, `Save`, `Saving…`, `Cancel`.
 
 ### Durumlar
@@ -262,6 +263,8 @@ Soru, bağlam, yanıt, gerekçe ve kanıt; yaşam eylemleri. Kanıt satırı yer
 `Open Questions are unavailable. Reload to retry.`; `Open Question is unavailable.`; `Evidence is unavailable. Reload to retry.`; `Open Questions could not be refreshed. Your draft is safe.`
 #### Kapalı soru
 `Answered` veya `No longer applicable`: soru, yanıt ve kanıt okunur; yeniden yanıtlama yok.
+#### Arşivli Proje
+Kayıtlar ve kanıtlar okunur, oluşturma ve yaşam eylemleri yok → `20.21 · Archived Read-only Banner`.
 
 **Spec:** [41 Varsayımlar ve Açık Sorular](../../specs/41-uncertainty-records/spec.md); [45 Kanıt İlişkileri ve Kanıt Akışı](../../specs/45-evidence/spec.md) (kanıt bölgesi).
 
@@ -291,7 +294,7 @@ Kaydetme hatası kalıbı → DS.16, tür adı `Open Question`; `Documents are u
 - `12.10 · Evidence by Evidence Role · Edit role · 1440`
 
 ### Rol grupları
-Rol kataloğunun sahibi bu bölgedir (`11.13` ve `10.2` değerleri yeniden listelemez): `Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified` grupları; her sayı yalnız erişilebilir ilişki kümesini açar. Erişilemeyen kanıt rolü gizlenir (aşağıda `Rol gizlendi`).
+Rol kataloğunun sahibi bu bölgedir (`11.13` ve `10.2` değerleri yeniden listelemez): `Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified` grupları; her sayı yalnız erişilebilir ilişki kümesini açar. Erişilemeyen kanıt rolü gizlenir (→ Durumlar › Rol gizlendi).
 - **Label'lar:** `Evidence by Evidence Role`, `Evidence Role`, `Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified`, `Unavailable source`, `Version-pinned evidence`, `Open source record`.
 
 ### Rol düzenleme

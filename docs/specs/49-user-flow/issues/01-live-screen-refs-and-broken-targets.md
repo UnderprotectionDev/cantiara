@@ -10,5 +10,5 @@
 - [ ] Arşivli kaynak `Archived` gösterilir ve kaynağı açar.
 - [ ] Kırık hedef boşalmaz, başka Ekrana kaymaz, gövde sızdırmaz; ortak kırık referans sunumu kullanılır; geri yükleme aynı kimliği çözer.
 - [ ] Kırık referans arama sonucu, koleksiyon üyeliği, hesaplanmış sayı veya export içeriğine girmez.
-- [ ] İngilizce UI `User Flow`, `Archived`, `Open Source Record` kullanır.
+- [ ] İngilizce UI `User Flow`, `Archived`, `Open source record` kullanır.
 - [ ] Kabul kanıtı User Flow seam'inde: referans matrisi, arşiv ve kırık uç. Kanıt [Kullanıcı Akışı](../../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) yolculuğudur.

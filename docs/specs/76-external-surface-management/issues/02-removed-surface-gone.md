@@ -1,6 +1,6 @@
 # 02 — Kaldırılan yüzey içerik ve analitiksiz 410
 
-**What to build:** Dizinden `Revoke / Unpublish` veya `Move to Trash` aynı Dış yüzey yaşam döngüsünü kullanır; yumuşak ikinci iptal yoktur. Kaldırılan yüzeyin eski URL'si içerik ve varlık sızdırmayan genel `410 Gone` döner, `noindex` olur, sitemap'ten çıkar, yeni yüzeye veya özel içeriğe yönlenmez ve yeniden kullanılmaz. Ürün kontrollü cache/index temizliği görünür yeniden denemeyle yürür; purge başarısızlığı içeriği yeniden açmaz. Görüntülenme analitiği üretilmez. Ziyaretçi oturumu hemen düşer. Üçüncü taraf kopyaların gittiği vaat edilmez.
+**What to build:** Dizinden `Revoke`, `Unpublish` veya `Move to Trash` aynı Dış yüzey yaşam döngüsünü kullanır; yumuşak ikinci iptal yoktur. Kaldırılan yüzeyin eski URL'si içerik ve varlık sızdırmayan genel `410 Gone` döner, `noindex` olur, sitemap'ten çıkar, yeni yüzeye veya özel içeriğe yönlenmez ve yeniden kullanılmaz. Ürün kontrollü cache/index temizliği görünür yeniden denemeyle yürür; purge başarısızlığı içeriği yeniden açmaz. Görüntülenme analitiği üretilmez. Ziyaretçi oturumu hemen düşer. Üçüncü taraf kopyaların gittiği vaat edilmez.
 
 **Blocked by:** 01 — Bütün Dış yüzeylerin tek dizini
 

@@ -42,7 +42,7 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 - **İlk ürün Başlangıç yapılandırması kataloğu tam olarak `Blank Project`, `Solo SaaS`, `Open Source Library` ve `Mobile Application` seçeneklerinden oluşur.** Seçim yalnız Proje oluşturulurken bir kez uygulanır; sonradan başka Başlangıç yapılandırmasıyla değiştirilmez veya mevcut yapı üzerine yeniden uygulanmaz. Kullanıcı kurulan yapılandırmaları tek tek değiştirebilir ya da [Proje yapısını kopyalama](#proje-yapısını-kopyalama) davranışını kullanabilir.
 
-- **Bütün Başlangıç yapılandırmaları `Not Started`, `In Progress`, `Blocked` ve `Closed` İş durumlarını kurar; `Overview`, `Work`, `Documents` ve `All Tools` erişimini korur.** İş türüne göre hazır İş Bağlam Kartı düzenleri yapılandırma arasında değişmez ve [İş Yönetimindeki tek sözleşmeyi](06-work-management-and-planning.md#iş-bağlam-kartı) kullanır. Yapılandırmalar örnek İş, sahte Belge, Karar, Risk veya çalışma geçmişi üretmez.
+- **Bütün Başlangıç yapılandırmaları `Not Started`, `In Progress`, `In Review`, `Blocked` ve `Closed` İş durumlarını kurar; `Overview`, `Work`, `Documents` ve `All Tools` erişimini korur.** İş türüne göre hazır İş Bağlam Kartı düzenleri yapılandırma arasında değişmez ve [İş Yönetimindeki tek sözleşmeyi](06-work-management-and-planning.md#iş-bağlam-kartı) kullanır. Yapılandırmalar örnek İş, sahte Belge, Karar, Risk veya çalışma geçmişi üretmez.
 
 | Başlangıç yapılandırması | Hazır Proje aşamaları | Etkin Proje alanları | Temel erişime ek sabitlenmiş alanlar | Hazır İş görünümleri |
 | --- | --- | --- | --- | --- |
@@ -87,7 +87,7 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 ### Proje alanlarını etkinleştirme
 
-- **İlk ürünün yapılandırılabilir Proje alanı kataloğu `Work`, `Documents`, `Discovery`, `Decisions`, `Design`, `Technical Diagrams`, `Tests`, `Releases`, `Production` ve `GitHub` ile kapalıdır.** `Overview` ve `All Tools` Proje alanı değildir ve daima erişilebilir kalır. `Discovery`; Geri Bildirim, Kaynak, Kullanıcı Araştırması Oturumu ve Deney/Doğrulama kayıtlarını, `Decisions`; Karar, Risk, Varsayım ve Açık Soruyu, `Design`; Proje Duvarı, Ekran/Wireframe, Kullanıcı Akışı ve Moodboard'u toplar. Proje Hedefi ile Kilometre Taşı `Overview` ve ilgili planlama görünümlerinden erişilir; ayrı alan oluşturmaz.
+- **İlk ürünün yapılandırılabilir Proje alanı kataloğu `Work`, `Documents`, `Discovery`, `Decisions`, `Design`, `Technical Diagrams`, `Tests`, `Releases`, `Production` ve `GitHub` ile kapalıdır.** `Overview` ve `All Tools` Proje alanı değildir ve daima erişilebilir kalır. `Discovery`; Geri Bildirim, Kaynak, Kullanıcı Araştırması Oturumu, Deney/Doğrulama, Varsayım ve Açık Soru kayıtlarını, `Decisions`; Karar ve Riski, `Design`; Proje Duvarı, Ekran/Wireframe, Kullanıcı Akışı ve Moodboard'u toplar. Proje Hedefi ile Kilometre Taşı `Overview` ve ilgili planlama görünümlerinden erişilir; ayrı alan oluşturmaz.
 
 - **Kullanıcı hazır Proje alanlarını etkinleştirebilir veya gizleyebilir.** Kullanılmayan alanlar içerik kaybı olmadan yeniden etkinleştirilebilir; alan kaydı sahiplenmez ve içindeki kayıt türlerinin yaşam döngüsünü değiştirmez. Her kayıt türünün kendi filtrelenebilir hazır dizini ilgili gruplanmış alan içinde bulunabilir; her tür için ayrı ana navigasyon kapısı oluşturulmaz.
 

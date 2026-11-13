@@ -20,7 +20,7 @@ Tek dosya Paper'ın node ve artboard sınırını aştığı için tasarım 9 do
 
 - Token'ların tek kaynağı `00 Foundations`'tır. Token değişince `Copy theme` ile alınıp diğer dosyalara `Paste theme` ile yeniden yapıştırılır; dosyalar arası otomatik güncelleme yoktur.
 - `03 Shell` içindeki `00 · Shared Shell` kabuğun kanonik çizimidir: düz kabuk (sidebar | hairline | main, iç içe yuvarlak kart yok), üst çubuk yok, 48px breadcrumb başlık, liste satırları 38px, popover'lar 380px ve oksuz, kayıt panelinde 40px şerit içinde 26px düz sekmeler. Design System dosyaları ve ekran dosyaları kabuk parçalarını buradan kopyalar; yeniden çizmez.
-- `20 · Shared Dialogs & States` ekranları `02 Patterns` içindeki DS.15, DS.16 ve DS.19 desenlerinin klonudur; o desenler değişince `20` yeniden klonlanır.
+- `20 · Shared Dialogs & States` içindeki ortak durum, hata ve onay ekranları `02 Patterns` içindeki DS.15, DS.16 ve DS.19 desenlerinin klonudur; o desenler değişince bu ekranlar yeniden klonlanır. `20.4`, `20.5`, `20.6`, `20.8`, `20.9`, `20.13` ve `20.22` feature'a özgü dialog'lardır, klon değildir.
 
 ## Sıra
 
@@ -80,13 +80,15 @@ Bütün ekranlar aynı kurgusal Workspace'i kullanır. Başka proje veya kişi u
 
 - **Kurucu:** Alex Morgan (GitHub `alexmorgan`).
 - **Luma:** `Solo SaaS`, serbest çalışanlar için fatura hatırlatıcı. Kısa kodu `LUMA`, aktif. Aşamaları: `Discovery` Tamamlandı, `MVP` Aktif, `Beta` Hazır, `Launch` Planlanmadı. Ana örnek projedir.
-- **tidekit:** `Open Source Library`, TypeScript tarih yardımcıları. Kısa kodu `TIDE`, aktif. GitHub, Releases (`v0.9.0`, `v1.0.0`) ve Build in Public ekranlarında kullanılır.
+- **tidekit:** `Open Source Library`, TypeScript tarih yardımcıları. Kısa kodu `TIDE`, aktif. GitHub, Releases (`v0.9.0`, `v1.0.0`; planlanan Proje Sürümü `v1.1.0`) ve Build in Public ekranlarında kullanılır.
 - **Ferry:** `Mobile Application`. Kısa kodu `FRY`, arşivli. Arşiv ve salt okunur durumlarda kullanılır.
 - **İşler:**
   - `LUMA-42 Reminder email bounces for Gmail aliases` (Bug, In Progress)
   - `LUMA-51 Stripe webhook retry` (Feature)
   - `LUMA-58 Onboarding checklist copy` (Task)
   - `LUMA-63 Research: late-payment etiquette` (Research)
+  - `LUMA-12`: `LUMA-42`'ye birleştirilmiş İşin emekli anahtarı.
+  - `TIDE-9`: tidekit'ten Luma'ya `Recreate in another Project` ile yeniden oluşturulan İşin kaynağı.
 - **Wiki:** `Pricing heuristics`, `Weekly review template`, `How I write specs`.
 - **Kişiler:** `Emma Clark` (`Brightwave Studio`), `Daniel Reed` (`Reed Design`).
 - **Bugün:** Cuma, 2026-11-13.

@@ -109,7 +109,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Contact (kimlik defteri) | `Contact` | Geri bildirimi veren kişiyi geri bildirimler boyunca tanıyan Çalışma Alanı ana kaydı; Feedback Capture yönlendirici alanı değildir |
 | Company | `Company` | Contact ve Geri Bildirimi isteğe bağlı ortak kuruluş bağlamında gruplayan hafif ana kayıt |
 | Şirkete ait | `Belongs to Company` | Contact başına en fazla bir güncel Company bağı; geçmiş değişiklikte korunur |
-| Kaynak kaydı aç | `Open Source Record` | Contact profilinde ilişkili Geri Bildirim, Company ve Persona belgesini kaynağında açma; Proje Duvarı canlı kartında ana kaydı açma |
+| Kaynak kaydı aç | `Open source record` | Contact profilinde ilişkili Geri Bildirim, Company ve Persona belgesini kaynağında açma; Proje Duvarı canlı kartında ana kaydı açma |
 | Contact oluştur | `Create Contact` | Çalışma Alanında kimlik defteri Contact'ı açma |
 | Company oluştur | `Create Company` | İsteğe bağlı kuruluş bağlamı kaydı açma |
 | Görünen ad | `Display name` | Contact'ta isteğe bağlı görünen ad; kimlik değildir |
@@ -625,7 +625,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Planlanmadı | `Not Planned` | Proje aşaması durumu; İş akışı durumu değildir |
 | Hazır | `Ready` | Proje aşaması durumu; İş akışı durumu değildir |
 | Gizle | `Hide` | Kapalı katalogdaki Proje alanını gizleme; kayıt silmez |
-| Etkinleştir | `Enable` | Gizlenmiş Proje alanını yeniden gösterme; içerik üretmez |
+| Etkinleştir | `Enable` | `Available` durumundaki Proje alanını Yapılandırma modunda etkinleştirme; içerik üretmez |
 | Aşama ekle | `Add stage` | Yapılandırılabilir Proje aşaması ekleme |
 | Aşamayı kaldır | `Remove stage` | Aşamayı sunum ve filtrelerden kaldırma; ana kayıt silmez |
 | Yukarı taşı | `Move up` | Aşama sunum sırasını öne alma |
@@ -708,8 +708,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belge veya Proje kullanılamıyor | `Document or Project is unavailable.` | Belge veya Proje hedefi bulunamadığında gösterilen hata durumu |
 | Diyagram işlenemedi | `Diagram could not be rendered.` | Mermaid diyagramı işlenemediğinde gösterilen genel hata |
 | Formül işlenemedi | `Formula could not be rendered.` | LaTeX formülü işlenemediğinde gösterilen genel hata |
-| Discovery | `Discovery` | Geri Bildirim ve araştırma kayıtlarını toplayan Proje alanı veya hazır aşama adı |
-| Decisions | `Decisions` | Karar, Risk, Varsayım ve Açık Soruyu toplayan Proje alanı; Research hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
+| Discovery | `Discovery` | Geri Bildirim, araştırma, Varsayım ve Açık Soru kayıtlarını toplayan Proje alanı veya hazır aşama adı |
+| Decisions | `Decisions` | Karar ve Riski toplayan Proje alanı; Research hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
 | Karar hükmü | `Decision text` | Kararın yürürlükteki seçim metni |
 | Karar gerekçesi | `Rationale` | Kararın alınma veya geri çekilme gerekçesi; kapanış `Reason` değildir |
 | Geçerli | `Valid` | Kararın yürürlükteki yaşamı; durumsuz içe aktarım da böyle okunur |
@@ -833,6 +833,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Maintain | `Maintain` | Hazır Proje aşaması adı |
 | Not Started | `Not Started` | Korunan İş akışı durumu |
 | In Progress | `In Progress` | Korunan İş akışı durumu |
+| In Review | `In Review` | Korunan İş akışı durumu; `In Progress` ile `Blocked` arasında sıralanır |
 | Blocked | `Blocked` | Korunan İş akışı durumu |
 | Closed | `Closed` | Korunan İş akışı durumu |
 | Kapanış sonucu | `Closure result` | Kapalı İşin `Completed` veya `Abandoned` sonucunu açıkça seçen alan etiketi |
@@ -902,7 +903,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Erişim yok | `No access` | Kırık referans nedeni; yetkisiz ad sızdırmaz |
 | Kırık referans arşivi | `Archived` | Kırık referans nedeni; İş arşiv filtresiyle aynı İngilizce etiket |
 | İlişkiyi onayla | `Confirm relation` | Tür ve iki ucun önizlemesinden sonra ilişki yazma |
-| Kaynak öğe artık yok | `Source item is gone` | Köken konumunda sahipli bileşenin çözülemediğini açıklar |
+| Kaynak öğe artık yok | `Source element no longer exists` | Köken konumunda sahipli bileşenin çözülemediğini açıklar |
 | İlişki yok | `No relations yet.` | Henüz standart ilişki olmadığını söyleyen boş durum |
 | İş ilişkileri bölümü | `Relations` | İş detayındaki ilişki bölümünün başlığı; birleştirme satırındaki aynı etiketten ayrı kavram |
 | İlişki türü | `Relation type` | İlişki oluşturmada kapalı katalogdan tür seçimi |
@@ -1090,8 +1091,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Bir kez yeniden deneyebilirsin | `You can retry once.` | Yazılmamış başarısız akışın güvenli yeniden deneme sınırı |
 | Yeniden deneme | `Do not retry.` | Yazılmış başarısız akışta yeniden denemenin güvensiz olduğunu bildirir |
 | Bu eylem tamamlanamadı | `This action could not be completed.` | Secret taşıyan veya beklenmeyen hatanın kullanıcıya gösterilen nedeni |
-| Yakalama Gelen Kutusu | `Capture Inbox` | Kaydedilmiş fakat henüz kalıcı kayda dönüşmemiş geçici girdi yüzeyi; ana kayıt, Taslak veya kaydedilmiş bookmark değildir |
-| Yakalama kütüphanesi | `Capture Library` | Workspace ve Project Capture Inbox öğelerini tek listede gösteren yüzey; yeni yakalama formu modal olarak açılır ve ayrı bir kayıt türü değildir |
+| Yakalama Gelen Kutusu | `Capture Inbox` | Kaydedilmiş fakat henüz kalıcı kayda dönüşmemiş geçici girdi yüzeyi; sayfa öğesi olan Workspace ve Project Capture Inbox'ları tek listede gruplar, yeni yakalama formu modal açılır; ana kayıt, Taslak veya kaydedilmiş bookmark değildir |
 | Çalışma alanı Yakalama Gelen Kutusu | `Workspace Capture Inbox` | Proje bilinmediğinde geçici yakalamaların durduğu Inbox |
 | Workspace Capture Inbox’a kaydet | `Leave empty to save to the Workspace Capture Inbox.` | Project alanı boşken Save’in Workspace Capture Inbox’a yazacağını söyleyen metin |
 | Proje Yakalama Gelen Kutusu | `Project Capture Inbox` | Proje bilindiğinde o projenin geçici yakalamalarının durduğu Inbox |
@@ -1566,7 +1566,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Mevcut veri uyarısı | `Existing data warning` | Migration satırında mevcut veriye etkisi uyarısı |
 | Geri dönüş veri uyarısı | `Reverse data warning` | Migration satırında geri dönüşte veri kaybı uyarısı |
 | Extension gerekli | `Extension required` | Migration satırında extension gerektiren operasyon etiketi |
-| Migration operasyonları | `Create table`, `Rename table`, `Rename column`, `Widen column type`, `Relax nullability`, `Tighten nullability`, `Add or change default`, `Drop default`, `Add primary key`, `Add foreign key`, `Change referential action`, `Add unique constraint`, `Add check constraint`, `Add index`, `Drop index`, `Create enum type`, `Add enum value`, `Rename enum value`, `Create domain`, `Add domain constraint` | Yıkıcı olmayan migration operasyonlarının PRD 11 sırasındaki İngilizce adları |
+| Migration operasyonları | `Create table`, `Rename table`, `Add column`, `Rename column`, `Widen column type`, `Relax nullability`, `Tighten nullability`, `Add or change default`, `Drop default`, `Add primary key`, `Add foreign key`, `Change referential action`, `Add unique constraint`, `Add check constraint`, `Add index`, `Drop index`, `Create enum type`, `Add enum value`, `Rename enum value`, `Create domain`, `Add domain constraint` | Yıkıcı olmayan migration operasyonlarının PRD 11 sırasındaki İngilizce adları |
 | Yeniden doğrula | `Revalidate` | Düzenlenen Up SQL'i yeniden doğrulayan eylem |
 | Olası yıkıcı satır onayı | `I understand this can lose data or guarantees` | Olası yıkıcı satırlar için gösterilen ek onay kutusu |
 | Manifesti dışa aktar | `Export manifest` | `.sql` ile eşlik eden manifesti dışa aktaran eylem |
@@ -1736,9 +1736,9 @@ Kullanıcı aşağıdaki anlamları silemez veya başka anlam için yeniden kull
 - **Teknik Diyagram türü, Diyagram otorite kipi ve kesin Diyagram Sürümü kimliği**
 - **Dış kaynak sağlayıcı/kimlik/köken atfı**
 - **Denetim ve güvenlik redaksiyonu olayları**
-- **İş akışı durumu değerleri** (`Not Started`, `In Progress`, `Blocked`, `Closed`)
+- **İş akışı durumu değerleri** (`Not Started`, `In Progress`, `In Review`, `Blocked`, `Closed`)
 
-- **Kullanıcı alan görünürlüğünü, kullanıcıya dönük iş akışı durumu adlarını, özel alanları ve sunum sırasını alan PRD'lerinin izin verdiği ölçüde yapılandırabilir.** Yeni İş akışı durumu değeri eklenemez; yalnız korunan dört değerin görünen adı değişebilir.
+- **Kullanıcı alan görünürlüğünü, kullanıcıya dönük iş akışı durumu adlarını, özel alanları ve sunum sırasını alan PRD'lerinin izin verdiği ölçüde yapılandırabilir.** Yeni İş akışı durumu değeri eklenemez; yalnız korunan beş değerin görünen adı değişebilir.
 
 <a id="ana-kayıt-türleri-ve-asgari-sözleşmeler"></a>
 ## Ana kayıt türleri ve asgari sözleşmeler
@@ -1748,7 +1748,7 @@ Kullanıcı aşağıdaki anlamları silemez veya başka anlam için yeniden kull
 | Proje | Çalışma alanı | Ad, kısa kod; isteğe bağlı amaç, problem ve kapsam | `Aktif`, `Bekleyen`, `Tamamlandı`, `Vazgeçildi` |
 | Kişisel Wiki | Çalışma alanı | Ad, klasör ve belge kökleri | Aktif; çalışma alanıyla birlikte silinir |
 | Proje Hedefi | Proje | Başlık, açıklama | Açık/kapanmış durum üretmez; sonuç kullanıcı alanlarında değerlendirilir |
-| İş | Proje | Anahtar, başlık, tür, durum | Başlangıçta `Not Started`, `In Progress`, `Blocked`, `Closed`; Proje tanımlı kullanıcı adları + `Tamamlandı`/`Vazgeçildi` kapanış sonucu |
+| İş | Proje | Anahtar, başlık, tür, durum | Başlangıçta `Not Started`, `In Progress`, `In Review`, `Blocked`, `Closed`; Proje tanımlı kullanıcı adları + `Tamamlandı`/`Vazgeçildi` kapanış sonucu |
 | Kilometre Taşı | Proje | Başlık, açıklama, isteğe bağlı hedef tarihi | `Planlandı`, `Ulaşıldı`, `Vazgeçildi`; durum İşleri değiştirmez |
 | Belge | Proje veya Wiki | Başlık, Markdown gövdesi, sürüm | Aktif/arşiv/çöp kutusu |
 | Dosya Eki | Proje veya Wiki | Dosya adı, MIME, boyut, içerik parmak izi, sürüm | Aktif/arşiv/çöp kutusu |

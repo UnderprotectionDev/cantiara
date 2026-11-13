@@ -7,7 +7,7 @@
 **Status:** ready-for-agent
 
 - [ ] Dizin bağlantı, Wiki ve Build in Public Dış yüzeylerini tür ayırmadan listeler; Proje kapsamı o Projenin satırlarını indirger.
-- [ ] Satır görünürlük türü, kaynak, parola-var boolean, süre, yaşam durumu, son onay, yayımlanmamış değişiklik ve duruma uygun `Open source` / `Review diff` / `Change expiry / Reactivate` / `Revoke / Unpublish` / `Move to Trash` taşır; secret, token veya parola değeri yoktur.
+- [ ] Satır görünürlük türü, kaynak, parola-var boolean, süre, yaşam durumu, son onay, yayımlanmamış değişiklik ve duruma uygun `Open source` / `Review diff` / `Change expiry` / `Reactivate` / `Revoke` / `Unpublish` / `Move to Trash` taşır; secret, token veya parola değeri yoktur.
 - [ ] Redaksiyon durumu içerik sızdırmadan görünür; redakte değer eski ziyaretçi görünümü olarak sunulmaz.
 - [ ] Tekil kaynakta korunan donmuş yüzey canlı kaynak bağlı veya yeni onaylı gibi gösterilmez; ziyaretçi hâlâ donmuş snapshot alır, 410 değil.
 - [ ] Görüntülenme, son erişim, ziyaretçi kimliği, IP profili, cihaz izi ve kişi bazlı hareket alanları yoktur.

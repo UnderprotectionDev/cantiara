@@ -6,14 +6,14 @@ Kurucu Çalışma Alanı ve Proje düzeyinde hangi Dış yüzeylerin ayakta, sü
 
 ## Solution
 
-`Shares and Publications` bütün Dış yüzeyleri — bağlantı paylaşımı, Wiki yayını, Build in Public — kaynak, görünürlük, erişim ve yaşam durumuyla tek dizinde listeler. Satır eylemleri duruma uygun `Open source`, `Review diff`, `Change expiry / Reactivate`, `Revoke / Unpublish`, `Move to Trash` sunar. Anonim görüntülenme veya son erişim toplanmaz. İndeksten kaldırılan yüzey genel `410 Gone`, `noindex`, sitemap dışı ve ürün kontrollü cache temizliğiyle hiçbir içerik sızdırmaz; URL yeniden kullanılmaz.
+`Shares and Publications` bütün Dış yüzeyleri — bağlantı paylaşımı, Wiki yayını, Build in Public — kaynak, görünürlük, erişim ve yaşam durumuyla tek dizinde listeler. Satır eylemleri duruma uygun `Open source`, `Review diff`, `Change expiry`, `Reactivate`, `Revoke`, `Unpublish`, `Move to Trash` sunar. Anonim görüntülenme veya son erişim toplanmaz. İndeksten kaldırılan yüzey genel `410 Gone`, `noindex`, sitemap dışı ve ürün kontrollü cache temizliğiyle hiçbir içerik sızdırmaz; URL yeniden kullanılmaz.
 
 ## User Stories
 
 1. As a founder, I want one directory of every Dış yüzey in the Çalışma Alanı, so that link, wiki, and public Proje cannot hide in separate lists.
 2. As a founder in a Proje, I want the same directory scoped to that Proje, so that I can manage one product’s surfaces.
 3. As a founder, I want each row to show source record, visibility, password presence (not the secret), expiry, `Active` / `Expired` / `Revoked`, last approval time, and whether unpublished changes exist, so that I can act without opening the create flow.
-4. As a founder, I want row actions appropriate to state (`Open source`, `Review diff`, `Change expiry / Reactivate`, `Revoke / Unpublish`, `Move to Trash`), so that the directory manages life-cycle rather than minting new kinds.
+4. As a founder, I want row actions appropriate to state (`Open source`, `Review diff`, `Change expiry`, `Reactivate`, `Revoke`, `Unpublish`, `Move to Trash`), so that the directory manages life-cycle rather than minting new kinds.
 5. As a founder, I want create/publish flows to stay in Link Sharing, Wiki Publishing, and Build in Public, so that this directory does not become a second wizard.
 6. As a founder, I want revoke/unpublish from the directory to use the same terminal Dış yüzey semantics as those features, so that policy is not forked.
 7. As a founder, I want a removed surface’s old URL to answer generic `410 Gone` with `noindex`, so that neither content nor a new private redirect leaks.
@@ -37,11 +37,11 @@ Kurucu Çalışma Alanı ve Proje düzeyinde hangi Dış yüzeylerin ayakta, sü
 - **Removed surface.** Visitor GET/asset/range → generic `410 Gone`, `noindex`, not a redirect to private content or another surface. Sitemap drop + purge request with visible retry; purge failure does not re-open content. URL never reused. Third-party copies not promised gone. Directory copy does not claim those copies are gone.
 - **Tekil kaynakta korunan yüzey.** Tekil kaynak Çöp Kutusuna alınırken korunan Dış yüzey, donmuş Onaylı snapshot revizyonunu sunduğu sürece dizinde kalır. Satır canlı kaynak bağını, yeni onayı veya canlı alan güncellemesini ima etmez. Ziyaretçi erişimi terminal iptale kadar donmuş snapshot'tır; korunan yüzey 410 değildir.
 - **Trash.** İptal edilmiş Dış yüzey may enter ordinary 30-day Çöp Kutusu; permanent delete drops revision bytes; identity tombstones may remain. Visitors still see gone, never content.
-- **English UI labels.** `Shares and Publications`, `Active`, `Expired`, `Revoked`, `Open source`, `Review diff`, `Change expiry / Reactivate`, `Revoke / Unpublish`, `Move to Trash`. Missing labels go to the term table when first shown. `Trash` already exists.
+- **English UI labels.** `Shares and Publications`, `Active`, `Expired`, `Revoked`, `Open source`, `Review diff`, `Change expiry`, `Reactivate`, `Revoke`, `Unpublish`, `Move to Trash`. Missing labels go to the term table when first shown. `Trash` already exists.
 
 ## Testing Decisions
 
-- **What a good test is.** Tests observe External Surface Management through its public interface: list all kinds, filter by Proje, row fields without secrets, redaction status without content, frozen single-source-kept row, revoke from row → 410 and no body, unpublished flag, no counters. Expected values are directory completeness and leak-nothing on remove.
+- **What a good test is.** Tests observe External Surface Management through its public interface: list all kinds, filter by Proje, row fields without secrets, state-appropriate row actions as separate labels (`Change expiry`, `Reactivate`, `Revoke`, `Unpublish`), redaction status without content, frozen single-source-kept row, revoke from row → 410 and no body, unpublished flag, no counters. Expected values are directory completeness and leak-nothing on remove.
 - **Seam (one).** External Surface Management — the product-facing index of Dış yüzey. Lifecycle mutations invoke the shared surface adapter; create commands are out of this suite.
 - **Modules under test.** External Surface Management only. Create UIs of 73/74/75 are not required except as “not hosted here.”
 - **Prior art.** There is no suite for this spec yet; the nearest pattern is `apps/web/e2e/account-sessions.e2e.ts`, `apps/server/src/features/file-attachments/server/tests/file-attachments-rpc.test.ts`. Evidence binds to [Bağlantıyla paylaşım](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) and [Herkese açık yayın](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) as the directory half, plus gone-URL counterparts on [Proje silme ve dış yüzey](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) when 83 deletes a Proje.

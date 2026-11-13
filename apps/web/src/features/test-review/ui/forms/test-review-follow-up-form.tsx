@@ -122,9 +122,9 @@ export default function TestReviewFollowUpForm({
         {TEST_REVIEW_FOLLOW_UP_LABEL}
       </h3>
       <p className="text-muted-foreground text-sm">
-        A Failed, Blocked or Inconclusive result creates no Bug, İş, Risk, Open
-        Question, Decision, notification or priority by itself. Choose results,
-        preview the target and origin, then confirm.
+        A Failed, Blocked or Inconclusive result creates no Bug, Work, Risk,
+        Open Question, Decision, notification or priority by itself. Choose
+        results, preview the target and origin, then confirm.
       </p>
       <form className="space-y-3" noValidate onSubmit={handlePreviewSubmit}>
         {items.length === 0 ? (
@@ -182,7 +182,7 @@ export default function TestReviewFollowUpForm({
                     id="test-review-follow-up-mode-new"
                     value="new"
                   />
-                  New İş from one result
+                  New Work from one result
                 </label>
                 <label
                   className="flex items-center gap-2"
@@ -192,7 +192,7 @@ export default function TestReviewFollowUpForm({
                     id="test-review-follow-up-mode-existing"
                     value="existing"
                   />
-                  Attach results to an existing İş
+                  Attach results to an existing Work
                 </label>
               </RadioGroup>
             )}
@@ -244,7 +244,7 @@ export default function TestReviewFollowUpForm({
           ) : (
             <div className="grid gap-2">
               <label htmlFor="test-review-follow-up-work">
-                Existing İş id or key
+                Existing Work id or key
               </label>
               <form.Field name="workId">
                 {(field) => (
@@ -301,7 +301,9 @@ export default function TestReviewFollowUpForm({
           ) : (
             <ul aria-label="Follow-up work preview" className="list-disc pl-5">
               <li>{`Target: existing ${preview.plan.target.work.key} ${preview.plan.target.work.title} (${preview.plan.target.work.status})`}</li>
-              <li>The İş keeps its own Origin; only the results are linked.</li>
+              <li>
+                The Work keeps its own Origin; only the results are linked.
+              </li>
             </ul>
           )}
           <ul aria-label="Results to link" className="list-disc pl-5">
@@ -312,7 +314,7 @@ export default function TestReviewFollowUpForm({
             ))}
           </ul>
           <p className="text-muted-foreground">
-            {`Nothing else is created (${FOLLOW_UP_STARTING_STATUS} status, no Bug, Risk, Test Gap, notification or priority). Closing the İş never changes these results; verifying a fix needs a new Test Session and, if you choose, Supersedes.`}
+            {`Nothing else is created (${FOLLOW_UP_STARTING_STATUS} status, no Bug, Risk, Test Gap, notification or priority). Closing the Work never changes these results; verifying a fix needs a new Test Session and, if you choose, Supersedes.`}
           </p>
           <div className="flex gap-2">
             <Button
@@ -350,7 +352,7 @@ export default function TestReviewFollowUpForm({
               .find(({ id }) => id === link.sessionTestId);
             return (
               <li key={link.id}>
-                {`${item?.title ?? link.sessionTestId}: ${link.mode} ${link.workKey ?? "unavailable İş"}${link.workTitle ? ` ${link.workTitle}` : ""}${link.workStatus ? ` (${link.workStatus})` : ""}`}
+                {`${item?.title ?? link.sessionTestId}: ${link.mode} ${link.workKey ?? "unavailable Work"}${link.workTitle ? ` ${link.workTitle}` : ""}${link.workStatus ? ` (${link.workStatus})` : ""}`}
               </li>
             );
           })}

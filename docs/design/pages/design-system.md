@@ -99,7 +99,7 @@ Karar 9, 10, 12: radius örnekleri, ayırıcı, popover/dialog/toast katmanları
 - **Yıkıcı eylem durumları:** `--color-danger-fill-hover` (`#C52836`), `--color-danger-fill-pressed` (`#B32331`), Dark `--color-danger-fill-hover-dark` (`#C42634`), `--color-danger-fill-pressed-dark` (`#B32230`); dokuz Paper dosyasında da tanımlıdır.
 - **Popover örneği:** `popover-dark` (Light'ta `surface`), 1px `hairline-strong`, radius 12, gölge metin olarak yazılır (Paper'da gölge token'ı yoktur).
 - **Overlay scrollbar thumb:** `hairline-strong`, 4px, radius `hair`, kaydırma alanının sağ kenarından 3px içeride.
-- **Work durum rolleri:** Not Started `todo`, In Progress `in-progress`, In Review `in-review` (yeşil), Blocked `blocked`, Closed `done`.
+- **Work durum rolleri** (korunan beş İş akışı durumu): Not Started `todo`, In Progress `in-progress`, In Review `in-review` (yeşil), Blocked `blocked`, Closed `done`.
 
 ## DS.5 · Icons and motion
 **Artboard'lar**
@@ -214,7 +214,7 @@ Bileşeni başka bir bölüm ya da ekran tanımlıyorsa bu tablo yalnız adını
 **Artboard'lar**
 - `DS.11 · Record Header · Work (Bug) · 1440`
 - `DS.11 · Record Header · Work (Bug) · 768`
-- `DS.11 · Record Header · Work (Bug) · Dark · 1440`
+- `DS.11 · Record Header · Work (Bug) · Light · 1440`
 - `DS.11 · Record Header · Document · 1440`
 - `DS.11 · Record Header · Decision · 1440`
 - `DS.11 · Record Header · Without key · 1440`
@@ -276,7 +276,7 @@ Work 1440 örneği In Review durumundadır: özellik kartı, belge tarzı `Descr
 **Artboard'lar**
 - `DS.14 · Collection Views · List · 1440`
 - `DS.14 · Collection Views · List · 768`
-- `DS.14 · Collection Views · List · Dark · 1440`
+- `DS.14 · Collection Views · List · Light · 1440`
 - `DS.14 · Collection Views · Table · 1440`
 - `DS.14 · Collection Views · Board · 1440`
 - `DS.14 · Collection Views · Gallery · 1440`
@@ -320,7 +320,7 @@ Work 1440 örneği In Review durumundadır: özellik kartı, belge tarzı `Descr
 
 **Artboard'lar**
 - `DS.16 · Dialog and Panel Frames · Dialog and Sheet · 1440`
-- `DS.16 · Dialog and Panel Frames · Dialog and Sheet · Dark · 1440`
+- `DS.16 · Dialog and Panel Frames · Dialog and Sheet · Light · 1440`
 - `DS.16 · Dialog and Panel Frames · Destructive confirm · 1440`
 - `DS.16 · Dialog and Panel Frames · Preview before apply · 1440`
 - `DS.16 · Dialog and Panel Frames · Side panel · 1440`
@@ -330,7 +330,7 @@ Work 1440 örneği In Review durumundadır: özellik kartı, belge tarzı `Descr
 - `DS.16 · Record tab strip · 1440`
 
 - **Dialog:** başlık, gövde, hata satırı, eylem satırı (iptal ya da ikincil, birincil).
-- **Form hata kalıbı:** kaydetme hatası gövdede ve metin korunur: `<Type> could not be saved. Retry, or reload to check for changes. Your text is kept here.` + `Retry`; doğrulama `Check the <Type>.`. Güncel olmayan tabanda `Conflict` cümlesi ve `Current value` → `20.14 › Conflict`. Ekranlar yalnız tür adını (`<Type>`) ve ek alan doğrulamalarını yazar.
+- **Form hata kalıbı:** kaydetme hatası gövdede ve metin korunur: `{Record type} could not be saved. Retry, or reload to check for changes. Your text is kept here.` + `Retry`; doğrulama `Check the {Record type}.`. Güncel olmayan tabanda `Conflict` cümlesi ve `Current value` → `20.14 › Conflict`. Ekranlar yalnız tür adını (`{Record type}`) ve ek alan doğrulamalarını yazar.
 - **Yıkıcı onay:** eylemin ne sildiğini ve geri alınıp alınamayacağını söyler (→ `20.2`, `20.3`).
 - **Preview before apply:** önce etki önizlemesi, sonra uygulama; Cantiara'nın birçok eyleminin kalıbıdır (`Bulk Edit`, `Import`, `Copy project structure`).
 - **Popover kartı:** başlık + meta → öne çıkan kart → `Then` satırları (34px) → alt şerit (`Open full page`); 380px, oksuz (→ `00.2`, `00.3`, `00.6`, `00.7`).
@@ -354,7 +354,7 @@ Work 1440 örneği In Review durumundadır: özellik kartı, belge tarzı `Descr
 
 **Dört biçim:** *satır* (listeler, aramalar), *kart* (Board, Gallery, Wall), *kompakt etiket* (Calendar, ilişkiler, `Used in`, Favorites), *önizleme* (`00.11 · Context Record Preview`).
 
-**Kural:** Bir kayıt her biçimde aynı çekirdeği taşır: tür işareti, anahtar (varsa), başlık, durum. Satırda çekirdeğin yanında aşağıdaki **satır meta**'sı görünür. Kart satır metasının ilk ikisini taşır. Kompakt etiket yalnız çekirdektir. Önizleme çekirdek + satır meta + kaydın kendi ilk bölümüdür.
+**Kural:** Bir kayıt her biçimde aynı çekirdeği taşır: tür işareti, anahtar (varsa), başlık, durum. Satırda çekirdeğin yanında aşağıdaki **satır meta**'sı görünür. Kart satır metasının ilk ikisini taşır; istisna İş kartıdır: kayıtlı görünümün görünür alanlarını taşır, varsayılanı İş anahtarı ve türü, durum ve varsa kapanış sonucu, öncelik, varsa planlanan başlangıç / hedef / `Reappear date`, blokaj veya risk ve varsa checklist ilerlemesidir ([spec 25](../../specs/25-kanban/spec.md) story 12). Kompakt etiket yalnız çekirdektir. Önizleme çekirdek + satır meta + kaydın kendi ilk bölümüdür.
 
 | Kayıt türü | Çekirdek | Satır meta | Örnek | Ekran kartı |
 |---|---|---|---|---|
@@ -405,7 +405,7 @@ Tablo satır metasının tek sahibidir: bir ayrıntı iki ekranda farklıysa tab
 - `DS.19 · Settings and error pages · Error and auth pages · 1440`
 
 - **Settings template:** ayar sayfalarının ortak iskeleti; kaydetme hatası [DS.16](#ds16--dialog-and-panel-frames) form hata kalıbını izler.
-- **Error and auth pages:** sakin ve kesin metin; ne oldu + ne yapılır (karar 16).
+- **Error and auth pages:** sakin ve kesin metin; ne oldu + ne yapılır (karar 16). Ekranlar: `20.15` Support Reference Error, `20.17` Update Required, `20.19` Not Found, `20.20` Session Ended.
 
 ## DS.20 · Interaction states
 > Sürükle-bırak, satır içi düzenleme, onay, etkinlik ve arama durumları.

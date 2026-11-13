@@ -39,7 +39,7 @@ Kurucu Ekranı Proje kapsamında bağımsız ana kayıt olarak tutar; yalnız ba
 27. As a founder, I want the hard performance scene of 500 visible items and 750 visual links to hold frame budget, so that the engine is a product surface rather than a demo.
 28. As a founder saving a custom template of an exact Wireframe version, I want structure and linked-block definitions without the source Project's Work, Decision, or history, and the produced Screen not live-bound to the source Project, so that a template is a stamp.
 29. As a founder placing a read-only live Work/Decision/Risk card on the Wireframe, I want moving it not to write the source record, so that the canvas is not a planning board.
-30. As a founder, I want English UI `Screen`, `Wireframe`, `Presentation Mode`, `Convert and Bind`, `Detach Link`, `Fit View`, and `Open Source Record`.
+30. As a founder, I want English UI `Screen`, `Wireframe`, `Presentation Mode`, `Convert and Bind`, `Detach Link`, `Fit View`, and `Open source record`.
 31. As a founder, I do not want this feature to host User Flow, Moodboard, Technical Sequence, Figma sync, production components, or design tokens.
 32. As a founder using `Convert and Bind` on a Wireframe block, I do not want that action to mint a Screen, so that Screen identity stays title-only create or User Flow node promotion rather than a converted rectangle.
 

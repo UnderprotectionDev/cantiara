@@ -18,24 +18,22 @@ Hesap düzeyi yüzeyler: giriş, oturumlar, tercihler ve Hesabı kapatma.
 
 **Artboard'lar**
 - `01.1 · Login · Default · 1440`
-- `01.1 · Login · Default · 768`
 - `01.1 · Login · Waiting for GitHub · 1440`
-- `01.1 · Login · GitHub outage · 1440`
 - `01.1 · Login · Sign-in failed · 1440`
 
 ### Giriş bloğu
-Sırasıyla başlık, tek açıklama satırı, tek birincil düğme ve bekleme durumu satırı.
-- **Label'lar:** `Welcome to Cantiara`, `Sign in with the GitHub identity that owns your Workspace.`, `Continue with GitHub`, `Waiting for GitHub`
+Başlık, tek açıklama satırı, tek birincil düğme ve bekleme durumu satırı.
+- **Label'lar:** `Welcome to Cantiara` (başlık), `Sign in with the GitHub identity that owns your Workspace.` (açıklama satırı), `Continue with GitHub`, `Waiting for GitHub`
 
 ### Durumlar
-#### Waiting
+#### Waiting for GitHub
 Düğme pasif ve `aria-busy` durumda. Altında `Waiting for GitHub` yazar.
 #### Waiting · Tauri
 Sistem tarayıcısı açıktır. Blokta `Waiting for GitHub` görünür. Uygulamaya dönüş kısa ömürlü tek kullanımlık kodla olur, kodun kendisi görünmez.
 #### GitHub outage
-GitHub erişilemiyorsa `Waiting for GitHub` sürekli görünür ve giriş bekler. Geçerli oturumu olan kurucu bu ekranı zaten görmez, çünkü oturumu düşmez.
+GitHub erişilemiyorsa `Waiting for GitHub` artboard'ı geçerlidir; bekleme sürekli görünür ve giriş bekler. Geçerli oturumu olan kurucu bu ekranı zaten görmez, çünkü oturumu düşmez.
 #### Sign-in failed
-Bu durum GitHub onayının reddedilmesini, onay ekranından vazgeçilmesini, state ya da PKCE hatasını, hız sınırını ve geri çekilmiş OAuth sonrası başarısız denemeyi kapsar. Hepsinde aynı genel bildirim görünür: `Sign-in could not be completed. Please try again.` Metin bilinen ve bilinmeyen kimliği ayırt etmez. Düğme yeniden kullanılabilir.
+Bu durum GitHub onayının reddedilmesini, onay ekranından vazgeçilmesini, state ya da PKCE hatasını, hız sınırını ve geri çekilmiş OAuth sonrası başarısız denemeyi kapsar. Hepsinde aynı genel bildirim görünür; metin bilinen ve bilinmeyen kimliği, Hesap veya Çalışma Alanı varlığını ayırt etmez. Düğme yeniden kullanılabilir. Bildirim: `Sign-in could not be completed. Please try again.`
 #### Signed out
 `Sign Out` sonrası kurucu bu ekrana döner. Korunan krom görünmez.
 #### Session ended
@@ -50,11 +48,10 @@ Giriş yüzeyinin tek sahibi bu ekrandır; `20.20` ve `00.1` giriş bloğunu yen
 
 **Artboard'lar**
 - `01.3 · Account menu · Open · 1440`
-- —
 
 ### Menü
-Tetiğin altında dar menü; sırasıyla grup başlığı, Hesap kimliği satırı, gezinme öğeleri, ayraç ve `Sign Out`. Açık menünün içeriğinin ve bu artboard'ın tek sahibi burasıdır; `00.12` yalnız tetiğin yerini söyler. Tetik 1440'ta `Alex Morgan`, 768'de `A` gösterir. Menü klavyeyle açılır ve kapanır; `Sign Out` oturumu bitirir ve `01.1 · Signed out` durumuna döner. Çalışma Alanı yönetimi girişleri (`Trash`, `Shares and Publications`, `Workspace Exit Package`, `Archive`) menüde mi `More` altında mı duracağı → `00.12 · Çalışma Alanı yönetimi`; menüde dururlarsa gezinme öğeleri grubunda listelenir. Oturumsuz rotalarda menü yoktur (→ `00.1`).
-- **Label'lar:** `Account menu` (tetiğin adı), `My Account`, `Sessions`, `Preferences`, `Completion effects`, `Sign Out`
+Grup başlığı, Hesap kimliği satırı, gezinme öğeleri ve `Sign Out`. Açık menünün içeriğinin ve bu artboard'ın tek sahibi burasıdır; tetik ve gösterdiği ad → `00.12 · Navigation` › Gruplar (Hesap). Menü klavyeyle açılır ve kapanır; `Sign Out` oturumu bitirir ve `01.1 · Signed out` durumuna döner. Çalışma Alanı yönetimi girişleri (`Trash`, `Shares and Publications`, `Workspace Exit Package`, `Archive`) menüde mi `More` altında mı duracağı → `00.12 · Navigation` › Gruplar (Çalışma Alanı yönetimi); menüde dururlarsa gezinme öğeleri grubunda listelenir. Oturumsuz rotalarda menü yoktur (→ `00.12` › Gruplar, Marka).
+- **Label'lar:** `Account menu` (tetiğin adı), `My Account` (grup başlığı ve 01.4'e giden öğe), `Sessions`, `Sign Out` (spec 01); `Preferences` (spec 02); `Completion effects` (spec 23)
 
 ### Durumlar
 #### Loading
@@ -68,16 +65,14 @@ Tetiğin altında dar menü; sırasıyla grup başlığı, Hesap kimliği satır
 **Artboard'lar**
 - `01.4 · My Account · Sessions · Default · 1440`
 - `01.4 · My Account · Sessions · Only current session · 1440`
-- `01.4 · My Account · Sessions · Loading · 1440`
-- `01.4 · My Account · Sessions · Error · 1440`
 
 ### Sayfa başlığı
 Başlık, açıklama ve toplu iptal.
-- **Label'lar:** `Sessions`, `Review the devices signed in to your Account and revoke access you no longer recognize.`, `Revoke Other Sessions`
+- **Label'lar:** `Sessions`, `Review the devices signed in to your Account and revoke access you no longer recognize.` (açıklama), `Revoke Other Sessions`
 
 ### Active sessions
 Liste başlığı ve oturum sayısı; her satırda cihaz, `Current` işareti ve son etkinlik.
-- **Label'lar:** `Active sessions`, `Device`, `Current`, `Last activity`, `Revoke Session`
+- **Label'lar:** `Active sessions` (liste başlığı), `Revoke Session` (spec 01); `Device`, `Current`, `Last activity` (PRD 02)
 
 ### Extension links
 Yakalama uzantısı bağlantıları. Sahibi → `03.9 · Extension links`; durum metinleri (Loading, Error, Empty) orada tanımlıdır, burada yalnız yer ve sıra gösterilir.
@@ -93,7 +88,7 @@ Ayrılmış bölüm. Kısa açıklama Hesabın ve tek Çalışma Alanının birl
 
 ### Durumlar
 #### Loading
-`Loading sessions…` yer tutucu satırlarla.
+Yer tutucu satırlar ve `Loading sessions…`.
 #### Error
 `Sessions are unavailable.` · `Try loading this page again.`
 #### Only current session
@@ -115,8 +110,8 @@ Sayfa aynı kalır. Oturum iptali GitHub kesintisinde de çalışır (→ `20.1 
 - `01.5 · Revoke Session · Other sessions · 1440`
 
 ### Onay
-Küçük onay dialoğu: soru, sonuç cümlesi ve iki düğme.
-- **Label'lar:** dialog başlıkları spec label'larıdır: `Revoke Session` (tek oturum) ve `Revoke Other Sessions` (diğer oturumlar); soru biçimi kullanılmaz. `<device> will lose access immediately.`, `Every session except this one will lose access immediately.`, `Cancel`, onay düğmeleri `Revoke Session` ve `Revoke Other Sessions`
+Küçük onay dialog'u: başlık, sonuç cümlesi ve iki düğme. Başlık soru biçiminde yazılmaz; spec label'ıdır.
+- **Label'lar:** `Revoke Session` (tek oturum başlığı ve onay düğmesi), `Revoke Other Sessions` (diğer oturumlar başlığı ve onay düğmesi), `Cancel`, `{device} will lose access immediately.` (tek oturum sonucu), `Every session except this one will lose access immediately.` (diğer oturumlar sonucu)
 
 ### Durumlar
 #### Revoking
@@ -133,7 +128,6 @@ Onay düğmesi bekleme durumunda.
 - `01.6 · Preferences · Disconnected · 1440`
 - `01.6 · Preferences · Saved · 1440`
 - `01.6 · Preferences · Save failed · 1440`
-- `01.6 · Preferences · Loading · 1440`
 
 ### Browser suggestion
 Formun üstünde, ilk girişte önerilen locale ve saat dilimi; öneri uygulanmış sayılmaz.
@@ -141,7 +135,7 @@ Formun üstünde, ilk girişte önerilen locale ve saat dilimi; öneri uygulanm�
 
 ### Form
 Alt alta beş alan; her birinin altında bir açıklama satırı. `Appearance` yalnız `Light` ve `Dark` taşır, `System` yoktur; iskeletteki cihaz-yerel tema anahtarı bu Hesap kaydıyla değişir, Proje başına geçersiz kılma yoktur. Kural ve seçici tek burada tanımlıdır; `00.12`, `00.1 · App Frame · Account menu open · Appearance + workspace` ve `DS.0 #4` (yalnız token kısıtı) buraya bağlanır.
-- **Label'lar:** `Locale`, `Time zone`, `Date format` (`Locale default`), `First day of week`, `Appearance` (`Light`, `Dark`), `Save`, `Saving…`
+- **Label'lar:** `Preferences` (sayfa başlığı), `Locale`, `Time zone`, `Date format` (`Locale default`), `First day of week`, `Appearance` (`Light`, `Dark`), `Save`, `Saving…`
 
 ### Preview
 Seçimin kayıttan önceki gösterim sonucu.
@@ -149,7 +143,7 @@ Seçimin kayıttan önceki gösterim sonucu.
 
 ### Kaydetme durumu
 Formun altında son kayıt ve bağlantı durumu. Genel çevrimdışı kalıbı (bant, kuyruk yok) → `20.16 · Offline`; bu form spec 02 / PRD 02'nin kendi label'larını kullanır: `Last successful save` Hesap tercihinin son başarılı yazılma zamanıdır, `20.16`'daki `Last saved` (otomatik kayıt zamanı) değildir.
-- **Label'lar:** `Last successful save`, `Never`, `Preferences saved.`, `Unsaved risk`, `Disconnected`, `Reconnect to save.`, `These changes are still unsaved.`, `These changes will be lost if you leave this page before reconnecting.`
+- **Label'lar:** `Last successful save`, `Never`, `Preferences saved.`, `Unsaved risk`, `Disconnected`, `Reconnect to save.` (PRD 02); `Unsaved changes may be lost` (risk açıklaması; spec 03, `20.16` ile aynı metin)
 
 ### Durumlar
 #### First login suggestion
@@ -163,9 +157,9 @@ Açık `Save` sonrası `Preferences saved.` görünür; `Last successful save` g
 #### Save failed
 `Preferences could not be saved.` · `Data was not written.` · `Try Save again.`
 #### Disconnected
-`Disconnected` · `Reconnect to save.` `Save` pasif. Değişiklik varsa `Unsaved risk` ile `These changes will be lost if you leave this page before reconnecting.` Yerel kuyruk yoktur.
+`Disconnected` · `Reconnect to save.` `Save` pasif. Kaydedilmemiş değişiklik varsa `Unsaved risk` başlığı ve altında `Unsaved changes may be lost` görünür; başarılı kayıttan sonra kaydedilmemiş değişiklik kalmadıysa ikisi de görünmez. Yerel kuyruk yoktur.
 #### Stale revision
-Kayıt sırasında başka bir yerden kaydedilmiş güncel değer gösterilir ve kurucu yeniden seçer. → `20.14 · Write Receipts` › Conflict: alanın yanında `Conflict`, `Current value` ve `Retry`; kurucu yeniden seçip `Save`'e basar.
+Başka bir yerden kaydedilmiş güncel değer gösterilir (→ `20.14 · Write Receipts` › Conflict: `Conflict`, `Current value`, `Retry`); kurucu yeniden seçip `Save`'e basar.
 #### Non-English locale
 `tr-TR` seçiliyken bütün arayüz metinleri İngilizce kalır, yalnız Preview değerleri değişir.
 
@@ -179,7 +173,6 @@ Kayıt sırasında başka bir yerden kaydedilmiş güncel değer gösterilir ve 
 - `01.7 · Completion effects · Enabled · 1440`
 - `01.7 · Completion effects · Previewing · 1440`
 - `01.7 · Completion effects · Reduce Motion · 1440`
-- `01.7 · Completion effects · Error · 1440`
 
 ### Başlık
 Sayfa başlığı ve `Experimental` rozeti.
@@ -199,11 +192,15 @@ Seçili temanın dört paleti.
 
 ### Preview
 Seçili tema ve paletin durağan örneği ve hareketin kısa açıklaması.
-- **Label'lar:** `Preview`, `Preview finished.`
+- **Label'lar:** `Preview`, `Preview finished.` (önizleme bitiş bildirimi)
 
 ### Kaydet
-Ki kaydetme eylemi.
-- **Label'lar:** `Save`, `Saving…`, `Completion effects saved.`
+Seçimi Hesap düzeyinde yazan açık kaydetme eylemi.
+- **Label'lar:** `Save`, `Saving…` (spec 23); `Completion effects saved.` (PRD 02)
+
+### Oynatma ve bildirim
+Efektin oynadığı yer ve her zaman görünen `Work completed` bildirimi (`Reopen` eylemiyle) bu ekranın değildir → `09.30 · Work completed`.
+- **Spec etiketleri:** `Work completed`, `Reopen` → spec 23 `English UI labels`, sahibi `09.30`.
 
 ### Durumlar
 #### Default off
@@ -213,7 +210,7 @@ Ki kaydetme eylemi.
 #### Previewing
 Örnek alanı hareket halinde. Bu kare hareketin ortası olarak çizilir.
 #### Reduce Motion
-`Preview` hareket başlatmaz. Son kare durağan gösterilir ve `Static sample shown. <description>` metni görünür.
+`Preview` hareket başlatmaz. Son kare durağan gösterilir ve altında kısa hareket açıklaması görünür: `Static sample shown. {description}`
 #### Loading
 `Loading completion effects…`
 #### Error
@@ -227,16 +224,14 @@ Ki kaydetme eylemi.
 **Artboard'lar**
 - `01.9 · Close Account · Not confirmed · 1440`
 - `01.9 · Close Account · Ready · 1440`
-- `01.9 · Close Account · Confirmation failed · 1440`
-- `01.9 · Close Account · Waiting for GitHub · 1440`
 
 ### Sonuçlar
 Adımlı dialog'un başında, sonuçları önceden söyleyen kısa liste. Aşama sırası ve içerikleri → `01.10 · Zaman çizelgesi`; paket ve parola kaybı cümlesi → `02.14 · Parola` (kapanışta aynı cümle burada yeniden gösterilir, yeniden yazılmaz).
 - **Label'lar:** `Close Account`, `Closing`, `Workspace Exit Package`
 
 ### GitHub teyidi
-Teyit durumu satırı.
-- **Label'lar:** `Confirm GitHub Identity`
+Adım şeridinin 2. adımı → `20.1 · Confirm GitHub Identity` (bu işleme bağlı grant; ikinci bir teyit kartı açılmaz).
+- **Label'lar:** `Confirm GitHub Identity` (→ `20.1`)
 
 ### Hesap adı
 Etkilenecek Hesap adının yazıldığı alan.
@@ -256,6 +251,8 @@ GitHub teyidi tamamlanmış ve `Type the Account name to confirm` alanındaki ad
 → `20.3 · Permanently Delete` › Name mismatch (`The name does not match.` ve davranış orada; alan altında sessiz satır).
 #### Starting
 Düğme bekleme durumunda.
+#### Started
+Dialog kapanır; Hesap `Closing` geçişine girer (→ `01.10` › Closing).
 
 **Spec:** [84 Account Closure](../../specs/84-account-closure/spec.md), [01 Account Access](../../specs/01-account-access/spec.md), [82 Workspace Exit](../../specs/82-workspace-exit/spec.md)
 
@@ -266,17 +263,17 @@ Düğme bekleme durumunda.
 - `01.10 · Account Closure Status · Closing · 1440`
 - `01.10 · Account Closure Status · Freeze no package · 1440`
 - `01.10 · Account Closure Status · Freeze package ready · 1440`
-- `01.10 · Account Closure Status · Cancel waiting for GitHub · 1440`
 
 ### Durum başlığı
-Geçerli aşamanın adı ve tek cümlelik açıklama. Üst çubuk durumu → `00.1 · App Frame` › Durumlar (yalnız wordmark ve `Account menu` içinde `Sign Out`).
-- **Label'lar:** `Closing`. Aşama adları: `Closing` (spec 84), `Permanently deleted` (PRD 02) ve `Frozen`. Açıklama: `Only Cancel closing and export are available.`
+Geçerli aşamanın adı ve tek cümlelik açıklama. `Closing` başladığında kurucunun bütün oturumları biter. Kurucu GitHub ile yeniden girince korunan rotalar bu ekrana yönlenir; ekran normal kabuk içinde açılır ve üst bant → `20.23 · Account Closing Banner` görünür. Kalıcı silme aşaması ayrı bir ad almaz, tarih satırıyla (`Permanent deletion on {date}`) anılır; `Permanently deleted` kırık referans nedenidir, aşama adı olarak kullanılmaz.
+- **Label'lar:** `Closing` (spec 84); `Frozen`, `Only Cancel closing and export are available.` (PRD 02)
 
 ### Zaman çizelgesi
-Dört aşama: canlı → `Closing` → 30 günlük dondurma → kalıcı silme. Geçerli aşama işaretlidir; dondurmanın bitiş tarihi ve kalıcı silme tarihi yazılıdır. Tarih satırları: `Freeze ends {date}`, `Permanent deletion on {date}`. Aşama içerikleri:
+Dört aşama: canlı → `Closing` → 30 günlük dondurma → kalıcı silme. Geçerli aşama işaretlidir; dondurmanın bitiş tarihi ve kalıcı silme tarihi yazılıdır. Aşama içerikleri:
   - `Closing`: yeni yazmalar reddedilir, paylaşım ve yayın hemen kapanır, entegrasyonlar ve uzantı bağlantıları kapanır, oturumlar sona erer.
   - Dondurma: sabit 30 gün; yalnız iptal ve export mümkündür.
   - Kalıcı silme: geri dönüş yoktur. Aynı GitHub kimliği daha sonra yeni ve farklı bir Hesap açabilir.
+- **Label'lar:** `Freeze ends {date}`, `Permanent deletion on {date}` (PRD 02)
 
 ### Boşaltma makbuzları (Closing)
 Satır etiketi (`Finalizing`, tam commit / tam rollback makbuzu) → `20.14 · Write Receipts` › Finalizing; burada yalnız Closing'e özgü iş türleri. Bariyerden önce iptal edilen işler (import, yükleme, otomasyon, eşitleme) makbuzlarıyla listelenir. Bariyeri geçmiş işler ve başlamış geri döndürülemez güvenlik işleri tam commit ya da tam rollback makbuzuyla listelenir.
@@ -286,21 +283,21 @@ Satır etiketi (`Finalizing`, tam commit / tam rollback makbuzu) → `20.14 · W
 - **Label'lar:** `Workspace Exit Package`, `Produce Workspace Exit Package`, `Download Workspace Exit Package`
 
 ### Cancel closing
-Kapatmayı geri alma bölümü.
-- **Label'lar:** `Cancel closing`, `Confirm GitHub Identity`
+Kapatmayı geri alma bölümü. İptal yeniden grant tüketir (→ `20.1`); Hesap adı yazdırılmaz.
+- **Label'lar:** `Cancel closing`, `Confirm GitHub Identity` (→ `20.1`)
 
 ### Durumlar
 #### Closing
 Makbuzlar dolmaktadır. Export ve `Cancel closing` henüz kapalıdır, ekran bunu söyler.
-#### Freeze · no package yet
+#### Freeze no package
 Paket henüz üretilmedi, kalıcı silme bu yüzden beklemede. İlk adım birincil eylem `Produce Workspace Exit Package` (→ `02.14`); parola kaybı uyarısı → `02.14 · Parola` (aynı cümle, burada yeniden yazılmaz).
-#### Freeze · package ready
-İndirme açık. Paketin indirilebilir kalacağı son tarih yazılır.
+#### Freeze package ready
+İndirme açık. Paketin indirilebilir kalacağı son tarih yazılır: `Download available until {date}`.
 #### Cancel waiting for GitHub
 → `20.1 · Waiting for GitHub`. İptal bekler ve kapalı başarısız kalır.
+#### Cancelled
+Grant tüketilince Hesap yaşayan duruma döner. Sonuç bildirimi: `Account closing cancelled.`
 #### Redaction blocked
-Dondurmada yeni redaksiyon için önce iptal gerektiğini söyleyen not.
-
-Not: Spec bu ekran için yalnız `Closing` ve `Cancel closing` label'larını verir; aşama adları, tarih satırları ve dondurma açıklaması `Durum başlığı` ve `Zaman çizelgesi` bölgelerinde PRD 02 sözlüğündeki label'lardır.
+Dondurmada yeni redaksiyon için önce iptal gerektiğini söyleyen not: `Cancel closing before starting a new redaction.`
 
 **Spec:** [84 Account Closure](../../specs/84-account-closure/spec.md), [82 Workspace Exit](../../specs/82-workspace-exit/spec.md), [79 Data Export](../../specs/79-data-export/spec.md), [01 Account Access](../../specs/01-account-access/spec.md)

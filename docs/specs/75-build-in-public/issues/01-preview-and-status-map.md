@@ -1,13 +1,13 @@
 # 01 — Yayın önizlemesi, public durum eşlemesi ve yer tutucu
 
-**What to build:** Kurucu Proje bazında Build in Public'i açar ve yayımlanacak alanlar, public durum eşlemeleri ve metadata'yı kesin farkla onaylar. Varsayılan eşleme `Not Started→Planned`, `In Progress→In Progress`, `Closed+Completed→Completed`'dır. Yayımlanmış Proje Sürümü üyeliği `Released` önerebilir; snapshot yalnız onayla değişir. `Blocked` ve `Closed+Abandoned` varsayılan eşlemesizdir ve açık public etiket olmadan yayımlanamaz. İç durum değişimi public etiketi kendiliğinden yazmaz. Çözülmemiş `{{alan_adı}}` kaynak kayıt, alan ve metin bağlamıyla listelenir; kurucu çözer veya ayrı `Publish/share anyway` verir. Secret/token/parola kapsama girmez. İç durum adları ziyaretçiye sızmaz.
+**What to build:** Kurucu Proje bazında Build in Public'i açar ve yayımlanacak alanlar, public durum eşlemeleri ve metadata'yı kesin farkla onaylar. Varsayılan eşleme `Not Started→Planned`, `In Progress→In Progress`, `In Review→In Progress`, `Closed+Completed→Completed`'dır. Yayımlanmış Proje Sürümü üyeliği `Released` önerebilir; snapshot yalnız onayla değişir. `Blocked` ve `Closed+Abandoned` varsayılan eşlemesizdir ve açık public etiket olmadan yayımlanamaz. İç durum değişimi public etiketi kendiliğinden yazmaz. Çözülmemiş `{{alan_adı}}` kaynak kayıt, alan ve metin bağlamıyla listelenir; kurucu çözer veya ayrı `Publish/share anyway` verir. Secret/token/parola kapsama girmez. İç durum adları ziyaretçiye sızmaz.
 
 **Blocked by:** None — can start immediately.
 
 **Status:** ready-for-agent
 
 - [ ] Önizleme seçili alan, eşleme, kesin Dosya Eki sürümü ve gömüleri kapalı dünya farkı olarak gösterir; onaysız öğe public olmaz.
-- [ ] Varsayılan eşleme PRD matrisidir; `Released` önerisi onay olmadan uygulanmaz; `Blocked`/`Abandoned` etiket seçilmeden yayımlanamaz.
+- [ ] Varsayılan eşleme PRD matrisidir (`In Review→In Progress` dahil); `In Review` iç durum adı Public Status Label olarak kullanılamaz; `Released` önerisi onay olmadan uygulanmaz; `Blocked`/`Abandoned` etiket seçilmeden yayımlanamaz.
 - [ ] İç İş akışı durumu public etiketi sessizce değiştirmez; public etiket iç durumu değiştirmez.
 - [ ] İsteğe bağlı `Public title` / `Public summary` Roadmap İş yayın alanlarıdır; iç başlık değişince kendiliğinden yeniden yazılmaz ve ikinci herkese açık İş üretmez.
 - [ ] `{{alan_adı}}` kaynak kayıt, alan ve metin bağlamıyla listelenir; kod eşleşmesi yoksayılır; kurucu çözer veya ayrı `Publish/share anyway` verir; Secret/token/parola kapsama girmez.

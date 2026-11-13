@@ -9,7 +9,7 @@
 - [ ] Aşamalar sıralı state machine değildir; her aşama `Not Planned` / `Ready` / `Active` / `Completed` / `Abandoned` taşır; birden fazla `Active` olabilir; kaldırma ana kayıt silmez ve İş durumu yazmaz.
 - [ ] Gizle/göster yalnız kapalı Proje alanı kataloğuna uygulanır: `Work`, `Documents`, `Discovery`, `Decisions`, `Design`, `Technical Diagrams`, `Tests`, `Releases`, `Production`, `GitHub`. `Overview` ve `All Tools` alan değildir ve kapanmaz. Gizlemek kayıt taşımaz, kopyalamaz, silmez; Overview modülleri bu kabukta çizilmez (08).
 - [ ] `Pin to navigation` ve `Restore default navigation` yalnız pin/sıra üstverisini değiştirir.
-- [ ] `Not Started` / `In Progress` / `Blocked` / `Closed` semantiği korunur; yeni durum değeri eklenmez.
+- [ ] `Not Started` / `In Progress` / `In Review` / `Blocked` / `Closed` semantiği korunur; yeni durum değeri eklenmez.
 - [ ] Yapı değişikliği geçmiş kayıt değerlerini sessizce yeniden yazmaz.
 - [ ] `Tests` kapalı Proje alanı kataloğundadır; etkinleştirmek test ürünü veya Planlı Test Senaryosu üretmez.
 - [ ] Lookup veya Formula alanı bu kabukta oluşmaz.
