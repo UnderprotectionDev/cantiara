@@ -9,6 +9,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | --- | --- | --- |
 | Çalışma alanı | `Workspace` | Projeleri, Kişisel Wiki'yi ve ortak yapılandırmayı kapsayan sınır |
 | Proje yaşam durumu | `Active`, `Pending`, `Completed`, `Abandoned` | PRD terimleri `Aktif`, `Bekleyen`, `Tamamlandı` ve `Vazgeçildi`nin kullanıcıya gösterilen karşılıkları; çalışma aşamasından ayrıdır |
+| Günlük olay: tamamlandı | `Completed` | What happened today? olay türü: tamamlanan İş; mevcut etiketin yeni bağlamı (`docs/design` 04.1) |
 | İş | `Work` | Genel kayıt; Özellik, Bug, Görev, Araştırma ve İyileştirme bunun türleridir |
 | İş arşivi | `Archive` | İş akışı durumu ve kapanış sonucundan bağımsız görünürlük; Çöp Kutusu ve Proje arşivi değildir |
 | İş arşiv filtresi | `Archived` | Varsayılan İş listesinden ayrı açık arşiv görünürlüğü |
@@ -147,6 +148,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Migration Artefaktı | `Migration Artifact` | İki kesin Veri Modeli Diyagramı Sürümü arasındaki onaylanmış schema-only değişikliği ve desteklenen PostgreSQL SQL'ini kaynak manifestiyle koruyan değişmez sahipli bileşen |
 | Kilometre Taşı | `Milestone` | Projedeki önemli ara sonucu temsil eden Proje ana kaydı; çalışma penceresi veya yayımlanacak kapsam değildir |
 | Kilometre Taşı yaşamı | `Planned`, `Reached`, `Abandoned` | Kilometre Taşının İngilizce yaşam etiketleri; Odak Dönemi penceresi veya Proje Sürümü kapsamı değildir |
+| Günlük olay: vazgeçildi | `Abandoned` | What happened today? olay türü: vazgeçilen İş; mevcut etiketin yeni bağlamı (`docs/design` 04.1) |
+| Günlük olay: Kilometre Taşına ulaşıldı | `Reached` | What happened today? olay türü: ulaşılan Kilometre Taşı; mevcut etiketin yeni bağlamı (`docs/design` 04.1) |
 | Kilometre Taşı oluştur | `Create Milestone` | Başlık, açıklama ve isteğe bağlı hedef tarihiyle ara sonuç kaydı açma |
 | Kilometre Taşına ulaş | `Reach` | Kilometre Taşı durumunu açık eylemle `Reached` yapan yazma; bağlı İşleri kapatmaz |
 | Kilometre Taşından vazgeç | `Abandon` | Kilometre Taşı durumunu açık eylemle `Abandoned` yapan yazma; bağlı İşleri kapatmaz |
@@ -307,6 +310,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kaynak | `Source` | Dış bilgiyi URL, erişim zamanı ve yakalanan içerikle tarihsel sürümler hâlinde koruyan Proje ana kaydı |
 | Kaynak oluştur | `Create Source` | Adres, başlık ve yakalanan içerikle Kaynak açma |
 | Adres | `Address` | Kaynağın dış URL’si |
+| Yayın adresi | `Address` | Wiki yayınının Çalışma Alanında benzersiz adresi; mevcut etiketin yeni bağlamı (`docs/design` 20.4) |
 | Erişim zamanı | `Accessed at` | Yakalamanın tarihli erişim anı |
 | Yakalanan içerik | `Captured content` | Erişim anında saklanan içerik; canlı sayfa değildir |
 | Alıntı | `Excerpt` | Kaynak üzerindeki isteğe bağlı kısa alıntı |
@@ -434,6 +438,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yeniden görünme tarihini temizle | `Clear` | Backlog tarih seçicisindeki yeniden görünme tarihini kaldırır |
 | Yeniden görünme tarihi kayıt hatası | `Reappear date could not be saved. Try again.` | Backlog'daki tarih değişikliği kaydedilemediğinde gösterilen geri bildirim |
 | Deferred | `Deferred` | Varsayılan Backlog görünümünde gelecek yeniden görünme tarihi taşıyan İşlerin bölümü; durum değildir |
+| Ertelenen (Günlük Odak kapanışı) | `Deferred` | Close focus grubunda yeniden görünme tarihi ertelenen İşler; mevcut etiketin yeni bağlamı (`docs/design` 04.2) |
 | Yeniden görünme bildirimi | `Notify on Reappear date` | Proje bazında varsayılan kapalı opt-in; tarih gelince `reappear-date` Dikkat sinyali üretir |
 | Akıllı Koleksiyon | `Smart Collection` | Koşullardan canlı üyelik türeten adlandırılmış görünüm; statik liste veya klasör değildir |
 | Üyelik nedeni | `Membership reason` | Kaydın Akıllı Koleksiyona kapsam ve eşleşen filtre koşullarıyla neden girdiğini açıklayan, canlı üyelik sonucundan türetilen metin |
@@ -557,6 +562,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Önerilen ilişki ekle | `Add proposed relation` | Uzlaştırma önizlemesine kurulacak ilişki adayı ekleme |
 | Önerilen ilişkiyi kaldır | `Remove proposed relation` | Uzlaştırma önizlemesinden ilişki adayını çıkarma |
 | Takip İşi ekle | `Add follow-up Work` | Uzlaştırma önizlemesine takip İş adayı ekleme |
+| Takip İşi ekle (Odak Dönemi) | `Add follow-up Work` | Odak Dönemi kapanışında ve Close Focus Period değerlendirme öğreniminden takip İşi önizlemesini açan eylem; mevcut etiketin yeni bağlamı (`docs/design` 04.4, 20.22) |
 | Takip İşini kaldır | `Remove follow-up Work` | Uzlaştırma önizlemesinden takip İş adayını çıkarma |
 | İlgili İş | `Related Work` | Uzlaştırmada bağlanacak mevcut İş |
 | Reddet | `Reject` | Uzlaştırma önizlemesini yazmadan kapatan eylem |
@@ -598,6 +604,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ölçütü devre dışı bırak | `Disable` | Öncelik ölçütünü silmeden Work değerleri için kullanılamaz duruma getirme |
 | Ölçüt devre dışı | `Disabled` | Ölçütün silinmeden Work değerleri için kapalı olduğunu gösteren durum |
 | Silme için Proje adını doğrula | `Type the Project name to confirm` | Ölçütü kalıcı silmeden önce kesin Proje adını tekrar girdirme |
+| Proje adı teyidi | `Type the Project name to confirm` | Kalıcı silme ve redaksiyonda Proje adı teyit alanı; mevcut etiketin yeni bağlamı (`docs/design` 20.3) |
 | Öncelik kademesi | `Very low`, `Low`, `Medium`, `High`, `Very high` | Beş sabit sıralı düzey; boş durum bu beşin dışındadır |
 | Değerlendirilmemiş | `Unevaluated` | Eksen veya ölçüt değeri henüz seçilmemiş İş |
 | Kanıt gücü | `Evidence strength` | Görüşlü Başlangıç yapılandırmasının varsayılan kapalı hazır Öncelik ölçütü |
@@ -743,6 +750,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kayıtlı Backlog sunumu özeti | `Saved presentation: {sort}[ · {detail}]` | Kayıtlı sıralamanın türünü ve varsa seçilmiş ölçüt veya alanı gösterir |
 | Backlog sunumu kaydedilemedi | `Backlog presentation could not be saved. Try again.` | Kayıtlı alternatif sunum yazma hatası |
 | Öncelik sıralama ölçütü | `Priority criterion` | Öncelik sunumunun hangi açık ölçüte göre sıralanacağını seçer |
+| Öncelik ölçütü filtresi | `Priority criterion` | Work Board/List filtresinde ölçüt seçimi (spec 26 sıralama label'ı); mevcut etiketin yeni bağlamı (`docs/design` 09.1) |
 | Alan sıralama seçimi | `Field to sort by` | Alan sunumunun `Title` veya `Status` temelini seçer |
 | Backlog sürükleme tutamacı | `Drag {Work title}` | İş adını taşıyan klavye ve işaretçi sıralama kontrolü |
 | Backlog sürükleme duyuruları | `Picked up {Work title}.`, `{Work title} is over {Work title}.`, `{Work title} is outside the Backlog.`, `{Work title} was dropped over {Work title}.`, `{Work title} was not moved.`, `Moving {Work title} was cancelled.` | Ekran okuyucuya sürükleme durumunu İş adıyla bildirir |
@@ -764,6 +772,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Akıllı Koleksiyon kaydedilemedi | `Smart Collection could not be saved.` | Yeni koleksiyon ve ilk adlandırılmış görünüm birlikte kaydedilemediğinde hata durumu |
 | Akıllı Koleksiyon kullanılamıyor | `Smart Collection is unavailable.` | Kaynak görünüm çözümlenemediğinde salt okunur hata durumu |
 | Yok | `None` | Adlandırılmış görünümde sıra alanı seçilmedi |
+| Parola yok | `None` | Shares and Publications Password kolonunda parola yok değeri; mevcut etiketin yeni bağlamı (`docs/design` 02.13) |
 | Yeni iş | `New work` | İş koleksiyonundaki doğrudan `Work type` eşitliğini `Type` alanında önceden dolduran oluşturma; diğer koşulları yeni İşe uygulamaz |
 | Yeni İş eşleşmeme uyarısı | `This Work may not appear in this Smart Collection.` | Seçili `Type` veya varsayılan `Status` koleksiyon koşullarını karşılamadığında gösterilen uyarı |
 | Kaydedilmemiş değişiklikler | `Unsaved changes` | Adlandırılmış görünümde henüz kaydedilmemiş sunum; üyelik koşulunu yazmaz |
@@ -780,6 +789,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Roadmap | `Roadmap` | Hazır İş görünümü |
 | Şimdi | `Now` | İsteğe bağlı Roadmap ufku |
 | Sırada | `Next` | İsteğe bağlı Roadmap ufku |
+| Takvim sonraki | `Next` | Calendar gezinmesi: sonraki gün/hafta/ay (Roadmap ufku değeri değil); mevcut etiketin yeni bağlamı (`docs/design` 04.5) |
 | Sonra | `Later` | İsteğe bağlı Roadmap ufku |
 | Ufuk | `Horizon` | İşin isteğe bağlı Roadmap ufku alanı |
 | Ürün yönü | `Product direction` | Varsayılan Roadmap görünümü; Araştırma birincil, kökenli Özellik ikincil |
@@ -836,10 +846,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | In Review | `In Review` | Korunan İş akışı durumu; `In Progress` ile `Blocked` arasında sıralanır |
 | Blocked | `Blocked` | Korunan İş akışı durumu |
 | Closed | `Closed` | Korunan İş akışı durumu |
+| Oturum durumu: kapalı | `Closed` | Önceliklendirme oturumu listesinde kapanmış oturum işareti; mevcut etiketin yeni bağlamı (`docs/design` 09.7) |
 | Kapanış sonucu | `Closure result` | Kapalı İşin `Completed` veya `Abandoned` sonucunu açıkça seçen alan etiketi |
 | Bug | `Bug` | İş türü |
 | Görev | `Task` | İş türü; subtask değildir |
 | Araştırma | `Research` | İş türü |
+| Araştırma notları grubu | `Research` | Export Personal Data önizlemesinde Araştırma notları kaynak grubu; mevcut etiketin yeni bağlamı (`docs/design` 06.7) |
 | İyileştirme | `Improvement` | İş türü |
 | İş oluştur | `Create Work` | Projede yalnız başlıkla İş oluşturma eylemi |
 | Kopya olarak birleştir | `Merge as duplicate` | Gerçek kopya iki İşi tek hayatta kalan ana kayıtta birleştirme; kaybedenin anahtarı emekli kimlik yönlendirmesidir |
@@ -919,6 +931,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Engellenir | `Blocked by` | Engellenen İş ucu; planlama tüketicisinin okuduğu bekletme yönü |
 | Aktif engelleme | `Active` | Engelleme ilişkisinin bekleyen durumu; İş akışı durumu `Blocked` değildir |
 | Çözülmüş engelleme | `Resolved` | Engelleme ilişkisinin tarihsel durumu; aktif blokaj sinyalinden çıkar |
+| Günlük olay: Üretim Olayı çözüldü | `Resolved` | What happened today? olay türü: çözülen Üretim Olayı; mevcut etiketin yeni bağlamı (`docs/design` 04.1) |
 | Engel çözüldü | `Mark blocker resolved` | Çözüm tarihi ve isteğe bağlı not yazan eylem; kaynak kapanışı değildir |
 | Çözümü onayla | `Confirm resolution` | Çözüm tarihini ve isteğe bağlı notu kaydeden eylemi onaylar |
 | Çözüm notu | `Note` | Engel çözüldü eyleminin isteğe bağlı notu |
@@ -982,6 +995,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Light | `Light` | Appearance değeri |
 | Dark | `Dark` | Appearance değeri |
 | Kaydet | `Save` | Hesap tercihini açıkça yazan eylem |
+| Takvim önizleme kaydet | `Save` | Calendar tarih değişikliği önizlemesinde onay; mevcut etiketin yeni bağlamı (`docs/design` 04.5) |
 | Kaydediliyor | `Saving…` | Hesap tercihi yazılırken Save eyleminin geçici durum etiketi |
 | Önerilen locale ve saat dilimini kullan | `Use suggested locale and time zone` | İlk girişte tarayıcı önerisini forma alan, kaydetmeden uygulamayan eylem |
 | Tarayıcı önerisi | `Browser suggestion` | İlk girişte tarayıcının locale ve saat dilimi değerlerini kaydetmeden öneren yüzey |
@@ -1075,6 +1089,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yeniden dene | `Retry` | Başarısız ana akışta güvenli yeniden deneme eylemi |
 | Çatışma | `Conflict` | Aynı idempotency veya teslim kimliğinin farklı payload taşıması |
 | İptal | `Cancel` | Yalnız commit bariyerinden önceki hazırlama iptali |
+| Takvim önizleme iptal | `Cancel` | Calendar tarih değişikliği önizlemesinde vazgeçme; mevcut etiketin yeni bağlamı (`docs/design` 04.5) |
 | Sonlandırılıyor | `Finalizing` | Commit bariyerinden sonra iptalin uygulanmadığı durum |
 | İçe aktarma | `Import` | Tek dosyayı eşleme ve fark önizlemesinden sonra kayıtlara dönüştüren Aşamalı import girişi; önizleme hiçbir kaydı değiştirmez |
 | İçe aktarmayı uygula | `Apply Import` | Önizlenen nihai kümeyi atomik ve idempotent yazan ayrı onay; ya hepsi bir kez yazılır ya hiçbiri |
@@ -1241,6 +1256,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Komutlar | `Commands` | Kayıt olmayan gezinme ve ürün komutlarının Komut Paletindeki grubu |
 | Yetkili kayıtlar | `Authorized records` | Kurucunun erişebildiği ana kayıtların Komut Paletindeki grubu |
 | Hedef | `Target` | Komutun çalıştıracağı kayıt, tür veya bağlamı gösteren önizleme alanı |
+| Hedef kapsam | `Target` | Markdown içe aktarmada Belge hedef kapsamı (Proje / Kişisel Wiki); mevcut etiketin yeni bağlamı (`docs/design` 20.6) |
 | Seçim | `Selection` | Komutun etkileyeceği kayıt sayısını gösteren önizleme alanı |
 | Menü karşılığı | `Menu:` | Komutun görünür ürün menüsündeki karşılığını belirten önizleme etiketi |
 | Komut listesi | `Command Palette commands` | Komut Paletindeki erişilebilir liste etiketi |
@@ -1273,6 +1289,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kayıt güncelleme eylemi | `Update` | Yapıştırma önizlemesinde mevcut ana kayıt satırını belirtir |
 | Planlanan başlangıç tarihi | `Planned start date` | İşin isteğe bağlı başlangıç günü |
 | Karar alanı | `Decision` | Karar ana kaydının yürürlükteki seçim metni |
+| Üretim Olayı Karar grubu | `Decision` | Üretim Olayı bağlı kayıtlarında Karar grup başlığı; mevcut etiketin yeni bağlamı (`docs/design` 17.2) |
 | Karar yaşamı | `Life` | Table'da düzenlenebilen Kararın `Valid` veya `Withdrawn` yaşamı; `Superseded` açık yerine-geçme ilişkisiyle oluşur |
 | Risk olasılığı | `Probability` | Risk ana kaydının olasılık alanı |
 | Risk yanıtı | `Response` | Risk ana kaydının yanıt/azaltma alanı |
@@ -1320,6 +1337,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kapsam | `Scope` | Ürün Boşluğunun isteğe bağlı kapsam açıklaması |
 | İlgili kayıtlar | `Related records` | Ürün Boşluğuna bağlı Proje, İş, Özellik ve Karar ilişkileri; ilişki bağlı kaydın yaşam döngüsüne yazmaz |
 | Açık | `Open` | Ürün Boşluğu durumu `Açık`; kurucu seçer, tekrar sayısı yazmaz |
+| Oturum durumu: açık | `Open` | Önceliklendirme oturumu listesinde açık oturum işareti; mevcut etiketin yeni bağlamı (`docs/design` 09.7) |
 | Değerlendiriliyor | `Evaluating` | Ürün Boşluğu durumu `Değerlendiriliyor` |
 | Karşılandı | `Met` | Ürün Boşluğu durumu `Karşılandı` |
 | Bilinçli sınır | `Conscious boundary` | Ürün Boşluğu durumu `Bilinçli sınır`; yüksek etkili kaçışın kapanış kanıtını kaldırmaz |
@@ -1382,9 +1400,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | YouTube yükleme | `Load YouTube`, `Loading YouTube contacts a third-party server.` | Tıklayınca yüklenen YouTube kartı ve gizlilik uyarısı |
 | Dondurulmuş canlı blok etiketi | `Snapshot`, `As of` | Ziyaretçi yüzeyinde onaylı snapshot kaynağı ve tarihi |
 | Ziyaretçi alt bilgisi | `This page is read-only.` | Herkese açık yüzeyde salt okunur olduğunu söyleyen tek satır |
-| Herkese açık gezinme ve akış | `Project`, `Featured`, `Development feed` | Build in Public Proje görünümü sekmesi, öne çıkan kayıt ve gelişim akışı başlığı |
+| Herkese açık gezinme ve akış | `Project`, `Featured record`, `Development feed` | Build in Public Proje görünümü sekmesi, öne çıkan kayıt ve gelişim akışı başlığı |
+| Takvim Proje kapsamı | `Project` | Calendar kontrol çubuğunda Proje kapsam seçicisi; mevcut etiketin yeni bağlamı (`docs/design` 04.5) |
 | Paylaşım kapsam dışı bölümü | `Not included` | Paylaşım önizlemesinde kapsama girmeyenlerin başlığı |
 | Dışa aktarma manifesti | `Schema version`, `Scope`, `Filters`, `Visible fields`, `Produced at` | Her çıktıdaki kaynak manifesti alanları |
+| İzin kapsamı | `Scope` | Web Capture izin bloğunda istenen okuma izninin kapsam satırı; mevcut etiketin yeni bağlamı (`docs/design` 03.8) |
 | CSV kayıp raporu | `Lost in CSV`, `Escaped as data` | CSV'de kaybolan ilişki/tür/kimlik ve formül kaçışı raporu |
 | İçe aktarma eşleme ve makbuz | `Source column`, `Product field`, `Import receipt`, `Created`, `Updated`, `Rolled back` | İçe aktarma eşleme adımı ve tam commit/rollback makbuzu |
 | Tekrar bak öğeleri yükleniyor | `Loading Look again items…` | Tekrar bak listesi yüklenirken gösterilen durum metni |
@@ -1480,6 +1500,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Alan değişikliği | `Field change` | Etkinlik akışında olay türü süzgeci değeri |
 | Durum değişikliği | `Status change` | Etkinlik akışında olay türü süzgeci değeri |
 | Önceki / sonraki değer | `Previous` | Etkinlik satırında önceki ve sonraki alan değerini gösteren etiketler |
+| Takvim önceki | `Previous` | Calendar gezinmesi: önceki gün/hafta/ay; mevcut etiketin yeni bağlamı (`docs/design` 04.5) |
 | Geri alma sınırı | `Undo boundary` | Küme açıkken geri alma sınırını gösteren satır |
 | Değişiklik kümesi | `{n} changes by {actor} within 5 minutes` | Beş dakika içindeki aynı aktörün değişikliklerini kümeleyen satır |
 | Hikâye boş | `No story events yet.` | Yeni Projede Proje Hikâyesi boş durum metni |
@@ -1588,6 +1609,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Proje Etkinliği | `Project Activity` | Mevcut Kayıt geçmişinden türetilen filtrelenebilir atomik değişiklik görünümü |
 | Ne değişti? | `What changed?` | Proje Etkinliğinin cevapladığı soru etiketi |
 | Etkinlik filtreleri | `Source type`, `Event type`, `Apply filters`, `Clear filters` | Proje Etkinliğinin kaynak veya sistem türü ile olay türü filtre grupları ve eylemleri |
+| Kaçış kaynak türü | `Source type` | Dış Araca Kaçış kaynak türü alanı; mevcut etiketin yeni bağlamı (`docs/design` 07.2) |
 | Eski değişiklikleri göster | `Show older changes` | Proje Etkinliğinde sonraki sayfayı yükleme |
 | Güvenlik redaksiyonu işareti | `Redacted for security. No content is shown.` | Proje Etkinliğinde redakte geçmiş satırının içeriksiz işareti |
 | Kaynak kapsamı | `Source coverage` | Proje Etkinliğinde kısmi veya eksik kaynakların nedenini listeleyen not |
@@ -1662,6 +1684,406 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Gerçekleşen olayların zaman çizelgesi | `Story Timeline` | Proje veya Özellik türündeki İşte önemli gerçekleşmiş olayları kronolojik gösteren hikâye görünümü |
 | Gerçekleşmiş olay yok | `No realized events yet.` | Story Timeline'da gösterilecek gerçekleşmiş olay olmadığında boş durum metni |
 | Hikâye olayı durumları | `Decided`, `Result recorded` | Story Timeline'da Karar olayının ve Deney/Doğrulama sonucu olayının durum etiketi |
+| Giriş başlığı | `Welcome to Cantiara` | Login ekranı başlığı (`docs/design` 01.1) |
+| Giriş açıklama satırı | `Sign in with the GitHub identity that owns your Workspace.` | Login bloğundaki tek açıklama satırı (`docs/design` 01.1) |
+| Giriş başarısız bildirimi | `Sign-in could not be completed. Please try again.` | Bütün GitHub giriş hatalarında aynı genel bildirim (`docs/design` 01.1) |
+| Hesabım | `My Account` | Hesap menüsü grup başlığı ve Oturumlar sayfasına giden öğe (`docs/design` 01.3) |
+| Oturumlar açıklaması | `Review the devices signed in to your Account and revoke access you no longer recognize.` | Sessions sayfa başlığı altındaki açıklama (`docs/design` 01.4) |
+| Etkin oturumlar | `Active sessions` | Sessions sayfasındaki oturum listesi başlığı (`docs/design` 01.4) |
+| Oturumlar yükleniyor | `Loading sessions…` | Sessions sayfası yükleme metni (`docs/design` 01.4) |
+| Oturumlar kullanılamıyor | `Sessions are unavailable.` | Sessions sayfası hata durumu ilk cümlesi (`docs/design` 01.4) |
+| Tek oturum iptal sonucu | `{device} will lose access immediately.` | Revoke Session onayında sonuç cümlesi (`docs/design` 01.5) |
+| Diğer oturumlar iptal sonucu | `Every session except this one will lose access immediately.` | Revoke Other Sessions onayında sonuç cümlesi (`docs/design` 01.5) |
+| Önizleme bitti | `Preview finished.` | Bitiriş efekti önizlemesi bittiğinde bildirim (`docs/design` 01.7) |
+| Durağan örnek açıklaması | `Static sample shown. {description}` | Reduce Motion açıkken Preview yerine durağan kare açıklaması (`docs/design` 01.7) |
+| Bitiriş efekti kaydetme hatası | `Completion effects could not be saved. Refresh to try again.` | Completion effects kaydetme hatası (`docs/design` 01.7) |
+| Paket indirme son tarihi | `Download available until {date}` | Dondurmada Workspace Exit Package indirilebilir kalacağı son tarih satırı (`docs/design` 01.10) |
+| Kapanış iptal edildi | `Account closing cancelled.` | Cancel closing grant'ı tüketilince sonuç bildirimi (`docs/design` 01.10) |
+| Dondurmada redaksiyon engeli | `Cancel closing before starting a new redaction.` | Dondurmada yeni redaksiyonun önce iptal gerektirdiğini söyleyen not (`docs/design` 01.10) |
+| Projelerim | `Your Projects` | Projects sayfasındaki Proje listesi alt başlığı (`docs/design` 02.1) |
+| Modülleri düzenle | `Arrange modules` | Customize overview modül düzeni başlığı (`docs/design` 02.2) |
+| Mevcut kaynak | `Existing source` | Canlı blok kaynak seçicisinin adı (`docs/design` 02.2) |
+| Kaynak seç | `Choose a source` | Canlı blok kaynak seçicisinin yer tutucusu (`docs/design` 02.2) |
+| Mevcut kaynak yok | `No existing source records` | Canlı blok seçicisinde seçilebilir kaynak olmadığında (`docs/design` 02.2) |
+| Projelere dön | `Back to Projects` | Overview kaynak kümesi ve Kaydedilmiş listeden Projects sayfasına dönüş (`docs/design` 02.3) |
+| Proje profili | `Project profile` | Create Project formunun zorunlu profil bölümü başlığı (`docs/design` 02.6) |
+| İsteğe bağlı profil ayrıntıları | `Optional profile details` | Create Project formunda varsayılan kapalı ayrıntı bölümü (`docs/design` 02.6) |
+| Hedef tarihi temizle | `Clear target date` | Create Project formunda hedef tarihi boşaltan eylem (`docs/design` 02.6) |
+| Eşleşmeye inilemiyor | `This record opens without jumping to the match.` | Arama sonucu türü eşleşme konumuna inmeyi desteklemediğinde açıklama (`docs/design` 02.7) |
+| Adsız Taslak | `Untitled Draft` | Başlığı olmayan İş Taslağı satırı (`docs/design` 02.10) |
+| Dış yüzey görünürlüğü | `Visibility` | Shares and Publications görünürlük türü filtresi ve kolonu (`docs/design` 02.13) |
+| Bağlantı paylaşımı türü | `Share link` | Shares and Publications görünürlük türü değeri: bağlantı paylaşımı (`docs/design` 02.13) |
+| Wiki yayını türü | `Wiki publication` | Shares and Publications görünürlük türü değeri: Wiki yayını (`docs/design` 02.13) |
+| Parola var | `Set` | Shares and Publications Password kolonunda parola var değeri (parolanın kendisi gösterilmez) (`docs/design` 02.13) |
+| Redaksiyon kolonu | `Redaction` | Shares and Publications redaksiyon durumu kolonu (`docs/design` 02.13) |
+| Kaynaktan ayrık | `Detached from source` | Çöpteki tekil kaynağın korunan, donmuş Dış yüzey satır işareti (`docs/design` 02.13) |
+| Kaydedilmiş yakalamalar | `Saved captures` | Capture Inbox liste başlık satırı (`docs/design` 03.1) |
+| Yeni yakalama | `New capture` | Capture Inbox'ta hızlı yakalama modalını açan eylem ve modal başlığı (`docs/design` 03.1, 03.2) |
+| Mini şablon | `Mini template` | New capture formunda mini şablon seçicisi (`docs/design` 03.2) |
+| Dönüşüm hedefi | `Conversion target` | Conversion Preview'da hedef kayıt türü seçicisi (`docs/design` 03.3) |
+| Önerileri kapat | `Close suggestions` | Attach Preview öneri panelini kapatan eylem (`docs/design` 03.4) |
+| Hedef kayıt kimliği | `Target record ID` | Attach Preview'da bağlanacak mevcut kaydın kimlik alanı (`docs/design` 03.4) |
+| Önceki öğe | `Previous item` | Sequential triage'da önceki yakalamaya geçiş (`docs/design` 03.5) |
+| Sonraki öğe | `Next item` | Sequential triage'da sonraki yakalamaya geçiş (`docs/design` 03.5) |
+| Listeye dön | `Back to list` | Sequential triage'dan Capture Inbox listesine dönüş (`docs/design` 03.5) |
+| Günlük olay: yeniden açıldı | `Reopened` | What happened today? olay türü: yeniden açılan İş (`docs/design` 04.1) |
+| Günlük olay: yayımlandı | `Published` | What happened today? olay türü: yayımlanan Proje Sürümü girdisi (`docs/design` 04.1) |
+| İş yükleniyor | `Loading Work…` | Daily Focus, Close focus, Work Board, List, Scope Tree ve Work Detail İş listesi yükleme metni (`docs/design` 04.1, 04.2, 09.1) |
+| Günlük Odak kullanılamıyor | `Daily Focus is unavailable. Try loading this page again.` | Daily Focus ve Close focus yükleme hatası (`docs/design` 04.1, 04.2) |
+| Günlük Odak güncellenemedi | `Daily Focus could not be updated. Try again.` | Daily Focus üyelik ekleme/çıkarma yazma hatası (`docs/design` 04.1) |
+| Odak Dönemi açıklaması | `Choose Work from any Project for a 1–8 week window.` | Focus Period sayfa başlığı altındaki açıklama (`docs/design` 04.3) |
+| Kapanış açık İşi korur | `Closing keeps this Work open. No Work moves to another Focus Period automatically.` | Close Focus Period kapanış incelemesinde açık kalacak İşler açıklaması (`docs/design` 04.4) |
+| Açık İş kararı açıklaması | `Select Work and choose where it goes. Nothing moves automatically.` | Still-open Work decisions formu açıklaması (`docs/design` 04.4) |
+| Dönem değerlendirmesi açıklaması | `Optional learning notes. Leave the fields blank to skip.` | Period evaluation bölümü açıklaması (`docs/design` 04.4) |
+| Bağlı takip İşi yok | `No Follow-up Work linked to this Focus Period.` | Odak Dönemi Follow-up Work listesi boş durumu (`docs/design` 04.4) |
+| Takvim açıklaması | `Explore Work dates across Projects.` | Calendar sayfa başlığı altındaki açıklama (`docs/design` 04.5) |
+| Takvim bugün | `Today` | Calendar gezinmesi: bugüne dön (`docs/design` 04.5) |
+| Takvim tarihi güncellendi | `Calendar date updated.` | Calendar tarih yazma başarı satırı (`docs/design` 04.5) |
+| Takvim tarihi kaydedilemedi | `Calendar date could not be saved. Try again.` | Calendar tarih yazma hatası (`docs/design` 04.5) |
+| Takvim Undo artık yok | `This Work date change is no longer available for Undo.` | Calendar tarih değişikliği Undo süresi geçtiğinde (`docs/design` 04.5) |
+| Takvim yükleniyor | `Loading Calendar…` | Calendar yükleme metni (`docs/design` 04.5) |
+| Takvim kullanılamıyor | `Calendar is unavailable. Try loading this page again.` | Calendar yükleme hatası (`docs/design` 04.5) |
+| Yayımlanmamış değişiklikler (Wiki) | `Unpublished changes` | Yayımlanmış Wiki Belgesinin yayın satırında onaysız kaynak değişikliği işareti (`docs/design` 05.1) |
+| Sayfa adresi | `Page address (optional)` | Wiki yayınında isteğe bağlı slug alanı (`docs/design` 05.4) |
+| Arama başlığı | `Search title` | Wiki yayın snapshot'ının isteğe bağlı arama başlığı alanı (`docs/design` 05.4) |
+| Kişiler açıklaması | `People who give Feedback, with an optional Company.` | Contacts sayfa başlığı altındaki açıklama (`docs/design` 06.1) |
+| Şirketler | `Companies` | Contacts liste kolonunda Company listesi başlığı (`docs/design` 06.1) |
+| E-posta ekle | `Add an email` | Contact profilinde e-posta takma adı ekleme kontrolü (`docs/design` 06.1) |
+| Contact kullanılamıyor | `Contact is unavailable.` | Contact profili okuma hatası (`docs/design` 06.1) |
+| Contact kaydedilemedi | `Contact could not be saved.` | Contact profili yazma hatası (`docs/design` 06.1) |
+| Company bağı güncellenemedi | `Belongs to Company could not be updated.` | Contact'ın Company bağı yazma hatası (`docs/design` 06.1) |
+| Contact geçersiz | `Contact is invalid.` | Contact doğrulama hatası (`docs/design` 06.1, 06.3) |
+| Company adı | `Company name` | Company profilinde ve Create Company formunda ad alanı (`docs/design` 06.2, 06.3) |
+| Company geçersiz | `Company is invalid.` | Company doğrulama hatası (`docs/design` 06.2, 06.3) |
+| Company kullanılamıyor | `Company is unavailable.` | Company profili okuma hatası (`docs/design` 06.2) |
+| Contact oluşturulamadı | `Contact could not be created.` | Create Contact oluşturma reddi (`docs/design` 06.3) |
+| Company oluşturulamadı | `Company could not be created.` | Create Company oluşturma reddi (`docs/design` 06.3) |
+| Ad çatışması satırı | `Display name: keeps {kept}, drops {dropped}` | Merge Preview Field conflicts satırı biçimi (`docs/design` 06.5) |
+| Birleştirme hatası | `Contacts could not be merged. The Merge Preview was refreshed; review it and confirm again.` | Merge Contacts yazma hatası; önizleme yenilenir (`docs/design` 06.5) |
+| Birleştirildi bildirimi | `Contacts merged.` | Merge Contacts başarı bildirimi (`docs/design` 06.5) |
+| Tam geri alma değil uyarısı | `This is not a full undo: redacted or permanently deleted content stays gone.` | Undo Merge Preview geri gelemeyen içerik uyarısı (`docs/design` 06.6) |
+| Geri alma hatası | `Merge could not be undone. The Undo Merge Preview was refreshed; review it and confirm again.` | Undo Merge yazma hatası; önizleme yenilenir (`docs/design` 06.6) |
+| Geri alma artık mümkün değil | `This merge can no longer be undone from here.` | Contact profilinde Undo Merge artık sunulamadığında (`docs/design` 06.6) |
+| Geri alma bitti bildirimi | `Undo Merge finished. Cannot be restored: {links}.` | Undo Merge sonuç bildirimi, geri gelemeyen bağ sayımıyla (`docs/design` 06.6) |
+| Kişi paketi hazırlanıyor | `Preparing personal data package…` | Export Personal Data hazırlanırken ilerleme metni (`docs/design` 06.7) |
+| Ürün Boşlukları sayfa başlığı | `Product Gaps` | Ürün Boşlukları liste sayfasının çoğul başlığı (`docs/design` 07.1) |
+| Ürün Boşluklarını süz | `Filter Product Gaps` | Dogfooding süzgeç grubunun erişilebilir adı (`docs/design` 07.1) |
+| Her araç | `Any tool` | Filter by external tool süzgecinin boş değeri (`docs/design` 07.1) |
+| Her neden | `Any reason` | Filter by reason süzgecinin boş değeri (`docs/design` 07.1) |
+| Her Proje | `Any Project` | Filter by Project süzgecinin boş değeri (`docs/design` 07.1) |
+| Her durum | `Any status` | Filter by status süzgecinin boş değeri ve Status condition varsayılan seçeneği (`docs/design` 07.1, 08.21) |
+| Boşluk kapsamı satırı | `Scope: {scope}` | Ürün Boşluğu bloğunda kapsam satırı (`docs/design` 07.1) |
+| Kaçış sayısı | `{n} Tool Escapes` | Ürün Boşluğu bloğunda olay kümesini açan sayı düğmesi (`docs/design` 07.1) |
+| Boşluk durumu erişilebilir adı | `Status of {title}` | Ürün Boşluğu durum seçicisinin erişilebilir adı (`docs/design` 07.1) |
+| Boşluğun kaçışları | `Tool Escapes of {title}` | Açılmış olay kümesi başlığı (`docs/design` 07.1) |
+| Kaçış nedenleri satırı | `Reasons: {reasons}` | Dış Araca Kaçış olay satırında nedenler (`docs/design` 07.1) |
+| Kaçış kaynağı satırı | `Source {source}` | Dış Araca Kaçış olay satırında kaynak (`docs/design` 07.1) |
+| Kaçış notu satırı | `Note: {note}` | Dış Araca Kaçış olay satırında not (`docs/design` 07.1) |
+| Boşluk kaydı yok | `No Product Gaps recorded yet.` | Ürün Boşlukları boş durumu (`docs/design` 07.1) |
+| Süzgeçle eşleşme yok | `No Product Gaps match these filters.` | Ürün Boşlukları süzgeç sonucu boş (`docs/design` 07.1) |
+| Ürün Boşlukları yükleniyor | `Loading Product Gaps…` | Ürün Boşlukları yükleme metni (`docs/design` 07.1) |
+| Ürün Boşlukları kullanılamıyor | `Product Gaps are unavailable.` | Ürün Boşlukları liste yükleme hatası (`docs/design` 07.1) |
+| Kaçışlar yüklenemedi | `Tool Escapes could not be loaded.` | Ürün Boşluğu bloğunda olay kümesi yükleme hatası (`docs/design` 07.1) |
+| Boşluk güncellenmedi | `Product Gap was not updated.` | Ürün Boşluğu durum yazma hatası (`docs/design` 07.1) |
+| Yeni Ürün Boşluğu | `New Product Gap` | Record Product Gap'te yeni boşluk seçeneği (`docs/design` 07.2) |
+| İsteğe bağlı kapsam | `Scope (optional)` | Yeni Ürün Boşluğu kapsam alanı (`docs/design` 07.2) |
+| İlgili kayıt türü | `Related record type` | Yeni Ürün Boşluğu ilgili kayıt türü seçicisi (`docs/design` 07.2) |
+| İlgili kayıt | `Related record` | Yeni Ürün Boşluğu ilgili kayıt seçicisi (`docs/design` 07.2) |
+| İlgili kayıt ekle | `Add related record` | Yeni Ürün Boşluğuna ilgili kayıt ekleme eylemi (`docs/design` 07.2) |
+| Seçili ilgili kayıtlar | `Selected related records` | Yeni Ürün Boşluğuna eklenen ilgili kayıtlar listesi (`docs/design` 07.2) |
+| Nedenler (en az bir) | `Reasons (choose at least one)` | Dış Araca Kaçış neden seçimi alanı (`docs/design` 07.2) |
+| İsteğe bağlı not | `Note (optional)` | Dış Araca Kaçış not alanı (`docs/design` 07.2) |
+| Kaynak seçilmedi hatası | `Choose the source Project or record.` | Record Product Gap kaynak alanı doğrulama hatası (`docs/design` 07.2) |
+| Neden seçilmedi hatası | `Choose at least one reason.` | Record Product Gap neden alanı doğrulama hatası (`docs/design` 07.2) |
+| Seç | `Choose` | Close Tool Escape yüksek etki yargısı seçicisinin yer tutucusu (`docs/design` 07.3) |
+| Kapanış kuralı açıklaması | `Choosing Never held parallel truth closes without proof, and only you judge it. A high-impact close needs all four: …` | Close Tool Escape yargı açıklama cümlesi (`docs/design` 07.3) |
+| Kapanış reddi | `The Tool Escape was not closed. Unmet: {conditions}.` | Koşul eksik olduğunda kapanış reddi (`docs/design` 07.3) |
+| Kaçış kapanmadı | `The Tool Escape was not closed.` | Close Tool Escape genel hata (`docs/design` 07.3) |
+| Yargı seçilmedi hatası | `Choose what the escape held before closing it.` | Close Tool Escape yargı seçilmeden kapatma hatası (`docs/design` 07.3) |
+| Etki yargısı satırı | `Impact judged: {judgment}` | Close evidence satırında etki yargısı (`docs/design` 07.3) |
+| Aday sürümde başarı satırı | `Workflow succeeded on candidate build {build} (run {run}).` | Close evidence satırında iş akışı kanıtı (`docs/design` 07.3) |
+| Gerçeğin dönüşü satırı | `Truth restored by {method} in:` | Close evidence satırında gerçeğin ürün kayıtlarına dönüşü (`docs/design` 07.3) |
+| Dış kopya kapanışı satırı | `External copy closed: {how}` | Close evidence satırında dış kopyanın kapanışı (`docs/design` 07.3) |
+| Kaçış kapandı bildirimi | `Tool Escape closed.` | Close Tool Escape başarı bildirimi (`docs/design` 07.3) |
+| Proje başlığı açıklaması | `A durable home for this Project’s work and context.` | Proje başlığında Proje adının altındaki tek satırlık açıklama (`docs/design` 08.1) |
+| Yapılandırma modu şerit notu | `Separate Project structure from daily Work editing.` | Proje başlığı alt şeridinde Configuration Mode düğmesinin yanındaki not (`docs/design` 08.1) |
+| İlk açılış açıklaması başlığı | `Starter Configuration applied once` | Yeni Projenin ilk açılışında Başlangıç yapılandırması varsayımlarını açıklayan kapatılabilir notun başlığı (`docs/design` 08.1) |
+| Proje alanı yönetim bağlantısı | `Manage in Configuration Mode › Project areas` | All Tools kataloğundan Configuration Mode içindeki Project areas host'una götüren bağlantı (`docs/design` 08.2) |
+| Amaç boş | `No Purpose recorded yet.` | Overview Purpose özetinde amaç kaydı yokken (`docs/design` 08.3) |
+| Proje Hedefi boş | `No Project Goals recorded yet.` | Overview Goals modülü, Hedef listesi ve Değer Zinciri boş durumu (`docs/design` 08.3) |
+| Aktif aşama boş | `No active stages recorded yet.` | Overview Stages modülünde aktif aşama yokken (`docs/design` 08.3) |
+| Örnek içerik yok | `No sample content was created.` | Overview Work ve Documents modüllerinin boş metni; Başlangıç yapılandırmasının örnek içerik üretmediğini söyler (`docs/design` 08.3) |
+| Kaynak kayıt boş | `No source records yet.` | Overview'daki diğer modüllerin boş metni (`docs/design` 08.3) |
+| Proje alanları alt notu | `Visible entries from Project Shell` | Overview Project areas bölümünün alt notu (`docs/design` 08.3) |
+| Proje alanları boş | `No Project areas are visible yet.` | Overview Project areas bölümünde görünür alan yokken (`docs/design` 08.3) |
+| Proje Güncellemeleri görünümü | `Project Updates` | Overview Proje görünümleri girişi ve Proje Güncellemeleri listesinin başlığı (`docs/design` 08.3) |
+| Geri dönüş gerekçesi: düzenlendi | `Recently edited` | Return to Work kartı gerekçesi (`docs/design` 08.4) |
+| Geri dönüş gerekçesi: görüntülendi | `Recently viewed` | Return to Work kartı gerekçesi (`docs/design` 08.4) |
+| Geri dönüş gerekçesi: yaklaşan tarih | `Upcoming date` | Return to Work kartı gerekçesi (`docs/design` 08.4) |
+| Geri dönüş gerekçesi: açık risk | `Open risk` | Return to Work kartı gerekçesi (`docs/design` 08.4) |
+| Geri dönüş gerekçesi: GitHub sinyali | `Pending GitHub development signal` | Return to Work kartı gerekçesi (`docs/design` 08.4) |
+| Geri dönüş kartı boş | `No return cards yet.` | Return to Work'te kart yokken (`docs/design` 08.4) |
+| Return to Work başlık notu | `Up to five cards from current records. Recent activity covers the last seven days; upcoming dates cover today and the next seven days.` | Return to Work başlığının altındaki kapsam notu (`docs/design` 08.4) |
+| Sonraki somut adım kaydedildi | `Next concrete step saved.` | Next concrete step kaydı başarılı (`docs/design` 08.4) |
+| Sonraki somut adım kayıt hatası | `Next concrete step could not be saved. Try again.` | Next concrete step kaydı başarısız (`docs/design` 08.4) |
+| Sonraki somut adım uzunluk sınırı | `Next concrete step must be 4000 characters or fewer.` | Next concrete step doğrulama sınırı (`docs/design` 08.4) |
+| Return to Work hata | `Return to Work is unavailable. Try loading it again.` | Return to Work bölgesi okunamazsa (`docs/design` 08.4) |
+| Ziyaret işareti hata | `The last visit could not be saved.` | Son ziyaret işareti yazılamazsa (`docs/design` 08.4) |
+| Tur üst sınırı | `Up to 20 visual changes` | Görsel değişiklik turunda 20 olay sınırına ulaşıldığında (`docs/design` 08.5) |
+| Tur tamamlandı | `Tour complete.` | Görsel değişiklik turu bittiğinde (`docs/design` 08.5) |
+| Tur yükleniyor | `Loading visual change…` | Turda sonraki görsel hedef yüklenirken (`docs/design` 08.5) |
+| Tur atlama: yerleştirilemez | `Skipped: this target cannot be placed in the current view.` | Görsel hedef mevcut görünüme yerleştirilemediğinde atlama gerekçesi (`docs/design` 08.5) |
+| Tur atlama: erişilemez | `Skipped: this target is inaccessible.` | Görsel hedefe erişilemediğinde atlama gerekçesi (`docs/design` 08.5) |
+| Tur atlama: silinmiş | `Skipped: this target was deleted.` | Görsel hedef silindiğinde atlama gerekçesi (`docs/design` 08.5) |
+| Tur görünüm hatası | `The Roadmap viewport could not be restored or fitted.` | Tur sonunda Roadmap görünümü geri yüklenemez ve sığdırılamazsa sonuç bildirimi (`docs/design` 08.5) |
+| Katkı boş | `No contributors yet.` | Proje Hedefine katkı veren kayıt yokken (`docs/design` 08.6) |
+| Canlı özet katkı boş | `No contributing Research, Feature, or Milestone records.` | Live summary durum dağılımında katkı kaydı yokken (`docs/design` 08.6) |
+| Canlı özet açık risk/soru boş | `No related open Risks or Open Questions.` | Live summary'de ilişkili açık Risk veya Açık Soru yokken (`docs/design` 08.6) |
+| Canlı özet yükleniyor | `Loading live summary…` | Live summary yüklenirken (`docs/design` 08.6) |
+| Canlı özet hata | `Live summary is unavailable.` | Live summary okunamazsa (`docs/design` 08.6) |
+| Hikâye olayı: doğrulama sonucu | `Validation result` | Story Timeline olay türü (doğrulama sonucu) (`docs/design` 08.8) |
+| Proje Güncellemesi doğrulama | `Choose a mark and write a short narrative.` | Create Project Update formunda işaret veya anlatı eksikse (`docs/design` 08.9) |
+| Proje Güncellemeleri yükleniyor | `Loading Project Updates…` | Proje Güncellemeleri listesi yüklenirken (`docs/design` 08.9) |
+| Proje Güncellemeleri hata | `Project Updates are unavailable.` | Proje Güncellemeleri listesi okunamazsa (`docs/design` 08.9) |
+| Proje Güncellemesi kayıt hatası | `Project Update could not be saved. Retry; your text is kept here.` | Proje Güncellemesi kaydedilemezse; metin korunur (`docs/design` 08.9) |
+| Güncelleme hatırlatması kayıt hatası | `The reminder could not be saved. Retry.` | Update reminder ayarı kaydedilemezse (`docs/design` 08.9) |
+| Güncelleme hatırlatması atlama hatası | `The reminder could not be skipped. Retry.` | Skip reminder başarısızsa (`docs/design` 08.9) |
+| Kapanış taslağı kaydedilmedi | `Nothing was saved.` | Closure Summary Draft kaydedilmeden kapatılınca onay (`docs/design` 08.10) |
+| Form doğrulama hatası | `Check the form.` | Genel form doğrulama hatası (Smart Collection oluşturma, oturum, Create Work, Place on plan, Milestone) (`docs/design` 08.12, 09.7) |
+| Durum başına WIP kaydet | `Save Soft WIP` | İş durumları yapılandırmasında Soft WIP kayıt eylemi (`docs/design` 08.15) |
+| Kayıt Eylemi adımları | `Steps` | Kayıt Eylemi tanım formundaki adım listesi başlığı (`docs/design` 08.18) |
+| Kayıt Eylemini düzenle | `Edit Record Action` | Kayıt Eylemi düzenleme formu başlığı (`docs/design` 08.18) |
+| Çalışma anında ekle | `Add at run time` | Kayıt Eylemi adımında eklenecek değerin çalıştırma anında sorulması (`docs/design` 08.18) |
+| Çalışma anında kaldır | `Remove at run time` | Kayıt Eylemi adımında kaldırılacak değerin çalıştırma anında sorulması (`docs/design` 08.18) |
+| Kayıt Eylemi özel alan boş | `No active Custom fields are available for Work.` | Kayıt Eylemi Custom field adımında İş için etkin özel alan yokken (`docs/design` 08.18) |
+| Odak eşiğini kaydet | `Save Focus threshold` | Saved views ve İş Smart Collection'ında Focus threshold kayıt eylemi (`docs/design` 08.20) |
+| İş Bağlam Kartı bölümleri | `Sections` | İş Bağlam Kartı düzeni yapılandırmasındaki bölüm listesi başlığı (`docs/design` 08.21) |
+| Hazır bölüm | `Prepared section` | İş Bağlam Kartı düzeninde hazır bölüm satırı (`docs/design` 08.21) |
+| Düzen önizlemesi | `Layout preview` | İş Bağlam Kartı düzeni değişikliğinin uygulanmadan önceki fark önizlemesi (`docs/design` 08.21) |
+| Bölüm adı | `Section name` | İş Bağlam Kartı özel bölüm adı alanı (`docs/design` 08.21) |
+| Durum koşulu | `Status condition` | İş Bağlam Kartı özel bölümünün durum koşulu alanı (`docs/design` 08.21) |
+| Otomasyon kuralı çöpü | `Automation rule Trash` | Çöpteki otomasyon kurallarının listesi (Priority metric Trash kalıbı) (`docs/design` 08.23) |
+| Arşiv boş | `No archived Projects.` | Arşiv görünümünde arşivli Proje yokken (`docs/design` 08.27) |
+| Odak eşiği aşıldı uyarısı | `Focus threshold exceeded` | Work Board görünüm çubuğunda In Progress sayısı odak eşiğini aştığında nötr uyarı (`docs/design` 09.1) |
+| İş yüklenemedi | `Work is unavailable. Try loading this page again.` | Work Board, List, Scope Tree ve Work Detail yükleme hatası (`docs/design` 09.1) |
+| İş durumu değiştirilemedi | `Work status could not be changed. Try again.` | Kart taşıma, kapatma veya yeniden açma yazma hatası (`docs/design` 09.1) |
+| Arşivli İş yok | `No archived Work.` | Work List Archived filtresinin boş durumu (`docs/design` 09.2) |
+| İş listesi erişilebilir adı | `List Work` | Work List tablosunun erişilebilir adı (`docs/design` 09.2) |
+| Backlog sırası yüklenemedi | `Backlog order is unavailable.` | Backlog manuel sırası yüklenemediğinde (`docs/design` 09.3) |
+| Backlog sunumu yüklenemedi | `Backlog presentation is unavailable.` | Backlog kayıtlı sunumu yüklenemediğinde (`docs/design` 09.3) |
+| Roadmap yükleniyor | `Loading Roadmap…` | Roadmap yükleme metni (`docs/design` 09.4) |
+| Roadmap viewport hatası | `Roadmap viewport could not be fitted.` | Roadmap kanvasında Fit View başarısız olduğunda (`docs/design` 09.4) |
+| Roadmap birincil öğe | `Primary` | Product direction görünümünde Research İşinin birincil öğe işareti (`docs/design` 09.4) |
+| Roadmap ikincil öğe | `Secondary` | Product direction görünümünde Origin ile bağlı Feature İşinin ikincil öğe işareti (`docs/design` 09.4) |
+| Roadmap kanvası erişilebilir adı | `Roadmap canvas` | Roadmap kanvasının erişilebilir adı (`docs/design` 09.4) |
+| Plana alma eylemi | `Place {Work key} on plan` | Unplanned candidates satır eyleminin erişilebilir adı ve plana alma dialog başlığı (`docs/design` 09.4, 09.28) |
+| Öncelik haritası düzlemi erişilebilir adı | `Work by selected criteria` | Priority Map düzleminin erişilebilir adı (`docs/design` 09.6) |
+| Değerlendirilmemiş İş kolonu | `Unevaluated Work` | Priority Map'te en az bir eksen değeri olmayan İşler kolonunun başlığı (`docs/design` 09.6) |
+| Değerlendirilmemiş İş yok | `No unevaluated Work.` | Priority Map Unevaluated kolonunun boş durumu (`docs/design` 09.6) |
+| Tek ölçütle harita çizilmez | `Priority Map needs at least two priority metrics.` | Yalnız bir etkin Öncelik ölçütü varken Priority Map yerine görünen açıklama (`docs/design` 09.6) |
+| Öncelik ölçütü değeri kaydedilemedi | `Priority metric value could not be saved.` | Priority Map ve Edit axis values yazma hatası (`docs/design` 09.6, 09.27) |
+| Proje karar görünümleri | `Project decision views` | Prioritization bölümünün üst gezinme başlığı (`docs/design` 09.7) |
+| Önceliklendirme yükleniyor | `Loading Prioritization…` | Prioritization Sessions yükleme metni (`docs/design` 09.7) |
+| Önceliklendirme kaydedilemedi | `The Prioritization change could not be saved.` | Önceliklendirme oturumu yazma hatası (`docs/design` 09.7, 09.8) |
+| Backlog'da değil | `Not in Backlog` | Oturum ile Backlog sırası karşılaştırmasında Backlog'da olmayan İş (`docs/design` 09.8) |
+| Canlı İş bağlamı yükleniyor | `Loading live Work context…` | Prioritization Session kartlarının yükleme metni (`docs/design` 09.8) |
+| Önceliklendirme oturumunu yeniden aç | `Reopen Prioritization Session` | Kapanmış oturumu yeniden sıralamak için açık yeniden açma eylemi (`docs/design` 09.8) |
+| Kapsam ağacı erişilebilir adı | `Scope Tree records` | Scope Tree ağacının erişilebilir adı (`docs/design` 09.9) |
+| Kapsam ağacı satır öneki: ilerleme | `Progress:` | Scope Tree Feature satırında türetilmiş ilerleme öneki (`docs/design` 09.9) |
+| Kapsam ağacı satır öneki: durum | `Status:` | Scope Tree satırında durum öneki (`docs/design` 09.9) |
+| Kapsam ağacı satır öneki: blokaj | `Blocked by:` | Scope Tree satırında aktif blokaj öneki (`docs/design` 09.9) |
+| Kapsam ağacı satır öneki: Kilometre Taşı | `In Milestone:` | Scope Tree satırında ilgili Kilometre Taşı öneki (`docs/design` 09.9) |
+| Öncelik ölçütleri grubu erişilebilir adı | `Priority metrics for {Work key}` | Work Detail öncelik ölçütü değerleri grubunun erişilebilir adı (`docs/design` 09.10) |
+| Kontrol listesi erişilebilir adı | `Checklist for {Work key}` | Work Detail kontrol listesinin erişilebilir adı (`docs/design` 09.10) |
+| Yeni madde alanı erişilebilir adı | `New item for {Work key}` | Kontrol listesi yeni madde alanının erişilebilir adı (`docs/design` 09.10) |
+| Maddeyi yukarı taşı | `Move item {n} up` | Kontrol listesi maddesi sıralama eyleminin erişilebilir adı (`docs/design` 09.10) |
+| Maddeyi aşağı taşı | `Move item {n} down` | Kontrol listesi maddesi sıralama eyleminin erişilebilir adı (`docs/design` 09.10) |
+| Maddeyi sil | `Delete item {n}` | Kontrol listesi maddesi silme eyleminin erişilebilir adı (`docs/design` 09.10) |
+| Priority Foundations sayı eylemi | `Show {label} source records ({count})` | Priority Foundations tıklanabilir sayısının erişilebilir adı (`docs/design` 09.10) |
+| Bağlam kopyalanamadı | `Context could not be copied.` | Copy Context as Markdown pano hatası (`docs/design` 09.10) |
+| Taslak kaydedildi | `Draft saved.` | Create Work otomatik kayıt geri bildirimi (`docs/design` 09.11) |
+| Taslak durum şeridi metni | `Changes save automatically while you are online. Create turns this Draft into one Work.` | Create Work formundaki Draft durum şeridi açıklaması (`docs/design` 09.11) |
+| Taslak sürdürüldü | `Draft resumed.` | Drafts'tan Resume ile açılan form geri bildirimi (`docs/design` 09.11) |
+| Taslak silindi | `Draft deleted.` | Create Work formunda Draft silme geri bildirimi (`docs/design` 09.11) |
+| Taslak kaydedilemedi | `Draft could not be saved. Try again.` | Draft otomatik kayıt hatası (`docs/design` 09.11) |
+| Taslak kaydedilemedi (form) | `Draft could not be saved. Check the form.` | Draft doğrulama hatası (`docs/design` 09.11) |
+| İş oluşturulamadı | `Work could not be created. Try again.` | Create Work yazma hatası (`docs/design` 09.11) |
+| İş Şablonları listesi | `Work Templates` | Şablon listesi başlığı (08.17 ile aynı) (`docs/design` 09.12) |
+| Seçili alan varsayılanları | `Selected field defaults` | Şablon önizlemesinde seçili alan varsayılanları bölümü (08.17 ile aynı) (`docs/design` 09.12) |
+| Şablondan oluşturulamadı | `Work could not be created from this template.` | Create Work from template yazma hatası (`docs/design` 09.12) |
+| İş başlığı hatası | `Check the Work title.` | Şablondan oluşturma ve Duplicate Work başlık doğrulaması (`docs/design` 09.12) |
+| Kullanılamayan özel alan | `Unavailable Custom field` | Şablon varsayılanı olan alan artık yoksa önizleme satırı (`docs/design` 09.12) |
+| Kapatma dialog başlığı | `Close {Work key}` | Close Work dialog başlığı (`docs/design` 09.13) |
+| Kapanış sonucu erişilebilir adı | `Closure result for {Work key}` | Close Work sonuç seçiminin erişilebilir adı (`docs/design` 09.13) |
+| Kapanış gerekçesi erişilebilir adı | `Reason for {Work key}` | Close Work gerekçe alanının erişilebilir adı (`docs/design` 09.13) |
+| Kalıcı bağlam hedef seçici | `Decision · Personal Wiki` | Keep lasting context hedef seçicisinin iki seçeneği (`docs/design` 09.13) |
+| Yeniden açma dialog başlığı | `Reopen {Work key}` | Reopen Work dialog başlığı (`docs/design` 09.14) |
+| Tür seçici erişilebilir adı | `Type for {Work key}` | Change Work type tür seçicisinin erişilebilir adı (`docs/design` 09.15) |
+| İş türü değiştirilemedi | `Work type could not be changed. Try again.` | Change Work type yazma hatası (`docs/design` 09.15) |
+| Birleştirme dialog başlığı | `Merge {Work key}` | Merge as duplicate dialog başlığı (`docs/design` 09.16) |
+| Boş alan değeri | `Empty` | Merge as duplicate alan çatışmasında boş değer (`docs/design` 09.16) |
+| İş birleştirilemedi | `Work could not be merged. Try again.` | Merge as duplicate yazma hatası (`docs/design` 09.16) |
+| Birleştirme geri alınamaz | `This Work merge is no longer available for Undo.` | Merged receipt Undo süresi geçtiğinde (`docs/design` 09.16) |
+| Yeniden oluşturma dialog başlığı | `Recreate {Work key}` | Recreate in another Project dialog başlığı (`docs/design` 09.17) |
+| Taşınabilir içerik | `Portable content` | Recreate dialogunda tek tek seçilen alanlar bölümü (`docs/design` 09.17) |
+| Taşınabilir ilişkiler | `Portable relations` | Recreate dialogunda tek tek seçilen ilişkiler bölümü (`docs/design` 09.17) |
+| Yeniden oluşturma önizlemesi | `Recreate preview` | Recreate dialogunda yeni anahtar ve başlangıç durumu önizlemesi (`docs/design` 09.17) |
+| İş yeniden oluşturulamadı | `Work could not be recreated. Try again.` | Recreate in another Project yazma hatası (`docs/design` 09.17) |
+| İş kopyalanamadı | `Work could not be duplicated. Try again.` | Duplicate Work yazma hatası (`docs/design` 09.18) |
+| Dönüştürme önizlemesi yükleniyor | `Loading conversion preview…` | Convert to independent Work önizleme yükleme metni (`docs/design` 09.19) |
+| Dönüştürme önizlemesi yüklenemedi | `Conversion preview could not be loaded. Try again.` | Convert to independent Work önizleme hatası (`docs/design` 09.19) |
+| İş dönüştürülemedi | `Work could not be converted. Try again.` | Convert to independent Work yazma hatası (`docs/design` 09.19) |
+| Kayıt Eylemi girdileri | `Record Action inputs` | Record Action run girdi adımının başlığı (`docs/design` 09.20) |
+| Seçilen çalışma zamanı girdileri | `Runtime inputs selected` | Record Action önizlemesinde seçilen girdiler özeti (`docs/design` 09.20) |
+| Değişiklikler | `Changes` | Record Action önizlemesinde alan farkı tablosu başlığı (`docs/design` 09.20) |
+| Günlük Odak'ta | `In Daily Focus` | Record Action fark önizlemesinde Günlük Odak üyeliği değeri (`docs/design` 09.20) |
+| Günlük Odak'ta değil | `Not in Daily Focus` | Record Action fark önizlemesinde Günlük Odak üyeliği değeri (`docs/design` 09.20) |
+| Önizleme hazırlanıyor | `Preparing preview…` | Record Action önizlemesi hazırlanırken (`docs/design` 09.20) |
+| Geri alma hazırlanıyor | `Preparing Undo…` | Record Action makbuzunda Undo hazırlanırken (`docs/design` 09.20) |
+| Blokaj çözülemedi | `Blocker could not be resolved.` | Mark blocker resolved yazma hatası (`docs/design` 09.21) |
+| Blokaj yeniden etkinleştirilemedi | `Blocker could not be reactivated.` | Reactivate blocker yazma hatası (`docs/design` 09.21) |
+| Yazar satırı | `by You` | Not now geçmişinde yazar satırı (`docs/design` 09.22) |
+| Dayanak kayıt yok | `No supporting records.` | Not now formunda dayanak kayıt boş durumu (`docs/design` 09.22) |
+| Not now kaydedilemedi | `Not now could not be saved.` | Not now yazma hatası (`docs/design` 09.22) |
+| Not now doğrulama hatası | `Check the Not now details.` | Not now form doğrulaması (`docs/design` 09.22) |
+| Devir ayrıntısı hatası | `Check the handoff details.` | Start Handoff form doğrulaması (`docs/design` 09.23) |
+| Gidiş paketi kopyalanamadı | `Going package could not be copied.` | Start Handoff pano hatası (`docs/design` 09.23) |
+| Gidiş paketi geçmişe yazılamadı | `Going package was copied, but its Work history could not be recorded.` | Kopyalama başarılı ama İş geçmişi olayı yazılamadığında (`docs/design` 09.23) |
+| Dönüş ayrıntısı hatası | `Check the return details.` | External Execution Handoff dönüş formu doğrulaması (`docs/design` 09.24) |
+| İptal gerekçesi hatası | `Check the cancellation reason.` | Cancel Handoff form doğrulaması (`docs/design` 09.26) |
+| Eksen değerleri popover başlığı | `Edit axis values for {Work key}` | Priority Map noktasındaki eksen popover başlığı (`docs/design` 09.27) |
+| Kilometre Taşındaki İşler | `Work in {Milestone}` | Milestone ekranında bağlı İşler listesinin başlığı (`docs/design` 09.29) |
+| Canlı bölüm döngü reddi | `Live Document sections cannot contain a cycle.` | Read-only live section kendi Belgesine dolaylı dönünce eklemenin reddi (mevcut kod metni) (`docs/design` 10.2) |
+| Moodboard listesi yükleniyor | `Loading Moodboards…` | Design dizinindeki Moodboard bölümünün yükleme satırı (`docs/design` 13.1) |
+| Teknik Diyagram listesi yükleniyor | `Loading Technical Diagrams…` | Teknik Diyagram listesinin yükleme satırı (`docs/design` 14.1) |
+| Teknik Diyagram editörü yükleniyor | `Loading Technical Diagram…` | Teknik Diyagram editörünün yükleme metni (`docs/design` 14.3) |
+| DDL önizleme | `Preview DDL` | Seçilen Diyagram Sürümünden PostgreSQL DDL taslağını üreten eylem (kod: Preview DDL for <name> · version <n>) (`docs/design` 14.7) |
+| DDL kopyalama | `Copy PostgreSQL DDL` | Üretilen DDL'i panoya kopyalayan eylem (mevcut kod metni) (`docs/design` 14.7) |
+| Desteklenmeyen fark: serbest tip dönüşümü | `Free type conversion` | Unsupported sınıfındaki şema farkı (PRD 11 Serbest tip dönüşümü; mevcut kod adı) (`docs/design` 14.8) |
+| Desteklenmeyen fark: katalog dışı şema nesnesi | `Catalog-outside schema object` | Unsupported sınıfındaki şema farkı (PRD 11 Katalog dışı şema nesnesi; mevcut kod adı) (`docs/design` 14.8) |
+| Desteklenmeyen fark: şema dışı veri operasyonu | `Schema-outside data operation` | Unsupported sınıfındaki şema farkı (PRD 11 Şema dışı veri operasyonu; mevcut kod adı) (`docs/design` 14.8) |
+| Desteklenmeyen farklar listesi | `Unsupported differences` | Artefakt üretimini durduran farkların liste başlığı (mevcut kod metni) (`docs/design` 14.8) |
+| Up SQL fark görünümü | `Generator output vs your edit` | Generator çıktısı ile kurucu düzenlemesinin fark görünümü (mevcut kod metni) (`docs/design` 14.8) |
+| Up SQL düzenleme | `Edit Up SQL` | Kurucunun Up SQL'i düzenlediği alan (mevcut kod metni) (`docs/design` 14.8) |
+| Düzenlenmiş Up işareti | `Edited Up SQL` | Up SQL'in kurucu tarafından düzenlendiğini gösteren işaret (`docs/design` 14.8) |
+| Up düzenlemesini bırakma | `Discard edit` | Kurucu Up düzenlemesini generator çıktısına döndüren eylem (mevcut kod metni) (`docs/design` 14.8) |
+| Migration Artifact onayı | `Confirm Migration Artifact` | Schema Change Draft'ı değişmez Migration Artifact olarak onaylayan eylem (mevcut kod metni) (`docs/design` 14.8) |
+| Planlı Test yeni sürüm bilgisi | `Past Session Tests stay bound to version <n>.` | Yeni sürüm formunda geçmiş Oturum Testlerinin önceki kesin sürüme bağlı kaldığı bilgisi (`docs/design` 15.3) |
+| Bağlı Test Handoff satırı | `Linked Test Handoff` | Test Oturumu meta bölgesinde bağlı Handoff satırı (`docs/design` 15.10) |
+| Proje Sürümü boş liste | `A Project Release is the publishable scope of this Project; it is not a Milestone or a Focus Period.` | Proje Sürümü listesi boş durum cümlesi (mevcut kod metni) (`docs/design` 16.1) |
+| Proje Sürümleri yükleniyor | `Loading Project Releases…` | Proje Sürümü listesinin yükleme satırı (`docs/design` 16.1) |
+| Proje Sürümleri hatası | `Project Releases are unavailable.` | Proje Sürümü listesi okunamadı (mevcut kod metni) (`docs/design` 16.1) |
+| Proje Sürümü GitHub bölümü | `GitHub and environments` | Proje Sürümü detayında GitHub ve ortam bağları bölüm başlığı (mevcut kod metni) (`docs/design` 16.2) |
+| GitHub Release bağı | `GitHub Release` | GitHub Release dış kaydı türü ve bağ satırı adı (`docs/design` 16.2, 18.6) |
+| Git tag bağı | `Git tag` | GitHub tag dış kaydı türü; yalın Tag Çalışma Alanı Etiketi olduğu için ayrılır (`docs/design` 16.2, 18.6) |
+| Referans ekleme | `Add reference` | Proje Sürümüne tag/GitHub Release/ortam bağı ekleme (mevcut kod metni) (`docs/design` 16.2) |
+| GitHub Release önerisi | `GitHub Release <tag> was published.` | Bağlı GitHub Release yayımlanınca gösterilen öneri satırı (mevcut kod metni) (`docs/design` 16.2) |
+| GitHub Release öneri sorusu | `Mark this Project Release Published?` | Öneri satırında 16.4'ü açan soru (mevcut kod metni) (`docs/design` 16.2) |
+| Proje Sürümü yükleniyor | `Loading Project Release…` | Proje Sürümü detayının yükleme metni (`docs/design` 16.2) |
+| Boş hipotez notu | `Optional. These fields never block publishing and nothing is measured automatically.` | Erişim ve sonuç hipotezi alanlarının isteğe bağlı olduğu not (mevcut kod metni) (`docs/design` 16.2) |
+| Proje Sürümü ad hatası | `Enter a Name before creating.` | Create Project Release formunda boş ad hatası (mevcut kod metni) (`docs/design` 16.3) |
+| Terminal durum uyarısı | `This status is final and cannot be changed later.` | Published/Cancelled geçiş onayında geri alınamazlık cümlesi (`docs/design` 16.4) |
+| Açık kapsam bilgisi | `Some Work in scope is still open. Publishing does not change it.` | Kapsamda açık İş varken Published onayındaki bilgi satırı (`docs/design` 16.4) |
+| Kanıt paketi nedeni: kapsam yok | `This Project Release has no Work in its scope.` | Release Evidence Pack Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi nedeni: beklenen sonuç yok | `A Work in scope has no Expected Outcome.` | Release Evidence Pack Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi nedeni: gerekli PR yok | `A Work in scope has no linked Pull request marked Required for completion.` | Release Evidence Pack Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi nedeni: check durumu | `A GitHub check on #<n> is <outcome>.` | Bekleyen veya başarısız GitHub check Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi nedeni: İş–PR tutarsızlığı | `A Work and its Pull request disagree.` | Release Evidence Pack Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi nedeni: açık Risk | `An open Risk is related to this Project Release.` | Release Evidence Pack Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi nedeni: ilişkili test yok | `No Planned Test Case, Test Handoff or Session Test relates to this Project Release.` | Release Evidence Pack Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi nedeni: olumsuz sonuç | `A reported result is negative or inconclusive.` | Release Evidence Pack Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi nedeni: incelenmemiş rapor | `A reported result has not been reviewed yet.` | Release Evidence Pack Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi nedeni: açık Test Açığı | `An open Test Gap is related to this Project Release.` | Release Evidence Pack Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi nedeni: bağlam değişti | `A <kind> context changed at <time>.` | Spec/commit/build bağlamı değişikliği Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi nedeni: değerlendirmeden sonra yeni bağlam | `New test context after the latest Test Assessment` | Release Evidence Pack Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi nedeni: yayın farkı yok | `A prepared changelog or an approved snapshot is missing, so there is nothing to compare.` | Release Evidence Pack Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi nedeni: yayımlanmış sürümde açık İş | `This Project Release is Published and the Work is still open in its scope.` | Release Evidence Pack Attention satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi yükleniyor | `Loading Release Evidence Pack…` | Release Evidence Pack yükleme metni (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi hatası | `Release Evidence Pack is unavailable.` | Release Evidence Pack okunamadı (mevcut kod metni) (`docs/design` 16.5) |
+| Kanıt paketi bölüm kaynağı yok | `Source unavailable: <reason>` | Okunamayan bölüm kaynağının satırı (mevcut kod metni) (`docs/design` 16.5) |
+| Sürüm notu taslak satırı | `Private draft. Nothing is visible until you approve a publish preview.` | Sürüm notu taslağının yayın onayına kadar özel kaldığı satır (`docs/design` 16.6) |
+| Yayın durum yazmaz cümlesi | `Publishing does not change Work status or the Project Release status.` | Release Publish Preview'da yayının İş ve Proje Sürümü durumunu yazmadığı cümle (`docs/design` 16.7) |
+| Changelog boş durumu | `No published release notes yet. Private drafts are never shown to visitors.` | Kurucu changelog yüzeyinin boş durumu (`docs/design` 16.8) |
+| Yeniden değerlendirme başlamadı | `No reassessment yet. Reassessing is optional and never blocks closing a Feature or Project Release.` | Reassess Impact turu olmayan yayımlanmış sürümde tek cümle (`docs/design` 16.9) |
+| Üretim Olayı boş liste | `No Production Incidents yet. An incident is a learning record, not a Bug, and is never created from an alert or Sentry event.` | Üretim Olayı listesinin boş durum cümlesi (`docs/design` 17.1) |
+| Üretim Olayları yükleniyor | `Loading Production Incidents…` | Üretim Olayı listesinin yükleme satırı (`docs/design` 17.1) |
+| Üretim Olayları hatası | `Production Incidents are unavailable.` | Üretim Olayı listesi okunamadı (mevcut kod metni) (`docs/design` 17.1) |
+| Üretim Olayı PR grubu | `GitHub PR` | Üretim Olayı bağlı kayıtlarında PR grup başlığı (mevcut kod metni) (`docs/design` 17.2) |
+| Üretim Olayı yükleniyor | `Loading Production Incident…` | Üretim Olayı detayının yükleme metni (`docs/design` 17.2) |
+| Üretim Olayı form hatası | `Enter a title and when the incident began.` | Record Production Incident formunda başlık/zaman eksik hatası (mevcut kod metni) (`docs/design` 17.3) |
+| Kopmuş repository kayıtları | `Captured records stay as history and no longer sync.` | Disconnected bağlantıda yakalanmış kayıtların tarihsel kaldığı bilgisi (`docs/design` 18.1) |
+| GitHub App kurulumu tamamlanmadı | `The GitHub App installation was not completed.` | GitHub'dan dönüşte kurulum yoksa neden metni (`docs/design` 18.2) |
+| İlk bağlantı ayıklama onayı | `Create selected Work` | First-connect Triage toplu önizlemesini onaylayan eylem (`docs/design` 18.3) |
+| GitHub kaydı türü: Issue | `Issue` | GitHub Records tür sekmesi (mevcut kod metni) (`docs/design` 18.6) |
+| GitHub kaydı türü: Pull request | `Pull request` | GitHub Records tür sekmesi (mevcut kod metni) (`docs/design` 18.6) |
+| GitHub kaydı türü: Branch | `Branch` | GitHub Records tür sekmesi (mevcut kod metni) (`docs/design` 18.6) |
+| GitHub kaydı türü: Commit | `Commit` | GitHub Records tür sekmesi (mevcut kod metni) (`docs/design` 18.6) |
+| GitHub kaydı türü: Check | `Check` | GitHub Records tür sekmesi (`docs/design` 18.6) |
+| Bağlı İşi olmayan PR | `No linked Work` | PR Context Card'da bağlı İş yokken bölümlerin dürüst boş metni (`docs/design` 18.7) |
+| Öneriyi gerekli rolle bağla | `Link as Required for completion` | GitHub bağlama önerisini Required for completion rolüyle bağlama (`docs/design` 18.9) |
+| Öneriyi bağlamsal rolle bağla | `Link as Contextual` | GitHub bağlama önerisini Contextual rolüyle bağlama (`docs/design` 18.9) |
+| Parola kapısı genel hatası | `The link or password is not valid.` | Yanlış parola veya geçersiz token için yüzeyi ele vermeyen genel hata (`docs/design` 19.2) |
+| Parola kapısı bekleme | `Too many attempts. Try again in <time>.` | Tekrarlanan denemeden sonra artan bekleme metni (`docs/design` 19.2) |
+| Paylaşım oturumu bitti | `Your access to this page has ended. Open the original link again.` | Temiz URL'de Paylaşım erişim oturumu bittiğinde içeriksiz metin (`docs/design` 19.8) |
+| Ad yazdırmalı GitHub kimlik adımı | `Confirm GitHub Identity and type the Project name to continue.` | Yüksek risk adım şeridinde GitHub ve ad teyidi açıklaması (`docs/design` 20.1) |
+| GitHub kesintisinde kimlik adımı | `Confirm GitHub Identity is waiting because GitHub is unavailable.` | Confirm GitHub Identity GitHub kesintisi durumu (`docs/design` 20.1) |
+| Açılır pencere engellendi | `Allow pop-ups to confirm your GitHub identity.` | GitHub kimlik turu açılır penceresi engellendiğinde (`docs/design` 20.1) |
+| GitHub kimlik turu iptal/süre doldu | `GitHub identity confirmation was cancelled or timed out.` | GitHub kimlik turu iptal edildiğinde veya süresi dolduğunda (`docs/design` 20.1) |
+| Kalıcı silme soru başlığı | `Permanently Delete {name}?` | Permanently Delete dialog başlığı (`docs/design` 20.3) |
+| Hesap adı teyidi | `Type the Account name to confirm` | Kalıcı silme, redaksiyon, Erase Personal Data ve Close Account'ta Hesap adı teyit alanı (`docs/design` 20.3) |
+| Adres kullanımda | `This address is already in use.` | Yayın ayarlarında adres çakışması hatası (`docs/design` 20.4) |
+| Yönlendirme önizlemesi | `Redirect preview` | Yayın adresi değişince eski adresin yönlendirmesini gösteren önizleme (`docs/design` 20.4) |
+| Yönlendirme açıklaması | `The old address redirects to the new one until you unpublish. It never points at private content.` | Redirect preview açıklama cümlesi (`docs/design` 20.4) |
+| Durum seçimi | `Select status` | Bulk Edit durum alanının boş seçeneği (`docs/design` 20.8) |
+| Uygulanacak değişiklik yok | `No changes to apply.` | Bulk Edit önizlemesinde fark yokken (`docs/design` 20.8) |
+| Geçersiz zaman | `Choose a valid time.` | Remind me / Review Later zaman doğrulaması (`docs/design` 20.9) |
+| Geçmiş zaman | `Reminder must be scheduled for a future time.` | Remind me / Review Later geçmiş zaman doğrulaması (`docs/design` 20.9) |
+| Hatırlatma doğrulama hatası | `Check the reminder.` | Remind me / Review Later form doğrulaması (`docs/design` 20.9) |
+| Hatırlatma kaydedilemedi | `Reminder could not be saved.` | Remind me / Review Later yazma hatası (`docs/design` 20.9) |
+| Hatırlatma koşulu değerlendirilemedi | `Reminder condition could not be evaluated.` | Only if still open kaynağın yaşamı çözülemediğinde üretilen sinyalin metni (`docs/design` 20.9) |
+| İlişki önizleme yönergesi | `Review the relation preview before confirming.` | Relation Picker önizleme açıklaması (`docs/design` 20.10) |
+| İlişki oluşturulamadı | `Relation could not be created.` | Relation Picker yazma hatası (`docs/design` 20.10) |
+| İlişki kaldırılamadı | `Relation could not be removed.` | Remove relation yazma hatası (`docs/design` 20.10) |
+| İlişki geri alınamadı | `Relation could not be undone.` | İlişki Undo hatası (`docs/design` 20.10) |
+| İlişki önizlemesi başarısız | `Relation preview failed.` | Relation preview hatası (`docs/design` 20.10) |
+| İlişki geri alma süresi geçti | `This relation is no longer available for Undo.` | İlişki Undo artık mümkün değilken (`docs/design` 20.10) |
+| Yükleniyor (dosya) | `Uploading` | File Attachment yükleme durumu (`docs/design` 20.13) |
+| Dosya türü desteklenmiyor | `This file type is not supported.` | File Attachment reddedilen tür/uzantı (`docs/design` 20.13) |
+| Dosya yüklenemedi | `File Attachment upload could not be completed. Try again.` | File Attachment yükleme hatası (`docs/design` 20.13) |
+| Önizleme kısaltıldı | `Preview is truncated` | CSV önizlemesi sınırlı satır gösterdiğinde (`docs/design` 20.13) |
+| CSV önizlemesi | `CSV preview` | File Attachment CSV önizleme bölgesi (`docs/design` 20.13) |
+| PDF önizlemesi | `PDF preview` | File Attachment PDF önizleme bölgesi (`docs/design` 20.13) |
+| PDF önizlemesi yükleniyor | `Loading PDF preview` | File Attachment PDF önizleme yükleme metni (`docs/design` 20.13) |
+| Önizleme yok | `Preview is unavailable.` | File Attachment önizlemesi üretilemediğinde (`docs/design` 20.13) |
+| PDF önizlemesi yok | `PDF preview is unavailable. Download the original file instead.` | File Attachment PDF önizleme hatası (`docs/design` 20.13) |
+| ZIP yalnız indirme | `ZIP files are available for download only.` | File Attachment ZIP dosyası seçildiğinde (`docs/design` 20.13) |
+| Proje Dosya Ekleri | `Project File Attachments` | Documents alanındaki Proje Dosya Ekleri bölgesi başlığı (`docs/design` 20.13) |
+| Sayfa güncel değil | `This page is out of date.` | Conflict durumunda güncel olmayan taban açıklaması (`docs/design` 20.14) |
+| API'yi yeniden başlat | `Please restart the API and try again.` | Şema kayması hata toast'ı neden satırı (`docs/design` 20.15) |
+| Migration sonrası yeniden başlat | `Please restart after applying the latest migration.` | Şema kayması hata toast'ı neden satırı (`docs/design` 20.15) |
+| Henüz kayıt yok | `Not yet` | Offline bandında Last saved değeri, henüz başarılı kayıt yokken (`docs/design` 20.16) |
+| Masaüstü güncellemesi gerekli | `This desktop version must be updated before you can save changes.` | Update Required durum bloğu ve bandı (`docs/design` 20.17) |
+| Takip İşi onay açıklaması | `Confirming creates exactly one Work. Nothing exists until then.` | Create Follow-up Work ortak önizleme açıklaması (`docs/design` 20.22) |
+| Proje seç | `Select Project` | Odak Dönemi takip İşinde hedef Proje seçimi (`docs/design` 20.22) |
+| Feature ilişkilendir | `Relate a Feature` | Ürün Boşluğu takip seçiminde Feature ilişkilendirme seçeneği (`docs/design` 20.22) |
+| Feature ilişkisi | `Feature relation` | Ürün Boşluğu takip önizlemesinde Feature ilişkisi alanı (`docs/design` 20.22) |
+| Takip İşi önizleme cümlesi | `Create 1 {Work type} in {Target Project}.` | Ürün Boşluğu takip İşi önizleme cümlesi (`docs/design` 20.22) |
+| Feature ilişkisi önizleme cümlesi | `Relate Feature {Feature} as a follow-up. No Work is created.` | Ürün Boşluğu Feature ilişkilendirme önizleme cümlesi (`docs/design` 20.22) |
+| Takip önizlemesi | `Preview follow-up` | Ürün Boşluğu takip önizleme eylemi (`docs/design` 20.22) |
+| Takibi onayla | `Confirm follow-up` | Ürün Boşluğu takip onay eylemi (`docs/design` 20.22) |
+| Önizlemeyi at | `Discard preview` | Ürün Boşluğu takip önizlemesini kapatma eylemi (`docs/design` 20.22) |
+| Takip İşi oluşturuldu | `Follow-up Work created.` | Takip İşi oluşturma sonucu (`docs/design` 20.22) |
+| Takip Feature'ı ilişkilendirildi | `Follow-up Feature related.` | Feature ilişkilendirme sonucu (`docs/design` 20.22) |
+| Aday inceleme durumu değişmez | `The review status of the candidate does not change.` | Spec Değişikliği adayından takip İşi önizleme notu (`docs/design` 20.22) |
+| Takip için sonuçlar | `Results for follow-up` | Oturum Testi takip İşinde yeni İş için seçilen sonuçlar (`docs/design` 20.22) |
+| Bağlanacak sonuçlar | `Results to link` | Oturum Testi takibinde mevcut İşe bağlanacak sonuçlar (`docs/design` 20.22) |
+| Mevcut İş kökenini korur | `The Work keeps its own Origin; only the results are linked.` | Oturum Testi takibinde mevcut İş seçiliyken açıklama (`docs/design` 20.22) |
+| Takip önizlemesi yükleniyor | `Loading preview…` | Create Follow-up Work yükleme metni (`docs/design` 20.22) |
+| Takip önizlemesi yüklenemedi | `The preview could not be loaded. Reload and try again.` | Create Follow-up Work önizleme yükleme hatası (`docs/design` 20.22) |
+| Takip önizlemesi kullanılamıyor | `The follow-up preview is unavailable.` | Create Follow-up Work önizleme hatası (`docs/design` 20.22) |
+| Takip hedefleri yüklenemedi | `Follow-up targets could not be loaded.` | Create Follow-up Work hedef listesi hatası (`docs/design` 20.22) |
+| Takip İşi oluşturulamadı | `The Work could not be created. If the review changed, preview again.` | Create Follow-up Work onay hatası (`docs/design` 20.22) |
+| Takip oluşturulmadı | `The follow-up was not created.` | Create Follow-up Work onay hatası (`docs/design` 20.22) |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 
