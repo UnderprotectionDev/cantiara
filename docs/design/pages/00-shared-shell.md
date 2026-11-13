@@ -91,7 +91,7 @@ Dört eş düzey sekme.
 
 ### Popover düzeni
 `Daily Focus`, `Capture Inbox`, `Drafts` ve `Notification Center` popover'ları aynı düzeni paylaşır: başlık → öne çıkan kart → `Then` satırları → alt şerit. Liste satırlarında tarih `Day N · N d` biçimindedir. Sağdaki bölmeler overlay kaydırma çubuğu gösterir; çubuk içeriği daraltmaz. Klavye kısayol ipucu sistemi kaldırılmıştır; yalnız Komut Paleti tetiğindeki `⌘K` ve Command Palette'in kendi içi (`Esc`, `Enter`) kalır.
-- **Spec'e eklenecek etiketler:** `Then` (Paper'da var, spec'te yok).
+- **Spec etiketleri:** `Then` → spec 72 `English UI labels`.
 
 ### Yüzeyler
 Her yüzeyin içeriği ve eylemleri kendi bölümündedir; burada yalnız panel içindeki sığdırma çizilir: Daily Focus → `00.3`, Look again → `00.4`, Notification Center → `00.5`, Favorites → `00.9`.
@@ -198,7 +198,7 @@ Gruplar kaydırılır. Grup sırası zaman sırasıdır. AI önem sıralaması v
 ### Popover
 Başlık → öne çıkan kart → kalan öğe satırları → alt şerit. Öne çıkan kart en eski öğedir: yakalanan içerik (bağlantıysa bağlantı önizlemesiyle), hangi Inbox'tan geldiğini söyleyen `Inbox` satırı ve üç çıkış eylemi `Convert`, `Attach to existing`, `Delete`. Altında diğer öğeler satır olarak sıralanır. Alt şeritte `Sequential triage` ve `Open full page` bulunur. Üç çıkışın kuralları ve önizlemeleri → `03.3`, `03.4`; Sıralı triage → `03.5`; tam sayfa → `03.1`. `One card triage` artboard'ı tek karta odaklı görünümü çizer.
 - **Label'lar:** `Capture Inbox`, `Convert`, `Attach to existing`, `Delete`, `Sequential triage`, `Open full page`
-- **Spec'e eklenecek etiketler:** `Oldest first` (öne çıkan kartın sıralama ipucu) ve `Inbox` satır etiketi; ikisi de Paper'da var, spec 06'da yok. (`Then` → `00.2 › Popover düzeni`.)
+- **Spec etiketleri:** `Oldest first` ve `Inbox` satır etiketi → spec 06 `English UI labels`. (`Then` → `00.2 › Popover düzeni`.)
 
 ### Durumlar
 `Popover states` artboard'ı popover'ın boş, yükleme ve hata hallerini toplar; metinleri → `03.1`. Bu bölüm yeni label üretmez.
@@ -215,7 +215,7 @@ Başlık → öne çıkan kart → kalan öğe satırları → alt şerit. Öne 
 ### Popover
 Başlık → öne çıkan kart → `Earlier` satırı → alt şerit. Popover yalnız İş taslaklarını listeler. Öne çıkan kart en son düzenlenen taslaktır: doldurulmuş alanları gösteren bir ölçer, `Last saved` zamanı, `Resume` ve `Delete`. `Earlier` satırı daha eski taslakları tutar. Alt şeritte "Kept until you create or delete" notu ve `Open full page` bulunur; taslak süreyle silinmez (→ `02.10`).
 - **Label'lar:** `Drafts`, `Last saved`, `Open full page`
-- **Spec'e eklenecek etiketler:** `Resume`, `Delete` (Drafts bağlamında; spec 11 yalnız `Draft`, `Drafts`, `Create`, `Last saved`, `Unsaved changes may be lost` der), `Earlier`, `Kept until you create or delete`. Hepsi Paper'da var, spec 11'de yok.
+- **Spec etiketleri:** `Resume`, `Delete`, `Earlier`, `Kept until you create or delete` → spec 11 `English UI labels`.
 
 ### Durumlar
 `Popover states` artboard'ı popover'ın boş, yükleme ve hata hallerini toplar; kurallar → `02.10`. Bu bölüm yeni label üretmez.
