@@ -17,8 +17,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   EMPTY_TEST_ASSESSMENT_FORM,
+  parseTestAssessmentForm,
   type TestAssessmentFormValues,
-  testAssessmentFormSchema,
 } from "../../lib/test-assessment-form";
 
 export type SubmitTestAssessment = (
@@ -44,7 +44,7 @@ export function RecordTestAssessmentForm({
     defaultValues: EMPTY_TEST_ASSESSMENT_FORM,
     onSubmit: async ({ formApi, value }) => {
       setError(undefined);
-      const parsed = testAssessmentFormSchema.safeParse(value);
+      const parsed = parseTestAssessmentForm(value);
       if (!parsed.success) {
         setError("Choose a context and a decision.");
         return;

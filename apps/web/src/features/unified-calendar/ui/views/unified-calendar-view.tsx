@@ -26,6 +26,7 @@ import UnifiedCalendar, {
 } from "@/features/unified-calendar/ui/components/unified-calendar";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
+import { fetchCurrentWork } from "@/lib/fetch-current-work";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
 import {
   accountPreferencesQueryOptions,
@@ -184,7 +185,7 @@ export default function UnifiedCalendarView({
         );
       }
       return runOnlineOnlyWrite(async () => {
-        const work = await client.work({ workId: undo.workId });
+        const work = await fetchCurrentWork(queryClient, undo.workId);
         return client.undoWorkDate({
           baseRevision: work.revision,
           clientIdempotencyKey: crypto.randomUUID(),

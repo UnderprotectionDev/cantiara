@@ -1,6 +1,7 @@
 import type { TrashEntry } from "@cantiara/api/trash";
+import { useQueryClient } from "@tanstack/react-query";
 import { requestGitHubIdentityGrant } from "@/features/account-access/lib/github-identity-confirmation";
-import { client } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 import { useIdempotentTrashWrite } from "./use-idempotent-trash-write";
 
 /**
@@ -11,6 +12,7 @@ import { useIdempotentTrashWrite } from "./use-idempotent-trash-write";
  */
 export function usePermanentDeleteFromTrash(projectId: string) {
   const write = useIdempotentTrashWrite();
+  const queryClient = useQueryClient();
   return {
     async confirmIdentity() {
       const grant = await requestGitHubIdentityGrant("early-permanent-delete");
@@ -35,9 +37,12 @@ export function usePermanentDeleteFromTrash(projectId: string) {
       );
     },
     preview: (entry: TrashEntry) =>
-      client.previewPermanentDeleteFromTrash({
-        entryId: entry.id,
-        projectId,
+      queryClient.fetchQuery({
+        ...orpc.previewPermanentDeleteFromTrash.queryOptions({
+          input: { entryId: entry.id, projectId },
+        }),
+        gcTime: 0,
+        staleTime: 0,
       }),
   };
 }

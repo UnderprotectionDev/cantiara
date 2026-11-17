@@ -17,8 +17,15 @@ export default function TestSessionsSurface({
     input: { projectId },
   });
   const sessions = useQuery(options);
+  // Accepted Test Sessions are reviewed and summarized in the same area.
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: options.queryKey });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: options.queryKey }),
+      queryClient.invalidateQueries({ queryKey: orpc.projectTestReview.key() }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.projectTestSummary.key(),
+      }),
+    ]);
   if (sessions.isPending) {
     return <p role="status">Loading Test Sessions…</p>;
   }

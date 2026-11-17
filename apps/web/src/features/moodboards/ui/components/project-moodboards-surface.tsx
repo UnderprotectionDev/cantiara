@@ -23,12 +23,12 @@ import { AddColorSwatchForm } from "../forms/add-color-swatch-form";
 import { AddPaletteGroupForm } from "../forms/add-palette-group-form";
 import { AddVisualForm } from "../forms/add-visual-form";
 import { CreateMoodboardForm } from "../forms/create-moodboard-form";
+import { SnapshotPanel } from "../forms/moodboard-snapshot-form";
 import { VisualCaptionForm } from "../forms/visual-caption-form";
 import {
   FocusOrderEditor,
   PresentationView,
   PresentedVisual,
-  SnapshotPanel,
   VisualViewTools,
 } from "./moodboard-view-tools";
 import { MoodboardWorkspace } from "./moodboard-workspace";

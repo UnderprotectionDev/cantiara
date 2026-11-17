@@ -106,7 +106,10 @@ export default function DocumentsSurface({
               to: ".",
             }).catch(() => undefined);
           }
-          await queryClient.invalidateQueries({ queryKey: options.queryKey });
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: orpc.documents.key() }),
+            ...invalidateSmartCollectionMembership(queryClient),
+          ]);
         }}
         projectId={projectId}
         source={selected}

@@ -9,7 +9,7 @@ interface Props {
   diagram: Pick<TechnicalDiagramSource, "authorityMode" | "id" | "revision">;
   disabled: boolean;
   error: string | null;
-  onCreate: (name: string) => void;
+  onCreate: (name: string) => unknown;
   onRestore: (version: TechnicalDiagramVersion) => void;
   versions: TechnicalDiagramVersion[];
 }

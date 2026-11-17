@@ -1,8 +1,10 @@
-import type {
-  CreateTestHandoffInput,
-  PlannedTestCaseRecord,
-  TestHandoffContextRef,
-  TestHandoffRecord,
+import {
+  type CreateTestHandoffInput,
+  linkTestHandoffSessionTestInputSchema,
+  type PlannedTestCaseRecord,
+  type TestHandoffContextRef,
+  type TestHandoffRecord,
+  testHandoffFieldsSchema,
 } from "@cantiara/api/planned-tests";
 
 /** A selected context record with the label the founder saw when choosing it. */
@@ -142,4 +144,30 @@ export function downloadPackageText(
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+/** Handoff form: the procedure's field schema over the exact input the write sends. */
+export function parseHandoffForm(
+  values: TestHandoffFormValues,
+  cases: readonly PlannedTestCaseRecord[],
+): { message?: string; ok: false } | { ok: true } {
+  const result = testHandoffFieldsSchema.safeParse(
+    toHandoffInput(values, cases),
+  );
+  return result.success
+    ? { ok: true }
+    : { message: result.error.issues[0]?.message, ok: false };
+}
+
+/**
+ * Link arriving Session Test: one Session Test must be chosen. The choice
+ * comes from a constrained control, so a failure has no copy.
+ */
+export function parseLinkArrivingSessionTest(
+  sessionTestId: string,
+): { ok: false } | { ok: true } {
+  const result = linkTestHandoffSessionTestInputSchema
+    .pick({ sessionTestId: true })
+    .safeParse({ sessionTestId });
+  return result.success ? { ok: true } : { ok: false };
 }

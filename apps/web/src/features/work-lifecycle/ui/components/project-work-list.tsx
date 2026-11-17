@@ -62,6 +62,7 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import WorkChecklistEditor from "@/features/work-checklists/ui/components/work-checklist-editor";
 import WorkContextCard from "@/features/work-context/ui/components/work-context-card";
 import WorkDuplicateAction from "@/features/work-templates/ui/components/work-duplicate-action";
+import { fetchCurrentWork } from "@/lib/fetch-current-work";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { customFieldItemsForRecord } from "@/lib/use-custom-fields";
 import {
@@ -171,9 +172,10 @@ export default function ProjectWorkList({
       if (!lastMergeResult) {
         throw new Error("This Work merge is no longer available for Undo.");
       }
-      const currentWork = await client.work({
-        workId: lastMergeResult.work.id,
-      });
+      const currentWork = await fetchCurrentWork(
+        queryClient,
+        lastMergeResult.work.id,
+      );
       return runOnlineOnlyWrite(() =>
         client.undoWorkMerge({
           baseRevision: currentWork.revision,
@@ -550,7 +552,7 @@ function CustomFieldValues({
   );
 }
 
-function WorkArchiveAction({ work }: { work: WorkProfile }) {
+export function WorkArchiveAction({ work }: { work: WorkProfile }) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -606,6 +608,7 @@ function WorkArchiveAction({ work }: { work: WorkProfile }) {
             input: { projectId: work.projectId },
           }).queryKey,
         }),
+        ...invalidateSmartCollectionMembership(queryClient),
       ]);
     },
   });

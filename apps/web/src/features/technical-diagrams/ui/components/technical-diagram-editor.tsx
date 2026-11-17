@@ -28,12 +28,17 @@ import { AddRelationForm } from "../forms/add-relation-form";
 import { AddStepForms } from "../forms/add-step-form";
 import { AddTableForm } from "../forms/add-table-form";
 
+/** Button-triggered saves keep no form input; the parent already reports the failure. */
+function settle(write: unknown) {
+  Promise.resolve(write).catch(() => undefined);
+}
+
 interface EditorProps {
   /** Exact Architecture nodes a Sequence lifeline may bind. */
   bindOptions: ArchitectureBindOption[];
   diagram: TechnicalDiagramSource;
   disabled: boolean;
-  onSave: (model: TechnicalDiagramSource["model"]) => void;
+  onSave: (model: TechnicalDiagramSource["model"]) => unknown;
 }
 
 function ArchitectureEditor({
@@ -43,7 +48,7 @@ function ArchitectureEditor({
 }: {
   disabled: boolean;
   model: ArchitectureModel;
-  onSave: (model: ArchitectureModel) => void;
+  onSave: (model: ArchitectureModel) => unknown;
 }) {
   return (
     <div className="space-y-2">
@@ -59,7 +64,9 @@ function ArchitectureEditor({
           <li key={node.id}>
             <Button
               disabled={disabled}
-              onClick={() => onSave(removeArchitectureNode(model, node.id))}
+              onClick={() =>
+                settle(onSave(removeArchitectureNode(model, node.id)))
+              }
               size="sm"
               type="button"
               variant="outline"
@@ -80,7 +87,7 @@ function DataModelEditor({
 }: {
   disabled: boolean;
   model: DataModelModel;
-  onSave: (model: DataModelModel) => void;
+  onSave: (model: DataModelModel) => unknown;
 }) {
   // The table the column and index forms act on; a transient selection.
   const [tableId, setTableId] = useState("");
@@ -118,7 +125,7 @@ function DataModelEditor({
           <li key={table.id}>
             <Button
               disabled={disabled}
-              onClick={() => onSave(removeTable(model, table.id))}
+              onClick={() => settle(onSave(removeTable(model, table.id)))}
               size="sm"
               type="button"
               variant="outline"
@@ -141,7 +148,7 @@ function SequenceEditor({
   bindOptions: ArchitectureBindOption[];
   disabled: boolean;
   model: SequenceModel;
-  onSave: (model: SequenceModel) => void;
+  onSave: (model: SequenceModel) => unknown;
 }) {
   return (
     <div className="space-y-2">
@@ -160,7 +167,9 @@ function SequenceEditor({
           <li key={participant.id}>
             <Button
               disabled={disabled}
-              onClick={() => onSave(removeParticipant(model, participant.id))}
+              onClick={() =>
+                settle(onSave(removeParticipant(model, participant.id)))
+              }
               size="sm"
               type="button"
               variant="outline"
@@ -173,7 +182,7 @@ function SequenceEditor({
           <li key={step.id}>
             <Button
               disabled={disabled}
-              onClick={() => onSave(removeStep(model, step.id))}
+              onClick={() => settle(onSave(removeStep(model, step.id)))}
               size="sm"
               type="button"
               variant="outline"

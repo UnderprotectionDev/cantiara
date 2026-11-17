@@ -13,9 +13,9 @@ import {
 } from "@cantiara/api/personal-data-rights";
 import { usePersonalDataEraseFlow } from "../../hooks/use-personal-data-erase-flow";
 import { usePersonalDataFlow } from "../../hooks/use-personal-data-flow";
-import { PersonalDataPreviewPanel } from "../components/personal-data-preview-panel";
 import { PersonalDataContactForm } from "../forms/personal-data-contact-form";
 import { PersonalDataEraseForm } from "../forms/personal-data-erase-form";
+import { PersonalDataPreviewPanel } from "../forms/personal-data-preview-form";
 
 /**
  * Hesap ve kişisel veri: `Export Personal Data` collects one Contact's own

@@ -1,5 +1,7 @@
 import {
   USER_FLOW_NODE_KINDS,
+  USER_FLOW_WORK_TYPES,
+  userFlowConvertTargetSchema,
   userFlowTemplateNameSchema,
   userFlowTitleSchema,
 } from "@cantiara/api/user-flow";
@@ -45,3 +47,12 @@ export const createUserFlowFromTemplateFormSchema = z.object({
   templateId: z.string().min(1),
   title: userFlowTitleSchema,
 });
+
+/** `Convert and Bind`: a record type and, for Work, a Work type. */
+export const convertAndBindFormSchema = z.object({
+  target: userFlowConvertTargetSchema,
+  workType: z.enum(USER_FLOW_WORK_TYPES),
+});
+
+/** `Bind` row of the outline: the node to bind to must be chosen. */
+export const bindNodeFormSchema = z.object({ target: z.string().min(1) });

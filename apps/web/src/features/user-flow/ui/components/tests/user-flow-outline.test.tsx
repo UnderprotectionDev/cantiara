@@ -192,7 +192,10 @@ describe("canvas yapılandırılmış outline", () => {
       byLabel("Bind Action: Open the app to") as HTMLSelectElement,
       "id-2",
     );
-    click("Bind Action: Open the app");
+    await act(() => {
+      byLabel("Bind Action: Open the app").click();
+      return Promise.resolve();
+    });
     expect(latest.document.links).toMatchObject([{ from: "id-1", to: "id-2" }]);
     click("Unbind Action: Open the app from Decision: Has account?");
     expect(latest.document.links).toEqual([]);

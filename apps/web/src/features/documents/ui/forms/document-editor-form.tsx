@@ -258,7 +258,10 @@ export default function DocumentEditor({
         originalBlockOutcome === "Replace with live reference" &&
         conversionSelection
       ) {
-        const committed = await client.document({ documentId: record.id });
+        const committed = await queryClient.fetchQuery({
+          ...orpc.document.queryOptions({ input: { documentId: record.id } }),
+          staleTime: 0,
+        });
         editSession.accept(committed);
         form.setFieldValue("body", committed.body);
         setPreviewBody(committed.body);

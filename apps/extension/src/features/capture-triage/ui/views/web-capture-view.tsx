@@ -24,8 +24,8 @@ import {
   formatSavedAt,
   PAIRING_INVALID_MESSAGE,
 } from "../../lib/web-capture-draft";
-import { WebCapturePreview } from "../components/web-capture-preview";
 import { WebCapturePairing } from "../forms/web-capture-form";
+import { WebCaptureSendForm } from "../forms/web-capture-send-form";
 
 async function clearStoredWebCaptureLinkBestEffort() {
   try {
@@ -41,7 +41,6 @@ export function WebCaptureView() {
   const [link, setLink] = useState<StoredWebCaptureLink | null>(null);
   const [draft, setDraft] = useState<WebCaptureDraft | null>(null);
   const [targets, setTargets] = useState<WebCaptureTarget[]>([]);
-  const [targetId, setTargetId] = useState("workspace");
   const [targetSearch, setTargetSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -87,9 +86,6 @@ export function WebCaptureView() {
           return;
         }
         setTargets(nextTargets);
-        if (!nextTargets.some((target) => target.id === targetId)) {
-          setTargetId(nextTargets[0]?.id ?? "workspace");
-        }
       })
       .catch((reason: unknown) => {
         if (!active) {
@@ -108,7 +104,7 @@ export function WebCaptureView() {
     return () => {
       active = false;
     };
-  }, [link, targetId, targetSearch]);
+  }, [link, targetSearch]);
 
   const chooseCapture = useCallback(async (kind: WebCaptureKind) => {
     setError(null);
@@ -148,7 +144,7 @@ export function WebCaptureView() {
     }
   }
 
-  async function handleSend() {
+  async function handleSend(targetId: string) {
     if (!(link && draft)) {
       return;
     }
@@ -230,14 +226,16 @@ export function WebCaptureView() {
       />
 
       {draft ? (
-        <WebCapturePreview
+        <WebCaptureSendForm
           draft={draft}
           isSending={isSending}
           link={link}
+          onInvalid={() => {
+            setStatus(null);
+            setError("Capture could not be sent. No local queue was created.");
+          }}
           onSend={handleSend}
-          onTargetIdChange={setTargetId}
           onTargetSearchChange={setTargetSearch}
-          targetId={targetId}
           targetSearch={targetSearch}
           targets={targets}
         />

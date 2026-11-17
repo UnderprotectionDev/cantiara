@@ -1,10 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each tool binds its own Moodboard, item, and revision.
 import {
-  MOODBOARD_SNAPSHOT_LABELS,
-  type MoodboardSnapshotPreview,
-  type SnapshotFormat,
-} from "@cantiara/api/moodboard-snapshot";
-import {
   cropPixelRect,
   isDefaultVisualView,
   presentationSequence,
@@ -17,7 +12,6 @@ import {
   type MoodboardVisual,
 } from "@cantiara/api/moodboards";
 import { Button } from "@cantiara/ui/components/button";
-import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useEffect, useRef, useState } from "react";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
@@ -326,135 +320,6 @@ export function PresentationView({
           Next
         </Button>
       </div>
-    </section>
-  );
-}
-
-function downloadBase64(file: {
-  base64: string;
-  fileName: string;
-  mimeType: string;
-}) {
-  const bytes = Uint8Array.from(atob(file.base64), (char) =>
-    char.charCodeAt(0),
-  );
-  const url = URL.createObjectURL(new Blob([bytes], { type: file.mimeType }));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = file.fileName;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
-/** Region Snapshot: choose items, read the `Preview`, then export `PNG` or `PDF`. */
-export function SnapshotPanel({
-  api,
-  moodboard,
-}: {
-  api: MoodboardsApi;
-  moodboard: Moodboard;
-}) {
-  const [selected, setSelected] = useState<string[]>([]);
-  const [preview, setPreview] = useState<MoodboardSnapshotPreview | null>(null);
-  const input = { itemIds: selected, moodboardId: moodboard.id };
-
-  function toggle(id: string) {
-    setPreview(null);
-    setSelected((current) =>
-      current.includes(id)
-        ? current.filter((value) => value !== id)
-        : [...current, id],
-    );
-  }
-
-  function exportAs(format: SnapshotFormat) {
-    api.exportSnapshot.mutate(
-      { ...input, format },
-      {
-        onSuccess: (output) => {
-          for (const file of output.files) {
-            downloadBase64(file);
-          }
-        },
-      },
-    );
-  }
-
-  return (
-    <section
-      aria-label={MOODBOARD_SNAPSHOT_LABELS.snapshot}
-      className="space-y-2"
-    >
-      <h4 className="font-medium">{MOODBOARD_SNAPSHOT_LABELS.snapshot}</h4>
-      <fieldset className="space-y-1">
-        <legend className="text-sm">
-          Items in this {MOODBOARD_SNAPSHOT_LABELS.snapshot}
-        </legend>
-        {moodboard.items.map((item) => (
-          <label
-            className="flex items-center gap-2"
-            htmlFor={`moodboard-snapshot-item-${item.id}`}
-            key={item.id}
-          >
-            <Checkbox
-              checked={selected.includes(item.id)}
-              id={`moodboard-snapshot-item-${item.id}`}
-              onCheckedChange={() => toggle(item.id)}
-            />
-            {item.kind === "Visual"
-              ? (item.caption ?? `Visual ${item.position + 1}`)
-              : `${MOODBOARD_UI_LABELS.colorSwatch} ${item.color}`}
-          </label>
-        ))}
-      </fieldset>
-      <div className="flex gap-2">
-        <Button
-          disabled={selected.length === 0 || api.snapshotPreview.isPending}
-          onClick={() =>
-            api.snapshotPreview.mutate(input, { onSuccess: setPreview })
-          }
-          type="button"
-          variant="outline"
-        >
-          {MOODBOARD_SNAPSHOT_LABELS.preview}
-        </Button>
-        <Button
-          disabled={selected.length === 0 || api.exportSnapshot.isPending}
-          onClick={() => exportAs("PNG")}
-          type="button"
-        >
-          {MOODBOARD_SNAPSHOT_LABELS.png}
-        </Button>
-        <Button
-          disabled={selected.length === 0 || api.exportSnapshot.isPending}
-          onClick={() => exportAs("PDF")}
-          type="button"
-        >
-          {MOODBOARD_SNAPSHOT_LABELS.pdf}
-        </Button>
-      </div>
-      {api.snapshotPreview.isError || api.exportSnapshot.isError ? (
-        <p role="alert">Snapshot could not be created.</p>
-      ) : null}
-      {preview ? (
-        <section aria-label="Snapshot preview" className="space-y-1">
-          <p className="font-medium">{preview.moment}</p>
-          <ul className="list-disc pl-5">
-            {preview.sections.map((section) => (
-              <li key={section.key}>
-                {section.title}: {section.itemCount} item
-                {section.itemCount === 1 ? "" : "s"}, {section.pageCount} page
-                {section.pageCount === 1 ? "" : "s"}
-              </li>
-            ))}
-          </ul>
-          {preview.notices.map((notice) => (
-            <p className="text-sm" key={notice}>
-              {notice}
-            </p>
-          ))}
-        </section>
-      ) : null}
     </section>
   );
 }

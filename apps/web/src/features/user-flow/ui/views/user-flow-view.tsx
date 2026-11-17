@@ -19,12 +19,12 @@ import { Button } from "@cantiara/ui/components/button";
 import { type ReactNode, useCallback, useState } from "react";
 import { AppLink } from "@/components/app-link";
 import type { PlaceNodeDraft } from "../../lib/place-node-draft";
+import { RebindDialog } from "../components/rebind-dialog";
+import { BindList, LiveCardList } from "../components/user-flow-records";
 import {
   ConvertAndBindDialog,
   type ConvertAndBindIdentity,
-} from "../components/convert-and-bind-dialog";
-import { RebindDialog } from "../components/rebind-dialog";
-import { BindList, LiveCardList } from "../components/user-flow-records";
+} from "../forms/convert-and-bind-form";
 import { CreateFromTemplateForm } from "../forms/create-from-template-form";
 import { CreateUserFlowForm } from "../forms/create-user-flow-form";
 import { PlaceCardForm } from "../forms/place-card-form";

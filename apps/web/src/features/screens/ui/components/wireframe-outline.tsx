@@ -19,7 +19,7 @@ import type { ViewportSession } from "../../engine/viewport-session";
 import {
   type ConvertAndBindActions,
   ConvertAndBindPanel,
-} from "./convert-and-bind-panel";
+} from "../forms/convert-and-bind-form";
 import {
   type LinkedBlockActions,
   LinkedBlockControls,

@@ -14,6 +14,7 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { errorText } from "../../lib/github-error-text";
+import { parseLinkRepository } from "../../lib/github-forms";
 
 export type AvailableRepository = GitHubRepository & { linked: boolean };
 export type LoadRepositories = (
@@ -49,14 +50,13 @@ export function LinkRepositoryForm({
     onSubmit: async ({ formApi, value }) => {
       setError(undefined);
       setSaved(undefined);
-      const installationId = Number(value.installationId);
-      const repositoryId = Number(value.repositoryId);
-      if (!(installationId && repositoryId)) {
-        setError(`Choose a ${GITHUB_REPOSITORY_LABEL}.`);
+      const parsed = parseLinkRepository(value);
+      if (!parsed.ok) {
+        setError(parsed.message);
         return;
       }
       try {
-        await onLink({ installationId, repositoryId });
+        await onLink(parsed.data);
         setSaved(`${GITHUB_REPOSITORY_LABEL} linked.`);
         formApi.setFieldValue("repositoryId", "");
       } catch (caught) {
@@ -131,7 +131,6 @@ export function LinkRepositoryForm({
               id="github-repository"
               name={field.name}
               onChange={(event) => field.handleChange(event.target.value)}
-              required
               value={field.state.value}
             >
               <NativeSelectOption value="">{`Choose a ${GITHUB_REPOSITORY_LABEL}`}</NativeSelectOption>

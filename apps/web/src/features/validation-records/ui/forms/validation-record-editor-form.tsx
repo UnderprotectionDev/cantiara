@@ -1,26 +1,20 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected record and form field.
-import {
-  type ProjectSourceRecord,
-  validationRecordSchema,
-} from "@cantiara/api/project-source-records";
+import type { ProjectSourceRecord } from "@cantiara/api/project-source-records";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
-import { z } from "zod";
 
 import {
+  isConflictError,
   isValidationContextRecord,
   type Save,
   type ValidationRecord,
+  validationRecordFormSchema,
 } from "../../lib/validation-record";
 
-const validationRequiredFieldsSchema = validationRecordSchema
-  .pick({ method: true, title: true })
-  .strip();
-const conflictErrorSchema = z.object({ code: z.literal("CONFLICT") });
 const fields = [
   { name: "title", label: "Title", maxLength: 255 },
   { name: "method", label: "Method", maxLength: 100_000 },
@@ -50,7 +44,7 @@ export function ValidationRecordEditor({
     },
     onSubmit: async ({ value }) => {
       setError(undefined);
-      if (!validationRequiredFieldsSchema.safeParse(value).success) {
+      if (!validationRecordFormSchema.safeParse(value).success) {
         setError("Enter a Title and Method before saving.");
         return;
       }
@@ -60,7 +54,7 @@ export function ValidationRecordEditor({
           baseRecord,
         );
       } catch (cause) {
-        const changed = conflictErrorSchema.safeParse(cause).success;
+        const changed = isConflictError(cause);
         setConflict(changed);
         setError(
           changed

@@ -1,4 +1,10 @@
-import { externalSourceUrlSchema } from "@cantiara/api/technical-diagram-authority";
+import {
+  authorityConversionInputSchema,
+  externalSourceUrlSchema,
+} from "@cantiara/api/technical-diagram-authority";
+import { previewConvertToRecordInputSchema } from "@cantiara/api/technical-diagram-card";
+import { createDiagramVersionInputSchema } from "@cantiara/api/technical-diagram-version";
+import { createDiagramViewInputSchema } from "@cantiara/api/technical-diagrams";
 import { z } from "zod";
 
 const required = z.string().trim().min(1);
@@ -11,8 +17,8 @@ export const addLinkSchema = z.object({
   to: chosen,
 });
 export const diagramViewSchema = z.object({
-  name: required,
-  selectedNodeIds: z.array(z.string()).min(1),
+  name: createDiagramViewInputSchema.shape.name,
+  selectedNodeIds: createDiagramViewInputSchema.shape.selectedNodeIds,
 });
 export const addTableSchema = z.object({ name: required });
 export const addColumnSchema = z.object({
@@ -52,11 +58,13 @@ export const stepSchema = z.object({
   to: chosen,
 });
 export const groupSchema = stepSchema.extend({ condition: required });
-export const versionNameSchema = z.object({ name: required });
+export const versionNameSchema = z.object({
+  name: createDiagramVersionInputSchema.shape.name,
+});
 export const placeRecordSchema = z.object({ choice: chosen });
 export const convertNodeSchema = z.object({
-  nodeId: chosen,
-  versionId: chosen,
+  nodeId: previewConvertToRecordInputSchema.shape.nodeId,
+  versionId: previewConvertToRecordInputSchema.shape.versionId,
 });
 
 /** `Convert authority` form: a target mode, a title and, for an External Source Link, an HTTPS URL and tool. */
@@ -64,7 +72,7 @@ export const conversionSchema = z
   .object({
     revision: z.string(),
     targetMode: z.string().min(1),
-    title: required,
+    title: authorityConversionInputSchema.shape.title,
     tool: z.string(),
     url: z.string(),
   })

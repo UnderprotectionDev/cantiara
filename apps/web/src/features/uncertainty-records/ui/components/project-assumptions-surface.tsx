@@ -4,7 +4,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import EvidenceFlowPanel from "@/features/evidence/ui/components/evidence-flow-panel";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
 import type { AssumptionDraft } from "../forms/assumption-editor-form";
 import { ProjectAssumptionsView } from "./project-assumptions-panel";
 
@@ -60,6 +64,7 @@ export default function ProjectAssumptionsSurface({
           input: { sourceId, sourceType: "Assumption" },
         }).queryKey,
       }),
+      ...invalidateSmartCollectionMembership(queryClient),
     ]);
   }
   async function save(draft: AssumptionDraft, record?: AssumptionRecord) {

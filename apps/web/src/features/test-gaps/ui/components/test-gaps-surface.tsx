@@ -34,8 +34,14 @@ export default function TestGapsSurface({ projectId }: { projectId: string }) {
     () => client.testGapDecisionTargets({ projectId }),
     [projectId],
   );
+  // The Test Summary reads this area's records, so it is read again with them.
+  const refreshSummary = () =>
+    queryClient.invalidateQueries({ queryKey: orpc.projectTestSummary.key() });
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: options.queryKey });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: options.queryKey }),
+      refreshSummary(),
+    ]);
   const loadTargets = useCallback(
     (targetType: TestGapRelationTargetType) =>
       client.testGapRelationTargets({ projectId, targetType }),

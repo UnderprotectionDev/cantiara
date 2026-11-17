@@ -15,6 +15,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
 import { TestHandoffsView } from "../test-handoffs-view";
 
+const REQUIRED_MESSAGE = /is required/i;
+
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -714,5 +716,17 @@ test("adds an exact Document revision and a Wireframe version as package context
         }),
       ],
     }),
+  );
+});
+
+test("creating a Handoff without a title shows the schema message and does not save", async () => {
+  const onCreate = vi.fn().mockResolvedValue(undefined);
+  mount({ handoffs: [], onCreate });
+
+  await submit("Create Test Handoff");
+
+  expect(onCreate).not.toHaveBeenCalled();
+  expect(document.querySelector('[role="alert"]')?.textContent).toMatch(
+    REQUIRED_MESSAGE,
   );
 });

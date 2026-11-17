@@ -7,9 +7,9 @@ import {
   wireframeLinkedContentSchema,
 } from "@cantiara/api/wireframe-document";
 import { Button } from "@cantiara/ui/components/button";
-import { Input } from "@cantiara/ui/components/input";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { WireframeEditor } from "../../engine/editor";
+import { LinkedSourceLabelForm } from "../forms/linked-source-label-form";
 
 export interface LinkedBlockActions {
   apply: (
@@ -27,7 +27,7 @@ export interface LinkedBlockActions {
 }
 
 /** Shared content of a block: everything but its placement and link. */
-export function linkedContentOf(block: WireframeBlock) {
+function linkedContentOf(block: WireframeBlock) {
   const { id: _id, link: _link, seed: _seed, x: _x, y: _y, ...content } = block;
   return wireframeLinkedContentSchema.safeParse(content);
 }
@@ -73,8 +73,8 @@ export function LinkedBlockControls({
   /** The selected block as stored (carries the link). */
   linkedBlock: WireframeBlock;
 }) {
-  const [label, setLabel] = useState(block.label);
   const [preview, setPreview] = useState<LinkedBlockChangeResult>();
+  const previewedLabel = useRef(block.label);
   const [error, setError] = useState<string>();
   const parsed = linkedContentOf(block);
 
@@ -96,10 +96,24 @@ export function LinkedBlockControls({
     }
   }
 
-  function changedContent() {
+  function changedContent(label: string) {
     return parsed.success
       ? ({ ...parsed.data, label } satisfies WireframeLinkedContent)
       : null;
+  }
+
+  async function previewLabel(label: string) {
+    if (!(actions && linkedBlock.link)) {
+      return;
+    }
+    const { definitionId } = linkedBlock.link;
+    await run(async () => {
+      const content = changedContent(label);
+      if (content) {
+        setPreview(await actions.preview(definitionId, content));
+        previewedLabel.current = label;
+      }
+    });
   }
 
   if (!linkedBlock.link) {
@@ -145,32 +159,11 @@ export function LinkedBlockControls({
           Detach Link
         </Button>
         {actions ? (
-          <>
-            <label className="text-xs" htmlFor="linked-source-label">
-              Source label
-            </label>
-            <Input
-              className="w-48"
-              id="linked-source-label"
-              onChange={(event) => setLabel(event.target.value)}
-              value={label}
-            />
-            <Button
-              onClick={() =>
-                run(async () => {
-                  const content = changedContent();
-                  if (content) {
-                    setPreview(await actions.preview(definitionId, content));
-                  }
-                })
-              }
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Preview Change
-            </Button>
-          </>
+          <LinkedSourceLabelForm
+            initialLabel={block.label}
+            onEdit={() => setPreview(undefined)}
+            onPreview={previewLabel}
+          />
         ) : null}
       </div>
       {preview && actions ? (
@@ -179,7 +172,7 @@ export function LinkedBlockControls({
           <Button
             onClick={() =>
               run(async () => {
-                const content = changedContent();
+                const content = changedContent(previewedLabel.current);
                 if (!content) {
                   return;
                 }

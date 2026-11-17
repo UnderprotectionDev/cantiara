@@ -24,16 +24,18 @@ export function AddIndexForm({
   columnsOf: (tableId: string) => FieldOption[];
   disabled: boolean;
   model: DataModelModel;
-  onSave: (model: DataModelModel) => void;
+  onSave: (model: DataModelModel) => unknown;
   tableId: string;
 }) {
   const form = useForm({
     defaultValues: { columnId: "", name: "", unique: false },
-    onSubmit: ({ value, formApi }) => {
+    onSubmit: async ({ value, formApi }) => {
       if (!addIndexSchema.safeParse(value).success) {
         return;
       }
-      onSave(addIndex(model, tableId, { ...value, name: value.name.trim() }));
+      await onSave(
+        addIndex(model, tableId, { ...value, name: value.name.trim() }),
+      );
       formApi.setFieldValue("name", "");
     },
   });

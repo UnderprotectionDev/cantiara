@@ -9,9 +9,8 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
-import { z } from "zod";
+import { projectReleaseAudienceFormSchema } from "../../lib/project-release-planning-form";
 
-const audienceFormSchema = z.object({ target: z.string().trim().min(1) });
 const TYPES = ["Persona", "Contact", "Company"] as const;
 
 /** Optional Persona, Contact or Company link for the hypothesis audience. */
@@ -27,7 +26,7 @@ export function ProjectReleaseAudienceForm({
     defaultValues: { target: "" },
     onSubmit: async ({ value, formApi }) => {
       setError(null);
-      const parsed = audienceFormSchema.safeParse(value);
+      const parsed = projectReleaseAudienceFormSchema.safeParse(value);
       const target = parsed.success
         ? candidates.find(
             (candidate) =>

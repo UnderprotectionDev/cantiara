@@ -21,15 +21,8 @@ import {
   WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
 } from "@cantiara/api/workspace-overview";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@cantiara/ui/components/select";
 import { cn } from "@cantiara/ui/lib/utils";
-import { ChevronDown, ChevronUp, Eye, EyeOff, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Eye, EyeOff, X } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { AppLink } from "@/components/app-link";
 
@@ -38,11 +31,11 @@ import {
   formatAccountDateTime,
 } from "@/features/account-preferences/lib/account-preferences-format";
 
+import { LiveBlockAddForm } from "../forms/live-block-add-form";
 import SavedProjectLists, {
   workspaceOverviewSavedListDefinitions,
 } from "./saved-project-lists";
 
-const MAX_LIVE_BLOCKS = 4;
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function sourceCountLabel(count: number) {
@@ -345,7 +338,6 @@ function LiveBlocks({
   const [selectedSources, setSelectedSources] = useState(() =>
     model.liveBlockSources.map((source) => ({ ...source })),
   );
-  const [choice, setChoice] = useState("");
   const selectedBlocks = selectedSources
     .map((source) => allBlocks.get(liveBlockSourceKey(source)))
     .filter((block): block is WorkspaceOverviewLiveBlock => Boolean(block));
@@ -383,62 +375,20 @@ function LiveBlocks({
             reference. The source stays authoritative and changes appear here.
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="grid gap-1 text-muted-foreground text-xs">
-            <span id="workspace-overview-live-block-source-label">
-              Existing source
-            </span>
-            <Select
-              disabled={
-                addableBlocks.length === 0 ||
-                selectedSources.length >= MAX_LIVE_BLOCKS
-              }
-              onValueChange={(value) => setChoice(value ?? "")}
-              value={choice === "" ? null : choice}
-            >
-              <SelectTrigger
-                aria-labelledby="workspace-overview-live-block-source-label"
-                className="w-full min-w-52"
-                size="sm"
-              >
-                <SelectValue
-                  placeholder={
-                    addableBlocks.length === 0
-                      ? "No existing source records"
-                      : "Choose a source"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {addableBlocks.map((block) => (
-                  <SelectItem
-                    key={liveBlockSourceKey(block.source)}
-                    value={liveBlockSourceKey(block.source)}
-                  >
-                    {block.title} · {block.type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            disabled={!choice || selectedSources.length >= MAX_LIVE_BLOCKS}
-            onClick={() => {
-              const block = allBlocks.get(choice);
-              if (!block || selectedSources.length >= MAX_LIVE_BLOCKS) {
-                return;
-              }
+        <LiveBlockAddForm
+          addable={addableBlocks.map((block) => ({
+            key: liveBlockSourceKey(block.source),
+            title: block.title,
+            type: block.type,
+          }))}
+          onAdd={(key) => {
+            const block = allBlocks.get(key);
+            if (block) {
               updateSelectedSources([...selectedSources, { ...block.source }]);
-              setChoice("");
-            }}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <Plus aria-hidden="true" />
-            Add live block
-          </Button>
-        </div>
+            }
+          }}
+          selectedCount={selectedSources.length}
+        />
       </header>
 
       {selectedBlocks.length > 0 ? (
@@ -502,10 +452,18 @@ function SelectedSourceSet({
   );
 }
 
+/** Layout and live-block saves keep no form input; the caller reports failures. */
+function settle(save: unknown) {
+  Promise.resolve(save).catch(() => undefined);
+}
+
 export interface WorkspaceOverviewViewProps {
   formattingPreferences?: AccountPreferences;
   model: WorkspaceOverviewModel;
-  onPresentationChange?: (presentation: WorkspaceOverviewPresentation) => void;
+  /** Resolves after the presentation is saved; the caller reports failures. */
+  onPresentationChange?: (
+    presentation: WorkspaceOverviewPresentation,
+  ) => unknown;
   selectedModule?: WorkspaceOverviewModuleId;
   selectedSavedList?: string;
 }
@@ -539,12 +497,14 @@ export default function WorkspaceOverviewView({
 
   function changeLayout(nextLayout: WorkspaceOverviewLayout) {
     setLayout(nextLayout);
-    onPresentationChange?.({
-      layout: nextLayout,
-      liveBlockSources,
-      savedLists,
-      version: WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
-    });
+    settle(
+      onPresentationChange?.({
+        layout: nextLayout,
+        liveBlockSources,
+        savedLists,
+        version: WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
+      }),
+    );
   }
 
   function changeLiveBlockSources(
@@ -552,27 +512,36 @@ export default function WorkspaceOverviewView({
   ) {
     const normalizedSources = nextSources.map((source) => ({ ...source }));
     setLiveBlockSources(normalizedSources);
-    onPresentationChange?.({
-      layout,
-      liveBlockSources: normalizedSources,
-      savedLists,
-      version: WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
-    });
+    settle(
+      onPresentationChange?.({
+        layout,
+        liveBlockSources: normalizedSources,
+        savedLists,
+        version: WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
+      }),
+    );
   }
 
-  function changeSavedLists(
+  async function changeSavedLists(
     nextLists: readonly WorkspaceOverviewSavedListDefinition[],
   ) {
     const normalizedLists = nextLists.map(
       cloneWorkspaceOverviewSavedListDefinition,
     );
+    const previousLists = savedLists;
     setSavedLists(normalizedLists);
-    onPresentationChange?.({
-      layout,
-      liveBlockSources,
-      savedLists: normalizedLists,
-      version: WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
-    });
+    try {
+      await onPresentationChange?.({
+        layout,
+        liveBlockSources,
+        savedLists: normalizedLists,
+        version: WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
+      });
+    } catch (failure) {
+      // A later layout save must not resend the list that failed to save.
+      setSavedLists(previousLists);
+      throw failure;
+    }
   }
 
   let selectedContent: ReactNode = null;

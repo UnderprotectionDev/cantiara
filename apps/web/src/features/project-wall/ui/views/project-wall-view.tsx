@@ -17,11 +17,11 @@ import {
   ProjectWallFocusOrderEditor,
   type ProjectWallPresentationActions,
   ProjectWallPresentationView,
-  ProjectWallSnapshotPanel,
 } from "../components/project-wall-presentation";
 import type { ProjectWallSceneWall } from "../components/project-wall-scene";
 import { CreateWallForm } from "../forms/create-project-wall-form";
 import { AddCardForm } from "../forms/place-project-wall-card-form";
+import { ProjectWallSnapshotPanel } from "../forms/project-wall-snapshot-form";
 import { RenameWallForm } from "../forms/rename-project-wall-form";
 
 export interface ProjectWallActions

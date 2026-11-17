@@ -7,6 +7,7 @@ import type {
 } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
 import { AppLink } from "@/components/app-link";
+import { presentSupportReferenceFailure } from "@/features/web-macos-client/ui/components/support-reference";
 
 /**
  * Common broken-reference presentation of a live record. A broken target shows
@@ -60,6 +61,20 @@ export function LiveCardList({
   onRemove?: (cardId: string) => Promise<unknown>;
   readOnly: boolean;
 }) {
+  async function remove(cardId: string) {
+    if (!onRemove) {
+      return;
+    }
+    try {
+      await onRemove(cardId);
+    } catch (failure) {
+      // A direct write has no mutation presenter: show the shell failure.
+      presentSupportReferenceFailure(failure, {
+        kind: "mutation",
+        retry: () => remove(cardId),
+      });
+    }
+  }
   if (cards.length === 0) {
     return null;
   }
@@ -74,7 +89,7 @@ export function LiveCardList({
           {onRemove ? (
             <Button
               disabled={readOnly}
-              onClick={() => onRemove(card.id)}
+              onClick={() => remove(card.id)}
               size="sm"
               type="button"
               variant="outline"

@@ -1,6 +1,8 @@
-import type {
-  PublishWikiDocumentInput,
-  WikiPublishPreview,
+import {
+  type PublishWikiDocumentInput,
+  publishWikiDocumentInputSchema,
+  setWikiIndexingInputSchema,
+  type WikiPublishPreview,
 } from "@cantiara/api/wiki-publishing";
 
 export function toggledEmbed(
@@ -56,4 +58,62 @@ export function buildWikiPublishApproval(
     ...(slug ? { slug } : {}),
     ...(summary ? { summary } : {}),
   };
+}
+
+/** What the publish form holds; the approval is built from it on submit. */
+export interface WikiPublishFormValues {
+  approved: string[];
+  publishAnyway: boolean;
+  slug: string;
+  summary: string;
+}
+
+export const EMPTY_WIKI_PUBLISH_FORM: WikiPublishFormValues = {
+  approved: [],
+  publishAnyway: false,
+  slug: "",
+  summary: "",
+};
+
+/** Validates the built approval with the procedure's own approval schema. */
+export function parseWikiPublishApproval(
+  preview: WikiPublishPreview,
+  values: WikiPublishFormValues,
+):
+  | { approval: PublishWikiDocumentInput["approval"]; ok: true }
+  | { ok: false } {
+  const result = publishWikiDocumentInputSchema.shape.approval.safeParse(
+    buildWikiPublishApproval(
+      preview,
+      new Set(values.approved),
+      values.publishAnyway,
+      { slug: values.slug, summary: values.summary },
+    ),
+  );
+  return result.success ? { approval: result.data, ok: true } : { ok: false };
+}
+
+const enableIndexingSchema = setWikiIndexingInputSchema.pick({
+  acknowledgeThirdPartyCopies: true,
+  enabled: true,
+});
+
+/**
+ * `Enable indexing` needs the separate acknowledgement; nothing implies it.
+ * Its control stays disabled until it is given, so a failure has no copy.
+ */
+export function parseEnableIndexing(values: { acknowledged: boolean }):
+  | {
+      input: { acknowledgeThirdPartyCopies: boolean; enabled: boolean };
+      ok: true;
+    }
+  | { ok: false } {
+  const result = enableIndexingSchema.safeParse({
+    acknowledgeThirdPartyCopies: values.acknowledged,
+    enabled: true,
+  });
+  if (!(result.success && result.data.acknowledgeThirdPartyCopies)) {
+    return { ok: false };
+  }
+  return { input: result.data, ok: true };
 }

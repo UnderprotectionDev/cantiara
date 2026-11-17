@@ -48,7 +48,13 @@ export default function TestAssessmentsSurface({
           throw new Error("Choose a context and a decision.");
         }
         await runOnlineOnlyWrite(() => client.recordTestAssessment(input));
-        await queryClient.invalidateQueries({ queryKey: options.queryKey });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: options.queryKey }),
+          // The Test Summary reads Test Assessments.
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectTestSummary.key(),
+          }),
+        ]);
       }}
       preferences={preferences.data}
     />

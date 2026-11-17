@@ -287,7 +287,8 @@ export default function SavedProjectLists({
 }: {
   formattingPreferences: AccountPreferences;
   lists: readonly WorkspaceOverviewSavedList[];
-  onChange: (lists: readonly WorkspaceOverviewSavedListDefinition[]) => void;
+  /** Resolves after the lists are saved. */
+  onChange: (lists: readonly WorkspaceOverviewSavedListDefinition[]) => unknown;
   selectedListId?: string;
 }) {
   const [editing, setEditing] = useState<
@@ -295,13 +296,14 @@ export default function SavedProjectLists({
   >(null);
   const selectedList = lists.find((list) => list.id === selectedListId);
 
-  function saveList(definition: WorkspaceOverviewSavedListDefinition) {
+  async function saveList(definition: WorkspaceOverviewSavedListDefinition) {
     const definitions = workspaceOverviewSavedListDefinitions(lists);
     const next = [
       ...definitions.filter((candidate) => candidate.id !== definition.id),
       definition,
     ];
-    onChange(next);
+    // A failed save rejects here, so the editor keeps the typed definition.
+    await onChange(next);
     setEditing(null);
   }
 

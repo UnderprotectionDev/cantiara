@@ -23,7 +23,7 @@ export function AddColumnForm({
 }: {
   disabled: boolean;
   model: DataModelModel;
-  onSave: (model: DataModelModel) => void;
+  onSave: (model: DataModelModel) => unknown;
   onTableChange: (tableId: string) => void;
   tableOptions: FieldOption[];
 }) {
@@ -37,12 +37,12 @@ export function AddColumnForm({
       type: "text",
       unique: false,
     },
-    onSubmit: ({ value, formApi }) => {
+    onSubmit: async ({ value, formApi }) => {
       if (!addColumnSchema.safeParse(value).success) {
         return;
       }
       const { tableId, ...column } = value;
-      onSave(
+      await onSave(
         addColumn(model, tableId, {
           ...column,
           default: column.default.trim() || null,

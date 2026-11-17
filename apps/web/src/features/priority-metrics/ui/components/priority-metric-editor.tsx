@@ -4,7 +4,7 @@ import {
   type PriorityMetric,
 } from "@cantiara/api/priority-metrics";
 import { Button } from "@cantiara/ui/components/button";
-import { type FormEvent, useState } from "react";
+import { useState } from "react";
 import { requestGitHubIdentityGrant } from "@/features/account-access/lib/github-identity-confirmation";
 
 import {
@@ -17,68 +17,7 @@ import { draftFromMetric } from "../../lib/priority-metric-draft";
 import { PriorityMetricCreateForm } from "../forms/priority-metric-create-form";
 import { PriorityMetricRow } from "../forms/priority-metric-edit-form";
 import { PriorityMetricPermanentDeleteConfirmation } from "../forms/priority-metric-permanent-delete-form";
-import {
-  PriorityMetricImpactStatus,
-  type PriorityMetricTrashEffect,
-} from "./priority-metric-impact";
-
-function PriorityMetricMoveConfirmation({
-  disabled,
-  effect,
-  error,
-  loading,
-  onCancel,
-  onSubmit,
-  projectName,
-  target,
-  trashing,
-}: {
-  disabled: boolean;
-  effect: PriorityMetricTrashEffect | undefined;
-  error: boolean;
-  loading: boolean;
-  onCancel: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  projectName: string;
-  target: PriorityMetric;
-  trashing: boolean;
-}) {
-  return (
-    <form
-      aria-label="Move priority metric to Trash"
-      className="space-y-3 rounded-md border border-border/70 bg-muted/20 p-4"
-      onSubmit={onSubmit}
-    >
-      <div>
-        <h6 className="font-medium text-sm">Move {target.name} to Trash?</h6>
-        <PriorityMetricImpactStatus
-          effect={effect}
-          error={error}
-          loading={loading}
-          mode="move-to-trash"
-          projectName={projectName}
-        />
-      </div>
-      <div className="flex gap-2">
-        <Button
-          disabled={disabled || trashing || !effect}
-          type="submit"
-          variant="outline"
-        >
-          Move to Trash
-        </Button>
-        <Button
-          disabled={trashing}
-          onClick={onCancel}
-          type="button"
-          variant="outline"
-        >
-          Cancel
-        </Button>
-      </div>
-    </form>
-  );
-}
+import { PriorityMetricMoveConfirmation } from "../forms/priority-metric-trash-form";
 
 function PriorityMetricTrash({
   actionDisabled,
@@ -113,7 +52,7 @@ function PriorityMetricTrash({
   onRequestConfirmation: () => void;
   onRestore: (metric: PriorityMetric) => void;
   onSubmitDelete: (typedProjectName: string) => Promise<void>;
-  onSubmitTrash: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmitTrash: () => Promise<void>;
   projectName: string;
   trashing: boolean;
 }) {
@@ -301,8 +240,7 @@ export default function PriorityMetricEditor({
     setTrashTarget(metric);
   }
 
-  async function handleMoveToTrash(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleMoveToTrash() {
     if (!trashTarget) {
       return;
     }

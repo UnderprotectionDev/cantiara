@@ -39,3 +39,13 @@ test("a Correction of a Test Session needs a corrected summary", () => {
     schema.safeParse({ note: "ok", reason: "x", result: "" }).success,
   ).toBe(true);
 });
+
+test("the reason rule is the procedures' own message", () => {
+  const schema = testResultEventFormSchema({
+    needsNote: false,
+    needsResult: false,
+  });
+  const result = schema.safeParse({ note: "", reason: " ", result: "" });
+  expect(result.success).toBe(false);
+  expect(result.error?.issues[0]?.message).toBe("A reason is required.");
+});

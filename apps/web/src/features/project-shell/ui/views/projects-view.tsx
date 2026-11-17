@@ -124,7 +124,7 @@ export default function ProjectsView({
   });
   const handlePresentationChange = useCallback(
     (presentation: WorkspaceOverviewPresentation) =>
-      saveWorkspaceOverview.mutate(presentation),
+      saveWorkspaceOverview.mutateAsync(presentation),
     [saveWorkspaceOverview],
   );
 

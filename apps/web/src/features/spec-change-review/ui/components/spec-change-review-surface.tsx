@@ -8,7 +8,12 @@ import {
 } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 import { SpecChangeReviewView } from "../views/spec-change-review-view";
 import type { MarkCandidate } from "./spec-change-review-candidates";
 import type {
@@ -66,7 +71,7 @@ export default function SpecChangeReviewSurface({
       throw new Error("No review is open.");
     }
     try {
-      return await client.createSpecChangeReviewFollowUp({
+      const created = await client.createSpecChangeReviewFollowUp({
         baseRevision: 0,
         candidate: candidate.identity,
         clientIdempotencyKey: identity.key,
@@ -75,6 +80,13 @@ export default function SpecChangeReviewSurface({
         workId: identity.workId,
         workType: preview.plan.work.type,
       });
+      // The follow-up created Work, so Work lists and Smart Collection
+      // membership read it again.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
+        ...invalidateSmartCollectionMembership(queryClient),
+      ]);
+      return created;
     } finally {
       await queryClient.invalidateQueries({ queryKey: detailOptions.queryKey });
     }

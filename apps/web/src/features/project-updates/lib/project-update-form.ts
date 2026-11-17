@@ -4,14 +4,14 @@ import {
 } from "@cantiara/api/project-overview";
 import type { ProjectProfile } from "@cantiara/api/project-shell";
 import {
+  configureProjectUpdateReminderInputSchema,
+  createProjectUpdateInputSchema,
   PROJECT_UPDATE_LINK_TYPES,
-  PROJECT_UPDATE_NARRATIVE_MAX,
   PROJECT_UPDATE_SNAPSHOT_BLOCKS,
   type ProjectUpdateLinkInput,
   type ProjectUpdateLinkType,
   type ProjectUpdateMark,
   type ProjectUpdateSnapshot,
-  projectUpdateMarkSchema,
 } from "@cantiara/api/project-updates";
 import { z } from "zod";
 
@@ -36,11 +36,14 @@ export const EMPTY_PROJECT_UPDATE_DRAFT: ProjectUpdateFormDraft = {
   narrative: "",
 };
 
-export const projectUpdateFormSchema = z.object({
-  links: z.array(z.string()),
-  mark: projectUpdateMarkSchema,
-  narrative: z.string().trim().min(1).max(PROJECT_UPDATE_NARRATIVE_MAX),
-});
+/** The mark and narrative rules are the procedure's own; links stay `<type>:<id>` keys until mapped. */
+export const projectUpdateFormSchema = createProjectUpdateInputSchema
+  .pick({ mark: true, narrative: true })
+  .extend({ links: z.array(z.string()) });
+
+/** The reminder form's rules are the procedure's input schema minus the Project. */
+export const projectUpdateReminderFormSchema =
+  configureProjectUpdateReminderInputSchema.omit({ projectId: true });
 
 export function projectUpdateLinkKey(link: ProjectUpdateLinkInput) {
   return `${link.targetType}:${link.targetId}`;

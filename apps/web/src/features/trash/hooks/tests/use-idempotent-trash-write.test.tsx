@@ -10,15 +10,14 @@ vi.mock("@/features/web-macos-client/store/client-shell", () => ({
   runOnlineOnlyWrite: (send: () => Promise<unknown>) => send(),
 }));
 vi.mock("@/utils/orpc", () => ({
-  orpc: {
-    customFields: { key: () => ["custom-fields"] },
-    documentTemplates: { key: () => ["document-templates"] },
-    projectDecisions: { key: () => ["decisions"] },
-    projectRisks: { key: () => ["risks"] },
-    trash: { key: () => ["trash"] },
-    workAutomationRules: { key: () => ["automation-rules"] },
-    workTemplates: { key: () => ["work-templates"] },
-  },
+  invalidateSmartCollectionMembership: (queries: QueryClient) =>
+    ["smartCollectionViews", "documentLiveOtherBlocks"].map((name) =>
+      queries.invalidateQueries({ queryKey: [name] }),
+    ),
+  orpc: new Proxy(
+    {},
+    { get: (_target, name) => ({ key: () => [String(name)] }) },
+  ),
 }));
 
 (
@@ -85,7 +84,7 @@ describe("useIdempotentTrashWrite", () => {
     expect(keys[1]).not.toBe(keys[0]);
   });
 
-  test("refreshes Trash and the source lists after a failure too", async () => {
+  test("refreshes Trash, every affected source list and Smart Collection membership after a failure too", async () => {
     mount();
     const invalidate = vi
       .spyOn(client, "invalidateQueries")
@@ -94,14 +93,19 @@ describe("useIdempotentTrashWrite", () => {
       () => undefined,
     );
 
-    expect(invalidate.mock.calls.map(([filter]) => filter?.queryKey)).toEqual([
-      ["trash"],
-      ["risks"],
-      ["decisions"],
-      ["custom-fields"],
-      ["work-templates"],
-      ["automation-rules"],
-      ["document-templates"],
-    ]);
+    const keys = invalidate.mock.calls.map(([filter]) => filter?.queryKey);
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        ["trash"],
+        ["projectWorks"],
+        ["documents"],
+        ["projectScreens"],
+        ["listExternalSurfaces"],
+        ["customFieldValues"],
+        ["recordActions"],
+        ["smartCollectionViews"],
+        ["documentLiveOtherBlocks"],
+      ]),
+    );
   });
 });

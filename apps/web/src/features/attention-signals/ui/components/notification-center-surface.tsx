@@ -8,7 +8,12 @@ import type {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 import NotificationCenterList from "./notification-center-list";
 
 export default function NotificationCenterSurface() {
@@ -93,7 +98,19 @@ export default function NotificationCenterSurface() {
           ? "Follow-up work created. The notification stays open."
           : "Follow-up work already exists for this attempt.",
       );
-      await refresh();
+      // A created follow-up is new Work, so Work lists and Smart Collection
+      // membership read it again.
+      await Promise.all([
+        refresh(),
+        ...(result.created
+          ? [
+              queryClient.invalidateQueries({
+                queryKey: projectWorksQueryPrefix,
+              }),
+              ...invalidateSmartCollectionMembership(queryClient),
+            ]
+          : []),
+      ]);
     },
     onError: (caught) => setError(errorMessage(caught)),
   });

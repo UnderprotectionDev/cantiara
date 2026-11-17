@@ -2,19 +2,14 @@
 import type { ProjectWallView } from "@cantiara/api/project-wall";
 import {
   PROJECT_WALL_PRESENTATION_LABELS,
-  PROJECT_WALL_SNAPSHOT_LABELS,
   type ProjectWallSnapshotFile,
   type ProjectWallSnapshotPreview,
   projectWallPresentationSequence,
 } from "@cantiara/api/project-wall-presentation";
 import { Button } from "@cantiara/ui/components/button";
-import { Checkbox } from "@cantiara/ui/components/checkbox";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@cantiara/ui/components/native-select";
 import { useState } from "react";
 
+import { cardLabel } from "../../lib/project-wall-presentation";
 import { ProjectWallCard } from "./project-wall-card";
 
 export interface ProjectWallPresentationActions {
@@ -31,10 +26,6 @@ export interface ProjectWallPresentationActions {
 export type SnapshotScope =
   | { cardIds: string[]; groupId?: undefined }
   | { cardIds?: undefined; groupId: string };
-
-function cardLabel(card: ProjectWallView["cards"][number]) {
-  return card.source.title ?? `${card.sourceType} (unavailable)`;
-}
 
 /**
  * Presentation Mode: a read-only walk over this wall's own cards. It renders
@@ -172,151 +163,6 @@ export function ProjectWallFocusOrderEditor({
         >
           Clear {PROJECT_WALL_PRESENTATION_LABELS.focusOrder}
         </Button>
-      ) : null}
-    </section>
-  );
-}
-
-function downloadBase64(file: ProjectWallSnapshotFile) {
-  const bytes = Uint8Array.from(atob(file.base64), (char) =>
-    char.charCodeAt(0),
-  );
-  const url = URL.createObjectURL(new Blob([bytes], { type: file.mimeType }));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = file.fileName;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
-/**
- * Group or region `Snapshot`: choose a group or cards, read the `Preview`
- * that names the output a `Frozen copy`, then export `PNG` or `PDF`. Nothing
- * here shares, publishes or locks the wall.
- */
-export function ProjectWallSnapshotPanel({
-  actions,
-  wall,
-}: {
-  actions: Pick<
-    ProjectWallPresentationActions,
-    "onExportSnapshot" | "onPreviewSnapshot"
-  >;
-  wall: ProjectWallView;
-}) {
-  const [groupId, setGroupId] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
-  const [preview, setPreview] = useState<ProjectWallSnapshotPreview | null>(
-    null,
-  );
-  let scope: SnapshotScope | null = null;
-  if (groupId) {
-    scope = { groupId };
-  } else if (selected.length > 0) {
-    scope = { cardIds: selected };
-  }
-
-  function toggle(id: string) {
-    setPreview(null);
-    setSelected((current) =>
-      current.includes(id)
-        ? current.filter((value) => value !== id)
-        : [...current, id],
-    );
-  }
-
-  async function showPreview() {
-    if (scope) {
-      setPreview((await actions.onPreviewSnapshot(scope)) ?? null);
-    }
-  }
-
-  async function exportAs(format: "PDF" | "PNG") {
-    if (!scope) {
-      return;
-    }
-    const files = (await actions.onExportSnapshot(scope, format)) ?? [];
-    for (const file of files) {
-      downloadBase64(file);
-    }
-  }
-
-  return (
-    <section
-      aria-label={PROJECT_WALL_SNAPSHOT_LABELS.snapshot}
-      className="space-y-2"
-    >
-      <h3 className="font-medium">{PROJECT_WALL_SNAPSHOT_LABELS.snapshot}</h3>
-      {wall.groups.length > 0 ? (
-        <NativeSelect
-          aria-label="Snapshot group"
-          onChange={(event) => {
-            setPreview(null);
-            setGroupId(event.target.value);
-          }}
-          value={groupId}
-        >
-          <NativeSelectOption value="">
-            Region of selected cards
-          </NativeSelectOption>
-          {wall.groups.map((group) => (
-            <NativeSelectOption key={group.id} value={group.id}>
-              Group: {group.title}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      ) : null}
-      {groupId ? null : (
-        <fieldset className="space-y-1">
-          <legend className="text-sm">
-            Cards in this {PROJECT_WALL_SNAPSHOT_LABELS.snapshot}
-          </legend>
-          {wall.cards.map((card) => (
-            <label
-              className="flex items-center gap-2"
-              htmlFor={`snapshot-card-${card.id}`}
-              key={card.id}
-            >
-              <Checkbox
-                checked={selected.includes(card.id)}
-                id={`snapshot-card-${card.id}`}
-                onCheckedChange={() => toggle(card.id)}
-              />
-              {cardLabel(card)}
-            </label>
-          ))}
-        </fieldset>
-      )}
-      <div className="flex gap-2">
-        <Button
-          disabled={!scope}
-          onClick={showPreview}
-          type="button"
-          variant="outline"
-        >
-          {PROJECT_WALL_SNAPSHOT_LABELS.preview}
-        </Button>
-        <Button disabled={!scope} onClick={() => exportAs("PNG")} type="button">
-          {PROJECT_WALL_SNAPSHOT_LABELS.png}
-        </Button>
-        <Button disabled={!scope} onClick={() => exportAs("PDF")} type="button">
-          {PROJECT_WALL_SNAPSHOT_LABELS.pdf}
-        </Button>
-      </div>
-      {preview ? (
-        <section aria-label="Snapshot preview" className="space-y-1">
-          <p className="font-medium">{preview.moment}</p>
-          <p className="text-sm">
-            {preview.cardCount} card{preview.cardCount === 1 ? "" : "s"},{" "}
-            {preview.linkCount} Visual link
-            {preview.linkCount === 1 ? "" : "s"}
-          </p>
-          {preview.notices.map((notice) => (
-            <p className="text-sm" key={notice}>
-              {notice}
-            </p>
-          ))}
-        </section>
       ) : null}
     </section>
   );

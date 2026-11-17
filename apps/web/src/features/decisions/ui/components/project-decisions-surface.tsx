@@ -6,7 +6,11 @@ import FavoriteControl from "@/components/favorite-control";
 import PersonalReminderControl from "@/components/personal-reminder-control";
 import EvidenceFlowPanel from "@/features/evidence/ui/components/evidence-flow-panel";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
 import DecisionSupersessionControls from "./decision-supersession-controls";
 import {
   type DecisionDraft,
@@ -63,6 +67,7 @@ export default function ProjectDecisionsSurface({
           input: { projectId },
         }).queryKey,
       }),
+      ...invalidateSmartCollectionMembership(queryClient),
     ]);
   }
   async function save(draft: DecisionDraft, record?: DecisionRecord) {

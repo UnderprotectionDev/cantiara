@@ -9,8 +9,8 @@ import {
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { personalDataRefusalMessage } from "../../../lib/personal-data-refusal";
-import { PersonalDataPreviewPanel } from "../../components/personal-data-preview-panel";
 import { PersonalDataEraseForm } from "../../forms/personal-data-erase-form";
+import { PersonalDataPreviewPanel } from "../../forms/personal-data-preview-form";
 import { PersonalDataView } from "../personal-data-view";
 
 const NAMES_OTHER_FLOWS = /exit package|close account|restore/i;
@@ -126,5 +126,47 @@ describe("Export Personal Data view", () => {
     expect(html).toMatch(SUBMIT_DISABLED);
     expect(html).not.toMatch(NAMES_PASSWORD_OR_MFA);
     expect(html).not.toMatch(NAMES_OTHER_FLOWS);
+  });
+});
+
+describe("Export Personal Data package form", () => {
+  test("Create package submits the chosen format", async () => {
+    const { act } = await import("react");
+    const { createRoot } = await import("react-dom/client");
+    (
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    const onConfirm = (await import("vitest")).vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    act(() => {
+      root.render(
+        <PersonalDataPreviewPanel
+          disabled={false}
+          onCancel={() => undefined}
+          onConfirm={onConfirm}
+          preview={preview}
+          produced={null}
+        />,
+      );
+    });
+    await act(async () => {
+      (
+        host.querySelector("#personal-data-format-Markdown") as HTMLElement
+      ).click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      host
+        .querySelector("form")
+        ?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(onConfirm).toHaveBeenCalledWith("Markdown");
+    act(() => root.unmount());
+    host.remove();
   });
 });

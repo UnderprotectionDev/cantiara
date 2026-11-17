@@ -4,6 +4,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
 import type { FormEvent } from "react";
+import { priorityMetricPermanentDeleteFormSchema } from "../../lib/priority-metric-delete";
 import {
   PriorityMetricImpactStatus,
   type PriorityMetricTrashEffect,
@@ -38,7 +39,15 @@ export function PriorityMetricPermanentDeleteConfirmation({
 }) {
   const deleteForm = useForm({
     defaultValues: { typedProjectName: "" },
-    onSubmit: async ({ value }) => onSubmit(value.typedProjectName),
+    onSubmit: async ({ value }) => {
+      const parsed =
+        priorityMetricPermanentDeleteFormSchema(projectName).safeParse(value);
+      // Permanently Delete stays disabled until the typed name matches.
+      if (!parsed.success) {
+        return;
+      }
+      await onSubmit(value.typedProjectName);
+    },
   });
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

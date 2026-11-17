@@ -22,13 +22,18 @@ vi.mock("@/utils/orpc", () => ({
   client: {
     saveResearchSession: rpc.save,
     saveResearchSessionNote: rpc.saveNote,
-    projectResearchSessionBindings: rpc.bindings,
   },
   accountPreferencesQueryOptions: () => ({
     queryKey: ["preferences"],
     queryFn: async () => ({ timeZone: "Europe/Istanbul" }),
   }),
   orpc: {
+    projectResearchSessionBindings: {
+      queryOptions: ({ input }: { input: unknown }) => ({
+        queryKey: ["research-session-bindings", input],
+        queryFn: () => rpc.bindings(input),
+      }),
+    },
     projectResearchSessions: {
       queryOptions: () => ({
         queryKey: ["research-sessions"],
@@ -195,6 +200,10 @@ test("Research Session conflict retains the draft and reopens the current revisi
     .mockResolvedValue({ ...latest, revision: 3 });
   const surface = await openSurface();
   try {
+    expect(rpc.bindings).toHaveBeenCalledWith({
+      id: "session-1",
+      projectId: "p1",
+    });
     await act(async () => surface.button("Edit").click());
     await surface.fill("Purpose", "My retained draft");
     await act(async () => surface.button("Save").click());

@@ -11,12 +11,7 @@ import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useId } from "react";
-import { z } from "zod";
-
-const saveFormSchema = z.object({
-  markdown: z.string().max(1_000_000),
-  title: z.string().trim().min(1).max(255),
-});
+import { closureSummarySaveFormSchema } from "../../lib/closure-summary-draft";
 
 /**
  * The editable draft. It keeps its text in the form until the founder presses
@@ -44,7 +39,7 @@ export function ClosureSummaryEditorForm({
       title: PROJECT_CLOSURE_SUMMARY_LABEL as string,
     },
     onSubmit: ({ value }) => {
-      const parsed = saveFormSchema.safeParse(value);
+      const parsed = closureSummarySaveFormSchema.safeParse(value);
       if (parsed.success) {
         onSave(parsed.data);
       }

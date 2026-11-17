@@ -1,5 +1,6 @@
 import type { TrashEntry } from "@cantiara/api/trash";
-import { client } from "@/utils/orpc";
+import { useQueryClient } from "@tanstack/react-query";
+import { orpc } from "@/utils/orpc";
 
 /**
  * Reads the restore conflict preview of one Trash entry: dependencies that
@@ -7,7 +8,14 @@ import { client } from "@/utils/orpc";
  * nothing is rebound.
  */
 export function usePreviewRestoreFromTrash(projectId: string) {
+  const queryClient = useQueryClient();
   return function previewRestore(entry: TrashEntry) {
-    return client.restoreFromTrashPreview({ entryId: entry.id, projectId });
+    return queryClient.fetchQuery({
+      ...orpc.restoreFromTrashPreview.queryOptions({
+        input: { entryId: entry.id, projectId },
+      }),
+      gcTime: 0,
+      staleTime: 0,
+    });
   };
 }

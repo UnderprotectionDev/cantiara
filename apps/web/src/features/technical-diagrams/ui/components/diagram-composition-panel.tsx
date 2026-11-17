@@ -27,7 +27,7 @@ interface Props {
   error: string | null;
   onCancelConvert: () => void;
   onConfirmConvert: (plan: ConvertToRecordPlan) => void;
-  onPlace: (option: RecordCardOption) => void;
+  onPlace: (option: RecordCardOption) => unknown;
   onPreviewConvert: (input: {
     nodeId: string;
     target: Target;

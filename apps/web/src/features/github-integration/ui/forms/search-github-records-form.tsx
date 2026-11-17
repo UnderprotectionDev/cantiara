@@ -2,6 +2,10 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
+import {
+  GITHUB_SEARCH_QUERY_MAX_LENGTH,
+  parseSearchGitHubRecords,
+} from "../../lib/github-forms";
 
 export const SEARCH_GITHUB_RECORDS_LABEL = "Search GitHub records";
 
@@ -13,7 +17,11 @@ export function SearchGitHubRecordsForm({
   const form = useForm({
     defaultValues: { query: "" },
     onSubmit: ({ value }) => {
-      onSearch(value.query.trim());
+      const parsed = parseSearchGitHubRecords(value);
+      if (!parsed.ok) {
+        return;
+      }
+      onSearch(parsed.data.query);
     },
   });
   return (
@@ -34,6 +42,7 @@ export function SearchGitHubRecordsForm({
           {(field) => (
             <Input
               id="github-record-search"
+              maxLength={GITHUB_SEARCH_QUERY_MAX_LENGTH}
               name={field.name}
               onChange={(event) => field.handleChange(event.target.value)}
               placeholder="Title, #number, label or milestone"

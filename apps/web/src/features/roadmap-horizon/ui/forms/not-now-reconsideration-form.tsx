@@ -6,6 +6,7 @@ import type {
 } from "@cantiara/api/work-not-now";
 import { Button } from "@cantiara/ui/components/button";
 import { useForm } from "@tanstack/react-form";
+import { notNowReconsiderationFormSchema } from "../../lib/not-now-forms";
 import { ReviewLaterHandlingField } from "../components/not-now-review-later-field";
 
 export function NotNowReconsideration({
@@ -37,7 +38,10 @@ export function NotNowReconsideration({
 }) {
   const form = useForm({
     defaultValues: { reviewLaterHandling },
-    onSubmit: () => {
+    onSubmit: ({ value }) => {
+      if (!notNowReconsiderationFormSchema.safeParse(value).success) {
+        return;
+      }
       onReconsider();
     },
   });

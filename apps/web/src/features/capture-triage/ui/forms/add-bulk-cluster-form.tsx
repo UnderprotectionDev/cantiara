@@ -11,16 +11,21 @@ export function AddBulkClusterForm({
   onAdd,
 }: {
   disabled: boolean;
-  onAdd: (name: string) => void;
+  onAdd: (name: string) => Promise<unknown>;
 }) {
   const form = useForm({
     defaultValues: { name: "" },
-    onSubmit: ({ formApi, value }) => {
+    onSubmit: async ({ formApi, value }) => {
       const parsed = addBulkClusterFormSchema.safeParse(value);
       if (!parsed.success) {
         return;
       }
-      onAdd(parsed.data.name);
+      try {
+        await onAdd(parsed.data.name);
+      } catch {
+        // The failed write is reported by the mutation; keep the name.
+        return;
+      }
       formApi.reset();
     },
   });

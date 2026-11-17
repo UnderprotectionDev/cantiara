@@ -23,6 +23,7 @@ import {
 import {
   captureInboxQueryOptions,
   client,
+  invalidateSmartCollectionMembership,
   projectsQueryOptions,
 } from "@/utils/orpc";
 import {
@@ -465,9 +466,13 @@ export function CaptureInboxItemActions({
       );
     },
     onError: () => setActionMessage(triageErrorMessage()),
-    onSuccess: () => {
+    onSuccess: async () => {
       conversionClientIdempotencyKey.current = null;
-      return refreshInbox(true);
+      // The new Work or Document can join live Smart Collections.
+      await Promise.all([
+        ...invalidateSmartCollectionMembership(queryClient),
+        refreshInbox(true),
+      ]);
     },
   });
   const previewAttachment = useMutation({

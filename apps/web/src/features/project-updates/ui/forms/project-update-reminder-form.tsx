@@ -1,7 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Fields bind to their own form state.
 
 import {
-  configureProjectUpdateReminderInputSchema,
   PROJECT_UPDATE_REMINDER_INTERVAL_LABEL,
   PROJECT_UPDATE_REMINDER_INTERVAL_MAX_DAYS,
   PROJECT_UPDATE_REMINDER_INTERVAL_MIN_DAYS,
@@ -22,6 +21,7 @@ import {
 } from "@cantiara/ui/components/radio-group";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
+import { projectUpdateReminderFormSchema } from "../../lib/project-update-form";
 
 export interface ProjectUpdateReminderControls {
   onConfigure: (values: {
@@ -39,10 +39,6 @@ export interface ProjectUpdateReminderControls {
  * which writes nothing; only the form's own save creates a Project Update.
  * Nothing here is required, and nothing is judged from elapsed time.
  */
-const reminderFormSchema = configureProjectUpdateReminderInputSchema.omit({
-  projectId: true,
-});
-
 export function ProjectUpdateReminderForm({
   onConfigure,
   onSkip,
@@ -58,7 +54,7 @@ export function ProjectUpdateReminderForm({
     },
     onSubmit: async ({ value }) => {
       setError(null);
-      const parsed = reminderFormSchema.safeParse({
+      const parsed = projectUpdateReminderFormSchema.safeParse({
         intervalDays: Number(value.intervalDays),
         question: value.question,
         state: value.state,

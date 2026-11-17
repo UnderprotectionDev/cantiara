@@ -13,7 +13,13 @@ import { useState } from "react";
 
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import { fetchCurrentWork } from "@/lib/fetch-current-work";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 
 interface ActiveRecordAction {
   action: RecordAction;
@@ -76,8 +82,53 @@ export function useRecordActionRunner(projectId: string) {
   > | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function refreshWork(work: WorkProfile) {
+  // A committed run or its undo can change Work status, Daily Focus
+  // membership, custom field values and related Works in one write; refresh
+  // every surface that reads them.
+  async function refreshWork(
+    work: WorkProfile,
+    run: Pick<RecordActionPreview, "focusDate" | "runtimeInputs"> | null,
+  ) {
+    const relationRecordIds = [
+      work.id,
+      ...Object.values(run?.runtimeInputs.relations ?? {}).map(
+        (relation) => relation.recordId,
+      ),
+    ];
     await Promise.all([
+      ...invalidateSmartCollectionMembership(queryClient),
+      ...(run
+        ? [
+            queryClient.invalidateQueries({
+              queryKey: orpc.dailyFocusDay.queryOptions({
+                input: { focusDate: run.focusDate },
+              }).queryKey,
+            }),
+          ]
+        : []),
+      queryClient.invalidateQueries({
+        queryKey: orpc.customFieldValues.queryOptions({
+          input: {
+            projectId: work.projectId,
+            recordId: work.id,
+            recordType: "Work",
+          },
+        }).queryKey,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.customFieldProjectValues.queryOptions({
+          input: { projectId: work.projectId, recordType: "Work" },
+        }).queryKey,
+      }),
+      ...relationRecordIds.flatMap((recordId) =>
+        [orpc.relations, orpc.usedIn].map((procedure) =>
+          queryClient.invalidateQueries({
+            queryKey: procedure.queryOptions({
+              input: { recordId, recordType: "Work" },
+            }).queryKey,
+          }),
+        ),
+      ),
       queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
       queryClient.invalidateQueries({
         queryKey: orpc.work.queryOptions({ input: { workId: work.id } })
@@ -105,12 +156,12 @@ export function useRecordActionRunner(projectId: string) {
     mutationFn: (input: ApplyRecordActionInput) =>
       runOnlineOnlyWrite(() => client.applyRecordAction(input)),
     onError: (mutationError) => setError(mutationErrorMessage(mutationError)),
-    onSuccess: async (result) => {
+    onSuccess: async (result, command) => {
       setApplyResult(result);
       setApplyCommand(null);
       setError(null);
       if (result.status === "committed" && active) {
-        await refreshWork(active.work);
+        await refreshWork(active.work, command);
       }
     },
   });
@@ -124,7 +175,7 @@ export function useRecordActionRunner(projectId: string) {
       setUndoCommand(null);
       setError(null);
       if (active) {
-        await refreshWork(active.work);
+        await refreshWork(active.work, preview);
       }
     },
   });
@@ -215,7 +266,7 @@ export function useRecordActionRunner(projectId: string) {
 
     setIsPreparingUndo(true);
     try {
-      const currentWork = await client.work({ workId: active.work.id });
+      const currentWork = await fetchCurrentWork(queryClient, active.work.id);
       const command: UndoRecordActionInput = {
         baseRevision: currentWork.revision,
         clientIdempotencyKey: crypto.randomUUID(),

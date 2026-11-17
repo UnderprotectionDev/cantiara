@@ -56,10 +56,9 @@ export function GapFilterBar({
   const set = (patch: Partial<GapFilterValues>) =>
     onChange({ ...filter, ...patch });
   return (
-    <form
+    <search
       aria-label="Filter Product Gaps"
       className="grid gap-3 rounded-lg border border-border/70 p-4 text-sm sm:grid-cols-4"
-      onSubmit={(event) => event.preventDefault()}
     >
       <Field className="gap-1">
         <FieldLabel htmlFor="product-gap-filter-tool">
@@ -129,7 +128,7 @@ export function GapFilterBar({
           ))}
         </NativeSelect>
       </Field>
-    </form>
+    </search>
   );
 }
 

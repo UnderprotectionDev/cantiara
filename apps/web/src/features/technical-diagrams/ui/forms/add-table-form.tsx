@@ -18,15 +18,15 @@ export function AddTableForm({
 }: {
   disabled: boolean;
   model: DataModelModel;
-  onSave: (model: DataModelModel) => void;
+  onSave: (model: DataModelModel) => unknown;
 }) {
   const form = useForm({
     defaultValues: { name: "" },
-    onSubmit: ({ value, formApi }) => {
+    onSubmit: async ({ value, formApi }) => {
       if (!addTableSchema.safeParse(value).success) {
         return;
       }
-      onSave(addTable(model, value.name.trim()));
+      await onSave(addTable(model, value.name.trim()));
       formApi.reset();
     },
   });

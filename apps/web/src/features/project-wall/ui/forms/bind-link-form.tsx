@@ -38,8 +38,10 @@ export default function BindLinkForm({
       if (!parsed.success) {
         return;
       }
-      await onDrawLink(parsed.data);
-      formApi.setFieldValue("label", "");
+      if (await onDrawLink(parsed.data)) {
+        // Only a persisted link clears the label; a failed write keeps it.
+        formApi.setFieldValue("label", "");
+      }
     },
   });
   function submit(event: FormEvent<HTMLFormElement>) {

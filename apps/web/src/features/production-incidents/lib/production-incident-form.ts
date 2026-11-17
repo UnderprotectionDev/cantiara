@@ -216,3 +216,8 @@ export function productionIncidentFollowUpDraft(
     workType: "Task",
   };
 }
+
+/** Form schema for `Link record`: the chosen record key. */
+export const productionIncidentLinkFormSchema = z.object({
+  target: z.string().trim().min(1),
+});

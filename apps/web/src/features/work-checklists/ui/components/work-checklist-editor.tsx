@@ -10,7 +10,7 @@ import { useRef, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
-import WorkChecklist from "./work-checklist";
+import WorkChecklist from "../forms/work-checklist-form";
 
 function checklistMutationErrorMessage(
   error: unknown,

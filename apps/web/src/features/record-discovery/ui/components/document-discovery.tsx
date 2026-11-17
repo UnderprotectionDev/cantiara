@@ -7,8 +7,6 @@ import {
   type RecordDiscoveryIndex,
   type RecordDiscoveryScope,
   type RecordDiscoveryView,
-  type RecordTableCellUpdateInput,
-  type RecordTablePasteInput,
   recordDiscoveryIndexLabels,
   recordDiscoveryScopeSchema,
   recordDiscoveryViewSchema,
@@ -31,7 +29,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useMatches, useRouteContext } from "@tanstack/react-router";
 import {
   type ChangeEvent,
@@ -42,11 +40,11 @@ import {
   useState,
 } from "react";
 import {
-  client,
   orpc,
   projectsQueryOptions,
   universalSearchQueryOptions,
 } from "@/utils/orpc";
+import { useRecordTableWrites } from "../../hooks/use-record-table-writes";
 import { RecordTableView } from "./record-table";
 import UniversalSearchResults from "./universal-search-results";
 
@@ -693,7 +691,6 @@ function RecordTableSurface({
   projectId: string;
   recordType: RecordTableType;
 }) {
-  const queryClient = useQueryClient();
   const projectsQuery = useQuery({
     ...projectsQueryOptions(),
     enabled: Boolean(accountId),
@@ -713,20 +710,8 @@ function RecordTableSurface({
     enabled: Boolean(accountId),
   });
   const tableQueryKey = tableRecordsOptions.queryKey;
-  const saveTableCell = useCallback(
-    async (input: RecordTableCellUpdateInput) => {
-      await client.updateTableCell(input);
-      await queryClient.invalidateQueries({ queryKey: tableQueryKey });
-    },
-    [queryClient, tableQueryKey],
-  );
-  const applyTablePaste = useCallback(
-    async (input: RecordTablePasteInput) => {
-      await client.applyTablePaste(input);
-      await queryClient.invalidateQueries({ queryKey: tableQueryKey });
-    },
-    [queryClient, tableQueryKey],
-  );
+  const { applyTablePaste, saveTableCell } =
+    useRecordTableWrites(tableQueryKey);
   return (
     <RecordTableView
       failed={tableRecords.isError || projectsQuery.isError}

@@ -4,6 +4,7 @@ import {
   feedbackLinkSchema,
   feedbackOriginalMessageSchema,
   feedbackTitleSchema,
+  feedbackWorkTypeSchema,
 } from "@cantiara/api/feedback";
 import { z } from "zod";
 
@@ -45,4 +46,9 @@ export const createFeedbackFormSchema = z.object({
     .string()
     .refine((value) => value.trim() !== "", REQUIRED_MESSAGE)
     .pipe(feedbackTitleSchema),
+});
+
+/** Form schema for `Convert to Work`: the chosen Work type. */
+export const convertToWorkFormSchema = z.object({
+  workType: feedbackWorkTypeSchema,
 });

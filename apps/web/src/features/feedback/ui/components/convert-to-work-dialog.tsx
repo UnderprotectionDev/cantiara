@@ -1,25 +1,18 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Commands capture the displayed preview and the record it was made from.
-import {
-  FEEDBACK_WORK_TYPES,
-  type FeedbackRecord,
-  type FeedbackWorkPlan,
-  type FeedbackWorkType,
+import type {
+  FeedbackRecord,
+  FeedbackWorkPlan,
+  FeedbackWorkType,
 } from "@cantiara/api/feedback";
-import { Button } from "@cantiara/ui/components/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
-import { Label } from "@cantiara/ui/components/label";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@cantiara/ui/components/native-select";
 import { useRef, useState } from "react";
+import { ConvertToWorkForm } from "../forms/convert-to-work-form";
 
 /** Identity of one confirmation attempt; reused on retry so the Work is created once. */
 export interface ConvertCommandIdentity {
@@ -84,7 +77,6 @@ export function ConvertToWorkDialog({
   onPreview: PreviewConvert;
   record: FeedbackRecord;
 }) {
-  const [workType, setWorkType] = useState<FeedbackWorkType>("Task");
   const [plan, setPlan] = useState<FeedbackWorkPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -95,7 +87,7 @@ export function ConvertToWorkDialog({
     setError(null);
     identity.current = null;
   }
-  async function preview() {
+  async function preview(workType: FeedbackWorkType) {
     setPending(true);
     reset();
     try {
@@ -139,42 +131,18 @@ export function ConvertToWorkDialog({
             does not delete or archive the Feedback.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor={`feedback-work-type-${record.id}`}>Work type</Label>
-          <NativeSelect
-            disabled={pending}
-            id={`feedback-work-type-${record.id}`}
-            onChange={(event) => {
-              setWorkType(event.target.value as FeedbackWorkType);
-              reset();
-            }}
-            value={workType}
-          >
-            {FEEDBACK_WORK_TYPES.map((value) => (
-              <NativeSelectOption key={value} value={value}>
-                {value}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
-        {plan ? <ConvertToWorkPreview plan={plan} /> : null}
-        {error ? <p role="alert">{error}</p> : null}
-        <DialogFooter>
-          <Button onClick={onClose} type="button" variant="outline">
-            Cancel
-          </Button>
-          <Button
-            disabled={pending}
-            onClick={preview}
-            type="button"
-            variant="outline"
-          >
-            Preview
-          </Button>
-          <Button disabled={!plan || pending} onClick={confirm} type="button">
-            Confirm
-          </Button>
-        </DialogFooter>
+        <ConvertToWorkForm
+          canConfirm={plan !== null}
+          onClose={onClose}
+          onConfirm={confirm}
+          onPreview={preview}
+          onWorkTypeChange={reset}
+          pending={pending}
+          recordId={record.id}
+        >
+          {plan ? <ConvertToWorkPreview plan={plan} /> : null}
+          {error ? <p role="alert">{error}</p> : null}
+        </ConvertToWorkForm>
       </DialogContent>
     </Dialog>
   );

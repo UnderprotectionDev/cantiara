@@ -16,6 +16,10 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
 import { errorText } from "../../lib/error-text";
+import {
+  parseRecordSessionTest,
+  parseVersionRef,
+} from "../../lib/planned-test-form";
 
 interface RecordSessionTestValues {
   binding: PlannedTestCaseVersionRef | null;
@@ -78,13 +82,19 @@ export function RecordForm({
     },
     onSubmit: async ({ value, formApi }) => {
       setError(undefined);
+      const input = {
+        binding: value.bound === AD_HOC ? null : parseOption(value.bound),
+        expectedBehavior: value.expectedBehavior,
+        purpose: value.purpose,
+        title: value.title,
+      };
+      const parsed = parseRecordSessionTest(input);
+      if (!parsed.ok) {
+        setError(parsed.message);
+        return;
+      }
       try {
-        await onRecord({
-          binding: value.bound === AD_HOC ? null : parseOption(value.bound),
-          expectedBehavior: value.expectedBehavior,
-          purpose: value.purpose,
-          title: value.title,
-        });
+        await onRecord(input);
         formApi.reset();
       } catch (caught) {
         setError(errorText(caught, `${SESSION_TEST_LABEL} was not saved.`));
@@ -221,10 +231,11 @@ export function LinkScenarioVersionForm({
     defaultValues: { choice: AD_HOC },
     onSubmit: async ({ value }) => {
       const ref = parseOption(value.choice);
-      if (!ref) {
+      setError(undefined);
+      const parsed = parseVersionRef(ref);
+      if (!(parsed.ok && ref)) {
         return;
       }
-      setError(undefined);
       try {
         await onLink(sessionTest.id, ref);
       } catch (caught) {

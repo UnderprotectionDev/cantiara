@@ -26,15 +26,29 @@ export default function ResearchSessionsSurface({
   const bindingActions = useMemo<ResearchBindingActions>(
     () => ({
       feedback: (record, bindingId) =>
-        client.researchSessionBindingFeedback({
-          id: record.id,
-          projectId,
-          bindingId,
+        queryClient.fetchQuery({
+          ...orpc.researchSessionBindingFeedback.queryOptions({
+            input: { id: record.id, projectId, bindingId },
+          }),
+          gcTime: 0,
+          staleTime: 0,
         }),
       targets: (record) =>
-        client.researchSessionBindingTargets({ id: record.id, projectId }),
+        queryClient.fetchQuery({
+          ...orpc.researchSessionBindingTargets.queryOptions({
+            input: { id: record.id, projectId },
+          }),
+          gcTime: 0,
+          staleTime: 0,
+        }),
       list: (record) =>
-        client.projectResearchSessionBindings({ id: record.id, projectId }),
+        queryClient.fetchQuery({
+          ...orpc.projectResearchSessionBindings.queryOptions({
+            input: { id: record.id, projectId },
+          }),
+          gcTime: 0,
+          staleTime: 0,
+        }),
       preview: async (input) => {
         try {
           return await runOnlineOnlyWrite(() =>

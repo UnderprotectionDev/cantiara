@@ -91,10 +91,14 @@ export default function BulkSenseMakingView({
     saveLayout.mutate(next);
   }
 
-  function addCluster(name: string) {
+  async function addCluster(name: string) {
+    if (!isOnline || saveLayout.isPending) {
+      // The add control is disabled in these states; keep the name and stop.
+      throw new Error("addCluster blocked: offline or already saving");
+    }
     const position =
       Math.max(-1, ...layout.clusters.map((cluster) => cluster.position)) + 1;
-    persist({
+    await saveLayout.mutateAsync({
       clusters: [
         ...layout.clusters,
         { id: crypto.randomUUID(), name, position },

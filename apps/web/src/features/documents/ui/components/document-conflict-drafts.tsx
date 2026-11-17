@@ -8,11 +8,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { diffLines } from "diff";
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
 import DocumentConflictIndependentForm from "../forms/document-conflict-independent-form";
 import DocumentConflictResultForm, {
   type ConflictResultValues,
@@ -32,6 +41,7 @@ async function resolveComparedDraft(
   comparison: DraftComparison,
   independent: Pick<Document, "title" | "body" | "type"> | null,
   clientIdempotencyKey: string,
+  queryClient: QueryClient,
 ) {
   const { draft } = comparison;
   if (action === "Apply parts") {
@@ -62,7 +72,9 @@ async function resolveComparedDraft(
       conflictDraftId: draft.id,
     });
   }
-  return client.document({ documentId });
+  return queryClient.fetchQuery(
+    orpc.document.queryOptions({ input: { documentId } }),
+  );
 }
 
 export default function DocumentConflictDrafts({
@@ -141,6 +153,7 @@ export default function DocumentConflictDrafts({
           edited,
           independent,
           request.current.key,
+          queryClient,
         );
       }),
     onSuccess: async (document) => {
@@ -153,6 +166,7 @@ export default function DocumentConflictDrafts({
       await queryClient.invalidateQueries({
         queryKey: currentOptions.queryKey,
       });
+      await Promise.all(invalidateSmartCollectionMembership(queryClient));
     },
     onError: (failure) => {
       setError(

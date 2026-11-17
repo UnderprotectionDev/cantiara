@@ -264,13 +264,13 @@ function DiagramCard({
         bindOptions={bindOptions}
         diagram={diagram}
         disabled={saveStructure.isPending}
-        onSave={(model) => saveStructure.mutate(model)}
+        onSave={(model) => saveStructure.mutateAsync(model)}
       />
       <DiagramVersionPanel
         diagram={diagram}
         disabled={createVersion.isPending || restoreVersion.isPending}
         error={versionError}
-        onCreate={(versionName) => createVersion.mutate(versionName)}
+        onCreate={(versionName) => createVersion.mutateAsync(versionName)}
         onRestore={(version) => restoreVersion.mutate(version.id)}
         versions={versions.data ?? []}
       />
@@ -289,7 +289,7 @@ function DiagramCard({
           setPlan(null);
         }}
         onConfirmConvert={(confirmed) => confirmConvert.mutate(confirmed)}
-        onPlace={(option) => placeCard.mutate(option)}
+        onPlace={(option) => placeCard.mutateAsync(option)}
         onPreviewConvert={(input) => previewConvert.mutate(input)}
         onRemove={(cardId) => removeCard.mutate(cardId)}
         options={recordOptions}

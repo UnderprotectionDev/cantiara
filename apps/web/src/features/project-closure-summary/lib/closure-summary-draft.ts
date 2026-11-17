@@ -52,3 +52,9 @@ export function closureSummaryMarkdownOf(
     projectRecordHref(projectId, source),
   );
 }
+
+/** Form schema for `Save as Document`: a title and the draft Markdown. */
+export const closureSummarySaveFormSchema = z.object({
+  markdown: z.string().max(1_000_000),
+  title: z.string().trim().min(1).max(255),
+});

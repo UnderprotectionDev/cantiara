@@ -2,8 +2,10 @@
 
 import type { ScreenRecord } from "@cantiara/api/screens";
 import fontDataUri from "@fontsource/shantell-sans/files/shantell-sans-latin-400-normal.woff2?inline";
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { client } from "@/utils/orpc";
+import { orpc } from "@/utils/orpc";
+import type { ChosenVersion, ExportFormat } from "../../lib/screens-output";
 import {
   downloadBlob,
   downloadText,
@@ -17,12 +19,8 @@ import {
   type WireframeSnapshot,
 } from "../../output/snapshot";
 import { renderSvg } from "../../output/svg";
+import { ScreensOutputPanel } from "../forms/screens-output-form";
 import { PresentationMode } from "./presentation-mode";
-import {
-  type ChosenVersion,
-  type ExportFormat,
-  ScreensOutputPanel,
-} from "./screens-output-panel";
 
 /**
  * Reads exact Wireframe versions (read-only queries with an explicit version
@@ -30,6 +28,7 @@ import {
  * write procedure is called from here.
  */
 async function loadSnapshots(
+  queryClient: QueryClient,
   projectId: string,
   screens: ScreenRecord[],
   chosen: ChosenVersion[],
@@ -37,11 +36,11 @@ async function loadSnapshots(
   return await Promise.all(
     chosen.map(async ({ screenId, version }) => {
       const screen = screens.find(({ id }) => id === screenId);
-      const stored = await client.screenWireframe({
-        projectId,
-        screenId,
-        version,
-      });
+      const stored = await queryClient.fetchQuery(
+        orpc.screenWireframe.queryOptions({
+          input: { projectId, screenId, version },
+        }),
+      );
       return createWireframeSnapshot({
         document: stored.document,
         latestVersion: Math.max(
@@ -67,6 +66,7 @@ export default function ScreensOutputSurface({
   projectId: string;
   screens: ScreenRecord[];
 }) {
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [presenting, setPresenting] = useState<{
@@ -81,7 +81,9 @@ export default function ScreensOutputSurface({
     setBusy(true);
     setError(undefined);
     try {
-      await action(await loadSnapshots(projectId, screens, chosen));
+      await action(
+        await loadSnapshots(queryClient, projectId, screens, chosen),
+      );
     } catch {
       setError("Wireframe versions could not be read. Try again.");
     } finally {
