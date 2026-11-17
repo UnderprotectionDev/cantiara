@@ -20,15 +20,15 @@ export function AddNodeForm({
 }: {
   disabled: boolean;
   model: ArchitectureModel;
-  onSave: (model: ArchitectureModel) => void;
+  onSave: (model: ArchitectureModel) => unknown;
 }) {
   const form = useForm({
     defaultValues: { kind: ARCHITECTURE_NODE_KINDS[0] as string, label: "" },
-    onSubmit: ({ value, formApi }) => {
+    onSubmit: async ({ value, formApi }) => {
       if (!addNodeSchema.safeParse(value).success) {
         return;
       }
-      onSave(
+      await onSave(
         addArchitectureNode(model, {
           kind: value.kind as ArchitectureModel["nodes"][number]["kind"],
           label: value.label.trim(),

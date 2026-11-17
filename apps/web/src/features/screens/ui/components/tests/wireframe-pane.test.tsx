@@ -26,8 +26,15 @@ const wireframeFetch = vi.fn();
 vi.mock("@/env", () => ({
   env: { VITE_SERVER_URL: "https://api.example.org" },
 }));
+const markUnsavedChanges = vi.fn();
+const presentFailure = vi.fn();
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({
+  defaultClientShell: { markUnsavedChanges },
   runOnlineOnlyWrite: (write: () => Promise<unknown>) => write(),
+}));
+vi.mock("@/features/web-macos-client/ui/components/support-reference", () => ({
+  presentSupportReferenceFailure: (...args: unknown[]) =>
+    presentFailure(...args),
 }));
 vi.mock("@/utils/orpc", () => ({
   client: {
@@ -69,6 +76,8 @@ vi.mock("../wireframe-stage", () => ({
 afterEach(() => {
   vi.useRealTimers();
   save.mockReset();
+  markUnsavedChanges.mockReset();
+  presentFailure.mockReset();
   listFetch.mockReset();
   saveViewport.mockReset();
   viewportFetch.mockReset();
@@ -515,4 +524,65 @@ test("a viewport change saves only the viewport, never the Wireframe, list or do
     viewport: { zoom: 1 },
   });
   await view.unmount();
+});
+
+test("a failed autosave presents one Client Shell failure per streak and flags unsaved risk", async () => {
+  vi.useFakeTimers();
+  const { default: WireframeSurface } = await import("../wireframe-surface");
+  const wireframe: ScreenWireframe = {
+    createdAt: "2026-10-01T09:00:00.000Z",
+    document: createEmptyWireframeDocument(),
+    liveText: {},
+    screenId: "screen-1",
+    version: 1,
+    versionId: "v1",
+  };
+  save.mockRejectedValueOnce(new Error("boom"));
+  save.mockRejectedValueOnce(new Error("boom again"));
+  save.mockImplementation(async ({ document }) => ({ ...wireframe, document }));
+  const cache = new QueryClient();
+  cache.setQueryData(["wireframe"], wireframe);
+  cache.setQueryData(["viewport"], { viewport: null });
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  await act(() => {
+    root.render(
+      <QueryClientProvider client={cache}>
+        <WireframeSurface
+          projectId="project-1"
+          readOnly={false}
+          screenId="screen-1"
+        />
+      </QueryClientProvider>,
+    );
+  });
+  const button = [...container.querySelectorAll("button")].find(
+    (element) => element.textContent?.trim() === "Button",
+  );
+  async function gesture() {
+    await act(async () => {
+      button?.click();
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+  }
+
+  await gesture();
+  expect(presentFailure).toHaveBeenCalledTimes(1);
+  expect(presentFailure.mock.calls[0]?.[1]).toMatchObject({
+    kind: "mutation",
+    writeOutcome: "not-written",
+  });
+  expect(markUnsavedChanges).toHaveBeenLastCalledWith(true);
+
+  // The next gesture fails again: still one presented failure for the streak.
+  await gesture();
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(presentFailure).toHaveBeenCalledTimes(1);
+
+  // A write that lands clears the risk; a later failure presents again.
+  await gesture();
+  expect(save).toHaveBeenCalledTimes(3);
+  expect(markUnsavedChanges).toHaveBeenLastCalledWith(false);
+  await act(async () => root.unmount());
 });

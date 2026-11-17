@@ -11,11 +11,13 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useStore } from "@tanstack/react-form";
-import { useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { fetchCurrentWork } from "@/lib/fetch-current-work";
 import { client, invalidateSmartCollectionMembership } from "@/utils/orpc";
 
 async function abandonSelectedWork(
+  queryClient: QueryClient,
   periodId: string,
   workIds: string[],
   closeAnyway: boolean,
@@ -26,7 +28,7 @@ async function abandonSelectedWork(
 ) {
   for (const selectedWorkId of workIds) {
     // biome-ignore lint/performance/noAwaitInLoops: Each Work closure precedes its individual decision for retry safety.
-    const current = await client.work({ workId: selectedWorkId });
+    const current = await fetchCurrentWork(queryClient, selectedWorkId);
     if (current.status !== "Closed") {
       const preview = await client.workClosePreview({ workId: selectedWorkId });
       const hasChecks =
@@ -111,6 +113,7 @@ export function PeriodLeftoverDecisions({
         throw new Error("Confirm Abandon first.");
       }
       await abandonSelectedWork(
+        queryClient,
         period.id,
         selectedWorkIds,
         closeAnyway,

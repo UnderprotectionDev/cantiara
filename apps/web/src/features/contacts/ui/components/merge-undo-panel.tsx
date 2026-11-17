@@ -6,11 +6,7 @@ import type {
   UndoMergeInput,
   UndoMergeResult,
 } from "@cantiara/api/contacts";
-import {
-  RadioGroup,
-  RadioGroupItem,
-} from "@cantiara/ui/components/radio-group";
-import { useState } from "react";
+import { MergeUndoForm } from "../forms/merge-undo-form";
 
 /**
  * Says what an Undo Merge could not give back. Content can disappear between
@@ -41,11 +37,6 @@ export function undoMergeRequest(
   };
 }
 
-const RESOLUTIONS: MergeUndoResolution[] = [
-  "Keep current value",
-  "Restore previous value",
-];
-
 export default function MergeUndoPanel({
   onCancel,
   onConfirm,
@@ -57,11 +48,7 @@ export default function MergeUndoPanel({
   pending: boolean;
   preview: MergeUndoPreview;
 }) {
-  const [resolution, setResolution] = useState<MergeUndoResolution | null>(
-    null,
-  );
   const [conflict] = preview.conflicts;
-  const blocked = conflict !== undefined && resolution === null;
 
   return (
     <section
@@ -112,55 +99,12 @@ export default function MergeUndoPanel({
           </ul>
         </div>
       ) : null}
-      {conflict ? (
-        <fieldset className="space-y-1">
-          <legend className="font-medium">
-            {conflict.field} changed after the merge
-          </legend>
-          <p>
-            Now {conflict.currentValue ?? "empty"}; before the merge{" "}
-            {conflict.previousValue ?? "empty"}.
-          </p>
-          <RadioGroup
-            name="display-name-resolution"
-            onValueChange={(value) =>
-              setResolution(RESOLUTIONS.find((item) => item === value) ?? null)
-            }
-            value={resolution ?? ""}
-          >
-            {RESOLUTIONS.map((option, index) => (
-              <label
-                className="flex items-center gap-2"
-                htmlFor={`display-name-resolution-${index}`}
-                key={option}
-              >
-                <RadioGroupItem
-                  id={`display-name-resolution-${index}`}
-                  value={option}
-                />
-                {option}
-              </label>
-            ))}
-          </RadioGroup>
-        </fieldset>
-      ) : null}
-      <div className="flex gap-3">
-        <button
-          className="rounded-md bg-primary px-3 py-2 text-primary-foreground disabled:opacity-50"
-          disabled={pending || blocked}
-          onClick={() => onConfirm(resolution)}
-          type="button"
-        >
-          Confirm Undo Merge
-        </button>
-        <button
-          className="rounded-md border px-3 py-2"
-          onClick={onCancel}
-          type="button"
-        >
-          Cancel
-        </button>
-      </div>
+      <MergeUndoForm
+        conflict={conflict}
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+        pending={pending}
+      />
     </section>
   );
 }

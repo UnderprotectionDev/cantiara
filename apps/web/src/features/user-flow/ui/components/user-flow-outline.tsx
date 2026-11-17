@@ -21,6 +21,7 @@ import {
   select,
 } from "../../lib/flow-editor";
 import { buildOutline, type OutlineRow } from "../../lib/flow-outline";
+import { BindNodeForm } from "../forms/bind-node-form";
 import { CreateNodeForm } from "../forms/create-outline-node-form";
 import { ScreenReference } from "../views/user-flow-view";
 
@@ -85,7 +86,6 @@ function BindControls({
 }: Pick<OutlineProps, "createId" | "onChange" | "state"> & {
   node: EditorNode;
 }) {
-  const [target, setTarget] = useState("");
   const candidates = state.document.nodes.filter(({ id }) => id !== node.id);
   const outgoing = state.document.links.filter(({ from }) => from === node.id);
   const names = new Map(
@@ -93,39 +93,22 @@ function BindControls({
   );
   return (
     <div className="space-y-1">
-      <div className="flex flex-wrap items-center gap-2">
-        <NativeSelect
-          aria-label={`Bind ${describe(node)} to`}
-          onChange={(event) => setTarget(event.target.value)}
-          value={target}
-        >
-          <NativeSelectOption value="">Bind to…</NativeSelectOption>
-          {candidates.map((candidate) => (
-            <NativeSelectOption key={candidate.id} value={candidate.id}>
-              {describe(candidate)}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-        <Button
-          aria-label={`Bind ${describe(node)}`}
-          disabled={target === ""}
-          onClick={() => {
-            onChange((current) =>
-              connectNodes(current, {
-                from: node.id,
-                id: createId(),
-                to: target,
-              }),
-            );
-            setTarget("");
-          }}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          Bind
-        </Button>
-      </div>
+      <BindNodeForm
+        candidates={candidates.map((candidate) => ({
+          id: candidate.id,
+          label: describe(candidate),
+        }))}
+        nodeLabel={describe(node)}
+        onBind={(target) =>
+          onChange((current) =>
+            connectNodes(current, {
+              from: node.id,
+              id: createId(),
+              to: target,
+            }),
+          )
+        }
+      />
       {outgoing.length > 0 ? (
         <ul aria-label={`Links from ${describe(node)}`} className="text-xs">
           {outgoing.map((link) => (

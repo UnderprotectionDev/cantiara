@@ -2,7 +2,12 @@
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 import { followUpWorkId } from "../../lib/test-review-panel";
 import {
   type TestReviewActions,
@@ -20,8 +25,14 @@ export default function TestReviewSurface({
   const options = orpc.projectTestReview.queryOptions({ input: { projectId } });
   const review = useQuery(options);
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
+  // The Test Summary reads this area's records, so it is read again with them.
+  const refreshSummary = () =>
+    queryClient.invalidateQueries({ queryKey: orpc.projectTestSummary.key() });
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: options.queryKey });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: options.queryKey }),
+      refreshSummary(),
+    ]);
   if (review.isPending) {
     return <p role="status">Loading Test Review…</p>;
   }
@@ -49,8 +60,16 @@ export default function TestReviewSurface({
     },
     previewBulk: (sessionId, sessionTestIds) =>
       client.previewReviewBulk({ projectId, sessionId, sessionTestIds }),
+    // The close preview names the remaining Session Tests and carries no
+    // token the close needs, so it is a plain read.
     previewClose: (sessionId) =>
-      client.previewReviewClose({ projectId, sessionId }),
+      queryClient.fetchQuery({
+        ...orpc.previewReviewClose.queryOptions({
+          input: { projectId, sessionId },
+        }),
+        gcTime: 0,
+        staleTime: 0,
+      }),
     recordEvent: async (sessionId, draft) => {
       const target = {
         projectId,
@@ -123,7 +142,13 @@ export default function TestReviewSurface({
           workId: followUpWorkId(preview.fingerprint),
         }),
       );
-      await refresh();
+      // The follow-up created Work, so Work lists and Smart Collection
+      // membership read it again.
+      await Promise.all([
+        refresh(),
+        queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
+        ...invalidateSmartCollectionMembership(queryClient),
+      ]);
     },
     previewFollowUp: (sessionTestIds, target) =>
       client.previewReviewFollowUp({ projectId, sessionTestIds, target }),

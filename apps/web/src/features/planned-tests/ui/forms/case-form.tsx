@@ -14,7 +14,10 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { errorText } from "../../lib/error-text";
-import type { CaseFormValues } from "../../lib/planned-test-form";
+import {
+  type CaseFormValues,
+  parseCaseForm,
+} from "../../lib/planned-test-form";
 import {
   type LoadRelationTargets,
   PlannedTestRelationsField,
@@ -68,6 +71,11 @@ export function CaseForm({
     defaultValues: initial,
     onSubmit: async ({ value, formApi }) => {
       setError(undefined);
+      const parsed = parseCaseForm(value, showChangeKind);
+      if (!parsed.ok) {
+        setError(parsed.message);
+        return;
+      }
       try {
         await onSubmit(value);
         formApi.reset();

@@ -196,3 +196,19 @@ test("records a snapshot from the keyboard-operable form", async () => {
     .filter((text) => text && !text.startsWith("Choose"));
   expect(options).toEqual(["Acceptable", "Follow-up needed", "Undecided"]);
 });
+
+test("submitting without a context and a decision shows the schema message and does not record", async () => {
+  const onRecord = vi.fn().mockResolvedValue(undefined);
+  await mount({ assessments: [], onRecord });
+  const form = host?.querySelector('form[aria-label="Record Test Assessment"]');
+  await act(async () => {
+    form?.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+    await settle();
+  });
+  expect(onRecord).not.toHaveBeenCalled();
+  expect(host?.querySelector('[role="alert"]')?.textContent).toBe(
+    "Choose a context and a decision.",
+  );
+});

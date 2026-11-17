@@ -1,5 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props require closures over current field handlers.
-import type { ProjectProfile } from "@cantiara/api/project-shell";
+import {
+  type ProjectProfile,
+  shortCodeSchema,
+} from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
@@ -14,6 +17,7 @@ export default function ProjectShortCodeForm({
   project: ProjectProfile;
 }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const { clearError, error, isPending, saveShortCode } =
     useProjectShortCode(project);
 
@@ -24,6 +28,13 @@ export default function ProjectShortCodeForm({
       if (!nextShortCode || nextShortCode === project.shortCode) {
         return;
       }
+      const parsed = shortCodeSchema.safeParse(nextShortCode);
+      if (!parsed.success) {
+        // shortCodeSchema carries its own messages.
+        setValidationError(parsed.error.issues[0]?.message ?? null);
+        return;
+      }
+      setValidationError(null);
       if (await saveShortCode(nextShortCode)) {
         setIsEditing(false);
       }
@@ -43,6 +54,7 @@ export default function ProjectShortCodeForm({
   function cancelEditing() {
     form.setFieldValue("shortCode", project.shortCode);
     setIsEditing(false);
+    setValidationError(null);
     clearError();
   }
 
@@ -111,9 +123,9 @@ export default function ProjectShortCodeForm({
           />
         )}
       </form.Field>
-      {error ? (
+      {(validationError ?? error) ? (
         <p className="text-destructive text-xs" role="alert">
-          {error}
+          {validationError ?? error}
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">

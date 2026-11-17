@@ -1,7 +1,8 @@
-import type {
-  ApproveBuildInPublicInput,
-  BuildInPublicItem,
-  BuildInPublicPreview,
+import {
+  type ApproveBuildInPublicInput,
+  approveBuildInPublicInputSchema,
+  type BuildInPublicItem,
+  type BuildInPublicPreview,
 } from "@cantiara/api/build-in-public";
 
 export function toggledItem(
@@ -147,4 +148,61 @@ export function groupedItems(preview: BuildInPublicPreview) {
     }
   }
   return groups;
+}
+
+/** What the preview form holds; the approval is built from it on submit. */
+export interface BuildInPublicPreviewFormValues {
+  approved: string[];
+  explanation: string;
+  featuredRecord: string;
+  featuredUntil: string;
+  publishAnyway: boolean;
+}
+
+export function initialPreviewFormValues(
+  preview: BuildInPublicPreview,
+): BuildInPublicPreviewFormValues {
+  return {
+    approved: [...initialApproved(preview)],
+    explanation: "",
+    featuredRecord: "",
+    featuredUntil: "",
+    publishAnyway: false,
+  };
+}
+
+/** The featured pick: a record and a valid end time together, else none. */
+export function featuredChoiceOf(
+  values: Pick<
+    BuildInPublicPreviewFormValues,
+    "featuredRecord" | "featuredUntil"
+  >,
+) {
+  const endsAt = featuredEndsAt(values.featuredUntil);
+  return values.featuredRecord && endsAt
+    ? { endsAt, recordId: values.featuredRecord }
+    : undefined;
+}
+
+/**
+ * Validates the built approval with the procedure's own approval schema. The
+ * Publish control is disabled in every state the schema rejects, so a failure
+ * has no copy.
+ */
+export function parseBuildInPublicApproval(
+  preview: BuildInPublicPreview,
+  values: BuildInPublicPreviewFormValues,
+):
+  | { approval: ApproveBuildInPublicInput["approval"]; ok: true }
+  | { ok: false } {
+  const result = approveBuildInPublicInputSchema.shape.approval.safeParse(
+    buildApproval(
+      preview,
+      new Set(values.approved),
+      values.publishAnyway,
+      featuredChoiceOf(values),
+      values.explanation,
+    ),
+  );
+  return result.success ? { approval: result.data, ok: true } : { ok: false };
 }

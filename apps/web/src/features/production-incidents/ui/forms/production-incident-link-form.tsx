@@ -8,10 +8,10 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
-import { z } from "zod";
-import { PRODUCTION_INCIDENT_LINK_GROUPS } from "../../lib/production-incident-form";
-
-const linkFormSchema = z.object({ target: z.string().trim().min(1) });
+import {
+  PRODUCTION_INCIDENT_LINK_GROUPS,
+  productionIncidentLinkFormSchema,
+} from "../../lib/production-incident-form";
 
 /** Key of a selectable record: its type and id never collide across types. */
 export function linkTargetKey(target: ProductionIncidentLinkTarget) {
@@ -34,7 +34,7 @@ export function ProductionIncidentLinkForm({
     defaultValues: { target: "" },
     onSubmit: async ({ value, formApi }) => {
       setError(null);
-      const parsed = linkFormSchema.safeParse(value);
+      const parsed = productionIncidentLinkFormSchema.safeParse(value);
       const target = candidates.find(
         (candidate) => linkTargetKey(candidate) === parsed.data?.target,
       );

@@ -28,3 +28,12 @@ test("Withdraw only carries a Rationale", () => {
     true,
   );
 });
+
+test("a Decision form enforces the API contract's Title length", () => {
+  const tooLong = decisionFormSchema.safeParse({
+    decision: "Use Postgres",
+    rationale: "",
+    title: "x".repeat(256),
+  });
+  expect(tooLong.success).toBe(false);
+});

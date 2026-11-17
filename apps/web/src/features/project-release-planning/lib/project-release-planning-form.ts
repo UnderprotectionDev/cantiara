@@ -151,3 +151,13 @@ export function projectReleaseStatusChangeCopy(
     title: `Mark this Project Release ${status}?`,
   };
 }
+
+/** Form schema for `Add Work to scope`: the chosen Work. */
+export const projectReleaseScopeFormSchema = z.object({
+  workId: z.string().trim().min(1),
+});
+
+/** Form schema for the release audience link: the chosen target key. */
+export const projectReleaseAudienceFormSchema = z.object({
+  target: z.string().trim().min(1),
+});

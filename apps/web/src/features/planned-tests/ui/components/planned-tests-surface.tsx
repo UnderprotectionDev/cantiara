@@ -48,10 +48,19 @@ export default function PlannedTestsSurface({
     input: { projectId },
   });
   const handoffs = useQuery(handoffOptions);
+  // The Test Summary reads this area's records, so it is read again with them.
+  const refreshSummary = () =>
+    queryClient.invalidateQueries({ queryKey: orpc.projectTestSummary.key() });
   const refreshHandoffs = () =>
-    queryClient.invalidateQueries({ queryKey: handoffOptions.queryKey });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: handoffOptions.queryKey }),
+      refreshSummary(),
+    ]);
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: options.queryKey });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: options.queryKey }),
+      refreshSummary(),
+    ]);
   const refreshSessionTests = () =>
     queryClient.invalidateQueries({ queryKey: sessionOptions.queryKey });
   const loadTargets = useCallback(

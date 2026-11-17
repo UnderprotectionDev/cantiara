@@ -218,3 +218,14 @@ test("an archived Project offers no record or link control", () => {
   expect(document.querySelectorAll("form")).toHaveLength(0);
   expect(document.body.textContent).toContain("Bound to v1, current v3");
 });
+
+test("recording an ad hoc test without its content shows the schema message and does not save", async () => {
+  const onRecord = vi.fn().mockResolvedValue(undefined);
+  mount({ onRecord });
+
+  setValue("session-test-new-title", "Tax line");
+  await submit("Record Session Test");
+
+  expect(onRecord).not.toHaveBeenCalled();
+  expect(document.querySelector('[role="alert"]')?.textContent).toBeTruthy();
+});

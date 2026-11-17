@@ -1,6 +1,9 @@
+// @vitest-environment happy-dom
 import type { SecurityRedactionPreview } from "@cantiara/api/security-redaction";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import { RedactForm } from "../redact-form";
 
@@ -60,5 +63,42 @@ describe("RedactForm", () => {
     expect(html).toContain("Type the Project name Atlas to confirm");
     expect(html).toContain("Reason");
     expect(visibleText(html)).not.toMatch(NOT_PASSWORD_COPY);
+  });
+
+  test("submitting without a reason shows no message and sends nothing", async () => {
+    (
+      globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    const onSubmit = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    act(() => {
+      root.render(
+        <RedactForm
+          busy={false}
+          error={null}
+          grant="grant"
+          identityPending={false}
+          onCancel={noop}
+          onConfirmIdentity={noop}
+          onPreview={noop}
+          onSubmit={onSubmit}
+          preview={preview}
+        />,
+      );
+    });
+    await act(async () => {
+      host
+        .querySelector("form")
+        ?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(onSubmit).not.toHaveBeenCalled();
+    act(() => root.unmount());
+    host.remove();
   });
 });

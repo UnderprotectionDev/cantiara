@@ -20,6 +20,8 @@ import { DatePicker } from "@/components/date-picker";
 import { errorText } from "../../lib/error-text";
 import {
   EMPTY_TEST_HANDOFF_FORM,
+  parseHandoffForm,
+  parseLinkArrivingSessionTest,
   type TestHandoffFormValues,
 } from "../../lib/test-handoff-form";
 import {
@@ -275,6 +277,11 @@ export function HandoffForm({
     defaultValues: initial,
     onSubmit: async ({ value, formApi }) => {
       setError(undefined);
+      const parsed = parseHandoffForm(value, cases);
+      if (!parsed.ok) {
+        setError(parsed.message);
+        return;
+      }
       try {
         await onSubmit(value);
         if (!onCancel) {
@@ -489,10 +496,11 @@ export function LinkArrivingSessionTestForm({
   const form = useForm({
     defaultValues: { choice: "" },
     onSubmit: async ({ value, formApi }) => {
-      if (!value.choice) {
+      setError(undefined);
+      const parsed = parseLinkArrivingSessionTest(value.choice);
+      if (!parsed.ok) {
         return;
       }
-      setError(undefined);
       try {
         await onLink(handoff, value.choice);
         formApi.reset();

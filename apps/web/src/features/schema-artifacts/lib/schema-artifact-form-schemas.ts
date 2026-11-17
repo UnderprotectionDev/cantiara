@@ -1,10 +1,16 @@
+import { confirmMigrationArtifactInputSchema } from "@cantiara/api/schema-migration-artifact";
 import { z } from "zod";
 
+// Both forms collect parts of the `confirmMigrationArtifact` input, so their
+// field rules come from that contract instead of being restated here.
+const confirmFields = confirmMigrationArtifactInputSchema.shape;
+
 export const upEditFormSchema = z.object({
-  upSql: z.string().max(500_000),
+  upSql: confirmFields.editedUpSql.unwrap().unwrap(),
 });
 
 export const confirmArtifactFormSchema = z.object({
-  confirmedDestructiveOperationIds: z.array(z.string().min(1)),
-  supersedes: z.string().min(1).nullable(),
+  confirmedDestructiveOperationIds:
+    confirmFields.confirmedDestructiveOperationIds,
+  supersedes: confirmFields.supersedes,
 });

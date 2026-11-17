@@ -11,6 +11,7 @@ import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useEffect, useRef } from "react";
+import { redactFormSchema } from "../../lib/redact-form";
 
 /**
  * The `Redact` review: the value to remove, the preview of every place that
@@ -42,11 +43,18 @@ export function RedactForm({
   preview: SecurityRedactionPreview | null;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const name = preview?.typedNameTarget.name;
   const form = useForm({
     defaultValues: { reason: "", sensitiveValue: "", typedName: "" },
-    onSubmit: ({ value }) => onSubmit(value.typedName, value.reason),
+    onSubmit: ({ value }) => {
+      const parsed = redactFormSchema(name ?? "").safeParse(value);
+      // Redact stays disabled until the typed name matches and a reason exists.
+      if (!parsed.success) {
+        return;
+      }
+      onSubmit(parsed.data.typedName, parsed.data.reason);
+    },
   });
-  const name = preview?.typedNameTarget.name;
 
   useEffect(() => {
     heading.current?.focus();
@@ -158,6 +166,7 @@ export function RedactForm({
                   autoComplete="off"
                   disabled={busy}
                   id="redact-typed-name"
+                  maxLength={200}
                   name={field.name}
                   onChange={(event) => field.handleChange(event.target.value)}
                   value={field.state.value}
@@ -176,6 +185,7 @@ export function RedactForm({
                   className="min-h-16"
                   disabled={busy}
                   id="redact-reason"
+                  maxLength={1000}
                   name={field.name}
                   onChange={(event) => field.handleChange(event.target.value)}
                   value={field.state.value}

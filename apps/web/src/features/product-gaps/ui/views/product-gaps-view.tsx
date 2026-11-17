@@ -15,7 +15,11 @@ import { useCallback, useState } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
 import {
   EMPTY_GAP_FILTER,
   type GapFilterValues,
@@ -119,7 +123,11 @@ function ProductGapsContent() {
             }),
           );
         } finally {
-          await refresh();
+          // A Work follow-up creates a Work, which can join Smart Collections.
+          await Promise.all([
+            refresh(),
+            ...invalidateSmartCollectionMembership(queryClient),
+          ]);
         }
       }}
       onFilterChange={setFilter}

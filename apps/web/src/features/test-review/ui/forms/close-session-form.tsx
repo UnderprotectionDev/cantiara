@@ -23,7 +23,7 @@ export default function CloseSessionForm({
     onSubmit: ({ value }) => {
       const parsed = closeSessionFormSchema.safeParse(value);
       if (parsed.success) {
-        onConfirm(parsed.data.reason);
+        onConfirm(parsed.data.reason ?? "");
       }
     },
   });

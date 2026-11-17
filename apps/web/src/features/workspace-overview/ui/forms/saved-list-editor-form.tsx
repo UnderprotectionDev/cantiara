@@ -97,12 +97,13 @@ export function SavedListEditor({
 }: {
   definition?: WorkspaceOverviewSavedListDefinition;
   onCancel: () => void;
-  onSave: (definition: WorkspaceOverviewSavedListDefinition) => void;
+  /** Resolves after the list is saved; a rejection keeps the editor open. */
+  onSave: (definition: WorkspaceOverviewSavedListDefinition) => unknown;
 }) {
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: initialFormValues(definition),
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value }) => {
       const parsed = workspaceOverviewSavedListDefinitionSchema.safeParse({
         columns: value.columns,
         conditions: {
@@ -136,7 +137,7 @@ export function SavedListEditor({
         return;
       }
       setFormError(null);
-      onSave(parsed.data);
+      await onSave(parsed.data);
     },
   });
 

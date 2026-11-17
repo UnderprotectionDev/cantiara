@@ -1,7 +1,11 @@
-import type { ProjectWallSourceOption } from "@cantiara/api/project-wall";
+import {
+  type ProjectWallSourceOption,
+  projectWallTitleSchema,
+} from "@cantiara/api/project-wall";
+import { previewProjectWallSnapshotInputSchema } from "@cantiara/api/project-wall-presentation";
 import { z } from "zod";
 
-const wallTitle = z.string().trim().min(1);
+const wallTitle = projectWallTitleSchema;
 
 /** `Create Project Wall` form: the name is trimmed and must not be empty. */
 export const createProjectWallFormSchema = z.object({ title: wallTitle });
@@ -20,3 +24,28 @@ export function optionKey(
 ) {
   return `${option.sourceType}:${option.id}${option.diagramViewId ? `:${option.diagramViewId}` : ""}`;
 }
+
+/**
+ * `Snapshot` form: one group, or else a region of selected cards. Its output
+ * is the Snapshot preview and export scope.
+ */
+export const snapshotScopeFormSchema = z
+  .object({
+    cardIds: z.array(z.string()),
+    groupId: z.string(),
+  })
+  .transform((value, context) => {
+    if (value.groupId) {
+      return { groupId: value.groupId };
+    }
+    const cardIds =
+      previewProjectWallSnapshotInputSchema.shape.cardIds.safeParse(
+        value.cardIds,
+      );
+    if (!cardIds.success) {
+      // The Snapshot controls stay disabled until a group or cards are chosen.
+      context.addIssue({ code: "custom" });
+      return z.NEVER;
+    }
+    return { cardIds: cardIds.data as string[] };
+  });

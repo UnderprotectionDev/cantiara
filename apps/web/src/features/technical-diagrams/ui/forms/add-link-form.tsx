@@ -23,7 +23,7 @@ export function AddLinkForm({
   disabled: boolean;
   model: ArchitectureModel;
   nodes: FieldOption[];
-  onSave: (model: ArchitectureModel) => void;
+  onSave: (model: ArchitectureModel) => unknown;
 }) {
   const form = useForm({
     defaultValues: {
@@ -31,11 +31,11 @@ export function AddLinkForm({
       kind: ARCHITECTURE_LINK_KINDS[0] as string,
       to: "",
     },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value }) => {
       if (!addLinkSchema.safeParse(value).success) {
         return;
       }
-      onSave(
+      await onSave(
         addArchitectureLink(model, {
           from: value.from,
           kind: value.kind as ArchitectureModel["links"][number]["kind"],

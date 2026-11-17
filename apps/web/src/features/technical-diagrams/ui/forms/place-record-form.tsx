@@ -24,12 +24,12 @@ export function PlaceRecordForm({
 }: {
   disabled: boolean;
   free: RecordCardOption[];
-  onPlace: (option: RecordCardOption) => void;
+  onPlace: (option: RecordCardOption) => unknown;
 }) {
   const placeId = useId();
   const form = useForm({
     defaultValues: { choice: "" },
-    onSubmit: ({ value, formApi }) => {
+    onSubmit: async ({ value, formApi }) => {
       if (!placeRecordSchema.safeParse(value).success) {
         return;
       }
@@ -37,7 +37,7 @@ export function PlaceRecordForm({
         ({ id, sourceType }) => `${sourceType}:${id}` === value.choice,
       );
       if (picked) {
-        onPlace(picked);
+        await onPlace(picked);
         formApi.reset();
       }
     },

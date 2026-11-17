@@ -31,6 +31,10 @@ import {
   EMPTY_GAP_FORM,
   errorText,
   type GapFormValues,
+  parseCloseForm,
+  parseGapForm,
+  parsePlanCase,
+  parsePlanHandoff,
 } from "../../lib/test-gap-form";
 import {
   type LoadGapRelationTargets,
@@ -85,6 +89,11 @@ export function GapForm({
     defaultValues: EMPTY_GAP_FORM,
     onSubmit: async ({ value, formApi }) => {
       setError(undefined);
+      const parsed = parseGapForm(value);
+      if (!parsed.ok) {
+        setError(parsed.message);
+        return;
+      }
       try {
         await onSubmit(value);
         formApi.reset(EMPTY_GAP_FORM);
@@ -205,24 +214,28 @@ export function PlanningControls({
   const versionForm = useForm({
     defaultValues: { version: "" },
     onSubmit: async ({ value }) => {
-      const parsed = parseVersion(value.version);
-      if (parsed) {
-        await run(
-          () => onPlanCase(record, parsed),
-          "Linked to the Planned Test Case version.",
-        );
+      const ref = parseVersion(value.version);
+      const parsed = parsePlanCase(ref);
+      if (!(parsed.ok && ref)) {
+        return;
       }
+      await run(
+        () => onPlanCase(record, ref),
+        "Linked to the Planned Test Case version.",
+      );
     },
   });
   const handoffForm = useForm({
     defaultValues: { handoffId: "" },
     onSubmit: async ({ value }) => {
-      if (value.handoffId) {
-        await run(
-          () => onPlanHandoff(record, value.handoffId),
-          "Linked to the Test Handoff.",
-        );
+      const parsed = parsePlanHandoff(value.handoffId);
+      if (!parsed.ok) {
+        return;
       }
+      await run(
+        () => onPlanHandoff(record, value.handoffId),
+        "Linked to the Test Handoff.",
+      );
     },
   });
   function submitForm(form: { handleSubmit: () => Promise<void> }) {
@@ -420,6 +433,11 @@ export function CloseForm({
     defaultValues: EMPTY_CLOSE_FORM,
     onSubmit: async ({ value, formApi }) => {
       setError(undefined);
+      const parsed = parseCloseForm(value);
+      if (!parsed.ok) {
+        setError(parsed.message);
+        return;
+      }
       try {
         await onClose(record, value);
         setOpen(false);

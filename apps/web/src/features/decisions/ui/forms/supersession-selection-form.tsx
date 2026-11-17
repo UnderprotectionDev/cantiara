@@ -1,7 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind their current Decision selection.
-import type {
-  DecisionSupersessionGraph,
-  DecisionSupersessionSelection,
+import {
+  type DecisionSupersessionGraph,
+  type DecisionSupersessionSelection,
+  decisionSupersessionSelectionSchema,
 } from "@cantiara/api/decision-supersession";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
@@ -25,12 +26,17 @@ export function SupersessionSelectionForm({
     defaultValues: { predecessorIds: selection.predecessorIds, rationale: "" },
     onSubmit: async ({ value }) => {
       setError(undefined);
+      const parsed = decisionSupersessionSelectionSchema.safeParse({
+        ...selection,
+        predecessorIds: value.predecessorIds,
+        rationale: value.rationale.trim() || null,
+      });
+      // Preview stays disabled until a Decision is selected.
+      if (!parsed.success) {
+        return;
+      }
       try {
-        await onPreview({
-          ...selection,
-          predecessorIds: value.predecessorIds,
-          rationale: value.rationale.trim() || null,
-        });
+        await onPreview(parsed.data);
       } catch {
         setError(
           "Decisions changed or are unavailable. Review your selection and try again.",
@@ -110,9 +116,16 @@ export function SupersessionSelectionForm({
                 </div>
               )}
             </form.Field>
-            <Button disabled={pending} type="submit">
-              {pending ? "Loading…" : "Preview"}
-            </Button>
+            <form.Subscribe selector={(state) => state.values.predecessorIds}>
+              {(predecessorIds) => (
+                <Button
+                  disabled={pending || predecessorIds.length === 0}
+                  type="submit"
+                >
+                  {pending ? "Loading…" : "Preview"}
+                </Button>
+              )}
+            </form.Subscribe>
             <Button
               disabled={pending}
               onClick={onCancel}

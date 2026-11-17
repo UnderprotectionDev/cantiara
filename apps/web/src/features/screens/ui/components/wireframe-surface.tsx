@@ -11,11 +11,15 @@ import {
   projectSourceRecordHash,
   workRecordHref,
 } from "@/features/project-shell/lib/project-shell-navigation";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import {
+  defaultClientShell,
+  runOnlineOnlyWrite,
+} from "@/features/web-macos-client/store/client-shell";
+import { presentSupportReferenceFailure } from "@/features/web-macos-client/ui/components/support-reference";
 import { client, orpc } from "@/utils/orpc";
 import { createWireframeEditor } from "../../engine/editor";
 import type { OutlineSourceRecord } from "../../engine/outline";
-import type { ConvertAndBindActions } from "./convert-and-bind-panel";
+import type { ConvertAndBindActions } from "../forms/convert-and-bind-form";
 import type { LinkedBlockActions } from "./linked-block-controls";
 import { WireframePane } from "./wireframe-pane";
 
@@ -64,18 +68,40 @@ function LoadedWireframe({
   // Each completed transaction schedules one write. The write goes straight
   // into the Wireframe cache entry: no Screen list or viewport refetch.
   useEffect(() => {
-    const debouncer = new LiteDebouncer(
-      async (document: ScreenWireframe["document"]) => {
-        try {
-          const next = await runOnlineOnlyWrite(() =>
-            client.saveScreenWireframe({ document, projectId, screenId }),
-          );
-          saved.current = document;
-          queryClient.setQueryData(options.queryKey, next);
-        } catch {
-          // The next completed gesture schedules another write.
+    // A failed write is shown once per failure streak (a Client Shell failure
+    // with reason, retry bound, write outcome and Support reference) and flags
+    // the unsaved risk; a write that lands ends the streak and clears the flag.
+    let failing = false;
+    async function write(
+      document: ScreenWireframe["document"],
+      retryCount: number,
+    ) {
+      try {
+        const next = await runOnlineOnlyWrite(() =>
+          client.saveScreenWireframe({ document, projectId, screenId }),
+        );
+        saved.current = document;
+        queryClient.setQueryData(options.queryKey, next);
+        if (failing) {
+          failing = false;
+          defaultClientShell.markUnsavedChanges(false);
         }
-      },
+      } catch (error) {
+        defaultClientShell.markUnsavedChanges(true);
+        if (!failing || retryCount > 0) {
+          failing = true;
+          presentSupportReferenceFailure(error, {
+            kind: "mutation",
+            retry: () => write(editor.getState().document, retryCount + 1),
+            retryCount,
+            writeOutcome: "not-written",
+          });
+        }
+        // The next completed gesture schedules another write.
+      }
+    }
+    const debouncer = new LiteDebouncer(
+      (document: ScreenWireframe["document"]) => write(document, 0),
       { wait: SAVE_DELAY_MS },
     );
     const unsubscribe = editor.subscribe(() => {

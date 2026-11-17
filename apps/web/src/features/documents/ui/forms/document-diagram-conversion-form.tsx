@@ -18,6 +18,7 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useEffect } from "react";
 import type { client } from "@/utils/orpc";
+import { convertMermaidDiagramFormSchema } from "../../lib/document-conversion-form";
 import { matchesDiagramConversionPreview } from "../../lib/document-editor-markdown";
 
 export default function DocumentDiagramConversionDialog({
@@ -64,6 +65,15 @@ export default function DocumentDiagramConversionDialog({
       originalBlock: originalBlockOutcome,
       title: conversionTitle,
     },
+    onSubmit: ({ value }) => {
+      const parsed = convertMermaidDiagramFormSchema.safeParse(value);
+      if (!parsed.success) {
+        return;
+      }
+      if (!convertDiagram.isPending) {
+        convertDiagram.mutate();
+      }
+    },
   });
   // The parent resets the title and outcome when a selection opens or closes.
   useEffect(() => {
@@ -96,7 +106,16 @@ export default function DocumentDiagramConversionDialog({
           <DialogTitle>Convert to Technical Diagram</DialogTitle>
           <DialogDescription>Imported Independent Copy</DialogDescription>
         </DialogHeader>
-        <div className="space-y-2">
+        <form
+          aria-label="Convert to Technical Diagram"
+          className="space-y-2"
+          id="convert-diagram-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            form.handleSubmit().catch(() => undefined);
+          }}
+        >
           <form.Field
             listeners={{
               onChange: ({ value }) => {
@@ -199,7 +218,7 @@ export default function DocumentDiagramConversionDialog({
           {convertDiagram.isError ? (
             <p role="alert">{convertDiagram.error.message}</p>
           ) : null}
-        </div>
+        </form>
         <DialogFooter>
           <Button
             onClick={() => setConversionSelection(null)}
@@ -215,8 +234,8 @@ export default function DocumentDiagramConversionDialog({
               !previewMatchesSelection ||
               convertDiagram.isPending
             }
-            onClick={() => convertDiagram.mutate()}
-            type="button"
+            form="convert-diagram-form"
+            type="submit"
           >
             Convert to Technical Diagram
           </Button>

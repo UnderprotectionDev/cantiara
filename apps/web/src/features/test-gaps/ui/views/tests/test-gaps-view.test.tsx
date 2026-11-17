@@ -13,6 +13,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
 import { TestGapsView } from "../test-gaps-view";
 
+const RATIONALE_MESSAGE = /rationale/i;
+
 vi.mock("@/components/app-link", () => ({
   AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
     <a {...props} href={href} />
@@ -636,4 +638,30 @@ test("an archived Project offers no closing and no deleting", () => {
 
   expect(document.querySelector('button[aria-label^="Close "]')).toBeNull();
   expect(document.body.textContent).not.toMatch(DELETE_ACTIONS);
+});
+
+test("filing a Gap with a blank rationale shows the schema message and does not save", async () => {
+  const onCreate = vi.fn().mockResolvedValue(undefined);
+  mount({ onCreate });
+
+  setValue("test-gap-new-title", "Gap");
+  await submit("File Test Gap");
+
+  expect(onCreate).not.toHaveBeenCalled();
+  expect(document.querySelector('[role="alert"]')?.textContent).toMatch(
+    RATIONALE_MESSAGE,
+  );
+});
+
+test("closing as Met by result without Session Tests shows the schema message and does not close", async () => {
+  const onClose = vi.fn().mockResolvedValue(undefined);
+  mount({ gaps: [record], onClose });
+  await openClose();
+
+  await submitClose();
+
+  expect(onClose).not.toHaveBeenCalled();
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+    "Select at least one Session Test",
+  );
 });

@@ -4,7 +4,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useId, useState } from "react";
 import { DateTimePicker } from "@/components/date-picker";
-import { expiryInstant, isFutureInstant } from "../../lib/share-lifecycle";
+import { shareExpiryFormSchema } from "../../lib/share-lifecycle";
 
 export interface ShareExpiryAction {
   /** A clearing action sends no expiry and ignores the picker. */
@@ -47,20 +47,12 @@ export function ShareExpiryForm({
       }
       let instant: string | null = null;
       if (!action.clears) {
-        try {
-          instant = expiryInstant(value.expiry, timeZone);
-        } catch (failure) {
-          setError(
-            failure instanceof RangeError
-              ? failure.message
-              : "Enter a valid time.",
-          );
+        const parsed = shareExpiryFormSchema(timeZone).safeParse(value);
+        if (!parsed.success) {
+          setError(parsed.error.issues[0]?.message ?? "Enter a valid time.");
           return;
         }
-        if (!isFutureInstant(instant)) {
-          setError("Choose a time in the future.");
-          return;
-        }
+        instant = parsed.data.expiresAt;
       }
       try {
         await onSubmit(action.id, instant);

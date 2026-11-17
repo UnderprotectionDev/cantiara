@@ -8,10 +8,9 @@ import type {
 } from "@cantiara/api/user-flow";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
-
-import { ConvertAndBindPreview } from "../../components/convert-and-bind-dialog";
 import { RebindPreview } from "../../components/rebind-dialog";
 import { BindList, LiveCardList } from "../../components/user-flow-records";
+import { ConvertAndBindPreview } from "../../forms/convert-and-bind-form";
 import { CreateFromTemplateForm } from "../../forms/create-from-template-form";
 import {
   UserFlowDetail,

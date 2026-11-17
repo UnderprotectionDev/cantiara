@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   researchSessionTimeInput,
   researchSessionTimestamp,
@@ -34,4 +35,35 @@ export function isFutureInstant(instant: string | null, now = Date.now()) {
 export function defaultNewExpiry(timeZone: string, now = new Date()) {
   const week = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   return researchSessionTimeInput(week.toISOString(), timeZone);
+}
+
+/**
+ * The expiry form value as the instant the server stores. Messages: the
+ * picker's own `RangeError` text for a skipped or repeated wall time,
+ * `Enter a valid time.` for anything else, and `Choose a time in the future.`.
+ */
+export function shareExpiryFormSchema(timeZone: string, now = Date.now) {
+  return z.object({ expiry: z.string() }).transform((value, context) => {
+    let instant: string | null;
+    try {
+      instant = expiryInstant(value.expiry, timeZone);
+    } catch (failure) {
+      context.addIssue({
+        code: "custom",
+        message:
+          failure instanceof RangeError
+            ? failure.message
+            : "Enter a valid time.",
+      });
+      return z.NEVER;
+    }
+    if (!isFutureInstant(instant, now())) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose a time in the future.",
+      });
+      return z.NEVER;
+    }
+    return { expiresAt: instant };
+  });
 }

@@ -2,6 +2,7 @@
 
 import {
   EXPORT_PERSONAL_DATA_LABEL,
+  personalDataErasePreviewInputSchema,
   personalDataPreviewInputSchema,
 } from "@cantiara/api/personal-data-rights";
 import { Button } from "@cantiara/ui/components/button";
@@ -81,13 +82,15 @@ export function PersonalDataContactForm({
         <Button
           disabled={disabled || contacts.length === 0}
           onClick={() => {
-            const { contactId } = form.state.values;
-            if (!contactId) {
+            const parsed = personalDataErasePreviewInputSchema.safeParse(
+              form.state.values,
+            );
+            if (!parsed.success) {
               setRefusal("Choose a Contact first.");
               return;
             }
             setRefusal(null);
-            onPreviewErase(contactId);
+            onPreviewErase(parsed.data.contactId);
           }}
           type="button"
           variant="outline"

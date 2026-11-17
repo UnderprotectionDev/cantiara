@@ -26,7 +26,7 @@ export function AddParticipantForm({
   bindOptions: ArchitectureBindOption[];
   disabled: boolean;
   model: SequenceModel;
-  onSave: (model: SequenceModel) => void;
+  onSave: (model: SequenceModel) => unknown;
 }) {
   const form = useForm({
     defaultValues: {
@@ -34,12 +34,12 @@ export function AddParticipantForm({
       kind: SEQUENCE_PARTICIPANT_KINDS[0] as string,
       label: "",
     },
-    onSubmit: ({ value, formApi }) => {
+    onSubmit: async ({ value, formApi }) => {
       if (!addParticipantSchema.safeParse(value).success) {
         return;
       }
       const option = bindOptions.find((item) => bindKey(item) === value.bind);
-      onSave(
+      await onSave(
         addParticipant(model, {
           bind: option
             ? {

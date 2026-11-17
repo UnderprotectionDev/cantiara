@@ -8,9 +8,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
-import { z } from "zod";
-
-const scopeFormSchema = z.object({ workId: z.string().trim().min(1) });
+import { projectReleaseScopeFormSchema } from "../../lib/project-release-planning-form";
 
 /** `Add Work to scope`: one explicit Work of this Project at a time. */
 export function ProjectReleaseScopeForm({
@@ -25,7 +23,7 @@ export function ProjectReleaseScopeForm({
     defaultValues: { workId: "" },
     onSubmit: async ({ value, formApi }) => {
       setError(null);
-      const parsed = scopeFormSchema.safeParse(value);
+      const parsed = projectReleaseScopeFormSchema.safeParse(value);
       if (!parsed.success) {
         setError("Choose a Work to add.");
         return;

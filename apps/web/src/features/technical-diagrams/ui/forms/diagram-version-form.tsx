@@ -12,16 +12,16 @@ export function DiagramVersionForm({
   onCreate,
 }: {
   disabled: boolean;
-  onCreate: (name: string) => void;
+  onCreate: (name: string) => unknown;
 }) {
   const nameId = useId();
   const form = useForm({
     defaultValues: { name: "" },
-    onSubmit: ({ value, formApi }) => {
+    onSubmit: async ({ value, formApi }) => {
       if (!versionNameSchema.safeParse(value).success) {
         return;
       }
-      onCreate(value.name.trim());
+      await onCreate(value.name.trim());
       formApi.reset();
     },
   });

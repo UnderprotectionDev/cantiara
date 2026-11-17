@@ -7,7 +7,11 @@ import type {
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
 import type { FeedbackDraft } from "../forms/create-feedback-form";
 import type { SaveEvidence } from "../forms/evidence-quality-form";
 import { FeedbackView } from "../views/feedback-view";
@@ -94,7 +98,11 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
           }),
         );
       } finally {
-        await refresh();
+        // A converted Feedback creates a Work, which can join Smart Collections.
+        await Promise.all([
+          refresh(),
+          ...invalidateSmartCollectionMembership(queryClient),
+        ]);
       }
     };
   }

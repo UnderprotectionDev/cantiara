@@ -3,7 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import PersonalReminderControl from "@/components/personal-reminder-control";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
 import type { RiskRecord } from "../../lib/risk-form";
 import type { RiskDraft } from "../forms/risk-form";
 import { ProjectRisksView } from "./project-risks-view";
@@ -49,6 +53,7 @@ export default function ProjectRisksSurface({
       }),
       queryClient.invalidateQueries({ queryKey: orpc.tableRecords.key() }),
       queryClient.invalidateQueries({ queryKey: orpc.searchRecords.key() }),
+      ...invalidateSmartCollectionMembership(queryClient),
     ]);
   }
   async function write(command: () => Promise<unknown>) {

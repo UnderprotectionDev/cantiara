@@ -31,7 +31,7 @@ export function AddStepForms({
 }: {
   disabled: boolean;
   model: SequenceModel;
-  onSave: (model: SequenceModel) => void;
+  onSave: (model: SequenceModel) => unknown;
 }) {
   const form = useForm({
     defaultValues: {
@@ -42,7 +42,7 @@ export function AddStepForms({
       messageKind: "Sync",
       to: "",
     },
-    onSubmit: ({ value, formApi, meta }) => {
+    onSubmit: async ({ value, formApi, meta }) => {
       const schema = meta === "group" ? groupSchema : stepSchema;
       if (!schema.safeParse(value).success) {
         return;
@@ -54,7 +54,7 @@ export function AddStepForms({
         to: value.to,
       } as Parameters<typeof addMessage>[1];
       if (meta === "group") {
-        onSave(
+        await onSave(
           addControlGroup(
             model,
             {
@@ -66,7 +66,7 @@ export function AddStepForms({
         );
         formApi.setFieldValue("condition", "");
       } else {
-        onSave(addMessage(model, draft));
+        await onSave(addMessage(model, draft));
       }
       formApi.setFieldValue("label", "");
     },

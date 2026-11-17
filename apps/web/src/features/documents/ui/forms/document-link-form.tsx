@@ -10,26 +10,10 @@ import { useForm } from "@tanstack/react-form";
 import type { useEditor } from "@tiptap/react";
 import { Link2, Unlink2 } from "lucide-react";
 import { useRef, useState } from "react";
-import { z } from "zod";
+import { documentLinkFormSchema } from "../../lib/document-insert-form";
 import FieldErrors from "../components/document-field-errors";
 
 type Editor = NonNullable<ReturnType<typeof useEditor>>;
-const allowedLinkPattern = /^(https?:\/\/|mailto:)/i;
-const linkSchema = z
-  .string()
-  .trim()
-  .refine((value) => {
-    if (!allowedLinkPattern.test(value)) {
-      return false;
-    }
-    try {
-      const url = new URL(value);
-      return url.protocol === "mailto:" ? !!url.pathname : !!url.hostname;
-    } catch {
-      return false;
-    }
-  }, "Use an http, https, or mailto URL.");
-
 export function DocumentLinkPopover({
   active,
   editor,
@@ -39,9 +23,16 @@ export function DocumentLinkPopover({
 }) {
   const [open, setOpen] = useState(false);
   const linkSelection = useRef<Editor["state"]["selection"] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const linkForm = useForm({
     defaultValues: { url: "" },
     onSubmit: ({ value }) => {
+      const parsed = documentLinkFormSchema.safeParse(value);
+      if (!parsed.success) {
+        setError(parsed.error.issues[0]?.message ?? null);
+        return;
+      }
+      setError(null);
       const chain = editor.chain().focus();
       if (linkSelection.current) {
         const selection = linkSelection.current;
@@ -50,7 +41,7 @@ export function DocumentLinkPopover({
           return true;
         });
       }
-      chain.extendMarkRange("link").setLink({ href: value.url.trim() }).run();
+      chain.extendMarkRange("link").setLink({ href: parsed.data.url }).run();
       linkSelection.current = null;
       setOpen(false);
     },
@@ -62,6 +53,7 @@ export function DocumentLinkPopover({
         aria-pressed={active}
         className={`inline-flex size-10 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring ${active ? "bg-accent text-accent-foreground" : ""}`}
         onClick={() => {
+          setError(null);
           linkForm.reset({
             url: editor.getAttributes("link").href ?? "",
           });
@@ -86,7 +78,7 @@ export function DocumentLinkPopover({
           <label className="font-medium" htmlFor="document-link-url">
             URL
           </label>
-          <linkForm.Field name="url" validators={{ onSubmit: linkSchema }}>
+          <linkForm.Field name="url">
             {(field) => (
               <>
                 <Input
@@ -95,7 +87,7 @@ export function DocumentLinkPopover({
                   placeholder="https://example.com"
                   value={field.state.value}
                 />
-                <FieldErrors errors={field.state.meta.errors} />
+                <FieldErrors errors={error ? [{ message: error }] : []} />
               </>
             )}
           </linkForm.Field>

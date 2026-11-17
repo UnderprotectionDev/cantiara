@@ -7,17 +7,21 @@ import type {
 } from "@cantiara/api/tags";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
-import { Label } from "@cantiara/ui/components/label";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type Dispatch, type SetStateAction, useState } from "react";
+import { useState } from "react";
 import { useTags } from "@/features/tags/hooks/use-tags";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
 import { CreateTagForm } from "../forms/create-tag-form";
+import { TagApplyForm } from "../forms/tag-apply-form";
 import {
   TagRenameControl,
   type TagRenameRequest,
@@ -44,11 +48,22 @@ function invalidateTagQueries(queryClient: ReturnType<typeof useQueryClient>) {
   ]);
 }
 
-function invalidateTagRenameQueries(
+// Smart Collection conditions match tag identity, so a tag assignment or
+// rename can change live membership.
+function invalidateTagMembershipQueries(
   queryClient: ReturnType<typeof useQueryClient>,
 ) {
   return Promise.all([
     invalidateTagQueries(queryClient),
+    ...invalidateSmartCollectionMembership(queryClient),
+  ]);
+}
+
+function invalidateTagRenameQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  return Promise.all([
+    invalidateTagMembershipQueries(queryClient),
     queryClient.invalidateQueries({ queryKey: orpc.documents.key() }),
     queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
     queryClient.invalidateQueries({ queryKey: orpc.documentVersions.key() }),
@@ -61,9 +76,6 @@ export default function ProjectTagsSurface({
   projectId: string;
 }) {
   const [filterTagId, setFilterTagId] = useState("");
-  const [selectedTagByRecord, setSelectedTagByRecord] = useState<
-    Record<string, string>
-  >({});
   const [formError, setFormError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
@@ -92,13 +104,9 @@ export default function ProjectTagsSurface({
     onError: (error) => {
       setActionError(errorMessage(error, "Tag could not be applied."));
     },
-    onSuccess: async (_assignment, input) => {
+    onSuccess: async () => {
       setActionError(null);
-      setSelectedTagByRecord((current) => ({
-        ...current,
-        [input.recordId]: "",
-      }));
-      await invalidateTagQueries(queryClient);
+      await invalidateTagMembershipQueries(queryClient);
     },
   });
 
@@ -110,7 +118,7 @@ export default function ProjectTagsSurface({
     },
     onSuccess: async () => {
       setActionError(null);
-      await invalidateTagQueries(queryClient);
+      await invalidateTagMembershipQueries(queryClient);
     },
   });
 
@@ -226,14 +234,12 @@ export default function ProjectTagsSurface({
         ) : null}
         <TagRecordList
           applyPending={apply.isPending}
-          onApply={(input) => apply.mutate(input)}
+          onApply={(input) => apply.mutateAsync(input)}
           onRemove={(input) => remove.mutate(input)}
           records={recordsQuery.data ?? []}
           recordsError={recordsQuery.isError}
           recordsPending={recordsQuery.isPending}
           removePending={remove.isPending}
-          selectedTagByRecord={selectedTagByRecord}
-          setSelectedTagByRecord={setSelectedTagByRecord}
           tags={tagsQuery.data ?? []}
         />
       </div>
@@ -347,19 +353,15 @@ function TagRecordList({
   recordsError,
   recordsPending,
   removePending,
-  selectedTagByRecord,
-  setSelectedTagByRecord,
   tags,
 }: {
   applyPending: boolean;
-  onApply: (input: ApplyTagInput) => void;
+  onApply: (input: ApplyTagInput) => Promise<unknown>;
   onRemove: (input: RemoveTagInput) => void;
   records: readonly TagRecord[];
   recordsError: boolean;
   recordsPending: boolean;
   removePending: boolean;
-  selectedTagByRecord: Record<string, string>;
-  setSelectedTagByRecord: Dispatch<SetStateAction<Record<string, string>>>;
   tags: readonly TagSuggestion[];
 }) {
   if (recordsPending) {
@@ -389,7 +391,6 @@ function TagRecordList({
           ({ tag }) =>
             !record.tags.some((recordTag) => recordTag.id === tag.id),
         );
-        const selectedTagId = selectedTagByRecord[record.id] ?? "";
         return (
           <li
             className="grid gap-4 rounded-lg border border-border/70 bg-card/40 px-4 py-4"
@@ -434,48 +435,16 @@ function TagRecordList({
                 )}
               </ul>
             </div>
-            <div className="flex flex-wrap items-end gap-2 border-border/70 border-t pt-3">
-              <div className="min-w-48 space-y-2">
-                <Label htmlFor={`apply-tag-${record.id}`}>Apply tag</Label>
-                <NativeSelect
-                  disabled={availableTags.length === 0 || applyPending}
-                  id={`apply-tag-${record.id}`}
-                  onChange={(event) =>
-                    setSelectedTagByRecord((current) => ({
-                      ...current,
-                      [record.id]: event.target.value,
-                    }))
-                  }
-                  value={selectedTagId}
-                >
-                  <NativeSelectOption value="">
-                    {availableTags.length === 0
-                      ? "No matching tags."
-                      : "Select a tag"}
-                  </NativeSelectOption>
-                  {availableTags.map(({ tag }) => (
-                    <NativeSelectOption key={tag.id} value={tag.id}>
-                      {tag.name}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              </div>
-              <Button
-                disabled={!selectedTagId || applyPending}
-                onClick={() =>
-                  onApply({
-                    projectId: record.projectId,
-                    recordId: record.id,
-                    recordType: record.recordType,
-                    tagId: selectedTagId,
-                  })
-                }
-                size="sm"
-                type="button"
-              >
-                Apply tag
-              </Button>
-            </div>
+            <TagApplyForm
+              availableTags={availableTags.map(({ tag }) => tag)}
+              onApply={onApply}
+              pending={applyPending}
+              record={{
+                projectId: record.projectId,
+                recordId: record.id,
+                recordType: record.recordType,
+              }}
+            />
           </li>
         );
       })}

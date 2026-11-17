@@ -1,11 +1,10 @@
 import {
   type RecordTestAssessmentInput,
+  recordTestAssessmentInputSchema,
   TEST_ASSESSMENT_CONTEXT_KINDS,
-  TEST_ASSESSMENT_DECISIONS,
   type TestAssessmentContextKind,
   type TestAssessmentDecision,
 } from "@cantiara/api/test-assessments";
-import { z } from "zod";
 
 export interface TestAssessmentFormValues {
   contextId: string;
@@ -27,17 +26,6 @@ export const EMPTY_TEST_ASSESSMENT_FORM: TestAssessmentFormValues = {
   sessionIds: "",
 };
 
-/** A recordable form: a chosen context and a decision; ids and limits stay free text. */
-export const testAssessmentFormSchema = z.object({
-  contextId: z.string().min(1),
-  contextKind: z.enum(TEST_ASSESSMENT_CONTEXT_KINDS),
-  decision: z.enum(TEST_ASSESSMENT_DECISIONS),
-  followUpWorkIds: z.string(),
-  gapIds: z.string(),
-  knownLimits: z.string(),
-  sessionIds: z.string(),
-});
-
 const ID_SEPARATOR = /[\n,]/;
 
 /** One exact id per line or comma; blanks are dropped, order is kept. */
@@ -48,22 +36,30 @@ export function parseIdList(text: string) {
     .filter(Boolean);
 }
 
+/**
+ * A recordable form: a chosen context and a decision; ids and limits stay free
+ * text. The rules are the procedure's own input schema; the surface passes the
+ * Project, the form checks with a stand-in.
+ */
+export function parseTestAssessmentForm(
+  values: TestAssessmentFormValues,
+  projectId = "form",
+) {
+  return recordTestAssessmentInputSchema.safeParse({
+    context: { kind: values.contextKind, targetId: values.contextId },
+    decision: values.decision,
+    followUpWorkIds: parseIdList(values.followUpWorkIds),
+    gapIds: parseIdList(values.gapIds),
+    knownLimits: values.knownLimits.trim() || null,
+    projectId,
+    sessionIds: parseIdList(values.sessionIds),
+  });
+}
+
 export function toRecordInput(
   projectId: string,
   values: TestAssessmentFormValues,
 ): RecordTestAssessmentInput | null {
-  const parsed = testAssessmentFormSchema.safeParse(values);
-  if (!parsed.success) {
-    return null;
-  }
-  const form = parsed.data;
-  return {
-    context: { kind: form.contextKind, targetId: form.contextId },
-    decision: form.decision,
-    followUpWorkIds: parseIdList(form.followUpWorkIds),
-    gapIds: parseIdList(form.gapIds),
-    knownLimits: form.knownLimits.trim() || null,
-    projectId,
-    sessionIds: parseIdList(form.sessionIds),
-  };
+  const parsed = parseTestAssessmentForm(values, projectId);
+  return parsed.success ? parsed.data : null;
 }

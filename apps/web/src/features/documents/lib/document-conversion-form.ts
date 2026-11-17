@@ -2,6 +2,7 @@ import {
   DOCUMENT_EVIDENCE_TARGET_TYPES,
   pinDocumentEvidenceInputSchema,
 } from "@cantiara/api/documents";
+import { mermaidConversionInputSchema } from "@cantiara/api/technical-diagrams";
 import { z } from "zod";
 
 export const DOCUMENT_CONVERSION_RECORD_TYPES = [
@@ -29,4 +30,10 @@ export const convertDocumentTextToRecordFormSchema = z.object({
 /** `Convert in bulk` form: at least one saved list row. */
 export const convertDocumentListToWorkFormSchema = z.object({
   selectedKeys: z.array(z.string()).min(1),
+});
+
+/** `Convert to Technical Diagram` form: the contract's title rule and the closed original-block outcomes. */
+export const convertMermaidDiagramFormSchema = z.object({
+  originalBlock: z.enum(["Keep independent", "Replace with live reference"]),
+  title: mermaidConversionInputSchema.shape.title,
 });

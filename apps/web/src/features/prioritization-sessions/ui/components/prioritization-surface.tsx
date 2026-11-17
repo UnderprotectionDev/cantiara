@@ -305,7 +305,7 @@ function PrioritizationSessionCard({
   backlogOrder: readonly string[];
   busy: boolean;
   formatDate: (value: string | null) => string;
-  onAddWork: (workId: string) => void;
+  onAddWork: (workId: string) => Promise<unknown>;
   onClose: () => void;
   onRemoveWork: (workId: string) => void;
   onReorder: (workIds: string[]) => void;
@@ -711,7 +711,7 @@ function PrioritizationSessionCollection({
               formatDate={formatDate}
               key={session.id}
               onAddWork={(workId) =>
-                updateSessionOrder.mutate({
+                updateSessionOrder.mutateAsync({
                   session,
                   workIds: [...session.workIds, workId],
                 })

@@ -10,13 +10,12 @@ import { isTauriRuntime } from "@/features/account-access/lib/tauri-session";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
-import { SmartLinkComposer } from "./smart-link-preview";
+import { useSmartLinkPreview } from "../../hooks/use-smart-link-preview";
+import { SmartLinkComposer } from "../forms/smart-link-form";
+
 import { SourceEvidenceControls } from "./source-evidence-controls";
 import { SourceRecheckControls } from "./source-recheck-controls";
 
-function preview(url: string) {
-  return client.smartLinkPreview({ url });
-}
 export default function ProjectSourcesSurface({
   projectId,
   preferences = DEFAULT_ACCOUNT_PREFERENCES,
@@ -27,6 +26,7 @@ export default function ProjectSourcesSurface({
   const options = orpc.projectSources.queryOptions({ input: { projectId } });
   const sources = useQuery(options);
   const queryClient = useQueryClient();
+  const preview = useSmartLinkPreview();
   const pending = useRef<{
     fingerprint: string;
     id: string;

@@ -17,12 +17,12 @@ export default function PrioritizationSessionAddWorkForm({
 }: {
   addableWorks: readonly WorkProfile[];
   busy: boolean;
-  onAddWork: (workId: string) => void;
+  onAddWork: (workId: string) => Promise<unknown>;
   sessionId: string;
 }) {
   const form = useForm({
     defaultValues: { workToAdd: "" },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value }) => {
       const parsed =
         createPrioritizationSessionInputSchema.shape.workIds.safeParse([
           value.workToAdd,
@@ -31,7 +31,12 @@ export default function PrioritizationSessionAddWorkForm({
       if (!workId) {
         return;
       }
-      onAddWork(workId);
+      try {
+        await onAddWork(workId);
+      } catch {
+        // The failed write is reported by the mutation; keep the choice.
+        return;
+      }
       form.reset();
     },
   });

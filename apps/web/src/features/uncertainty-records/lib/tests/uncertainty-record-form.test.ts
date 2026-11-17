@@ -41,3 +41,14 @@ test("an Open Question needs a Title and Question; an answer needs text", () => 
     message(openQuestionAnswerFormSchema.safeParse({ answer: "  " })),
   ).toBe("Enter an Answer before saving.");
 });
+
+test("Assumption and Open Question forms enforce the API contract's Title length", () => {
+  const title = "x".repeat(256);
+  expect(
+    assumptionFormSchema.safeParse({ rationale: "", statement: "s", title })
+      .success,
+  ).toBe(false);
+  expect(
+    openQuestionCreateFormSchema.safeParse({ question: "q", title }).success,
+  ).toBe(false);
+});

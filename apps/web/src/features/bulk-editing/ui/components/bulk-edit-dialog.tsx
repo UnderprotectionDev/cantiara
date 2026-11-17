@@ -31,6 +31,7 @@ import {
 } from "@/features/web-macos-client/lib/support-reference";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
+import { fetchCurrentWork } from "@/lib/fetch-current-work";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -400,7 +401,7 @@ async function undoBulkEditResult(
     undoing: true,
   }));
   try {
-    const currentWork = await client.work({ workId: result.workId });
+    const currentWork = await fetchCurrentWork(queryClient, result.workId);
     await runOnlineOnlyWrite(() =>
       client.undoWorkStatus({
         baseRevision: currentWork.revision,

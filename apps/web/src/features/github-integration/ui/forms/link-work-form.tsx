@@ -15,16 +15,10 @@ import {
 import { useForm, useStore } from "@tanstack/react-form";
 import { useState } from "react";
 import { errorText } from "../../lib/github-error-text";
+import type { LinkWorkValues } from "../../lib/github-forms";
+import { parseLinkWork } from "../../lib/github-forms";
 
-export type LinkWorkValues =
-  | { recordId: string; role: string; target: "record"; workId: string }
-  | {
-      linkId: string;
-      reference: string;
-      role: string;
-      target: "Branch" | "Commit";
-      workId: string;
-    };
+export type { LinkWorkValues } from "../../lib/github-forms";
 
 export type SubmitLinkWork = (values: LinkWorkValues) => Promise<unknown>;
 
@@ -63,35 +57,28 @@ export function LinkWorkForm({
     onSubmit: async ({ formApi, value }) => {
       setError(undefined);
       setSaved(undefined);
-      if (!value.workId) {
-        setError("Choose a Work.");
+      const parsed = parseLinkWork(
+        value.target === "record"
+          ? {
+              recordId: value.recordId,
+              role: value.role,
+              target: "record",
+              workId: value.workId,
+            }
+          : {
+              linkId: value.linkId,
+              reference: value.reference,
+              role: value.role,
+              target: value.target,
+              workId: value.workId,
+            },
+      );
+      if (!parsed.ok) {
+        setError(parsed.message);
         return;
       }
       try {
-        if (value.target === "record") {
-          if (!value.recordId) {
-            setError("Choose a GitHub record.");
-            return;
-          }
-          await onLink({
-            recordId: value.recordId,
-            role: value.role,
-            target: "record",
-            workId: value.workId,
-          });
-        } else {
-          if (!(value.linkId && value.reference.trim())) {
-            setError(`Enter the ${value.target.toLowerCase()}.`);
-            return;
-          }
-          await onLink({
-            linkId: value.linkId,
-            reference: value.reference.trim(),
-            role: GITHUB_ROLE_CONTEXTUAL_LABEL,
-            target: value.target,
-            workId: value.workId,
-          });
-        }
+        await onLink(parsed.data);
         setSaved("Linked. The Work and the GitHub record are unchanged.");
         formApi.setFieldValue("recordId", "");
         formApi.setFieldValue("reference", "");

@@ -22,6 +22,7 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useRef, useState } from "react";
+import type { z } from "zod";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { documentExportFormSchema } from "../../lib/document-export-form";
@@ -56,7 +57,35 @@ export default function DocumentTransferForm({
       version: record.revision,
     },
     onSubmit: async () => {
-      await inspect.mutateAsync().catch(() => undefined);
+      if (!action) {
+        return;
+      }
+      if (action === "Export") {
+        const parsed = documentExportFormSchema.safeParse({
+          documentId: record.id,
+          format: form.state.values.format,
+          revision: form.state.values.version,
+        });
+        if (!parsed.success) {
+          setError("Document export preview is unavailable.");
+          return;
+        }
+        await inspect
+          .mutateAsync({ input: parsed.data, kind: "export" })
+          .catch(() => undefined);
+        return;
+      }
+      const parsed = documentTransferInputSchema.safeParse(command(action));
+      if (!parsed.success) {
+        setError(
+          parsed.error.issues[0]?.message ??
+            "Document transfer preview is unavailable.",
+        );
+        return;
+      }
+      await inspect
+        .mutateAsync({ input: parsed.data, kind: "transfer" })
+        .catch(() => undefined);
     },
   });
   const pending = useRef<{ key: string; newDocumentId: string } | null>(null);
@@ -122,34 +151,23 @@ export default function DocumentTransferForm({
     };
   }
   const inspect = useMutation({
-    mutationFn: async () => {
-      if (action === "Export") {
-        const parsed = documentExportFormSchema.safeParse({
-          documentId: record.id,
-          format: form.state.values.format,
-          revision: form.state.values.version,
-        });
-        if (!parsed.success) {
-          throw new Error("Document export preview is unavailable.");
-        }
-        const snapshot = await client.exportDocument(parsed.data);
-        setExportPreview(snapshot);
+    mutationFn: async (
+      request:
+        | {
+            input: z.infer<typeof documentExportFormSchema>;
+            kind: "export";
+          }
+        | { input: DocumentTransferInput; kind: "transfer" },
+    ) => {
+      if (request.kind === "export") {
+        setExportPreview(await client.exportDocument(request.input));
         return;
       }
-      if (action) {
-        const parsed = documentTransferInputSchema.safeParse(command(action));
-        if (!parsed.success) {
-          throw new Error(
-            parsed.error.issues[0]?.message ??
-              "Document transfer preview is unavailable.",
-          );
-        }
-        const result = await client.previewDocumentTransfer(parsed.data);
-        if (!("externalSurfaceIds" in result)) {
-          throw new Error("Document transfer preview is unavailable.");
-        }
-        setPreview(result);
+      const result = await client.previewDocumentTransfer(request.input);
+      if (!("externalSurfaceIds" in result)) {
+        throw new Error("Document transfer preview is unavailable.");
       }
+      setPreview(result);
     },
     onError: (failure) => setError(failure.message),
   });

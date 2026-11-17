@@ -26,7 +26,7 @@ export function AddRelationForm({
   columnsOf: (tableId: string) => FieldOption[];
   disabled: boolean;
   model: DataModelModel;
-  onSave: (model: DataModelModel) => void;
+  onSave: (model: DataModelModel) => unknown;
   tableOptions: FieldOption[];
 }) {
   const form = useForm({
@@ -39,11 +39,13 @@ export function AddRelationForm({
       toColumnId: "",
       toTableId: "",
     },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value }) => {
       if (!addRelationSchema.safeParse(value).success) {
         return;
       }
-      onSave(addRelation(model, value as Parameters<typeof addRelation>[1]));
+      await onSave(
+        addRelation(model, value as Parameters<typeof addRelation>[1]),
+      );
     },
   });
   return (

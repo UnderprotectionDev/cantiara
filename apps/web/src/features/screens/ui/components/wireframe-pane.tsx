@@ -37,9 +37,9 @@ import {
 import type { WireframeEditor } from "../../engine/editor";
 import type { OutlineSourceRecord } from "../../engine/outline";
 import { createViewportSession } from "../../engine/viewport-session";
+import type { ConvertAndBindActions } from "../forms/convert-and-bind-form";
 import { LiveCardPicker } from "../forms/place-live-card-form";
 import { CanvasTextOverlay } from "./canvas-text-overlay";
-import type { ConvertAndBindActions } from "./convert-and-bind-panel";
 import type { LinkedBlockActions } from "./linked-block-controls";
 import { WireframeOutline } from "./wireframe-outline";
 import type { ViewportGesture } from "./wireframe-stage";

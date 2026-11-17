@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { orpc } from "@/utils/orpc";
+import { invalidateSmartCollectionMembership, orpc } from "@/utils/orpc";
 
 /**
  * Runs one Project Release write online with a stable idempotency key: a retry
@@ -20,6 +20,7 @@ export function useProjectReleaseCommand() {
       queryClient.invalidateQueries({
         queryKey: orpc.projectSourceRecord.key(),
       }),
+      ...invalidateSmartCollectionMembership(queryClient),
     ]);
   }
   return async function run<T>(

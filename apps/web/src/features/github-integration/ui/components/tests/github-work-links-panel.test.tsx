@@ -306,3 +306,39 @@ test("the Pull request list offers no Issue to create Work from", async () => {
     "#4 Add dark mode",
   ]);
 });
+
+test("Link Work without a Work shows the schema message and does not call the write", async () => {
+  const actions = await mount();
+  await choose("#github-link-record", "issue-1");
+  await act(async () => {
+    buttonNamed("Link Work").click();
+    await settle();
+  });
+  expect(actions.onLinkWork).not.toHaveBeenCalled();
+  expect(host?.textContent).toContain("Choose a Work.");
+});
+
+test("Create work and link with a blank title shows the schema message and does not create", async () => {
+  const actions = await mount();
+  await choose("#github-create-work-issue", "issue-1");
+  await act(async () => {
+    buttonNamed("Preview Work draft").click();
+    await settle();
+  });
+  const title = host?.querySelector("#github-draft-title") as HTMLInputElement;
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )?.set;
+    setter?.call(title, "   ");
+    title.dispatchEvent(new Event("input", { bubbles: true }));
+    await settle();
+  });
+  await act(async () => {
+    buttonNamed("Create work and link").click();
+    await settle();
+  });
+  expect(actions.onCreateWork).not.toHaveBeenCalled();
+  expect(host?.textContent).toContain("Enter a title.");
+});

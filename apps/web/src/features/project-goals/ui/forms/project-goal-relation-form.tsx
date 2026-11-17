@@ -8,6 +8,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm, useStore } from "@tanstack/react-form";
 import { type FormEvent, useEffect } from "react";
+import { goalRelationFormSchema } from "../../lib/goal-relation-form";
 import {
   type GoalRelationChange,
   selectionKey,
@@ -30,7 +31,10 @@ export function ProjectGoalRelationForm({
       kind: "Contributes to Goal" as GoalRelationChange["kind"],
       selection: "",
     },
-    onSubmit: () => {
+    onSubmit: ({ value }) => {
+      if (!goalRelationFormSchema.safeParse(value).success) {
+        return;
+      }
       add();
     },
   });

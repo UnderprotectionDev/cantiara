@@ -466,3 +466,36 @@ test("cancelling the preview returns focus to the trigger button", async () => {
   });
   expect(document.activeElement).toBe(buttonNamed("Disconnect"));
 });
+
+test("a record search is capped by the input and a longer value shows no message and does not search", async () => {
+  const actions = await mount(overviewOf([connected]));
+  const input = host?.querySelector(
+    "#github-record-search",
+  ) as HTMLInputElement;
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )?.set;
+    setter?.call(input, "x".repeat(201));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await settle();
+  });
+  await act(async () => {
+    buttonNamed("Search").click();
+    await settle();
+  });
+  expect(input.maxLength).toBe(200);
+  expect(actions.onSearch).not.toHaveBeenCalled();
+  expect(host?.querySelector('[role="alert"]')).toBeNull();
+});
+
+test("submitting Link Repository without a choice shows the existing Choose a Repository message and does not link", async () => {
+  const actions = await mount(overviewOf([connected]));
+  await act(async () => {
+    buttonNamed("Link Repository").click();
+    await settle();
+  });
+  expect(actions.onLink).not.toHaveBeenCalled();
+  expect(host?.textContent).toContain("Choose a Repository.");
+});

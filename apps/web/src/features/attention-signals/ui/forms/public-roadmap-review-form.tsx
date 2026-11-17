@@ -2,12 +2,16 @@
 import {
   PUBLIC_ROADMAP_REVIEW_MAX_DAYS,
   PUBLIC_ROADMAP_REVIEW_MIN_DAYS,
-  publicRoadmapReviewDaysSchema,
+  setPublicRoadmapReviewIntervalInputSchema,
 } from "@cantiara/api/attention-signals-public-roadmap";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
 import { useId, useState } from "react";
+
+const intervalSchema = setPublicRoadmapReviewIntervalInputSchema.pick({
+  days: true,
+});
 
 export default function PublicRoadmapReviewForm({
   days,
@@ -24,8 +28,17 @@ export default function PublicRoadmapReviewForm({
     defaultValues: { days: days === null ? "" : String(days) },
     onSubmit: async ({ value }) => {
       setError(undefined);
+      const parsed = intervalSchema.safeParse({
+        days: value.days.trim() === "" ? null : Number(value.days),
+      });
+      if (!parsed.success) {
+        setError(
+          `Enter a whole number of days from ${PUBLIC_ROADMAP_REVIEW_MIN_DAYS} to ${PUBLIC_ROADMAP_REVIEW_MAX_DAYS}.`,
+        );
+        return;
+      }
       try {
-        await onSave(value.days.trim() === "" ? null : Number(value.days));
+        await onSave(parsed.data.days);
       } catch (caught) {
         setError(
           caught instanceof Error && caught.message
@@ -44,16 +57,7 @@ export default function PublicRoadmapReviewForm({
         form.handleSubmit().catch(() => undefined);
       }}
     >
-      <form.Field
-        name="days"
-        validators={{
-          onSubmit: ({ value }) =>
-            value.trim() === "" ||
-            publicRoadmapReviewDaysSchema.safeParse(Number(value)).success
-              ? undefined
-              : `Enter a whole number of days from ${PUBLIC_ROADMAP_REVIEW_MIN_DAYS} to ${PUBLIC_ROADMAP_REVIEW_MAX_DAYS}.`,
-        }}
-      >
+      <form.Field name="days">
         {(field) => (
           <div className="grid gap-1">
             <label className="text-sm" htmlFor={inputId}>
@@ -67,11 +71,6 @@ export default function PublicRoadmapReviewForm({
               onChange={(event) => field.handleChange(event.target.value)}
               value={field.state.value}
             />
-            {field.state.meta.errors.length > 0 ? (
-              <p className="text-destructive text-sm" role="alert">
-                {field.state.meta.errors.join(" ")}
-              </p>
-            ) : null}
           </div>
         )}
       </form.Field>

@@ -10,6 +10,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
 import { PlannedTestsView } from "../planned-tests-view";
 
+const REQUIRED_MESSAGE = /is required/i;
+
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -323,4 +325,16 @@ test("an archived Project shows cases without create or version controls", () =>
   expect(
     [...document.querySelectorAll("button")].map((item) => item.textContent),
   ).not.toContain("New version");
+});
+
+test("creating a case with a blank title shows the schema message and does not save", async () => {
+  const onCreate = vi.fn().mockResolvedValue(undefined);
+  mount({ onCreate });
+
+  await submit("Create Planned Test Case");
+
+  expect(onCreate).not.toHaveBeenCalled();
+  expect(document.querySelector('[role="alert"]')?.textContent).toMatch(
+    REQUIRED_MESSAGE,
+  );
 });

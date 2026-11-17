@@ -13,7 +13,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useStore } from "@tanstack/react-form";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clampCoordinate } from "../../lib/file-attachment-markup-geometry";
 
@@ -101,16 +101,19 @@ export default function FileAttachmentLocationBinder({
   projectId?: string;
   versionId: string;
 }) {
-  const [mode, setMode] = useState<"new" | "existing">("existing");
   const [preview, setPreview] =
     useState<FileAttachmentLocationBindPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const bindIdempotencyKey = useRef<string | null>(null);
   const submitAction = useRef<"bind" | "preview">("preview");
   const form = useForm({
-    defaultValues: locationBinderValues(location, projectId),
+    defaultValues: {
+      ...locationBinderValues(location, projectId),
+      mode: "existing" as "existing" | "new",
+    },
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Preview and confirm share one validated form submission boundary while targeting two distinct File Attachment operations.
     onSubmit: async ({ value }) => {
+      const { mode } = value;
       const nextLocation = locationFromBinderValues(
         value,
         locationKind,
@@ -213,6 +216,8 @@ export default function FileAttachmentLocationBinder({
     },
   });
 
+  const mode = useStore(form.store, (state) => state.values.mode);
+
   useEffect(() => {
     const values = locationBinderValues(location, projectId);
     form.setFieldValue("height", values.height);
@@ -250,10 +255,10 @@ export default function FileAttachmentLocationBinder({
       if (nextMode === "new" || nextMode === "existing") {
         setPreview(null);
         bindIdempotencyKey.current = null;
-        setMode(nextMode);
+        form.setFieldValue("mode", nextMode);
       }
     },
-    [],
+    [form],
   );
   return (
     <form

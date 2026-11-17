@@ -288,7 +288,15 @@ export default function AccountPreferencesForm({
   const form = useForm({
     defaultValues: formValues(snapshot),
     onSubmit: async ({ value }) => {
-      const preferences = accountPreferencesSchema.parse(value);
+      const parsedPreferences = accountPreferencesSchema.safeParse(value);
+      if (!parsedPreferences.success) {
+        setSaveError({ code: "UNKNOWN" });
+        toast.error(
+          accountPreferencesMutationErrorMessage({ code: "UNKNOWN" }),
+        );
+        return;
+      }
+      const preferences = parsedPreferences.data;
       const serialized = JSON.stringify(preferences);
       const snapshotSerialized = JSON.stringify(formValues(snapshot));
       const baseRevision =

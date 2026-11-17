@@ -16,6 +16,10 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useState } from "react";
 import { errorText } from "../../lib/github-error-text";
+import {
+  parseCreateWork,
+  parsePreviewCreateWork,
+} from "../../lib/github-forms";
 
 export type PreviewCreateWork = (
   recordId: string,
@@ -45,17 +49,18 @@ function DraftForm({
     },
     onSubmit: async ({ value }) => {
       setError(undefined);
-      if (!value.title.trim()) {
-        setError("Enter a title.");
+      const parsed = parseCreateWork({
+        description: value.description,
+        recordId: preview.recordId,
+        title: value.title,
+        type: value.type,
+      });
+      if (!parsed.ok) {
+        setError(parsed.message);
         return;
       }
       try {
-        await onCreate({
-          description: value.description,
-          recordId: preview.recordId,
-          title: value.title.trim(),
-          type: value.type,
-        });
+        await onCreate(parsed.data);
         onCancel();
       } catch (caught) {
         setError(errorText(caught, "The Work was not created."));
@@ -160,25 +165,26 @@ export function CreateWorkForm({
   records: GitHubExternalRecord[];
 }) {
   const issues = records.filter((record) => record.kind === "Issue");
-  const [recordId, setRecordId] = useState("");
   const [preview, setPreview] = useState<GitHubCreateWorkPreview>();
   const [error, setError] = useState<string>();
-  const [loading, setLoading] = useState(false);
   const headingId = "github-create-work-heading";
-  const loadPreview = () => {
-    setError(undefined);
-    if (!recordId) {
-      setError("Choose an Issue.");
-      return;
-    }
-    setLoading(true);
-    onPreview(recordId)
-      .then(setPreview)
-      .catch((caught: unknown) =>
-        setError(errorText(caught, "The draft is unavailable.")),
-      )
-      .finally(() => setLoading(false));
-  };
+  const pickForm = useForm({
+    defaultValues: { recordId: "" },
+    onSubmit: async ({ value }) => {
+      setError(undefined);
+      const parsed = parsePreviewCreateWork(value);
+      if (!parsed.ok) {
+        setError(parsed.message);
+        return;
+      }
+      try {
+        setPreview(await onPreview(parsed.data.recordId));
+      } catch (caught) {
+        setError(errorText(caught, "The draft is unavailable."));
+      }
+    },
+  });
+  const loading = useStore(pickForm.store, (state) => state.isSubmitting);
   return (
     <section
       aria-labelledby={headingId}
@@ -194,37 +200,47 @@ export function CreateWorkForm({
           preview={preview}
         />
       ) : (
-        <div className="space-y-3 text-sm">
+        <form
+          aria-label="Preview Work draft"
+          className="space-y-3 text-sm"
+          onSubmit={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            pickForm.handleSubmit().catch(() => undefined);
+          }}
+        >
           <div className="grid gap-2">
             <label htmlFor="github-create-work-issue">Issue</label>
-            <NativeSelect
-              className="w-full"
-              id="github-create-work-issue"
-              onChange={(event) => setRecordId(event.target.value)}
-              value={recordId}
-            >
-              <NativeSelectOption value="">Choose an Issue</NativeSelectOption>
-              {issues.map((record) => (
-                <NativeSelectOption key={record.id} value={record.id}>
-                  {`#${record.number} ${record.title}`}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
+            <pickForm.Field name="recordId">
+              {(field) => (
+                <NativeSelect
+                  className="w-full"
+                  id="github-create-work-issue"
+                  name={field.name}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  value={field.state.value}
+                >
+                  <NativeSelectOption value="">
+                    Choose an Issue
+                  </NativeSelectOption>
+                  {issues.map((record) => (
+                    <NativeSelectOption key={record.id} value={record.id}>
+                      {`#${record.number} ${record.title}`}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              )}
+            </pickForm.Field>
           </div>
           {error ? (
             <p className="text-destructive" role="alert">
               {error}
             </p>
           ) : null}
-          <Button
-            disabled={loading}
-            onClick={loadPreview}
-            type="button"
-            variant="outline"
-          >
+          <Button disabled={loading} type="submit" variant="outline">
             Preview Work draft
           </Button>
-        </div>
+        </form>
       )}
     </section>
   );

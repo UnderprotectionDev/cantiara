@@ -1,6 +1,7 @@
-import type {
-  PublishPreview,
-  PublishReleaseNoteInput,
+import {
+  type PublishPreview,
+  type PublishReleaseNoteInput,
+  publishReleaseNoteInputSchema,
 } from "@cantiara/api/release-communication";
 
 /** What the founder ticked in the publish-close preview; nothing is ticked by default. */
@@ -64,4 +65,43 @@ export function buildPublishApproval(
       sourceType: item.sourceType,
     })),
   };
+}
+
+/** What the publish form holds: the ticked items, as arrays the form can store. */
+export interface PublishFormValues {
+  eventIds: string[];
+  fieldKeys: string[];
+  linkHrefs: string[];
+  workIds: string[];
+}
+
+export const EMPTY_PUBLISH_FORM: PublishFormValues = {
+  eventIds: [],
+  fieldKeys: [],
+  linkHrefs: [],
+  workIds: [],
+};
+
+export function selectionOf(values: PublishFormValues): PublishSelection {
+  return {
+    eventIds: new Set(values.eventIds),
+    fieldKeys: new Set(values.fieldKeys),
+    linkHrefs: new Set(values.linkHrefs),
+    workIds: new Set(values.workIds),
+  };
+}
+
+/**
+ * Validates the built approval with the procedure's own approval schema. The
+ * Publish control is disabled in every state the schema rejects, so a failure
+ * has no copy.
+ */
+export function parsePublishApproval(
+  preview: PublishPreview,
+  values: PublishFormValues,
+): { approval: PublishReleaseNoteInput["approval"]; ok: true } | { ok: false } {
+  const result = publishReleaseNoteInputSchema.shape.approval.safeParse(
+    buildPublishApproval(preview, selectionOf(values)),
+  );
+  return result.success ? { approval: result.data, ok: true } : { ok: false };
 }
