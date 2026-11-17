@@ -9,6 +9,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { useState } from "react";
 
+import { cardLabel } from "../../lib/project-wall-presentation";
 import { ProjectWallCard } from "./project-wall-card";
 
 export interface ProjectWallPresentationActions {
@@ -25,10 +26,6 @@ export interface ProjectWallPresentationActions {
 export type SnapshotScope =
   | { cardIds: string[]; groupId?: undefined }
   | { cardIds?: undefined; groupId: string };
-
-export function cardLabel(card: ProjectWallView["cards"][number]) {
-  return card.source.title ?? `${card.sourceType} (unavailable)`;
-}
 
 /**
  * Presentation Mode: a read-only walk over this wall's own cards. It renders

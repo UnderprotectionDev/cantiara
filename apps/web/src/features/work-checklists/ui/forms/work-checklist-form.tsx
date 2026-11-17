@@ -13,6 +13,7 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
 import { AppLink } from "@/components/app-link";
 import { resolveChecklistDrafts } from "../../lib/work-checklist-items";
+import { ChecklistConversionPreview } from "../components/checklist-conversion-preview";
 import { AddChecklistItemForm } from "../forms/add-checklist-item-form";
 
 export default function WorkChecklist({
@@ -267,59 +268,13 @@ export default function WorkChecklist({
                         Convert to independent Work
                       </Button>
                       {conversionItemId === item.id && conversionPreview ? (
-                        <section
-                          aria-label="Convert to independent Work"
-                          className="basis-full space-y-2 rounded-md border border-primary/25 bg-primary/5 p-3 text-xs"
-                          role="status"
-                        >
-                          <p className="font-medium text-sm">
-                            Convert to independent Work
-                          </p>
-                          <p>
-                            Title:{" "}
-                            <strong>{conversionPreview.newWork.title}</strong>
-                          </p>
-                          <p>
-                            Project:{" "}
-                            <strong>
-                              {conversionPreview.targetProject.name}
-                            </strong>
-                          </p>
-                          <p>
-                            Start status:{" "}
-                            <strong>{conversionPreview.newWork.status}</strong>
-                          </p>
-                          <p>
-                            Origin: {conversionPreview.sourceWork.key} —{" "}
-                            {conversionPreview.sourceWork.title}
-                          </p>
-                          <p className="text-muted-foreground">
-                            Origin Location:{" "}
-                            {conversionPreview.originPosition.ownerRecordId} /{" "}
-                            {conversionPreview.originPosition.componentId} /{" "}
-                            {conversionPreview.originPosition.sourceVersion ??
-                              "Unknown"}
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              disabled={disabled || conversionPending}
-                              onClick={confirmConversion}
-                              size="xs"
-                              type="button"
-                            >
-                              Confirm convert
-                            </Button>
-                            <Button
-                              disabled={conversionPending}
-                              onClick={cancelConversion}
-                              size="xs"
-                              type="button"
-                              variant="outline"
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </section>
+                        <ChecklistConversionPreview
+                          disabled={disabled}
+                          onCancel={cancelConversion}
+                          onConfirm={confirmConversion}
+                          pending={conversionPending}
+                          preview={conversionPreview}
+                        />
                       ) : null}
                     </>
                   )}

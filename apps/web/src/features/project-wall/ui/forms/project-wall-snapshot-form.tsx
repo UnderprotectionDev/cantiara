@@ -14,10 +14,8 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useState } from "react";
 import { snapshotScopeFormSchema } from "../../lib/project-wall-forms";
-import {
-  cardLabel,
-  type ProjectWallPresentationActions,
-} from "../components/project-wall-presentation";
+import { cardLabel } from "../../lib/project-wall-presentation";
+import type { ProjectWallPresentationActions } from "../components/project-wall-presentation";
 
 function downloadBase64(file: ProjectWallSnapshotFile) {
   const bytes = Uint8Array.from(atob(file.base64), (char) =>

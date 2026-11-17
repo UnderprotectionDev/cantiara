@@ -8,14 +8,11 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { screensOutputFormSchema } from "../../lib/screen-forms";
-
-export const EXPORT_FORMATS = ["PNG", "SVG", "PDF", "HTML"] as const;
-export type ExportFormat = (typeof EXPORT_FORMATS)[number];
-
-export interface ChosenVersion {
-  screenId: string;
-  version: number;
-}
+import {
+  type ChosenVersion,
+  EXPORT_FORMATS,
+  type ExportFormat,
+} from "../../lib/screens-output";
 
 function latestVersionOf(screen: ScreenRecord): number {
   return Math.max(0, ...screen.wireframeVersions.map(({ version }) => version));

@@ -5,6 +5,7 @@ import fontDataUri from "@fontsource/shantell-sans/files/shantell-sans-latin-400
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { orpc } from "@/utils/orpc";
+import type { ChosenVersion, ExportFormat } from "../../lib/screens-output";
 import {
   downloadBlob,
   downloadText,
@@ -18,11 +19,7 @@ import {
   type WireframeSnapshot,
 } from "../../output/snapshot";
 import { renderSvg } from "../../output/svg";
-import {
-  type ChosenVersion,
-  type ExportFormat,
-  ScreensOutputPanel,
-} from "../forms/screens-output-form";
+import { ScreensOutputPanel } from "../forms/screens-output-form";
 import { PresentationMode } from "./presentation-mode";
 
 /**

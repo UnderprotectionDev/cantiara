@@ -7,7 +7,7 @@ import {
   wireframeLinkedContentSchema,
 } from "@cantiara/api/wireframe-document";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { WireframeEditor } from "../../engine/editor";
 import { LinkedSourceLabelForm } from "../forms/linked-source-label-form";
 
@@ -27,7 +27,7 @@ export interface LinkedBlockActions {
 }
 
 /** Shared content of a block: everything but its placement and link. */
-export function linkedContentOf(block: WireframeBlock) {
+function linkedContentOf(block: WireframeBlock) {
   const { id: _id, link: _link, seed: _seed, x: _x, y: _y, ...content } = block;
   return wireframeLinkedContentSchema.safeParse(content);
 }
@@ -74,7 +74,7 @@ export function LinkedBlockControls({
   linkedBlock: WireframeBlock;
 }) {
   const [preview, setPreview] = useState<LinkedBlockChangeResult>();
-  const [previewedLabel, setPreviewedLabel] = useState(block.label);
+  const previewedLabel = useRef(block.label);
   const [error, setError] = useState<string>();
   const parsed = linkedContentOf(block);
 
@@ -111,7 +111,7 @@ export function LinkedBlockControls({
       const content = changedContent(label);
       if (content) {
         setPreview(await actions.preview(definitionId, content));
-        setPreviewedLabel(label);
+        previewedLabel.current = label;
       }
     });
   }
@@ -172,7 +172,7 @@ export function LinkedBlockControls({
           <Button
             onClick={() =>
               run(async () => {
-                const content = changedContent(previewedLabel);
+                const content = changedContent(previewedLabel.current);
                 if (!content) {
                   return;
                 }
