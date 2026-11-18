@@ -740,7 +740,7 @@ export function FileAttachmentMarkup({
         </Button>
       </div>
       {markingError ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {markingError}
         </p>
       ) : null}
@@ -761,7 +761,7 @@ export function FileAttachmentMarkup({
       ) : null}
       {surface}
       {kind === "pdf" && pageCount ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Page tools record each Marking against the selected File Attachment
           version.
         </p>

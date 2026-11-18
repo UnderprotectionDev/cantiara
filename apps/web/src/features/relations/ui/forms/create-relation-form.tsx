@@ -73,7 +73,7 @@ export function CreateRelationForm({
       }}
     >
       <label
-        className="text-muted-foreground text-xs"
+        className="text-xs text-muted-foreground"
         htmlFor={`relation-kind-${workId}`}
       >
         Relation type
@@ -100,7 +100,7 @@ export function CreateRelationForm({
         )}
       </form.Field>
       <label
-        className="text-muted-foreground text-xs"
+        className="text-xs text-muted-foreground"
         htmlFor={`relation-target-${workId}`}
       >
         Related Work

@@ -13,7 +13,7 @@ export default function LookAgainPageView({
   return (
     <ClientShellContent>
       <main className="mx-auto grid w-full max-w-3xl gap-4 p-4">
-        <h1 className="font-semibold text-xl">Look again</h1>
+        <h1 className="text-xl font-semibold">Look again</h1>
         <LookAgainList
           onOpenSource={noop}
           openSourceRecord={openSourceRecord}

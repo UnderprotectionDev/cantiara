@@ -434,20 +434,20 @@ function SessionReview({
         ) : null}
       </div>
       {session.summaryRedacted ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           The summary was redacted.
         </p>
       ) : null}
       {session.currentSummary && session.summary ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {`Reported summary: ${session.summary}`}
         </p>
       ) : null}
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Session and Session Test states are separate. Changing one never changes
         the other.
       </p>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {technicalContextUnknown(session.context)
           ? "Technical context: unknown (no branch, commit or build recorded)."
           : `Technical context: ${["branch", "commit", "build"]
@@ -491,7 +491,7 @@ function SessionReview({
         </Button>
       </div>
       {session.items.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No Session Tests.</p>
+        <p className="text-sm text-muted-foreground">No Session Tests.</p>
       ) : (
         <ul aria-label="Session Tests" className="space-y-2 text-sm">
           {session.items.map((item) => (
@@ -634,7 +634,7 @@ function SessionReview({
         />
       ) : null}
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -719,15 +719,15 @@ export function TestReviewView({
       className="space-y-4"
       id="test-review"
     >
-      <h2 className="font-semibold text-lg" id="test-review-heading">
+      <h2 className="text-lg font-semibold" id="test-review-heading">
         Test Review
       </h2>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Review is your management decision on top of a reported result. It does
         not change the result, gate a release, or touch a Handoff.
       </p>
       {sessions.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No Test Sessions to review.
         </p>
       ) : (

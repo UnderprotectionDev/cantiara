@@ -118,7 +118,7 @@ export function TestGapRelationsField({
     <fieldset className="space-y-3 rounded-md border border-border/70 p-3">
       <legend className="px-1 text-sm">Support relations</legend>
       {value.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No support relations.</p>
+        <p className="text-sm text-muted-foreground">No support relations.</p>
       ) : (
         <ul
           aria-label="Selected support relations"
@@ -144,7 +144,7 @@ export function TestGapRelationsField({
         </ul>
       )}
       {value.length >= TEST_GAP_RELATION_MAX ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           A {TEST_GAP_LABEL} has at most {TEST_GAP_RELATION_MAX} relations.
         </p>
       ) : (
@@ -220,7 +220,7 @@ export function TestGapRelationsField({
       )}
       <p
         aria-live="polite"
-        className="text-muted-foreground text-sm"
+        className="text-sm text-muted-foreground"
         id={statusId}
         role="status"
       >

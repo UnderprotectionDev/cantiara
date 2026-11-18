@@ -111,30 +111,30 @@ export default function PrioritizationSurface({
   return (
     <section
       aria-labelledby="prioritization-surface-heading"
-      className="mt-8 space-y-6 border-border/70 border-t pt-6"
+      className="mt-8 space-y-6 border-t border-border/70 pt-6"
       id="prioritization"
     >
       <header>
         <p className="surface-kicker">Project planning</p>
         <h3
-          className="mt-1 font-semibold text-xl tracking-tight"
+          className="mt-1 text-xl font-semibold tracking-tight"
           id="prioritization-surface-heading"
         >
           Prioritization
         </h3>
-        <p className="mt-2 max-w-3xl text-muted-foreground text-sm/relaxed">
+        <p className="mt-2 max-w-3xl text-sm/relaxed text-muted-foreground">
           Compare a session’s own order with the Project Backlog. Each order is
           saved separately, and Work fields stay live.
         </p>
       </header>
 
       {pageError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Prioritization is unavailable. Try loading this page again.
         </p>
       ) : null}
       {loading ? (
-        <p className="text-muted-foreground text-sm">Loading Prioritization…</p>
+        <p className="text-sm text-muted-foreground">Loading Prioritization…</p>
       ) : null}
 
       {pageError || loading ? null : (
@@ -167,7 +167,7 @@ export default function PrioritizationSurface({
       )}
 
       {saveError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {mutationErrorMessage(
             saveError,
             "The Prioritization change could not be saved.",
@@ -193,19 +193,19 @@ function BacklogOrderSection({
 }) {
   return (
     <section aria-labelledby="backlog-order-heading" className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-3 border-border/70 border-b pb-3">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/70 pb-3">
         <div>
           <p className="surface-kicker">Project order</p>
-          <h4 className="mt-1 font-medium text-base" id="backlog-order-heading">
+          <h4 className="mt-1 text-base font-medium" id="backlog-order-heading">
             Backlog order
           </h4>
         </div>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           This order is separate from every session.
         </p>
       </div>
       {orderIds.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No active Work in Backlog.
         </p>
       ) : (
@@ -328,12 +328,12 @@ function PrioritizationSessionCard({
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h5
-            className="font-medium text-base"
+            className="text-base font-medium"
             id={`session-${session.id}-heading`}
           >
             {session.name}
           </h5>
-          <p className="mt-1 text-muted-foreground text-xs">
+          <p className="mt-1 text-xs text-muted-foreground">
             Created {formatDate(session.createdAt)}
             {isClosed ? ` · Closed ${formatDate(session.closedAt)}` : " · Open"}
           </p>
@@ -372,13 +372,13 @@ function PrioritizationSessionCard({
       )}
 
       {session.workIds.length === 0 ? (
-        <p className="rounded-md border border-border/70 border-dashed px-3 py-4 text-muted-foreground text-sm">
+        <p className="rounded-md border border-dashed border-border/70 px-3 py-4 text-sm text-muted-foreground">
           No Work in this session.
         </p>
       ) : (
         <ol
           aria-label={`${session.name} Session order`}
-          className="space-y-3 border-border/70 border-t pt-3"
+          className="space-y-3 border-t border-border/70 pt-3"
         >
           {session.workIds.map((workId, index) => (
             <PrioritizationSessionWork
@@ -400,7 +400,7 @@ function PrioritizationSessionCard({
       )}
 
       {isClosed ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           This session is read-only. Create a new Prioritization Session to make
           another order.
         </p>
@@ -436,7 +436,7 @@ function PrioritizationSessionWork({
 }) {
   if (!work) {
     return (
-      <li className="rounded-md border border-border/70 px-3 py-3 text-muted-foreground text-sm">
+      <li className="rounded-md border border-border/70 px-3 py-3 text-sm text-muted-foreground">
         Work {workId} is unavailable and remains in the saved session scope.
       </li>
     );
@@ -473,7 +473,7 @@ function PrioritizationSessionWork({
   return (
     <li className="grid gap-3 rounded-md border border-border/70 bg-background/70 p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="min-w-0 font-medium text-sm">
+        <p className="min-w-0 text-sm font-medium">
           <span className="text-muted-foreground">{work.key}</span> {work.title}
           {work.archivedAt ? (
             <span className="ml-2 font-normal text-muted-foreground">
@@ -676,17 +676,17 @@ function PrioritizationSessionCollection({
       aria-labelledby="prioritization-sessions-heading"
       className="space-y-4"
     >
-      <div className="flex flex-wrap items-end justify-between gap-3 border-border/70 border-b pb-3">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/70 pb-3">
         <div>
           <p className="surface-kicker">Project decision views</p>
           <h4
-            className="mt-1 font-medium text-base"
+            className="mt-1 text-base font-medium"
             id="prioritization-sessions-heading"
           >
             Prioritization Sessions
           </h4>
         </div>
-        <span className="text-muted-foreground text-xs">
+        <span className="text-xs text-muted-foreground">
           {activeSessions.length} open or closed
         </span>
       </div>
@@ -699,7 +699,7 @@ function PrioritizationSessionCollection({
       />
 
       {activeSessions.length === 0 ? (
-        <p className="rounded-md border border-border/70 border-dashed px-4 py-5 text-muted-foreground text-sm">
+        <p className="rounded-md border border-dashed border-border/70 px-4 py-5 text-sm text-muted-foreground">
           No Prioritization Sessions yet.
         </p>
       ) : (
@@ -742,7 +742,7 @@ function PrioritizationSessionCollection({
           aria-labelledby="prioritization-trash-heading"
           className="space-y-3 rounded-lg border border-border/70 p-4"
         >
-          <h5 className="font-medium text-sm" id="prioritization-trash-heading">
+          <h5 className="text-sm font-medium" id="prioritization-trash-heading">
             Trash
           </h5>
           <ul className="space-y-2">

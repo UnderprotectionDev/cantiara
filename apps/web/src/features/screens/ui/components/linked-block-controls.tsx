@@ -39,7 +39,7 @@ export function AffectedScreensPreview({
 }) {
   if (result.affectedScreens.length === 0) {
     return (
-      <p className="text-muted-foreground text-xs">No Screens affected.</p>
+      <p className="text-xs text-muted-foreground">No Screens affected.</p>
     );
   }
   return (
@@ -139,7 +139,7 @@ export function LinkedBlockControls({
           Create Linked Block
         </Button>
         {error ? (
-          <p className="text-destructive text-xs" role="alert">
+          <p className="text-xs text-destructive" role="alert">
             {error}
           </p>
         ) : null}
@@ -150,7 +150,7 @@ export function LinkedBlockControls({
   const { definitionId } = linkedBlock.link;
   return (
     <div className="space-y-2 rounded-lg border border-border/70 p-3">
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         Linked block: content comes from its source and is shared by every
         Screen that uses it.
       </p>
@@ -191,7 +191,7 @@ export function LinkedBlockControls({
         </div>
       ) : null}
       {error ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}

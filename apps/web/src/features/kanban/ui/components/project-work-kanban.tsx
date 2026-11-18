@@ -106,12 +106,12 @@ export default function ProjectWorkKanban({
   );
 
   if (query.status === "pending") {
-    return <p className="text-muted-foreground text-sm">Loading Work…</p>;
+    return <p className="text-sm text-muted-foreground">Loading Work…</p>;
   }
 
   if (query.isError) {
     return (
-      <p className="text-destructive text-sm" role="alert">
+      <p className="text-sm text-destructive" role="alert">
         Work is unavailable. Try loading this page again.
       </p>
     );

@@ -59,7 +59,7 @@ export default function DailyFocusView({
   if (!preferences.data) {
     return (
       <main className="mx-auto w-full max-w-4xl px-5 py-9 sm:px-8">
-        <h1 className="font-semibold text-3xl tracking-tight">Daily Focus</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Daily Focus</h1>
         {preferences.isError ? (
           <p className="mt-6" role="alert">
             Daily Focus is unavailable. Try loading this page again.
@@ -116,10 +116,10 @@ function DailyFocusCloseView({
 
   return (
     <main className="mx-auto w-full max-w-4xl px-5 py-9 sm:px-8">
-      <div className="flex flex-col gap-4 border-border/70 border-b pb-7 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-4 border-b border-border/70 pb-7 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-semibold text-3xl tracking-tight">Close focus</h1>
-          <p className="mt-2 text-muted-foreground text-sm">
+          <h1 className="text-3xl font-semibold tracking-tight">Close focus</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             Selected day · {selectedDay}
           </p>
         </div>
@@ -192,23 +192,23 @@ function DailyFocusCloseGroup({
 
   return (
     <section aria-labelledby={headingId}>
-      <h2 className="mb-3 font-semibold text-lg" id={headingId}>
+      <h2 className="mb-3 text-lg font-semibold" id={headingId}>
         {label}
       </h2>
-      <ul className="divide-y border-border/70 border-y">
+      <ul className="divide-y border-y border-border/70">
         {work.map((item) => (
           <li key={item.id}>
             <Link
-              className="flex min-h-16 flex-col justify-center gap-1 rounded-sm py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="flex min-h-16 flex-col justify-center gap-1 rounded-sm py-3 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
               hash={workRecordHash(item.id)}
               params={{ projectId: item.projectId }}
               to="/projects/$projectId"
             >
               <span className="font-medium">{item.title}</span>
-              <span className="text-muted-foreground text-sm">
+              <span className="text-sm text-muted-foreground">
                 {item.projectName} · {item.key}
               </span>
-              <span className="text-muted-foreground text-sm">
+              <span className="text-sm text-muted-foreground">
                 Open source record
               </span>
             </Link>
@@ -278,9 +278,9 @@ function DailyFocusDayView({
 
   return (
     <main className="mx-auto w-full max-w-4xl px-5 py-9 sm:px-8">
-      <div className="flex flex-col gap-6 border-border/70 border-b pb-7 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-6 border-b border-border/70 pb-7 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-semibold text-3xl tracking-tight">Daily Focus</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Daily Focus</h1>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <label
@@ -317,19 +317,19 @@ function DailyFocusDayView({
           </p>
         ) : null}
         {dailyFocus.data?.members.length === 0 ? (
-          <p className="rounded-lg border border-border border-dashed px-5 py-8 text-muted-foreground">
+          <p className="rounded-lg border border-dashed border-border px-5 py-8 text-muted-foreground">
             No Work in Daily Focus for this day.
           </p>
         ) : null}
         {dailyFocus.data?.members.length ? (
-          <ul className="divide-y border-border/70 border-y">
+          <ul className="divide-y border-y border-border/70">
             {dailyFocus.data.members.map((work) => (
               <li
                 className="flex min-h-16 items-center gap-3 py-3"
                 key={work.id}
               >
                 <Link
-                  className="min-w-0 flex-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  className="min-w-0 flex-1 rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
                   hash={workRecordHash(work.id)}
                   params={{ projectId: work.projectId }}
                   to="/projects/$projectId"
@@ -337,7 +337,7 @@ function DailyFocusDayView({
                   <span className="block truncate font-medium">
                     {work.title}
                   </span>
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-sm text-muted-foreground">
                     {work.projectName} · {work.key} · {work.status}
                   </span>
                 </Link>
@@ -362,7 +362,7 @@ function DailyFocusDayView({
         className="mt-10 space-y-4"
       >
         <h2
-          className="font-semibold text-xl tracking-tight"
+          className="text-xl font-semibold tracking-tight"
           id="daily-focus-events-heading"
         >
           What happened today?
@@ -373,7 +373,7 @@ function DailyFocusDayView({
           </p>
         ) : null}
         {dailyFocus.data?.events.length ? (
-          <ul className="divide-y border-border/70 border-y">
+          <ul className="divide-y border-y border-border/70">
             {dailyFocus.data.events.map((event) => (
               <li
                 className="flex min-h-16 items-center gap-3 py-3"
@@ -385,7 +385,7 @@ function DailyFocusDayView({
                     {event.sourceKey ? `${event.sourceKey} ` : ""}
                     {event.sourceTitle}
                   </p>
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-sm text-muted-foreground">
                     <time dateTime={event.occurredAt}>
                       {eventTimeFormatter.format(new Date(event.occurredAt))}
                     </time>
@@ -393,7 +393,7 @@ function DailyFocusDayView({
                   </p>
                 </div>
                 <Link
-                  className="shrink-0 rounded-sm text-primary text-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  className="shrink-0 rounded-sm text-sm text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
                   hash={
                     event.sourceType === "Work"
                       ? workRecordHash(event.sourceId)
@@ -418,29 +418,29 @@ function DailyFocusDayView({
         className="mt-10"
       >
         <h2
-          className="font-semibold text-lg"
+          className="text-lg font-semibold"
           id="daily-focus-candidates-heading"
         >
           Candidates
         </h2>
-        <p className="mt-2 text-muted-foreground text-sm">
+        <p className="mt-2 text-sm text-muted-foreground">
           Work appears here when Target date is this day through the next 7
           days, or Reappear date is on or before this day.
         </p>
         {dailyFocus.data && visibleCandidates.length === 0 ? (
-          <p className="mt-4 rounded-lg border border-border border-dashed px-5 py-6 text-muted-foreground">
+          <p className="mt-4 rounded-lg border border-dashed border-border px-5 py-6 text-muted-foreground">
             No Candidates for this day.
           </p>
         ) : null}
         {visibleCandidates.length > 0 ? (
-          <ul className="mt-4 divide-y border-border/70 border-y">
+          <ul className="mt-4 divide-y border-y border-border/70">
             {visibleCandidates.map((candidate) => (
               <li
                 className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center"
                 key={candidate.id}
               >
                 <Link
-                  className="min-w-0 flex-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  className="min-w-0 flex-1 rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
                   hash={workRecordHash(candidate.id)}
                   params={{ projectId: candidate.projectId }}
                   to="/projects/$projectId"
@@ -448,11 +448,11 @@ function DailyFocusDayView({
                   <span className="block truncate font-medium">
                     {candidate.title}
                   </span>
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-sm text-muted-foreground">
                     {candidate.projectName} · {candidate.key} ·{" "}
                     {candidate.status}
                   </span>
-                  <span className="mt-1 block text-muted-foreground text-sm">
+                  <span className="mt-1 block text-sm text-muted-foreground">
                     {candidate.reasons.map(({ date, label }) => (
                       <span className="mr-3" key={`${label}:${date}`}>
                         {label}: <time dateTime={date}>{date}</time>
@@ -498,7 +498,7 @@ function DailyFocusDayView({
         aria-labelledby="daily-focus-add-heading"
         className="mt-10 rounded-lg border border-border/70 bg-card/35 p-5"
       >
-        <h2 className="font-semibold text-lg" id="daily-focus-add-heading">
+        <h2 className="text-lg font-semibold" id="daily-focus-add-heading">
           Add to Daily Focus
         </h2>
         <DailyFocusAddForm
@@ -508,7 +508,7 @@ function DailyFocusDayView({
           pending={add.status === "pending"}
         />
         {add.isError || remove.isError ? (
-          <p className="mt-3 text-destructive text-sm" role="alert">
+          <p className="mt-3 text-sm text-destructive" role="alert">
             Daily Focus could not be updated. Try again.
           </p>
         ) : null}

@@ -52,10 +52,10 @@ export default function GitHubSignInView() {
     <main className="flex min-h-0 flex-1 items-center justify-center px-5 py-12 sm:px-8">
       <section className="w-full max-w-md rounded-xl border border-border/80 bg-card p-6 sm:p-8">
         <div className="mb-8">
-          <h1 className="mt-3 font-semibold text-3xl tracking-tight">
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight">
             Welcome to Cantiara
           </h1>
-          <p className="mt-3 text-muted-foreground text-sm/6">
+          <p className="mt-3 text-sm/6 text-muted-foreground">
             Sign in with the GitHub identity that owns your Workspace.
           </p>
         </div>

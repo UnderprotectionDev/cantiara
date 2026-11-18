@@ -83,12 +83,12 @@ export default function TestReviewSupersedesForm({
       <h3 className="font-medium" id="test-review-supersedes-heading">
         {TEST_REVIEW_SUPERSEDES_LABEL}
       </h3>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         A newer Session Test supersedes an older one of the same type. The
         relation is directed and acyclic; neither result is changed or deleted.
       </p>
       {items.length < 2 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Two Session Tests are needed to relate them.
         </p>
       ) : (

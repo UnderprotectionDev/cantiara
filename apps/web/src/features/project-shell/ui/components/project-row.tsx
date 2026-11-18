@@ -20,17 +20,17 @@ export default function ProjectRow({ project }: { project: ProjectProfile }) {
           </h3>
           <Badge variant="secondary">{project.status}</Badge>
         </div>
-        <p className="mt-1 text-muted-foreground text-xs">
+        <p className="mt-1 text-xs text-muted-foreground">
           {project.starterConfiguration}
           {project.targetDate ? ` · Target ${project.targetDate}` : ""}
         </p>
         {project.purpose ? (
-          <p className="mt-3 max-w-2xl text-muted-foreground text-sm/relaxed">
+          <p className="mt-3 max-w-2xl text-sm/relaxed text-muted-foreground">
             {project.purpose}
           </p>
         ) : null}
       </div>
-      <div className="border-border/70 border-t pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
+      <div className="border-t border-border/70 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
         <ProjectShortCodeForm project={project} />
       </div>
     </li>

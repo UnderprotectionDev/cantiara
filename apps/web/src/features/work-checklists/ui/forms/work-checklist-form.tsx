@@ -146,15 +146,15 @@ export default function WorkChecklist({
       className="space-y-3 rounded-md border border-border/70 bg-muted/10 p-3"
     >
       <div className="flex items-baseline justify-between gap-3">
-        <h4 className="font-medium text-sm">Checklist</h4>
+        <h4 className="text-sm font-medium">Checklist</h4>
         {resolvedChecklist.length > 0 ? (
-          <p className="text-muted-foreground text-xs tabular-nums">
+          <p className="text-xs text-muted-foreground tabular-nums">
             {completedCount} of {resolvedChecklist.length} complete
           </p>
         ) : null}
       </div>
       {resolvedChecklist.length === 0 ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Add the first small step for this Work.
         </p>
       ) : (

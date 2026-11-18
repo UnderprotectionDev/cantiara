@@ -71,11 +71,11 @@ export function TagRenameControl({
   return (
     <form
       aria-label="Rename Tag"
-      className="space-y-3 border-border/70 border-t pt-4"
+      className="space-y-3 border-t border-border/70 pt-4"
       noValidate
       onSubmit={handleSubmit}
     >
-      <h3 className="font-medium text-base">Rename Tag</h3>
+      <h3 className="text-base font-medium">Rename Tag</h3>
       <form.Field name="tagId">
         {(field) => (
           <div className="space-y-2">

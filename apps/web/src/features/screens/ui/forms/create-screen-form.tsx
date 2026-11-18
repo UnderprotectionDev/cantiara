@@ -37,7 +37,7 @@ export function CreateScreenForm({ onCreate }: { onCreate: CreateScreen }) {
     >
       <h3 className="font-medium">Create Screen</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

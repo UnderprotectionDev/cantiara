@@ -109,7 +109,7 @@ export function SmartLinkComposer({
     >
       <form className="space-y-4" onSubmit={requestPreview}>
         <div className="space-y-2">
-          <label className="font-medium text-sm" htmlFor="source-url">
+          <label className="text-sm font-medium" htmlFor="source-url">
             Source URL
           </label>
           <Input
@@ -176,13 +176,13 @@ function SmartLinkPreviewContent({
     preview !== null && (
       <div className="space-y-3 border-t pt-4">
         <h3 className="font-semibold">Live preview</h3>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           This preview is not a Source or historical evidence.
         </p>
         {preview.kind === "preview" && (
           <>
             <p className="font-medium">{preview.title}</p>
-            <p className="text-muted-foreground text-sm">{preview.domain}</p>
+            <p className="text-sm text-muted-foreground">{preview.domain}</p>
           </>
         )}
         {preview.image?.startsWith("data:image/webp;base64,") && (
@@ -206,18 +206,18 @@ function SmartLinkPreviewContent({
         {preview.kind === "preview" && (
           <>
             <div className="space-y-2 rounded-md border border-dashed p-3">
-              <p className="font-medium text-sm">Historical snapshot</p>
+              <p className="text-sm font-medium">Historical snapshot</p>
               {videoId !== null && (
-                <p className="text-muted-foreground text-sm">
+                <p className="text-sm text-muted-foreground">
                   Only the video title is captured; playback is live.
                 </p>
               )}
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 Save the title and captured text from{" "}
                 {formatAccountDateTime(preview.accessedAt, preferences)}. Later
                 external changes will not update this snapshot.
               </p>
-              <p className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-sm">
+              <p className="max-h-48 overflow-auto text-sm break-words whitespace-pre-wrap">
                 {preview.capturedContent || "No text was captured."}
               </p>
             </div>

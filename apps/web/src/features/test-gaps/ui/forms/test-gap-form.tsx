@@ -115,7 +115,7 @@ export function GapForm({
     >
       <h3 className="font-medium">{`File ${TEST_GAP_LABEL}`}</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

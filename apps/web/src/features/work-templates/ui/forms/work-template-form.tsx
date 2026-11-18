@@ -51,7 +51,7 @@ function DraftDatePreview({
   });
   if (!relativeDates.success) {
     return (
-      <p className="text-destructive text-xs sm:col-span-2" role="alert">
+      <p className="text-xs text-destructive sm:col-span-2" role="alert">
         Relative dates need whole days between -3650 and 3650.
       </p>
     );
@@ -63,7 +63,7 @@ function DraftDatePreview({
   return (
     <dl
       aria-label="Resolved dates preview"
-      className="grid gap-3 border-border/70 border-t pt-3 text-xs sm:col-span-2 sm:grid-cols-3"
+      className="grid gap-3 border-t border-border/70 pt-3 text-xs sm:col-span-2 sm:grid-cols-3"
     >
       <div>
         <dt className="text-muted-foreground">Creation day</dt>
@@ -274,7 +274,7 @@ export function WorkTemplateForm({
   return (
     <form
       aria-label={editing ? "Edit Work Template" : "Add Work Template"}
-      className="space-y-5 border-border/70 border-t pt-5"
+      className="space-y-5 border-t border-border/70 pt-5"
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
@@ -283,7 +283,7 @@ export function WorkTemplateForm({
       }}
     >
       <div className="flex items-center justify-between gap-4">
-        <h5 className="font-medium text-sm">
+        <h5 className="text-sm font-medium">
           {editing ? "Edit Work Template" : "Add Work Template"}
         </h5>
         {editing ? (
@@ -363,11 +363,11 @@ export function WorkTemplateForm({
         )}
       </form.Field>
       <fieldset className="space-y-3">
-        <legend className="font-medium text-sm">Selected field defaults</legend>
+        <legend className="text-sm font-medium">Selected field defaults</legend>
         <form.Field name="customFieldDefaults">
           {(field) =>
             definitions.length === 0 ? (
-              <p className="text-muted-foreground text-xs">
+              <p className="text-xs text-muted-foreground">
                 Add a non-date Custom field for Work to set a default here.
               </p>
             ) : (
@@ -393,7 +393,7 @@ export function WorkTemplateForm({
         </form.Field>
       </fieldset>
       <fieldset className="grid gap-4 rounded-md border border-border/70 p-4 sm:grid-cols-2">
-        <legend className="px-1 font-medium text-sm">Relative dates</legend>
+        <legend className="px-1 text-sm font-medium">Relative dates</legend>
         <form.Field name="plannedStartOffset">
           {(field) => (
             <Field>
@@ -446,7 +446,7 @@ export function WorkTemplateForm({
         </form.Subscribe>
       </fieldset>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

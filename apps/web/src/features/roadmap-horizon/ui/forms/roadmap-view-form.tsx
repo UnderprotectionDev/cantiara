@@ -264,7 +264,7 @@ export default function RoadmapViewEditor({
           </form.Subscribe>
         </div>
         {saveView.isError ? (
-          <p className="text-destructive text-sm" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             Named view could not be saved.
           </p>
         ) : null}

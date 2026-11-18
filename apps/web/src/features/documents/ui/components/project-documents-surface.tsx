@@ -80,7 +80,7 @@ export default function DocumentsSurface({
   return (
     <section aria-label="Documents" className="space-y-6">
       <header className="flex items-center justify-between gap-4">
-        <h2 className="font-semibold text-2xl">Documents</h2>
+        <h2 className="text-2xl font-semibold">Documents</h2>
         <Label className="flex items-center gap-2" htmlFor="documents-archived">
           <Checkbox
             checked={archived}

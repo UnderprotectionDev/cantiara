@@ -66,9 +66,9 @@ function PriorityMetricTrash({
   return (
     <section
       aria-label="Priority metric Trash"
-      className="space-y-2 border-border/70 border-t pt-4"
+      className="space-y-2 border-t border-border/70 pt-4"
     >
-      <h5 className="font-medium text-sm">Trash</h5>
+      <h5 className="text-sm font-medium">Trash</h5>
       {trashTarget ? (
         <PriorityMetricMoveConfirmation
           disabled={disabled}
@@ -90,7 +90,7 @@ function PriorityMetricTrash({
           >
             <div className="space-y-1">
               <p className="font-medium">{metric.name}</p>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 {metric.shortDescription}
               </p>
             </div>
@@ -256,7 +256,7 @@ export default function PriorityMetricEditor({
   }
 
   let metricContent = (
-    <p className="text-muted-foreground text-sm">No priority metrics yet.</p>
+    <p className="text-sm text-muted-foreground">No priority metrics yet.</p>
   );
   if (query.data && activeMetrics.length > 0) {
     metricContent = (
@@ -324,13 +324,13 @@ export default function PriorityMetricEditor({
     );
   } else if (query.status === "pending") {
     metricContent = (
-      <p className="text-muted-foreground text-sm" role="status">
+      <p className="text-sm text-muted-foreground" role="status">
         Loading Priority metrics…
       </p>
     );
   } else if (query.isError) {
     metricContent = (
-      <p className="text-destructive text-sm" role="alert">
+      <p className="text-sm text-destructive" role="alert">
         Priority metrics could not be loaded. Try loading this page again.
       </p>
     );
@@ -338,7 +338,7 @@ export default function PriorityMetricEditor({
 
   return (
     <div className="mt-3 space-y-5" data-priority-metric-editor="true">
-      <p className="max-w-2xl text-muted-foreground text-sm/relaxed">
+      <p className="max-w-2xl text-sm/relaxed text-muted-foreground">
         Define independent Project criteria and choose each Work value yourself.
         The five ranks stay separate and do not create a score or automatic
         order.
@@ -367,7 +367,7 @@ export default function PriorityMetricEditor({
       />
 
       {actionError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {actionError}
         </p>
       ) : null}

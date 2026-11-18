@@ -29,7 +29,7 @@ export default function ProjectSourceRecordView({
   if (source.status === "pending") {
     return (
       <section aria-label={sourceType} className="space-y-4">
-        <h2 className="font-semibold text-2xl tracking-tight">{sourceType}</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">{sourceType}</h2>
         <p className="text-muted-foreground" role="status">
           Loading source record…
         </p>
@@ -40,7 +40,7 @@ export default function ProjectSourceRecordView({
   if (source.isError || !source.data || source.data.projectId !== projectId) {
     return (
       <section aria-label={sourceType} className="space-y-4">
-        <h2 className="font-semibold text-2xl tracking-tight">{sourceType}</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">{sourceType}</h2>
         <p className="text-muted-foreground" role="alert">
           Source record is unavailable.
         </p>
@@ -53,13 +53,13 @@ export default function ProjectSourceRecordView({
   return (
     <section aria-label={source.data.sourceType} className="space-y-5">
       <header className="surface-header">
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {source.data.sourceType}
         </p>
-        <h2 className="mt-1 font-semibold text-2xl tracking-tight">
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight">
           {recordTitle(source.data)}
         </h2>
-        <p className="mt-2 text-muted-foreground text-sm">
+        <p className="mt-2 text-sm text-muted-foreground">
           {recordStatus(source.data)}
         </p>
         {source.data.sourceType === "Decision" ? (
@@ -82,8 +82,8 @@ export default function ProjectSourceRecordView({
       <dl className="grid gap-5 rounded-lg border border-border/70 bg-card/35 p-5">
         {recordFields(source.data).map(([label, value]) => (
           <div className="space-y-1" key={label}>
-            <dt className="font-medium text-sm">{label}</dt>
-            <dd className="whitespace-pre-wrap text-muted-foreground text-sm">
+            <dt className="text-sm font-medium">{label}</dt>
+            <dd className="text-sm whitespace-pre-wrap text-muted-foreground">
               {value || "—"}
             </dd>
           </div>

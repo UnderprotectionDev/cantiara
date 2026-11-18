@@ -25,15 +25,15 @@ export function ProjectReleaseList({
     <section aria-label="Project Releases" className="space-y-6">
       <header className="surface-header flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
-          <p className="text-muted-foreground text-sm">Releases</p>
-          <h2 className="font-semibold text-2xl tracking-tight">
+          <p className="text-sm text-muted-foreground">Releases</p>
+          <h2 className="text-2xl font-semibold tracking-tight">
             Project Releases
           </h2>
         </div>
         {overview.readOnly ? null : <div>{createControl}</div>}
       </header>
       {overview.readOnly ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           This Project is archived. Its Project Releases are read-only.
         </p>
       ) : null}
@@ -45,7 +45,7 @@ export function ProjectReleaseList({
       )}
       {groups.map(({ releases, status }) => (
         <section aria-label={status} className="space-y-2" key={status}>
-          <h3 className="font-medium text-sm">
+          <h3 className="text-sm font-medium">
             {status}{" "}
             <span className="text-muted-foreground">({releases.length})</span>
           </h3>
@@ -57,24 +57,24 @@ export function ProjectReleaseList({
                     className="grid gap-1 p-4 underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_auto]"
                     href={projectReleasesHref(projectId, release.id)}
                   >
-                    <span className="min-w-0 break-words font-medium">
+                    <span className="min-w-0 font-medium break-words">
                       {release.name}
                       {release.versionLabel ? (
-                        <span className="ml-2 font-normal text-muted-foreground text-sm">
+                        <span className="ml-2 text-sm font-normal text-muted-foreground">
                           Version label {release.versionLabel}
                         </span>
                       ) : null}
                     </span>
-                    <span className="text-muted-foreground text-sm">
+                    <span className="text-sm text-muted-foreground">
                       {release.status}
                     </span>
-                    <span className="text-muted-foreground text-sm">
+                    <span className="text-sm text-muted-foreground">
                       Scope: {scope.completed} completed, {scope.open} open
                       {githubReferences
                         ? ` · ${githubReferences} GitHub ${githubReferences === 1 ? "reference" : "references"}`
                         : ""}
                     </span>
-                    <span className="text-muted-foreground text-sm">
+                    <span className="text-sm text-muted-foreground">
                       Last change{" "}
                       {formatAccountDateTime(lastChangedAt, formatting)}
                     </span>

@@ -354,7 +354,7 @@ export default function WorkStatusForm({
   return (
     <div className="flex min-w-44 flex-col items-start gap-1">
       <label
-        className="text-muted-foreground text-xs"
+        className="text-xs text-muted-foreground"
         htmlFor={`work-status-${work.id}`}
       >
         Status
@@ -379,7 +379,7 @@ export default function WorkStatusForm({
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Badge variant="secondary">{work.closureResult}</Badge>
           {work.closureReason ? (
-            <span className="text-muted-foreground text-xs">
+            <span className="text-xs text-muted-foreground">
               {work.closureReason}
             </span>
           ) : null}
@@ -391,7 +391,7 @@ export default function WorkStatusForm({
         setReopenTarget={setReopenTarget}
       />
       {error ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -404,8 +404,8 @@ export default function WorkStatusForm({
         >
           {hasClosureWarnings(closePreview) ? (
             <div className="space-y-2">
-              <p className="font-medium text-sm">Closure check</p>
-              <ul className="list-disc space-y-1 pl-4 text-muted-foreground text-xs">
+              <p className="text-sm font-medium">Closure check</p>
+              <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
                 {closePreview.closureCheck.incompleteChecklistItems.map(
                   (item) => (
                     <li key={item.id}>{item.label}</li>

@@ -212,7 +212,7 @@ function Canvas({
       data-diagram-type={diagram.type}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Canvas view of the structured outline. Positions are saved on the
           Diagram View; the model is the outline. Your zoom, position and
           collapsed groups are personal and not part of the diagram.

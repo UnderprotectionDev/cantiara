@@ -64,7 +64,7 @@ export function ProjectRisksView({
   return (
     <section aria-label="Risks" className="space-y-5">
       <header className="surface-header flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-semibold text-2xl tracking-tight">Risks</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">Risks</h2>
         {readOnly ? null : (
           <Button disabled={Boolean(editing)} onClick={() => start("create")}>
             Create
@@ -93,12 +93,12 @@ export function ProjectRisksView({
               key={record.id}
             >
               <AppLink
-                className="min-w-0 break-words font-medium underline underline-offset-4"
+                className="min-w-0 font-medium break-words underline underline-offset-4"
                 href={riskHref(projectId, record.id)}
               >
                 {record.title}
               </AppLink>
-              <span className="shrink-0 text-muted-foreground text-sm">
+              <span className="shrink-0 text-sm text-muted-foreground">
                 {record.life}
               </span>
             </li>
@@ -115,7 +115,7 @@ export function ProjectRisksView({
           aria-label="Risk"
           className="space-y-4 rounded-lg border border-border/70 p-5"
         >
-          <h3 className="break-words font-semibold text-xl">
+          <h3 className="text-xl font-semibold break-words">
             {selected.title}
           </h3>
           <p>{selected.life}</p>
@@ -123,8 +123,8 @@ export function ProjectRisksView({
             {FIELDS.filter(({ name }) => name !== "title").map(
               ({ name, label }) => (
                 <div key={name}>
-                  <dt className="font-medium text-sm">{label}</dt>
-                  <dd className="whitespace-pre-wrap break-words text-muted-foreground">
+                  <dt className="text-sm font-medium">{label}</dt>
+                  <dd className="break-words whitespace-pre-wrap text-muted-foreground">
                     {selected[name] || "—"}
                   </dd>
                 </div>
@@ -132,7 +132,7 @@ export function ProjectRisksView({
             )}
           </dl>
           {selected.life === "Accepted" ? (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               A known Risk remains recorded when accepted.
             </p>
           ) : null}

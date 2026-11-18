@@ -113,7 +113,7 @@ export function ProjectAssumptionsView({
   return (
     <section aria-label="Assumption" className="space-y-5">
       <header className="surface-header flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-semibold text-2xl tracking-tight">Assumption</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">Assumption</h2>
         {context.readOnly ? null : (
           <Button disabled={Boolean(editing)} onClick={() => start("create")}>
             Create
@@ -140,12 +140,12 @@ export function ProjectAssumptionsView({
               key={record.id}
             >
               <AppLink
-                className="min-w-0 break-words font-medium underline underline-offset-4"
+                className="min-w-0 font-medium break-words underline underline-offset-4"
                 href={`/projects/${encodeURIComponent(projectId)}#${projectSourceRecordHash("Assumption", record.id)}`}
               >
                 {record.title}
               </AppLink>
-              <span className="shrink-0 text-muted-foreground text-sm">
+              <span className="shrink-0 text-sm text-muted-foreground">
                 {record.life}
               </span>
             </li>
@@ -160,20 +160,20 @@ export function ProjectAssumptionsView({
           aria-label="Assumption"
           className="space-y-4 rounded-lg border border-border/70 p-5"
         >
-          <h3 className="break-words font-semibold text-xl">
+          <h3 className="text-xl font-semibold break-words">
             {selected.title}
           </h3>
           <p>{selected.life}</p>
           <dl className="space-y-4">
             <div>
-              <dt className="font-medium text-sm">Statement</dt>
-              <dd className="whitespace-pre-wrap break-words text-muted-foreground">
+              <dt className="text-sm font-medium">Statement</dt>
+              <dd className="break-words whitespace-pre-wrap text-muted-foreground">
                 {selected.statement}
               </dd>
             </div>
             <div>
-              <dt className="font-medium text-sm">Rationale</dt>
-              <dd className="whitespace-pre-wrap break-words text-muted-foreground">
+              <dt className="text-sm font-medium">Rationale</dt>
+              <dd className="break-words whitespace-pre-wrap text-muted-foreground">
                 {selected.rationale || "—"}
               </dd>
             </div>
@@ -188,7 +188,7 @@ export function ProjectAssumptionsView({
                       {entry.title} · Version {entry.revision}
                     </p>
                     {entry.excerpt ? (
-                      <blockquote className="whitespace-pre-wrap break-words text-muted-foreground">
+                      <blockquote className="break-words whitespace-pre-wrap text-muted-foreground">
                         {entry.excerpt}
                       </blockquote>
                     ) : null}

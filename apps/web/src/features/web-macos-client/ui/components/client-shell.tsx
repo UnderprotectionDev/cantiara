@@ -112,7 +112,7 @@ function ClientShellOfflineState({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p
-              className="font-medium text-foreground text-sm"
+              className="text-sm font-medium text-foreground"
               id="client-shell-offline-title"
             >
               You’re offline
@@ -126,20 +126,20 @@ function ClientShellOfflineState({
               Retry
             </Button>
           </div>
-          <p className="mt-1 text-muted-foreground text-xs/relaxed">
+          <p className="mt-1 text-xs/relaxed text-muted-foreground">
             Cantiara needs an active internet connection to read and save
             changes.
           </p>
         </div>
       </div>
 
-      <dl className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-foreground/20 border-t pt-3 text-xs">
+      <dl className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-foreground/20 pt-3 text-xs">
         <dt className="font-medium text-foreground/70">Last saved</dt>
         <dd className="font-semibold text-foreground">{lastSavedValue}</dd>
       </dl>
 
       {state.hasUnsavedChanges ? (
-        <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-medium text-destructive text-xs">
+        <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
           Unsaved changes may be lost
         </p>
       ) : null}
@@ -159,7 +159,7 @@ function ClientShellOfflineState({
         </div>
         <div className="min-w-0 pt-0.5">
           <h1
-            className="font-semibold text-3xl text-foreground tracking-tight"
+            className="text-3xl font-semibold tracking-tight text-foreground"
             id="client-shell-offline-title"
           >
             You’re offline
@@ -171,15 +171,15 @@ function ClientShellOfflineState({
         </div>
       </div>
 
-      <dl className="mt-8 grid max-w-xl grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-2 border-foreground/20 border-t pt-5 sm:grid-cols-[9rem_1fr] sm:gap-x-8">
-        <dt className="font-medium text-base text-foreground/70">Last saved</dt>
-        <dd className="font-semibold text-base text-foreground">
+      <dl className="mt-8 grid max-w-xl grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-2 border-t border-foreground/20 pt-5 sm:grid-cols-[9rem_1fr] sm:gap-x-8">
+        <dt className="text-base font-medium text-foreground/70">Last saved</dt>
+        <dd className="text-base font-semibold text-foreground">
           {lastSavedValue}
         </dd>
       </dl>
 
       {state.hasUnsavedChanges ? (
-        <p className="mt-6 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 font-medium text-destructive text-sm">
+        <p className="mt-6 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
           Unsaved changes may be lost
         </p>
       ) : null}
@@ -218,7 +218,7 @@ function ClientShellUpdateRequiredState({
       role="status"
     >
       <h1
-        className="font-semibold text-3xl text-foreground tracking-tight"
+        className="text-3xl font-semibold tracking-tight text-foreground"
         id="client-shell-update-required-title"
       >
         Update required

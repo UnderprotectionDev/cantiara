@@ -55,13 +55,13 @@ export function ProjectAreaAvailability({
 
   if (!enabled) {
     return (
-      <span className="text-muted-foreground text-xs">Configuration Mode</span>
+      <span className="text-xs text-muted-foreground">Configuration Mode</span>
     );
   }
 
   if (!configurationMode) {
     return hidden ? (
-      <span className="text-muted-foreground text-xs">Hidden</span>
+      <span className="text-xs text-muted-foreground">Hidden</span>
     ) : (
       <Check aria-hidden="true" className="size-3" />
     );

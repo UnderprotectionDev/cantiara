@@ -35,7 +35,7 @@ export function ReviewLaterHandlingField({
 }) {
   return (
     <fieldset className="space-y-2" disabled={pending}>
-      <legend className="font-medium text-xs">Review Later reminders</legend>
+      <legend className="text-xs font-medium">Review Later reminders</legend>
       <RadioGroup
         name={name}
         onValueChange={(next) => {
@@ -65,7 +65,7 @@ export function ReviewLaterHandlingField({
           </label>
         ))}
       </RadioGroup>
-      <p aria-live="polite" className="text-muted-foreground text-xs">
+      <p aria-live="polite" className="text-xs text-muted-foreground">
         Preview: {reviewLaterHandlingPreview(value)}
       </p>
     </fieldset>

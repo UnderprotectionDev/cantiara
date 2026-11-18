@@ -145,24 +145,24 @@ export default function PersonalReminderControl({
             sourceRecordType={sourceRecordType}
           >
             {error ? (
-              <p className="text-destructive text-sm" role="alert">
+              <p className="text-sm text-destructive" role="alert">
                 {error}
               </p>
             ) : null}
             {remindersQuery.isError ? (
-              <p className="text-destructive text-sm" role="alert">
+              <p className="text-sm text-destructive" role="alert">
                 Reminder history is unavailable. Try loading it again.
               </p>
             ) : null}
             <section aria-label="Reminder history" className="space-y-2">
-              <h3 className="font-medium text-sm">History</h3>
+              <h3 className="text-sm font-medium">History</h3>
               {remindersQuery.status === "pending" ? (
-                <p className="text-muted-foreground text-sm" role="status">
+                <p className="text-sm text-muted-foreground" role="status">
                   Loading reminders…
                 </p>
               ) : null}
               {remindersQuery.data?.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No reminders.</p>
+                <p className="text-sm text-muted-foreground">No reminders.</p>
               ) : null}
               <ul className="space-y-2">
                 {remindersQuery.data?.map((reminder) => (
@@ -177,17 +177,17 @@ export default function PersonalReminderControl({
                         </Badge>
                         <span className="text-xs">{reminder.action}</span>
                         <time
-                          className="text-muted-foreground text-xs"
+                          className="text-xs text-muted-foreground"
                           dateTime={reminder.fireAt}
                         >
                           {formatDateTime(reminder.fireAt)}
                         </time>
                       </div>
-                      <p className="text-muted-foreground text-xs">
+                      <p className="text-xs text-muted-foreground">
                         {reminder.condition}
                       </p>
                       {reminder.fireNote ? (
-                        <p className="text-muted-foreground text-xs">
+                        <p className="text-xs text-muted-foreground">
                           {reminder.fireNote}
                         </p>
                       ) : null}

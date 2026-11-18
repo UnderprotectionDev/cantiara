@@ -81,7 +81,7 @@ export function ImportApplyPanel({
     >
       {blocked ? <p className="text-sm">{blocked}</p> : null}
       {state.kind === "failed" ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {state.error}
         </p>
       ) : null}

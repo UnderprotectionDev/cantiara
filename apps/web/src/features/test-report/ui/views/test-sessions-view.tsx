@@ -95,8 +95,8 @@ export function TestSessionsView({
       className="space-y-6"
       id="test-sessions"
     >
-      <h2 className="font-semibold text-lg">Test Sessions</h2>
-      <p className="text-muted-foreground text-sm">
+      <h2 className="text-lg font-semibold">Test Sessions</h2>
+      <p className="text-sm text-muted-foreground">
         A Test Session holds the Session Tests an executor reported. It starts
         Unreviewed and never counts as verified product acceptance.
       </p>
@@ -107,7 +107,7 @@ export function TestSessionsView({
         </>
       )}
       {sessions.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No Test Sessions yet.</p>
+        <p className="text-sm text-muted-foreground">No Test Sessions yet.</p>
       ) : (
         <ul className="space-y-3">
           {sessions.map((session) => (

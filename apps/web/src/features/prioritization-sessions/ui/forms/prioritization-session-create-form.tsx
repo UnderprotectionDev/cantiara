@@ -80,9 +80,9 @@ export default function PrioritizationSessionCreateForm({
       <form.Field name="workIds">
         {(field) => (
           <fieldset className="space-y-2">
-            <legend className="font-medium text-sm">Work scope</legend>
+            <legend className="text-sm font-medium">Work scope</legend>
             {activeWorks.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 No active Work is available to select.
               </p>
             ) : (
@@ -122,7 +122,7 @@ export default function PrioritizationSessionCreateForm({
         )}
       </form.Field>
       {formError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {formError}
         </p>
       ) : null}

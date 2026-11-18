@@ -29,7 +29,7 @@ export default function VisualTourPanel({
   return (
     <div className="space-y-3">
       <div aria-atomic="true" aria-live="polite" className="space-y-1">
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Up to {state.limit} visual changes · {state.position} of {state.total}
         </p>
         {state.status === "loading" && (
@@ -38,14 +38,14 @@ export default function VisualTourPanel({
         {state.status === "complete" && <p>Tour complete.</p>}
         {current !== null && (
           <>
-            <p className="break-words font-medium">
+            <p className="font-medium break-words">
               {current.event.source.title}
             </p>
             <p className="text-sm">
               {current.event.kind} since your last visit.
             </p>
             <time
-              className="text-muted-foreground text-sm"
+              className="text-sm text-muted-foreground"
               dateTime={current.event.occurredAt}
             >
               {formatAccountDateTime(current.event.occurredAt, preferences)}

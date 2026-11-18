@@ -15,7 +15,7 @@ export function PriorityMetricTrashImpact({
   const count = effect.storedWorkValueCount;
   const valueLabel = `saved Work ${count === 1 ? "value" : "values"}`;
   return (
-    <div className="mt-1 space-y-1 text-muted-foreground text-sm">
+    <div className="mt-1 space-y-1 text-sm text-muted-foreground">
       {mode === "move-to-trash" ? (
         <p>
           {count} {valueLabel} {count === 1 ? "remains" : "remain"} recoverable
@@ -81,8 +81,8 @@ export function PriorityMetricImpactStatus({
     <p
       className={
         error
-          ? "mt-1 text-destructive text-sm"
-          : "mt-1 text-muted-foreground text-sm"
+          ? "mt-1 text-sm text-destructive"
+          : "mt-1 text-sm text-muted-foreground"
       }
       role={error ? "alert" : "status"}
     >

@@ -46,7 +46,7 @@ export function CreateTagForm({
   return (
     <form
       aria-label="Create tag"
-      className="grid gap-3 border-border/70 border-b pb-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
+      className="grid gap-3 border-b border-border/70 pb-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
       noValidate
       onSubmit={handleSubmit}
     >
@@ -68,7 +68,7 @@ export function CreateTagForm({
         Create tag
       </Button>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

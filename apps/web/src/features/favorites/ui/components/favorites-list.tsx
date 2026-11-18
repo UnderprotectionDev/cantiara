@@ -57,8 +57,8 @@ function FavoriteRow({
     <li className="space-y-2 rounded-lg border border-border/70 p-4">
       {current.status === "available" ? (
         <>
-          <h3 className="break-words font-medium">{current.title}</h3>
-          <p className="text-muted-foreground text-sm">
+          <h3 className="font-medium break-words">{current.title}</h3>
+          <p className="text-sm text-muted-foreground">
             {current.sourceRecordType}
             {current.life ? ` · ${current.life}` : ""}
           </p>
@@ -77,7 +77,7 @@ function FavoriteRow({
       ) : (
         <p role="status">Source record is unavailable. {current.reason}</p>
       )}
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         <time dateTime={current.addedAt}>
           {preferences
             ? formatAccountDateTime(current.addedAt, preferences)

@@ -218,7 +218,7 @@ function formatChangeValue(
 function RecordActionChangeList({ preview }: { preview: RecordActionPreview }) {
   if (preview.changes.length === 0) {
     return (
-      <p className="rounded-md border border-dashed p-3 text-muted-foreground text-sm">
+      <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
         No fields will change.
       </p>
     );
@@ -231,10 +231,10 @@ function RecordActionChangeList({ preview }: { preview: RecordActionPreview }) {
           className="grid gap-1 py-3 sm:grid-cols-[minmax(8rem,1fr)_minmax(0,2fr)] sm:gap-4"
           key={change.key}
         >
-          <span className="font-medium text-muted-foreground text-xs">
+          <span className="text-xs font-medium text-muted-foreground">
             {change.label}
           </span>
-          <span className="break-words text-sm">
+          <span className="text-sm break-words">
             {formatChangeValue(change.before, change.key)} →{" "}
             {formatChangeValue(change.after, change.key)}
           </span>
@@ -278,11 +278,11 @@ function RecordActionCurrentValue({
 }) {
   return (
     <section aria-label="Current value" className="rounded-md border p-3">
-      <h3 className="mb-2 font-medium text-sm">Current value</h3>
+      <h3 className="mb-2 text-sm font-medium">Current value</h3>
       <ul className="space-y-2">
         {preview.changes.map((change) => (
           <li className="flex flex-col gap-1 text-sm" key={change.key}>
-            <span className="font-medium text-muted-foreground text-xs">
+            <span className="text-xs font-medium text-muted-foreground">
               {change.label}
             </span>
             <span>
@@ -339,14 +339,14 @@ function RecordActionRuntimeInputForm({
         form.handleSubmit().catch(() => undefined);
       }}
     >
-      <h3 className="font-medium text-sm">Runtime inputs</h3>
+      <h3 className="text-sm font-medium">Runtime inputs</h3>
       {isLoading ? (
-        <p className="text-muted-foreground text-sm" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           Loading input choices…
         </p>
       ) : null}
       {isUnavailable ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Runtime inputs could not be loaded. Try again.
         </p>
       ) : null}
@@ -360,7 +360,7 @@ function RecordActionRuntimeInputForm({
         if (!definition) {
           return (
             <p
-              className="text-destructive text-sm"
+              className="text-sm text-destructive"
               key={step.definitionId}
               role="alert"
             >
@@ -424,7 +424,7 @@ function RecordActionRuntimeInputForm({
               )}
             </form.Field>
             {availableWorks.length === 0 && !isLoading ? (
-              <p className="text-muted-foreground text-xs">
+              <p className="text-xs text-muted-foreground">
                 No other Work records are available in this Project.
               </p>
             ) : null}
@@ -467,7 +467,7 @@ function RecordActionRuntimeInputSummary({
       aria-label="Runtime inputs selected"
       className="rounded-md border p-3"
     >
-      <h3 className="mb-2 font-medium text-sm">Inputs selected</h3>
+      <h3 className="mb-2 text-sm font-medium">Inputs selected</h3>
       <ul className="space-y-2 text-sm">
         {customInputs.map(([definitionId, value]) => (
           <li className="flex justify-between gap-3" key={definitionId}>
@@ -708,7 +708,7 @@ function RecordActionPreviewContent({
     <>
       {" "}
       {isPreviewing ? (
-        <p className="text-muted-foreground text-sm" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           Preparing preview…
         </p>
       ) : null}
@@ -742,7 +742,7 @@ function RecordActionPreviewContent({
         </p>
       ) : null}
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

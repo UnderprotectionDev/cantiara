@@ -31,12 +31,12 @@ export default function SinceLastLooked({
           />
         )}
       {changes.lastViewedAt === null && (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Changes will appear after your next visit.
         </p>
       )}
       {changes.lastViewedAt !== null && changes.groups.length === 0 && (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No changes since your last visit.
         </p>
       )}
@@ -47,7 +47,7 @@ export default function SinceLastLooked({
             className="space-y-2"
             key={group.name}
           >
-            <h4 className="font-medium text-sm">{group.name}</h4>
+            <h4 className="text-sm font-medium">{group.name}</h4>
             <ul className="list-none space-y-3">
               {group.events.map((event) => (
                 <li
@@ -56,10 +56,10 @@ export default function SinceLastLooked({
                   key={event.id}
                   tabIndex={-1}
                 >
-                  <p className="break-words text-sm">{event.source.title}</p>
-                  <p className="text-muted-foreground text-xs">{event.kind}</p>
+                  <p className="text-sm break-words">{event.source.title}</p>
+                  <p className="text-xs text-muted-foreground">{event.kind}</p>
                   <time
-                    className="block text-muted-foreground text-xs"
+                    className="block text-xs text-muted-foreground"
                     dateTime={event.occurredAt}
                   >
                     {formatAccountDateTime(event.occurredAt, preferences)}

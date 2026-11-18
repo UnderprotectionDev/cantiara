@@ -102,17 +102,17 @@ export default function KanbanBoard({
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h3
-            className="font-semibold text-xl tracking-tight"
+            className="text-xl font-semibold tracking-tight"
             id="kanban-board-heading"
           >
             Board
           </h3>
-          <p className="mt-1 text-muted-foreground text-sm">Kanban</p>
+          <p className="mt-1 text-sm text-muted-foreground">Kanban</p>
         </div>
         <KanbanWorkSummary focusThreshold={focusThreshold} works={works} />
       </header>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -203,13 +203,13 @@ function KanbanColumn({
         }
       >
         <h4
-          className="font-semibold text-sm"
+          className="text-sm font-semibold"
           id={`kanban-column-heading-${statusSlug(status)}`}
         >
           {label}
         </h4>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-background px-2 py-0.5 text-muted-foreground text-xs tabular-nums">
+          <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted-foreground tabular-nums">
             {statusWorks.length}
             {limit === null ? "" : ` / ${limit}`}
           </span>
@@ -232,7 +232,7 @@ function KanbanColumn({
         </div>
       </header>
       {hasOpenBlocker ? (
-        <p className="text-muted-foreground text-xs">Open blocker</p>
+        <p className="text-xs text-muted-foreground">Open blocker</p>
       ) : null}
       <ul
         aria-label={`${label} Work`}
@@ -295,11 +295,11 @@ function KanbanCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <p className="break-words font-medium text-sm">
+          <p className="text-sm font-medium break-words">
             <span className="text-muted-foreground">{work.key}</span>{" "}
             {work.title}
           </p>
-          <p className="text-muted-foreground text-xs">{work.type}</p>
+          <p className="text-xs text-muted-foreground">{work.type}</p>
         </div>
         <Button
           aria-label={`Move ${work.key}`}
@@ -316,7 +316,7 @@ function KanbanCard({
       </div>
       <div className="space-y-2">
         <label
-          className="text-muted-foreground text-xs"
+          className="text-xs text-muted-foreground"
           htmlFor={statusControlId}
         >
           Status
@@ -342,7 +342,7 @@ function KanbanCard({
       <KanbanCardSummary work={work} />
       <KanbanWorkDetails work={work} />
       <OpenSourceRecordButton
-        className="inline-block min-h-11 py-3 text-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="inline-block min-h-11 py-3 text-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         target={{
           kind: "work",
           label: `${work.key} · ${work.title}`,
@@ -367,7 +367,7 @@ export function KanbanCardSummary({ work }: { work: WorkProfile }) {
   return (
     <>
       {query.isError ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           Priority and related record details could not be loaded.
         </p>
       ) : null}
@@ -375,7 +375,7 @@ export function KanbanCardSummary({ work }: { work: WorkProfile }) {
       (summary.priorities.length > 0 || summary.signals.length > 0) ? (
         <ul
           aria-label={`${work.key} priority, blocker, and risk summary`}
-          className="space-y-1 text-muted-foreground text-xs"
+          className="space-y-1 text-xs text-muted-foreground"
         >
           {summary.priorities.map((priority) => (
             <li key={priority.id}>

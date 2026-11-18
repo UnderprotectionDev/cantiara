@@ -190,14 +190,14 @@ export function ResearchSessionNotes({
             </div>
           ) : null}
           {note.kind === "Participant quote" ? (
-            <blockquote className="whitespace-pre-wrap text-sm">
+            <blockquote className="text-sm whitespace-pre-wrap">
               {note.text}
             </blockquote>
           ) : (
-            <p className="whitespace-pre-wrap text-sm">{note.text}</p>
+            <p className="text-sm whitespace-pre-wrap">{note.text}</p>
           )}
           {note.kind === "Participant quote" && note.speakerLabel ? (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Speaker label: {note.speakerLabel}
             </p>
           ) : null}
@@ -267,7 +267,7 @@ function ResearchSessionEvidence({
             {binding.target.brokenReason ??
               `${binding.target.type}: ${binding.target.label}`}
           </p>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Bound at{" "}
             <time dateTime={binding.createdAt}>{binding.createdAt}</time>
           </p>
@@ -281,11 +281,11 @@ function ResearchSessionEvidence({
             {binding.pin.start}–{binding.pin.end}
           </p>
           {record.revision > binding.pin.source.revision ? (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Newer version exists
             </p>
           ) : null}
-          <blockquote className="whitespace-pre-wrap border-l-4 pl-3 text-sm">
+          <blockquote className="border-l-4 pl-3 text-sm whitespace-pre-wrap">
             {binding.pin.excerpt}
           </blockquote>
           {binding.origin ? (

@@ -429,7 +429,7 @@ export default function DocumentTransferForm({
               <DocumentTransferPreviewPanel preview={preview} />
             ) : null}
             {exportPreview ? (
-              <pre className="max-h-60 overflow-auto whitespace-pre-wrap text-sm">
+              <pre className="max-h-60 overflow-auto text-sm whitespace-pre-wrap">
                 {exportPreview.markdown}
               </pre>
             ) : null}

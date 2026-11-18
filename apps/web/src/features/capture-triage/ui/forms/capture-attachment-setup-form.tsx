@@ -60,7 +60,7 @@ export function CaptureAttachmentSetupForm({
       className="space-y-3 border border-border/70 bg-muted/15 p-4"
       onSubmit={submit}
     >
-      <h3 className="font-semibold text-sm">Choose existing record</h3>
+      <h3 className="text-sm font-semibold">Choose existing record</h3>
       <form.Field name="targetId">
         {(field) => (
           <Input

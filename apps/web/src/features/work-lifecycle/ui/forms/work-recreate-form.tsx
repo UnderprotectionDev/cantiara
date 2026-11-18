@@ -192,7 +192,7 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
         noValidate
         onSubmit={handleSubmit}
       >
-        <p className="font-medium text-sm">Recreate in another Project</p>
+        <p className="text-sm font-medium">Recreate in another Project</p>
         {recreatedKey ? (
           <p role="status">Work {recreatedKey} was recreated.</p>
         ) : null}

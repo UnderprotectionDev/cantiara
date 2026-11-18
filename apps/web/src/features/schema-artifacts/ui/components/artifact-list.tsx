@@ -30,7 +30,7 @@ function ArtifactItem({ artifact }: { artifact: MigrationArtifact }) {
         <strong>{`Migration Artifact ${artifact.id}`}</strong>
         {` · ${artifact.source.name} → ${artifact.target.name} · ${artifact.createdAt}`}
       </p>
-      <p className="break-all text-sm">
+      <p className="text-sm break-all">
         {`Migration Artifact Digest ${artifact.digest}`}
       </p>
       <p className="text-sm">
@@ -67,7 +67,7 @@ export function ArtifactList({ diagramId }: { diagramId: string }) {
   return (
     <section aria-label="Migration Artifacts" className="space-y-2">
       <h4 className="font-medium">Migration Artifacts</h4>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         The product stores and exports these files. It never runs them.
       </p>
       <ol className="space-y-2">

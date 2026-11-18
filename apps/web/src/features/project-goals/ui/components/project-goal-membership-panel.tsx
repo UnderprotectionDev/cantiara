@@ -97,7 +97,7 @@ export function ProjectGoalMembershipView({
                   >
                     <div className="min-w-0 break-words">
                       <SourceLink projectId={projectId} source={row.source} />
-                      <span className="pl-2 text-muted-foreground text-sm">
+                      <span className="pl-2 text-sm text-muted-foreground">
                         {row.source.workType ?? row.source.recordType}
                         {row.source.status ? ` · ${row.source.status}` : ""}
                       </span>

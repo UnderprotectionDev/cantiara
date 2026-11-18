@@ -33,7 +33,7 @@ function InsightDistribution({
 
   return (
     <section aria-label={title} className="space-y-2">
-      <h4 className="font-medium text-sm">{title}</h4>
+      <h4 className="text-sm font-medium">{title}</h4>
       <ul className="space-y-1">
         {slices.map((slice, index) => {
           const selected = selectedSlices.some(

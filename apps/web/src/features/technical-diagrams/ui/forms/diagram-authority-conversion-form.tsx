@@ -140,7 +140,7 @@ export function DiagramAuthorityConversion({
   return (
     <section aria-label="Convert authority" className="space-y-2">
       <h4 className="font-medium">Convert authority</h4>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Diagram Authority Mode never changes in place. Converting creates a new
         Technical Diagram that Originates from this one.
       </p>

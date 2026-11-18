@@ -86,7 +86,7 @@ export function MoveToTrashForm({
         {MOVE_TO_TRASH_LABEL}: {candidate.label}
       </h4>
       {preview.surfaces.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No External Surface is attached to this record.
         </p>
       ) : (
@@ -110,7 +110,7 @@ export function MoveToTrashForm({
         <form.Field name="disposition">
           {(field) => (
             <fieldset className="space-y-2">
-              <legend className="font-medium text-sm">
+              <legend className="text-sm font-medium">
                 What happens to active External Surfaces
               </legend>
               <RadioGroup

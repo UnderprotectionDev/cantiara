@@ -97,7 +97,7 @@ export function CreateFeedbackForm({
     >
       <h3 className="font-medium">Create Feedback</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -213,7 +213,7 @@ export function CreateFeedbackForm({
               <form.Field name="attachmentIds">
                 {(field) => (
                   <fieldset className="space-y-2" disabled={pending}>
-                    <legend className="font-medium text-sm">Attachments</legend>
+                    <legend className="text-sm font-medium">Attachments</legend>
                     {attachmentOptions.map((attachment) => (
                       <label
                         className="flex min-h-11 items-center gap-3 text-sm"

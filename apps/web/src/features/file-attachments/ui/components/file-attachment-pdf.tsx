@@ -73,13 +73,13 @@ export function FileAttachmentPdfPreview({
   return (
     <section aria-label="PDF preview" className="space-y-3">
       {status === "loading" ? (
-        <p className="text-muted-foreground text-sm" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           Loading PDF preview…
         </p>
       ) : null}
       {status === "error" ? (
         <div className="space-y-3" role="alert">
-          <p className="text-destructive text-sm">
+          <p className="text-sm text-destructive">
             PDF preview is unavailable. Download the original file instead.
           </p>
           {onRetry ? (

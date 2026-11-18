@@ -126,7 +126,7 @@ function BacklogCard({
       {canReorder ? (
         <button
           aria-label={`Drag ${work.title}`}
-          className="ml-2 cursor-grab rounded px-2 py-3 text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:cursor-grabbing"
+          className="ml-2 cursor-grab rounded px-2 py-3 text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing"
           type="button"
           {...attributes}
           {...listeners}
@@ -135,15 +135,15 @@ function BacklogCard({
         </button>
       ) : null}
       <Link
-        className="flex min-h-12 min-w-0 flex-1 items-center gap-4 rounded-lg px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="flex min-h-12 min-w-0 flex-1 items-center gap-4 rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         hash={workRecordHash(work.id)}
         params={{ projectId }}
         to="/projects/$projectId"
       >
-        <span className="shrink-0 font-mono text-muted-foreground text-xs">
+        <span className="shrink-0 font-mono text-xs text-muted-foreground">
           {work.key}
         </span>
-        <span className="min-w-0 truncate font-medium text-sm">
+        <span className="min-w-0 truncate text-sm font-medium">
           {work.title}
         </span>
       </Link>
@@ -207,7 +207,7 @@ function BacklogCard({
         ) : null}
       </div>
       {saveReappearDate.isError ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           Reappear date could not be saved. Try again.
         </p>
       ) : null}
@@ -340,7 +340,7 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
     presentationQuery.status === "pending"
   ) {
     return (
-      <p className="mt-5 text-muted-foreground text-sm" role="status">
+      <p className="mt-5 text-sm text-muted-foreground" role="status">
         Loading Backlog…
       </p>
     );
@@ -353,14 +353,14 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
     presentationQuery.isError
   ) {
     return (
-      <p className="mt-5 text-destructive text-sm" role="alert">
+      <p className="mt-5 text-sm text-destructive" role="alert">
         Backlog is unavailable. Try loading this page again.
       </p>
     );
   }
   if (query.data.length === 0) {
     return (
-      <p className="mt-5 border-border/70 border-y py-5 text-muted-foreground text-sm">
+      <p className="mt-5 border-y border-border/70 py-5 text-sm text-muted-foreground">
         No active Work to consider.
       </p>
     );
@@ -500,12 +500,12 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
         selectSavedPresentation={selectSavedPresentation}
       />
       {savePresentation.isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Backlog presentation could not be saved. Try again.
         </p>
       ) : null}
       {updateOrder.isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Backlog order could not be saved. Try again.
         </p>
       ) : null}
@@ -743,7 +743,7 @@ function DeferredBacklog({
 }) {
   return deferred.length > 0 ? (
     <section aria-label="Deferred" className="space-y-2">
-      <h3 className="font-semibold text-sm">Deferred</h3>
+      <h3 className="text-sm font-semibold">Deferred</h3>
       <ol aria-label="Deferred" className="space-y-2">
         {deferred.map((work) => (
           <BacklogCard

@@ -49,7 +49,7 @@ export function CreateFocusPeriodForm({
   }
   return (
     <section aria-label="Create Focus Period" className="space-y-4">
-      <h2 className="font-semibold text-xl">Create Focus Period</h2>
+      <h2 className="text-xl font-semibold">Create Focus Period</h2>
       <form className="grid gap-4 sm:grid-cols-3" onSubmit={submit}>
         <form.Field name="purpose">
           {(field) => (

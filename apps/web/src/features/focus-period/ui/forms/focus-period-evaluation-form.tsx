@@ -49,7 +49,7 @@ export function PeriodEvaluationSection({
   return (
     <section aria-label="Period evaluation" className="space-y-3">
       <h3 className="font-semibold">Period evaluation</h3>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Optional learning notes. Leave the fields blank to skip.
       </p>
       <form

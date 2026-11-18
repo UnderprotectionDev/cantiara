@@ -739,7 +739,7 @@ function Canvas({
           </Button>
         ) : null}
       </div>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         {selection.length} selected. Focus a card and press Enter to select it;
         arrows move the selection, Alt+arrows pan, + and - zoom, 0 fits the
         view.

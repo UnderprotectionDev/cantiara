@@ -35,7 +35,7 @@ export function InstantiateWorkTemplateForm({
   return (
     <form
       aria-label={`Create Work from ${template.name}`}
-      className="mt-4 flex flex-wrap items-end gap-2 border-border/70 border-t pt-4"
+      className="mt-4 flex flex-wrap items-end gap-2 border-t border-border/70 pt-4"
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();

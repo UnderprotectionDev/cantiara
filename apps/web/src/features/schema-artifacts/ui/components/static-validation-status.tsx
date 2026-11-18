@@ -18,7 +18,7 @@ export function StaticValidationStatus({
             ? validation.extensions.join(", ")
             : "no required extension"
         } · disposable database destroyed`}
-        <span className="block text-muted-foreground text-sm">
+        <span className="block text-sm text-muted-foreground">
           The product never runs this SQL on your, staging or production
           database.
         </span>

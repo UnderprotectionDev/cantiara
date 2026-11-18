@@ -45,11 +45,11 @@ function EntryCard({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-semibold text-lg">{project.name}</h3>
+            <h3 className="text-lg font-semibold">{project.name}</h3>
             <Badge variant="secondary">{project.status}</Badge>
             {trash ? <Badge variant="destructive">{trash.mark}</Badge> : null}
           </div>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {project.shortCode}
             {project.archivedAt
               ? ` · Archived ${formatAccountDateTime(project.archivedAt, formatting)}`
@@ -91,7 +91,7 @@ function EntryCard({
         ) : null}
       </div>
       {trash ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           The Project group is in Trash until{" "}
           {formatAccountDateTime(trash.expiresAt, formatting)}.{" "}
           {RESTORE_TO_ARCHIVE_RESULT} {REPUBLISH_APPROVAL_NOTICE}
@@ -100,9 +100,9 @@ function EntryCard({
       {deletePanel}
 
       <section aria-label="Living External Surfaces" className="space-y-1">
-        <h4 className="font-medium text-sm">Living External Surfaces</h4>
+        <h4 className="text-sm font-medium">Living External Surfaces</h4>
         {entry.surfaces.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             No approved External Surface is live.
           </p>
         ) : (
@@ -117,9 +117,9 @@ function EntryCard({
       </section>
 
       <section aria-label="Open security actions" className="space-y-1">
-        <h4 className="font-medium text-sm">Open security actions</h4>
+        <h4 className="text-sm font-medium">Open security actions</h4>
         {entry.securityActions.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             No access-reducing action is open.
           </p>
         ) : (
@@ -133,7 +133,7 @@ function EntryCard({
         )}
       </section>
 
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {entry.githubNotice}{" "}
         <Link
           className="underline underline-offset-4"
@@ -179,10 +179,10 @@ export function ArchiveView({
   return (
     <section aria-label={ARCHIVE_LABEL} className="space-y-4">
       <header className="space-y-1">
-        <h2 className="font-semibold text-2xl tracking-tight">
+        <h2 className="text-2xl font-semibold tracking-tight">
           {ARCHIVE_LABEL}
         </h2>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Archived Projects are read-only. Their life-cycle status is unchanged.
         </p>
       </header>

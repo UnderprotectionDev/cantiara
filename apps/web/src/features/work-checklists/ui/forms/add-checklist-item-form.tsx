@@ -43,14 +43,14 @@ export function AddChecklistItemForm({
 
   return (
     <form
-      className="flex flex-wrap items-end gap-2 border-border/70 border-t pt-3"
+      className="flex flex-wrap items-end gap-2 border-t border-border/70 pt-3"
       onSubmit={handleAddItemSubmit}
     >
       <addItemForm.Field name="newItem">
         {(field) => (
           <>
             <label
-              className="min-w-48 flex-1 text-muted-foreground text-xs"
+              className="min-w-48 flex-1 text-xs text-muted-foreground"
               htmlFor={`new-checklist-item-${workKey}`}
             >
               Item

@@ -87,12 +87,12 @@ export default function ImportFileForm({
       className="space-y-4 rounded-lg border border-border/70 p-5"
       onSubmit={submit}
     >
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         One Markdown, JSON or CSV file, one record type, one place. You see the
         mapping and the exact difference before anything is written.
       </p>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

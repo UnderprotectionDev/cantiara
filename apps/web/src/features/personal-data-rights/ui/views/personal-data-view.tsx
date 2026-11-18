@@ -56,14 +56,14 @@ export function PersonalDataView({
   return (
     <div className="space-y-4">
       <header className="space-y-1">
-        <h2 className="font-semibold text-lg">{EXPORT_PERSONAL_DATA_LABEL}</h2>
-        <p className="text-muted-foreground text-sm">
+        <h2 className="text-lg font-semibold">{EXPORT_PERSONAL_DATA_LABEL}</h2>
+        <p className="text-sm text-muted-foreground">
           Collect one Contact's own data into a readable package. You review
           exactly which sources go in before anything is produced.{" "}
           {ERASE_PERSONAL_DATA_LABEL} removes that person after you review the
           impact.
         </p>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {PERSONAL_DATA_SPECIAL_CATEGORY_WARNING}
         </p>
       </header>

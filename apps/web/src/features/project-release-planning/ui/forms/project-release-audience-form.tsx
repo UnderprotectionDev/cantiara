@@ -108,7 +108,7 @@ export function ProjectReleaseAudienceForm({
         )}
       </form.Subscribe>
       {error ? (
-        <p className="w-full text-destructive text-sm" role="alert">
+        <p className="w-full text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

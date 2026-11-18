@@ -77,8 +77,8 @@ export default function PriorityMap({ projectId }: { projectId: string }) {
   if (workQuery.status === "pending" || valuesQuery.status === "pending") {
     return (
       <section aria-label="Priority Map" className="space-y-3">
-        <h3 className="font-medium text-lg">Priority Map</h3>
-        <p className="text-muted-foreground text-sm" role="status">
+        <h3 className="text-lg font-medium">Priority Map</h3>
+        <p className="text-sm text-muted-foreground" role="status">
           Loading…
         </p>
       </section>
@@ -88,8 +88,8 @@ export default function PriorityMap({ projectId }: { projectId: string }) {
   if (workQuery.isError || valuesQuery.isError) {
     return (
       <section aria-label="Priority Map" className="space-y-3">
-        <h3 className="font-medium text-lg">Priority Map</h3>
-        <p className="text-destructive text-sm" role="alert">
+        <h3 className="text-lg font-medium">Priority Map</h3>
+        <p className="text-sm text-destructive" role="alert">
           Priority Map is unavailable. Try loading this page again.
         </p>
       </section>
@@ -104,8 +104,8 @@ export default function PriorityMap({ projectId }: { projectId: string }) {
   if (metrics.length < 2) {
     return (
       <section aria-label="Priority Map" className="space-y-3">
-        <h3 className="font-medium text-lg">Priority Map</h3>
-        <p className="text-muted-foreground text-sm/relaxed">
+        <h3 className="text-lg font-medium">Priority Map</h3>
+        <p className="text-sm/relaxed text-muted-foreground">
           Enable two metrics in Configuration Mode to compare Work here.
         </p>
       </section>
@@ -138,8 +138,8 @@ export default function PriorityMap({ projectId }: { projectId: string }) {
   return (
     <section aria-label="Priority Map" className="space-y-5">
       <header className="max-w-3xl space-y-2">
-        <h3 className="font-medium text-lg">Priority Map</h3>
-        <p className="text-muted-foreground text-sm/relaxed">
+        <h3 className="text-lg font-medium">Priority Map</h3>
+        <p className="text-sm/relaxed text-muted-foreground">
           Compare Work by two Project metrics.
         </p>
       </header>
@@ -210,14 +210,14 @@ export default function PriorityMap({ projectId }: { projectId: string }) {
           <thead>
             <tr>
               <th
-                className="w-32 border-border/70 border-b bg-muted/30 p-3 font-medium"
+                className="w-32 border-b border-border/70 bg-muted/30 p-3 font-medium"
                 scope="col"
               >
                 {verticalMetric.name}
               </th>
               {PRIORITY_METRIC_RANKS.map((rank) => (
                 <th
-                  className="border-border/70 border-b bg-muted/30 p-3 font-medium"
+                  className="border-b border-border/70 bg-muted/30 p-3 font-medium"
                   key={rank}
                   scope="col"
                 >
@@ -230,7 +230,7 @@ export default function PriorityMap({ projectId }: { projectId: string }) {
             {verticalRanks.map((verticalRank) => (
               <tr key={verticalRank}>
                 <th
-                  className="border-border/70 border-b bg-muted/30 p-3 font-medium"
+                  className="border-b border-border/70 bg-muted/30 p-3 font-medium"
                   scope="row"
                 >
                   {verticalRank}
@@ -242,7 +242,7 @@ export default function PriorityMap({ projectId }: { projectId: string }) {
                   return (
                     <td
                       aria-label={`${horizontalMetric.name}: ${horizontalRank}; ${verticalMetric.name}: ${verticalRank}`}
-                      className="h-32 min-w-36 border-border/70 border-b border-l p-2 align-top last:border-r"
+                      className="h-32 min-w-36 border-b border-l border-border/70 p-2 align-top last:border-r"
                       key={horizontalRank}
                     >
                       {cellWorks.length > 0 ? (
@@ -274,7 +274,7 @@ export default function PriorityMap({ projectId }: { projectId: string }) {
         </table>
       </div>
 
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         {horizontalMetric.name} increases from left to right.{" "}
         {verticalMetric.name} increases from bottom to top.
       </p>
@@ -283,16 +283,16 @@ export default function PriorityMap({ projectId }: { projectId: string }) {
         aria-labelledby="priority-map-unevaluated-heading"
         className="space-y-3"
       >
-        <div className="border-border/70 border-b pb-2">
+        <div className="border-b border-border/70 pb-2">
           <h4
-            className="font-medium text-sm"
+            className="text-sm font-medium"
             id="priority-map-unevaluated-heading"
           >
             Unevaluated
           </h4>
         </div>
         {unevaluated.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {works.length === 0 ? "No Work yet." : "No unevaluated Work."}
           </p>
         ) : (
@@ -376,7 +376,7 @@ function PriorityMapWork({
     <article className="space-y-2 rounded-md border border-border/70 bg-card p-2.5">
       <div className="flex items-start justify-between gap-2">
         <AppLink
-          className="min-w-0 font-medium text-sm underline-offset-4 hover:underline"
+          className="min-w-0 text-sm font-medium underline-offset-4 hover:underline"
           href={workRecordHref(projectId, work.id)}
         >
           <span className="text-muted-foreground">{work.key}</span> —{" "}
@@ -390,10 +390,10 @@ function PriorityMapWork({
       {showEvidenceSignals ? (
         <EvidenceSignals context={context} work={work} works={works} />
       ) : null}
-      <details className="border-border/70 border-t pt-2">
+      <details className="border-t border-border/70 pt-2">
         <summary
           aria-label={`Edit axis values for ${work.key}`}
-          className="cursor-pointer text-muted-foreground text-xs underline-offset-4 hover:underline"
+          className="cursor-pointer text-xs text-muted-foreground underline-offset-4 hover:underline"
         >
           Edit axis values
         </summary>
@@ -419,14 +419,14 @@ function EvidenceSignals({
 }) {
   if (context?.isError) {
     return (
-      <p className="text-destructive text-xs" role="alert">
+      <p className="text-xs text-destructive" role="alert">
         Evidence signals could not be loaded.
       </p>
     );
   }
   if (context?.isPending || !context?.data) {
     return (
-      <p className="text-muted-foreground text-xs" role="status">
+      <p className="text-xs text-muted-foreground" role="status">
         Loading…
       </p>
     );
@@ -442,7 +442,7 @@ function EvidenceSignals({
   });
 
   return (
-    <fieldset className="flex flex-wrap gap-x-2 text-muted-foreground text-xs">
+    <fieldset className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
       <legend className="sr-only">Evidence signals for {work.key}</legend>
       {EVIDENCE_COUNT_LABELS.map((label) => (
         <span key={label}>

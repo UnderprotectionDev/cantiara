@@ -39,11 +39,11 @@ export function DecisionChainView({
   return (
     <section
       aria-label="Decision chain"
-      className="space-y-3 break-words rounded-lg border border-border/70 p-4"
+      className="space-y-3 rounded-lg border border-border/70 p-4 break-words"
     >
       <h4 className="font-medium">Decision chain</h4>
       {selected?.life === "Superseded" || !chain.current ? (
-        <div className="space-y-2 border-border/70 border-b pb-3">
+        <div className="space-y-2 border-b border-border/70 pb-3">
           <p>
             Current Decision: {chain.current?.title ?? "No Valid Decision."}
           </p>
@@ -72,7 +72,7 @@ export function DecisionChainView({
                   preferences,
                 )}
               </time>
-              <p className="whitespace-pre-wrap break-words">
+              <p className="break-words whitespace-pre-wrap">
                 {directSuccessorRelation.rationale || "—"}
               </p>
             </div>
@@ -89,7 +89,7 @@ export function DecisionChainView({
           )?.title;
           return (
             <li
-              className="space-y-1 border-border border-l-2 pl-3"
+              className="space-y-1 border-l-2 border-border pl-3"
               key={record.id}
             >
               <div className="flex flex-wrap items-center gap-x-3">
@@ -100,17 +100,17 @@ export function DecisionChainView({
                 >
                   {record.title}
                 </AppLink>
-                <span className="text-muted-foreground text-sm">
+                <span className="text-sm text-muted-foreground">
                   {record.life}
                 </span>
               </div>
               {transition ? (
-                <div className="space-y-1 text-muted-foreground text-sm">
+                <div className="space-y-1 text-sm text-muted-foreground">
                   <p>Superseded by {successorTitle}</p>
                   <time dateTime={transition.occurredAt}>
                     {formatAccountDateTime(transition.occurredAt, preferences)}
                   </time>
-                  <p className="whitespace-pre-wrap break-words">
+                  <p className="break-words whitespace-pre-wrap">
                     {transition.rationale || "—"}
                   </p>
                 </div>

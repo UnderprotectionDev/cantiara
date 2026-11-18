@@ -90,7 +90,7 @@ function CaseItem({
         <h4 className="font-medium" ref={heading} tabIndex={-1}>
           {record.current.title}
         </h4>
-        <span className="text-muted-foreground text-xs">
+        <span className="text-xs text-muted-foreground">
           Version {record.current.version}
         </span>
       </div>
@@ -138,10 +138,10 @@ function CaseItem({
                 className="space-y-1 rounded-md border border-border/50 p-3"
                 key={version.id}
               >
-                <p className="font-medium text-sm">
+                <p className="text-sm font-medium">
                   Version {version.version}: {version.changeKind}
                 </p>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                   {version.createdAt}
                 </p>
                 <p className="text-sm">{version.title}</p>
@@ -174,8 +174,8 @@ export function PlannedTestsView({
       className="space-y-6"
       id="planned-test-cases"
     >
-      <h2 className="font-semibold text-lg">Planned Test Cases</h2>
-      <p className="text-muted-foreground text-sm">
+      <h2 className="text-lg font-semibold">Planned Test Cases</h2>
+      <p className="text-sm text-muted-foreground">
         A Planned Test Case is versioned test intent. It does not run tests and
         carries no results.
       </p>
@@ -192,7 +192,7 @@ export function PlannedTestsView({
         />
       )}
       {cases.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No Planned Test Cases yet.
         </p>
       ) : (

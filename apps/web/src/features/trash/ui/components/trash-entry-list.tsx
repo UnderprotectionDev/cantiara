@@ -35,7 +35,7 @@ export function TrashEntryList({
   pendingId?: string | null;
 }) {
   if (entries.length === 0) {
-    return <p className="text-muted-foreground text-sm">{TRASH_EMPTY_LABEL}</p>;
+    return <p className="text-sm text-muted-foreground">{TRASH_EMPTY_LABEL}</p>;
   }
   return (
     <ul aria-label={`${TRASH_LABEL} entries`} className="space-y-2">
@@ -44,23 +44,23 @@ export function TrashEntryList({
           className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg border border-border/70 p-3"
           key={entry.id}
         >
-          <span className="text-muted-foreground text-sm">
+          <span className="text-sm text-muted-foreground">
             {entry.recordKind}
           </span>
-          <span className="min-w-0 break-words font-medium">
+          <span className="min-w-0 font-medium break-words">
             {entry.recordLabel}
           </span>
-          <span className="text-muted-foreground text-sm">
+          <span className="text-sm text-muted-foreground">
             {IN_TRASH_LABEL}
           </span>
-          <span className="text-muted-foreground text-sm">
+          <span className="text-sm text-muted-foreground">
             Expires{" "}
             <time dateTime={entry.expiresAt}>
               {formatAccountDateTime(entry.expiresAt, formatting)}
             </time>
           </span>
           {entry.groupId ? (
-            <span className="text-muted-foreground text-sm">
+            <span className="text-sm text-muted-foreground">
               Part of a Project delete group: restored together.
             </span>
           ) : null}

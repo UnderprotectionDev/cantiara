@@ -110,11 +110,11 @@ export function NextConcreteStepForm({
           </form.Field>
         )}
       </form.Subscribe>
-      <p className="text-muted-foreground text-sm">Optional · {source.title}</p>
+      <p className="text-sm text-muted-foreground">Optional · {source.title}</p>
       <div className="flex flex-wrap items-center gap-3">
         {source.nextConcreteStepUpdatedAt !== null && (
           <time
-            className="text-muted-foreground text-xs"
+            className="text-xs text-muted-foreground"
             dateTime={source.nextConcreteStepUpdatedAt}
           >
             {formatAccountDateTime(

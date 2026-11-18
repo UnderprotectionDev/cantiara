@@ -110,7 +110,7 @@ function TriagePanel({
   const headingId = `github-triage-${link.id}`;
   if (link.triage === "Skipped") {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Triage skipped. Its Issues stay searchable as GitHub records.
       </p>
     );
@@ -402,10 +402,10 @@ export function GitHubIntegrationView({
   const { app, installations, links, readOnly } = overview;
   return (
     <section aria-labelledby="github-heading" className="space-y-5">
-      <h2 className="font-semibold text-lg" id="github-heading">
+      <h2 className="text-lg font-semibold" id="github-heading">
         {GITHUB_AREA_LABEL}
       </h2>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {`The ${GITHUB_APP_LABEL} installation, not your GitHub login, gives this Project read-only access to the ${GITHUB_REPOSITORY_LABEL} you select. Removing either one leaves the other alone.`}
       </p>
       <GitHubNotice alertClassName="text-destructive text-sm" notice={notice} />
@@ -415,7 +415,7 @@ export function GitHubIntegrationView({
         </p>
       )}
       {readOnly ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           This Project is archived, so its GitHub link is paused.
         </p>
       ) : null}
@@ -429,7 +429,7 @@ export function GitHubIntegrationView({
           {GITHUB_INSTALL_LABEL}
         </Button>
         {installations.length > 0 ? (
-          <ul className="text-muted-foreground text-sm">
+          <ul className="text-sm text-muted-foreground">
             {installations.map((installation) => (
               <li key={installation.id}>
                 {`${GITHUB_APP_LABEL} on ${installation.accountLogin}`}
@@ -451,7 +451,7 @@ export function GitHubIntegrationView({
           {`${GITHUB_REPOSITORY_LABEL} links`}
         </h3>
         {links.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {`No ${GITHUB_REPOSITORY_LABEL} is linked yet. A Project works without one.`}
           </p>
         ) : (

@@ -138,7 +138,7 @@ export function MoodboardBoard(props: MoodboardBoardProps) {
           Zoom out
         </button>
         <span
-          className="text-muted-foreground text-xs"
+          className="text-xs text-muted-foreground"
           id="moodboard-board-hint"
         >
           Arrow keys pan, + and - zoom, 0 fits the view.
@@ -149,7 +149,7 @@ export function MoodboardBoard(props: MoodboardBoardProps) {
       <div
         aria-describedby="moodboard-board-hint"
         aria-label={`Board, ${moodboard.items.length} items`}
-        className="relative h-[480px] touch-none overflow-hidden rounded-md border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="relative h-[480px] touch-none overflow-hidden rounded-md border focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         data-center-x={viewport.centerX}
         data-center-y={viewport.centerY}
         data-testid="moodboard-board"

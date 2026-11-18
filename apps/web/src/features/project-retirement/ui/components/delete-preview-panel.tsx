@@ -8,9 +8,9 @@ import { Button } from "@cantiara/ui/components/button";
 function List({ items, title }: { items: string[]; title: string }) {
   return (
     <section aria-label={title} className="space-y-1">
-      <h3 className="font-medium text-sm">{title}</h3>
+      <h3 className="text-sm font-medium">{title}</h3>
       {items.length === 0 ? (
-        <p className="text-muted-foreground text-sm">None.</p>
+        <p className="text-sm text-muted-foreground">None.</p>
       ) : (
         <ul className="list-disc space-y-0.5 pl-5 text-sm">
           {items.map((item) => (
@@ -81,7 +81,7 @@ export function DeletePreviewPanel({
         title="Relations in other scopes"
       />
       {preview.notices.map((notice) => (
-        <p className="text-muted-foreground text-sm" key={notice}>
+        <p className="text-sm text-muted-foreground" key={notice}>
           {notice}
         </p>
       ))}

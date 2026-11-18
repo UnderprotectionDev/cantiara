@@ -17,11 +17,11 @@ export function TrashConfigurationImpactList({
   return (
     <div className="space-y-2">
       <section aria-labelledby="trash-affected-values" className="space-y-1">
-        <h5 className="font-medium text-sm" id="trash-affected-values">
+        <h5 className="text-sm font-medium" id="trash-affected-values">
           {TRASH_AFFECTED_VALUES_LABEL}
         </h5>
         {impact.storedValues.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             No stored values are affected.
           </p>
         ) : (
@@ -35,11 +35,11 @@ export function TrashConfigurationImpactList({
         )}
       </section>
       <section aria-labelledby="trash-dependents" className="space-y-1">
-        <h5 className="font-medium text-sm" id="trash-dependents">
+        <h5 className="text-sm font-medium" id="trash-dependents">
           {TRASH_DEPENDENTS_LABEL}
         </h5>
         {impact.dependents.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             No view, rule or reference depends on it.
           </p>
         ) : (
@@ -52,7 +52,7 @@ export function TrashConfigurationImpactList({
           </ul>
         )}
       </section>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         A definition in Trash does not run. Restore brings back the same
         definition and stored values.
       </p>

@@ -55,7 +55,7 @@ export default function MergeUndoPanel({
       aria-label="Undo Merge Preview"
       className="space-y-3 rounded-md border px-4 py-3 text-sm"
     >
-      <h3 className="font-semibold text-lg">Undo Merge Preview</h3>
+      <h3 className="text-lg font-semibold">Undo Merge Preview</h3>
       <p>
         <code>{preview.retiredId}</code> becomes a Contact again. Only what the
         merge moved is split back; later edits stay. Nothing is written until

@@ -76,7 +76,7 @@ export function ValidationRecordEditor({
     >
       <h3 className="font-medium">Validation Record</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -124,7 +124,7 @@ export function ValidationRecordEditor({
             <form.Field name="context">
               {(field) => (
                 <fieldset className="space-y-2" disabled={pending}>
-                  <legend className="font-medium text-sm">Related</legend>
+                  <legend className="text-sm font-medium">Related</legend>
                   {counterparts
                     .filter(isValidationContextRecord)
                     .map((source) => (
@@ -166,14 +166,14 @@ export function ValidationRecordEditor({
                       </label>
                     ))}
                   {counterparts.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-sm text-muted-foreground">
                       No context records available.
                     </p>
                   ) : null}
                 </fieldset>
               )}
             </form.Field>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Saving a Result keeps related Assumption, Open Question and
               Decision life unchanged.
             </p>

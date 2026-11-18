@@ -316,7 +316,7 @@ export default function CustomFieldValuesForm({
     (recordId && recordItems === undefined && values.query.status === "pending")
   ) {
     return (
-      <p className="text-muted-foreground text-sm" role="status">
+      <p className="text-sm text-muted-foreground" role="status">
         Loading Custom field…
       </p>
     );
@@ -326,7 +326,7 @@ export default function CustomFieldValuesForm({
     (recordId && recordItems === undefined && values.query.isError)
   ) {
     return (
-      <p className="text-destructive text-sm" role="alert">
+      <p className="text-sm text-destructive" role="alert">
         Custom field values could not be loaded. Try loading this page again.
       </p>
     );
@@ -385,7 +385,7 @@ export default function CustomFieldValuesForm({
 
   return (
     <section aria-label="Custom field" className="space-y-4">
-      <h4 className="font-medium text-sm">Custom field</h4>
+      <h4 className="text-sm font-medium">Custom field</h4>
       <CustomFieldValueInputs
         busy={busy}
         commit={commit}
@@ -395,7 +395,7 @@ export default function CustomFieldValuesForm({
         recordId={recordId}
       />
       {actionError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {actionError}
         </p>
       ) : null}

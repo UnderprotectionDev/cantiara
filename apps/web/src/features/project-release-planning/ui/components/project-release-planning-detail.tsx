@@ -70,8 +70,8 @@ export function ProjectReleasePlanningDetail({
         >
           Releases
         </AppLink>
-        <p className="text-muted-foreground text-sm">Project Release</p>
-        <h2 className="break-words font-semibold text-2xl tracking-tight">
+        <p className="text-sm text-muted-foreground">Project Release</p>
+        <h2 className="text-2xl font-semibold tracking-tight break-words">
           {release.name}
         </h2>
         <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
@@ -85,12 +85,12 @@ export function ProjectReleasePlanningDetail({
           </div>
         </dl>
         {release.description ? (
-          <p className="whitespace-pre-wrap break-words text-muted-foreground text-sm">
+          <p className="text-sm break-words whitespace-pre-wrap text-muted-foreground">
             {release.description}
           </p>
         ) : null}
         <nav aria-label="Project Release views">
-          <span aria-current="page" className="font-medium text-sm">
+          <span aria-current="page" className="text-sm font-medium">
             Planning
           </span>
         </nav>
@@ -101,7 +101,7 @@ export function ProjectReleasePlanningDetail({
         </p>
       ) : null}
       {errorMessage ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {errorMessage}
         </p>
       ) : null}
@@ -173,19 +173,19 @@ function ScopeSection({
   return (
     <section aria-label="Scope" className="space-y-4">
       <div className="space-y-1">
-        <h3 className="font-medium text-lg">Scope</h3>
-        <p className="text-muted-foreground text-sm">
+        <h3 className="text-lg font-medium">Scope</h3>
+        <p className="text-sm text-muted-foreground">
           {counts.completed} completed, {counts.open} open. Scope holds only the
           Work you add; it never changes a Work status.
         </p>
         {terminalStatus ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {`This Project Release is ${terminalStatus}; its scope is read-only.`}
           </p>
         ) : null}
       </div>
       {attached.length ? null : (
-        <p className="text-muted-foreground text-sm">No Work in scope yet.</p>
+        <p className="text-sm text-muted-foreground">No Work in scope yet.</p>
       )}
       {PROJECT_RELEASE_SCOPE_GROUPS.map(({ group, label }) => {
         const members = attached.filter(
@@ -193,7 +193,7 @@ function ScopeSection({
         );
         return members.length ? (
           <section aria-label={label} className="space-y-2" key={group}>
-            <h4 className="font-medium text-sm">{label}</h4>
+            <h4 className="text-sm font-medium">{label}</h4>
             <ul className="divide-y rounded-lg border border-border/70">
               {members.map((member) => (
                 <li
@@ -263,8 +263,8 @@ function HypothesisSection({
   return (
     <section aria-label="Access and outcome hypothesis" className="space-y-4">
       <div className="space-y-1">
-        <h3 className="font-medium text-lg">Access and outcome hypothesis</h3>
-        <p className="text-muted-foreground text-sm">
+        <h3 className="text-lg font-medium">Access and outcome hypothesis</h3>
+        <p className="text-sm text-muted-foreground">
           Optional. These fields never block publishing and nothing is measured
           automatically.
         </p>
@@ -283,8 +283,8 @@ function HypothesisSection({
         <dl className="space-y-4 rounded-lg border border-border/70 p-4">
           {PROJECT_RELEASE_HYPOTHESIS_FIELDS.map(({ label, name }) => (
             <div key={name}>
-              <dt className="font-medium text-sm">{label}</dt>
-              <dd className="mt-1 whitespace-pre-wrap break-words text-muted-foreground text-sm">
+              <dt className="text-sm font-medium">{label}</dt>
+              <dd className="mt-1 text-sm break-words whitespace-pre-wrap text-muted-foreground">
                 {release[name] || "—"}
               </dd>
               {name === "audience" && audience.length ? (
@@ -356,8 +356,8 @@ function ReferencesSection({
 }) {
   return (
     <aside aria-label="GitHub and environments" className="space-y-4">
-      <h3 className="font-medium text-lg">GitHub and environments</h3>
-      <p className="text-muted-foreground text-sm">
+      <h3 className="text-lg font-medium">GitHub and environments</h3>
+      <p className="text-sm text-muted-foreground">
         References give context only. A GitHub Release never changes this
         Project Release status.
       </p>
@@ -401,7 +401,7 @@ function ReferencesSection({
           ))}
         </ul>
       ) : (
-        <p className="text-muted-foreground text-sm">No references yet.</p>
+        <p className="text-sm text-muted-foreground">No references yet.</p>
       )}
       {readOnly ? null : (
         <ProjectReleaseLinkForm

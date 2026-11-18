@@ -33,10 +33,10 @@ function RoadmapCard({ data }: NodeProps<RoadmapNode>) {
     <div
       className={`h-[100px] w-[260px] rounded-lg border bg-card p-3 text-card-foreground ${data.highlighted ? "ring-4 ring-ring" : ""}`}
     >
-      <p className="line-clamp-2 break-words font-medium text-sm">
+      <p className="line-clamp-2 text-sm font-medium break-words">
         {data.title}
       </p>
-      <p className="mt-1 text-muted-foreground text-xs">{data.detail}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{data.detail}</p>
       {data.highlighted === true && (
         <p className="text-xs">Current visual change</p>
       )}
@@ -230,7 +230,7 @@ export default function RoadmapCanvas({
         />
       </div>
       {!nodes.length && (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No planned Work matches this view.
         </p>
       )}

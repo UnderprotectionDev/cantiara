@@ -35,7 +35,7 @@ export default function PublicRoadmapReviewSurface({
         key={interval.data.days ?? "none"}
         onSave={save.mutateAsync}
       />
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         Optional. Without an interval no review signal is created. A signal only
         suggests a review; it changes no status, label or snapshot.
       </p>

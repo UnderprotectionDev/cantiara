@@ -116,7 +116,7 @@ export function ProjectUpdateReminderForm({
         </div>
       ) : null}
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -193,7 +193,7 @@ export function ProjectUpdateReminderForm({
             </label>
           )}
         </form.Field>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Optional. A reminder only opens this form; skipping it saves nothing.
         </p>
         <Button disabled={busy} type="submit" variant="outline">

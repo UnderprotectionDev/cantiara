@@ -71,7 +71,7 @@ export function CaptureConversionSetupForm({
       className="space-y-3 border border-border/70 bg-muted/15 p-4"
       onSubmit={submit}
     >
-      <h3 className="font-semibold text-sm">Choose conversion target</h3>
+      <h3 className="text-sm font-semibold">Choose conversion target</h3>
       <form.Field name="recordType">
         {(field) => (
           <NativeSelect
@@ -120,7 +120,7 @@ export function CaptureConversionSetupForm({
           return (
             <>
               {requiresProject ? (
-                <p className="text-destructive text-xs">
+                <p className="text-xs text-destructive">
                   Work conversion requires a Project.
                 </p>
               ) : null}

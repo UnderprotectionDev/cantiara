@@ -75,12 +75,12 @@ export function SqlOutput({
             </Button>
           </>
         ) : (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Export opens after Statically Validated.
           </p>
         )}
       </div>
-      <p aria-live="polite" className="text-muted-foreground text-sm">
+      <p aria-live="polite" className="text-sm text-muted-foreground">
         {message}
       </p>
     </div>

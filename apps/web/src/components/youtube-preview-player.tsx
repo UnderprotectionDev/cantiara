@@ -183,8 +183,8 @@ export function YouTubePreviewPlayer({
   }
   return (
     <div className="space-y-3">
-      <p className="font-medium text-sm">Live external source</p>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm font-medium">Live external source</p>
+      <p className="text-sm text-muted-foreground">
         Loading YouTube contacts a third-party service. This live player is not
         historical evidence.
       </p>

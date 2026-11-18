@@ -14,8 +14,8 @@ export default function PreferencesView({ accountId }: { accountId: string }) {
   if (preferences.status === "pending") {
     return (
       <main className="surface-frame max-w-5xl">
-        <h1 className="font-semibold text-3xl tracking-tight">Preferences</h1>
-        <p className="mt-3 text-muted-foreground text-sm">
+        <h1 className="text-3xl font-semibold tracking-tight">Preferences</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
           Loading preferences…
         </p>
       </main>
@@ -25,7 +25,7 @@ export default function PreferencesView({ accountId }: { accountId: string }) {
   if (preferences.isError) {
     return (
       <main className="surface-frame max-w-5xl">
-        <h1 className="font-semibold text-3xl tracking-tight">Preferences</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Preferences</h1>
         <div
           className="mt-8 border-y bg-destructive/5 px-4 py-6 text-sm"
           role="alert"
@@ -49,10 +49,10 @@ export default function PreferencesView({ accountId }: { accountId: string }) {
   return (
     <main className="surface-frame max-w-5xl">
       <header className="surface-header max-w-2xl">
-        <h1 className="text-balance font-semibold text-3xl tracking-tight">
+        <h1 className="text-3xl font-semibold tracking-tight text-balance">
           Preferences
         </h1>
-        <p className="mt-3 max-w-xl text-muted-foreground text-sm/6">
+        <p className="mt-3 max-w-xl text-sm/6 text-muted-foreground">
           Choose how Cantiara formats dates, times, numbers, weeks, and the
           product appearance across every Project.
         </p>

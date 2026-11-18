@@ -15,7 +15,7 @@ import {
 
 function MatchSnippet({ snippet, query }: { snippet: string; query: string }) {
   return (
-    <p className="text-muted-foreground text-sm">
+    <p className="text-sm text-muted-foreground">
       {documentMatchParts(snippet, query).map((part) =>
         part.matched ? <mark key={part.start}>{part.text}</mark> : part.text,
       )}
@@ -114,7 +114,7 @@ function IndexMetadata({
       ) : null}
       <Badge variant="outline">{scope}</Badge>
       {folder ? (
-        <span className="text-muted-foreground text-sm">Folder: {folder}</span>
+        <span className="text-sm text-muted-foreground">Folder: {folder}</span>
       ) : null}
     </div>
   );
@@ -130,7 +130,7 @@ function SearchMatchDetails({
   return (
     <>
       <MatchSnippet query={query} snippet={result.snippet} />
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {result.matchCount} {result.matchCount === 1 ? "match" : "matches"}
       </p>
     </>

@@ -38,7 +38,7 @@ function MemberButton({
         type="button"
         variant="outline"
       >
-        <span className="text-muted-foreground text-xs">{member.kind}</span>{" "}
+        <span className="text-xs text-muted-foreground">{member.kind}</span>{" "}
         {member.label}
       </Button>
     </li>
@@ -76,10 +76,10 @@ export default function ActiveWorkingSetTray({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="font-medium text-sm">
+          <h2 className="text-sm font-medium">
             Active Working Set ({members.length})
           </h2>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             Held for this session only.
           </p>
         </div>

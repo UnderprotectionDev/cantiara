@@ -6,7 +6,7 @@ export default function NotificationCenterView() {
   return (
     <ClientShellContent>
       <main className="mx-auto grid w-full max-w-3xl gap-4 p-4">
-        <h1 className="font-semibold text-xl">Notification Center</h1>
+        <h1 className="text-xl font-semibold">Notification Center</h1>
         <NotificationCenterSurface />
         <PublicRoadmapReviewSection />
       </main>

@@ -127,7 +127,7 @@ export default function FocusPeriodsView() {
   return (
     <main className="mx-auto w-full max-w-5xl space-y-8 px-5 py-9 sm:px-8">
       <header className="border-b pb-6">
-        <h1 className="font-semibold text-3xl">Focus Period</h1>
+        <h1 className="text-3xl font-semibold">Focus Period</h1>
         <p className="mt-2 text-muted-foreground">
           Choose Work from any Project for a 1–8 week window.
         </p>
@@ -164,7 +164,7 @@ export default function FocusPeriodsView() {
                 type="button"
               >
                 <span className="block font-medium">{period.purpose}</span>
-                <span className="text-muted-foreground text-sm">
+                <span className="text-sm text-muted-foreground">
                   {period.startDate} – {period.endDate} · {period.status}
                 </span>
               </button>
@@ -249,7 +249,7 @@ function PeriodDetail({
     <section aria-label={period.purpose} className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-xl">{period.purpose}</h2>
+          <h2 className="text-xl font-semibold">{period.purpose}</h2>
           <p>
             {period.startDate} – {period.endDate} · {period.status}
           </p>
@@ -288,7 +288,7 @@ function PeriodDetail({
           ) : (
             <p>No Work remains open.</p>
           )}
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Closing keeps this Work open. No Work moves to another Focus Period
             automatically.
           </p>
@@ -332,7 +332,7 @@ function PeriodDetail({
         remove={remove}
       />
       {period.startSnapshot ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           In start snapshot: {period.startSnapshot.length}
         </p>
       ) : null}
@@ -346,7 +346,7 @@ function PeriodDetail({
                 <li key={item.id}>
                   {item.title} · {item.key}
                   {unavailableWorkIds.has(item.id) ? (
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-sm text-muted-foreground">
                       Work is unavailable.
                     </p>
                   ) : null}
@@ -463,7 +463,7 @@ function CloseComparisonSection({ period }: { period: FocusPeriodRecord }) {
                         <span>
                           {item.title} · {item.key} · {item.status}
                         </span>
-                        <p className="text-muted-foreground text-sm">
+                        <p className="text-sm text-muted-foreground">
                           Work is unavailable.
                         </p>
                       </>

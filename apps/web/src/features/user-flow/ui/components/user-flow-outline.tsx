@@ -286,7 +286,7 @@ export function UserFlowOutline(props: OutlineProps) {
   );
   return (
     <section aria-label="Outline" className="space-y-3 rounded-lg border p-3">
-      <h4 className="font-medium text-sm">Outline</h4>
+      <h4 className="text-sm font-medium">Outline</h4>
       <div className="flex flex-wrap items-center gap-2">
         <CreateNodeForm
           createId={createId}
@@ -306,7 +306,7 @@ export function UserFlowOutline(props: OutlineProps) {
         </Button>
       </div>
       {rows.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           The outline is empty. Add a node to start the path.
         </p>
       ) : (

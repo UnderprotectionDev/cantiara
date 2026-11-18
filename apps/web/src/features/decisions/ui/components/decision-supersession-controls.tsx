@@ -61,7 +61,6 @@ export default function DecisionSupersessionControls({
     setError(undefined);
   }
   async function confirm() {
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: React state remains optional before the preview is prepared.
     if (!prepared) {
       return;
     }

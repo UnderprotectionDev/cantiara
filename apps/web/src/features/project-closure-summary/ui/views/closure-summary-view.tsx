@@ -165,10 +165,10 @@ export function ClosureSummaryView({
 
   return (
     <section aria-labelledby="closure-summary-heading" className="space-y-4">
-      <h3 className="font-semibold text-lg" id="closure-summary-heading">
+      <h3 className="text-lg font-semibold" id="closure-summary-heading">
         {CLOSURE_SUMMARY_DRAFT_LABEL}
       </h3>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {CLOSURE_SUMMARY_DRAFT_NOTE}
       </p>
       {failed ? (
@@ -234,7 +234,7 @@ function PreviewList({ preview }: { preview: ClosureSummaryDraft }) {
     <ul aria-label="Heading preview" className="space-y-2">
       {preview.sections.map((section) => (
         <li key={section.recordType}>
-          <p className="font-medium text-sm">{section.heading}</p>
+          <p className="text-sm font-medium">{section.heading}</p>
           <ul className="list-disc pl-5 text-sm">
             {section.sources.map((source) => (
               <li key={source.recordId}>{source.label}</li>

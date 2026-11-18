@@ -32,12 +32,12 @@ export default function ExtensionLinksSection({
 
   return (
     <section aria-labelledby="extension-links-heading" className="pt-12">
-      <div className="flex flex-col gap-3 border-border/70 border-b pb-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="font-medium text-sm" id="extension-links-heading">
+          <h2 className="text-sm font-medium" id="extension-links-heading">
             Extension links
           </h2>
-          <p className="mt-1 max-w-xl text-muted-foreground text-sm/6">
+          <p className="mt-1 max-w-xl text-sm/6 text-muted-foreground">
             Pair a browser with Web Capture and revoke individual links when a
             device should stop writing to the Capture Inbox.
           </p>
@@ -59,14 +59,14 @@ export default function ExtensionLinksSection({
           className="rounded-md border border-primary/25 bg-primary/5 px-4 py-4"
           role="status"
         >
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             This pairing code expires in five minutes and can be used once.
           </p>
-          <code className="mt-2 block font-semibold text-lg tracking-wider">
+          <code className="mt-2 block text-lg font-semibold tracking-wider">
             {pairingCode.code}
           </code>
           <time
-            className="mt-1 block text-muted-foreground text-xs"
+            className="mt-1 block text-xs text-muted-foreground"
             dateTime={pairingCode.expiresAt}
           >
             Expires{" "}
@@ -79,7 +79,7 @@ export default function ExtensionLinksSection({
       ) : null}
 
       {links.status === "pending" ? (
-        <div className="border-b py-5 text-muted-foreground text-sm">
+        <div className="border-b py-5 text-sm text-muted-foreground">
           Loading Extension links…
         </div>
       ) : null}
@@ -89,12 +89,12 @@ export default function ExtensionLinksSection({
         </div>
       ) : null}
       {links.data?.length === 0 ? (
-        <p className="border-b py-5 text-muted-foreground text-sm">
+        <p className="border-b py-5 text-sm text-muted-foreground">
           No Extension links.
         </p>
       ) : null}
       {links.data && links.data.length > 0 ? (
-        <ul className="divide-y border-border/70 border-y">
+        <ul className="divide-y border-y border-border/70">
           {links.data.map((link) => (
             <li
               className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between"
@@ -102,10 +102,10 @@ export default function ExtensionLinksSection({
             >
               <div className="grid gap-1 text-sm">
                 <p className="font-medium">{link.device}</p>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                   Browser: {link.browser}
                 </p>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                   Last use:{" "}
                   {link.lastUse
                     ? formatAccountDateTime(link.lastUse, formattingPreferences)

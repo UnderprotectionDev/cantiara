@@ -54,7 +54,7 @@ function EvidenceRow({
           <span className="text-muted-foreground">{` · ${row.state}`}</span>
         ) : null}
       </p>
-      <p className="text-muted-foreground text-sm">{row.why}</p>
+      <p className="text-sm text-muted-foreground">{row.why}</p>
       {row.details.length > 0 ? (
         <dl className="grid gap-x-3 text-sm sm:grid-cols-[max-content_1fr]">
           {row.details.map((detail) => (
@@ -82,7 +82,7 @@ function ChecklistRows({
   return (
     <div className="space-y-3">
       {pack.checklist.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No checklist items. The checklist is optional and never gates publish.
         </p>
       ) : (
@@ -141,10 +141,10 @@ export function ReleaseEvidencePackView({
   return (
     <section aria-labelledby={headingId} className="space-y-5">
       <header className="space-y-1">
-        <h3 className="font-semibold text-xl" id={headingId}>
+        <h3 className="text-xl font-semibold" id={headingId}>
           {RELEASE_EVIDENCE_PACK_LABEL}
         </h3>
-        <p className="text-muted-foreground text-sm">{RELEASE_EVIDENCE_NOTE}</p>
+        <p className="text-sm text-muted-foreground">{RELEASE_EVIDENCE_NOTE}</p>
       </header>
       {signal && !signal.closed ? (
         <div
@@ -170,7 +170,7 @@ export function ReleaseEvidencePackView({
           {`Attention (${pack.attention.length})`}
         </h4>
         {pack.attention.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             No source needs attention. This is not a verdict.
           </p>
         ) : (
@@ -181,7 +181,7 @@ export function ReleaseEvidencePackView({
                 key={row.rowId}
               >
                 <p className="font-medium">{row.title}</p>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-sm text-muted-foreground">
                   {`${row.section}: ${row.why}`}
                 </p>
                 <OpenSource projectId={projectId} source={row.source} />
@@ -202,7 +202,7 @@ export function ReleaseEvidencePackView({
               {`${section.section} (${section.count})`}
             </h4>
             {section.unavailableReason ? (
-              <p className="text-muted-foreground text-sm" role="status">
+              <p className="text-sm text-muted-foreground" role="status">
                 {`Source unavailable: ${section.unavailableReason}`}
               </p>
             ) : null}
@@ -215,7 +215,7 @@ export function ReleaseEvidencePackView({
             ) : (
               <>
                 {section.rows.length === 0 && !section.unavailableReason ? (
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-sm text-muted-foreground">
                     Nothing is related to this Project Release here.
                   </p>
                 ) : null}

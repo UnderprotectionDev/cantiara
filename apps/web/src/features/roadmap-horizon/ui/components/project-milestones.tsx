@@ -159,17 +159,17 @@ function MilestoneCard({
     >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             Milestone · {milestone.status}
           </p>
           <h3 className="font-medium">{milestone.title}</h3>
           {milestone.targetDate ? (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Target date · {milestone.targetDate}
             </p>
           ) : null}
           {milestone.description ? (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               {milestone.description}
             </p>
           ) : null}
@@ -219,7 +219,7 @@ function MilestoneCard({
         />
       ) : null}
       {statusMutation.isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           This action could not be completed.
         </p>
       ) : null}
@@ -279,8 +279,8 @@ export default function ProjectMilestones({
   return (
     <section aria-label="Milestones" className="grid gap-4 border-t pt-6">
       <header className="grid gap-1">
-        <h3 className="font-semibold text-xl">Milestones</h3>
-        <p className="text-muted-foreground text-sm">
+        <h3 className="text-xl font-semibold">Milestones</h3>
+        <p className="text-sm text-muted-foreground">
           Milestones describe intermediate outcomes. Their status changes only
           through an explicit action.
         </p>
@@ -305,7 +305,7 @@ export default function ProjectMilestones({
           ))}
         </div>
       ) : (
-        <p className="text-muted-foreground text-sm">No Milestone yet.</p>
+        <p className="text-sm text-muted-foreground">No Milestone yet.</p>
       )}
     </section>
   );
@@ -356,7 +356,7 @@ function MilestoneWorkRelations({
       aria-label={`Work in ${milestone.title}`}
       className="grid gap-2 border-t pt-4"
     >
-      <h4 className="font-medium text-sm">In Milestone</h4>
+      <h4 className="text-sm font-medium">In Milestone</h4>
       {relationsQuery.status === "pending" ? (
         <p role="status">Loading relations…</p>
       ) : null}
@@ -367,7 +367,7 @@ function MilestoneWorkRelations({
       ) : null}
       {!(relationsQuery.status === "pending" || relationsQuery.isError) &&
       linkedWorks.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No relations yet.</p>
+        <p className="text-sm text-muted-foreground">No relations yet.</p>
       ) : null}
       {linkedWorks.map((relation: RelationView) => (
         <Link
@@ -395,7 +395,7 @@ function MilestoneWorkRelations({
           works={works}
         />
       ) : (
-        <p className="text-muted-foreground text-sm">No Work yet.</p>
+        <p className="text-sm text-muted-foreground">No Work yet.</p>
       )}
       {preview ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted p-3 text-sm">
@@ -424,7 +424,7 @@ function MilestoneWorkRelations({
         </div>
       ) : null}
       {relationPreviewMutation.isError || relationCreateMutation.isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           This action could not be completed.
         </p>
       ) : null}

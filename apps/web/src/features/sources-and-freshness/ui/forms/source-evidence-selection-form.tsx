@@ -221,7 +221,7 @@ function SourceEvidenceConfirmation({
         {formatAccountDateTime(plan.accessedAt, preferences)} · Range{" "}
         {plan.pin.start}–{plan.pin.end}
       </p>
-      <p className="whitespace-pre-wrap break-words">{plan.pin.excerpt}</p>
+      <p className="break-words whitespace-pre-wrap">{plan.pin.excerpt}</p>
       <Button
         disabled={pending}
         onClick={() => plan && onSave(use, plan)}
@@ -280,7 +280,7 @@ function EvidenceTargetSelection({
         {formatAccountDateTime(use.accessedAt, preferences)} · Range{" "}
         {use.pin.start}–{use.pin.end}
       </p>
-      <p className="whitespace-pre-wrap break-words">{use.pin.excerpt}</p>
+      <p className="break-words whitespace-pre-wrap">{use.pin.excerpt}</p>
       {findSourceEvidenceMatch(
         use.pin.excerpt,
         source.version.capturedContent,

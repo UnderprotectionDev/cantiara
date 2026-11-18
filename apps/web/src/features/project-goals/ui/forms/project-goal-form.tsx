@@ -114,7 +114,7 @@ export function ProjectGoalEditor({
       onSubmit={submit}
     >
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -195,8 +195,8 @@ function ProjectGoalValues({ goal }: { goal: ProjectGoalRecord }) {
     <dl className="space-y-3">
       {FIELDS.map(({ name, label }) => (
         <div key={name}>
-          <dt className="font-medium text-sm">{label}</dt>
-          <dd className="whitespace-pre-wrap break-words text-muted-foreground text-sm">
+          <dt className="text-sm font-medium">{label}</dt>
+          <dd className="text-sm break-words whitespace-pre-wrap text-muted-foreground">
             {goal[name] || "—"}
           </dd>
         </div>

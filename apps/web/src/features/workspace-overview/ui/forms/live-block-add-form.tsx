@@ -57,7 +57,7 @@ export function LiveBlockAddForm({
     <form className="flex flex-wrap items-end gap-2" onSubmit={submit}>
       <form.Field name="choice">
         {(field) => (
-          <div className="grid gap-1 text-muted-foreground text-xs">
+          <div className="grid gap-1 text-xs text-muted-foreground">
             <span id="workspace-overview-live-block-source-label">
               Existing source
             </span>

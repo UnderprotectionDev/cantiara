@@ -45,20 +45,20 @@ export function ProjectUpdatesView({
   return (
     <section aria-label={PROJECT_UPDATES_LABEL} className="space-y-6">
       <header className="space-y-1">
-        <p className="text-muted-foreground text-sm">{PROJECT_UPDATES_LABEL}</p>
-        <h2 className="font-semibold text-2xl tracking-tight">
+        <p className="text-sm text-muted-foreground">{PROJECT_UPDATES_LABEL}</p>
+        <h2 className="text-2xl font-semibold tracking-tight">
           {PROJECT_UPDATE_LABEL}
         </h2>
       </header>
       {readOnly ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           This Project is archived. Its {PROJECT_UPDATES_LABEL} are read-only.
         </p>
       ) : (
         <>
           <section aria-label="Summary now" className="space-y-2">
             <h3 className="font-medium">Summary now</h3>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               These blocks are saved with the update exactly as shown.
             </p>
             <ProjectUpdateSummary snapshot={liveSummary} />

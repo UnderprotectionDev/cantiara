@@ -38,8 +38,8 @@ export function ExportView({
   return (
     <div className="space-y-4">
       <header className="space-y-1">
-        <h2 className="font-semibold text-lg">{EXPORT_LABEL}</h2>
-        <p className="text-muted-foreground text-sm">
+        <h2 className="text-lg font-semibold">{EXPORT_LABEL}</h2>
+        <p className="text-sm text-muted-foreground">
           Take the records you choose out as JSON or CSV. You review exactly
           what leaves before anything is produced.
         </p>

@@ -20,7 +20,7 @@ export function ClosureSummaryDateHistory({
       aria-label={CLOSURE_SUMMARY_DATE_HISTORY_LABEL}
       className="space-y-2"
     >
-      <p className="text-muted-foreground text-sm">{comparison.note}</p>
+      <p className="text-sm text-muted-foreground">{comparison.note}</p>
       {comparison.rows.length === 0 ? (
         <p role="status">No selected record has a planned date.</p>
       ) : (

@@ -49,7 +49,7 @@ export default function PrioritizationSessionAddWorkForm({
 
   return (
     <form
-      className="flex flex-wrap items-end gap-2 border-border/70 border-t pt-3"
+      className="flex flex-wrap items-end gap-2 border-t border-border/70 pt-3"
       onSubmit={handleSubmit}
     >
       <form.Field name="workToAdd">

@@ -65,7 +65,7 @@ function TransitionControls({
   return (
     <div className="space-y-2">
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -89,7 +89,7 @@ function TransitionControls({
               </li>
             ))}
           </ul>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             Changes only this record. Nothing outside the product is started,
             stopped or contacted.
           </p>
@@ -349,8 +349,8 @@ export function TestHandoffsView({
       className="space-y-6"
       id="test-handoffs"
     >
-      <h2 className="font-semibold text-lg">{`${TEST_HANDOFF_LABEL}s`}</h2>
-      <p className="text-muted-foreground text-sm">
+      <h2 className="text-lg font-semibold">{`${TEST_HANDOFF_LABEL}s`}</h2>
+      <p className="text-sm text-muted-foreground">
         A Test Handoff records external test work you asked for and the Session
         Tests that came back. It does not run tests, and it never closes itself.
       </p>
@@ -366,7 +366,7 @@ export function TestHandoffsView({
         />
       )}
       {handoffs.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {`No ${TEST_HANDOFF_LABEL}s yet.`}
         </p>
       ) : (

@@ -121,14 +121,14 @@ export default function TestReviewFollowUpForm({
       <h3 className="font-medium" id="test-review-follow-up-heading">
         {TEST_REVIEW_FOLLOW_UP_LABEL}
       </h3>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         A Failed, Blocked or Inconclusive result creates no Bug, Work, Risk,
         Open Question, Decision, notification or priority by itself. Choose
         results, preview the target and origin, then confirm.
       </p>
       <form className="space-y-3" noValidate onSubmit={handlePreviewSubmit}>
         {items.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No Session Tests yet.</p>
+          <p className="text-sm text-muted-foreground">No Session Tests yet.</p>
         ) : (
           <fieldset className="m-0 min-w-0 space-y-1 border-0 p-0 text-sm">
             <legend className="font-medium">Results for follow-up</legend>

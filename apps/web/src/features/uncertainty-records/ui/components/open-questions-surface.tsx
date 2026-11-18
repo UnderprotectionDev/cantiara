@@ -139,7 +139,7 @@ export default function OpenQuestionsSurface({
   return (
     <section aria-label="Open Question" className="space-y-5">
       <header className="surface-header flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-semibold text-2xl">Open Question</h2>
+        <h2 className="text-2xl font-semibold">Open Question</h2>
         {locked ? null : (
           <Button disabled={Boolean(editing)} onClick={() => start("create")}>
             Create

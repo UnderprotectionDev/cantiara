@@ -83,7 +83,7 @@ export function DecisionEditor({
     >
       <h3 className="font-medium">{withdrawing ? "Withdraw" : "Decision"}</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

@@ -57,7 +57,7 @@ export function ShareAccessPanel({
   }
   return (
     <section aria-label="Link access" className="space-y-4">
-      <h4 className="font-medium text-sm">{SHARE_TOKEN_LABEL}</h4>
+      <h4 className="text-sm font-medium">{SHARE_TOKEN_LABEL}</h4>
       {link ? (
         <div className="grid gap-2">
           <label className="grid gap-1 text-sm" htmlFor="share-visitor-link">
@@ -69,14 +69,14 @@ export function ShareAccessPanel({
               value={link}
             />
           </label>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             Anyone with this link{passwordProtected ? " and the password" : ""}{" "}
             can read the approved snapshot. Only a hash of the token is kept, so
             copy it now.
           </p>
         </div>
       ) : (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           The link is not shown again. Create a new link to copy one; the old
           link stops working.
         </p>
@@ -93,7 +93,7 @@ export function ShareAccessPanel({
       </div>
       {status ? <p role="status">{status}</p> : null}
       {failed ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           That did not work. Try again.
         </p>
       ) : null}

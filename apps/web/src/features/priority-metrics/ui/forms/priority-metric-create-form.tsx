@@ -63,11 +63,11 @@ export function PriorityMetricCreateForm({
   return (
     <form
       aria-label="Add priority metric"
-      className="space-y-4 border-border/70 border-t pt-5"
+      className="space-y-4 border-t border-border/70 pt-5"
       noValidate
       onSubmit={handleCreate}
     >
-      <h5 className="font-medium text-sm">Add metric</h5>
+      <h5 className="text-sm font-medium">Add metric</h5>
       <FieldGroup>
         <createForm.Field name="name">
           {(field) => (
@@ -118,7 +118,7 @@ export function PriorityMetricCreateForm({
         </createForm.Subscribe>
       </FieldGroup>
       {formError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {formError}
         </p>
       ) : null}

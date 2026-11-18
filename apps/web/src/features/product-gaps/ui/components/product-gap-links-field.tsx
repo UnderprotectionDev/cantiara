@@ -101,7 +101,7 @@ export function ProductGapLinksField({
         {legend}
       </FieldLegend>
       {value.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No related records.</p>
+        <p className="text-sm text-muted-foreground">No related records.</p>
       ) : (
         <ul aria-label="Selected related records" className="space-y-1 text-sm">
           {value.map((link, index) => (
@@ -124,7 +124,7 @@ export function ProductGapLinksField({
         </ul>
       )}
       {value.length >= PRODUCT_GAP_LINK_MAX ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           A {PRODUCT_GAP_LABEL} has at most {PRODUCT_GAP_LINK_MAX} related
           records.
         </p>
@@ -181,7 +181,7 @@ export function ProductGapLinksField({
       )}
       <p
         aria-live="polite"
-        className="text-muted-foreground text-sm"
+        className="text-sm text-muted-foreground"
         id={statusId}
         role="status"
       >

@@ -152,7 +152,7 @@ function OpenAndPlannedGaps({ gaps }: { gaps: TestGapRecord[] }) {
         {`Open and planned Test Gaps: ${openAndPlanned.length}`}
       </summary>
       {openAndPlanned.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No open or planned Test Gaps.
         </p>
       ) : (
@@ -211,11 +211,11 @@ export function TestGapsView({
 }) {
   return (
     <section aria-labelledby="test-gaps-heading" className="space-y-4">
-      <h2 className="font-semibold text-lg" id="test-gaps-heading">
+      <h2 className="text-lg font-semibold" id="test-gaps-heading">
         Test Gaps
       </h2>
       {readOnly ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           This Project is archived. Test Gaps are read-only.
         </p>
       ) : (
@@ -223,7 +223,7 @@ export function TestGapsView({
       )}
       <OpenAndPlannedGaps gaps={gaps} />
       {gaps.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No Test Gaps filed.</p>
+        <p className="text-sm text-muted-foreground">No Test Gaps filed.</p>
       ) : (
         <ul aria-label="Test Gaps" className="space-y-3">
           {gaps.map((record) => (

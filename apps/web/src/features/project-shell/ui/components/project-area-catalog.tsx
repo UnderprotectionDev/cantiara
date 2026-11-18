@@ -74,20 +74,20 @@ export default function ProjectAreaCatalog({
       id="all-tools"
     >
       <div className="max-w-2xl">
-        <h2 className="font-semibold text-xl tracking-tight">All Tools</h2>
-        <p className="mt-2 text-muted-foreground text-sm/relaxed">
+        <h2 className="text-xl font-semibold tracking-tight">All Tools</h2>
+        <p className="mt-2 text-sm/relaxed text-muted-foreground">
           Every ready Project area stays discoverable here. Enabling an area
           does not create records or change another Project.
         </p>
       </div>
       {error ? (
-        <p className="mt-4 text-destructive text-sm" role="alert">
+        <p className="mt-4 text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
       <ul
         aria-label="All Project areas"
-        className="mt-5 grid gap-x-8 border-border/70 border-y lg:grid-cols-2"
+        className="mt-5 grid gap-x-8 border-y border-border/70 lg:grid-cols-2"
       >
         {ALL_PROJECT_AREAS.map((area) => {
           const enabled = configuration.enabledAreas.includes(area);
@@ -99,7 +99,7 @@ export default function ProjectAreaCatalog({
           return (
             <li
               aria-label={`${area} ${projectAreaAvailabilityLabel(enabled, hidden)}`}
-              className="flex items-center justify-between border-border/70 border-b px-3 py-3 text-sm last:border-b-0 lg:[&:nth-last-child(-n+2)]:border-b-0"
+              className="flex items-center justify-between border-b border-border/70 px-3 py-3 text-sm last:border-b-0 lg:[&:nth-last-child(-n+2)]:border-b-0"
               id={projectAreaCatalogAnchor(area).slice(1)}
               key={area}
             >

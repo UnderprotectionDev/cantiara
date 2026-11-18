@@ -60,9 +60,9 @@ export function ShareLifecyclePanel({
   }
   return (
     <section aria-label="Link expiry and revoke" className="space-y-4">
-      <h4 className="font-medium text-sm">Expiry</h4>
+      <h4 className="text-sm font-medium">Expiry</h4>
       <p
-        className={expired ? "font-medium text-sm" : "text-sm"}
+        className={expired ? "text-sm font-medium" : "text-sm"}
         role={expired ? "status" : undefined}
       >
         {expired
@@ -132,7 +132,7 @@ export function ShareLifecyclePanel({
       </div>
       {status ? <p role="status">{status}</p> : null}
       {failed ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           That did not work. Try again.
         </p>
       ) : null}
@@ -224,7 +224,7 @@ function ConfirmGroup({
       className="space-y-3 rounded-md border p-3"
     >
       <h5
-        className="font-medium text-sm"
+        className="text-sm font-medium"
         id="share-confirm-heading"
         ref={headingRef}
         tabIndex={-1}

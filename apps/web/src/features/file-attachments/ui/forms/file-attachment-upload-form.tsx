@@ -190,12 +190,12 @@ export function FileAttachmentUploadControl({
             {FILE_ATTACHMENT_UI_LABELS.cancel}
           </Button>
         ) : null}
-        <p className="text-muted-foreground text-sm" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           {selectedFile?.name ?? FILE_ATTACHMENT_UI_LABELS.noFileSelected}
         </p>
       </div>
       {error ? (
-        <p className="mt-3 text-destructive text-sm" role="alert">
+        <p className="mt-3 text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

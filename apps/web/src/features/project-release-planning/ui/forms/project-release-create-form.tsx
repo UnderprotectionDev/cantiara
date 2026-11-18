@@ -51,7 +51,7 @@ export function ProjectReleaseCreateForm({
   return (
     <form className="space-y-4" onSubmit={submit}>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -116,7 +116,7 @@ export function ProjectReleaseCreateForm({
                 </label>
               )}
             </form.Field>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Starts as Draft. A Project Release is the publishable scope; it is
               not a Milestone or a Focus Period.
             </p>

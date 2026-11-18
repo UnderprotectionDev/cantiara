@@ -86,14 +86,14 @@ export function ShareExpiryForm({
               onChange={field.handleChange}
               value={field.state.value}
             />
-            <p className="text-muted-foreground text-xs" id={`${id}-zone`}>
+            <p className="text-xs text-muted-foreground" id={`${id}-zone`}>
               Your profile time zone: {timeZone}. Leave empty for no expiry.
             </p>
           </div>
         )}
       </form.Field>
       {error ? (
-        <p className="text-destructive text-sm" id={`${id}-error`} role="alert">
+        <p className="text-sm text-destructive" id={`${id}-error`} role="alert">
           {error}
         </p>
       ) : null}

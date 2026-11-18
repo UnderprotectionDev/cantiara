@@ -143,14 +143,14 @@ export default function ProjectConfigurationForm({
   return (
     <section
       aria-label="Configuration Mode"
-      className="mt-6 space-y-8 border-border/70 border-y py-6"
+      className="mt-6 space-y-8 border-y border-border/70 py-6"
       id={CONFIGURATION_MODE_HASH}
     >
-      <header className="max-w-3xl border-border/70 border-b pb-5">
-        <h2 className="font-semibold text-2xl tracking-tight">
+      <header className="max-w-3xl border-b border-border/70 pb-5">
+        <h2 className="text-2xl font-semibold tracking-tight">
           Configuration Mode
         </h2>
-        <p className="mt-2 text-muted-foreground text-sm/relaxed">
+        <p className="mt-2 text-sm/relaxed text-muted-foreground">
           Structure changes stay separate from daily content editing. Entering
           this mode does not change records, view membership, or Project
           lifecycle.
@@ -192,7 +192,7 @@ export default function ProjectConfigurationForm({
             {CONFIGURATION_HOST_GROUPS.map((group) => (
               <fieldset className="min-w-0 space-y-2 border-0 p-0" key={group}>
                 <legend className="surface-kicker px-3">{group}</legend>
-                <div className="grid gap-1 border-border/70 border-l pl-2">
+                <div className="grid gap-1 border-l border-border/70 pl-2">
                   {configurationHostsForGroup(group).map(({ label }) => (
                     <ConfigurationHostButton
                       isOpen={configurationHost === label}
@@ -206,7 +206,7 @@ export default function ProjectConfigurationForm({
             ))}
           </div>
         </div>
-        <div className="min-w-0 lg:border-border/70 lg:border-l lg:pl-5">
+        <div className="min-w-0 lg:border-l lg:border-border/70 lg:pl-5">
           {configurationHost ? (
             <ConfigurationHostPanel
               baseRevision={baseRevision}
@@ -222,8 +222,8 @@ export default function ProjectConfigurationForm({
               projectName={projectName}
             />
           ) : (
-            <div className="flex min-h-20 items-center border-border/70 border-t pt-4 lg:min-h-32 lg:border-0 lg:pt-0">
-              <p className="max-w-md text-muted-foreground text-sm/relaxed">
+            <div className="flex min-h-20 items-center border-t border-border/70 pt-4 lg:min-h-32 lg:border-0 lg:pt-0">
+              <p className="max-w-md text-sm/relaxed text-muted-foreground">
                 Choose a surface to inspect its Project-level controls. Daily
                 Work editing stays outside this mode.
               </p>
@@ -466,7 +466,7 @@ function ProjectAreasConfiguration({
   return (
     <div className="mt-3 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-2xl text-muted-foreground text-xs/relaxed">
+        <p className="max-w-2xl text-xs/relaxed text-muted-foreground">
           {message}
         </p>
         <Button
@@ -529,7 +529,7 @@ function ProjectAreasConfiguration({
           return (
             <li
               aria-label={`${area} ${projectAreaAvailabilityLabel(enabled, hidden)}`}
-              className="flex items-center justify-between border-border/70 border-b px-3 py-3 text-sm last:border-b-0 lg:[&:nth-child(odd)]:border-r lg:[&:nth-last-child(-n+2)]:border-b-0"
+              className="flex items-center justify-between border-b border-border/70 px-3 py-3 text-sm last:border-b-0 lg:[&:nth-child(odd)]:border-r lg:[&:nth-last-child(-n+2)]:border-b-0"
               key={area}
             >
               <span>{area}</span>
@@ -556,7 +556,7 @@ function ProjectAreasConfiguration({
 
 function ConfigurationMutationError({ error }: { error: string | null }) {
   return error ? (
-    <p className="mt-3 text-destructive text-sm" role="alert">
+    <p className="mt-3 text-sm text-destructive" role="alert">
       {error}
     </p>
   ) : null;
@@ -612,7 +612,7 @@ function StagesConfiguration({
 
   return (
     <div className="mt-3 space-y-4">
-      <p className="text-muted-foreground text-xs/relaxed">
+      <p className="text-xs/relaxed text-muted-foreground">
         Stages are independent presentation metadata. Several stages can be
         Active at once, and removing one does not delete main records.
       </p>
@@ -733,7 +733,7 @@ function StagesConfiguration({
             </div>
             {pendingStageRemovalId === stage.id ? (
               <div className="mt-3 space-y-2" role="status">
-                <p className="text-muted-foreground text-xs/relaxed">
+                <p className="text-xs/relaxed text-muted-foreground">
                   {stage.name} will leave presentation and filters. Main records
                   are not deleted.
                 </p>
@@ -752,7 +752,7 @@ function StagesConfiguration({
         ))}
       </ul>
       {configuration.preparedStages.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No stages prepared.</p>
+        <p className="text-sm text-muted-foreground">No stages prepared.</p>
       ) : null}
     </div>
   );
@@ -821,7 +821,7 @@ function WorkStatusesConfiguration({
 }) {
   return (
     <div className="mt-3 space-y-4">
-      <p className="text-muted-foreground text-xs/relaxed">
+      <p className="text-xs/relaxed text-muted-foreground">
         Rename the visible labels while the four protected Work status semantics
         remain fixed. New status values cannot be added here.
       </p>
@@ -832,7 +832,7 @@ function WorkStatusesConfiguration({
             className="flex flex-wrap items-end gap-2 border bg-background p-3"
             key={status.semantic}
           >
-            <span className="pb-2 font-medium text-xs">{status.semantic}</span>
+            <span className="pb-2 text-xs font-medium">{status.semantic}</span>
             <WorkStatusLabelForm
               disabled={disabled}
               key={`${status.semantic}-${status.label}`}
@@ -1015,7 +1015,7 @@ function SavedViewsConfiguration({
 
   return (
     <div className="mt-3 space-y-4">
-      <p className="text-muted-foreground text-xs/relaxed">
+      <p className="text-xs/relaxed text-muted-foreground">
         Board and List use the same saved sort. Focus threshold is a visual
         signal and never blocks a Work status move.
       </p>
@@ -1183,7 +1183,7 @@ function StatusAgeThresholdConfiguration({
         )}
       </form.Field>
       <p
-        className="text-muted-foreground text-xs/relaxed"
+        className="text-xs/relaxed text-muted-foreground"
         id="status-age-threshold-description"
       >
         Optional days in the current status. Leave blank to turn off. Candidates
@@ -1197,7 +1197,7 @@ function StatusAgeThresholdConfiguration({
           return (
             <>
               {valid ? null : (
-                <p className="text-destructive text-sm" role="alert">
+                <p className="text-sm text-destructive" role="alert">
                   Enter a whole number of days from 1 to 10000.
                 </p>
               )}

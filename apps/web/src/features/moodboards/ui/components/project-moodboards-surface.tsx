@@ -140,7 +140,7 @@ function SwatchRow({
       <div className="flex-1">
         <p className="font-mono text-sm">{swatch.color}</p>
         {swatch.note ? (
-          <p className="text-muted-foreground text-sm">{swatch.note}</p>
+          <p className="text-sm text-muted-foreground">{swatch.note}</p>
         ) : null}
       </div>
       <Label className="sr-only" htmlFor={selectId}>
@@ -283,7 +283,7 @@ function MoodboardCard({
         <h4 className="font-medium">{MOODBOARD_UI_LABELS.colorSwatch}</h4>
         {swatchSections.map((section) => (
           <fieldset className="space-y-2" key={section.id}>
-            <legend className="text-muted-foreground text-sm">
+            <legend className="text-sm text-muted-foreground">
               {MOODBOARD_UI_LABELS.paletteGroup}: {section.name}
             </legend>
             <ul className="space-y-2">
@@ -336,7 +336,7 @@ export default function ProjectMoodboardsSurface({
       className="space-y-5"
       id="moodboards"
     >
-      <h2 className="font-semibold text-2xl">
+      <h2 className="text-2xl font-semibold">
         {MOODBOARD_UI_LABELS.moodboard}
       </h2>
       <CreateMoodboardForm api={api} projectId={projectId} />

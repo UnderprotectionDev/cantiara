@@ -120,10 +120,10 @@ function BlockerBadge({
     <details className="mt-3 w-fit">
       <summary
         aria-label={`Blocked by ${blockers.length} active blocker${blockers.length === 1 ? "" : "s"}`}
-        className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-full focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+        className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Badge variant="secondary">Blocked</Badge>
-        <span className="text-muted-foreground text-xs">{blockers.length}</span>
+        <span className="text-xs text-muted-foreground">{blockers.length}</span>
       </summary>
       <div className="mt-3 grid gap-3 rounded-md border p-3 text-sm">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -174,7 +174,7 @@ function RoadmapWorkSummary({
 
   return (
     <div className="min-w-0">
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         {work.key} ·{" "}
         <Badge className={roadmapMarkColor(mark)} variant="secondary">
           {mark}
@@ -186,14 +186,14 @@ function RoadmapWorkSummary({
         <SourceAction className="h-8 px-0 font-normal" record={record} />
       </div>
       {role === "Secondary" ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Research · {researchOriginTitle}
         </p>
       ) : null}
       {work.type === "Research" && !presentationMode ? (
         <ResearchDirection key={`${work.id}-${work.revision}`} work={work} />
       ) : null}
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         {work.status} · {dateLabel}
       </p>
     </div>
@@ -339,7 +339,7 @@ export function RoadmapResults({
           Array.from(groups, ([group, items]) => (
             <section className="grid gap-3" key={group}>
               {view ? (
-                <h3 className="border-b pb-2 font-medium text-sm">{group}</h3>
+                <h3 className="border-b pb-2 text-sm font-medium">{group}</h3>
               ) : null}
               {items.map(({ work, secondary }) => (
                 <RoadmapWorkItem
@@ -360,13 +360,13 @@ export function RoadmapResults({
             </section>
           ))
         ) : (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             No planned Work matches this view.
           </p>
         )}
       </div>
       <details className="border-t pt-4">
-        <summary className="w-fit cursor-pointer font-medium text-sm">
+        <summary className="w-fit cursor-pointer text-sm font-medium">
           Unplanned candidates{" "}
           <span className="text-muted-foreground">({candidates.length})</span>
         </summary>
@@ -389,7 +389,7 @@ export function RoadmapResults({
               />
             ))
           ) : (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               No unplanned Work matches this view.
             </p>
           )}

@@ -54,7 +54,7 @@ export default function FavoriteControl(source: FavoriteSource) {
         {label}
       </Button>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error instanceof Error
             ? error.message
             : "Favorites could not be saved."}

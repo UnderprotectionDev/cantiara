@@ -25,7 +25,7 @@ export function HandoffRelationFields({
 }) {
   return (
     <fieldset className="space-y-3 rounded-sm border border-border/70 p-3">
-      <legend className="px-1 font-medium text-xs">Proposed relations</legend>
+      <legend className="px-1 text-xs font-medium">Proposed relations</legend>
       {value.map((relation) => (
         <div
           className="grid gap-2 sm:grid-cols-[1fr_2fr_auto]"

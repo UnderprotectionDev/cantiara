@@ -68,13 +68,13 @@ export default function TestSessionImportForm({
       onSubmit={submit}
     >
       <h3 className="font-medium">{`Import ${TEST_SESSION_LABEL} file`}</h3>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         A JSON file or a Markdown file with YAML frontmatter, using the
         test-report/1 contract. The file is checked as a whole; nothing is
         imported if any part is refused.
       </p>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

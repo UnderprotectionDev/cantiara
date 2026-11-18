@@ -84,7 +84,7 @@ export function HorizonForm({ work }: { work: WorkProfile }) {
         Place on horizon
       </Button>
       {mutation.isError ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           Horizon could not be saved. Reload and try again.
         </p>
       ) : null}

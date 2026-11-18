@@ -158,7 +158,7 @@ export function MilestoneEditor({
         ) : null}
       </div>
       {error || invalid ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           This action could not be completed.
         </p>
       ) : null}

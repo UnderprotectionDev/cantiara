@@ -194,19 +194,19 @@ export default function CaptureInboxForm({
       aria-labelledby={showHeader ? "new-capture-title" : undefined}
       className={
         showHeader
-          ? "w-full space-y-6 border-border/70 border-y py-5"
+          ? "w-full space-y-6 border-y border-border/70 py-5"
           : "w-full space-y-6"
       }
     >
       {showHeader ? (
         <div>
           <h2
-            className="font-semibold text-xl tracking-tight"
+            className="text-xl font-semibold tracking-tight"
             id="new-capture-title"
           >
             New capture
           </h2>
-          <p className="mt-2 text-muted-foreground text-sm">
+          <p className="mt-2 text-sm text-muted-foreground">
             Save keeps a Capture in the Inbox; Create Bug creates a Bug Work
             directly when a Project is set.
           </p>
@@ -215,7 +215,7 @@ export default function CaptureInboxForm({
 
       {connection === "offline" ? (
         <p
-          className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-destructive text-sm"
+          className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
           role="status"
         >
           Capture writes need an active internet connection; nothing is queued
@@ -307,11 +307,11 @@ export default function CaptureInboxForm({
                   aria-live="polite"
                   className="rounded-md border border-primary/25 bg-primary/5 px-4 py-3"
                 >
-                  <p className="text-muted-foreground text-xs">Destination</p>
-                  <p className="mt-1 font-medium text-sm">
+                  <p className="text-xs text-muted-foreground">Destination</p>
+                  <p className="mt-1 text-sm font-medium">
                     {destination.label}
                   </p>
-                  <p className="mt-1 text-muted-foreground text-xs/relaxed">
+                  <p className="mt-1 text-xs/relaxed text-muted-foreground">
                     {destination.detail}
                   </p>
                 </div>
@@ -430,7 +430,7 @@ export default function CaptureInboxForm({
           }}
         </form.Subscribe>
         <p
-          className="max-w-xl text-muted-foreground text-xs/relaxed"
+          className="max-w-xl text-xs/relaxed text-muted-foreground"
           id="create-bug-unavailable"
         >
           {CREATE_BUG_UNAVAILABLE_MESSAGE}

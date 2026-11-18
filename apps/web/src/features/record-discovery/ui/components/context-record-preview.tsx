@@ -224,7 +224,7 @@ export function ContextRecordPreviewPanel({
         </div>
         <SheetFooter className="border-t">
           <AppLink
-            className="inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring"
+            className="inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring"
             href={sourceRecordPreviewHref(record)}
           >
             Open full page

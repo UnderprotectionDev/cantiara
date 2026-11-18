@@ -119,7 +119,7 @@ export function ProjectWallNarrativePanel({
           ))}
         </ul>
       ) : null}
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         A Visual link, a group and card proximity are wall narrative, not record
         relations. Create Persistent Relation previews the relation before it
         writes.

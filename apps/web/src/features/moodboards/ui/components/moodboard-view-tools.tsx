@@ -137,7 +137,7 @@ export function VisualViewTools({
           {MOODBOARD_UI_LABELS.resetView}
         </Button>
         {isDefaultVisualView(item.view) ? null : (
-          <span className="text-muted-foreground text-sm">
+          <span className="text-sm text-muted-foreground">
             This view only: {viewSummary(item.view)}. The original file is
             unchanged.
           </span>

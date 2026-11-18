@@ -27,7 +27,7 @@ export function ImportReceiptPanel({
       className="space-y-3 rounded-lg border border-border/70 p-5"
     >
       <h3
-        className="font-medium text-lg"
+        className="text-lg font-medium"
         id="import-receipt-title"
         ref={heading}
         tabIndex={-1}
@@ -44,7 +44,7 @@ export function ImportReceiptPanel({
         <p className="text-sm">{receipt.reason}</p>
       ) : null}
       {rolledBack && receipt.supportReference ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Support reference: {receipt.supportReference}
         </p>
       ) : null}
@@ -62,7 +62,7 @@ export function ImportReceiptPanel({
         ))}
       </dl>
       {receipt.provenance ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Origins kept under {receipt.provenance}.
         </p>
       ) : null}

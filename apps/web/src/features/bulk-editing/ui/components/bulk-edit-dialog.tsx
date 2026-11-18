@@ -457,14 +457,14 @@ function BulkEditPreviewSection({
   }
   return (
     <section aria-label="Preview" className="space-y-3">
-      <h3 className="font-medium text-sm">Preview</h3>
+      <h3 className="text-sm font-medium">Preview</h3>
       {needsRefresh ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Preview again before applying these changes.
         </p>
       ) : null}
       {changedRecords.length === 0 ? (
-        <p className="text-muted-foreground text-xs">No changes to apply.</p>
+        <p className="text-xs text-muted-foreground">No changes to apply.</p>
       ) : (
         // biome-ignore-start lint/a11y/noNoninteractiveTabindex: Keyboard users need to focus and scroll this preview region.
         <section
@@ -505,7 +505,7 @@ function BulkEditPreviewSection({
                     <p>Closure result: {preview.closureResult}</p>
                   ) : null}
                   {closePreview && hasClosureWarnings(closePreview) ? (
-                    <div className="space-y-1 border-amber-500/50 border-l-2 pl-2">
+                    <div className="space-y-1 border-l-2 border-amber-500/50 pl-2">
                       <p className="font-medium">Closure check</p>
                       <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
                         {closePreview.closureCheck.incompleteChecklistItems.map(
@@ -640,7 +640,7 @@ function BulkEditProgressSection({
         {resultsList}
       </div>
       {operation?.phase === "finalizing" ? (
-        <p className="font-medium text-sm" role="status">
+        <p className="text-sm font-medium" role="status">
           Finalizing
         </p>
       ) : null}

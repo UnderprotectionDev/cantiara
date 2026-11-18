@@ -101,7 +101,7 @@ export default function DocumentFormattingToolbar({
       <div
         aria-describedby="document-toolbar-hint"
         aria-label="Document formatting"
-        className="flex max-w-full items-center gap-1 overflow-x-auto border-border border-b bg-muted/25 p-2 [scrollbar-width:thin]"
+        className="flex max-w-full [scrollbar-width:thin] items-center gap-1 overflow-x-auto border-b border-border bg-muted/25 p-2"
         role="toolbar"
       >
         <NativeSelect
@@ -266,7 +266,7 @@ export default function DocumentFormattingToolbar({
         {state.table ? (
           <fieldset
             aria-label="Table editing"
-            className="flex shrink-0 items-center gap-1 border-border border-l pl-2"
+            className="flex shrink-0 items-center gap-1 border-l border-border pl-2"
           >
             <ToolButton
               icon={Rows3}
@@ -287,7 +287,7 @@ export default function DocumentFormattingToolbar({
         ) : null}
       </div>
       <p
-        className="border-border border-b px-3 py-1 text-muted-foreground text-xs sm:hidden"
+        className="border-b border-border px-3 py-1 text-xs text-muted-foreground sm:hidden"
         id="document-toolbar-hint"
       >
         Swipe for more formatting tools →

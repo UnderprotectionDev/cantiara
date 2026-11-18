@@ -109,7 +109,7 @@ export function PlannedTestRelationsField({
     <fieldset className="space-y-3 rounded-md border border-border/70 p-3">
       <legend className="px-1 text-sm">Relations</legend>
       {value.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No relations.</p>
+        <p className="text-sm text-muted-foreground">No relations.</p>
       ) : (
         <ul aria-label="Selected relations" className="space-y-1 text-sm">
           {value.map((relation, index) => (
@@ -132,7 +132,7 @@ export function PlannedTestRelationsField({
         </ul>
       )}
       {value.length >= PLANNED_TEST_RELATION_MAX ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           A Planned Test Case has at most {PLANNED_TEST_RELATION_MAX} relations.
         </p>
       ) : (
@@ -208,7 +208,7 @@ export function PlannedTestRelationsField({
       )}
       <p
         aria-live="polite"
-        className="text-muted-foreground text-sm"
+        className="text-sm text-muted-foreground"
         id={statusId}
         role="status"
       >

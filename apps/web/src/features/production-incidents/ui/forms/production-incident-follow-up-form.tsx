@@ -53,7 +53,7 @@ export function ProductionIncidentFollowUpForm({
   return (
     <form aria-label="Follow-up work" className="space-y-4" onSubmit={submit}>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -109,7 +109,7 @@ export function ProductionIncidentFollowUpForm({
                 </label>
               )}
             </form.Field>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Nothing is created yet. You will see the Work and its relations
               first.
             </p>

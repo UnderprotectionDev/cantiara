@@ -121,7 +121,7 @@ function FeedItem({
       data-record-kind={row.kind}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="font-medium text-sm">{row.title}</h4>
+        <h4 className="text-sm font-medium">{row.title}</h4>
         <Button
           aria-label={`Open Source Record: ${row.title}`}
           onClick={() => onOpen(row)}
@@ -132,8 +132,8 @@ function FeedItem({
           Open Source Record
         </Button>
       </div>
-      <p className="line-clamp-4 whitespace-pre-wrap text-sm">{row.body}</p>
-      <dl className="grid gap-1 text-muted-foreground text-xs sm:grid-cols-2">
+      <p className="line-clamp-4 text-sm whitespace-pre-wrap">{row.body}</p>
+      <dl className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
         <div className="flex gap-2">
           <dt>Type</dt>
           <dd>{row.kind}</dd>
@@ -199,12 +199,12 @@ export function FeedView({
 }) {
   return (
     <section aria-labelledby="feed-heading" className="space-y-4">
-      <h2 className="font-semibold text-lg" id="feed-heading">
+      <h2 className="text-lg font-semibold" id="feed-heading">
         Feed
       </h2>
       <FeedFilters onChange={onChangeQuery} query={query} />
       {rows.length === 0 ? (
-        <p className="text-muted-foreground text-sm">Nothing to read yet.</p>
+        <p className="text-sm text-muted-foreground">Nothing to read yet.</p>
       ) : (
         <ul aria-label="Feed" className="space-y-2">
           {rows.map((row) => (

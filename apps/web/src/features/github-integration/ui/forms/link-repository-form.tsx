@@ -147,7 +147,7 @@ export function LinkRepositoryForm({
         </form.Field>
         {repositories.isError ? (
           <div className="flex items-center gap-2">
-            <p className="text-destructive text-sm" role="alert">
+            <p className="text-sm text-destructive" role="alert">
               The Repository list is unavailable.
             </p>
             <Button
@@ -163,14 +163,14 @@ export function LinkRepositoryForm({
           </div>
         ) : null}
         {repositories.data && choices.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Every Repository this installation exposes is already linked. Change
             the selection on GitHub to add more.
           </p>
         ) : null}
       </div>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

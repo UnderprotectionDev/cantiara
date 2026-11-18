@@ -23,7 +23,7 @@ export function RankDescriptionsFields({
 }) {
   return (
     <fieldset className="space-y-3">
-      <legend className="font-medium text-sm">Rank descriptions</legend>
+      <legend className="text-sm font-medium">Rank descriptions</legend>
       <FieldDescription>
         Add a short explanation for each fixed rank, or leave it blank.
       </FieldDescription>

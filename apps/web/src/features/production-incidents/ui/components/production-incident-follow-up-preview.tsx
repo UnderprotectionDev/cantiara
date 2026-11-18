@@ -23,12 +23,12 @@ export function ProductionIncidentFollowUpPreviewView({
   return (
     <section aria-label="Follow-up preview" className="space-y-4">
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
       <div className="space-y-2">
-        <h4 className="font-medium text-sm">Work to create</h4>
+        <h4 className="text-sm font-medium">Work to create</h4>
         <dl className="grid gap-2 text-sm">
           <div className="flex gap-2">
             <dt className="text-muted-foreground">Type</dt>
@@ -49,7 +49,7 @@ export function ProductionIncidentFollowUpPreviewView({
         </dl>
       </div>
       <div className="space-y-2">
-        <h4 className="font-medium text-sm">Relations to set</h4>
+        <h4 className="text-sm font-medium">Relations to set</h4>
         <ul className="space-y-1 text-sm">
           {plan.relations.map((relation) => (
             <li key={`${relation.kind}:${relation.from.id}`}>
@@ -59,7 +59,7 @@ export function ProductionIncidentFollowUpPreviewView({
           ))}
         </ul>
       </div>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         The Production Incident stays {plan.incident.status}. No other Bug, Risk
         or Work is created.
       </p>

@@ -72,7 +72,7 @@ export function ProductionIncidentForm({
       onSubmit={submit}
     >
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -142,7 +142,7 @@ export function ProductionIncidentForm({
                 )}
               </form.Field>
             ))}
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               {mode === "create"
                 ? "Starts as Open. A Production Incident is a record, not a Bug: it pages no one and creates no Bug, Risk or Work."
                 : "Saving changes the record only; it does not change a linked record."}

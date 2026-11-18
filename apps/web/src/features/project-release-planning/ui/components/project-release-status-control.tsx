@@ -68,7 +68,7 @@ export function ProjectReleaseStatusControl({
     : null;
   return (
     <section aria-label="Status" className="space-y-3">
-      <h3 className="font-medium text-lg">Status</h3>
+      <h3 className="text-lg font-medium">Status</h3>
       {editable ? (
         <>
           <fieldset className="flex flex-wrap gap-2">
@@ -135,7 +135,7 @@ export function ProjectReleaseStatusControl({
         </div>
       )}
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -156,10 +156,10 @@ export function ProjectReleaseStatusControl({
               </AlertDialogDescription>
             </AlertDialogHeader>
             {copy.openScope ? (
-              <p className="text-muted-foreground text-sm">{copy.openScope}</p>
+              <p className="text-sm text-muted-foreground">{copy.openScope}</p>
             ) : null}
             {error ? (
-              <p className="text-destructive text-sm" role="alert">
+              <p className="text-sm text-destructive" role="alert">
                 {error}
               </p>
             ) : null}

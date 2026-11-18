@@ -208,9 +208,9 @@ export default function WorkContextCard({
     >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-muted-foreground text-xs">Work Context Card</p>
+          <p className="text-xs text-muted-foreground">Work Context Card</p>
           <h4
-            className="mt-1 font-medium text-sm"
+            className="mt-1 text-sm font-medium"
             id={`work-context-card-${work.id}-heading`}
           >
             {work.title}
@@ -253,14 +253,14 @@ export default function WorkContextCard({
       </header>
 
       {copyState === "copied" ? (
-        <p aria-live="polite" className="text-muted-foreground text-sm">
+        <p aria-live="polite" className="text-sm text-muted-foreground">
           Context copied.
         </p>
       ) : null}
       {copyError ? (
         <p
           aria-live="assertive"
-          className="text-destructive text-sm"
+          className="text-sm text-destructive"
           role="alert"
         >
           {copyError}
@@ -360,16 +360,16 @@ function WhyChain({
   return (
     <section
       aria-labelledby={headingId}
-      className="space-y-2 border-border/70 border-t pt-3"
+      className="space-y-2 border-t border-border/70 pt-3"
     >
-      <h5 className="font-medium text-sm" id={headingId}>
+      <h5 className="text-sm font-medium" id={headingId}>
         Why am I doing this work?
       </h5>
       {isPending ? (
-        <p className="text-muted-foreground text-sm">Loading relations…</p>
+        <p className="text-sm text-muted-foreground">Loading relations…</p>
       ) : null}
       {isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Relations could not be loaded. Try loading this page again.
         </p>
       ) : null}
@@ -414,19 +414,19 @@ function PreparedSection({
   return (
     <section
       aria-labelledby={headingId}
-      className="space-y-2 border-border/70 border-t pt-3"
+      className="space-y-2 border-t border-border/70 pt-3"
     >
-      <h5 className="font-medium text-sm" id={headingId}>
+      <h5 className="text-sm font-medium" id={headingId}>
         {section}
       </h5>
       {hasDescription ? (
-        <p className="whitespace-pre-wrap text-sm">{work.description}</p>
+        <p className="text-sm whitespace-pre-wrap">{work.description}</p>
       ) : null}
       {isPending ? (
-        <p className="text-muted-foreground text-sm">Loading relations…</p>
+        <p className="text-sm text-muted-foreground">Loading relations…</p>
       ) : null}
       {isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Relations could not be loaded. Try loading this page again.
         </p>
       ) : null}
@@ -468,16 +468,16 @@ function CustomSection({
   return (
     <section
       aria-labelledby={headingId}
-      className="space-y-2 border-border/70 border-t pt-3"
+      className="space-y-2 border-t border-border/70 pt-3"
     >
-      <h5 className="font-medium text-sm" id={headingId}>
+      <h5 className="text-sm font-medium" id={headingId}>
         {section.title}
       </h5>
       {isPending ? (
-        <p className="text-muted-foreground text-sm">Loading relations…</p>
+        <p className="text-sm text-muted-foreground">Loading relations…</p>
       ) : null}
       {isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Relations could not be loaded. Try loading this page again.
         </p>
       ) : null}
@@ -524,7 +524,7 @@ function EmptyContextState({ work }: { work: WorkProfile }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <p className="text-muted-foreground text-sm">Nothing here yet.</p>
+      <p className="text-sm text-muted-foreground">Nothing here yet.</p>
       <Button
         className="px-0"
         onClick={handleLink}
@@ -614,7 +614,7 @@ function InitialField({
 }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-xs">{label}</dt>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="mt-1 font-medium">{value}</dd>
     </div>
   );
@@ -647,17 +647,17 @@ function PriorityFoundations({
   return (
     <section
       aria-labelledby={headingId}
-      className="space-y-3 border-border/70 border-t pt-3"
+      className="space-y-3 border-t border-border/70 pt-3"
       data-work-context-priority-foundations="true"
     >
-      <h5 className="font-medium text-sm" id={headingId}>
+      <h5 className="text-sm font-medium" id={headingId}>
         Priority Foundations
       </h5>
       {isPending ? (
-        <p className="text-muted-foreground text-sm">Loading relations…</p>
+        <p className="text-sm text-muted-foreground">Loading relations…</p>
       ) : null}
       {isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Priority Foundations could not be loaded. Try loading this page again.
         </p>
       ) : null}

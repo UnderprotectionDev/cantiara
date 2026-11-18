@@ -81,7 +81,7 @@ export function SharePasswordForm({
       </form.Field>
       {error ? (
         <p
-          className="text-destructive text-sm"
+          className="text-sm text-destructive"
           id="share-link-password-error"
           role="alert"
         >

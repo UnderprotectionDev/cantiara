@@ -106,7 +106,7 @@ export function ResearchSessionNoteEditor({
     >
       {error ? (
         <p
-          className="text-destructive text-sm"
+          className="text-sm text-destructive"
           id={`${prefix}-error`}
           role="alert"
         >
@@ -158,7 +158,7 @@ export function ResearchSessionNoteEditor({
                 <>
                   <h4 className="font-medium">{kind}</h4>
                   <p
-                    className="text-muted-foreground text-sm"
+                    className="text-sm text-muted-foreground"
                     id={`${prefix}-help`}
                   >
                     {explanations[kind]}

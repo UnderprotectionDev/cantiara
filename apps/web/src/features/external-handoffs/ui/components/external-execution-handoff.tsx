@@ -44,8 +44,8 @@ function HandoffHistory({
 
   return (
     <section aria-label="Handoff history" className="space-y-2">
-      <h5 className="font-medium text-xs">Handoff history</h5>
-      <ul className="space-y-1 text-muted-foreground text-xs">
+      <h5 className="text-xs font-medium">Handoff history</h5>
+      <ul className="space-y-1 text-xs text-muted-foreground">
         {events.map((event) => (
           <li key={event.eventId}>
             {HISTORY_EVENT_LABELS[event.eventType]} by You
@@ -71,8 +71,8 @@ function ReturnList({
 
   return (
     <div>
-      <h6 className="font-medium text-xs">{label}</h6>
-      <ul className="list-inside list-disc text-muted-foreground text-xs">
+      <h6 className="text-xs font-medium">{label}</h6>
+      <ul className="list-inside list-disc text-xs text-muted-foreground">
         {items.map((item) => (
           <li key={item}>{item}</li>
         ))}
@@ -92,8 +92,8 @@ function HandoffResult({ handoff }: { handoff: ExternalExecutionHandoff }) {
       className="space-y-2 rounded-sm bg-muted/35 p-3"
     >
       <div>
-        <h6 className="font-medium text-xs">Executor summary</h6>
-        <p className="whitespace-pre-wrap text-xs">
+        <h6 className="text-xs font-medium">Executor summary</h6>
+        <p className="text-xs whitespace-pre-wrap">
           {handoff.result.executorSummary}
         </p>
       </div>
@@ -180,7 +180,7 @@ function HandoffStatusControls({
           aria-label="Reconciled"
           className="space-y-1 rounded-sm bg-muted/35 p-3"
         >
-          <p className="font-medium text-xs">Reconciled</p>
+          <p className="text-xs font-medium">Reconciled</p>
           <time
             className="block font-mono text-[11px] text-muted-foreground"
             dateTime={handoff.reconcileDecision.confirmedAt}
@@ -260,12 +260,12 @@ export default function ExternalExecutionHandoffPanel({
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h4
-            className="font-medium text-sm"
+            className="text-sm font-medium"
             id={`external-execution-handoff-${work.id}-heading`}
           >
             External Execution Handoff
           </h4>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             A dated package stays attached to {work.key}.
           </p>
         </div>
@@ -285,30 +285,30 @@ export default function ExternalExecutionHandoffPanel({
       </header>
 
       {expanded ? (
-        <div className="mt-4 space-y-4 border-border/70 border-t pt-4">
+        <div className="mt-4 space-y-4 border-t border-border/70 pt-4">
           {query.status === "pending" ? (
-            <p className="text-muted-foreground text-xs" role="status">
+            <p className="text-xs text-muted-foreground" role="status">
               Loading External Execution Handoffs…
             </p>
           ) : null}
           {query.isError ? (
-            <p className="text-destructive text-xs" role="alert">
+            <p className="text-xs text-destructive" role="alert">
               External Execution Handoffs could not be loaded. Try again.
             </p>
           ) : null}
           <HandoffHistory events={history.data ?? []} />
           {history.isError ? (
-            <p className="text-destructive text-xs" role="alert">
+            <p className="text-xs text-destructive" role="alert">
               Handoff history could not be loaded. Try again.
             </p>
           ) : null}
           {query.data?.map((handoff) => (
             <article
-              className="space-y-3 border-border/70 border-l-2 pl-3"
+              className="space-y-3 border-l-2 border-border/70 pl-3"
               key={handoff.handoffId}
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="min-w-0 font-medium text-xs">
+                <p className="min-w-0 text-xs font-medium">
                   {handoff.purpose}{" "}
                   <span className="text-muted-foreground">
                     · {handoff.status}
@@ -329,7 +329,7 @@ export default function ExternalExecutionHandoffPanel({
                 </p>
               )}
               {handoff.status === "Canceled" ? (
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                   <span className="font-medium">Reason</span>:{" "}
                   {handoff.cancellationReason}
                 </p>
@@ -346,15 +346,15 @@ export default function ExternalExecutionHandoffPanel({
                 className="group rounded-sm border border-border/70 bg-card/55"
                 open
               >
-                <summary className="cursor-pointer px-3 py-2 font-medium text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                   Going package
                 </summary>
-                <div className="space-y-2 border-border/70 border-t p-3">
-                  <p className="text-muted-foreground text-xs" role="note">
+                <div className="space-y-2 border-t border-border/70 p-3">
+                  <p className="text-xs text-muted-foreground" role="note">
                     Free text is copied as entered and is not scanned for
                     secrets. Review the package before sharing.
                   </p>
-                  <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed">
+                  <pre className="max-h-72 overflow-auto font-mono text-[11px] leading-relaxed break-words whitespace-pre-wrap">
                     {handoff.packageMarkdown}
                   </pre>
                   <Button
@@ -369,7 +369,7 @@ export default function ExternalExecutionHandoffPanel({
                     Copy going package
                   </Button>
                   {copiedHandoffId === handoff.handoffId ? (
-                    <p className="text-muted-foreground text-xs" role="status">
+                    <p className="text-xs text-muted-foreground" role="status">
                       Going package copied.
                     </p>
                   ) : null}
@@ -395,7 +395,7 @@ export default function ExternalExecutionHandoffPanel({
             </article>
           ))}
           {copyError ? (
-            <p className="text-destructive text-xs" role="alert">
+            <p className="text-xs text-destructive" role="alert">
               {copyError}
             </p>
           ) : null}

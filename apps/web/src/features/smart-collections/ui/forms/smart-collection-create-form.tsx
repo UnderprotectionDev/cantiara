@@ -227,12 +227,12 @@ export default function SmartCollectionCreateForm({
   }
   const scopeField =
     sourceType === "Wiki Document" ? (
-      <p className="self-end text-muted-foreground text-sm">Workspace scope</p>
+      <p className="self-end text-sm text-muted-foreground">Workspace scope</p>
     ) : (
       <fieldset className="space-y-2 md:col-span-4">
-        <legend className="font-medium text-sm">Scope</legend>
+        <legend className="text-sm font-medium">Scope</legend>
         {projectsQuery.isError ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Project scope is unavailable.
           </p>
         ) : (

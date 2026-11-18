@@ -75,7 +75,7 @@ function sourceRecordList(
 ) {
   if (records.length === 0) {
     return (
-      <p className="px-5 py-8 text-muted-foreground text-sm">{emptyMessage}</p>
+      <p className="px-5 py-8 text-sm text-muted-foreground">{emptyMessage}</p>
     );
   }
 
@@ -83,23 +83,23 @@ function sourceRecordList(
     <ul className="divide-y divide-border/70">
       {records.map((record) => (
         <li
-          className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-border/60 border-t py-3 first:border-t-0"
+          className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-border/60 py-3 first:border-t-0"
           key={record.id}
         >
           <div className="min-w-0 flex-1">
             <AppLink
-              className="font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+              className="font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               href={record.href}
             >
               {record.title}
             </AppLink>
-            <p className="mt-1 text-muted-foreground text-xs">
+            <p className="mt-1 text-xs text-muted-foreground">
               {sourceMeta(record, formattingPreferences)}
             </p>
           </div>
           <AppLink
             aria-label={`Open source record: ${record.title}`}
-            className="shrink-0 self-start text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+            className="shrink-0 self-start text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             href={record.href}
           >
             Open source record
@@ -122,20 +122,20 @@ function OverviewModuleSection({
   return (
     <section
       aria-labelledby={`workspace-overview-module-${module.id}`}
-      className="min-w-0 border-border/70 border-t pt-4"
+      className="min-w-0 border-t border-border/70 pt-4"
       data-workspace-overview-module={module.id}
     >
       <header className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 id={`workspace-overview-module-${module.id}`}>
             <AppLink
-              className="font-semibold text-base tracking-tight underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+              className="text-base font-semibold tracking-tight underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               href={module.sourceHref}
             >
               {module.name}
             </AppLink>
           </h3>
-          <p className="mt-1 text-muted-foreground text-xs">
+          <p className="mt-1 text-xs text-muted-foreground">
             Source-backed · {countLabel}
           </p>
         </div>
@@ -179,12 +179,12 @@ function LayoutControls({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3
-            className="font-medium text-base"
+            className="text-base font-medium"
             id="workspace-overview-layout-heading"
           >
             Arrange modules
           </h3>
-          <p className="mt-1 text-muted-foreground text-xs/5">
+          <p className="mt-1 text-xs/5 text-muted-foreground">
             Presentation only. Hiding a module never removes its source records.
           </p>
         </div>
@@ -194,7 +194,7 @@ function LayoutControls({
         />
       </div>
 
-      <ul className="mt-4 divide-y divide-border/70 border-border/70 border-y">
+      <ul className="mt-4 divide-y divide-border/70 border-y border-border/70">
         {layout.order.map((moduleId, index) => {
           const module = moduleById.get(moduleId);
           if (!module) {
@@ -289,12 +289,12 @@ function LiveBlockCard({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <AppLink
-            className="font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+            className="font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             href={block.href}
           >
             {block.title}
           </AppLink>
-          <p className="mt-1 text-muted-foreground text-xs">{block.type}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{block.type}</p>
         </div>
         <Button
           aria-label={`Remove live block: ${block.title}`}
@@ -308,7 +308,7 @@ function LiveBlockCard({
       </div>
       <AppLink
         aria-label={`Open source record: ${block.title}`}
-        className="mt-3 inline-flex text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+        className="mt-3 inline-flex text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         href={block.href}
       >
         Open source record
@@ -359,18 +359,18 @@ function LiveBlocks({
   return (
     <section
       aria-labelledby="workspace-overview-live-blocks-heading"
-      className="space-y-4 border-border/70 border-t pt-8"
+      className="space-y-4 border-t border-border/70 pt-8"
       data-workspace-overview-live-blocks="true"
     >
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h3
-            className="font-semibold text-lg tracking-tight"
+            className="text-lg font-semibold tracking-tight"
             id="workspace-overview-live-blocks-heading"
           >
             Live blocks
           </h3>
-          <p className="mt-2 max-w-2xl text-muted-foreground text-sm/6">
+          <p className="mt-2 max-w-2xl text-sm/6 text-muted-foreground">
             Pin an existing Document or named Smart Collection view as a
             reference. The source stays authoritative and changes appear here.
           </p>
@@ -410,7 +410,7 @@ function LiveBlocks({
           ))}
         </div>
       ) : (
-        <div className="rounded-lg border border-border/80 border-dashed bg-muted/15 px-5 py-6 text-muted-foreground text-sm">
+        <div className="rounded-lg border border-dashed border-border/80 bg-muted/15 px-5 py-6 text-sm text-muted-foreground">
           No existing Documents or named Smart Collection views are available
           yet.
         </div>
@@ -432,14 +432,14 @@ function SelectedSourceSet({
       className="overflow-hidden rounded-lg border border-border/70 bg-muted/15"
       data-workspace-overview-source-set={module.id}
     >
-      <header className="border-border/70 border-b px-5 py-4">
+      <header className="border-b border-border/70 px-5 py-4">
         <h2
-          className="font-medium text-sm"
+          className="text-sm font-medium"
           id="workspace-overview-source-set-heading"
         >
           {module.name} source set
         </h2>
-        <p className="mt-1 text-muted-foreground text-xs">
+        <p className="mt-1 text-xs text-muted-foreground">
           Exact source records · {sourceCountLabel(module.records.length)}
         </p>
       </header>
@@ -572,12 +572,12 @@ export default function WorkspaceOverviewView({
     >
       <header className="surface-header max-w-3xl">
         <h2
-          className="text-balance font-semibold text-2xl tracking-tight"
+          className="text-2xl font-semibold tracking-tight text-balance"
           id="workspace-overview-heading"
         >
           Workspace overview
         </h2>
-        <p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm/6">
+        <p className="mt-3 max-w-2xl text-sm/6 text-pretty text-muted-foreground">
           A source-backed view of the Projects and Work that need your attention
           next. Every count stays connected to its source records.
         </p>
@@ -598,16 +598,16 @@ export default function WorkspaceOverviewView({
               ))}
             </div>
           ) : (
-            <div className="rounded-lg border border-border/80 border-dashed bg-muted/15 px-5 py-8 text-muted-foreground text-sm">
+            <div className="rounded-lg border border-dashed border-border/80 bg-muted/15 px-5 py-8 text-sm text-muted-foreground">
               All modules are hidden. Use Show to bring a source module back.
             </div>
           )}
 
           <details
-            className="group border-border/70 border-t pt-5"
+            className="group border-t border-border/70 pt-5"
             data-workspace-overview-customization="true"
           >
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 font-medium text-sm focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
               Customize overview
               <ChevronDown
                 aria-hidden="true"

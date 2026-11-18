@@ -84,7 +84,7 @@ function RecordTypesFieldset({
 }) {
   return (
     <fieldset className="space-y-2">
-      <legend className="font-medium text-sm">{name}</legend>
+      <legend className="text-sm font-medium">{name}</legend>
       <FieldDescription>Choose where this field is available.</FieldDescription>
       <div className="grid gap-2 pt-1 sm:grid-cols-2">
         {CUSTOM_FIELD_RECORD_TYPE_OPTIONS.map((recordType) => (
@@ -201,13 +201,13 @@ export default function CustomFieldEditor({
   );
   if (query.status === "pending") {
     definitionContent = (
-      <p className="text-muted-foreground text-sm" role="status">
+      <p className="text-sm text-muted-foreground" role="status">
         Loading Custom fields…
       </p>
     );
   } else if (query.isError) {
     definitionContent = (
-      <p className="text-destructive text-sm" role="alert">
+      <p className="text-sm text-destructive" role="alert">
         Custom fields could not be loaded. Try loading this page again.
       </p>
     );
@@ -222,11 +222,11 @@ export default function CustomFieldEditor({
   return (
     <div className="mt-3 space-y-6" data-custom-field-editor="true">
       <div className="space-y-1">
-        <p className="text-muted-foreground text-xs/relaxed">
+        <p className="text-xs/relaxed text-muted-foreground">
           Define structured fields that live in this Project and appear only on
           the selected record types.
         </p>
-        <p className="text-muted-foreground text-xs/relaxed">
+        <p className="text-xs/relaxed text-muted-foreground">
           Select options stay with this Project and are not Tags.
         </p>
       </div>
@@ -234,14 +234,14 @@ export default function CustomFieldEditor({
       {definitionContent}
 
       {actionError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {actionError}
         </p>
       ) : null}
 
       <form
         aria-label="Add custom field"
-        className="space-y-5 border-border/70 border-t pt-5"
+        className="space-y-5 border-t border-border/70 pt-5"
         noValidate
         onSubmit={handleSubmit}
       >
@@ -335,12 +335,12 @@ export default function CustomFieldEditor({
         </FieldGroup>
 
         {formError ? (
-          <p className="text-destructive text-sm" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             {formError}
           </p>
         ) : null}
         {create.isError ? (
-          <p className="text-destructive text-sm" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             {errorMessage(create.error)}
           </p>
         ) : null}
@@ -461,9 +461,9 @@ function CustomFieldDefinitionList({
 
   return (
     <section aria-label="Custom fields" className="space-y-3">
-      <h5 className="font-medium text-sm">Custom fields</h5>
+      <h5 className="text-sm font-medium">Custom fields</h5>
       {definitions.length === 0 ? (
-        <p className="border border-dashed p-4 text-muted-foreground text-sm">
+        <p className="border border-dashed p-4 text-sm text-muted-foreground">
           No Custom fields yet.
         </p>
       ) : (
@@ -474,11 +474,11 @@ function CustomFieldDefinitionList({
                 <span className="font-medium">{definition.name}</span>
                 <span className="text-muted-foreground">{definition.type}</span>
               </div>
-              <p className="mt-1 text-muted-foreground text-xs/relaxed">
+              <p className="mt-1 text-xs/relaxed text-muted-foreground">
                 Available on: {definition.recordTypes.join(", ")}
               </p>
               {definition.options.length > 0 ? (
-                <p className="mt-1 text-muted-foreground text-xs/relaxed">
+                <p className="mt-1 text-xs/relaxed text-muted-foreground">
                   Options: {definition.options.join(", ")}
                 </p>
               ) : null}
@@ -504,8 +504,8 @@ function CustomFieldDefinitionList({
       )}
 
       {trashedDefinitions.length > 0 ? (
-        <div className="space-y-2 border-border/70 border-t pt-3">
-          <h5 className="font-medium text-sm">Trash</h5>
+        <div className="space-y-2 border-t border-border/70 pt-3">
+          <h5 className="text-sm font-medium">Trash</h5>
           <ul className="space-y-2">
             {trashedDefinitions.map((definition) => (
               <li
@@ -577,7 +577,7 @@ function CustomFieldEditForm({
   return (
     <form
       aria-label={`Edit ${definition.name}`}
-      className="mt-3 space-y-4 border-border/70 border-t pt-3"
+      className="mt-3 space-y-4 border-t border-border/70 pt-3"
       noValidate
       onSubmit={handleSubmit}
     >

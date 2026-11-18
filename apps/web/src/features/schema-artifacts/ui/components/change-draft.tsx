@@ -171,7 +171,7 @@ export function ChangeDraft({
   return (
     <section aria-label="Schema Change Draft" className="space-y-3">
       <h4 className="font-medium">Schema Change Draft</h4>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {`${data.source.name} (version ${data.source.number}) → ${data.target.name} (version ${data.target.number}) · ${data.generatorVersion}`}
       </p>
       {data.operations.length === 0 ? (
@@ -240,7 +240,7 @@ export function ChangeDraft({
       ) : null}
       {confirmError ? <p role="alert">{confirmError}</p> : null}
       {data.confirmBlockedBy ? (
-        <p className="text-muted-foreground text-sm">{data.confirmBlockedBy}</p>
+        <p className="text-sm text-muted-foreground">{data.confirmBlockedBy}</p>
       ) : null}
     </section>
   );

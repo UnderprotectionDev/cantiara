@@ -62,7 +62,7 @@ export default function GroupSelectionForm({
           </Button>
         )}
       </form.Subscribe>
-      <span className="text-muted-foreground text-xs">
+      <span className="text-xs text-muted-foreground">
         {selection.length} selected
       </span>
     </form>

@@ -69,7 +69,7 @@ export default function ProjectSourcesSurface({
   const { readOnly, records } = sources.data;
   return (
     <section className="space-y-5" id="sources">
-      <h2 className="font-semibold text-xl">Source</h2>
+      <h2 className="text-xl font-semibold">Source</h2>
       {readOnly ? <p>Archived Project. Sources are read-only.</p> : null}
       <SmartLinkComposer
         onPreview={preview}
@@ -88,7 +88,7 @@ export default function ProjectSourcesSurface({
           tabIndex={-1}
         >
           <h3 className="font-medium">{source.version.title}</h3>
-          <p className="font-medium text-sm">
+          <p className="text-sm font-medium">
             Historical snapshot · Version {source.revision}
           </p>
           <a
@@ -99,10 +99,10 @@ export default function ProjectSourcesSurface({
           >
             {source.version.url}
           </a>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {formatAccountDateTime(source.version.accessedAt, preferences)}
           </p>
-          <p className="whitespace-pre-wrap break-words text-sm">
+          <p className="text-sm break-words whitespace-pre-wrap">
             {source.version.capturedContent || "No text was captured."}
           </p>
           <SourceRecheckControls

@@ -114,7 +114,7 @@ export function RecordForm({
     >
       <h3 className="font-medium">{`Record ${SESSION_TEST_LABEL}`}</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -258,14 +258,14 @@ export function LinkScenarioVersionForm({
       onSubmit={submit}
     >
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
       <label className="text-sm" htmlFor={selectId}>
         Link to Planned Test Case version
       </label>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         Linking keeps what was recorded and does not mark the version as
         executed. A link does not move later.
       </p>

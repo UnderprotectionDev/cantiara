@@ -29,9 +29,9 @@ export default function SessionsSection({
         <div className="max-w-xl space-y-2">
           <div className="flex items-center gap-2">
             <ShieldCheck aria-hidden="true" className="size-5" />
-            <h1 className="font-semibold text-2xl tracking-tight">Sessions</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Sessions</h1>
           </div>
-          <p className="text-pretty text-muted-foreground text-sm/6">
+          <p className="text-sm/6 text-pretty text-muted-foreground">
             Review the devices signed in to your Account and revoke access you
             no longer recognize.
           </p>
@@ -50,11 +50,11 @@ export default function SessionsSection({
 
       <section aria-labelledby="active-sessions-heading" className="pt-9">
         <div className="mb-3 flex items-baseline justify-between gap-4">
-          <h2 className="font-medium text-sm" id="active-sessions-heading">
+          <h2 className="text-sm font-medium" id="active-sessions-heading">
             Active sessions
           </h2>
           {sessions.data ? (
-            <span className="text-muted-foreground text-xs">
+            <span className="text-xs text-muted-foreground">
               {formatAccountNumber(activeSessionCount, formattingPreferences)}{" "}
               active
             </span>
@@ -71,7 +71,7 @@ export default function SessionsSection({
           </div>
         ) : null}
         {sessions.data ? (
-          <ul className="divide-y border-border/70 border-y">
+          <ul className="divide-y border-y border-border/70">
             {sessions.data.map((productSession) => (
               <li
                 className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between"
@@ -83,14 +83,14 @@ export default function SessionsSection({
                   </div>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate font-medium text-sm">
+                      <p className="truncate text-sm font-medium">
                         {productSession.device}
                       </p>
                       {productSession.current ? (
                         <Badge variant="secondary">Current</Badge>
                       ) : null}
                     </div>
-                    <p className="mt-1 text-muted-foreground text-xs">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       Last activity{" "}
                       <time dateTime={productSession.lastActivityAt}>
                         {formatAccountDateTime(

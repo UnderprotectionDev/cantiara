@@ -57,7 +57,7 @@ export function ProductionIncidentLinkForm({
   }
   if (!candidates.length) {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Every Bug, GitHub PR, Project Release, Risk and Decision of this Project
         is already linked.
       </p>
@@ -118,7 +118,7 @@ export function ProductionIncidentLinkForm({
         )}
       </form.Subscribe>
       {error ? (
-        <p className="w-full text-destructive text-sm" role="alert">
+        <p className="w-full text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

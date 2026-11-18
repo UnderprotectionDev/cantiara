@@ -148,7 +148,7 @@ export function RedactForm({
               {CONFIRM_GITHUB_IDENTITY_LABEL}
             </Button>
             {grant ? (
-              <span className="text-muted-foreground text-sm" role="status">
+              <span className="text-sm text-muted-foreground" role="status">
                 GitHub identity confirmed.
               </span>
             ) : null}

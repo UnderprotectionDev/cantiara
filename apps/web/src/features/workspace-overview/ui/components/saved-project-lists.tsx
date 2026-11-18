@@ -205,7 +205,7 @@ function SavedListTable({
                 {showGroup ? (
                   <TableRow key={`${row.id}-group`}>
                     <TableHead
-                      className="bg-muted/10 px-4 py-2 text-muted-foreground text-xs uppercase tracking-[0.12em]"
+                      className="bg-muted/10 px-4 py-2 text-xs tracking-[0.12em] text-muted-foreground uppercase"
                       colSpan={list.columns.length}
                       scope="rowgroup"
                     >
@@ -230,7 +230,7 @@ function SavedListTable({
       </Table>
     </div>
   ) : (
-    <div className="rounded-lg border border-border/70 border-dashed bg-muted/15 px-5 py-8 text-muted-foreground text-sm">
+    <div className="rounded-lg border border-dashed border-border/70 bg-muted/15 px-5 py-8 text-sm text-muted-foreground">
       No Projects match these conditions yet.
     </div>
   );
@@ -254,19 +254,19 @@ function SavedListDetail({
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <AppLink
-            className="inline-flex items-center gap-1 text-muted-foreground text-sm underline-offset-4 hover:underline"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:underline"
             href="/projects"
           >
             <ArrowLeft aria-hidden="true" className="size-4" />
             Saved lists
           </AppLink>
           <h2
-            className="mt-4 font-semibold text-2xl tracking-tight"
+            className="mt-4 text-2xl font-semibold tracking-tight"
             id="workspace-overview-saved-list-heading"
           >
             {list.name}
           </h2>
-          <p className="mt-1 text-muted-foreground text-sm">
+          <p className="mt-1 text-sm text-muted-foreground">
             {projectCountLabel(list.projects.length)} · Membership comes from
             list conditions.
           </p>
@@ -341,18 +341,18 @@ export default function SavedProjectLists({
   return (
     <section
       aria-labelledby="workspace-overview-saved-lists-heading"
-      className="space-y-4 border-border/70 border-t pt-8"
+      className="space-y-4 border-t border-border/70 pt-8"
       data-workspace-overview-saved-lists="true"
     >
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2
-            className="font-semibold text-xl tracking-tight"
+            className="text-xl font-semibold tracking-tight"
             id="workspace-overview-saved-lists-heading"
           >
             Saved lists
           </h2>
-          <p className="mt-1 text-muted-foreground text-sm/relaxed">
+          <p className="mt-1 text-sm/relaxed text-muted-foreground">
             Cross-Project views stay live from visible Workspace conditions.
           </p>
         </div>
@@ -381,7 +381,7 @@ export default function SavedProjectLists({
                   >
                     {list.name}
                   </AppLink>
-                  <p className="mt-1 text-muted-foreground text-xs">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {projectCountLabel(list.projects.length)} · Membership comes
                     from list conditions.
                   </p>
@@ -406,7 +406,7 @@ export default function SavedProjectLists({
           ))}
         </ul>
       ) : (
-        <div className="rounded-lg border border-border/80 border-dashed bg-muted/15 px-5 py-8 text-muted-foreground text-sm">
+        <div className="rounded-lg border border-dashed border-border/80 bg-muted/15 px-5 py-8 text-sm text-muted-foreground">
           No saved lists yet. Create one to keep a live cross-Project view.
         </div>
       )}

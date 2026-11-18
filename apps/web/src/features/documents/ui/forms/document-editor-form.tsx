@@ -763,7 +763,7 @@ export default function DocumentEditor({
       />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         {record.projectId === null ? (
-          <p className="w-fit rounded-md bg-muted px-2 py-1 text-muted-foreground text-xs">
+          <p className="w-fit rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
             Personal Wiki
           </p>
         ) : null}
@@ -813,7 +813,7 @@ export default function DocumentEditor({
           className="min-w-0 space-y-5 border-0 p-0"
           disabled={!editing.editable}
         >
-          <div className="flex flex-wrap items-end gap-4 border-border border-b pb-4">
+          <div className="flex flex-wrap items-end gap-4 border-b border-border pb-4">
             <form.Field name="title">
               {(field) => (
                 <div className="min-w-60 flex-1">
@@ -821,7 +821,7 @@ export default function DocumentEditor({
                     Title
                   </Label>
                   <Input
-                    className="h-auto min-h-12 border-0 bg-transparent px-0 py-1 font-semibold text-2xl shadow-none dark:bg-transparent"
+                    className="h-auto min-h-12 border-0 bg-transparent px-0 py-1 text-2xl font-semibold shadow-none dark:bg-transparent"
                     id="document-title"
                     onBlur={field.handleBlur}
                     onChange={(event) => field.handleChange(event.target.value)}

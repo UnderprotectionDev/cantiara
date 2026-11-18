@@ -78,8 +78,8 @@ export function ProductionIncidentDetail({
         >
           Production
         </AppLink>
-        <p className="text-muted-foreground text-sm">Production Incident</p>
-        <h2 className="break-words font-semibold text-2xl tracking-tight">
+        <p className="text-sm text-muted-foreground">Production Incident</p>
+        <h2 className="text-2xl font-semibold tracking-tight break-words">
           {incident.title}
         </h2>
       </header>
@@ -89,7 +89,7 @@ export function ProductionIncidentDetail({
         </p>
       ) : null}
       {errorMessage ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {errorMessage}
         </p>
       ) : null}
@@ -97,7 +97,7 @@ export function ProductionIncidentDetail({
         <div className="space-y-8">
           <section aria-label="Incident record" className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="font-medium text-lg">Record</h3>
+              <h3 className="text-lg font-medium">Record</h3>
               {readOnly || editing ? null : (
                 <Button
                   onClick={() => setEditing(true)}
@@ -131,7 +131,7 @@ export function ProductionIncidentDetail({
                 {PRODUCTION_INCIDENT_TEXT_FIELDS.map(({ label, name }) => (
                   <div className="grid gap-1" key={name}>
                     <dt className="text-muted-foreground">{label}</dt>
-                    <dd className="whitespace-pre-wrap break-words">
+                    <dd className="break-words whitespace-pre-wrap">
                       {incident[name] || "—"}
                     </dd>
                   </div>
@@ -142,9 +142,9 @@ export function ProductionIncidentDetail({
         </div>
         <div className="space-y-8">
           <section aria-label="Status" className="space-y-3">
-            <h3 className="font-medium text-lg">Status</h3>
+            <h3 className="text-lg font-medium">Status</h3>
             {readOnly ? (
-              <p className="font-medium text-sm">{incident.status}</p>
+              <p className="text-sm font-medium">{incident.status}</p>
             ) : (
               <fieldset className="flex flex-wrap gap-2">
                 <legend className="sr-only">Status</legend>
@@ -166,7 +166,7 @@ export function ProductionIncidentDetail({
                 ))}
               </fieldset>
             )}
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               The status is your own note. It pages no one and changes no linked
               record.
             </p>
@@ -175,7 +175,7 @@ export function ProductionIncidentDetail({
       </div>
       <section aria-label="Follow-up work" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-medium text-lg">Follow-up work</h3>
+          <h3 className="text-lg font-medium">Follow-up work</h3>
           {readOnly ? null : (
             <ProductionIncidentFollowUpDialog
               actions={actions}
@@ -202,16 +202,16 @@ export function ProductionIncidentDetail({
             ))}
           </ul>
         ) : (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             No follow-up work yet. It is only created after you review a
             preview.
           </p>
         )}
       </section>
       <section aria-label="Linked records" className="space-y-4">
-        <h3 className="font-medium text-lg">Linked records</h3>
+        <h3 className="text-lg font-medium">Linked records</h3>
         {attached.length ? null : (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             No linked records yet. Link the Bug, GitHub PR, Project Release,
             Risk or Decision this incident taught you about.
           </p>
@@ -220,7 +220,7 @@ export function ProductionIncidentDetail({
           const group = attachedProductionIncidentLinks(detail.links, type);
           return group.length ? (
             <section aria-label={label} className="space-y-2" key={type}>
-              <h4 className="font-medium text-sm">{label}</h4>
+              <h4 className="text-sm font-medium">{label}</h4>
               <ul className="divide-y rounded-lg border border-border/70">
                 {group.map((link) => {
                   const href = productionIncidentLinkHref(

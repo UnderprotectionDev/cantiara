@@ -16,24 +16,24 @@ export default function ScopeTreeView({ scopeTree }: { scopeTree: ScopeTree }) {
     >
       <header>
         <h2
-          className="font-semibold text-xl tracking-tight"
+          className="text-xl font-semibold tracking-tight"
           id="scope-tree-heading"
         >
           Scope Tree
         </h2>
-        <p className="mt-1 max-w-2xl text-muted-foreground text-sm/relaxed">
+        <p className="mt-1 max-w-2xl text-sm/relaxed text-muted-foreground">
           Project scope from the current Feature and Included Work records.
         </p>
       </header>
 
       <details draggable={false} open>
-        <summary className="cursor-pointer list-inside font-medium text-sm">
+        <summary className="cursor-pointer list-inside text-sm font-medium">
           {scopeTree.project.name}
         </summary>
         {scopeTree.features.length > 0 ? (
           <ul
             aria-label="Scope Tree records"
-            className="mt-3 space-y-3 border-border/70 border-l pl-4"
+            className="mt-3 space-y-3 border-l border-border/70 pl-4"
           >
             {scopeTree.features.map((feature) => (
               <FeatureTreeNode
@@ -44,7 +44,7 @@ export default function ScopeTreeView({ scopeTree }: { scopeTree: ScopeTree }) {
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-muted-foreground text-sm">
+          <p className="mt-3 text-sm text-muted-foreground">
             No Features in this Scope Tree.
           </p>
         )}
@@ -69,7 +69,7 @@ function FeatureTreeNode({
           <span className="font-medium">
             {feature.work.key} {feature.work.title}
           </span>
-          <span className="ml-2 text-muted-foreground text-xs">Feature</span>
+          <span className="ml-2 text-xs text-muted-foreground">Feature</span>
         </summary>
         <div className="mt-2 space-y-2 pl-5 text-sm">
           <ScopeTreeWorkMetadata node={feature} projectId={projectId} />
@@ -78,7 +78,7 @@ function FeatureTreeNode({
             {feature.progress.includedWorkCount}
           </p>
           <OpenSourceRecordButton
-            className="inline-block min-h-10 px-0 py-0 text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="inline-block min-h-10 px-0 py-0 text-xs underline-offset-4 hover:underline focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
             target={{
               kind: "work",
               label: `${feature.work.key} · ${feature.work.title}`,
@@ -88,7 +88,7 @@ function FeatureTreeNode({
           />
         </div>
         {feature.includedWork.length > 0 ? (
-          <ul className="mt-3 space-y-2 border-border/70 border-l pl-4">
+          <ul className="mt-3 space-y-2 border-l border-border/70 pl-4">
             {feature.includedWork.map((node) => (
               <WorkTreeNode
                 key={node.work.id}
@@ -115,13 +115,13 @@ function WorkTreeNode({
       <div className="space-y-2 pl-1 text-sm">
         <p className="font-medium">
           {node.work.key} {node.work.title}
-          <span className="ml-2 font-normal text-muted-foreground text-xs">
+          <span className="ml-2 text-xs font-normal text-muted-foreground">
             {node.work.type}
           </span>
         </p>
         <ScopeTreeWorkMetadata node={node} projectId={projectId} />
         <OpenSourceRecordButton
-          className="inline-block min-h-10 px-0 py-0 text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="inline-block min-h-10 px-0 py-0 text-xs underline-offset-4 hover:underline focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
           target={{
             kind: "work",
             label: `${node.work.key} · ${node.work.title}`,
@@ -142,7 +142,7 @@ function ScopeTreeWorkMetadata({
   projectId: string;
 }) {
   return (
-    <div className="space-y-1 text-muted-foreground text-xs">
+    <div className="space-y-1 text-xs text-muted-foreground">
       <p>
         <span className="font-medium text-foreground">Status:</span>{" "}
         {node.work.status}

@@ -27,7 +27,7 @@ export function HandoffFollowUpFields({
           className="grid gap-3 rounded-sm border border-border/70 p-3 sm:grid-cols-2"
           key={followUpWork.id}
         >
-          <legend className="px-1 font-medium text-xs">Follow-up Work</legend>
+          <legend className="px-1 text-xs font-medium">Follow-up Work</legend>
           <Field>
             <FieldLabel htmlFor={`handoff-follow-up-title-${followUpWork.id}`}>
               Title

@@ -48,7 +48,7 @@ export function ImportReceiptReopen({
       className="space-y-3 rounded-lg border border-border/70 p-5"
     >
       {state.kind === "failed" ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {state.error}
         </p>
       ) : null}

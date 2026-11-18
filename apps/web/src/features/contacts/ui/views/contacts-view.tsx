@@ -186,22 +186,22 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
   return (
     <main className="mx-auto w-full max-w-5xl space-y-8 px-5 py-9 sm:px-8">
       <header className="border-b pb-6">
-        <h1 className="font-semibold text-3xl">Contact</h1>
+        <h1 className="text-3xl font-semibold">Contact</h1>
         <p className="mt-2 text-muted-foreground">
           People who give Feedback, with an optional Company.
         </p>
       </header>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
-      <p className="text-muted-foreground text-sm" role="status">
+      <p className="text-sm text-muted-foreground" role="status">
         {undoNotice}
       </p>
       <div className="grid gap-8 md:grid-cols-2">
         <section aria-label="Create Contact" className="space-y-4">
-          <h2 className="font-semibold text-xl">Create Contact</h2>
+          <h2 className="text-xl font-semibold">Create Contact</h2>
           <CreateContactForm
             companies={companies.data}
             onCreate={submitContactCreate}
@@ -209,7 +209,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
           />
         </section>
         <section aria-label="Create Company" className="space-y-4">
-          <h2 className="font-semibold text-xl">Create Company</h2>
+          <h2 className="text-xl font-semibold">Create Company</h2>
           <CreateCompanyForm
             onCreate={submitCompanyCreate}
             onInvalid={setError}
@@ -218,7 +218,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
       </div>
       <div className="grid gap-8 md:grid-cols-2">
         <section aria-label="Contacts" className="space-y-3">
-          <h2 className="font-semibold text-xl">Contacts</h2>
+          <h2 className="text-xl font-semibold">Contacts</h2>
           {contacts.data?.length === 0 ? <p>No Contacts yet.</p> : null}
           <ul className="space-y-2">
             {contacts.data?.map((contact) => (
@@ -236,7 +236,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
           </ul>
         </section>
         <section aria-label="Companies" className="space-y-3">
-          <h2 className="font-semibold text-xl">Companies</h2>
+          <h2 className="text-xl font-semibold">Companies</h2>
           {companies.data?.length === 0 ? <p>No Companies yet.</p> : null}
           <ul className="space-y-2">
             {companies.data?.map((company) => (
@@ -293,18 +293,18 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
         />
       ) : null}
       {undoRetiredId && undoPreview.isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           This merge can no longer be undone from here.
         </p>
       ) : null}
       {opened.isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Contact is unavailable.
         </p>
       ) : null}
       {opened.data?.redirectedFrom &&
       selected?.id === opened.data.contact.id ? (
-        <p className="text-muted-foreground text-sm" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           Redirected from <code>{opened.data.redirectedFrom}</code>{" "}
           <button
             className="rounded-md border px-2 py-1"
@@ -346,7 +346,7 @@ function DuplicateCandidates({
 
   return (
     <section aria-label="Duplicate candidates" className="space-y-3">
-      <h2 className="font-semibold text-xl">Duplicate candidates</h2>
+      <h2 className="text-xl font-semibold">Duplicate candidates</h2>
       {candidates.length === 0 ? <p>No duplicate candidates.</p> : null}
       <ul className="space-y-2">
         {candidates.map((candidate) => (
@@ -420,7 +420,7 @@ function ContactProfile({
       aria-label={`Contact: ${contactLabel(contact)}`}
       className="space-y-4 border-t pt-6"
     >
-      <h2 className="font-semibold text-xl">{contactLabel(contact)}</h2>
+      <h2 className="text-xl font-semibold">{contactLabel(contact)}</h2>
       <ContactUpdateForm
         contact={contact}
         key={`${contact.id}-${contact.revision}`}

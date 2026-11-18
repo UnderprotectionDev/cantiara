@@ -88,7 +88,7 @@ export function ScreenReference({
         <p className="font-medium">{reference.title}</p>
       )}
       {broken ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Linked{" "}
           <time dateTime={broken.establishedAt}>{broken.establishedAt}</time>
         </p>
@@ -111,12 +111,12 @@ function NodeOutlineItem({
 }) {
   return (
     <li className="space-y-1 rounded-md border p-3">
-      <p className="font-medium text-sm">
+      <p className="text-sm font-medium">
         {node.kind}
         {node.style === "default" ? "" : ` · ${node.style}`}
       </p>
       {node.text ? (
-        <p className="whitespace-pre-wrap text-sm">{node.text}</p>
+        <p className="text-sm whitespace-pre-wrap">{node.text}</p>
       ) : null}
       {node.screen ? <ScreenReference reference={node.screen} /> : null}
       {actions}
@@ -151,9 +151,9 @@ export function UserFlowDetail({
 
   return (
     <section aria-label={`User Flow ${flow.title}`} className="space-y-4">
-      <h3 className="font-medium text-lg">{flow.title}</h3>
+      <h3 className="text-lg font-medium">{flow.title}</h3>
       {flow.nodes.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           This User Flow has no nodes yet.
         </p>
       ) : (
@@ -268,9 +268,9 @@ export function UserFlowListView({
 }) {
   return (
     <section aria-label="User Flow" className="space-y-4">
-      <h2 className="font-medium text-xl">User Flow</h2>
+      <h2 className="text-xl font-medium">User Flow</h2>
       {flows.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No User Flows yet.</p>
+        <p className="text-sm text-muted-foreground">No User Flows yet.</p>
       ) : (
         <ul className="space-y-1">
           {flows.map((flow) => (

@@ -120,7 +120,7 @@ export function CreateContactForm({
         )}
       </contactForm.Field>
       <button
-        className="w-fit rounded-md bg-primary px-3 py-2 text-primary-foreground text-sm"
+        className="w-fit rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground"
         type="submit"
       >
         Create Contact
@@ -173,7 +173,7 @@ export function CreateCompanyForm({
         )}
       </companyForm.Field>
       <button
-        className="w-fit rounded-md bg-primary px-3 py-2 text-primary-foreground text-sm"
+        className="w-fit rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground"
         type="submit"
       >
         Create Company
@@ -305,7 +305,7 @@ export function ContactUpdateForm({
         )}
       </form.Field>
       <button
-        className="w-fit rounded-md bg-primary px-3 py-2 text-primary-foreground text-sm"
+        className="w-fit rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground"
         type="submit"
       >
         Save Contact

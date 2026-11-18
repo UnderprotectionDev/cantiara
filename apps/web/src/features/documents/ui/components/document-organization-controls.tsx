@@ -51,18 +51,18 @@ export default function DocumentOrganizationControls({
           {archiveLabel}
         </Button>
         {record.folder ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Folder: {record.folder}
           </p>
         ) : null}
         {parent ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Parent Document: {parent.title}
           </p>
         ) : null}
       </div>
       {disabled ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Save your changes before organizing or archiving this Document.
         </p>
       ) : null}

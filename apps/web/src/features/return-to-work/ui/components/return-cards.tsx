@@ -21,19 +21,19 @@ export default function ReturnCards({
           className="space-y-3 rounded-lg border p-4"
           key={`${card.recordType}:${card.id}`}
         >
-          <h3 className="break-words font-medium">{card.title}</h3>
-          <p className="text-muted-foreground text-sm">
+          <h3 className="font-medium break-words">{card.title}</h3>
+          <p className="text-sm text-muted-foreground">
             {card.reasons.join(" · ")}
           </p>
           {Boolean(card.nextConcreteStep) && (
             <div className="space-y-1">
-              <p className="font-medium text-sm">Next concrete step</p>
-              <p className="whitespace-pre-wrap break-words text-sm">
+              <p className="text-sm font-medium">Next concrete step</p>
+              <p className="text-sm break-words whitespace-pre-wrap">
                 {card.nextConcreteStep}
               </p>
               {card.nextConcreteStepUpdatedAt !== null && (
                 <time
-                  className="text-muted-foreground text-xs"
+                  className="text-xs text-muted-foreground"
                   dateTime={card.nextConcreteStepUpdatedAt}
                 >
                   {formatAccountDateTime(

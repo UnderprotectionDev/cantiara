@@ -806,7 +806,7 @@ function ProjectShellContent({
 
         <section
           aria-label="Project Shell configuration summary"
-          className="space-y-8 border-border/70 border-t pt-8"
+          className="space-y-8 border-t border-border/70 pt-8"
           id="project-shell-configuration-summary"
         >
           <div className="grid items-start gap-x-10 gap-y-8 lg:grid-cols-2">
@@ -979,7 +979,7 @@ function ProjectWorkSurface({
       return (
         <Suspense
           fallback={
-            <p className="text-muted-foreground text-sm" role="status">
+            <p className="text-sm text-muted-foreground" role="status">
               Loading…
             </p>
           }
@@ -1025,7 +1025,7 @@ function ProjectWorkSurface({
             </nav>
             <Suspense
               fallback={
-                <p className="text-muted-foreground text-sm" role="status">
+                <p className="text-sm text-muted-foreground" role="status">
                   Loading Work…
                 </p>
               }
@@ -1060,12 +1060,12 @@ function ProjectWorkSurface({
       <header className="surface-header flex flex-wrap items-end justify-between gap-5">
         <div className="max-w-3xl">
           <h2
-            className="text-balance font-semibold text-2xl tracking-tight"
+            className="text-2xl font-semibold tracking-tight text-balance"
             id="work-surface-heading"
           >
             {workSurfaceTitle}
           </h2>
-          <p className="mt-3 text-muted-foreground text-sm/relaxed">
+          <p className="mt-3 text-sm/relaxed text-muted-foreground">
             {workSurfaceDescription}
           </p>
         </div>
@@ -1140,7 +1140,7 @@ function ScopeTreeSection({
         <h2 className="sr-only" id="scope-tree-heading">
           Scope Tree
         </h2>
-        <p className="text-muted-foreground text-sm">Loading Scope Tree…</p>
+        <p className="text-sm text-muted-foreground">Loading Scope Tree…</p>
       </section>
     );
   }
@@ -1151,7 +1151,7 @@ function ScopeTreeSection({
         <h2 className="sr-only" id="scope-tree-heading">
           Scope Tree
         </h2>
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Scope Tree is unavailable. Try loading this page again.
         </p>
       </section>
@@ -1183,7 +1183,7 @@ function DailyWorkActions({
       <h3 className="sr-only" id="daily-actions-heading">
         Daily actions
       </h3>
-      <div className="flex flex-wrap gap-2 border-border/70 border-b pb-4">
+      <div className="flex flex-wrap gap-2 border-b border-border/70 pb-4">
         {DAILY_ACTIONS.map((action) => (
           <DailyActionLink
             action={action}
@@ -1263,7 +1263,7 @@ function DailyActionHost({
   return (
     <section
       aria-labelledby={`${hostId}-heading`}
-      className="mt-4 rounded-md border border-border/70 bg-card/45 p-4 text-muted-foreground text-sm"
+      className="mt-4 rounded-md border border-border/70 bg-card/45 p-4 text-sm text-muted-foreground"
       id={hostId}
     >
       <h4 className="font-medium text-foreground" id={`${hostId}-heading`}>
@@ -1316,7 +1316,7 @@ function ProjectNavigation({
       </div>
       <nav
         aria-label="Project navigation"
-        className="flex min-w-0 gap-1 overflow-x-auto border-border/70 border-b pb-2 lg:flex-col lg:overflow-visible lg:border-b-0 lg:pb-0"
+        className="flex min-w-0 gap-1 overflow-x-auto border-b border-border/70 pb-2 lg:flex-col lg:overflow-visible lg:border-b-0 lg:pb-0"
       >
         {ALWAYS_REACHABLE_SURFACES.map((surface) => (
           <ProjectNavigationLink
@@ -1398,10 +1398,10 @@ function ConfigurationList({
   return (
     <section
       aria-labelledby={`${label.toLowerCase().replaceAll(" ", "-")}-heading`}
-      className="border-border/70 border-t pt-5"
+      className="border-t border-border/70 pt-5"
     >
       <h2
-        className="font-medium text-base"
+        className="text-base font-medium"
         id={`${label.toLowerCase().replaceAll(" ", "-")}-heading`}
       >
         {label}
@@ -1420,7 +1420,7 @@ function ConfigurationList({
         ))}
       </ul>
       {items.length === 0 ? (
-        <p className="mt-3 text-muted-foreground text-sm">{emptyMessage}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{emptyMessage}</p>
       ) : null}
     </section>
   );
@@ -1430,9 +1430,9 @@ function EnabledAreasList({ areas }: { areas: readonly ProjectArea[] }) {
   return (
     <section
       aria-labelledby="enabled-project-areas-heading"
-      className="border-border/70 border-t pt-5"
+      className="border-t border-border/70 pt-5"
     >
-      <h2 className="font-medium text-base" id="enabled-project-areas-heading">
+      <h2 className="text-base font-medium" id="enabled-project-areas-heading">
         Project areas
       </h2>
       <ul
@@ -1483,31 +1483,31 @@ function ProjectShellHeader({
       <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_15rem] sm:items-end sm:gap-10">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-balance font-semibold text-3xl tracking-tight">
+            <h1 className="text-3xl font-semibold tracking-tight text-balance">
               {name}
             </h1>
             <Badge variant="secondary">{status}</Badge>
           </div>
-          <p className="mt-2 max-w-xl text-muted-foreground text-sm/relaxed">
+          <p className="mt-2 max-w-xl text-sm/relaxed text-muted-foreground">
             A durable home for this Project’s work and context.
           </p>
         </div>
         <dl className="grid grid-cols-2 gap-5 border-t pt-4 sm:grid-cols-1 sm:gap-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-6">
           <div>
-            <dt className="text-muted-foreground text-xs">Short code</dt>
-            <dd className="mt-1 font-medium text-sm">{shortCode}</dd>
+            <dt className="text-xs text-muted-foreground">Short code</dt>
+            <dd className="mt-1 text-sm font-medium">{shortCode}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground text-xs">
+            <dt className="text-xs text-muted-foreground">
               Starter Configuration
             </dt>
-            <dd className="mt-1 font-medium text-sm">{starterConfiguration}</dd>
+            <dd className="mt-1 text-sm font-medium">{starterConfiguration}</dd>
           </div>
         </dl>
       </div>
-      <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-border/70 border-t pt-5">
+      <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-t border-border/70 pt-5">
         <div>
-          <p className="text-muted-foreground text-xs/relaxed">
+          <p className="text-xs/relaxed text-muted-foreground">
             Separate Project structure from daily Work editing.
           </p>
         </div>

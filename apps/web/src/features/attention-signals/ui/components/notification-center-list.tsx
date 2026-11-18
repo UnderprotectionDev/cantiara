@@ -220,14 +220,14 @@ function SectionView({
         {section.section} ({count})
       </summary>
       {section.groups.length === 0 ? (
-        <p className="px-3 pb-3 text-muted-foreground text-sm">
+        <p className="px-3 pb-3 text-sm text-muted-foreground">
           No signals in this section.
         </p>
       ) : (
         <ul className="grid gap-3 px-3 pb-3">
           {section.groups.map((group) => (
             <li key={group.key}>
-              <h3 className="font-medium text-sm">
+              <h3 className="text-sm font-medium">
                 {group.group.kind} {group.group.id}
               </h3>
               <ul className="mt-1 grid gap-2">
@@ -267,7 +267,7 @@ export default function NotificationCenterList({
           section={section}
         />
       ))}
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         Notification Center shows registered signals only; it does not claim to
         show everything that needs attention.
       </p>

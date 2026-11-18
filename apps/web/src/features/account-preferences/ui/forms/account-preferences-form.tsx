@@ -160,10 +160,10 @@ function AccountPreferencesSaveStatus({
         className="mt-0.5 size-4 shrink-0 text-destructive"
       />
       <div className="min-w-0 flex-1">
-        <p className="font-medium text-sm">
+        <p className="text-sm font-medium">
           {saveStatusMessage(isOnline, saveError)}
         </p>
-        <p className="mt-1 text-muted-foreground text-xs/relaxed">
+        <p className="mt-1 text-xs/relaxed text-muted-foreground">
           {saveStatusDescription(isOnline, saveError)}
         </p>
         <dl className="mt-3 space-y-1 text-xs/relaxed">
@@ -191,8 +191,8 @@ function AccountPreferencesSaveStatus({
           ) : null}
         </dl>
         {saveError?.code === "STALE_BASE_REVISION" ? (
-          <div className="mt-4 border-destructive/20 border-t pt-3">
-            <p className="font-medium text-sm">Current value</p>
+          <div className="mt-4 border-t border-destructive/20 pt-3">
+            <p className="text-sm font-medium">Current value</p>
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm/relaxed sm:grid-cols-3">
               <div>
                 <dt className="text-muted-foreground">Revision</dt>
@@ -202,31 +202,31 @@ function AccountPreferencesSaveStatus({
               </div>
               <div>
                 <dt className="text-muted-foreground">Appearance</dt>
-                <dd className="mt-0.5 break-words font-medium">
+                <dd className="mt-0.5 font-medium break-words">
                   {saveError.currentValue.appearance}
                 </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Locale</dt>
-                <dd className="mt-0.5 break-words font-medium">
+                <dd className="mt-0.5 font-medium break-words">
                   {saveError.currentValue.locale}
                 </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Time zone</dt>
-                <dd className="mt-0.5 break-words font-medium">
+                <dd className="mt-0.5 font-medium break-words">
                   {saveError.currentValue.timeZone}
                 </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Date format</dt>
-                <dd className="mt-0.5 break-words font-medium">
+                <dd className="mt-0.5 font-medium break-words">
                   {saveError.currentValue.dateFormat}
                 </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">First day of week</dt>
-                <dd className="mt-0.5 break-words font-medium">
+                <dd className="mt-0.5 font-medium break-words">
                   {saveError.currentValue.firstDayOfWeek}
                 </dd>
               </div>
@@ -365,8 +365,8 @@ export default function AccountPreferencesForm({
             className="mt-0.5 size-4 shrink-0 text-muted-foreground"
           />
           <div className="min-w-0 flex-1">
-            <p className="font-medium text-sm">Browser suggestion</p>
-            <p className="mt-1 text-muted-foreground text-xs/relaxed">
+            <p className="text-sm font-medium">Browser suggestion</p>
+            <p className="mt-1 text-xs/relaxed text-muted-foreground">
               Suggested locale: <code>{suggestion.locale}</code>. Suggested time
               zone: <code>{suggestion.timeZone}</code>. These values are not
               applied until you save.
@@ -595,43 +595,43 @@ export default function AccountPreferencesForm({
               >
                 <div className="flex items-baseline justify-between gap-4">
                   <h2
-                    className="font-medium text-sm"
+                    className="text-sm font-medium"
                     id="account-preferences-preview"
                   >
                     Preview
                   </h2>
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-xs text-muted-foreground">
                     Before saving
                   </span>
                 </div>
                 <dl className="mt-6 space-y-4">
                   <div className="border-b pb-3">
-                    <dt className="text-muted-foreground text-xs">Date</dt>
-                    <dd className="mt-1 font-medium text-base tracking-tight">
+                    <dt className="text-xs text-muted-foreground">Date</dt>
+                    <dd className="mt-1 text-base font-medium tracking-tight">
                       <time dateTime={PREVIEW_TIMESTAMP}>
                         {formatAccountDateTime(PREVIEW_TIMESTAMP, preview)}
                       </time>
                     </dd>
                   </div>
                   <div className="border-b pb-3">
-                    <dt className="text-muted-foreground text-xs">
+                    <dt className="text-xs text-muted-foreground">
                       Example number
                     </dt>
-                    <dd className="mt-1 font-medium text-base tracking-tight">
+                    <dd className="mt-1 text-base font-medium tracking-tight">
                       {formatAccountNumber(PREVIEW_NUMBER, preview)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground text-xs">
+                    <dt className="text-xs text-muted-foreground">
                       Work title
                     </dt>
-                    <dd className="mt-1 font-medium text-base tracking-tight">
+                    <dd className="mt-1 text-base font-medium tracking-tight">
                       {PREVIEW_WORK_TITLE}
                     </dd>
                   </div>
                 </dl>
                 <fieldset className="mt-6 border-t pt-4">
-                  <legend className="text-muted-foreground text-xs">
+                  <legend className="text-xs text-muted-foreground">
                     Week
                   </legend>
                   <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs">
@@ -652,7 +652,7 @@ export default function AccountPreferencesForm({
             {savePreferences.isSuccess ? (
               <p
                 aria-live="polite"
-                className="flex items-center gap-1.5 text-muted-foreground text-xs"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground"
               >
                 <Check aria-hidden="true" className="size-3.5 text-primary" />
                 Preferences saved.

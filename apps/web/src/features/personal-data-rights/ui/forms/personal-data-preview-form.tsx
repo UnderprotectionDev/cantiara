@@ -29,7 +29,7 @@ function Download({ artifact }: { artifact: PersonalDataArtifact }) {
   useEffect(() => () => URL.revokeObjectURL(url), [url]);
   return (
     <a
-      className="font-medium text-sm underline"
+      className="text-sm font-medium underline"
       download={artifact.fileName}
       href={url}
     >
@@ -92,7 +92,7 @@ export function PersonalDataPreviewPanel({
         {preview.notice}
       </p>
       <section className="space-y-1">
-        <h4 className="font-medium text-sm">Included sources</h4>
+        <h4 className="text-sm font-medium">Included sources</h4>
         <ul aria-label="Sources in this package" className="space-y-2 text-sm">
           {preview.sources.map((source) => (
             <li key={source.kind}>
@@ -109,7 +109,7 @@ export function PersonalDataPreviewPanel({
         </ul>
       </section>
       <section className="space-y-1">
-        <h4 className="font-medium text-sm">Never included</h4>
+        <h4 className="text-sm font-medium">Never included</h4>
         <ul aria-label="Left out of this package" className="text-sm">
           {preview.excluded.map((line) => (
             <li key={line}>{line}</li>
@@ -126,7 +126,7 @@ export function PersonalDataPreviewPanel({
         }}
       >
         <fieldset className="space-y-2">
-          <legend className="font-medium text-sm">Format</legend>
+          <legend className="text-sm font-medium">Format</legend>
           <form.Field name="format">
             {(field) => (
               <RadioGroup

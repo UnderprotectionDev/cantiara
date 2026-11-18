@@ -38,7 +38,7 @@ export function OpenQuestionDetail({
       aria-label="Open Question"
       className="space-y-4 rounded-lg border border-border/70 p-5"
     >
-      <h3 className="font-semibold text-xl">{record.title}</h3>
+      <h3 className="text-xl font-semibold">{record.title}</h3>
       <p>{record.life}</p>
       <dl className="space-y-3">
         {[
@@ -49,7 +49,7 @@ export function OpenQuestionDetail({
         ].map(([label, value]) => (
           <div key={label}>
             <dt className="font-medium">{label}</dt>
-            <dd className="whitespace-pre-wrap break-words text-muted-foreground">
+            <dd className="break-words whitespace-pre-wrap text-muted-foreground">
               {value || "—"}
             </dd>
           </div>
@@ -64,7 +64,7 @@ export function OpenQuestionDetail({
               key={`${item.documentId}:${item.documentRevision}:${item.selectionStart}:${item.selectionEnd}`}
             >
               <p>Version {item.documentRevision}</p>
-              <blockquote className="whitespace-pre-wrap break-words">
+              <blockquote className="break-words whitespace-pre-wrap">
                 {item.selectedText}
               </blockquote>
             </div>

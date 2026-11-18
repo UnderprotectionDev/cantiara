@@ -324,7 +324,7 @@ export default function DocumentConflictDrafts({
           >
             <div>
               <h4>Current value</h4>
-              <pre className="overflow-x-auto whitespace-pre-wrap text-sm">
+              <pre className="overflow-x-auto text-sm whitespace-pre-wrap">
                 {comparison.current.title}
                 {"\n"}
                 {comparison.current.type}
@@ -334,7 +334,7 @@ export default function DocumentConflictDrafts({
             </div>
             <div>
               <h4>Conflict Draft</h4>
-              <pre className="overflow-x-auto whitespace-pre-wrap text-sm">
+              <pre className="overflow-x-auto text-sm whitespace-pre-wrap">
                 {comparison.draft.title}
                 {"\n"}
                 {comparison.draft.type}
@@ -344,7 +344,7 @@ export default function DocumentConflictDrafts({
             </div>
           </section>
           <section aria-label="Body changes">
-            <pre className="overflow-x-auto whitespace-pre-wrap text-sm">
+            <pre className="overflow-x-auto text-sm whitespace-pre-wrap">
               {changes}
             </pre>
           </section>

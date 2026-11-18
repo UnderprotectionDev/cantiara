@@ -248,7 +248,7 @@ export function DecisionStatusFilter({
           </NativeSelectOption>
         ))}
       </NativeSelect>
-      <p className="text-muted-foreground text-xs">Filters Decisions only.</p>
+      <p className="text-xs text-muted-foreground">Filters Decisions only.</p>
     </div>
   );
 }

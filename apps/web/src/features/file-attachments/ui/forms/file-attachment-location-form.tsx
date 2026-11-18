@@ -308,7 +308,7 @@ export default function FileAttachmentLocationBinder({
           {FILE_ATTACHMENT_UI_LABELS.existingWork}
         </Button>
       </div>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         {FILE_ATTACHMENT_UI_LABELS.locationSelectionInstruction}
       </p>
       <div className="grid gap-2 text-xs sm:grid-cols-2">
@@ -537,12 +537,12 @@ export default function FileAttachmentLocationBinder({
         </div>
       )}
       {error ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}
       {preview ? (
-        <div className="text-muted-foreground text-xs" role="status">
+        <div className="text-xs text-muted-foreground" role="status">
           <p>{FILE_ATTACHMENT_UI_LABELS.reviewLocationBind}</p>
           <p className="mt-1 font-medium text-foreground">
             {preview.target.mode === "existing"

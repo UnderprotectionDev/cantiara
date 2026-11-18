@@ -114,7 +114,7 @@ function FlowCard({ data, id }: NodeProps<FlowNode>) {
       }}
       tabIndex={0}
     >
-      <p className="font-medium text-xs">
+      <p className="text-xs font-medium">
         {data.kind}
         {data.style === "default" ? "" : ` · ${data.style}`}
       </p>
@@ -759,7 +759,7 @@ function Editor({
           snapToGrid={snap}
         />
       </section>
-      <p className="text-muted-foreground text-xs" id="user-flow-shortcuts">
+      <p className="text-xs text-muted-foreground" id="user-flow-shortcuts">
         Shortcuts (Tab to a node first): Enter or Space selects a node (Shift
         adds), arrows nudge the selection (Shift for a grid step), Alt+arrows
         pan, + and - zoom, 0 fits the view, Shift+0 fits the selection, G snaps
@@ -827,7 +827,7 @@ function Editor({
           Discard changes
         </Button>
         {dirty ? (
-          <span className="text-muted-foreground text-xs" role="status">
+          <span className="text-xs text-muted-foreground" role="status">
             Unsaved changes. Save or discard them before placing a node.
           </span>
         ) : null}

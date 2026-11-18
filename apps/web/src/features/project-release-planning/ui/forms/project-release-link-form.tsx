@@ -185,7 +185,7 @@ export function ProjectReleaseLinkForm({
         )}
       </form.Subscribe>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

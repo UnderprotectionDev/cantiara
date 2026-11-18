@@ -120,18 +120,18 @@ export default function WorkTemplateEditor({
 
   return (
     <div className="mt-3 space-y-6" data-work-template-editor="true">
-      <p className="max-w-2xl text-muted-foreground text-xs/relaxed">
+      <p className="max-w-2xl text-xs/relaxed text-muted-foreground">
         Reuse a Project-specific starting point with a type, description
         skeleton, selected field defaults, checklist, and relative dates.
       </p>
 
       {templates.query.status === "pending" ? (
-        <p className="text-muted-foreground text-sm" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           Loading Work Templates…
         </p>
       ) : null}
       {templates.query.isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Work Templates could not be loaded. Try loading this page again.
         </p>
       ) : null}
@@ -141,7 +141,7 @@ export default function WorkTemplateEditor({
         </p>
       ) : null}
       {list.length === 0 && !(templates.query.status === "pending") ? (
-        <p className="rounded-md border border-dashed p-4 text-muted-foreground text-sm">
+        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           No Work Templates yet. Define the first reusable starting point below.
         </p>
       ) : (
@@ -155,8 +155,8 @@ export default function WorkTemplateEditor({
               >
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="font-medium text-sm">{template.name}</p>
-                    <p className="mt-1 text-muted-foreground text-xs">
+                    <p className="text-sm font-medium">{template.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
                       {template.type} · {template.checklist.length} checklist
                       item{template.checklist.length === 1 ? "" : "s"}
                     </p>
@@ -214,7 +214,7 @@ export default function WorkTemplateEditor({
                   </div>
                 </div>
                 {template.customFieldDefaults.length > 0 ? (
-                  <p className="mt-3 text-muted-foreground text-xs">
+                  <p className="mt-3 text-xs text-muted-foreground">
                     Field defaults:{" "}
                     {template.customFieldDefaults
                       .map((item) =>
@@ -224,7 +224,7 @@ export default function WorkTemplateEditor({
                   </p>
                 ) : null}
                 {preview.plannedStartDate || preview.targetDate ? (
-                  <dl className="mt-4 grid gap-3 border-border/70 border-t pt-3 text-xs sm:grid-cols-3">
+                  <dl className="mt-4 grid gap-3 border-t border-border/70 pt-3 text-xs sm:grid-cols-3">
                     <div>
                       <dt className="text-muted-foreground">Creation day</dt>
                       <dd className="mt-1 font-medium">{previewDate}</dd>

@@ -55,7 +55,7 @@ const LINE_CLASS: Record<SpecDiffLine["kind"], string | undefined> = {
 
 function DiffLines({ lines }: { lines: SpecDiffLine[] }) {
   return (
-    <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-sm">
+    <pre className="overflow-x-auto font-mono text-sm whitespace-pre-wrap">
       {lines.map((line, index) => (
         <span
           className={`block ${LINE_CLASS[line.kind] ?? ""}`}
@@ -199,7 +199,7 @@ export function SpecChangeReviewView({
                 type="button"
                 variant={review.id === selectedId ? "default" : "outline"}
               >
-                {review.featureKey} {review.featureTitle} · Primary spec{"  "}
+                {review.featureKey} {review.featureTitle} · Primary spec{" "}
                 {review.documentTitle} · Version {review.previousRevision} →
                 Version {review.nextRevision}
               </Button>

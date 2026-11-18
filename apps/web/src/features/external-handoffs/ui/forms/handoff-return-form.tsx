@@ -159,7 +159,7 @@ export function HandoffReturnForm({
         </form.Field>
       </div>
       {error ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}
