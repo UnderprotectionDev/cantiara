@@ -2,6 +2,10 @@
 
 Araştırma tarihi: **18 Kasım 2026**. Bu rapor yalnız araştırmadır. Paket, manifest, lockfile ve uygulama kodu değiştirilmedi; kurulum, upgrade, backend, DB yazımı, test paketi, build, commit veya PR çalıştırılmadı. Ana ajan 1–9. grupları ve testleri yürütüyor; onun sonuçları bu raporda başarılı kabul edilmedi. 10. grup egress araştırması ana ajan tarafından bu rapora eklendi. Kapsam yalnız sürüm değişikliği ve bunun zorunlu uyumluluk düzeltmeleridir; refactor ve `useState` temizliği kapsam dışıdır.
 
+## Araştırma sonrası kullanıcı kararı
+
+18 Kasım: Undici 8 bu turda bekletildi (7.30.2 korunuyor); 11. grupta yalnız diff 9.0.0 onaylandı; Tauri npm/Rust eşleri ve Bun 1.4.4 birlikte onaylandı. React Flow 13, KaTeX 0.19, Better Auth ve keyring =3.3.0 değişmedi. Aşağıdaki araştırma önerileri karar öncesi değerlendirmedir; uygulama/test durumu [doğrulama raporundadır](dependency-upgrade-validation.md).
+
 ## Karar özeti
 
 | Onay | Öneri | Temel gerekçe |

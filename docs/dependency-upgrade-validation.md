@@ -1,6 +1,6 @@
 # Bağımlılık yükseltme doğrulaması
 
-Tarih: 18 Kasım 2026. Kapsam yalnız sürümler ve zorunlu uyumluluk düzeltmeleridir. Şema/migration, TypeScript, oRPC v2, `packages/ui` içindeki `cn`, Better Auth pini, Bun ve Rust değiştirilmedi.
+Tarih: 18 Kasım 2026. Kapsam yalnız sürümler ve zorunlu uyumluluk düzeltmeleridir. Şema/migration, TypeScript, oRPC v2, `packages/ui` içindeki `cn`, Better Auth pini değiştirilmedi. Bun ve Tauri Rust eşleri 12. grupta açık kullanıcı onayıyla yükseltildi.
 
 Kullanıcı kararları: mevcut Smart Collection `Test Gap` constraint hatasını raporlayarak devam et; Tauri npm paketlerini Rust kararıyla 12. gruba bırak; 16.19.4 sonrası yama veya bir hafta koşulu sağlanmadığından 8. grubu beklet.
 
@@ -190,12 +190,57 @@ Kullanıcı yalnız diff 9.0.0'ı onayladı; React Flow 13, KaTeX 0.19 ve Better
 
 Kaynaklar: [Resmî v9 sürüm/migration notları](https://github.com/kpdecker/jsdiff/blob/v9.0.0/release-notes.md), [kullanım ve API](https://github.com/kpdecker/jsdiff/tree/v9.0.0). Komut çıktıları `/tmp/cantiara-group11-*.log` dosyalarında.
 
-## 12. Tauri npm/Rust ve Bun — kullanıcı onayı alındı
+## 12. Tauri npm/Rust ve Bun — tamamlandı
 
-Kullanıcı eşleşen Tauri npm/Rust grubunu ve Bun **1.4.4** geçişini onayladı. keyring **=3.3.0** pini korunacak. Araştırmadaki standalone serde_json/log patch adayları bu eşleştirilmiş Tauri kapsamına eklenmedi. Uygulama ve doğrulama sonucu aşağıya kaydedilecek.
+Kullanıcı eşleşen Tauri npm/Rust grubunu ve Bun **1.4.4** geçişini onayladı. Yeni doğrudan bağımlılık, yeni stack, uygulama/Rust kaynak uyarlaması yok. Manifest, lockfile, MSRV ve mevcut CI sürüm/cache pinleri güncellendi.
+
+| Paket / sınır | npm hedefi | Rust hedefi |
+| --- | --- | --- |
+| `@tauri-apps/api` / `tauri` | 2.12.5 | 2.12.6 |
+| `@tauri-apps/cli` / `tauri-build` | 2.12.5 | tauri-build 2.7.5 |
+| `@tauri-apps/plugin-deep-link` / `tauri-plugin-deep-link` | 2.6.3 | 2.6.3 |
+| `@tauri-apps/plugin-opener` / `tauri-plugin-opener` | 2.7.3 | 2.7.3 |
+| `@tauri-apps/plugin-process` / `tauri-plugin-process` | 2.4.0 | 2.4.0 |
+| `@tauri-apps/plugin-stronghold` / `tauri-plugin-stronghold` | 2.4.0 | 2.4.0 |
+| `@tauri-apps/plugin-updater` / `tauri-plugin-updater` | 2.14.1 | 2.14.1 |
+| `tauri-plugin-single-instance` | npm tüketicisi yok | 2.5.5 |
+| `tauri-plugin-log` | npm tüketicisi yok | 2.10.2 |
+| Bun | packageManager ve dört workflow/cache pini 1.4.4 | uygulanmaz |
+| rust-version | uygulanmaz | 1.77.2 → 1.90 |
+
+Tauri API/core aynı **2.12 minor** ailesindedir; patch numaralarının eşit olması gerekmiyor. Cargo.lock yalnız hedef Tauri çözümlemesiyle üretildi. keyring **=3.3.0** ve apple-native feature'ı; serde 1.0.229, serde_json 1.0.151 ve log 0.4.34 lock sürümleri aynen korundu. Ayrı patch adayları bu eşleşmiş Tauri kapsamına eklenmedi. edition 2021 aynı.
+
+Bun'ın resmî macOS arm64 1.4.4 binary'si GitHub release asset SHA-256 değeriyle doğrulandı. Komutlar task için ayrılmış bu binary'nin PATH'iyle çalıştırıldı; proje ve CI pinleri 1.4.4. Ana makinenin diğer workspace'lerini etkileyen global kurulum değişikliği yapılmadı. Vitest mevcut Node 24.15.0 worker'larını kullanıyor; gerçek e2e API, migration alt süreçleri, proxy ve worker smoke'ları Bun 1.4.4 altında.
+
+### Doğrulama
+
+- Bun 1.4.4 ile install ve frozen install geçti; hook kurulum script'i çalıştı.
+- `bun run check-types`, `bun run check` ve konvansiyon kontrolü geçti.
+- Vitest: web **1360**, API **584**, extension **2**, kök script **35** geçti.
+- Sunucu **3217 geçti / bilinen 1 Test Gap constraint hatası / 0 atlama**. Başarısız tam sunucu komutu ve 23514 çıktısı raporun başındakiyle aynı; schema değişmedi.
+- `bun run db:check` geçti; taze, yalnız loopback disposable üç DB ile `bun run db:test` **127 geçti**. Bu DB'lere mevcut kanonik migration'lar uygulandı; repo şeması/SQL'i değiştirilmedi.
+- Server build geçti. `bun` builtin import'una ilişkin tsdown external uyarısı 6. gruptaki build'de de mevcut.
+- Gerçek source ve built-worker smoke, Bun 1.4.4 + undici 7.30.2 altında Example Domain önizlemesini hatasız üretti.
+- CI ile aynı `cargo check --locked --all-targets` geçti (Rust 1.98.1); `cargo test --locked --all-targets` derledi/linkledi ve geçti. Rust lib/main içinde **0 unit test** var; bu sonuç native runtime davranış testi diye sunulmuyor.
+- Tam `bun run test:e2e` **134 geçti (10,0 dakika)**, 0 atlama. Gerçek API sürecinin `/tmp/cantiara-bun-1.4.4/bin/bun` çalıştırdığı process executable üzerinden ayrıca doğrulandı.
+
+Ek CLI tanısında `bunx tauri info --ci` başarısız oldu:
+
+```text
+error: unexpected argument '--ci' found
+Usage: bun run bunx info [OPTIONS]
+```
+
+Resmî CLI referansı ve kurulu yardım doğrulandı; `CI=1 bunx tauri info` başarılı çalıştı. Info raporu API paketini `not installed` gösterse de doğrudan `@tauri-apps/api/core` import'u, `invoke` fonksiyonu ve kurulu package.json **2.12.5** doğrulandı; frozen install ve tip kontrolü de geçti. CLI'nin bu tanısı sürüm eksikliği olarak kabul edilmedi.
+
+### Doğrulanmayan native kabul
+
+Yerelde Command Line Tools ve Homebrew Rust 1.98.1 var; tam Xcode/rustup yok. Mevcut CI Rust pini 1.98.1 yeterli. 1.90 alt sınırı registry/changelog koşuluna dayanır; ayrıca 1.90 derleyicisiyle minimum-version build yapılmadı. Gerçek imzalı/notarized installer, native updater/relaunch, gerçek GitHub deep-link ve macOS Keychain/Stronghold restore uçtan uca çalıştırılmadı. Web/adapter testleri ve native compile/link bunların yerine geçmez. Hiçbir imzalama veya credential mimarisi değiştirilmedi.
+
+Kaynaklar: [Tauri update rehberi](https://v2.tauri.app/develop/updating-dependencies/), [core changelog](https://github.com/tauri-apps/tauri/blob/dev/crates/tauri/CHANGELOG.md), [build changelog](https://github.com/tauri-apps/tauri/blob/dev/crates/tauri-build/CHANGELOG.md), [Deep Link](https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/deep-link/CHANGELOG.md), [Opener](https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/opener/CHANGELOG.md), [Process](https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/process/CHANGELOG.md), [Stronghold](https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/stronghold/CHANGELOG.md), [Updater](https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/updater/CHANGELOG.md), [Single Instance](https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/single-instance/CHANGELOG.md), [Log](https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/log/CHANGELOG.md), [CLI referansı](https://v2.tauri.app/reference/cli/#info), [Bun 1.4](https://bun.com/blog/bun-v1.4), [1.4.4](https://bun.com/blog/release-notes/bun-v1.4.4). Komut çıktıları `/tmp/cantiara-group12-*.log` dosyalarında.
 
 ## Son inceleme ve sınırlar
 
-Üretim uyum düzeltmeleri dört dosyada: DatePicker erişilebilir adı, iki Table 9 adapter'ı ve htmlparser2 fallback ayrıştırması. Genel refactor ve state temizliği yok. `docs/tech-stack.md` amaçları ve routeTree generated çıktısı değişmedi. Yeni doğrudan bağımlılık yok. `git diff --check` geçti. 71 hedef paket 10 manifestte doğrulandı; oRPC ve Tiptap lockfile ailelerinde karışık sürüm yok. Korunan sürüm ve dosyalar ayrıca HEAD ile karşılaştırıldı.
+Üretim uyum düzeltmeleri dört dosyada: DatePicker erişilebilir adı, iki Table 9 adapter'ı ve htmlparser2 fallback ayrıştırması. Genel refactor ve state temizliği yok. `docs/tech-stack.md` amaçları ve routeTree generated çıktısı değişmedi. Yeni doğrudan bağımlılık yok. `git diff --check` geçti. 79 hedef npm paketi 10 manifestte, Bun 1.4.4 ve dokuz Tauri Rust hedefi ayrıca doğrulandı; oRPC ve Tiptap lockfile ailelerinde karışık sürüm yok. Korunan sürüm ve dosyalar ayrıca HEAD ile karşılaştırıldı.
 
 Test çıktıları `/tmp/cantiara-groupN-*.log` dosyalarındadır. Başarısızlık çıktılarının ana kayıtları: group1-server-complete, group1-e2e-serial; group2-types, group2-web, group2-dbtest; group4-types; group5-adapter; group6-after ve group6-whitespace-red; group7-types. Nihai başarı kayıtları ilgili `*-close.log` ve bu rapordaki toplamlarla ayrılmıştır. Önceki çevresel veya red-test başarısızlıkları nihai başarı gibi sunulmadı.
