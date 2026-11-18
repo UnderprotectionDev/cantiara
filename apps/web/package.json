@@ -55,7 +55,7 @@
     "@xyflow/react": "^12.12.0",
     "better-auth": "catalog:",
     "date-fns": "^4.4.0",
-    "diff": "^8.0.4",
+    "diff": "9.0.0",
     "katex": "0.18.11",
     "konva": "10.9.1",
     "lowlight": "^3.3.0",

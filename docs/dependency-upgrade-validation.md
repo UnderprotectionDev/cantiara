@@ -178,9 +178,21 @@ Kullanıcı koşulu 16.19.4 **sonrası** yeni bir yama veya 16.19.4 yayımından
 
 Ana depoda uygulanmadı. [Salt kontrol önizlemesi](dependency-upgrade-lint-preview.md) 1.244 dosyalık etki gösterdi; yaklaşık 10 dosya sınırı nedeniyle kullanıcıya soruldu. 8.3.0 aynı gün yayımlandığından aday 8.2.1; Biome adayı 2.6.8. Ana depoda otomatik biçim değişikliği veya init yapılmadı. Kullanıcı geniş lint uyarlamasının araştırılmasını seçti; [kontrollü ek ölçümler](dependency-upgrade-lint-preview.md#ek-inceleme--kullanıcının-araştırma-kararı-sonrası) ve [kural bazında bulgular](dependency-upgrade-lint-rules.md) hazır. Geçici kopyadaki safe-fix deneyi uygulama onayı veya kabul kanıtı değildir.
 
-## 10–12. Araştırma ve onay sınırı
+## 10. Undici 8 — kullanıcı kararıyla bekliyor
 
-[Ayrıntılı araştırma](dependency-upgrade-research.md) mevcut kullanımları, etkilenen dosya sayılarını, resmî migration/changelog kaynaklarını ve geç/bekle önerilerini içerir. Kararlar kullanıcıya soruldu; onay alınmadan yükseltme yapılmayacak. Tauri npm hedefleri 12. grubun Rust kararıyla birlikte bekliyor.
+Kullanıcı bu turda **7.30.2'de beklet** dedi. Undici 8 kurulmadı; v8 kabul kanıtı iddia edilmiyor.
+
+## 11. Yalnız diff 9 — tamamlandı
+
+Kullanıcı yalnız diff 9.0.0'ı onayladı; React Flow 13, KaTeX 0.19 ve Better Auth bekliyor. `apps/web` ve `packages/api` manifestlerindeki diff **8.0.4 → 9.0.0** exact sürüme getirildi. Beş mevcut diffLines tüketicisinde kaynak uyarlaması gerekmedi; kullanım kalıpları aynı.
+
+Önce 16 API + 3 web ilgili test eski sürümde geçti. Yükseltme sonrası `bun run check-types`, `bun run check`, tam API **584**, tam web **1360** test geçti. `bun run test:e2e -- documents.e2e.ts document-conflict-drafts.e2e.ts source-recheck.e2e.ts` **21 test** geçti. Bu grupta başarısız komut yok. Patch parser/formatter üretimde kullanılmıyor; bu API'lerin davranışı doğrulanmış sayılmıyor.
+
+Kaynaklar: [Resmî v9 sürüm/migration notları](https://github.com/kpdecker/jsdiff/blob/v9.0.0/release-notes.md), [kullanım ve API](https://github.com/kpdecker/jsdiff/tree/v9.0.0). Komut çıktıları `/tmp/cantiara-group11-*.log` dosyalarında.
+
+## 12. Tauri npm/Rust ve Bun — kullanıcı onayı alındı
+
+Kullanıcı eşleşen Tauri npm/Rust grubunu ve Bun **1.4.4** geçişini onayladı. keyring **=3.3.0** pini korunacak. Araştırmadaki standalone serde_json/log patch adayları bu eşleştirilmiş Tauri kapsamına eklenmedi. Uygulama ve doğrulama sonucu aşağıya kaydedilecek.
 
 ## Son inceleme ve sınırlar
 
