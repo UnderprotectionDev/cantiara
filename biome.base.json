@@ -35,7 +35,13 @@
     "indentStyle": "space",
     "indentWidth": 2
   },
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {
@@ -44,12 +50,9 @@
         "useExhaustiveDependencies": "info"
       },
       "nursery": {
-        "useSortedClasses": {
+        "useTailwindSortedClasses": {
           "level": "warn",
-          "fix": "safe",
-          "options": {
-            "functions": ["clsx", "cva", "cn"]
-          }
+          "fix": "safe"
         }
       },
       "style": {
@@ -75,5 +78,9 @@
     "parser": {
       "tailwindDirectives": true
     }
+  },
+  "tailwind": {
+    "mergeFunctions": ["clsx", "cn"],
+    "variantFunctions": ["cva"]
   }
 }
