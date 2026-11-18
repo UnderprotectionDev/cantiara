@@ -14,11 +14,10 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { LiteDebouncer } from "@tanstack/pacer-lite";
 import {
-  applyNodeChanges,
   type Edge,
   MarkerType,
   type Node,
-  type NodeChange,
+  type NodeChangeset,
   type NodeProps,
   ReactFlow,
   type ReactFlowInstance,
@@ -363,9 +362,9 @@ function Canvas({
   }, [fitNow, nodes]);
 
   const onNodesChange = useCallback(
-    (changes: NodeChange<WallNode>[]) => {
-      setNodes((current) => applyNodeChanges(changes, current));
-      const picks = changes.filter((change) => change.type === "select");
+    (changes: NodeChangeset<WallNode>) => {
+      setNodes((current) => changes.applyTo(current));
+      const picks = [...changes].filter((change) => change.type === "select");
       if (picks.length > 0) {
         const next = new Set(selection);
         for (const change of picks) {

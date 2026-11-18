@@ -158,7 +158,7 @@ export default function RoadmapCanvas({
             throw new Error("Roadmap is unavailable.");
           }
           const fitted = current.current.nodes.length
-            ? await flow.fitView({ duration: 0, padding: 0.2 })
+            ? await flow.fitView({ duration: 0, padding: "8.333333333333334%" })
             : await flow.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 0 });
           if (!fitted) {
             throw new Error("Roadmap viewport could not be fitted.");
@@ -192,7 +192,9 @@ export default function RoadmapCanvas({
         </Button>
         <Button
           disabled={!flow}
-          onClick={() => flow?.fitView({ duration: 0, padding: 0.2 })}
+          onClick={() =>
+            flow?.fitView({ duration: 0, padding: "8.333333333333334%" })
+          }
           type="button"
           variant="outline"
         >
@@ -215,7 +217,10 @@ export default function RoadmapCanvas({
           nodeTypes={NODE_TYPES}
           onInit={async (instance) => {
             if (!session?.state.viewport && current.current.nodes.length > 0) {
-              await instance.fitView({ duration: 0, padding: 0.2 });
+              await instance.fitView({
+                duration: 0,
+                padding: "8.333333333333334%",
+              });
             }
             setFlow(instance);
           }}

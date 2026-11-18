@@ -19,10 +19,9 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { LiteDebouncer } from "@tanstack/pacer-lite";
 import {
-  applyNodeChanges,
   type Edge,
   type Node,
-  type NodeChange,
+  type NodeChangeset,
   type NodeProps,
   ReactFlow,
   type ReactFlowInstance,
@@ -366,9 +365,11 @@ function Editor({
   );
 
   const onNodesChange = useCallback(
-    (changes: NodeChange<CanvasCard | FlowNode>[]) => {
-      setCanvasNodes((nodes) => applyNodeChanges(changes, nodes));
-      const selection = changes.filter((change) => change.type === "select");
+    (changes: NodeChangeset<CanvasCard | FlowNode>) => {
+      setCanvasNodes((nodes) => changes.applyTo(nodes));
+      const selection = [...changes].filter(
+        (change) => change.type === "select",
+      );
       if (selection.length > 0) {
         setEditor((state) => {
           const ids = new Set(state.selection);

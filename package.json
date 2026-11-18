@@ -15,7 +15,7 @@
       "@orpc/server": "1.16.3",
       "@orpc/openapi": "1.16.3",
       "@orpc/zod": "1.16.3",
-      "better-auth": "1.7.3",
+      "better-auth": "1.7.25",
       "lucide-react": "1.75.0",
       "react": "19.3.1",
       "react-dom": "19.3.1",
