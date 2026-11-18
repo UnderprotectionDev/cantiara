@@ -123,7 +123,7 @@ function canonical(value: unknown): string {
       .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
       .join(",")}}`;
   }
-  return JSON.stringify(value) ?? "null";
+  return JSON.stringify(value) || "null";
 }
 
 function sameContent(

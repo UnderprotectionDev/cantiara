@@ -156,11 +156,11 @@ function BacklogCard({
       <div className="mr-3 flex items-center gap-2 text-xs">
         <Popover onOpenChange={setDateOpen} open={dateOpen}>
           <PopoverTrigger
-            disabled={saveReappearDate.isPending}
+            disabled={saveReappearDate.status === "pending"}
             render={
               <Button
                 aria-label={`Reappear date for ${work.title}`}
-                disabled={saveReappearDate.isPending}
+                disabled={saveReappearDate.status === "pending"}
                 size="sm"
                 type="button"
                 variant="outline"
@@ -193,7 +193,7 @@ function BacklogCard({
         {reappearDate ? (
           <Button
             aria-label={`Clear Reappear date for ${work.title}`}
-            disabled={saveReappearDate.isPending}
+            disabled={saveReappearDate.status === "pending"}
             onClick={() => {
               setReappearDate("");
               saveReappearDate.mutate(null);
@@ -333,11 +333,11 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   });
 
   if (
-    query.isPending ||
+    query.status === "pending" ||
     [workProfilesQuery, orderQuery, preferencesQuery].some(
-      (item) => item.isPending,
+      (item) => item.status === "pending",
     ) ||
-    presentationQuery.isPending
+    presentationQuery.status === "pending"
   ) {
     return (
       <p className="mt-5 text-muted-foreground text-sm" role="status">
@@ -404,7 +404,8 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   );
   const { saved } = presentationQuery.data;
   const savedDetail = savedPresentationDetail(saved, enabledMetrics);
-  const canReorder = presentation === "Manual order" && !updateOrder.isPending;
+  const canReorder =
+    presentation === "Manual order" && !(updateOrder.status === "pending");
   const workName = (id: string | number) =>
     works.find((work) => work.id === id)?.title ?? "Work";
 
@@ -596,7 +597,7 @@ function BacklogSavedPresentationControls({
     <div className="flex flex-wrap items-center gap-3 text-sm">
       {currentSaved ? (
         <Button
-          disabled={savePresentation.isPending}
+          disabled={savePresentation.status === "pending"}
           onClick={() => savePresentation.mutate(currentSaved)}
           size="sm"
           type="button"
@@ -612,7 +613,7 @@ function BacklogSavedPresentationControls({
             {savedDetail ? ` · ${savedDetail}` : ""}
           </span>
           <Button
-            disabled={savePresentation.isPending}
+            disabled={savePresentation.status === "pending"}
             onClick={selectSavedPresentation}
             size="sm"
             type="button"

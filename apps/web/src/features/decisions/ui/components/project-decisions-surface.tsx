@@ -130,7 +130,7 @@ export default function ProjectDecisionsSurface({
   function retry() {
     records.refetch().catch(() => undefined);
   }
-  if (records.isPending) {
+  if (records.status === "pending") {
     return <p role="status">Loading Decisions…</p>;
   }
   if (records.isError || !records.data) {
@@ -202,10 +202,11 @@ function SelectedDecisionActions({
   return (
     <>
       {" "}
-      {selected && graph.isPending ? (
+      {selected && graph.status === "pending" ? (
         <p role="status">Loading Decision chain…</p>
       ) : null}
-      {selected && (graph.isError || !(graph.isPending || graph.data)) ? (
+      {selected &&
+      (graph.isError || !(graph.status === "pending" || graph.data)) ? (
         <p role="alert">Decision chain is unavailable.</p>
       ) : null}
       {selected ? (

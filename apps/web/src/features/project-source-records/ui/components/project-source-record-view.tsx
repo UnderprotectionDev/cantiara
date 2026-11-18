@@ -26,7 +26,7 @@ export default function ProjectSourceRecordView({
     }),
   );
 
-  if (source.isPending) {
+  if (source.status === "pending") {
     return (
       <section aria-label={sourceType} className="space-y-4">
         <h2 className="font-semibold text-2xl tracking-tight">{sourceType}</h2>

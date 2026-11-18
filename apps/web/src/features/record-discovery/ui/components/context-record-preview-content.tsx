@@ -74,7 +74,7 @@ function TestGapRecordPreview({
   const gaps = useQuery(
     orpc.projectTestGaps.queryOptions({ input: { projectId } }),
   );
-  if (gaps.isPending) {
+  if (gaps.status === "pending") {
     return <PreviewStatus>Loading source record…</PreviewStatus>;
   }
   const gap = gaps.data?.gaps.find((record) => record.id === gapId);
@@ -94,7 +94,7 @@ function TestGapRecordPreview({
 
 function ProjectRecordPreview({ projectId }: { projectId: string }) {
   const project = useQuery(orpc.project.queryOptions({ input: { projectId } }));
-  if (project.isPending) {
+  if (project.status === "pending") {
     return <PreviewStatus>Loading source record…</PreviewStatus>;
   }
   if (project.isError || !project.data) {
@@ -123,7 +123,7 @@ function SmartCollectionRecordPreview({
       input: { viewId: record.viewId, readOnly: true },
     }),
   );
-  if (view.isPending) {
+  if (view.status === "pending") {
     return <PreviewStatus>Loading source record…</PreviewStatus>;
   }
   if (
@@ -170,7 +170,7 @@ function WorkRecordPreview({
 }) {
   const work = useQuery(orpc.work.queryOptions({ input: { workId } }));
 
-  if (work.isPending) {
+  if (work.status === "pending") {
     return <PreviewStatus>Loading source record…</PreviewStatus>;
   }
 
@@ -251,7 +251,7 @@ function DocumentRecordPreview({
     enabled: document.isSuccess,
   });
 
-  if (document.isPending) {
+  if (document.status === "pending") {
     return <PreviewStatus>Loading source record…</PreviewStatus>;
   }
 
@@ -280,15 +280,19 @@ function DocumentRecordPreview({
       >
         <DocumentPreview
           documentReferences={
-            documentReferences.isPending
+            documentReferences.status === "pending"
               ? undefined
               : (documentReferences.data ?? [])
           }
           liveOtherBlocks={
-            liveOtherBlocks.isPending ? undefined : (liveOtherBlocks.data ?? [])
+            liveOtherBlocks.status === "pending"
+              ? undefined
+              : (liveOtherBlocks.data ?? [])
           }
           liveWorkBlocks={
-            liveWorkBlocks.isPending ? undefined : (liveWorkBlocks.data ?? [])
+            liveWorkBlocks.status === "pending"
+              ? undefined
+              : (liveWorkBlocks.data ?? [])
           }
           onOpenSourceRecord={onOpenSourceRecord}
           source={document.data.body}

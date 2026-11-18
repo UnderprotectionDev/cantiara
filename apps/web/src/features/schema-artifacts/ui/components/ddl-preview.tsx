@@ -14,7 +14,7 @@ export function DdlPreview({ versionId }: { versionId: string }) {
     refetchOnWindowFocus: false,
   });
   const { data } = preview;
-  if (preview.isPending) {
+  if (preview.status === "pending") {
     return <p>Validating PostgreSQL DDL…</p>;
   }
   if (preview.isError || !data) {

@@ -74,7 +74,7 @@ function PriorityMetricTrash({
           disabled={disabled}
           effect={impactPreview.data}
           error={impactPreview.isError}
-          loading={impactPreview.isPending}
+          loading={impactPreview.status === "pending"}
           onCancel={onCancelTrash}
           onSubmit={onSubmitTrash}
           projectName={projectName}
@@ -126,7 +126,7 @@ function PriorityMetricTrash({
           effect={impactPreview.data}
           error={impactPreview.isError}
           key={deleteTarget.id}
-          loading={impactPreview.isPending}
+          loading={impactPreview.status === "pending"}
           onCancel={onCancelDelete}
           onRequestConfirmation={onRequestConfirmation}
           onSubmit={onSubmitDelete}
@@ -161,10 +161,10 @@ export default function PriorityMetricEditor({
   const trashedMetrics = metrics.filter((metric) => metric.trashedAt);
   const actionDisabled =
     disabled ||
-    update.isPending ||
-    trash.isPending ||
-    restore.isPending ||
-    deletePermanently.isPending ||
+    update.status === "pending" ||
+    trash.status === "pending" ||
+    restore.status === "pending" ||
+    deletePermanently.status === "pending" ||
     confirmationPending;
 
   async function requestDeleteConfirmation() {
@@ -322,7 +322,7 @@ export default function PriorityMetricEditor({
         ))}
       </ul>
     );
-  } else if (query.isPending) {
+  } else if (query.status === "pending") {
     metricContent = (
       <p className="text-muted-foreground text-sm" role="status">
         Loading Priority metrics…
@@ -351,7 +351,7 @@ export default function PriorityMetricEditor({
         confirmationPending={confirmationPending}
         deleteGrant={deleteGrant}
         deleteTarget={deleteTarget}
-        deleting={deletePermanently.isPending}
+        deleting={deletePermanently.status === "pending"}
         disabled={disabled}
         metrics={trashedMetrics}
         onCancelDelete={closeDeleteDialog}
@@ -362,7 +362,7 @@ export default function PriorityMetricEditor({
         onSubmitDelete={handlePermanentDelete}
         onSubmitTrash={handleMoveToTrash}
         projectName={projectName}
-        trashing={trash.isPending}
+        trashing={trash.status === "pending"}
         trashTarget={trashTarget}
       />
 
@@ -375,7 +375,7 @@ export default function PriorityMetricEditor({
       <PriorityMetricCreateForm
         disabled={disabled}
         formError={formError}
-        isPending={create.isPending}
+        isPending={create.status === "pending"}
         onActionError={setActionError}
         onCreate={(input) => create.mutateAsync(input)}
         onFormError={setFormError}

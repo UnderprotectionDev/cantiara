@@ -38,7 +38,9 @@ export default function SessionsSection({
         </div>
         <RevokeConfirmation
           description="Every session except this one will lose access immediately."
-          disabled={otherSessionCount === 0 || revokeOtherSessions.isPending}
+          disabled={
+            otherSessionCount === 0 || revokeOtherSessions.status === "pending"
+          }
           label="Revoke Other Sessions"
           onConfirm={revokeOtherSessions.mutate}
           targetSessionAlias=""
@@ -59,7 +61,7 @@ export default function SessionsSection({
           ) : null}
         </div>
 
-        {sessions.isPending ? <SessionsSkeleton /> : null}
+        {sessions.status === "pending" ? <SessionsSkeleton /> : null}
         {sessions.isError ? (
           <div className="border-y py-8 text-sm" role="alert">
             <p className="font-medium">Sessions are unavailable.</p>
@@ -102,7 +104,7 @@ export default function SessionsSection({
                 {productSession.current ? null : (
                   <RevokeConfirmation
                     description={`${productSession.device} will lose access immediately.`}
-                    disabled={revokeSession.isPending}
+                    disabled={revokeSession.status === "pending"}
                     label="Revoke Session"
                     onConfirm={revokeSession.mutate}
                     targetSessionAlias={productSession.id}

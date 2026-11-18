@@ -38,7 +38,7 @@ function canonicalJson(value: unknown): string {
       .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
       .join(",")}}`;
   }
-  return JSON.stringify(value) ?? "null";
+  return JSON.stringify(value) || "null";
 }
 
 /** Deterministic 64-bit content digest (two FNV-1a lanes) of the canonical document. */

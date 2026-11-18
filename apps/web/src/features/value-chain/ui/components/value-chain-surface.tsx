@@ -17,7 +17,7 @@ export default function ValueChainSurface({
   function retry() {
     chain.refetch().catch(() => undefined);
   }
-  if (chain.isPending) {
+  if (chain.status === "pending") {
     return <p role="status">Loading Value Chain…</p>;
   }
   if (!chain.data) {

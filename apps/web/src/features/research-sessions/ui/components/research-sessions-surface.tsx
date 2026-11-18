@@ -26,7 +26,7 @@ export default function ResearchSessionsSurface({
   const bindingActions = useMemo<ResearchBindingActions>(
     () => ({
       feedback: (record, bindingId) =>
-        queryClient.fetchQuery({
+        queryClient.query({
           ...orpc.researchSessionBindingFeedback.queryOptions({
             input: { id: record.id, projectId, bindingId },
           }),
@@ -34,7 +34,7 @@ export default function ResearchSessionsSurface({
           staleTime: 0,
         }),
       targets: (record) =>
-        queryClient.fetchQuery({
+        queryClient.query({
           ...orpc.researchSessionBindingTargets.queryOptions({
             input: { id: record.id, projectId },
           }),
@@ -42,7 +42,7 @@ export default function ResearchSessionsSurface({
           staleTime: 0,
         }),
       list: (record) =>
-        queryClient.fetchQuery({
+        queryClient.query({
           ...orpc.projectResearchSessionBindings.queryOptions({
             input: { id: record.id, projectId },
           }),
@@ -171,7 +171,7 @@ export default function ResearchSessionsSurface({
   function startEditing() {
     pending.current = null;
   }
-  if (query.isPending || preferences.isPending) {
+  if (query.status === "pending" || preferences.status === "pending") {
     return <p role="status">Loading Research Sessions…</p>;
   }
   if (!(query.data && preferences.data)) {

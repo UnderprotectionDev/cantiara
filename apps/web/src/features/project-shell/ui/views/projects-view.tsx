@@ -162,11 +162,11 @@ export default function ProjectsView({
         <ProjectsListSection
           data={projects.data}
           isError={projects.isError}
-          isPending={projects.isPending}
+          isPending={projects.status === "pending"}
         />
       )}
 
-      {workspaceOverview.isPending ? (
+      {workspaceOverview.status === "pending" ? (
         <section
           aria-label="Loading Workspace overview"
           className="space-y-4 pt-9"

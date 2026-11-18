@@ -20,7 +20,7 @@ export default function FeedSurface({ projectId }: { projectId: string }) {
   function retry() {
     feed.refetch().catch(() => undefined);
   }
-  if (feed.isPending) {
+  if (feed.status === "pending") {
     return <p role="status">Loading Feed…</p>;
   }
   if (!feed.data) {

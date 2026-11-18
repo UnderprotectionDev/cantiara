@@ -142,7 +142,7 @@ export default function ProjectWorkList({
   useEffect(() => {
     if (
       !activeHash ||
-      query.isPending ||
+      query.status === "pending" ||
       query.isError ||
       typeof window === "undefined" ||
       !query.data.some(
@@ -158,7 +158,7 @@ export default function ProjectWorkList({
       });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [activeHash, query.data, query.isError, query.isPending]);
+  }, [activeHash, query.data, query.isError, query.status]);
   // One Project-scoped read feeds every Work row's Custom field values; the
   // per-record form renders from these prefetched items without its own query.
   const customFieldValuesQuery = useQuery(
@@ -211,7 +211,7 @@ export default function ProjectWorkList({
     },
   });
 
-  if (query.isPending || allProjectWorksQuery.isPending) {
+  if (query.status === "pending" || allProjectWorksQuery.status === "pending") {
     return <p className="mt-2 text-muted-foreground text-sm">Loading Work…</p>;
   }
 
@@ -265,7 +265,7 @@ export default function ProjectWorkList({
             {lastMergeResult.work.key}
           </p>
           <Button
-            disabled={undoMerge.isPending}
+            disabled={undoMerge.status === "pending"}
             onClick={() => undoMerge.mutate()}
             size="xs"
             type="button"
@@ -616,7 +616,7 @@ export function WorkArchiveAction({ work }: { work: WorkProfile }) {
   return (
     <div className="flex flex-col items-end gap-1">
       <Button
-        disabled={connection === "offline" || mutation.isPending}
+        disabled={connection === "offline" || mutation.status === "pending"}
         onClick={() => mutation.mutate()}
         size="xs"
         type="button"
@@ -735,7 +735,8 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
     });
   }
 
-  const isPending = previewTypeChange.isPending || updateType.isPending;
+  const isPending =
+    previewTypeChange.status === "pending" || updateType.status === "pending";
 
   return (
     <div className="flex min-w-40 flex-col items-start gap-1">
@@ -779,7 +780,7 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
-              disabled={updateType.isPending}
+              disabled={updateType.status === "pending"}
               onClick={confirmTypeChange}
               size="xs"
               type="button"
@@ -787,7 +788,7 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
               Confirm type change
             </Button>
             <Button
-              disabled={updateType.isPending}
+              disabled={updateType.status === "pending"}
               onClick={() => {
                 setSelectedType(work.type);
                 setPreview(null);

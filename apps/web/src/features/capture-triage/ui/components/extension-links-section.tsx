@@ -43,12 +43,12 @@ export default function ExtensionLinksSection({
           </p>
         </div>
         <Button
-          disabled={generatePairingCode.isPending}
+          disabled={generatePairingCode.status === "pending"}
           onClick={handleGeneratePairingCode}
           size="sm"
           type="button"
         >
-          {generatePairingCode.isPending
+          {generatePairingCode.status === "pending"
             ? "Generating…"
             : "Generate pairing code"}
         </Button>
@@ -78,7 +78,7 @@ export default function ExtensionLinksSection({
         </div>
       ) : null}
 
-      {links.isPending ? (
+      {links.status === "pending" ? (
         <div className="border-b py-5 text-muted-foreground text-sm">
           Loading Extension links…
         </div>
@@ -114,7 +114,7 @@ export default function ExtensionLinksSection({
               </div>
               <Button
                 data-link-id={link.id}
-                disabled={revokeLink.isPending}
+                disabled={revokeLink.status === "pending"}
                 onClick={handleRevokeLink}
                 size="sm"
                 type="button"

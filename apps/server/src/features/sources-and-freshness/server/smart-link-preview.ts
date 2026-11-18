@@ -177,6 +177,9 @@ function metadata(html: string, parseNoFrames = true) {
         }
       },
       ontext(value) {
+        if (inNoFrames && !parseNoFrames) {
+          return;
+        }
         if (inTitle) {
           title += value;
         } else if (!stack.length) {

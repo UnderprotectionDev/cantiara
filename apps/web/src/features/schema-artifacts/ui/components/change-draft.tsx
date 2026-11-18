@@ -142,7 +142,7 @@ export function ChangeDraft({
     refetchOnWindowFocus: false,
   });
   const { data } = preview;
-  if (preview.isPending) {
+  if (preview.status === "pending") {
     return <p>Building the Schema Change Draft…</p>;
   }
   if (preview.isError || !data) {
@@ -227,7 +227,7 @@ export function ChangeDraft({
               id,
               label: `${operation} ${path}`,
             }))}
-          disabled={confirm.isPending}
+          disabled={confirm.status === "pending"}
           onConfirm={(input) =>
             confirm.mutate({
               ...input,

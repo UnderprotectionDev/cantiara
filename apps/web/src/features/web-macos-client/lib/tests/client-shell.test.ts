@@ -39,7 +39,7 @@ describe("Client Shell query error boundary", () => {
     );
 
     await expect(
-      queryClient.fetchQuery({
+      queryClient.query({
         queryFn: () => {
           throw supportError;
         },

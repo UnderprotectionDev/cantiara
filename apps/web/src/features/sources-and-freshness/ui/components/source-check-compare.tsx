@@ -3,7 +3,7 @@ import type { VersionPinnedEvidence } from "@cantiara/api/evidence";
 import { findSourceEvidenceMatch } from "@cantiara/api/source-evidence";
 import type { SourceCheck } from "@cantiara/api/source-recheck";
 import type { SourceVersion } from "@cantiara/api/sources-and-freshness";
-import { diffLines } from "diff";
+import { type ChangeObject, diffLines } from "diff";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 
 function partLabel(part: { added?: boolean; removed?: boolean }) {
@@ -27,7 +27,7 @@ export function SourceCheckCompare({
   preferences: AccountPreferences;
   pins?: VersionPinnedEvidence[];
 }) {
-  const parts = check.candidate
+  const parts: ChangeObject<string>[] | undefined = check.candidate
     ? diffLines(version.capturedContent, check.candidate.capturedContent, {
         timeout: 1000,
         maxEditLength: 2000,

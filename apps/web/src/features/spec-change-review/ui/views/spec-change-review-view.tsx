@@ -199,7 +199,7 @@ export function SpecChangeReviewView({
                 type="button"
                 variant={review.id === selectedId ? "default" : "outline"}
               >
-                {review.featureKey} {review.featureTitle} · Primary spec{" "}
+                {review.featureKey} {review.featureTitle} · Primary spec{"  "}
                 {review.documentTitle} · Version {review.previousRevision} →
                 Version {review.nextRevision}
               </Button>

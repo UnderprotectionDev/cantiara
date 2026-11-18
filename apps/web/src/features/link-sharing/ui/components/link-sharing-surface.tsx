@@ -43,7 +43,7 @@ export default function LinkSharingSurface({
   const surfaceId = preview.data?.surface?.surfaceId;
   const access = useShareAccess(surfaceId);
 
-  if (roots.isPending) {
+  if (roots.status === "pending") {
     return <p role="status">Loading Share…</p>;
   }
   if (roots.isError || !roots.data) {
@@ -128,7 +128,7 @@ export default function LinkSharingSurface({
       }}
       preview={preview.data}
       previewError={preview.isError}
-      previewLoading={root !== null && preview.isPending}
+      previewLoading={root !== null && preview.status === "pending"}
       roots={roots.data}
       selectedKey={selectedKey}
     />

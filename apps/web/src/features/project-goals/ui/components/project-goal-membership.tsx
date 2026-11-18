@@ -45,7 +45,7 @@ export default function ProjectGoalMembership({
   function retry() {
     detail.refetch().catch(() => undefined);
   }
-  if (detail.isPending) {
+  if (detail.status === "pending") {
     return <p role="status">Loading live summary…</p>;
   }
   if (detail.isError || !detail.data) {

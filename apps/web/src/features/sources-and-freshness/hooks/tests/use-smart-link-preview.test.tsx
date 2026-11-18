@@ -26,7 +26,7 @@ import { useSmartLinkPreview } from "../use-smart-link-preview";
 test("Smart link preview reads through TanStack Query and never reuses an earlier preview", async () => {
   rpc.smartLinkPreview.mockResolvedValue({ kind: "preview" });
   const cache = new QueryClient();
-  const fetchQuery = vi.spyOn(cache, "fetchQuery");
+  const query = vi.spyOn(cache, "query");
   let read: ((url: string) => Promise<unknown>) | undefined;
   function Probe() {
     read = useSmartLinkPreview();
@@ -43,7 +43,7 @@ test("Smart link preview reads through TanStack Query and never reuses an earlie
   );
   await read?.("https://example.org/a");
   await read?.("https://example.org/a");
-  expect(fetchQuery).toHaveBeenCalledTimes(2);
+  expect(query).toHaveBeenCalledTimes(2);
   expect(rpc.smartLinkPreview).toHaveBeenCalledTimes(2);
   expect(rpc.smartLinkPreview).toHaveBeenCalledWith({
     url: "https://example.org/a",

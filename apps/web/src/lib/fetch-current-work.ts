@@ -5,7 +5,7 @@ import { orpc } from "@/utils/orpc";
 // must be fresh (never served from cache), so it forces a refetch through
 // TanStack Query on the shared `work` key.
 export function fetchCurrentWork(queryClient: QueryClient, workId: string) {
-  return queryClient.fetchQuery({
+  return queryClient.query({
     ...orpc.work.queryOptions({ input: { workId } }),
     staleTime: 0,
   });

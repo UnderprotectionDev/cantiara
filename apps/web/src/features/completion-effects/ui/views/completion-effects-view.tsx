@@ -17,7 +17,7 @@ export default function CompletionEffectsView({
     completionEffectsPreferencesQueryOptions(accountId),
   );
 
-  if (preferences.isPending) {
+  if (preferences.status === "pending") {
     return (
       <main className="surface-frame max-w-6xl">
         <h1 className="font-semibold text-3xl tracking-tight">

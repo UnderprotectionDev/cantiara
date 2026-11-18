@@ -25,7 +25,7 @@ export default function TestAssessmentsSurface({
       client.testAssessmentContextTargets({ kind, projectId }),
     [projectId],
   );
-  if (assessments.isPending) {
+  if (assessments.status === "pending") {
     return <p role="status">Loading Test Assessments…</p>;
   }
   if (!assessments.data) {

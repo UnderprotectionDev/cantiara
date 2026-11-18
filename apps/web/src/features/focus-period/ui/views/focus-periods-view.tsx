@@ -134,7 +134,7 @@ export default function FocusPeriodsView() {
       </header>
       <CreateFocusPeriodForm
         error={error}
-        isPending={create.isPending}
+        isPending={create.status === "pending"}
         onCreate={(input) => create.mutateAsync(input)}
         onError={setError}
       />
@@ -145,7 +145,9 @@ export default function FocusPeriodsView() {
           {error}
         </p>
       ) : null}
-      {periods.isPending ? <p role="status">Loading Focus Period…</p> : null}
+      {periods.status === "pending" ? (
+        <p role="status">Loading Focus Period…</p>
+      ) : null}
       {periods.isError ? (
         <p role="alert">Focus Period is unavailable.</p>
       ) : null}

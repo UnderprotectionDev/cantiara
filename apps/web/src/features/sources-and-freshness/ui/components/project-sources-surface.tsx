@@ -58,7 +58,7 @@ export default function ProjectSourcesSurface({
     await queryClient.invalidateQueries({ queryKey: options.queryKey });
     pending.current = null;
   }
-  if (sources.isPending) {
+  if (sources.status === "pending") {
     return <p role="status">Loading Sources…</p>;
   }
   if (sources.isError || !sources.data) {

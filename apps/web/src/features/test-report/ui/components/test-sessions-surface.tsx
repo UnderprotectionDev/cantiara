@@ -26,7 +26,7 @@ export default function TestSessionsSurface({
         queryKey: orpc.projectTestSummary.key(),
       }),
     ]);
-  if (sessions.isPending) {
+  if (sessions.status === "pending") {
     return <p role="status">Loading Test Sessions…</p>;
   }
   if (!sessions.data) {

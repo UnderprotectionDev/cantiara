@@ -132,7 +132,7 @@ function DailyFocusCloseView({
         </Button>
       </div>
 
-      {closeQuery.isPending ? (
+      {closeQuery.status === "pending" ? (
         <p className="pt-8 text-muted-foreground" role="status">
           Loading Work…
         </p>
@@ -308,7 +308,7 @@ function DailyFocusDayView({
       </div>
 
       <section aria-label="Daily Focus Work" className="pt-8">
-        {dailyFocus.isPending ? (
+        {dailyFocus.status === "pending" ? (
           <p className="text-muted-foreground">Loading Work…</p>
         ) : null}
         {dailyFocus.isError ? (
@@ -343,7 +343,7 @@ function DailyFocusDayView({
                 </Link>
                 <Button
                   aria-label={`Remove ${work.title} from Daily Focus`}
-                  disabled={remove.isPending}
+                  disabled={remove.status === "pending"}
                   onClick={() => remove.mutate(work.id)}
                   size="sm"
                   type="button"
@@ -462,7 +462,7 @@ function DailyFocusDayView({
                 </Link>
                 <div className="flex gap-2 sm:shrink-0">
                   <Button
-                    disabled={add.isPending}
+                    disabled={add.status === "pending"}
                     onClick={() => add.mutate(candidate.id)}
                     size="sm"
                     type="button"
@@ -505,7 +505,7 @@ function DailyFocusDayView({
           available={dailyFocus.data?.available ?? []}
           focusDate={focusDate}
           onAdd={add.mutateAsync}
-          pending={add.isPending}
+          pending={add.status === "pending"}
         />
         {add.isError || remove.isError ? (
           <p className="mt-3 text-destructive text-sm" role="alert">

@@ -63,10 +63,10 @@ function FavoriteRow({
             {current.life ? ` · ${current.life}` : ""}
           </p>
           <Button
-            aria-busy={opening.isPending}
+            aria-busy={opening.status === "pending"}
             aria-label={`Open source record: ${current.title}`}
             className="min-h-11"
-            disabled={opening.isPending}
+            disabled={opening.status === "pending"}
             onClick={open}
             type="button"
             variant="outline"
@@ -104,7 +104,7 @@ export default function FavoritesList({
     queryKey: [...baseOptions.queryKey, accountId],
   });
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
-  if (favorites.isPending) {
+  if (favorites.status === "pending") {
     return <p role="status">Loading Favorites…</p>;
   }
   if (favorites.isError) {

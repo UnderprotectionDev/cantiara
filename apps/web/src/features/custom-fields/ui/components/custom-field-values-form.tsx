@@ -312,8 +312,8 @@ export default function CustomFieldValuesForm({
   const [actionError, setActionError] = useState<string | null>(null);
 
   if (
-    definitionsQuery.isPending ||
-    (recordId && recordItems === undefined && values.query.isPending)
+    definitionsQuery.status === "pending" ||
+    (recordId && recordItems === undefined && values.query.status === "pending")
   ) {
     return (
       <p className="text-muted-foreground text-sm" role="status">
@@ -344,7 +344,9 @@ export default function CustomFieldValuesForm({
   }
 
   const busy =
-    disabled || values.setValue.isPending || values.clearValue.isPending;
+    disabled ||
+    values.setValue.status === "pending" ||
+    values.clearValue.status === "pending";
 
   async function commit(
     item: CustomFieldValueListItem,

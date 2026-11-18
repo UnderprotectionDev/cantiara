@@ -93,7 +93,7 @@ export default function DecisionSupersessionControls({
       setPending(false);
     }
   }
-  if (graph.isPending) {
+  if (graph.status === "pending") {
     return <p role="status">Loading supersession…</p>;
   }
   if (!graph.data || graph.isError) {

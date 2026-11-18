@@ -4,7 +4,7 @@ import type {
   TestReportExecutorType,
   TestReportIngress,
   TestReportLookup,
-  TestReportLookupType,
+  TestReportRelationTargetType,
   TestReportResult,
   TestReportStore,
   TestSessionStoredRecord,
@@ -221,7 +221,7 @@ function scopeOf(rowProjectId: string, projectId: string): TestReportLookup {
 async function resolveReference(
   executor: Pick<Executor, "select">,
   projectId: string,
-  type: TestReportLookupType,
+  type: TestReportRelationTargetType,
   id: string,
   version: number | null,
 ): Promise<TestReportLookup> {

@@ -75,7 +75,7 @@ function ProductGapsContent() {
       client.productGapLinkTargets({ targetType }),
     [],
   );
-  if (gaps.isPending) {
+  if (gaps.status === "pending") {
     return <p role="status">Loading Product Gaps…</p>;
   }
   if (!gaps.data) {

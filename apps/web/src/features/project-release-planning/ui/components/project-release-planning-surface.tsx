@@ -27,7 +27,7 @@ export function ProjectReleasePlanningSurface({
   const [savedMessage, setSavedMessage] = useState<string>();
   const [errorMessage, setErrorMessage] = useState<string>();
 
-  if (detail.isPending) {
+  if (detail.status === "pending") {
     return <p role="status">Loading source record…</p>;
   }
   if (detail.isError || !detail.data) {

@@ -72,7 +72,7 @@ async function resolveComparedDraft(
       conflictDraftId: draft.id,
     });
   }
-  return queryClient.fetchQuery(
+  return queryClient.query(
     orpc.document.queryOptions({ input: { documentId } }),
   );
 }

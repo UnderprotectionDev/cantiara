@@ -78,7 +78,7 @@ export default function LookAgainList({
     queryKey: [...baseOptions.queryKey, accountId],
   });
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
-  if (signals.isPending) {
+  if (signals.status === "pending") {
     return <p role="status">Loading Look again items…</p>;
   }
   if (signals.isError) {

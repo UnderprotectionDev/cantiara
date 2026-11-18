@@ -37,7 +37,7 @@ export function usePermanentDeleteFromTrash(projectId: string) {
       );
     },
     preview: (entry: TrashEntry) =>
-      queryClient.fetchQuery({
+      queryClient.query({
         ...orpc.previewPermanentDeleteFromTrash.queryOptions({
           input: { entryId: entry.id, projectId },
         }),

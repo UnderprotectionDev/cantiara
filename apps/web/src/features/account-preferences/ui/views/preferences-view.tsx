@@ -11,7 +11,7 @@ import AccountPreferencesForm from "../forms/account-preferences-form";
 export default function PreferencesView({ accountId }: { accountId: string }) {
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
 
-  if (preferences.isPending) {
+  if (preferences.status === "pending") {
     return (
       <main className="surface-frame max-w-5xl">
         <h1 className="font-semibold text-3xl tracking-tight">Preferences</h1>

@@ -646,7 +646,7 @@ export function FileAttachmentPreviewPanel({
   if (!open) {
     return null;
   }
-  if (previewQuery.isPending) {
+  if (previewQuery.status === "pending") {
     return (
       <p className="border-t pt-3 text-muted-foreground text-sm" role="status">
         Loading preview…
@@ -763,7 +763,7 @@ export default function FileAttachmentsSurface({
 
       <FileAttachmentUploadControl projectId={projectId} />
 
-      {attachmentsQuery.isPending ? (
+      {attachmentsQuery.status === "pending" ? (
         <p className="text-muted-foreground text-sm" role="status">
           Loading File Attachments…
         </p>

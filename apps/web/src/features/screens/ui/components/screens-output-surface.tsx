@@ -36,7 +36,7 @@ async function loadSnapshots(
   return await Promise.all(
     chosen.map(async ({ screenId, version }) => {
       const screen = screens.find(({ id }) => id === screenId);
-      const stored = await queryClient.fetchQuery(
+      const stored = await queryClient.query(
         orpc.screenWireframe.queryOptions({
           input: { projectId, screenId, version },
         }),

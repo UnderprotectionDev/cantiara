@@ -10,7 +10,7 @@ import { orpc } from "@/utils/orpc";
 export function usePreviewRestoreFromTrash(projectId: string) {
   const queryClient = useQueryClient();
   return function previewRestore(entry: TrashEntry) {
-    return queryClient.fetchQuery({
+    return queryClient.query({
       ...orpc.restoreFromTrashPreview.queryOptions({
         input: { entryId: entry.id, projectId },
       }),

@@ -28,7 +28,7 @@ export default function ProjectArchiveControl({
   const preview = useArchivePreview(projectId, previewing);
   const transition = useRetirementTransition();
 
-  if (archived.isPending) {
+  if (archived.status === "pending") {
     return null;
   }
 
@@ -58,13 +58,13 @@ export default function ProjectArchiveControl({
           {ARCHIVE_LABEL}
         </Button>
       )}
-      {previewing && preview.isPending ? <p>Loading…</p> : null}
+      {previewing && preview.status === "pending" ? <p>Loading…</p> : null}
       {previewing && preview.isError ? (
         <p role="alert">The archive preview could not be loaded.</p>
       ) : null}
       {previewing && preview.data ? (
         <ArchivePreviewPanel
-          busy={transition.isPending}
+          busy={transition.status === "pending"}
           onCancel={() => setPreviewing(false)}
           onConfirm={() =>
             transition.mutate(

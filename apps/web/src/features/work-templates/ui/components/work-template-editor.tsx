@@ -61,10 +61,10 @@ export default function WorkTemplateEditor({
   );
   const pending =
     disabled ||
-    templates.create.isPending ||
-    templates.instantiate.isPending ||
-    templates.update.isPending ||
-    templates.moveToTrash.isPending;
+    templates.create.status === "pending" ||
+    templates.instantiate.status === "pending" ||
+    templates.update.status === "pending" ||
+    templates.moveToTrash.status === "pending";
   const [formVersion, setFormVersion] = useState(0);
 
   function resetDraft() {
@@ -125,7 +125,7 @@ export default function WorkTemplateEditor({
         skeleton, selected field defaults, checklist, and relative dates.
       </p>
 
-      {templates.query.isPending ? (
+      {templates.query.status === "pending" ? (
         <p className="text-muted-foreground text-sm" role="status">
           Loading Work Templates…
         </p>
@@ -140,7 +140,7 @@ export default function WorkTemplateEditor({
           Created Work {createdWorkKey}.
         </p>
       ) : null}
-      {list.length === 0 && !templates.query.isPending ? (
+      {list.length === 0 && !(templates.query.status === "pending") ? (
         <p className="rounded-md border border-dashed p-4 text-muted-foreground text-sm">
           No Work Templates yet. Define the first reusable starting point below.
         </p>

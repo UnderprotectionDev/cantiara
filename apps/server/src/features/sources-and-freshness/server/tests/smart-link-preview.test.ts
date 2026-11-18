@@ -54,6 +54,22 @@ describe("Sources and Freshness isolated preview", () => {
       capturedContent: "Before Fallback <b>Draft text</b> After",
     });
   });
+  test.each([2, 500])(
+    "excludes scripts in nested noframes at depth %i",
+    async (depth) => {
+      const network = previewNetwork();
+      network.request = async () => ({
+        status: 200,
+        headers: { "content-type": "text/html" },
+        body: new TextEncoder().encode(
+          `Before${"<noframes>".repeat(depth)}<script>secret()</script>${"</noframes>".repeat(depth)}After`,
+        ),
+      });
+      expect(
+        await createSmartLinkPreview(network)("https://example.org/research"),
+      ).toMatchObject({ kind: "preview", capturedContent: "Before After" });
+    },
+  );
   test("returns a transient preview and sanitized capture without creating a Source", async () => {
     const preview = await createSmartLinkPreview(previewNetwork())(
       "https://example.org/research",

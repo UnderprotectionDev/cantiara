@@ -48,10 +48,10 @@ export default function TestGapsSurface({ projectId }: { projectId: string }) {
     [projectId],
   );
   if (
-    gaps.isPending ||
-    cases.isPending ||
-    handoffs.isPending ||
-    sessionTests.isPending
+    gaps.status === "pending" ||
+    cases.status === "pending" ||
+    handoffs.status === "pending" ||
+    sessionTests.status === "pending"
   ) {
     return <p role="status">Loading Test Gaps…</p>;
   }

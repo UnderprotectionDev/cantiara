@@ -186,7 +186,7 @@ function MilestoneCard({
           {milestone.status === "Planned" ? (
             <>
               <Button
-                disabled={statusMutation.isPending}
+                disabled={statusMutation.status === "pending"}
                 onClick={() => statusMutation.mutate("Reached")}
                 size="sm"
                 type="button"
@@ -194,7 +194,7 @@ function MilestoneCard({
                 Reach
               </Button>
               <Button
-                disabled={statusMutation.isPending}
+                disabled={statusMutation.status === "pending"}
                 onClick={() => statusMutation.mutate("Abandoned")}
                 size="sm"
                 type="button"
@@ -269,7 +269,7 @@ export default function ProjectMilestones({
     },
   });
 
-  if (query.isPending) {
+  if (query.status === "pending") {
     return <p role="status">Loading…</p>;
   }
   if (query.isError) {
@@ -357,7 +357,7 @@ function MilestoneWorkRelations({
       className="grid gap-2 border-t pt-4"
     >
       <h4 className="font-medium text-sm">In Milestone</h4>
-      {relationsQuery.isPending ? (
+      {relationsQuery.status === "pending" ? (
         <p role="status">Loading relations…</p>
       ) : null}
       {relationsQuery.isError ? (
@@ -365,7 +365,7 @@ function MilestoneWorkRelations({
           Relations could not be loaded. Try loading this page again.
         </p>
       ) : null}
-      {!(relationsQuery.isPending || relationsQuery.isError) &&
+      {!(relationsQuery.status === "pending" || relationsQuery.isError) &&
       linkedWorks.length === 0 ? (
         <p className="text-muted-foreground text-sm">No relations yet.</p>
       ) : null}
@@ -383,8 +383,8 @@ function MilestoneWorkRelations({
       {works.length ? (
         <MilestoneWorkPicker
           disabled={
-            relationPreviewMutation.isPending ||
-            relationCreateMutation.isPending
+            relationPreviewMutation.status === "pending" ||
+            relationCreateMutation.status === "pending"
           }
           milestoneId={milestone.id}
           onPreview={(workId) => relationPreviewMutation.mutate(workId)}
@@ -403,7 +403,7 @@ function MilestoneWorkRelations({
             {preview.source.label} · {preview.kind} · {preview.target.label}
           </p>
           <Button
-            disabled={relationCreateMutation.isPending}
+            disabled={relationCreateMutation.status === "pending"}
             onClick={() => relationCreateMutation.mutate()}
             size="sm"
             type="button"

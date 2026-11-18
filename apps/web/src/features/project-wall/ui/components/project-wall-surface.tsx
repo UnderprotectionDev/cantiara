@@ -452,7 +452,7 @@ export default function ProjectWallSurface({
       }
     }).then((attempt) => attempt.ok);
 
-  if (walls.isPending) {
+  if (walls.status === "pending") {
     return <p role="status">Loading Project Walls…</p>;
   }
   if (!walls.data) {

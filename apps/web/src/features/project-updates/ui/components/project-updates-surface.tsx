@@ -78,13 +78,13 @@ export default function ProjectUpdatesSurface({
     [sources],
   );
 
-  if (updates.isPending || profile.isPending) {
+  if (updates.status === "pending" || profile.status === "pending") {
     return <p role="status">Loading Project Updates…</p>;
   }
   // The snapshot freezes the summary blocks at save, so the four live source
   // queries must be settled before the form can save an accurate snapshot.
   const sourceQueries = [risks, decisions, milestones, goals];
-  if (sourceQueries.some((query) => query.isPending)) {
+  if (sourceQueries.some((query) => query.status === "pending")) {
     return <p role="status">Loading Project Updates…</p>;
   }
   const failedQueries = [updates, profile, ...sourceQueries].filter(

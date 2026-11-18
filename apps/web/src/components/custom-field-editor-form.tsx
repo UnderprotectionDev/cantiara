@@ -150,10 +150,10 @@ export default function CustomFieldEditor({
       definitions={query.data ?? []}
       disabled={
         disabled ||
-        update.isPending ||
-        moveToTrash.isPending ||
-        restore.isPending ||
-        deletePermanently.isPending
+        update.status === "pending" ||
+        moveToTrash.status === "pending" ||
+        restore.status === "pending" ||
+        deletePermanently.status === "pending"
       }
       editingId={editingId}
       onCancelEdit={() => setEditingId(null)}
@@ -199,7 +199,7 @@ export default function CustomFieldEditor({
       }}
     />
   );
-  if (query.isPending) {
+  if (query.status === "pending") {
     definitionContent = (
       <p className="text-muted-foreground text-sm" role="status">
         Loading Custom fields…
@@ -251,7 +251,7 @@ export default function CustomFieldEditor({
               <Field>
                 <FieldLabel htmlFor="custom-field-name">Field name</FieldLabel>
                 <Input
-                  disabled={disabled || create.isPending}
+                  disabled={disabled || create.status === "pending"}
                   id="custom-field-name"
                   name={field.name}
                   onChange={(event) => field.handleChange(event.target.value)}
@@ -266,7 +266,7 @@ export default function CustomFieldEditor({
               <Field>
                 <FieldLabel htmlFor="custom-field-type">Type</FieldLabel>
                 <NativeSelect
-                  disabled={disabled || create.isPending}
+                  disabled={disabled || create.status === "pending"}
                   id="custom-field-type"
                   name={field.name}
                   onChange={(event) =>
@@ -294,7 +294,7 @@ export default function CustomFieldEditor({
                         Options
                       </FieldLabel>
                       <Textarea
-                        disabled={disabled || create.isPending}
+                        disabled={disabled || create.status === "pending"}
                         id="custom-field-options"
                         name={field.name}
                         onChange={(event) =>
@@ -317,7 +317,7 @@ export default function CustomFieldEditor({
           <form.Field name="recordTypes">
             {(field) => (
               <RecordTypesFieldset
-                disabled={disabled || create.isPending}
+                disabled={disabled || create.status === "pending"}
                 name="Record types"
                 onCheckedChange={(recordType, checked) =>
                   field.handleChange(
@@ -347,10 +347,10 @@ export default function CustomFieldEditor({
         <form.Subscribe selector={(state) => state.isSubmitting}>
           {(isSubmitting) => (
             <Button
-              disabled={disabled || isSubmitting || create.isPending}
+              disabled={disabled || isSubmitting || create.status === "pending"}
               type="submit"
             >
-              {isSubmitting || create.isPending
+              {isSubmitting || create.status === "pending"
                 ? "Adding…"
                 : "Add custom field"}
             </Button>

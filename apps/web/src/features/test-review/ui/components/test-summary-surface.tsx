@@ -19,7 +19,7 @@ export default function TestSummarySurface({
   const summary = useQuery(
     orpc.projectTestSummary.queryOptions({ input: { projectId, scope } }),
   );
-  if (summary.isPending) {
+  if (summary.status === "pending") {
     return <p role="status">Loading Test Summary…</p>;
   }
   if (!summary.data) {

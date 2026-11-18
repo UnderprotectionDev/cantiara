@@ -105,7 +105,7 @@ export default function ProjectWorkKanban({
     [onExplicitStatusAction, updateStatus.mutate],
   );
 
-  if (query.isPending) {
+  if (query.status === "pending") {
     return <p className="text-muted-foreground text-sm">Loading Work…</p>;
   }
 
@@ -117,7 +117,8 @@ export default function ProjectWorkKanban({
     );
   }
 
-  const isDisabled = connection === "offline" || updateStatus.isPending;
+  const isDisabled =
+    connection === "offline" || updateStatus.status === "pending";
   const works = sortKanbanWorks(
     filterDefaultKanbanWorks(query.data, today),
     sort,

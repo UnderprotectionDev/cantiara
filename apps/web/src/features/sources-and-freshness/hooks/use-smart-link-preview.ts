@@ -12,7 +12,7 @@ export function useSmartLinkPreview(): SmartLinkPreviewAccess {
   const queryClient = useQueryClient();
   return useCallback(
     (url) =>
-      queryClient.fetchQuery({
+      queryClient.query({
         ...orpc.smartLinkPreview.queryOptions({ input: { url } }),
         gcTime: 0,
         staleTime: 0,

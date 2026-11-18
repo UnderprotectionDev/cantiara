@@ -247,7 +247,7 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
     flows.refetch().catch(() => undefined);
   }
 
-  if (flows.isPending) {
+  if (flows.status === "pending") {
     return <p role="status">Loading User Flows…</p>;
   }
   if (!flows.data) {
@@ -266,7 +266,7 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
       onSelect={setSelectedId}
       readOnly={false}
       selected={
-        flow.data && !viewport.isPending ? (
+        flow.data && !(viewport.status === "pending") ? (
           <div className="space-y-4">
             <Suspense fallback={<p role="status">Loading canvas…</p>}>
               <UserFlowCanvas

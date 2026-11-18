@@ -571,7 +571,7 @@ function RecordSearchSurface({
         onChangeArchived={onChangeArchived}
         onChangeQuery={onChangeQuery}
         onOpenSource={onOpenSource}
-        pending={searchResults.isPending && Boolean(query.trim())}
+        pending={searchResults.status === "pending" && Boolean(query.trim())}
         query={query}
         results={searchResults.data}
       />
@@ -664,9 +664,9 @@ function RecordIndexSurface({
         onChangeType={changeType}
         onOpenSource={onOpenSource}
         pending={
-          indexResults.isPending ||
-          projectsQuery.isPending ||
-          (metadataIndex && indexInventory.isPending)
+          indexResults.status === "pending" ||
+          projectsQuery.status === "pending" ||
+          (metadataIndex && indexInventory.status === "pending")
         }
         projects={projects}
         results={indexResults.data}
@@ -719,7 +719,9 @@ function RecordTableSurface({
       onProjectChange={onProjectChange}
       onRecordTypeChange={onRecordTypeChange}
       onSaveCell={saveTableCell}
-      pending={tableRecords.isPending || projectsQuery.isPending}
+      pending={
+        tableRecords.status === "pending" || projectsQuery.status === "pending"
+      }
       projectId={projectId}
       projects={projectsQuery.data ?? []}
       records={tableRecords.data ?? []}

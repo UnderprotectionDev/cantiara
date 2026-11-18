@@ -34,9 +34,13 @@ export default function FavoriteControl(source: FavoriteSource) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button
-        aria-busy={membership.isPending || mutation.isPending}
+        aria-busy={
+          membership.status === "pending" || mutation.status === "pending"
+        }
         disabled={
-          membership.isPending || membership.isError || mutation.isPending
+          membership.status === "pending" ||
+          membership.isError ||
+          mutation.status === "pending"
         }
         onClick={toggle}
         size="sm"

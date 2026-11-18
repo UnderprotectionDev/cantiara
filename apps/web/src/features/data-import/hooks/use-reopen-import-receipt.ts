@@ -5,7 +5,7 @@ import { orpc } from "@/utils/orpc";
 export function useReopenImportReceipt() {
   const queryClient = useQueryClient();
   return function reopenReceipt(idempotencyKey: string) {
-    return queryClient.fetchQuery({
+    return queryClient.query({
       ...orpc.reopenImportReceipt.queryOptions({ input: { idempotencyKey } }),
       gcTime: 0,
       staleTime: 0,

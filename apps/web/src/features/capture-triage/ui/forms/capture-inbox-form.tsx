@@ -146,10 +146,10 @@ export default function CaptureInboxForm({
   });
 
   function markDirty() {
-    if (!createCapture.isPending) {
+    if (!(createCapture.status === "pending")) {
       pendingCaptureKey.current = null;
     }
-    if (!createBug.isPending) {
+    if (!(createBug.status === "pending")) {
       pendingBugKey.current = null;
     }
     shell.markUnsavedChanges();
@@ -272,7 +272,7 @@ export default function CaptureInboxForm({
                   <FieldLabel htmlFor="capture-project">Project</FieldLabel>
                   <NativeSelect
                     className="w-full"
-                    disabled={projects.isPending || projects.isError}
+                    disabled={projects.status === "pending" || projects.isError}
                     id="capture-project"
                     name={field.name}
                     onChange={handleProjectChange}
@@ -402,7 +402,9 @@ export default function CaptureInboxForm({
               values.content.trim().length > 0 &&
               projectIsSet &&
               supportedTemplate;
-            const writePending = createCapture.isPending || createBug.isPending;
+            const writePending =
+              createCapture.status === "pending" ||
+              createBug.status === "pending";
 
             return (
               <div className="flex flex-wrap items-center gap-3 border-t pt-5">
@@ -411,7 +413,7 @@ export default function CaptureInboxForm({
                   disabled={connection === "offline" || writePending}
                   type="submit"
                 >
-                  {createCapture.isPending ? "Saving…" : "Save"}
+                  {createCapture.status === "pending" ? "Saving…" : "Save"}
                 </Button>
                 <Button
                   aria-describedby="create-bug-unavailable"
@@ -421,7 +423,7 @@ export default function CaptureInboxForm({
                   type="button"
                   variant="outline"
                 >
-                  {createBug.isPending ? "Creating…" : "Create Bug"}
+                  {createBug.status === "pending" ? "Creating…" : "Create Bug"}
                 </Button>
               </div>
             );

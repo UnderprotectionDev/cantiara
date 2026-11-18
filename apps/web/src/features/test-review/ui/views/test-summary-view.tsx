@@ -44,7 +44,7 @@ export function summaryRecordHref(
     case "Test Gap":
       return `${base}${testGapRecordHash(record.id)}`;
     case "Session Test":
-      return `${base}${testsAreaRecordHash("Test Session", record.provenance?.sessionId ?? record.id)}`;
+      return `${base}${testsAreaRecordHash("Session Test", record.provenance?.sessionId ?? record.id)}`;
     default:
       return `${base}${testsAreaRecordHash(record.kind, record.id)}`;
   }
@@ -74,7 +74,7 @@ function Provenance({
       <dd>
         <AppLink
           className="underline underline-offset-2"
-          href={`/projects/${encodeURIComponent(projectId)}#${testsAreaRecordHash("Test Session", provenance.sessionId)}`}
+          href={`/projects/${encodeURIComponent(projectId)}#${testsAreaRecordHash("Session Test", provenance.sessionId)}`}
         >
           Open Test Session
         </AppLink>

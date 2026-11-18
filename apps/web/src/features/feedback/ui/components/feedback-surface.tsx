@@ -123,7 +123,7 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
   function retry() {
     records.refetch().catch(() => undefined);
   }
-  if (records.isPending) {
+  if (records.status === "pending") {
     return <p role="status">Loading Feedback…</p>;
   }
   if (!records.data) {

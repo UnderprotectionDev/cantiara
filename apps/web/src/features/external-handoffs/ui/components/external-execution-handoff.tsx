@@ -224,9 +224,9 @@ export default function ExternalExecutionHandoffPanel({
     start,
   } = useExternalExecutionHandoffs(work, expanded);
   const pending =
-    start.isPending ||
-    cancel.isPending ||
-    recordPackageExport.isPending ||
+    start.status === "pending" ||
+    cancel.status === "pending" ||
+    recordPackageExport.status === "pending" ||
     connection === "offline";
 
   async function copyPackage(handoffId: string, markdown: string) {
@@ -286,7 +286,7 @@ export default function ExternalExecutionHandoffPanel({
 
       {expanded ? (
         <div className="mt-4 space-y-4 border-border/70 border-t pt-4">
-          {query.isPending ? (
+          {query.status === "pending" ? (
             <p className="text-muted-foreground text-xs" role="status">
               Loading External Execution Handoffs…
             </p>
@@ -377,16 +377,17 @@ export default function ExternalExecutionHandoffPanel({
               </details>
               <HandoffResult handoff={handoff} />
               <HandoffStatusControls
-                confirmDisabled={confirmReconcile.isPending}
+                confirmDisabled={confirmReconcile.status === "pending"}
                 handoff={handoff}
                 onConfirm={(input) => confirmReconcile.mutateAsync(input)}
                 onPreview={(input) => previewReconcile.mutateAsync(input)}
                 onRecordReturn={(input) => recordReturn.mutateAsync(input)}
                 previewDisabled={
-                  previewReconcile.isPending || connection === "offline"
+                  previewReconcile.status === "pending" ||
+                  connection === "offline"
                 }
                 recordReturnDisabled={
-                  recordReturn.isPending || connection === "offline"
+                  recordReturn.status === "pending" || connection === "offline"
                 }
                 relatedWorks={relatedWorks.data ?? []}
                 work={work}

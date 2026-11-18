@@ -122,7 +122,7 @@ export default function ValidationRecordsSurface({
     sources.refetch().catch(() => undefined);
     records.refetch().catch(() => undefined);
   }
-  if (records.isPending || sources.isPending) {
+  if (records.status === "pending" || sources.status === "pending") {
     return <p role="status">Loading Validation Records…</p>;
   }
   if (!(records.data && sources.data)) {

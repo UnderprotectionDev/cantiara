@@ -904,7 +904,7 @@ export default function WorkDraftForm({
   const isBusy = isCreating || isSaving;
 
   function draftsContent(): ReactNode {
-    if (draftsQuery.isPending) {
+    if (draftsQuery.status === "pending") {
       return (
         <p className="mt-2 text-muted-foreground text-sm">Loading Drafts…</p>
       );
@@ -1092,7 +1092,7 @@ export default function WorkDraftForm({
               disabled={isBusy}
               error={customFieldsQuery.isError}
               formattingPreferences={accountFormattingPreferences}
-              isPending={customFieldsQuery.isPending}
+              isPending={customFieldsQuery.status === "pending"}
               onChange={updateCustomFieldValue}
               values={customFieldValues}
             />

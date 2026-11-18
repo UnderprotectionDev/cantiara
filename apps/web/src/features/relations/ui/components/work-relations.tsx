@@ -283,8 +283,8 @@ export default function WorkRelations({
             disabled={
               connection === "offline" ||
               work.archivedAt !== null ||
-              previewMutation.isPending ||
-              createMutation.isPending
+              previewMutation.status === "pending" ||
+              createMutation.status === "pending"
             }
             onEdit={() => {
               setPreview(null);
@@ -313,7 +313,7 @@ export default function WorkRelations({
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    disabled={createMutation.isPending}
+                    disabled={createMutation.status === "pending"}
                     onClick={() => createMutation.mutate()}
                     size="xs"
                     type="button"
@@ -349,7 +349,7 @@ export default function WorkRelations({
         >
           <span>Relation removed.</span>
           <Button
-            disabled={undoMutation.isPending}
+            disabled={undoMutation.status === "pending"}
             onClick={() => undoMutation.mutate()}
             size="xs"
             type="button"
@@ -361,18 +361,21 @@ export default function WorkRelations({
       ) : null}
       <RelationsContent
         blockerMutationPending={
-          resolveMutation.isPending || reactivateMutation.isPending
+          resolveMutation.status === "pending" ||
+          reactivateMutation.status === "pending"
         }
         formattingPreferences={formattingPreferences}
         isError={query.isError || usedInQuery.isError}
-        isPending={query.isPending || usedInQuery.isPending}
+        isPending={
+          query.status === "pending" || usedInQuery.status === "pending"
+        }
         onReactivate={(relation) => reactivateMutation.mutate(relation)}
         onRemove={(relation) => removeMutation.mutate(relation)}
         onResolve={(relation, note) =>
           resolveMutation.mutateAsync({ relation, note })
         }
         outgoing={outgoing}
-        removePending={removeMutation.isPending}
+        removePending={removeMutation.status === "pending"}
         usedIn={usedInQuery.data ?? EMPTY_USED_IN_SUMMARY}
         workId={work.id}
       />

@@ -258,7 +258,7 @@ export default function DocumentEditor({
         originalBlockOutcome === "Replace with live reference" &&
         conversionSelection
       ) {
-        const committed = await queryClient.fetchQuery({
+        const committed = await queryClient.query({
           ...orpc.document.queryOptions({ input: { documentId: record.id } }),
           staleTime: 0,
         });

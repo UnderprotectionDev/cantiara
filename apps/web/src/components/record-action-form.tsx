@@ -223,9 +223,9 @@ export default function RecordActionEditor({
   );
   const pending =
     disabled ||
-    recordActions.create.isPending ||
-    recordActions.update.isPending ||
-    recordActions.moveToTrash.isPending;
+    recordActions.create.status === "pending" ||
+    recordActions.update.status === "pending" ||
+    recordActions.moveToTrash.status === "pending";
   const form = useForm({
     defaultValues: EMPTY_DRAFT,
     onSubmit: ({ value }) => submitDraft(value),
@@ -289,7 +289,7 @@ export default function RecordActionEditor({
         steps. Date, Number, and Select fields can ask for a value when the
         action runs. Each Record Action targets one Work record.
       </p>
-      {recordActions.query.isPending ? (
+      {recordActions.query.status === "pending" ? (
         <p className="text-muted-foreground text-sm" role="status">
           Loading Record Actions…
         </p>
@@ -299,7 +299,7 @@ export default function RecordActionEditor({
           Record Actions could not be loaded. Try loading this page again.
         </p>
       ) : null}
-      {actions.length === 0 && !recordActions.query.isPending ? (
+      {actions.length === 0 && !(recordActions.query.status === "pending") ? (
         <p className="rounded-md border border-dashed p-4 text-muted-foreground text-sm">
           No Record Actions yet. Define the first action below.
         </p>

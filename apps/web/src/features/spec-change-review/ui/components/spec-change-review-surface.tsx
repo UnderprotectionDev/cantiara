@@ -91,7 +91,7 @@ export default function SpecChangeReviewSurface({
       await queryClient.invalidateQueries({ queryKey: detailOptions.queryKey });
     }
   };
-  if (queue.isPending) {
+  if (queue.status === "pending") {
     return <p role="status">Loading Spec Change Review…</p>;
   }
   if (!queue.data) {
@@ -109,7 +109,7 @@ export default function SpecChangeReviewSurface({
     );
   }
   let markStatus = "";
-  if (mark.isPending) {
+  if (mark.status === "pending") {
     markStatus = "Saving review status…";
   } else if (mark.isError) {
     markStatus = "The review status could not be saved. Reload and try again.";

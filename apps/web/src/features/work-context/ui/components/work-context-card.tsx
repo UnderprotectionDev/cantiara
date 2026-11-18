@@ -142,7 +142,7 @@ export default function WorkContextCard({
   useEffect(() => {
     if (
       !registerCommand ||
-      relationsQuery.isPending ||
+      relationsQuery.status === "pending" ||
       relationsQuery.isError
     ) {
       return;
@@ -164,7 +164,7 @@ export default function WorkContextCard({
     copyCommandRegistrationKey,
     registerCommand,
     relationsQuery.isError,
-    relationsQuery.isPending,
+    relationsQuery.status,
   ]);
   const [copyState, setCopyState] = useState<"idle" | "copying" | "copied">(
     "idle",
@@ -223,7 +223,7 @@ export default function WorkContextCard({
           <Button
             data-command-id={copyCommand.id}
             disabled={
-              relationsQuery.isPending ||
+              relationsQuery.status === "pending" ||
               relationsQuery.isError ||
               copyState === "copying"
             }
@@ -269,7 +269,7 @@ export default function WorkContextCard({
 
       <WhyChain
         isError={workContextQuery.isError}
-        isPending={workContextQuery.isPending}
+        isPending={workContextQuery.status === "pending"}
         sources={contextModel.whyChain}
         work={work}
         workStatusLabels={workStatusLabels}
@@ -299,7 +299,7 @@ export default function WorkContextCard({
       <PriorityFoundations
         foundations={contextModel.priorityFoundations}
         isError={workContextQuery.isError}
-        isPending={workContextQuery.isPending}
+        isPending={workContextQuery.status === "pending"}
         work={work}
         workStatusLabels={workStatusLabels}
       />
@@ -309,7 +309,7 @@ export default function WorkContextCard({
           return (
             <PreparedSection
               isError={relationsQuery.isError}
-              isPending={relationsQuery.isPending}
+              isPending={relationsQuery.status === "pending"}
               key={section.key}
               section={section.prepared}
               sources={sourcesForWorkContextSection(
@@ -325,7 +325,7 @@ export default function WorkContextCard({
           return (
             <CustomSection
               isError={relationsQuery.isError}
-              isPending={relationsQuery.isPending}
+              isPending={relationsQuery.status === "pending"}
               key={section.key}
               section={section.custom}
               sources={sourcesForWorkContextCustomSection(

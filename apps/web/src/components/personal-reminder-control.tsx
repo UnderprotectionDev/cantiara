@@ -94,7 +94,7 @@ export default function PersonalReminderControl({
     setOpen(true);
   }
 
-  const pending = create.isPending || cancel.isPending;
+  const pending = create.status === "pending" || cancel.status === "pending";
   return (
     <>
       <div className="flex flex-wrap gap-2">
@@ -156,7 +156,7 @@ export default function PersonalReminderControl({
             ) : null}
             <section aria-label="Reminder history" className="space-y-2">
               <h3 className="font-medium text-sm">History</h3>
-              {remindersQuery.isPending ? (
+              {remindersQuery.status === "pending" ? (
                 <p className="text-muted-foreground text-sm" role="status">
                   Loading reminders…
                 </p>

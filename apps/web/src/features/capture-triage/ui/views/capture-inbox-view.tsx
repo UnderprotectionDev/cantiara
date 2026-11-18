@@ -15,7 +15,7 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
     <ClientShellStatus accountFormattingPreferences={formattingPreferences} />
   );
 
-  if (inbox.isPending) {
+  if (inbox.status === "pending") {
     return (
       <main className="surface-frame max-w-7xl">
         {clientShellStatus}

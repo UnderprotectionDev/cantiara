@@ -55,7 +55,7 @@ export function ProjectReleasesSurface({
     await navigate({ href: projectReleasesHref(projectId, id) });
   }
 
-  if (overview.isPending) {
+  if (overview.status === "pending") {
     return <p role="status">Loading source record…</p>;
   }
   if (overview.isError || !overview.data) {

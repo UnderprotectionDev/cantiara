@@ -97,7 +97,7 @@ export default function GitHubIntegrationSurface({
           }),
         ),
       onPreviewCreateWork: (recordId) =>
-        queryClient.fetchQuery({
+        queryClient.query({
           ...orpc.previewGitHubCreateWork.queryOptions({
             input: { projectId, recordId },
           }),
@@ -166,7 +166,7 @@ export default function GitHubIntegrationSurface({
     recordsOptions.queryKey,
   ]);
 
-  if (overview.isPending) {
+  if (overview.status === "pending") {
     return <p role="status">Loading GitHub…</p>;
   }
   if (!overview.data) {

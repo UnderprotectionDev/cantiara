@@ -22,7 +22,7 @@ function WorkRecordActivity({
   const loadMore = useCallback(() => {
     fetchNextPage();
   }, [fetchNextPage]);
-  if (query.isPending) {
+  if (query.status === "pending") {
     return <p role="status">Loading Record history…</p>;
   }
   if (!activity) {
