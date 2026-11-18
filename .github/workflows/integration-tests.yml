@@ -4,7 +4,7 @@ on:
   pull_request:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [ main ]
 
 permissions:
   contents: read
@@ -84,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [ 1, 2 ]
     services:
       postgres:
         image: postgres:16
@@ -191,7 +191,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [ 1, 2, 3, 4, 5, 6 ]
     services:
       postgres:
         image: postgres:16
@@ -255,7 +255,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        cache: [hot, cold]
+        cache: [ hot, cold ]
     services:
       postgres:
         image: postgres:16

@@ -9,7 +9,7 @@ on:
       - apps/web/src-tauri/**
       - .github/workflows/macos-client-compile.yml
   push:
-    branches: [main]
+    branches: [ main ]
     paths:
       - apps/web/src-tauri/**
       - .github/workflows/macos-client-compile.yml
