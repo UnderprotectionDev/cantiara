@@ -176,7 +176,7 @@ Kullanıcı koşulu 16.19.4 **sonrası** yeni bir yama veya 16.19.4 yayımından
 
 ## 9. Biome ve Ultracite — kapsam kararı bekliyor
 
-Ana depoda uygulanmadı. [Salt kontrol önizlemesi](dependency-upgrade-lint-preview.md) 1.244 dosyalık etki gösterdi; yaklaşık 10 dosya sınırı nedeniyle kullanıcıya soruldu. 8.3.0 aynı gün yayımlandığından aday 8.2.1; Biome adayı 2.6.8. Otomatik biçim değişikliği veya init yapılmadı.
+Ana depoda uygulanmadı. [Salt kontrol önizlemesi](dependency-upgrade-lint-preview.md) 1.244 dosyalık etki gösterdi; yaklaşık 10 dosya sınırı nedeniyle kullanıcıya soruldu. 8.3.0 aynı gün yayımlandığından aday 8.2.1; Biome adayı 2.6.8. Ana depoda otomatik biçim değişikliği veya init yapılmadı. Kullanıcı geniş lint uyarlamasının araştırılmasını seçti; [kontrollü ek ölçümler](dependency-upgrade-lint-preview.md#ek-inceleme--kullanıcının-araştırma-kararı-sonrası) ve [kural bazında bulgular](dependency-upgrade-lint-rules.md) hazır. Geçici kopyadaki safe-fix deneyi uygulama onayı veya kabul kanıtı değildir.
 
 ## 10–12. Araştırma ve onay sınırı
 
