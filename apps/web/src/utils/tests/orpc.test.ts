@@ -1,10 +1,45 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 import {
+  client,
   documentDiscoveryQueryOptions,
   universalSearchQueryOptions,
   workspaceOverviewQueryOptions,
 } from "../orpc";
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("Account Access through the RPC transport", () => {
+  test("preserves session credentials and manual redirect handling", async () => {
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ json: [] }));
+    vi.stubGlobal("fetch", fetcher);
+
+    expect(await client.projects()).toEqual([]);
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.any(Request),
+      expect.objectContaining({ credentials: "include", redirect: "manual" }),
+    );
+  });
+
+  test.each([301, 302, 303, 307, 308])(
+    "rejects a %s sign-in redirect instead of treating it as RPC data",
+    async (status) => {
+      const fetcher = vi.fn().mockResolvedValue(
+        Response.json(
+          { json: [] },
+          {
+            status,
+            headers: { location: "https://example.org/sign-in" },
+          },
+        ),
+      );
+      vi.stubGlobal("fetch", fetcher);
+
+      await expect(client.projects()).rejects.toThrow();
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
+});
 
 test("Document discovery cannot reuse another Account's cached names or match snippets", () => {
   const input = { query: "PostgreSQL" };

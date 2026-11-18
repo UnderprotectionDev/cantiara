@@ -53,7 +53,7 @@ export async function pickDateTime(
   const [date = "", time = ""] = value.split("T");
   await pickDate(
     page,
-    scope.getByLabel(`${label} date`, { exact: true }),
+    scope.getByLabel(`${label} date:`, { exact: false }),
     date,
   );
   await scope.getByLabel(`${label} time`, { exact: true }).fill(time);
@@ -67,7 +67,7 @@ export async function expectDateTime(
 ) {
   const [date = "", time = ""] = value.split("T");
   await expect(
-    scope.getByLabel(`${label} date`, { exact: true }),
+    scope.getByLabel(`${label} date:`, { exact: false }),
   ).toContainText(format(parseISO(date), "PP"));
   await expect(scope.getByLabel(`${label} time`, { exact: true })).toHaveValue(
     time,

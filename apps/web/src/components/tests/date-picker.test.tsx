@@ -14,7 +14,7 @@ test("DatePicker names its trigger and shows the formatted value or placeholder"
       value=""
     />,
   );
-  expect(empty).toContain('aria-label="Target date"');
+  expect(empty).toContain('aria-label="Target date: Select a target date"');
   expect(empty).toContain('id="target"');
   expect(empty).toContain("Select a target date");
 
@@ -26,6 +26,7 @@ test("DatePicker names its trigger and shows the formatted value or placeholder"
     />,
   );
   expect(filled).toContain("Oct 1, 2026");
+  expect(filled).toContain('aria-label="Target date: Oct 1, 2026"');
 });
 
 test("DatePicker treats an invalid value as unset", () => {
@@ -48,7 +49,7 @@ test("DateTimePicker splits the value into a date trigger and a time input", () 
       value="2026-10-01T09:30"
     />,
   );
-  expect(html).toContain('aria-label="Occurred at date"');
+  expect(html).toContain('aria-label="Occurred at date: Oct 1, 2026"');
   expect(html).toContain("Oct 1, 2026");
   expect(html).toContain('aria-label="Occurred at time"');
   expect(html).toContain('type="time"');

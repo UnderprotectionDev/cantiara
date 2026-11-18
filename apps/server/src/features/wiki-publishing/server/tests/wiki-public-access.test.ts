@@ -104,6 +104,20 @@ describe("Wiki public page", () => {
 });
 
 describe("Wiki Markdown links", () => {
+  test("raw HTML stays escaped in the approved public snapshot", async () => {
+    const { path, site } = await published({
+      rootBody:
+        'Visible text\n\n<strong>raw markup</strong>\n\n<script>raw-script-marker</script>\n\n<iframe src="https://example.com">raw frame</iframe>\n\n<img src="https://example.com/image" onerror="alert(1)">',
+    });
+
+    const html = await (await site.get(path)).text();
+
+    expect(html).toContain("Visible text");
+    expect(html).toContain("&lt;strong&gt;raw markup&lt;/strong&gt;");
+    expect(html).toContain("&lt;script&gt;raw-script-marker&lt;/script&gt;");
+    expect(html).not.toMatch(/<(?:script|iframe|img)\b/iu);
+  });
+
   test("only http, https and mailto links stay links; others become plain text", async () => {
     const { path, site } = await published({
       rootBody: `${ROOT_BODY}\n\n[a](javascript:alert(1)) [b](data:text/html,x) [c](/relative) [d](https://example.com/ok) [e](mailto:me@example.com) [f](vbscript:x)`,

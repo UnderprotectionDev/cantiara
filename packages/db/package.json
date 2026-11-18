@@ -27,14 +27,14 @@
     "db:studio": "bun --env-file=../../apps/server/.env.local ./node_modules/.bin/drizzle-kit studio"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.1.0",
+    "@neondatabase/serverless": "1.2.1",
     "@t3-oss/env-core": "catalog:",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "0.45.4",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@cantiara/config": "workspace:*",
-    "drizzle-kit": "^0.31.10",
+    "drizzle-kit": "0.31.11",
     "typescript": "catalog:"
   }
 }

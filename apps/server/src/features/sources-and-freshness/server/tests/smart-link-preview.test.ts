@@ -21,6 +21,39 @@ function previewNetwork(addresses = ["93.184.216.34"]) {
 }
 
 describe("Sources and Freshness isolated preview", () => {
+  test("preserves captured text around iframe, noframes and textarea content", async () => {
+    const network = previewNetwork();
+    network.request = async () => ({
+      status: 200,
+      headers: { "content-type": "text/html" },
+      body: new TextEncoder().encode(
+        "<title>Preview baseline</title><p>Before</p><iframe><b>Frame text</b></iframe><noframes><b>Fallback text</b></noframes><textarea><b>Draft text</b></textarea><p>After</p>",
+      ),
+    });
+    expect(
+      await createSmartLinkPreview(network)("https://example.org/research"),
+    ).toMatchObject({
+      kind: "preview",
+      title: "Preview baseline",
+      capturedContent: "Before Fallback text <b>Draft text</b> After",
+    });
+  });
+  test("keeps ignored fallback content out of noframes capture", async () => {
+    const network = previewNetwork();
+    network.request = async () => ({
+      status: 200,
+      headers: { "content-type": "text/html" },
+      body: new TextEncoder().encode(
+        "Before<noframes> <b>Fallback</b><script>secret()</script><iframe>Frame text</iframe><textarea><b>Draft text</b></textarea> </noframes>After",
+      ),
+    });
+    expect(
+      await createSmartLinkPreview(network)("https://example.org/research"),
+    ).toMatchObject({
+      kind: "preview",
+      capturedContent: "Before Fallback <b>Draft text</b> After",
+    });
+  });
   test("returns a transient preview and sanitized capture without creating a Source", async () => {
     const preview = await createSmartLinkPreview(previewNetwork())(
       "https://example.org/research",

@@ -20,9 +20,10 @@ import {
 } from "@cantiara/ui/components/table";
 import {
   type ColumnDef,
+  columnVisibilityFeature,
   flexRender,
-  getCoreRowModel,
-  useReactTable,
+  tableFeatures,
+  useTable,
 } from "@tanstack/react-table";
 import { ArrowLeft, Pencil, Plus } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
@@ -33,6 +34,8 @@ import {
 } from "@/features/account-preferences/lib/account-preferences-format";
 import { COLUMN_LABELS } from "../../lib/saved-list-columns";
 import { SavedListEditor } from "../forms/saved-list-editor-form";
+
+const savedListTableFeatures = tableFeatures({ columnVisibilityFeature });
 
 export function workspaceOverviewSavedListDefinitions(
   lists: readonly WorkspaceOverviewSavedList[],
@@ -143,7 +146,9 @@ function SavedListTable({
       )
       .map(({ project }) => project);
   }, [groupBy, projects]);
-  const columns = useMemo<ColumnDef<WorkspaceOverviewProject>[]>(
+  const columns = useMemo<
+    ColumnDef<typeof savedListTableFeatures, WorkspaceOverviewProject>[]
+  >(
     () =>
       list.columns.map((column) => ({
         cell: ({ row }) =>
@@ -153,10 +158,10 @@ function SavedListTable({
       })),
     [formattingPreferences, list.columns],
   );
-  const table = useReactTable({
+  const table = useTable({
+    features: savedListTableFeatures,
     columns,
     data: orderedProjects,
-    getCoreRowModel: getCoreRowModel(),
   });
   const previousGroups = new Set<string>();
 
