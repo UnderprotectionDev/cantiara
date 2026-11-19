@@ -158,7 +158,7 @@ export const customFieldValuePayloadSchema = z.discriminatedUnion("kind", [
   z
     .object({ kind: z.literal("date"), date: customFieldDateValueSchema })
     .strict(),
-  z.object({ kind: z.literal("number"), number: z.number().finite() }).strict(),
+  z.object({ kind: z.literal("number"), number: z.number() }).strict(),
   z
     .object({
       kind: z.literal("option"),
@@ -192,16 +192,16 @@ export type ParsedCustomFieldValuePayload = z.output<
 
 export const customFieldDefinitionSchema = z
   .object({
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: z.iso.datetime({ offset: true }),
     id: identifierSchema,
     name: customFieldNameSchema,
     options: customFieldOptionsSchema,
     projectId: identifierSchema,
     recordTypes: customFieldRecordTypesSchema,
-    revision: z.number().int().nonnegative().safe(),
-    trashedAt: z.string().datetime({ offset: true }).nullable(),
+    revision: z.number().int().nonnegative(),
+    trashedAt: z.iso.datetime({ offset: true }).nullable(),
     type: customFieldTypeSchema,
-    updatedAt: z.string().datetime({ offset: true }),
+    updatedAt: z.iso.datetime({ offset: true }),
   })
   .strict();
 
@@ -240,13 +240,13 @@ export const clearCustomFieldValueMutationInputSchema =
 
 export const customFieldValueRecordSchema = z
   .object({
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: z.iso.datetime({ offset: true }),
     definitionId: identifierSchema,
     id: identifierSchema,
     recordId: identifierSchema,
     recordType: customFieldRecordTypeSchema,
-    revision: z.number().int().nonnegative().safe(),
-    updatedAt: z.string().datetime({ offset: true }),
+    revision: z.number().int().nonnegative(),
+    updatedAt: z.iso.datetime({ offset: true }),
     value: customFieldValuePayloadSchema,
   })
   .strict();

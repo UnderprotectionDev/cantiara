@@ -22,7 +22,7 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, FolderPlus } from "lucide-react";
-import { type ChangeEvent, type FormEvent, useRef, useState } from "react";
+import { type ChangeEvent, type SubmitEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { DatePicker } from "@/components/date-picker";
@@ -139,7 +139,7 @@ export default function ProjectCreateForm() {
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -186,22 +186,22 @@ export default function ProjectCreateForm() {
           className="rounded-lg border border-destructive/25 bg-destructive/5 p-4"
           role="alert"
         >
-          <p className="font-medium text-sm">{formError}</p>
-          <p className="mt-1 text-muted-foreground text-xs">
+          <p className="text-sm font-medium">{formError}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
             Nothing was changed. Review the fields and try again.
           </p>
         </div>
       ) : null}
 
       <section aria-labelledby="project-profile-heading" className="space-y-5">
-        <div className="border-border/70 border-b pb-4">
+        <div className="border-b border-border/70 pb-4">
           <h2
-            className="font-semibold text-lg tracking-tight"
+            className="text-lg font-semibold tracking-tight"
             id="project-profile-heading"
           >
             Project profile
           </h2>
-          <p className="mt-1 text-muted-foreground text-xs/relaxed">
+          <p className="mt-1 text-xs/relaxed text-muted-foreground">
             Start with a name and configuration. A Short code is suggested from
             the Project Name and can be changed from Projects until the first
             Work.
@@ -264,8 +264,8 @@ export default function ProjectCreateForm() {
         </FieldGroup>
       </section>
 
-      <details className="border-border/70 border-t pt-4">
-        <summary className="flex min-h-10 cursor-pointer items-center font-medium text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+      <details className="border-t border-border/70 pt-4">
+        <summary className="flex min-h-10 cursor-pointer items-center text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
           Optional profile details
         </summary>
         <FieldGroup className="mt-6 grid gap-x-6 gap-y-6 sm:grid-cols-2">
@@ -351,7 +351,7 @@ export default function ProjectCreateForm() {
         </FieldGroup>
       </details>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-border/70 border-t pt-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-5">
         <Link
           className={`${buttonVariants({ variant: "ghost" })} min-h-11`}
           to="/projects"

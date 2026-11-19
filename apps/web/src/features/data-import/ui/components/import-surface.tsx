@@ -13,7 +13,7 @@ export default function ImportSurface() {
   const applyState = useApplyImport();
   const reopenReceipt = useReopenImportReceipt();
 
-  if (projects.isPending) {
+  if (projects.status === "pending") {
     return <p role="status">Loading {IMPORT_LABEL}…</p>;
   }
   return (

@@ -61,7 +61,6 @@ export default function DecisionSupersessionControls({
     setError(undefined);
   }
   async function confirm() {
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: React state remains optional before the preview is prepared.
     if (!prepared) {
       return;
     }
@@ -93,7 +92,7 @@ export default function DecisionSupersessionControls({
       setPending(false);
     }
   }
-  if (graph.isPending) {
+  if (graph.status === "pending") {
     return <p role="status">Loading supersession…</p>;
   }
   if (!graph.data || graph.isError) {

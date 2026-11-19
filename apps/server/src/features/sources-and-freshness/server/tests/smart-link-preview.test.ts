@@ -21,6 +21,93 @@ function previewNetwork(addresses = ["93.184.216.34"]) {
 }
 
 describe("Sources and Freshness isolated preview", () => {
+  test("preserves captured text around iframe, noframes and textarea content", async () => {
+    const network = previewNetwork();
+    network.request = async () => ({
+      status: 200,
+      headers: { "content-type": "text/html" },
+      body: new TextEncoder().encode(
+        "<title>Preview baseline</title><p>Before</p><iframe><b>Frame text</b></iframe><noframes><b>Fallback text</b></noframes><textarea><b>Draft text</b></textarea><p>After</p>",
+      ),
+    });
+    expect(
+      await createSmartLinkPreview(network)("https://example.org/research"),
+    ).toMatchObject({
+      kind: "preview",
+      title: "Preview baseline",
+      capturedContent: "Before Fallback text <b>Draft text</b> After",
+    });
+  });
+  test("keeps ignored fallback content out of noframes capture", async () => {
+    const network = previewNetwork();
+    network.request = async () => ({
+      status: 200,
+      headers: { "content-type": "text/html" },
+      body: new TextEncoder().encode(
+        "Before<noframes> <b>Fallback</b><script>secret()</script><iframe>Frame text</iframe><textarea><b>Draft text</b></textarea> </noframes>After",
+      ),
+    });
+    expect(
+      await createSmartLinkPreview(network)("https://example.org/research"),
+    ).toMatchObject({
+      kind: "preview",
+      capturedContent: "Before Fallback <b>Draft text</b> After",
+    });
+  });
+  test.each([2, 500])(
+    "excludes scripts in nested noframes at depth %i",
+    async (depth) => {
+      const network = previewNetwork();
+      network.request = async () => ({
+        status: 200,
+        headers: { "content-type": "text/html" },
+        body: new TextEncoder().encode(
+          `Before${"<noframes>".repeat(depth)}<script>secret()</script>${"</noframes>".repeat(depth)}After`,
+        ),
+      });
+      expect(
+        await createSmartLinkPreview(network)("https://example.org/research"),
+      ).toMatchObject({ kind: "preview", capturedContent: "Before After" });
+    },
+  );
+  test("preserves plain noembed fallback text without scripts or markup", async () => {
+    const network = previewNetwork();
+    network.request = async () => ({
+      status: 200,
+      headers: { "content-type": "text/html" },
+      body: new TextEncoder().encode(
+        "<title>Title</title>Visible<noembed><p>Fallback</p><script>secret()</script></noembed>After",
+      ),
+    });
+    expect(
+      await createSmartLinkPreview(network)("https://example.org/research"),
+    ).toMatchObject({
+      kind: "preview",
+      title: "Title",
+      capturedContent: "VisibleFallback After",
+    });
+  });
+  test.each([
+    { outer: "noembed", inner: "noembed", depth: 2 },
+    { outer: "noembed", inner: "noembed", depth: 500 },
+    { outer: "noembed", inner: "noframes", depth: 2 },
+    { outer: "noframes", inner: "noembed", depth: 2 },
+  ])(
+    "excludes scripts in nested $outer/$inner fallback at depth $depth",
+    async ({ outer, inner, depth }) => {
+      const network = previewNetwork();
+      network.request = async () => ({
+        status: 200,
+        headers: { "content-type": "text/html" },
+        body: new TextEncoder().encode(
+          `Before<${outer}>${`<${inner}>`.repeat(depth)}<script>secret()</script>${`</${inner}>`.repeat(depth)}</${outer}>After`,
+        ),
+      });
+      expect(
+        await createSmartLinkPreview(network)("https://example.org/research"),
+      ).toMatchObject({ kind: "preview", capturedContent: "Before After" });
+    },
+  );
   test("returns a transient preview and sanitized capture without creating a Source", async () => {
     const preview = await createSmartLinkPreview(previewNetwork())(
       "https://example.org/research",

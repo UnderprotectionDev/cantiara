@@ -25,8 +25,8 @@ export const sourceEvidencePreviewInputSchema = sourceSelectionSchema
     target: sourceEvidenceTargetSchema.optional(),
     expectedSourceRevision: z.number().int().positive(),
     versionRevision: z.number().int().positive(),
-    start: z.number().int().nonnegative().safe(),
-    end: z.number().int().positive().safe(),
+    start: z.number().int().nonnegative(),
+    end: z.number().int().positive(),
   })
   .refine(
     (value) => Boolean(value.bindingId) !== Boolean(value.target),

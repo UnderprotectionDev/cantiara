@@ -50,7 +50,7 @@ export default function DocumentVersionHistory({
   return (
     <section
       aria-label="Versions"
-      className="space-y-3 border-border border-t pt-5"
+      className="space-y-3 border-t border-border pt-5"
     >
       <h3 className="font-semibold">Versions</h3>
       {versions.isError || selectedVersionQuery.isError ? (

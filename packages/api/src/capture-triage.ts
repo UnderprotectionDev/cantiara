@@ -45,11 +45,15 @@ export const captureUrlSchema = z
   .trim()
   .min(1)
   .max(2048)
-  .url()
+  .check(z.url())
   .refine(
     (value) => {
-      const { protocol } = new URL(value);
-      return protocol === "http:" || protocol === "https:";
+      try {
+        const { protocol } = new URL(value);
+        return protocol === "http:" || protocol === "https:";
+      } catch {
+        return false;
+      }
     },
     { message: "Capture links must use HTTP or HTTPS." },
   );
@@ -59,7 +63,7 @@ export const captureAttachmentSchema = z
     id: captureStagingObjectIdSchema,
     mimeType: z.string().trim().min(1).max(255).optional(),
     name: z.string().trim().min(1).max(255).optional(),
-    size: z.number().int().nonnegative().safe().optional(),
+    size: z.number().int().nonnegative().optional(),
   })
   .strict();
 
@@ -104,7 +108,7 @@ export const captureInboxItemSchema = z
   .object({
     ...captureProvenanceFields,
     content: captureTextSchema,
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: z.iso.datetime({ offset: true }),
     fields: captureFieldsSchema,
     id: identifierSchema,
     projectId: identifierSchema.nullable(),

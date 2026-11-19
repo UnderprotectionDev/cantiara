@@ -62,6 +62,115 @@
       "javascript": {
         "globals": ["Bun"]
       }
+    },
+    {
+      "includes": [
+        "**/*.{test,spec,test-d,spec-d}.{ts,tsx,js,jsx}",
+        "**/__tests__/**/*"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off",
+            "noExplicitAny": "off"
+          }
+        }
+      }
     }
-  ]
+  ],
+  "linter": {
+    "rules": {
+      "a11y": {
+        "noLabelWithoutControl": {
+          "level": "error",
+          "options": {
+            "inputComponents": [],
+            "labelComponents": []
+          }
+        },
+        "useValidAriaRole": {
+          "level": "error",
+          "options": {
+            "ignoreNonDom": false
+          }
+        }
+      },
+      "complexity": {
+        "noVoid": "error",
+        "noExcessiveNestedCallbacks": "off",
+        "noUnnecessaryTemplateExpression": "off",
+        "useArraySome": "off",
+        "useMathMinMax": "off",
+        "useRegexpTest": "off",
+        "noExcessiveSelectorClasses": "off"
+      },
+      "correctness": {
+        "noUnusedFunctionParameters": {
+          "level": "error",
+          "options": {
+            "ignoreRestSiblings": false
+          }
+        },
+        "noUnusedVariables": {
+          "level": "error",
+          "options": {
+            "ignoreRestSiblings": false
+          }
+        },
+        "noUndeclaredDependencies": "off",
+        "noDuplicateFieldDefinitionNames": "off",
+        "noVoidElementsWithChildren": "error",
+        "noComponentHookFactories": "off",
+        "noJsxNamespace": "off",
+        "useReactAsyncServerFunction": "off",
+        "usePlaywrightValidDescribeCallback": "off",
+        "noPlaywrightMissingAwait": "off"
+      },
+      "performance": {
+        "noBarrelFile": "error",
+        "noNamespaceImport": "error",
+        "useDomNodeTextContent": "off"
+      },
+      "style": {
+        "noExcessiveClassesPerFile": "off",
+        "useDomQuerySelector": "off",
+        "useImportsFirst": "off",
+        "useNamedCaptureGroup": "off",
+        "useReduceTypeParameter": "off",
+        "useThisInClassMethods": "off",
+        "useUnicodeRegex": "off",
+        "useVarsOnTop": "off",
+        "noInlineStyles": "off",
+        "noTopLevelLiterals": "off",
+        "useConsistentTestIt": "off",
+        "useTestHooksInOrder": "off",
+        "useTestHooksOnTop": "off"
+      },
+      "suspicious": {
+        "noForIn": "off",
+        "noImportCycles": "off",
+        "noDuplicateJsxProps": "error",
+        "noLoopFunc": "off",
+        "noSuspiciousSemicolonInJsx": "error",
+        "noDuplicateSelectors": "off",
+        "useBaseline": "off",
+        "noEmptyObjectKeys": "off",
+        "noUntrustedLicenses": "off",
+        "noJsxLeakedDollar": "off",
+        "noReactStringRefs": "off",
+        "noConditionalExpect": "off",
+        "noIdenticalTestTitle": "off",
+        "useExpect": "off"
+      },
+      "security": {
+        "useIframeSandbox": "off"
+      }
+    }
+  },
+  "tailwind": {
+    "attributes": ["className"],
+    "mergeFunctions": ["clsx", "tw", "twMerge", "cn", "twJoin"],
+    "variantFunctions": ["cva", "tv"],
+    "stylesheet": "./packages/ui/src/styles/globals.css"
+  }
 }

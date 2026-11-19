@@ -177,7 +177,7 @@ const mimeTypeSchema = z
   .trim()
   .min(1, "MIME type is required.")
   .max(255);
-const revisionSchema = z.number().int().nonnegative().safe();
+const revisionSchema = z.number().int().nonnegative();
 
 export const fileAttachmentScopeSchema = z.discriminatedUnion("kind", [
   z
@@ -291,7 +291,7 @@ export const FILE_ATTACHMENT_MARKING_GEOMETRY = {
 >;
 
 const normalizedCoordinateSchema = z.number().min(0).max(1);
-const pageNumberSchema = z.number().int().positive().safe();
+const pageNumberSchema = z.number().int().positive();
 
 export const fileAttachmentPointSchema = z
   .object({
@@ -400,7 +400,7 @@ export type FileAttachmentMarkingInput = z.infer<
 export const fileAttachmentMarkingSchema = z
   .object({
     attachmentId: identifierSchema,
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: z.iso.datetime({ offset: true }),
     geometry: fileAttachmentMarkingGeometrySchema,
     id: identifierSchema,
     tool: z.enum(FILE_ATTACHMENT_MARKING_TOOLS),
@@ -600,7 +600,7 @@ export const fileAttachmentPreviewSchema = z
     downloadPath: z.string().startsWith("/api/file-attachments/"),
     failure: z
       .object({
-        attempts: z.number().int().positive().safe(),
+        attempts: z.number().int().positive(),
         code: z.enum([
           "decode-limit",
           "dimension-limit",
@@ -663,15 +663,15 @@ export interface FileAttachmentExternalSurfaceSelection {
 
 export const fileAttachmentVersionSchema = z
   .object({
-    byteSize: z.number().int().positive().safe(),
+    byteSize: z.number().int().positive(),
     contentHash: z.string().regex(/^[0-9a-f]{64}$/u),
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: z.iso.datetime({ offset: true }),
     detectedMimeType: mimeTypeSchema,
     extension: z.string().regex(/^\.[a-z0-9]+$/u),
     fileName: fileNameSchema,
     id: identifierSchema,
     mimeType: mimeTypeSchema,
-    number: z.number().int().positive().safe(),
+    number: z.number().int().positive(),
     preview: z.enum([
       "image",
       "pdf",
@@ -688,7 +688,7 @@ export type FileAttachmentVersion = z.infer<typeof fileAttachmentVersionSchema>;
 
 export const fileAttachmentSchema = z
   .object({
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: z.iso.datetime({ offset: true }),
     currentVersion: fileAttachmentVersionSchema,
     id: identifierSchema,
     lifecycleStatus: z.enum(FILE_ATTACHMENT_LIFECYCLE_STATUSES),
@@ -696,7 +696,7 @@ export const fileAttachmentSchema = z
     revision: revisionSchema,
     ownerDocumentId: identifierSchema.nullable().optional(),
     scope: fileAttachmentScopeSchema,
-    updatedAt: z.string().datetime({ offset: true }),
+    updatedAt: z.iso.datetime({ offset: true }),
   })
   .strict();
 
@@ -704,14 +704,14 @@ export type FileAttachment = z.infer<typeof fileAttachmentSchema>;
 
 export const fileAttachmentQuotaSchema = z
   .object({
-    byteLimit: z.number().int().positive().safe(),
-    bytesRemaining: z.number().int().nonnegative().safe(),
-    bytesUsed: z.number().int().nonnegative().safe(),
+    byteLimit: z.number().int().positive(),
+    bytesRemaining: z.number().int().nonnegative(),
+    bytesUsed: z.number().int().nonnegative(),
     isOverLimit: z.boolean(),
     isWarning: z.boolean(),
-    versionLimit: z.number().int().positive().safe(),
-    versionsRemaining: z.number().int().nonnegative().safe(),
-    versionsUsed: z.number().int().nonnegative().safe(),
+    versionLimit: z.number().int().positive(),
+    versionsRemaining: z.number().int().nonnegative(),
+    versionsUsed: z.number().int().nonnegative(),
   })
   .strict();
 

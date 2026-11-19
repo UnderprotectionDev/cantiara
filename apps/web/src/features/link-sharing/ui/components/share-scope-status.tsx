@@ -32,15 +32,15 @@ export function ShareScopeStatus({
           {` · Revision ${surface.revision}`}
         </p>
       ) : (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Nothing is shared yet. No link exists until you approve this scope.
         </p>
       )}
       {diff &&
       diff.added.length + diff.changed.length + diff.removed.length > 0 ? (
         <section aria-label="Unpublished changes" className="space-y-1">
-          <h4 className="font-medium text-sm">Unpublished changes</h4>
-          <p className="text-muted-foreground text-sm">
+          <h4 className="text-sm font-medium">Unpublished changes</h4>
+          <p className="text-sm text-muted-foreground">
             Only you see this. {diff.added.length} new, {diff.changed.length}{" "}
             changed, {diff.removed.length} removed since the last approval.
           </p>
@@ -61,8 +61,8 @@ function PlaceholderList({
   }
   return (
     <section aria-label="Unresolved placeholders" className="space-y-2">
-      <h4 className="font-medium text-sm">Unresolved placeholders</h4>
-      <p className="text-muted-foreground text-sm">
+      <h4 className="text-sm font-medium">Unresolved placeholders</h4>
+      <p className="text-sm text-muted-foreground">
         Fix them in the record, or confirm Publish/share anyway below. Approving
         the scope does not accept them.
       </p>

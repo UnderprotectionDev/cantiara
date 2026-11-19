@@ -14,13 +14,13 @@ export function EvidencePreview({ plan }: { plan: DocumentEvidencePlan }) {
         Document · Version {plan.pin.source.revision} · Range {plan.pin.start}–
         {plan.pin.end}
       </p>
-      <p className="whitespace-pre-wrap break-words">{plan.pin.excerpt}</p>
+      <p className="break-words whitespace-pre-wrap">{plan.pin.excerpt}</p>
       {plan.mode === "create" ? (
         <dl>
           {newFields.map(([name, value]) => (
             <div key={name}>
               <dt className="font-medium">{name}</dt>
-              <dd className="whitespace-pre-wrap break-words">{value}</dd>
+              <dd className="break-words whitespace-pre-wrap">{value}</dd>
             </div>
           ))}
         </dl>

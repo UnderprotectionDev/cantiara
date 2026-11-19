@@ -130,7 +130,7 @@ export default function ProjectDecisionsSurface({
   function retry() {
     records.refetch().catch(() => undefined);
   }
-  if (records.isPending) {
+  if (records.status === "pending") {
     return <p role="status">Loading Decisions…</p>;
   }
   if (records.isError || !records.data) {

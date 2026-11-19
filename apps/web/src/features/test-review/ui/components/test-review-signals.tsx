@@ -66,7 +66,7 @@ function ConflictPanel({
       <h3 className="font-medium" id="test-review-conflict-heading">
         Conflicting results
       </h3>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         The same exact scenario version has differing results and no Supersedes
         relation. The product picks no winner: bind the valid result to close
         the signal.
@@ -130,7 +130,7 @@ function ContextPanel({
       <h3 className="font-medium" id="test-review-context-heading">
         {TEST_REVIEW_CONTEXT_CHANGED_LABEL}
       </h3>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         A bound Primary spec revision or a recorded branch, commit or build
         changed. The old result is not marked failed or stale, and no Test Gap
         or Handoff is created.

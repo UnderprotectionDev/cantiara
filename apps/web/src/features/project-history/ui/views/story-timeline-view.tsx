@@ -18,7 +18,7 @@ function StoryEventItem({
 }) {
   return (
     <li className="space-y-1 rounded-md border border-border/60 p-3">
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         <time dateTime={event.occurredAt}>
           {format(parseISO(event.occurredAt), "yyyy-MM-dd")}
         </time>
@@ -58,17 +58,17 @@ export function StoryTimelineView({
     <section aria-labelledby={headingId} className="space-y-4">
       <header className="space-y-1">
         <p className="surface-kicker">{PROJECT_HISTORY_LABEL}</p>
-        <h3 className="font-semibold text-xl" id={headingId}>
+        <h3 className="text-xl font-semibold" id={headingId}>
           {STORY_TIMELINE_LABEL}
         </h3>
         {timeline.scope.kind === "Feature" ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {`${timeline.scope.key} ${timeline.scope.title}`}
           </p>
         ) : null}
       </header>
       {timeline.events.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No realized events yet.</p>
+        <p className="text-sm text-muted-foreground">No realized events yet.</p>
       ) : (
         <ol aria-labelledby={headingId} className="space-y-2">
           {timeline.events.map((event) => (
@@ -81,7 +81,7 @@ export function StoryTimelineView({
         </ol>
       )}
       {timeline.unavailable.length > 0 ? (
-        <ul className="space-y-1 text-muted-foreground text-sm">
+        <ul className="space-y-1 text-sm text-muted-foreground">
           {timeline.unavailable.map((source) => (
             <li key={source.kind} role="status">
               {`${source.kind}: ${source.reason}`}

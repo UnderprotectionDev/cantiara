@@ -74,7 +74,7 @@ function TestGapRecordPreview({
   const gaps = useQuery(
     orpc.projectTestGaps.queryOptions({ input: { projectId } }),
   );
-  if (gaps.isPending) {
+  if (gaps.status === "pending") {
     return <PreviewStatus>Loading source record…</PreviewStatus>;
   }
   const gap = gaps.data?.gaps.find((record) => record.id === gapId);
@@ -85,16 +85,16 @@ function TestGapRecordPreview({
   }
   return (
     <section aria-label="Test Gap record" className="space-y-4">
-      <h2 className="font-semibold text-2xl tracking-tight">{gap.title}</h2>
-      <p className="text-muted-foreground text-sm">{`Test Gap · ${gap.state}`}</p>
-      <p className="whitespace-pre-wrap text-sm">{gap.rationale}</p>
+      <h2 className="text-2xl font-semibold tracking-tight">{gap.title}</h2>
+      <p className="text-sm text-muted-foreground">{`Test Gap · ${gap.state}`}</p>
+      <p className="text-sm whitespace-pre-wrap">{gap.rationale}</p>
     </section>
   );
 }
 
 function ProjectRecordPreview({ projectId }: { projectId: string }) {
   const project = useQuery(orpc.project.queryOptions({ input: { projectId } }));
-  if (project.isPending) {
+  if (project.status === "pending") {
     return <PreviewStatus>Loading source record…</PreviewStatus>;
   }
   if (project.isError || !project.data) {
@@ -104,11 +104,11 @@ function ProjectRecordPreview({ projectId }: { projectId: string }) {
   }
   return (
     <section aria-label="Project record" className="space-y-4">
-      <h2 className="font-semibold text-2xl tracking-tight">
+      <h2 className="text-2xl font-semibold tracking-tight">
         {project.data.name}
       </h2>
-      <p className="text-muted-foreground text-sm">{project.data.status}</p>
-      <p className="whitespace-pre-wrap text-sm">{project.data.purpose}</p>
+      <p className="text-sm text-muted-foreground">{project.data.status}</p>
+      <p className="text-sm whitespace-pre-wrap">{project.data.purpose}</p>
     </section>
   );
 }
@@ -123,7 +123,7 @@ function SmartCollectionRecordPreview({
       input: { viewId: record.viewId, readOnly: true },
     }),
   );
-  if (view.isPending) {
+  if (view.status === "pending") {
     return <PreviewStatus>Loading source record…</PreviewStatus>;
   }
   if (
@@ -138,10 +138,10 @@ function SmartCollectionRecordPreview({
   }
   return (
     <section aria-label="Smart Collection record" className="space-y-4">
-      <h2 className="font-semibold text-2xl tracking-tight">
+      <h2 className="text-2xl font-semibold tracking-tight">
         {view.data.collectionName}
       </h2>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {view.data.name} · {view.data.sourceType} · {view.data.presentation}
       </p>
       <ul className="space-y-2">
@@ -170,7 +170,7 @@ function WorkRecordPreview({
 }) {
   const work = useQuery(orpc.work.queryOptions({ input: { workId } }));
 
-  if (work.isPending) {
+  if (work.status === "pending") {
     return <PreviewStatus>Loading source record…</PreviewStatus>;
   }
 
@@ -183,36 +183,36 @@ function WorkRecordPreview({
   return (
     <section aria-label="Work record" className="space-y-4">
       <header className="space-y-2">
-        <p className="text-muted-foreground text-sm">{work.data.key}</p>
-        <h2 className="font-semibold text-2xl tracking-tight">
+        <p className="text-sm text-muted-foreground">{work.data.key}</p>
+        <h2 className="text-2xl font-semibold tracking-tight">
           {work.data.title}
         </h2>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {work.data.type} · {work.data.status}
           {work.data.archivedAt ? " · Archived" : ""}
         </p>
       </header>
       <dl className="grid gap-3 rounded-lg border border-border/70 bg-card/35 p-4 sm:grid-cols-3">
         <div>
-          <dt className="font-medium text-sm">Horizon</dt>
-          <dd className="text-muted-foreground text-sm">
+          <dt className="text-sm font-medium">Horizon</dt>
+          <dd className="text-sm text-muted-foreground">
             {work.data.roadmapHorizon ?? "No horizon"}
           </dd>
         </div>
         <div>
-          <dt className="font-medium text-sm">Planned start</dt>
-          <dd className="text-muted-foreground text-sm">
+          <dt className="text-sm font-medium">Planned start</dt>
+          <dd className="text-sm text-muted-foreground">
             {work.data.plannedStartDate ?? "—"}
           </dd>
         </div>
         <div>
-          <dt className="font-medium text-sm">Target date</dt>
-          <dd className="text-muted-foreground text-sm">
+          <dt className="text-sm font-medium">Target date</dt>
+          <dd className="text-sm text-muted-foreground">
             {work.data.targetDate ?? "—"}
           </dd>
         </div>
       </dl>
-      <p className="whitespace-pre-wrap text-sm">
+      <p className="text-sm whitespace-pre-wrap">
         {work.data.description || "No description."}
       </p>
     </section>
@@ -251,7 +251,7 @@ function DocumentRecordPreview({
     enabled: document.isSuccess,
   });
 
-  if (document.isPending) {
+  if (document.status === "pending") {
     return <PreviewStatus>Loading source record…</PreviewStatus>;
   }
 
@@ -268,10 +268,10 @@ function DocumentRecordPreview({
   return (
     <section aria-label="Document record" className="space-y-4">
       <header className="space-y-2">
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Document · {document.data.type}
         </p>
-        <h2 className="font-semibold text-2xl tracking-tight">
+        <h2 className="text-2xl font-semibold tracking-tight">
           {document.data.title}
         </h2>
       </header>
@@ -280,15 +280,19 @@ function DocumentRecordPreview({
       >
         <DocumentPreview
           documentReferences={
-            documentReferences.isPending
+            documentReferences.status === "pending"
               ? undefined
               : (documentReferences.data ?? [])
           }
           liveOtherBlocks={
-            liveOtherBlocks.isPending ? undefined : (liveOtherBlocks.data ?? [])
+            liveOtherBlocks.status === "pending"
+              ? undefined
+              : (liveOtherBlocks.data ?? [])
           }
           liveWorkBlocks={
-            liveWorkBlocks.isPending ? undefined : (liveWorkBlocks.data ?? [])
+            liveWorkBlocks.status === "pending"
+              ? undefined
+              : (liveWorkBlocks.data ?? [])
           }
           onOpenSourceRecord={onOpenSourceRecord}
           source={document.data.body}

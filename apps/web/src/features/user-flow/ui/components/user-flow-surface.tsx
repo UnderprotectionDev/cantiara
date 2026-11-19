@@ -247,7 +247,7 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
     flows.refetch().catch(() => undefined);
   }
 
-  if (flows.isPending) {
+  if (flows.status === "pending") {
     return <p role="status">Loading User Flows…</p>;
   }
   if (!flows.data) {

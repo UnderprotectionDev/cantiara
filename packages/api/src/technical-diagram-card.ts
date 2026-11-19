@@ -111,12 +111,12 @@ export const DIAGRAM_RECORD_CARD_TYPES = USER_FLOW_CONVERT_TARGETS;
 export const diagramRecordCardTypeSchema = z.enum(DIAGRAM_RECORD_CARD_TYPES);
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const coordinateSchema = z.number().finite().min(-100_000).max(100_000);
+const coordinateSchema = z.number().min(-100_000).max(100_000);
 
 /** A record card stores the source identity and canvas position only. */
 export const placeDiagramRecordCardInputSchema = z
   .object({
-    clientIdempotencyKey: z.string().uuid(),
+    clientIdempotencyKey: z.uuid(),
     diagramId: identifierSchema,
     sourceId: identifierSchema,
     sourceType: diagramRecordCardTypeSchema,
@@ -243,7 +243,7 @@ export type ConvertToRecordPlan = z.infer<typeof convertToRecordPlanSchema>;
 
 export const confirmConvertToRecordInputSchema = z
   .object({
-    clientIdempotencyKey: z.string().uuid(),
+    clientIdempotencyKey: z.uuid(),
     plan: convertToRecordPlanSchema,
   })
   .strict();

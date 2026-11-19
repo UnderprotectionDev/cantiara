@@ -21,7 +21,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type FormEvent, useRef, useState } from "react";
+import { type SubmitEvent, useRef, useState } from "react";
 import type { z } from "zod";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
@@ -274,7 +274,7 @@ export default function DocumentTransferForm({
       setAction(null);
     }
   }
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -429,7 +429,7 @@ export default function DocumentTransferForm({
               <DocumentTransferPreviewPanel preview={preview} />
             ) : null}
             {exportPreview ? (
-              <pre className="max-h-60 overflow-auto whitespace-pre-wrap text-sm">
+              <pre className="max-h-60 overflow-auto text-sm whitespace-pre-wrap">
                 {exportPreview.markdown}
               </pre>
             ) : null}

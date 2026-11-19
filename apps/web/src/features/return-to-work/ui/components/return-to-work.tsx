@@ -60,8 +60,8 @@ export default function ReturnToWork({ projectId, workId }: ReturnContext) {
   }, [markViewed]);
   return (
     <section aria-label="Return to Work" className="space-y-5 border-t pt-6">
-      <h2 className="font-semibold text-lg">Return to Work</h2>
-      <p className="text-muted-foreground text-sm">
+      <h2 className="text-lg font-semibold">Return to Work</h2>
+      <p className="text-sm text-muted-foreground">
         Up to five cards from current records. Recent activity covers the last
         seven days; upcoming dates cover today and the next seven days.
       </p>
@@ -90,7 +90,7 @@ export default function ReturnToWork({ projectId, workId }: ReturnContext) {
         (query.data.cards.length > 0 ? (
           <ReturnCards cards={query.data.cards} preferences={preferences} />
         ) : (
-          <p className="text-muted-foreground text-sm">No return cards yet.</p>
+          <p className="text-sm text-muted-foreground">No return cards yet.</p>
         ))}
       {query.isSuccess === true && (
         <SinceLastLooked
@@ -101,7 +101,7 @@ export default function ReturnToWork({ projectId, workId }: ReturnContext) {
       )}
       {visitError === true && (
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-muted-foreground text-sm" role="status">
+          <p className="text-sm text-muted-foreground" role="status">
             The last visit could not be saved.
           </p>
           <Button onClick={markViewed} variant="outline">

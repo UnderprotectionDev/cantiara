@@ -72,9 +72,9 @@ export default function PriorityMetricValuesForm({
   return (
     <section
       aria-label={`Priority metrics for ${workKey}`}
-      className="space-y-3 border-border/70 border-t pt-3"
+      className="space-y-3 border-t border-border/70 pt-3"
     >
-      <h4 className="font-medium text-sm">Priority metrics</h4>
+      <h4 className="text-sm font-medium">Priority metrics</h4>
       {items.map((item) => {
         const inputId = `priority-metric-value-${workId}-${item.definition.id}`;
         const selectedRank = item.value?.rank ?? null;
@@ -117,7 +117,7 @@ export default function PriorityMetricValuesForm({
       })}
       {error ? (
         <div className="flex flex-wrap items-center gap-2" role="alert">
-          <p className="text-destructive text-sm">{error}</p>
+          <p className="text-sm text-destructive">{error}</p>
           <Button
             disabled={setValue.isPending || clearValue.isPending}
             onClick={() => setError(null)}

@@ -4,7 +4,7 @@ import { LINK_PASSWORD_LABEL } from "@cantiara/api/link-sharing";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { sharePasswordFormSchema } from "../../lib/share-access";
 
 /**
@@ -41,7 +41,7 @@ export function SharePasswordForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -81,7 +81,7 @@ export function SharePasswordForm({
       </form.Field>
       {error ? (
         <p
-          className="text-destructive text-sm"
+          className="text-sm text-destructive"
           id="share-link-password-error"
           role="alert"
         >

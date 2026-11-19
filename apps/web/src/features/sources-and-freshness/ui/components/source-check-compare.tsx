@@ -3,7 +3,7 @@ import type { VersionPinnedEvidence } from "@cantiara/api/evidence";
 import { findSourceEvidenceMatch } from "@cantiara/api/source-evidence";
 import type { SourceCheck } from "@cantiara/api/source-recheck";
 import type { SourceVersion } from "@cantiara/api/sources-and-freshness";
-import { diffLines } from "diff";
+import { type ChangeObject, diffLines } from "diff";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 
 function partLabel(part: { added?: boolean; removed?: boolean }) {
@@ -27,7 +27,7 @@ export function SourceCheckCompare({
   preferences: AccountPreferences;
   pins?: VersionPinnedEvidence[];
 }) {
-  const parts = check.candidate
+  const parts: ChangeObject<string>[] | undefined = check.candidate
     ? diffLines(version.capturedContent, check.candidate.capturedContent, {
         timeout: 1000,
         maxEditLength: 2000,
@@ -66,7 +66,7 @@ export function SourceCheckCompare({
               <p>{version.title}</p>
               <p className="break-all">{version.url}</p>
               <p>{formatAccountDateTime(version.accessedAt, preferences)}</p>
-              <p className="whitespace-pre-wrap break-words">
+              <p className="break-words whitespace-pre-wrap">
                 {version.capturedContent}
               </p>
             </fieldset>
@@ -80,14 +80,14 @@ export function SourceCheckCompare({
               <p>
                 {formatAccountDateTime(check.candidate.accessedAt, preferences)}
               </p>
-              <p className="whitespace-pre-wrap break-words">
+              <p className="break-words whitespace-pre-wrap">
                 {check.candidate.capturedContent}
               </p>
             </fieldset>
           </div>
           <fieldset
             aria-label="Compare"
-            className="whitespace-pre-wrap break-words font-mono text-sm"
+            className="font-mono text-sm break-words whitespace-pre-wrap"
           >
             {parts?.map((part, index) => (
               <div
@@ -102,7 +102,7 @@ export function SourceCheckCompare({
               <p>Line comparison unavailable. Use the snapshots above.</p>
             )}
           </fieldset>
-          <p className="break-all text-muted-foreground text-xs">
+          <p className="text-xs break-all text-muted-foreground">
             Fingerprint: {check.fingerprint}
           </p>
           {pins.map((pin, index) => (

@@ -113,7 +113,7 @@ export function ProductionIncidentFollowUpDialog({
           ) : (
             <>
               {error ? (
-                <p className="text-destructive text-sm" role="alert">
+                <p className="text-sm text-destructive" role="alert">
                   {error}
                 </p>
               ) : null}

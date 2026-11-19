@@ -15,7 +15,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { DatePicker } from "@/components/date-picker";
 import { errorText } from "../../lib/error-text";
 import {
@@ -106,7 +106,7 @@ function ScenarioPicker({
 }) {
   if (cases.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         No Planned Test Cases yet. Add a Planned Test Case to select versions.
       </p>
     );
@@ -186,8 +186,8 @@ function AdHocScopeField({
     );
   return (
     <fieldset className="space-y-3 rounded-md border border-border/70 p-3">
-      <legend className="px-1 font-medium text-sm">Ad hoc scope</legend>
-      <p className="text-muted-foreground text-xs">
+      <legend className="px-1 text-sm font-medium">Ad hoc scope</legend>
+      <p className="text-xs text-muted-foreground">
         Test intent you write here without a Planned Test Case. It gets no case
         id and no version.
       </p>
@@ -292,7 +292,7 @@ export function HandoffForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -325,7 +325,7 @@ export function HandoffForm({
     >
       <h3 className="font-medium">{label}</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -371,8 +371,8 @@ export function HandoffForm({
               ))}
             </datalist>
             <fieldset className="space-y-3">
-              <legend className="font-medium text-sm">Technical context</legend>
-              <p className="text-muted-foreground text-xs">
+              <legend className="text-sm font-medium">Technical context</legend>
+              <p className="text-xs text-muted-foreground">
                 Typed by you. The product does not read GitHub or CI. Do not
                 enter secrets, tokens or credentials.
               </p>
@@ -403,7 +403,7 @@ export function HandoffForm({
               })}
             </fieldset>
             <fieldset className="space-y-3">
-              <legend className="font-medium text-sm">
+              <legend className="text-sm font-medium">
                 Planned Test Case versions
               </legend>
               <form.Field name="selected">
@@ -452,7 +452,7 @@ export function HandoffForm({
                     rows={3}
                     value={field.state.value}
                   />
-                  <p className="text-muted-foreground text-xs">
+                  <p className="text-xs text-muted-foreground">
                     Typed by you. The product prepares no environment, account
                     or test data. Do not enter secrets, tokens or credentials:
                     the package refuses them.
@@ -509,7 +509,7 @@ export function LinkArrivingSessionTestForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -524,7 +524,7 @@ export function LinkArrivingSessionTestForm({
       onSubmit={submit}
     >
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

@@ -5,7 +5,7 @@ import { PROJECT_RELEASE_HYPOTHESIS_FIELDS } from "@cantiara/api/project-source-
 import { Button } from "@cantiara/ui/components/button";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import {
   type ProjectReleaseHypothesis,
   projectReleaseHypothesisDraft,
@@ -41,7 +41,7 @@ export function ProjectReleaseHypothesisForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -53,7 +53,7 @@ export function ProjectReleaseHypothesisForm({
       onSubmit={submit}
     >
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

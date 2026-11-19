@@ -14,7 +14,7 @@ import type { GitHubFailedCheck } from "./github-checks";
  */
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const timestampSchema = z.string().datetime({ offset: true });
+const timestampSchema = z.iso.datetime({ offset: true });
 
 // ---------------------------------------------------------------------------
 // English UI labels (spec 61 Implementation Decisions) and the closed catalogs.

@@ -27,7 +27,7 @@ export default function ReleaseEvidencePackSurface({
       queryClient.invalidateQueries({ queryKey: signalOptions.queryKey }),
     ]);
   };
-  if (pack.isPending) {
+  if (pack.status === "pending") {
     return <p role="status">Loading Release Evidence Pack…</p>;
   }
   if (!pack.data) {

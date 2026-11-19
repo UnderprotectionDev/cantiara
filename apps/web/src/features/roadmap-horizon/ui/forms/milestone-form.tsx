@@ -6,7 +6,7 @@ import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { DatePicker } from "@/components/date-picker";
 import { milestoneFormSchema } from "../../lib/milestone-forms";
 
@@ -65,7 +65,7 @@ export function MilestoneEditor({
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -158,7 +158,7 @@ export function MilestoneEditor({
         ) : null}
       </div>
       {error || invalid ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           This action could not be completed.
         </p>
       ) : null}

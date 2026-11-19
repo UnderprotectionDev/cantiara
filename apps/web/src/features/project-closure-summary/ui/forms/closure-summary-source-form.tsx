@@ -56,7 +56,7 @@ export function ClosureSummarySourceForm({
         form.handleSubmit({ action: "preview" }).catch(() => undefined);
       }}
     >
-      <h4 className="font-medium text-sm">
+      <h4 className="text-sm font-medium">
         {CLOSURE_SUMMARY_SELECT_SOURCES_LABEL}
       </h4>
       <form.Field name="selected">
@@ -64,9 +64,9 @@ export function ClosureSummarySourceForm({
           <div className="space-y-3">
             {groups.map((group) => (
               <fieldset className="space-y-1" key={group.recordType}>
-                <legend className="font-medium text-sm">{group.heading}</legend>
+                <legend className="text-sm font-medium">{group.heading}</legend>
                 {group.candidates.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-sm text-muted-foreground">
                     No {group.heading} to select.
                   </p>
                 ) : (

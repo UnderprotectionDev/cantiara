@@ -13,7 +13,7 @@ import {
  * Location (Screen id, block id, exact version). Neither is a usage bond.
  */
 const identifierSchema = z.string().trim().min(1).max(255);
-const versionSchema = z.number().int().min(1).safe();
+const versionSchema = z.number().int().min(1);
 
 /** The closed target set. A Screen is deliberately not a member. */
 export const CONVERT_AND_BIND_TARGET_TYPES = [

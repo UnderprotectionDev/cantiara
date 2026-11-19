@@ -13,7 +13,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clampCoordinate } from "../../lib/file-attachment-markup-geometry";
 
@@ -216,7 +216,7 @@ export default function FileAttachmentLocationBinder({
     },
   });
 
-  const mode = useStore(form.store, (state) => state.values.mode);
+  const mode = useSelector(form.store, (state) => state.values.mode);
 
   useEffect(() => {
     const values = locationBinderValues(location, projectId);
@@ -231,7 +231,7 @@ export default function FileAttachmentLocationBinder({
   }, [form, location, projectId]);
 
   const handleFormSubmit = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
+    (event: React.SubmitEvent<HTMLFormElement>) => {
       event.preventDefault();
       form.handleSubmit().catch(() => undefined);
     },
@@ -308,7 +308,7 @@ export default function FileAttachmentLocationBinder({
           {FILE_ATTACHMENT_UI_LABELS.existingWork}
         </Button>
       </div>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         {FILE_ATTACHMENT_UI_LABELS.locationSelectionInstruction}
       </p>
       <div className="grid gap-2 text-xs sm:grid-cols-2">
@@ -537,12 +537,12 @@ export default function FileAttachmentLocationBinder({
         </div>
       )}
       {error ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}
       {preview ? (
-        <div className="text-muted-foreground text-xs" role="status">
+        <div className="text-xs text-muted-foreground" role="status">
           <p>{FILE_ATTACHMENT_UI_LABELS.reviewLocationBind}</p>
           <p className="mt-1 font-medium text-foreground">
             {preview.target.mode === "existing"

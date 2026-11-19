@@ -18,7 +18,7 @@ export default function PersonalDataSurface() {
   const previewErase = usePersonalDataErasePreview();
   const erase = usePersonalDataErase();
 
-  if (contacts.isPending) {
+  if (contacts.status === "pending") {
     return <p role="status">Loading {EXPORT_PERSONAL_DATA_LABEL}…</p>;
   }
   if (contacts.isError || !contacts.data) {

@@ -5,7 +5,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@cantiara/ui/components/dropdown-menu";
-import { useStore } from "@tanstack/react-store";
+import { useSelector } from "@tanstack/react-store";
 import { useCallback } from "react";
 import {
   type ActiveWorkingSetMember,
@@ -29,7 +29,7 @@ export default function ActiveWorkingSetControl({
   archived?: boolean;
   member: ActiveWorkingSetMember;
 }) {
-  const members = useStore(activeWorkingSetStore, (state) => state.members);
+  const members = useSelector(activeWorkingSetStore, (state) => state.members);
   const held = hasMember(members, member);
   const toggle = useCallback(() => {
     if (held) {

@@ -269,13 +269,13 @@ export default function WorkRelations({
   return (
     <section
       aria-label="Relations"
-      className="space-y-3 border-border/70 border-t pt-3"
+      className="space-y-3 border-t border-border/70 pt-3"
       id={`work-relations-${encodeURIComponent(work.id)}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="font-medium text-sm">Relations</h4>
+        <h4 className="text-sm font-medium">Relations</h4>
         <details>
-          <summary className="cursor-pointer text-muted-foreground text-xs hover:text-foreground">
+          <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
             Create Persistent Relation
           </summary>
           <CreateRelationForm
@@ -338,7 +338,7 @@ export default function WorkRelations({
         </details>
       </div>
       {error ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -365,7 +365,7 @@ export default function WorkRelations({
         }
         formattingPreferences={formattingPreferences}
         isError={query.isError || usedInQuery.isError}
-        isPending={query.isPending || usedInQuery.isPending}
+        isPending={query.status === "pending" || usedInQuery.isPending}
         onReactivate={(relation) => reactivateMutation.mutate(relation)}
         onRemove={(relation) => removeMutation.mutate(relation)}
         onResolve={(relation, note) =>
@@ -407,11 +407,11 @@ function RelationsContent({
 }) {
   const { relationBacklinks, usageLinks } = usedIn;
   if (isPending) {
-    return <p className="text-muted-foreground text-xs">Loading relations…</p>;
+    return <p className="text-xs text-muted-foreground">Loading relations…</p>;
   }
   if (isError) {
     return (
-      <p className="text-destructive text-xs" role="alert">
+      <p className="text-xs text-destructive" role="alert">
         Relations could not be loaded. Try loading this page again.
       </p>
     );
@@ -421,7 +421,7 @@ function RelationsContent({
     relationBacklinks.length === 0 &&
     usageLinks.length === 0
   ) {
-    return <p className="text-muted-foreground text-xs">No relations yet.</p>;
+    return <p className="text-xs text-muted-foreground">No relations yet.</p>;
   }
   return (
     <div className="space-y-3">
@@ -440,7 +440,7 @@ function RelationsContent({
       ) : null}
       {relationBacklinks.length > 0 || usageLinks.length > 0 ? (
         <div className="space-y-2">
-          <h5 className="font-medium text-muted-foreground text-xs">Used in</h5>
+          <h5 className="text-xs font-medium text-muted-foreground">Used in</h5>
           {relationBacklinks.length > 0 ? (
             <RelationItems
               blockerMutationPending={blockerMutationPending}
@@ -456,7 +456,7 @@ function RelationsContent({
           ) : null}
           {usageLinks.length > 0 ? (
             <div className="space-y-2">
-              <h6 className="font-medium text-muted-foreground text-xs">
+              <h6 className="text-xs font-medium text-muted-foreground">
                 Usage links
               </h6>
               <ul className="space-y-2">
@@ -507,7 +507,7 @@ function RelationGroup({
 }) {
   return (
     <div className="space-y-2">
-      <h5 className="font-medium text-muted-foreground text-xs">{title}</h5>
+      <h5 className="text-xs font-medium text-muted-foreground">{title}</h5>
       <RelationItems
         blockerMutationPending={blockerMutationPending}
         formattingPreferences={formattingPreferences}

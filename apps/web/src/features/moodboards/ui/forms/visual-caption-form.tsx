@@ -9,7 +9,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useState } from "react";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
@@ -48,7 +48,7 @@ export function VisualCaptionForm({
       });
     },
   });
-  const caption = useStore(form.store, (state) => state.values.caption);
+  const caption = useSelector(form.store, (state) => state.values.caption);
 
   return (
     <>

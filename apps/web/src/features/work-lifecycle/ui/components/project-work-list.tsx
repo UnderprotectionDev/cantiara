@@ -211,13 +211,13 @@ export default function ProjectWorkList({
     },
   });
 
-  if (query.isPending || allProjectWorksQuery.isPending) {
-    return <p className="mt-2 text-muted-foreground text-sm">Loading Work…</p>;
+  if (query.status === "pending" || allProjectWorksQuery.isPending) {
+    return <p className="mt-2 text-sm text-muted-foreground">Loading Work…</p>;
   }
 
   if (query.isError || allProjectWorksQuery.isError) {
     return (
-      <p className="mt-2 text-destructive text-sm" role="alert">
+      <p className="mt-2 text-sm text-destructive" role="alert">
         Work is unavailable. Try loading this page again.
       </p>
     );
@@ -225,8 +225,8 @@ export default function ProjectWorkList({
 
   return (
     <div className="mt-5 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-border/70 border-b pb-3">
-        <h3 className="font-medium text-sm">Work records</h3>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3">
+        <h3 className="text-sm font-medium">Work records</h3>
         <div className="flex flex-wrap items-center gap-3">
           <BulkEditSelectionControls
             archived={showArchived}
@@ -254,12 +254,12 @@ export default function ProjectWorkList({
         </div>
       </div>
       {recordActionRunner.actionsError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Record Actions could not be loaded. Try loading this page again.
         </p>
       ) : null}
       {lastMergeResult ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-muted-foreground text-sm">
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
           <p role="status">
             Origin: {lastMergeResult.retiredIdentity.key} →{" "}
             {lastMergeResult.work.key}
@@ -274,14 +274,14 @@ export default function ProjectWorkList({
             Undo
           </Button>
           {mergeUndoError ? (
-            <p className="text-destructive text-xs" role="alert">
+            <p className="text-xs text-destructive" role="alert">
               {mergeUndoError}
             </p>
           ) : null}
         </div>
       ) : null}
       {query.data.length === 0 ? (
-        <p className="text-muted-foreground text-sm/relaxed">
+        <p className="text-sm/relaxed text-muted-foreground">
           {showArchived ? "No archived Work." : "No Work yet."}
         </p>
       ) : (
@@ -299,7 +299,7 @@ export default function ProjectWorkList({
                     workId={work.id}
                     workKey={work.key}
                   />
-                  <p className="min-w-0 font-medium text-sm">
+                  <p className="min-w-0 text-sm font-medium">
                     <span className="text-muted-foreground">{work.key}</span>{" "}
                     {work.title}
                   </p>
@@ -335,7 +335,7 @@ export default function ProjectWorkList({
                 type="Work"
               />
               {priorityMetricValues.query.isError ? (
-                <p className="text-destructive text-sm" role="alert">
+                <p className="text-sm text-destructive" role="alert">
                   Priority metrics are unavailable. Try loading this page again.
                 </p>
               ) : null}
@@ -376,9 +376,9 @@ export default function ProjectWorkList({
                   scope={{ id: work.id, kind: "Feature" }}
                 />
               ) : null}
-              <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-border/70 border-t pt-3">
+              <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-t border-border/70 pt-3">
                 {work.recreatedFrom ? (
-                  <p className="basis-full text-muted-foreground text-xs">
+                  <p className="basis-full text-xs text-muted-foreground">
                     Origin: {work.recreatedFrom.key}
                   </p>
                 ) : null}
@@ -414,7 +414,7 @@ export default function ProjectWorkList({
                     work={work}
                   />
                 </div>
-                <div className="flex basis-full flex-wrap items-center gap-2 border-border/70 border-t pt-3 sm:basis-auto sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4">
+                <div className="flex basis-full flex-wrap items-center gap-2 border-t border-border/70 pt-3 sm:basis-auto sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4">
                   <WorkArchiveAction work={work} />
                   <WorkDuplicateAction work={work} />
                   <WorkMergeForm
@@ -469,7 +469,7 @@ function BulkEditSelectionControls({
     <>
       {selectedWorks.length > 0 ? (
         <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-xs">
+          <span className="text-xs text-muted-foreground">
             {selectedWorks.length} selected
           </span>
           <Button onClick={() => onOpenChange(true)} size="sm" type="button">
@@ -532,7 +532,7 @@ function CustomFieldValues({
 }) {
   if (error) {
     return (
-      <p className="text-destructive text-sm" role="alert">
+      <p className="text-sm text-destructive" role="alert">
         Custom field values could not be loaded. Try loading this page again.
       </p>
     );
@@ -625,7 +625,7 @@ export function WorkArchiveAction({ work }: { work: WorkProfile }) {
         {isArchived ? "Unarchive" : "Archive"}
       </Button>
       {error ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -740,7 +740,7 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
   return (
     <div className="flex min-w-40 flex-col items-start gap-1">
       <label
-        className="text-muted-foreground text-xs"
+        className="text-xs text-muted-foreground"
         htmlFor={`work-type-${work.id}`}
       >
         Type
@@ -760,7 +760,7 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
         ))}
       </NativeSelect>
       {error ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -770,7 +770,7 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
           className="mt-2 w-full space-y-2 border bg-muted/20 p-3 text-left text-xs"
           role="status"
         >
-          <p className="font-medium text-sm">Impact preview</p>
+          <p className="text-sm font-medium">Impact preview</p>
           <p>
             Current type: {preview.currentType}. New type: {preview.nextType}.
           </p>

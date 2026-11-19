@@ -114,7 +114,7 @@ export default function NotificationCenterSurface() {
     },
     onError: (caught) => setError(errorMessage(caught)),
   });
-  if (center.isPending) {
+  if (center.status === "pending") {
     return <p>Loading Notification Center…</p>;
   }
   if (!center.data) {

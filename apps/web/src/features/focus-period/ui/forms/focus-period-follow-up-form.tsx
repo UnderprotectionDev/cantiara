@@ -12,7 +12,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -57,7 +57,7 @@ export function FollowUpWorkSection({
       setShowPreview(true);
     },
   });
-  const { description, learning, projectId, title } = useStore(
+  const { description, learning, projectId, title } = useSelector(
     form.store,
     (state) => state.values,
   );
@@ -91,7 +91,7 @@ export function FollowUpWorkSection({
     <>
       <section aria-label="Add follow-up Work" className="space-y-3">
         <h3 className="font-semibold">Add follow-up Work</h3>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Review the Work and its source learning before confirming. No Work is
           created until you confirm.
         </p>
@@ -207,7 +207,7 @@ export function FollowUpWorkSection({
           </Button>
         </form>
         {learningText.trim() ? null : (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Save a {learning} learning before creating Follow-up Work.
           </p>
         )}
@@ -274,14 +274,14 @@ export function FollowUpWorkSection({
                 >
                   {item.title} · {item.key} · {item.projectName}
                 </Link>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-sm text-muted-foreground">
                   {item.learning}: {item.learningText}
                 </p>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             No Follow-up Work linked to this Focus Period.
           </p>
         )}

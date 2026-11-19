@@ -13,7 +13,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useState } from "react";
 import { errorText } from "../../lib/github-error-text";
 import {
@@ -67,7 +67,7 @@ function DraftForm({
       }
     },
   });
-  const pending = useStore(form.store, (state) => state.isSubmitting);
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
   return (
     <form
       aria-label={`${GITHUB_CREATE_WORK_LABEL} draft`}
@@ -78,7 +78,7 @@ function DraftForm({
         form.handleSubmit().catch(() => undefined);
       }}
     >
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {`Draft from Issue #${preview.source.number}. Starting status ${preview.draft.startingStatus}.`}
       </p>
       <div className="grid gap-2 text-sm">
@@ -129,13 +129,13 @@ function DraftForm({
           )}
         </form.Field>
       </div>
-      <ul className="list-disc pl-5 text-muted-foreground text-sm">
+      <ul className="list-disc pl-5 text-sm text-muted-foreground">
         {preview.effects.map((effect) => (
           <li key={effect}>{effect}</li>
         ))}
       </ul>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -184,7 +184,7 @@ export function CreateWorkForm({
       }
     },
   });
-  const loading = useStore(pickForm.store, (state) => state.isSubmitting);
+  const loading = useSelector(pickForm.store, (state) => state.isSubmitting);
   return (
     <section
       aria-labelledby={headingId}

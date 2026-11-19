@@ -131,7 +131,7 @@ export interface SnapshotTransformNotice {
 
 export const moodboardSnapshotPreviewSchema = z
   .object({
-    generatedAt: z.string().datetime(),
+    generatedAt: z.iso.datetime(),
     moment: z.string().min(1),
     moodboardId: z.string().min(1),
     notices: z.array(z.string().min(1)),

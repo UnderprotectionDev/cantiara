@@ -10,7 +10,7 @@ export function FocusPeriodDependencies({
   return (
     <section aria-label="Dependencies">
       <details className="space-y-3">
-        <summary className="cursor-pointer rounded-md font-semibold focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2">
+        <summary className="cursor-pointer rounded-md font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
           Dependencies
         </summary>
         {dependencies.edges.length ? (
@@ -47,7 +47,7 @@ export function FocusPeriodDependencies({
                       {edge.blocked.title} · {edge.blocked.key}
                     </Link>
                   ) : null}
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-sm text-muted-foreground">
                     {edge.status}
                     {inCycle ? " · Part of a dependency cycle" : ""}
                   </p>
@@ -56,7 +56,7 @@ export function FocusPeriodDependencies({
             })}
           </ul>
         ) : (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             No dependencies in this Focus Period.
           </p>
         )}

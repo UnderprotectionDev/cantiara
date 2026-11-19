@@ -10,7 +10,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type SubmitEvent, useEffect, useRef, useState } from "react";
 
 /**
  * The early `Permanently Delete` review: what will be removed (a Project
@@ -68,7 +68,7 @@ export function PermanentlyDeleteForm({
     heading.current?.focus();
   }, []);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -125,7 +125,7 @@ export function PermanentlyDeleteForm({
           {CONFIRM_GITHUB_IDENTITY_LABEL}
         </Button>
         {grant ? (
-          <span className="text-muted-foreground text-sm" role="status">
+          <span className="text-sm text-muted-foreground" role="status">
             GitHub identity confirmed.
           </span>
         ) : null}

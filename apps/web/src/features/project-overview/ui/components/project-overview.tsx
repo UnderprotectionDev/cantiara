@@ -44,12 +44,12 @@ export default function ProjectOverviewView({
     >
       <header className="surface-header max-w-3xl">
         <h2
-          className="text-balance font-semibold text-2xl tracking-tight"
+          className="text-2xl font-semibold tracking-tight text-balance"
           id="project-overview-heading"
         >
           Overview
         </h2>
-        <p className="mt-3 max-w-2xl text-muted-foreground text-sm/relaxed">
+        <p className="mt-3 max-w-2xl text-sm/relaxed text-muted-foreground">
           A neutral view of this Project’s source records. Empty sections stay
           empty until a source record exists.
         </p>

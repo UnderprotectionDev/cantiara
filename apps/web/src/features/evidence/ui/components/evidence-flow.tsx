@@ -93,7 +93,7 @@ function EvidenceFlowItem({ row }: { row: EvidenceFlowRow }) {
         Evidence <time dateTime={row.relatedAt}>{row.relatedAt}</time>
       </p>
       {row.pin ? (
-        <p className="whitespace-pre-wrap break-words">
+        <p className="break-words whitespace-pre-wrap">
           Version {row.pin.source.revision} · Range {row.pin.start}–
           {row.pin.end} · {row.pin.excerpt}
         </p>
@@ -102,7 +102,7 @@ function EvidenceFlowItem({ row }: { row: EvidenceFlowRow }) {
       {row.newerVersionExists ? <p>Newer version exists</p> : null}
       {row.role ? <p>Evidence Role: {row.role}</p> : null}
       {row.interpretation ? (
-        <p className="whitespace-pre-wrap break-words">
+        <p className="break-words whitespace-pre-wrap">
           Founder interpretation: {row.interpretation}
         </p>
       ) : null}

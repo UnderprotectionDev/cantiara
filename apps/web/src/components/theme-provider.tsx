@@ -1,5 +1,5 @@
 import type { Appearance } from "@cantiara/api/account-preferences";
-import { createStore, useStore } from "@tanstack/react-store";
+import { createStore, useSelector } from "@tanstack/react-store";
 import type * as React from "react";
 import { createContext, useContext, useEffect, useMemo } from "react";
 
@@ -35,7 +35,7 @@ export function ThemeProvider({
   children: React.ReactNode;
   defaultTheme?: Theme;
 }) {
-  const theme = useStore(themeStore);
+  const theme = useSelector(themeStore);
 
   useEffect(() => {
     themeStore.setState(() => defaultTheme);
@@ -44,6 +44,9 @@ export function ThemeProvider({
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("dark", theme === "dark");
+    // React Flow 13 follows the OS color scheme unless an ancestor has
+    // `.light` or `.dark`, so mark Light too to keep the saved Appearance.
+    root.classList.toggle("light", theme === "light");
   }, [theme]);
 
   const value = useMemo(() => ({ setTheme, theme }), [theme]);

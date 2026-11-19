@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const timestampSchema = z.string().datetime({ offset: true });
+const timestampSchema = z.iso.datetime({ offset: true });
 
 /**
  * PR check summary of the GitHub Integration seam (spec 61, story 14). It is a

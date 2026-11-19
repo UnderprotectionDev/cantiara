@@ -39,16 +39,16 @@ export function OverviewSummary({
 }) {
   return (
     <div
-      className="border-border/70 border-t py-4"
+      className="border-t border-border/70 py-4"
       data-overview-module={label}
     >
       <h3
-        className="font-medium text-muted-foreground text-sm"
+        className="text-sm font-medium text-muted-foreground"
         id={`overview-summary-${slug(label)}-heading`}
       >
         {label}
       </h3>
-      <p className="mt-1 text-pretty font-medium text-base/relaxed">
+      <p className="mt-1 text-base/relaxed font-medium text-pretty">
         {value ?? emptyMessage ?? EMPTY_SOURCE_MESSAGE}
       </p>
     </div>
@@ -61,15 +61,15 @@ export function EnabledProjectAreas({
   areas: readonly ProjectArea[];
 }) {
   return (
-    <div className="border-border/70 border-y py-5">
+    <div className="border-y border-border/70 py-5">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h3
-          className="font-medium text-base"
+          className="text-base font-medium"
           id="overview-project-areas-heading"
         >
           Project areas
         </h3>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Visible entries from Project Shell
         </p>
       </div>
@@ -83,7 +83,7 @@ export function EnabledProjectAreas({
           ))}
         </ul>
       ) : (
-        <p className="mt-4 text-muted-foreground text-sm">
+        <p className="mt-4 text-sm text-muted-foreground">
           No Project areas are visible yet.
         </p>
       )}
@@ -102,7 +102,7 @@ function ProjectAreaEntry({ area }: { area: ProjectArea }) {
     <li data-overview-area={area}>
       <a
         {...linkProps}
-        className="block rounded-md border border-border/80 bg-background/70 px-3 py-2 text-sm underline-offset-4 hover:border-foreground/30 hover:bg-muted hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="block rounded-md border border-border/80 bg-background/70 px-3 py-2 text-sm underline-offset-4 hover:border-foreground/30 hover:bg-muted hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         data-overview-area-entry={area}
       >
         {area}
@@ -126,16 +126,16 @@ export function OverviewModule({
 
   return (
     <div
-      className="flex min-h-0 flex-col border-border/70 border-t pt-4"
+      className="flex min-h-0 flex-col border-t border-border/70 pt-4"
       data-overview-module={module.name}
       id={moduleId}
     >
       <header className="flex items-baseline justify-between gap-3 border-b pb-2">
-        <h3 className="font-medium text-base" id={`${moduleId}-heading`}>
+        <h3 className="text-base font-medium" id={`${moduleId}-heading`}>
           {module.sourceHref ? (
             <AppLink
               aria-label={`${OPEN_SOURCE_RECORD_LABEL}: ${module.name}`}
-              className="underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="underline-offset-4 hover:underline focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
               href={module.sourceHref}
             >
               {module.name}
@@ -164,7 +164,7 @@ export function OverviewModule({
           ))}
         </ul>
       ) : (
-        <p className="mt-3 pb-1 text-muted-foreground text-sm/relaxed">
+        <p className="mt-3 pb-1 text-sm/relaxed text-muted-foreground">
           {emptyMessage}
         </p>
       )}
@@ -187,7 +187,7 @@ function ModuleSourceCount({
     return (
       <AppLink
         aria-label={`${OPEN_SOURCE_RECORD_LABEL}: ${module.name} (${countLabel})`}
-        className="text-muted-foreground text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="text-xs text-muted-foreground underline-offset-4 hover:underline focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
         href={module.sourceHref}
       >
         {countLabel}
@@ -195,7 +195,7 @@ function ModuleSourceCount({
     );
   }
 
-  return <span className="text-muted-foreground text-xs">{countLabel}</span>;
+  return <span className="text-xs text-muted-foreground">{countLabel}</span>;
 }
 
 function SourceRecord({
@@ -218,24 +218,24 @@ function SourceRecord({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {record.type ? (
-            <p className="text-[0.68rem] text-muted-foreground uppercase tracking-[0.12em]">
+            <p className="text-[0.68rem] tracking-[0.12em] text-muted-foreground uppercase">
               {record.type}
             </p>
           ) : null}
-          <p className="mt-1 text-pretty font-medium text-sm">{record.title}</p>
+          <p className="mt-1 text-sm font-medium text-pretty">{record.title}</p>
           {record.description ? (
-            <p className="mt-1 text-muted-foreground text-xs/relaxed">
+            <p className="mt-1 text-xs/relaxed text-muted-foreground">
               {record.description}
             </p>
           ) : null}
           {record.status ? (
-            <p className="mt-2 text-muted-foreground text-xs">
+            <p className="mt-2 text-xs text-muted-foreground">
               {record.status}
             </p>
           ) : null}
           {dateValue ? (
             <time
-              className="mt-2 block text-muted-foreground text-xs"
+              className="mt-2 block text-xs text-muted-foreground"
               dateTime={dateValue}
             >
               {formatOverviewDate(
@@ -249,7 +249,7 @@ function SourceRecord({
         </div>
         {record.href ? (
           <AppLink
-            className="inline-flex shrink-0 items-center gap-1 text-primary text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="inline-flex shrink-0 items-center gap-1 text-xs text-primary underline-offset-4 hover:underline focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
             href={record.href}
           >
             {OPEN_SOURCE_RECORD_LABEL}

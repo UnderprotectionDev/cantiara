@@ -8,7 +8,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useId } from "react";
+import { type SubmitEvent, useId } from "react";
 import type { MarkCandidate } from "../components/spec-change-review-candidates";
 
 const noteSchema = markSpecChangeReviewCandidateInputSchema.shape.note;
@@ -37,7 +37,7 @@ export default function SpecCandidateReviewForm({
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

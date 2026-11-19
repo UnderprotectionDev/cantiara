@@ -83,7 +83,7 @@ export default function PlannedTestsSurface({
       ).packages,
     [projectId],
   );
-  if (cases.isPending) {
+  if (cases.status === "pending") {
     return <p role="status">Loading Planned Test Cases…</p>;
   }
   if (!cases.data) {
@@ -124,7 +124,7 @@ export default function PlannedTestsSurface({
         }}
         readOnly={cases.data.readOnly}
       />
-      {handoffs.isPending || sessionTests.isPending ? (
+      {handoffs.status === "pending" || sessionTests.isPending ? (
         <p role="status">Loading Test Handoffs…</p>
       ) : null}
       {handoffs.data && sessionTests.data ? (
@@ -206,7 +206,7 @@ export default function PlannedTestsSurface({
           sessionTests={sessionTests.data.sessionTests}
         />
       ) : null}
-      {handoffs.isPending ||
+      {handoffs.status === "pending" ||
       sessionTests.isPending ||
       (handoffs.data && sessionTests.data) ? null : (
         <div className="space-y-3">
@@ -221,7 +221,7 @@ export default function PlannedTestsSurface({
           </Button>
         </div>
       )}
-      {sessionTests.isPending ? (
+      {sessionTests.status === "pending" ? (
         <p role="status">Loading Session Tests…</p>
       ) : null}
       {sessionTests.data ? (
@@ -259,7 +259,7 @@ export default function PlannedTestsSurface({
           sessionTests={sessionTests.data.sessionTests}
         />
       ) : null}
-      {sessionTests.isPending || sessionTests.data ? null : (
+      {sessionTests.status === "pending" || sessionTests.data ? null : (
         <div className="space-y-3">
           <p role="alert">Session Tests are unavailable.</p>
           <Button onClick={() => sessionTests.refetch().catch(() => undefined)}>

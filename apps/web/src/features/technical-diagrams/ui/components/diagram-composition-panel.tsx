@@ -54,7 +54,7 @@ function RecordCard({
     (card.broken === null || card.broken.canOpenSourceRecord);
   return (
     <li className="space-y-1 rounded-md border p-2">
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         {card.sourceType} · Read-only live card
         {card.broken
           ? ` · ${card.broken.reason === "Archived" ? "Archived" : `Broken — ${card.broken.reason}`}`
@@ -124,7 +124,7 @@ function ConvertPlan({
           written.
         </dd>
       </dl>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Confirming writes exactly {plan.recordCount} {plan.record.type} and
         links it to this Diagram Version.
       </p>
@@ -174,7 +174,7 @@ export function DiagramCompositionPanel({
     <section aria-label="Diagram composition" className="space-y-4">
       <section aria-label="Record cards" className="space-y-2">
         <h4 className="font-medium">Record cards</h4>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           A record card reads the existing Work, Decision, Risk or Open Question
           live. Moving it only moves the card; the record is edited in its own
           surface.
@@ -196,13 +196,13 @@ export function DiagramCompositionPanel({
       <section aria-label={DIAGRAM_CARD_LABELS.convert} className="space-y-2">
         <h4 className="font-medium">{DIAGRAM_CARD_LABELS.convert}</h4>
         {external ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             An External Source Link has no Diagram Version, so none of its
             elements can be converted.
           </p>
         ) : (
           <>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               A local node becomes one record only from an exact Diagram
               Version. Nothing is written before you confirm the preview.
             </p>
@@ -213,7 +213,7 @@ export function DiagramCompositionPanel({
               versions={versions}
             />
             {versions.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 Create a Diagram Version first.
               </p>
             ) : null}

@@ -164,12 +164,12 @@ export default function ProjectTagsSurface({
       <header className="surface-header max-w-3xl">
         <p className="surface-kicker">Tags</p>
         <h2
-          className="mt-2 text-balance font-semibold text-2xl tracking-tight sm:text-3xl"
+          className="mt-2 text-2xl font-semibold tracking-tight text-balance sm:text-3xl"
           id="tags-heading"
         >
           Tags
         </h2>
-        <p className="mt-3 text-muted-foreground text-sm/relaxed">
+        <p className="mt-3 text-sm/relaxed text-muted-foreground">
           Workspace-wide flat tags classify reachable Work records without
           changing their Project, status, or other memberships.
         </p>
@@ -183,7 +183,7 @@ export default function ProjectTagsSurface({
       />
 
       {actionError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {actionError}
         </p>
       ) : null}
@@ -270,7 +270,7 @@ function TagPicker({
 }) {
   return (
     <section aria-labelledby="filter-by-tag-heading" className="space-y-3">
-      <h3 className="font-medium text-base" id="filter-by-tag-heading">
+      <h3 className="text-base font-medium" id="filter-by-tag-heading">
         Filter by tag
       </h3>
       <TagFilterControl
@@ -289,7 +289,7 @@ function TagPicker({
         tagsPending={tagsPending}
       />
       {renameError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {renameError}
         </p>
       ) : null}
@@ -312,20 +312,20 @@ function TagFilterControl({
 }) {
   if (tagsPending) {
     return (
-      <p className="text-muted-foreground text-sm" role="status">
+      <p className="text-sm text-muted-foreground" role="status">
         Loading Tags…
       </p>
     );
   }
   if (tagsError) {
     return (
-      <p className="text-destructive text-sm" role="alert">
+      <p className="text-sm text-destructive" role="alert">
         Tags could not be loaded. Try loading this page again.
       </p>
     );
   }
   if (tags.length === 0) {
-    return <p className="text-muted-foreground text-sm">No tags yet.</p>;
+    return <p className="text-sm text-muted-foreground">No tags yet.</p>;
   }
   return (
     <NativeSelect
@@ -366,21 +366,21 @@ function TagRecordList({
 }) {
   if (recordsPending) {
     return (
-      <p className="text-muted-foreground text-sm" role="status">
+      <p className="text-sm text-muted-foreground" role="status">
         Loading tagged records…
       </p>
     );
   }
   if (recordsError) {
     return (
-      <p className="text-destructive text-sm" role="alert">
+      <p className="text-sm text-destructive" role="alert">
         Tagged records could not be loaded. Try loading this page again.
       </p>
     );
   }
   if (records.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">No matching records.</p>
+      <p className="text-sm text-muted-foreground">No matching records.</p>
     );
   }
 
@@ -397,7 +397,7 @@ function TagRecordList({
             key={record.id}
           >
             <div className="min-w-0">
-              <p className="font-medium text-sm">
+              <p className="text-sm font-medium">
                 <span className="text-muted-foreground">{record.key}</span>{" "}
                 {record.title}
               </p>
@@ -429,7 +429,7 @@ function TagRecordList({
                     </li>
                   ))
                 ) : (
-                  <li className="text-muted-foreground text-xs">
+                  <li className="text-xs text-muted-foreground">
                     No tags yet.
                   </li>
                 )}

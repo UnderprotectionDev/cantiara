@@ -13,7 +13,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import {
   CONDITION_KINDS,
   type CustomSectionValues,
@@ -58,21 +58,21 @@ export function WorkContextCustomSectionForm({
       formApi.setFieldValue("title", "");
     },
   });
-  const values = useStore(form.store, (state) => state.values);
+  const values = useSelector(form.store, (state) => state.values);
   const { conditionKind, title } = values;
   const statusLabel =
     pickOption(WORK_STATUS_OPTIONS, values.status) ?? "Any status";
   return (
     <form
       aria-label="Add custom section"
-      className="space-y-3 border border-border/80 border-dashed p-3"
+      className="space-y-3 border border-dashed border-border/80 p-3"
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
         form.handleSubmit().catch(() => undefined);
       }}
     >
-      <h5 className="font-medium text-sm">Add custom section</h5>
+      <h5 className="text-sm font-medium">Add custom section</h5>
       <form.Field name="title">
         {(field) => (
           <label
@@ -249,14 +249,14 @@ export function WorkContextCustomSectionForm({
           </label>
         )}
       </form.Field>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         Only records reachable from the open Work through the selected catalog
         condition are shown.
       </p>
       <Button disabled={busy || !title.trim()} size="xs" type="submit">
         Add custom section
       </Button>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         Current status filter: {statusLabel}
       </p>
     </form>

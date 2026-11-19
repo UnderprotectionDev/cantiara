@@ -103,7 +103,7 @@ export function StartHandoffForm({
       }}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h5 className="font-medium text-sm">Start Handoff</h5>
+        <h5 className="text-sm font-medium">Start Handoff</h5>
         <p className="font-mono text-[11px] text-muted-foreground">
           {work.key} · current revision {work.revision}
         </p>
@@ -174,7 +174,7 @@ export function StartHandoffForm({
         </form.Field>
       </div>
       <fieldset className="space-y-3 rounded-sm border border-border/70 p-3">
-        <legend className="px-1 font-medium text-xs">Selected versions</legend>
+        <legend className="px-1 text-xs font-medium">Selected versions</legend>
         <form.Field name="includeWork">
           {(field) => (
             <label
@@ -216,12 +216,12 @@ export function StartHandoffForm({
         </form.Field>
       </fieldset>
       {formError ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {formError}
         </p>
       ) : null}
       {writeError ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {writeError}
         </p>
       ) : null}
@@ -229,7 +229,7 @@ export function StartHandoffForm({
         <Button disabled={pending} size="sm" type="submit">
           Start Handoff
         </Button>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Cantiara saves the package; it does not start an external tool.
         </p>
       </div>

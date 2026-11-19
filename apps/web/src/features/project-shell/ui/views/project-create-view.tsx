@@ -24,10 +24,10 @@ export default function ProjectCreateView() {
             </li>
           </ol>
         </nav>
-        <h1 className="text-balance font-semibold text-3xl tracking-tight">
+        <h1 className="text-3xl font-semibold tracking-tight text-balance">
           Create a Project
         </h1>
-        <p className="mt-3 max-w-xl text-pretty text-muted-foreground text-sm/6">
+        <p className="mt-3 max-w-xl text-sm/6 text-pretty text-muted-foreground">
           Give the work a home. Choose a starting configuration once, then add
           context as the Project takes shape.
         </p>

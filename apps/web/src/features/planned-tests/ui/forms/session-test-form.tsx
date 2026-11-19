@@ -14,7 +14,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { errorText } from "../../lib/error-text";
 import {
   parseRecordSessionTest,
@@ -101,7 +101,7 @@ export function RecordForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -114,7 +114,7 @@ export function RecordForm({
     >
       <h3 className="font-medium">{`Record ${SESSION_TEST_LABEL}`}</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -243,7 +243,7 @@ export function LinkScenarioVersionForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -258,14 +258,14 @@ export function LinkScenarioVersionForm({
       onSubmit={submit}
     >
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
       <label className="text-sm" htmlFor={selectId}>
         Link to Planned Test Case version
       </label>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         Linking keeps what was recorded and does not mark the version as
         executed. A link does not move later.
       </p>

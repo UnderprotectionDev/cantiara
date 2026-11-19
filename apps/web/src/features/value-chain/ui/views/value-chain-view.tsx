@@ -136,17 +136,17 @@ function ChainNode({
     <li className="space-y-2">
       <div className="space-y-1 rounded-md border border-border/60 p-3">
         <NodeTitle node={node} />
-        <p className="text-muted-foreground text-sm">{node.why}</p>
+        <p className="text-sm text-muted-foreground">{node.why}</p>
         <p className="text-sm">{valueChainBoundByLabel(node.relation.label)}</p>
         {node.repeat ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Also reached from another branch; shown in full there.
           </p>
         ) : null}
         <OpenSource node={node} projectId={projectId} />
       </div>
       {node.children.length > 0 ? (
-        <ul className="ml-4 space-y-2 border-border/60 border-l pl-3">
+        <ul className="ml-4 space-y-2 border-l border-border/60 pl-3">
           {node.children.map((child) => (
             <ChainNode
               key={`${child.type}:${child.id}`}
@@ -177,10 +177,10 @@ export function ValueChainView({
   return (
     <section aria-labelledby={headingId} className="space-y-5">
       <header className="space-y-1">
-        <h3 className="font-semibold text-xl" id={headingId}>
+        <h3 className="text-xl font-semibold" id={headingId}>
           {VALUE_CHAIN_LABEL}
         </h3>
-        <p className="text-muted-foreground text-sm">{VALUE_CHAIN_NOTE}</p>
+        <p className="text-sm text-muted-foreground">{VALUE_CHAIN_NOTE}</p>
         {chain.goal.unavailable ? (
           <p role="status">
             {`This Project Goal is unavailable: ${chain.goal.unavailable}. Records still bound to it are shown.`}
@@ -203,7 +203,7 @@ export function ValueChainView({
           {`Gaps (${chain.gaps.length})`}
         </h4>
         {chain.gaps.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             No step is missing on the explicit relations. This is not a verdict.
           </p>
         ) : (
@@ -223,7 +223,7 @@ export function ValueChainView({
           {`${VALUE_CHAIN_NOT_LINKED_LABEL} (${chain.notLinked.length})`}
         </h4>
         {chain.notLinked.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             No related record sits outside this chain.
           </p>
         ) : (
@@ -234,12 +234,12 @@ export function ValueChainView({
                 key={`${item.type}:${item.id}`}
               >
                 <NodeTitle node={item} />
-                <p className="text-muted-foreground text-sm">{item.reason}</p>
+                <p className="text-sm text-muted-foreground">{item.reason}</p>
                 <p className="text-sm">
                   {valueChainBoundByLabel(item.relation.label)}
                 </p>
                 {item.relation.label === "Related" ? (
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-sm text-muted-foreground">
                     {VALUE_CHAIN_RELATED_NOTE}
                   </p>
                 ) : null}

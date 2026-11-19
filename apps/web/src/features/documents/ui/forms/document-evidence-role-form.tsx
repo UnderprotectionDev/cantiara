@@ -12,7 +12,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
@@ -77,8 +77,8 @@ export default function DocumentEvidenceRoleForm({
       }
     },
   });
-  const values = useStore(form.store, (state) => state.values);
-  const pending = useStore(form.store, (state) => state.isSubmitting);
+  const values = useSelector(form.store, (state) => state.values);
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
   const dirty =
     values.role !== binding.role ||
     values.interpretation !== (binding.interpretation ?? "");

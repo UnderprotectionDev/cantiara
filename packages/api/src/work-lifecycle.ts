@@ -100,7 +100,7 @@ export type WorkDocumentEvidence = DocumentEvidenceSelection;
 export const createDocumentWorkBatchInputSchema = humanMutationEnvelopeSchema
   .extend({
     documentId: identifierSchema,
-    documentRevision: z.number().int().nonnegative().safe(),
+    documentRevision: z.number().int().nonnegative(),
     items: z
       .array(
         z
@@ -110,8 +110,8 @@ export const createDocumentWorkBatchInputSchema = humanMutationEnvelopeSchema
               .min(1)
               .max(100_000)
               .refine((value) => value.trim().length > 0),
-            selectionEnd: z.number().int().positive().safe(),
-            selectionStart: z.number().int().nonnegative().safe(),
+            selectionEnd: z.number().int().positive(),
+            selectionStart: z.number().int().nonnegative(),
             title: z.string().trim().min(1).max(255),
           })
           .strict()
@@ -293,7 +293,7 @@ export const workCaptureProvenanceSchema = z
   .object({
     attachment: captureAttachmentSchema.nullable(),
     captureId: identifierSchema,
-    capturedAt: z.string().datetime({ offset: true }),
+    capturedAt: z.iso.datetime({ offset: true }),
     content: z.string().max(100_000),
     fields: captureFieldsSchema,
     link: captureUrlSchema.nullable(),
@@ -384,7 +384,7 @@ export const updateFeaturePrimarySpecInputSchema = humanMutationEnvelopeSchema
 
 export const updateWorkStatusInputSchema =
   workStatusMutationInputObjectSchema.extend({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: identifierSchema,
   });
 
@@ -418,7 +418,7 @@ export const workClosePreviewInputSchema = z
 
 export const closeWorkInputSchema = z
   .object({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: identifierSchema,
     closureCheck: z.literal("Close anyway").optional(),
     closureResult: workClosureResultSchema,
@@ -429,7 +429,7 @@ export const closeWorkInputSchema = z
 
 export const reopenWorkInputSchema = z
   .object({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: identifierSchema,
     confirmed: z.literal(true),
     status: workOpenStatusSchema,
@@ -580,9 +580,9 @@ export const workMergePreviewInputSchema = z
 
 export const mergeWorkInputSchema = workMergePreviewInputSchema
   .extend({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: identifierSchema,
-    duplicateRevision: z.number().int().nonnegative().safe(),
+    duplicateRevision: z.number().int().nonnegative(),
     fieldResolutions: z.partialRecord(
       workMergeFieldSchema,
       workMergeResolutionSchema,
@@ -593,7 +593,7 @@ export const mergeWorkInputSchema = workMergePreviewInputSchema
 
 export const undoWorkMergeInputSchema = z
   .object({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: identifierSchema,
     mergeId: identifierSchema,
     survivingWorkId: identifierSchema,
@@ -602,7 +602,7 @@ export const undoWorkMergeInputSchema = z
 
 export const undoWorkStatusInputSchema = z
   .object({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: identifierSchema,
     receiptId: identifierSchema,
     workId: identifierSchema,
@@ -611,7 +611,7 @@ export const undoWorkStatusInputSchema = z
 
 export const undoWorkDateInputSchema = z
   .object({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: identifierSchema,
     receiptId: identifierSchema,
     workId: identifierSchema,
@@ -750,7 +750,7 @@ export const featureHealthUpdateSchema = z
     health: featureHealthSchema,
     id: identifierSchema,
     reason: z.string().trim().min(1).max(1000),
-    recordedAt: z.string().datetime({ offset: true }),
+    recordedAt: z.iso.datetime({ offset: true }),
     recordedByAccountId: identifierSchema,
   })
   .strict();
@@ -792,7 +792,7 @@ export interface WorkVisibleUserInitiator {
 
 export const workArchiveMutationInputSchema = z
   .object({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: identifierSchema,
     workId: identifierSchema,
   })

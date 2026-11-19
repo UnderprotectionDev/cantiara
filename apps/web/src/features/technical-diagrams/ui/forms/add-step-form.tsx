@@ -5,7 +5,7 @@ import {
   SEQUENCE_MESSAGE_KINDS,
 } from "@cantiara/api/technical-diagram-structure";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useId } from "react";
+import { type SubmitEvent, useId } from "react";
 
 import { addControlGroup, addMessage } from "../../lib/technical-diagram-edit";
 import { CHOOSE, ids } from "../../lib/technical-diagram-field-options";
@@ -75,7 +75,7 @@ export function AddStepForms({
   const participants = [CHOOSE, ...ids(model.participants)];
   const groupHelpId = useId();
   const submitAs =
-    (meta: "group" | "message") => (event: FormEvent<HTMLFormElement>) => {
+    (meta: "group" | "message") => (event: SubmitEvent<HTMLFormElement>) => {
       event.preventDefault();
       event.stopPropagation();
       form.handleSubmit(meta).catch(() => undefined);
@@ -123,7 +123,7 @@ export function AddStepForms({
         </form.Subscribe>
       </EditForm>
       <EditForm label="Add control group" onSubmit={submitAs("group")}>
-        <p className="text-muted-foreground text-sm" id={groupHelpId}>
+        <p className="text-sm text-muted-foreground" id={groupHelpId}>
           A control group wraps the drafted message: fill Message from, Message
           to and Message label in the Add message form first.
         </p>

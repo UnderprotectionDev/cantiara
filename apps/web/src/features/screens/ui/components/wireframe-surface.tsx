@@ -246,7 +246,7 @@ export default function WireframeSurface({
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
   });
-  if (query.isPending || viewportQuery.isPending) {
+  if (query.status === "pending" || viewportQuery.isPending) {
     return <p role="status">Loading Wireframe…</p>;
   }
   if (!query.data) {

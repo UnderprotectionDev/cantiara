@@ -60,8 +60,8 @@ export function TrashView({
   return (
     <section aria-label={TRASH_LABEL} className="space-y-6">
       <header className="space-y-1">
-        <h2 className="font-semibold text-2xl tracking-tight">{TRASH_LABEL}</h2>
-        <p className="text-muted-foreground text-sm">
+        <h2 className="text-2xl font-semibold tracking-tight">{TRASH_LABEL}</h2>
+        <p className="text-sm text-muted-foreground">
           A record in {TRASH_LABEL} keeps its identity for{" "}
           {TRASH_RETENTION_DAYS} days, then it is permanently deleted.
         </p>
@@ -104,7 +104,7 @@ export function TrashView({
               const key = `${candidate.kind}:${candidate.id}`;
               return (
                 <li className="flex flex-wrap items-center gap-3" key={key}>
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-sm text-muted-foreground">
                     {candidate.kind}
                   </span>
                   <span className="min-w-0 break-words">{candidate.label}</span>

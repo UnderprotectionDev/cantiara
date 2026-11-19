@@ -95,10 +95,10 @@ export function ImportView({
   return (
     <section aria-label={IMPORT_LABEL} className="space-y-6">
       <header className="space-y-1">
-        <h2 className="font-semibold text-2xl tracking-tight">
+        <h2 className="text-2xl font-semibold tracking-tight">
           {IMPORT_LABEL}
         </h2>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           A file becomes records in Cantiara. It stays a copy: there is no live
           link to the file.
         </p>
@@ -108,7 +108,7 @@ export function ImportView({
         <ImportReceiptReopen key={appliedCount} onReopen={onReopenReceipt} />
       ) : null}
       {actionError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {actionError}
         </p>
       ) : null}

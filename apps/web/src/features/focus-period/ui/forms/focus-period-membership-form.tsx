@@ -8,7 +8,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import type {
   FocusPeriodAction,
   FocusPeriodMembershipMutation,
@@ -53,7 +53,7 @@ export function FocusPeriodMembershipControl({
         formApi.reset();
       }),
   });
-  const workId = useStore(form.store, (state) => state.values.workId);
+  const workId = useSelector(form.store, (state) => state.values.workId);
   const activeSource = findActiveSource(workId);
   return (
     <form

@@ -17,8 +17,8 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, Sparkles } from "lucide-react";
 import {
-  type FormEvent,
   type MouseEvent,
+  type SubmitEvent,
   useEffect,
   useRef,
   useState,
@@ -240,7 +240,7 @@ export default function CompletionEffectsForm({
     }, COMPLETION_EFFECT_PREVIEW_DURATION_MS);
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     await form.handleSubmit().catch(() => undefined);
@@ -256,8 +256,8 @@ export default function CompletionEffectsForm({
         <section className="rounded-lg border bg-card p-5 sm:p-6">
           <div className="flex items-start justify-between gap-5">
             <div className="max-w-lg">
-              <h2 className="font-medium text-base">Enable</h2>
-              <p className="mt-1 text-muted-foreground text-sm/6">
+              <h2 className="text-base font-medium">Enable</h2>
+              <p className="mt-1 text-sm/6 text-muted-foreground">
                 Show a brief celebration when you complete Work. This choice
                 applies across every Project.
               </p>
@@ -290,7 +290,7 @@ export default function CompletionEffectsForm({
                     return (
                       <button
                         aria-pressed={selected}
-                        className={`group min-h-24 rounded-md border px-4 py-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 ${
+                        className={`group min-h-24 rounded-md border px-4 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60 ${
                           selected
                             ? "border-foreground/50 bg-muted/70"
                             : "border-border/70 bg-background hover:border-foreground/25 hover:bg-muted/35"
@@ -302,7 +302,7 @@ export default function CompletionEffectsForm({
                         value={theme}
                       >
                         <span className="flex items-center justify-between gap-3">
-                          <span className="font-medium text-sm">{theme}</span>
+                          <span className="text-sm font-medium">{theme}</span>
                           {selected ? (
                             <Check
                               aria-hidden="true"
@@ -310,7 +310,7 @@ export default function CompletionEffectsForm({
                             />
                           ) : null}
                         </span>
-                        <span className="mt-2 block text-muted-foreground text-xs/5">
+                        <span className="mt-2 block text-xs/5 text-muted-foreground">
                           {COMPLETION_EFFECT_THEME_DESCRIPTIONS[theme]}
                         </span>
                       </button>
@@ -340,7 +340,7 @@ export default function CompletionEffectsForm({
                             return (
                               <button
                                 aria-pressed={selected}
-                                className={`flex min-h-16 items-center justify-between gap-3 rounded-md border px-3.5 py-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 ${
+                                className={`flex min-h-16 items-center justify-between gap-3 rounded-md border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60 ${
                                   selected
                                     ? "border-foreground/50 bg-muted/70"
                                     : "border-border/70 bg-background hover:border-foreground/25 hover:bg-muted/35"
@@ -351,7 +351,7 @@ export default function CompletionEffectsForm({
                                 type="button"
                                 value={palette}
                               >
-                                <span className="font-medium text-sm">
+                                <span className="text-sm font-medium">
                                   {palette}
                                 </span>
                                 <span
@@ -391,12 +391,12 @@ export default function CompletionEffectsForm({
             <header className="flex items-center justify-between gap-3">
               <div>
                 <h2
-                  className="font-medium text-base"
+                  className="text-base font-medium"
                   id="completion-effects-preview-heading"
                 >
                   Preview
                 </h2>
-                <p className="mt-1 text-muted-foreground text-xs">
+                <p className="mt-1 text-xs text-muted-foreground">
                   {preferences.theme} · {preferences.palette}
                 </p>
               </div>
@@ -407,7 +407,7 @@ export default function CompletionEffectsForm({
               previewing={previewing}
               theme={preferences.theme}
             />
-            <p className="min-h-10 text-muted-foreground text-sm/5">
+            <p className="min-h-10 text-sm/5 text-muted-foreground">
               Samples stay still while you browse. Motion starts only when you
               choose Preview.
             </p>
@@ -417,14 +417,14 @@ export default function CompletionEffectsForm({
                 Preview
               </Button>
               {prefersReducedMotion ? (
-                <span className="max-w-52 text-muted-foreground text-xs/5">
+                <span className="max-w-52 text-xs/5 text-muted-foreground">
                   Reduce Motion is on. Preview stays still.
                 </span>
               ) : null}
             </div>
             <div
               aria-live="polite"
-              className="min-h-5 text-muted-foreground text-xs"
+              className="min-h-5 text-xs text-muted-foreground"
               role="status"
             >
               {previewStatus}
@@ -436,13 +436,13 @@ export default function CompletionEffectsForm({
       <footer className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between xl:col-start-1">
         <div className="min-h-5">
           {saveError ? (
-            <p className="text-destructive text-sm" role="alert">
+            <p className="text-sm text-destructive" role="alert">
               {saveError}
             </p>
           ) : null}
           {!saveError && hasSaved ? (
             <p
-              className="flex items-center gap-1.5 text-muted-foreground text-xs"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground"
               role="status"
             >
               <Check aria-hidden="true" className="size-3.5 text-primary" />

@@ -97,7 +97,7 @@ const smartCollectionScopeSchema = z
 
 export const createSmartCollectionInputSchema = z
   .object({
-    clientIdempotencyKey: z.string().uuid(),
+    clientIdempotencyKey: z.uuid(),
     projectId: z.string().min(1),
     name: z.string().trim().min(1).max(255),
     sourceType: smartCollectionSourceTypeSchema.default("Work"),

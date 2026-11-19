@@ -103,7 +103,7 @@ export function PresentationMode({
         </div>
         <div className="space-y-2 border-t p-2">
           {state?.unresolvedTarget ? (
-            <p className="text-destructive text-sm" role="status">
+            <p className="text-sm text-destructive" role="status">
               Unresolved: {state.unresolvedTarget.targetScreenId}
             </p>
           ) : null}

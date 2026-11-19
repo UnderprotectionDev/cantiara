@@ -30,7 +30,7 @@ import {
 } from "@cantiara/api/work-lifecycle";
 import { ORPCError } from "@orpc/server";
 
-type RecordTableSourceType = Exclude<RecordTableInput["recordType"], "Work">;
+type RecordTableSourceType = ProjectSourceRecord["sourceType"];
 type RecordTablePasteRow = RecordTablePasteInput["rows"][number];
 type RecordTableCreatePasteRow = Extract<
   RecordTablePasteRow,

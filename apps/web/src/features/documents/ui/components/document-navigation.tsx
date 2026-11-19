@@ -103,7 +103,7 @@ function DocumentHomeNavigation({
       {folders.map((folder) => (
         <div className="space-y-1" key={folder}>
           {folder ? (
-            <h3 className="font-medium text-muted-foreground text-sm">
+            <h3 className="text-sm font-medium text-muted-foreground">
               {folder}
             </h3>
           ) : null}

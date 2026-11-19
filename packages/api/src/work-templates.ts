@@ -51,7 +51,7 @@ export const workTemplateChecklistSchema = z
 
 export const workTemplateCustomFieldValueSchema = z.discriminatedUnion("kind", [
   z.object({ boolean: z.boolean(), kind: z.literal("boolean") }).strict(),
-  z.object({ kind: z.literal("number"), number: z.number().finite() }).strict(),
+  z.object({ kind: z.literal("number"), number: z.number() }).strict(),
   z
     .object({
       kind: z.literal("option"),
@@ -208,12 +208,12 @@ export const workTemplatesInputSchema = z
 
 export const workTemplateSchema = workTemplateDefinitionFieldsSchema
   .extend({
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: z.iso.datetime({ offset: true }),
     id: identifierSchema,
     projectId: identifierSchema,
-    revision: z.number().int().min(1).safe(),
-    trashedAt: z.string().datetime({ offset: true }).nullable(),
-    updatedAt: z.string().datetime({ offset: true }),
+    revision: z.number().int().min(1),
+    trashedAt: z.iso.datetime({ offset: true }).nullable(),
+    updatedAt: z.iso.datetime({ offset: true }),
   })
   .strict();
 

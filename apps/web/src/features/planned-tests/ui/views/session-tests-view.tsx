@@ -94,14 +94,14 @@ export function SessionTestsView({
       className="space-y-6"
       id="session-tests"
     >
-      <h2 className="font-semibold text-lg">Session Tests</h2>
-      <p className="text-muted-foreground text-sm">
+      <h2 className="text-lg font-semibold">Session Tests</h2>
+      <p className="text-sm text-muted-foreground">
         A Session Test is bound, if at all, to one exact Planned Test Case
         version. Editing the case later never moves the bind.
       </p>
       {readOnly ? null : <RecordForm cases={cases} onRecord={onRecord} />}
       {sessionTests.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No Session Tests yet.</p>
+        <p className="text-sm text-muted-foreground">No Session Tests yet.</p>
       ) : (
         <ul className="space-y-3">
           {sessionTests.map((sessionTest) => (

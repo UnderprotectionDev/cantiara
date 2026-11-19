@@ -24,8 +24,8 @@ export default function GitHubWaitingStatus({
         />
       </span>
       <div className="min-w-0 space-y-0.5">
-        <p className="font-medium text-sm">Waiting for GitHub</p>
-        <p className="text-muted-foreground text-xs/relaxed">
+        <p className="text-sm font-medium">Waiting for GitHub</p>
+        <p className="text-xs/relaxed text-muted-foreground">
           GitHub is taking a moment to respond.
         </p>
       </div>

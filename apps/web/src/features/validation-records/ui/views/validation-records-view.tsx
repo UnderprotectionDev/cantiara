@@ -75,7 +75,7 @@ export function ValidationRecordsView({
   return (
     <section aria-label="Validation Record" className="space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-semibold text-2xl tracking-tight">
+        <h2 className="text-2xl font-semibold tracking-tight">
           Validation Record
         </h2>
         {readOnly ? null : (
@@ -110,7 +110,7 @@ export function ValidationRecordsView({
         </NativeSelect>
       </div>
       {readOnly ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           This Project is archived and read-only.
         </p>
       ) : null}
@@ -144,20 +144,20 @@ export function ValidationRecordsView({
           </h3>
           <dl className="space-y-3">
             <div>
-              <dt className="font-medium text-sm">Method</dt>
-              <dd className="whitespace-pre-wrap text-muted-foreground text-sm">
+              <dt className="text-sm font-medium">Method</dt>
+              <dd className="text-sm whitespace-pre-wrap text-muted-foreground">
                 {record.method}
               </dd>
             </div>
             <div>
-              <dt className="font-medium text-sm">Result</dt>
-              <dd className="whitespace-pre-wrap text-muted-foreground text-sm">
+              <dt className="text-sm font-medium">Result</dt>
+              <dd className="text-sm whitespace-pre-wrap text-muted-foreground">
                 {record.result || "—"}
               </dd>
             </div>
           </dl>
           <div className="space-y-2">
-            <h4 className="font-medium text-sm">Related</h4>
+            <h4 className="text-sm font-medium">Related</h4>
             {record.context.map((link) => {
               const source = counterparts.find(
                 (candidate) =>
@@ -174,7 +174,7 @@ export function ValidationRecordsView({
                 </AppLink>
               ) : (
                 <p
-                  className="text-muted-foreground text-sm"
+                  className="text-sm text-muted-foreground"
                   key={`${link.sourceType}:${link.sourceId}`}
                 >
                   Record unavailable
@@ -182,7 +182,7 @@ export function ValidationRecordsView({
               );
             })}
             {record.context.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 No context linked.
               </p>
             ) : null}

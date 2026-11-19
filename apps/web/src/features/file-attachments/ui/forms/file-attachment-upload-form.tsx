@@ -5,11 +5,11 @@ import {
 } from "@cantiara/api/file-attachments";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   type ChangeEvent,
-  type FormEvent,
+  type SubmitEvent,
   useCallback,
   useRef,
   useState,
@@ -74,7 +74,7 @@ export function FileAttachmentUploadControl({
       }
     },
   });
-  const selectedFile = useStore(form.store, (state) => state.values.file);
+  const selectedFile = useSelector(form.store, (state) => state.values.file);
   const uploadMutation = useMutation({
     mutationFn: (file: File) => {
       const clientIdempotencyKey =
@@ -134,7 +134,7 @@ export function FileAttachmentUploadControl({
   }, []);
 
   const handleSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
+    (event: SubmitEvent<HTMLFormElement>) => {
       event.preventDefault();
       event.stopPropagation();
       form.handleSubmit().catch(() => undefined);
@@ -190,12 +190,12 @@ export function FileAttachmentUploadControl({
             {FILE_ATTACHMENT_UI_LABELS.cancel}
           </Button>
         ) : null}
-        <p className="text-muted-foreground text-sm" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           {selectedFile?.name ?? FILE_ATTACHMENT_UI_LABELS.noFileSelected}
         </p>
       </div>
       {error ? (
-        <p className="mt-3 text-destructive text-sm" role="alert">
+        <p className="mt-3 text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

@@ -2,7 +2,7 @@
 import type { PriorityMetric } from "@cantiara/api/priority-metrics";
 import { Button } from "@cantiara/ui/components/button";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 import {
   PriorityMetricImpactStatus,
   type PriorityMetricTrashEffect,
@@ -34,7 +34,7 @@ export function PriorityMetricMoveConfirmation({
     onSubmit: async () => onSubmit(),
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     trashForm.handleSubmit().catch(() => undefined);
@@ -47,7 +47,7 @@ export function PriorityMetricMoveConfirmation({
       onSubmit={handleSubmit}
     >
       <div>
-        <h6 className="font-medium text-sm">Move {target.name} to Trash?</h6>
+        <h6 className="text-sm font-medium">Move {target.name} to Trash?</h6>
         <PriorityMetricImpactStatus
           effect={effect}
           error={error}

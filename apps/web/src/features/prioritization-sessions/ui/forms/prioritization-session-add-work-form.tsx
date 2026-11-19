@@ -7,7 +7,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 export default function PrioritizationSessionAddWorkForm({
   addableWorks,
@@ -41,7 +41,7 @@ export default function PrioritizationSessionAddWorkForm({
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -49,7 +49,7 @@ export default function PrioritizationSessionAddWorkForm({
 
   return (
     <form
-      className="flex flex-wrap items-end gap-2 border-border/70 border-t pt-3"
+      className="flex flex-wrap items-end gap-2 border-t border-border/70 pt-3"
       onSubmit={handleSubmit}
     >
       <form.Field name="workToAdd">

@@ -69,7 +69,7 @@ function ActivityRow({
       <p className="font-medium">
         {`${row.eventType} · ${row.source.recordType} · ${row.source.label}`}
       </p>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         <span>{activityActorText(row.actor)}</span>
         {" · "}
         <time dateTime={row.occurredAt}>
@@ -115,7 +115,7 @@ function ActivityCluster({
       <p className="font-medium">
         {`${cluster.rows.length} field changes · ${cluster.source.recordType} · ${cluster.source.label}`}
       </p>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {`${actor} · `}
         <time dateTime={cluster.from}>{activityTimeText(cluster.from)}</time>
         {" – "}
@@ -209,11 +209,11 @@ export function ProjectActivityView({
   return (
     <section aria-labelledby="project-activity-heading" className="space-y-5">
       <header className="space-y-1">
-        <h2 className="font-semibold text-xl">{PROJECT_HISTORY_LABEL}</h2>
-        <h3 className="font-medium text-lg" id="project-activity-heading">
+        <h2 className="text-xl font-semibold">{PROJECT_HISTORY_LABEL}</h2>
+        <h3 className="text-lg font-medium" id="project-activity-heading">
           {PROJECT_ACTIVITY_LABEL}
         </h3>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {PROJECT_ACTIVITY_QUESTION_LABEL}
         </p>
       </header>
@@ -248,12 +248,12 @@ export function ProjectActivityView({
         </details>
       ) : null}
       {activity.windowReached ? (
-        <p className="text-muted-foreground text-sm" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           Only the newest history is read. Older changes are not listed.
         </p>
       ) : null}
       {activity.rows.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No changes match these filters.
         </p>
       ) : (
@@ -322,9 +322,9 @@ export function RecordActivityView({
 }) {
   return (
     <section aria-label={RECORD_HISTORY_LABEL} className="space-y-3">
-      <h3 className="font-medium text-lg">{RECORD_HISTORY_LABEL}</h3>
+      <h3 className="text-lg font-medium">{RECORD_HISTORY_LABEL}</h3>
       {activity.rows.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No changes are recorded for this record yet.
         </p>
       ) : (

@@ -188,7 +188,7 @@ export function ProjectWallCard({
       data-source-id={source.recordId}
     >
       <header className="space-y-0.5">
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           {card.sourceType}
           {broken
             ? ` · ${broken.reason === "Archived" ? "Archived" : `Broken — ${broken.reason}`}`
@@ -197,7 +197,7 @@ export function ProjectWallCard({
           {card.locked ? " · Position locked" : ""}
         </p>
         {source.title ? (
-          <h3 className="break-words font-medium">{source.title}</h3>
+          <h3 className="font-medium break-words">{source.title}</h3>
         ) : null}
       </header>
       {card.fields.length > 0 ? (
@@ -214,14 +214,14 @@ export function ProjectWallCard({
         <ProjectWallPreview card={card} preview={card.preview} />
       ) : null}
       {card.sharedSource ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           {PROJECT_WALL_PRESENTATION_LABELS.sharedSource}: this record is also
           listed in a Smart Collection block on this wall.
         </p>
       ) : null}
       {canOpen ? (
         <AppLink
-          className="text-primary text-xs underline"
+          className="text-xs text-primary underline"
           href={source.openPath ?? ""}
         >
           Open Source Record

@@ -205,7 +205,7 @@ export function TechnicalDiagramEditor({
 }: EditorProps) {
   if (diagram.authorityMode === "External Source Link") {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         The structural model stays in the external tool.
       </p>
     );

@@ -176,7 +176,7 @@ export const researchSessionRecordSchema = researchSessionFieldsSchema
     id,
     projectId: id,
     sourceType: z.literal("Research Session"),
-    revision: z.number().int().positive().safe(),
+    revision: z.number().int().positive(),
     createdAt: z.iso.datetime({ offset: true }),
     updatedAt: z.iso.datetime({ offset: true }),
     participantConsentAtLink: researchSessionConsentSchema.default("Not asked"),

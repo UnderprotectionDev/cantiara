@@ -3,7 +3,11 @@ import type {
   ProjectActivityInput,
 } from "@cantiara/api/project-activity";
 import { projectActivityEntriesOfRows } from "@cantiara/api/project-activity-cluster";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  type UseInfiniteQueryResult,
+  useInfiniteQuery,
+} from "@tanstack/react-query";
 import { useMemo } from "react";
 import { orpc } from "@/utils/orpc";
 import type { ProjectActivityFilters } from "../lib/project-activity-filters";
@@ -27,14 +31,16 @@ export function useProjectActivity({
     projectId,
     ...(sourceRecord ? { sourceRecord } : {}),
   };
-  const query = useInfiniteQuery(
-    orpc.projectActivity.infiniteOptions({
-      getNextPageParam: (page: ProjectActivity) => page.nextCursor ?? undefined,
-      initialPageParam: undefined as string | undefined,
-      input: (cursor: string | undefined) =>
-        cursor ? { ...base, cursor } : base,
-    }),
-  );
+  const query: UseInfiniteQueryResult<InfiniteData<ProjectActivity>> =
+    useInfiniteQuery(
+      orpc.projectActivity.infiniteOptions({
+        getNextPageParam: (page: ProjectActivity) =>
+          page.nextCursor ?? undefined,
+        initialPageParam: undefined as string | undefined,
+        input: (cursor: string | undefined) =>
+          cursor ? { ...base, cursor } : base,
+      }),
+    );
   const activity = useMemo((): ProjectActivity | null => {
     const [first] = query.data?.pages ?? [];
     if (!(first && query.data)) {

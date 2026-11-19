@@ -34,9 +34,11 @@ export default function FavoriteControl(source: FavoriteSource) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button
-        aria-busy={membership.isPending || mutation.isPending}
+        aria-busy={membership.status === "pending" || mutation.isPending}
         disabled={
-          membership.isPending || membership.isError || mutation.isPending
+          membership.status === "pending" ||
+          membership.isError ||
+          mutation.isPending
         }
         onClick={toggle}
         size="sm"
@@ -50,7 +52,7 @@ export default function FavoriteControl(source: FavoriteSource) {
         {label}
       </Button>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error instanceof Error
             ? error.message
             : "Favorites could not be saved."}

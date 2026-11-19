@@ -14,7 +14,7 @@ import {
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useEffect, useRef } from "react";
+import { type SubmitEvent, useEffect, useRef } from "react";
 import type { TrashCandidate } from "../../lib/trash-candidates";
 import { TrashConfigurationImpactList } from "../components/trash-configuration-impact";
 
@@ -59,7 +59,7 @@ export function MoveToTrashForm({
     heading.current?.focus();
   }, []);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -86,7 +86,7 @@ export function MoveToTrashForm({
         {MOVE_TO_TRASH_LABEL}: {candidate.label}
       </h4>
       {preview.surfaces.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No External Surface is attached to this record.
         </p>
       ) : (
@@ -110,7 +110,7 @@ export function MoveToTrashForm({
         <form.Field name="disposition">
           {(field) => (
             <fieldset className="space-y-2">
-              <legend className="font-medium text-sm">
+              <legend className="text-sm font-medium">
                 What happens to active External Surfaces
               </legend>
               <RadioGroup

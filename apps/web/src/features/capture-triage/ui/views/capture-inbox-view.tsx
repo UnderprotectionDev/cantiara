@@ -15,12 +15,12 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
     <ClientShellStatus accountFormattingPreferences={formattingPreferences} />
   );
 
-  if (inbox.isPending) {
+  if (inbox.status === "pending") {
     return (
       <main className="surface-frame max-w-7xl">
         {clientShellStatus}
-        <h1 className="font-semibold text-3xl tracking-tight">Capture Inbox</h1>
-        <p className="mt-3 text-muted-foreground text-sm">Loading captures…</p>
+        <h1 className="text-3xl font-semibold tracking-tight">Capture Inbox</h1>
+        <p className="mt-3 text-sm text-muted-foreground">Loading captures…</p>
       </main>
     );
   }
@@ -29,7 +29,7 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
     return (
       <main className="surface-frame max-w-7xl">
         {clientShellStatus}
-        <h1 className="font-semibold text-3xl tracking-tight">Capture Inbox</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Capture Inbox</h1>
         <p
           className="mt-6 border border-destructive/40 bg-destructive/5 px-4 py-4 text-sm"
           role="alert"
@@ -44,8 +44,8 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
     <main className="surface-frame max-w-7xl space-y-10">
       {clientShellStatus}
       <header className="surface-header max-w-3xl">
-        <h1 className="font-semibold text-3xl tracking-tight">Capture Inbox</h1>
-        <p className="mt-3 text-muted-foreground text-sm/6">
+        <h1 className="text-3xl font-semibold tracking-tight">Capture Inbox</h1>
+        <p className="mt-3 text-sm/6 text-muted-foreground">
           Save a thought before you know which permanent record it belongs to.
           Captures stay temporary until you choose what happens next.
         </p>

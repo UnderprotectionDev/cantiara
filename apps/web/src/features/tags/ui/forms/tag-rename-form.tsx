@@ -8,7 +8,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 export interface TagRenameRequest {
   baseRevision: number;
@@ -62,7 +62,7 @@ export function TagRenameControl({
     return null;
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -71,11 +71,11 @@ export function TagRenameControl({
   return (
     <form
       aria-label="Rename Tag"
-      className="space-y-3 border-border/70 border-t pt-4"
+      className="space-y-3 border-t border-border/70 pt-4"
       noValidate
       onSubmit={handleSubmit}
     >
-      <h3 className="font-medium text-base">Rename Tag</h3>
+      <h3 className="text-base font-medium">Rename Tag</h3>
       <form.Field name="tagId">
         {(field) => (
           <div className="space-y-2">

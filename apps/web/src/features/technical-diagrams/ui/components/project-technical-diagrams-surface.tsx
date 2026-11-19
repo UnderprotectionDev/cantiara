@@ -225,7 +225,7 @@ function DiagramCard({
   return (
     <article className="space-y-3 rounded-lg border p-4">
       <h3 className="font-medium">{diagram.title}</h3>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {diagram.type} · {diagram.authorityMode}
       </p>
       {diagram.type === "Data Model" ? (
@@ -256,7 +256,7 @@ function DiagramCard({
         />
       )}
       {personalView.saveError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {personalView.saveError}
         </p>
       ) : null}
@@ -387,7 +387,7 @@ export default function ProjectTechnicalDiagramsSurface({
   );
   return (
     <section aria-label="Technical Diagram" className="space-y-5">
-      <h2 className="font-semibold text-2xl">Technical Diagram</h2>
+      <h2 className="text-2xl font-semibold">Technical Diagram</h2>
       {diagrams.isError ? (
         <p role="alert">Technical Diagram is unavailable.</p>
       ) : null}

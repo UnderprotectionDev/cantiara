@@ -55,12 +55,12 @@ export function CaptureSourceSummary({
   const origin = itemOriginLabel(item);
   return (
     <div className="space-y-2 border border-border/70 bg-muted/15 px-4 py-3">
-      <h4 className="font-medium text-sm">{heading}</h4>
+      <h4 className="text-sm font-medium">{heading}</h4>
       {item.content ? (
-        <p className="whitespace-pre-wrap text-sm/6">{item.content}</p>
+        <p className="text-sm/6 whitespace-pre-wrap">{item.content}</p>
       ) : null}
       {item.link ? (
-        <p className="break-all text-sm">
+        <p className="text-sm break-all">
           <span className="text-muted-foreground">Link: </span>
           <a
             className="underline underline-offset-2"
@@ -84,7 +84,7 @@ export function CaptureSourceSummary({
           {origin}
         </p>
       ) : null}
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         Captured {formatAccountDateTime(item.createdAt, formattingPreferences)}
       </p>
     </div>
@@ -104,12 +104,12 @@ function SuggestionRow({
     <li className="border border-border/70 px-3 py-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-medium text-sm">{suggestion.title}</p>
-          <p className="mt-1 text-muted-foreground text-xs">
+          <p className="text-sm font-medium">{suggestion.title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
             {suggestion.recordType}
             {suggestion.projectName ? ` · ${suggestion.projectName}` : ""}
           </p>
-          <p className="mt-2 text-muted-foreground text-xs">
+          <p className="mt-2 text-xs text-muted-foreground">
             Basis: {suggestion.basis.join(", ")}
           </p>
         </div>
@@ -138,13 +138,13 @@ function SuggestionsPreview({
       className="space-y-4 border border-border/70 p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="font-semibold text-sm">Suggestions</h3>
+        <h3 className="text-sm font-semibold">Suggestions</h3>
         <Button onClick={onClose} type="button" variant="ghost">
           Close suggestions
         </Button>
       </div>
       <div className="space-y-2">
-        <h4 className="font-medium text-xs">{suggestions.sameProject.label}</h4>
+        <h4 className="text-xs font-medium">{suggestions.sameProject.label}</h4>
         {suggestions.sameProject.items.length > 0 ? (
           <ul className="space-y-2">
             {suggestions.sameProject.items.map((suggestion) => (
@@ -156,14 +156,14 @@ function SuggestionsPreview({
             ))}
           </ul>
         ) : (
-          <p className="text-muted-foreground text-xs">No suggestions.</p>
+          <p className="text-xs text-muted-foreground">No suggestions.</p>
         )}
       </div>
       {suggestions.otherProjects.map((group) => {
         const groupKey = group.items.map((item) => item.id).join("-");
         return (
           <div className="space-y-2" key={groupKey || group.label}>
-            <h4 className="font-medium text-xs">{group.label}</h4>
+            <h4 className="text-xs font-medium">{group.label}</h4>
             <ul className="space-y-2">
               {group.items.map((suggestion) => (
                 <SuggestionRow
@@ -200,8 +200,8 @@ function CaptureConversionPreviewPanel({
       role="dialog"
     >
       <div>
-        <h3 className="font-semibold text-sm">Conversion Preview</h3>
-        <p className="mt-1 text-muted-foreground text-xs">
+        <h3 className="text-sm font-semibold">Conversion Preview</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
           One new {preview.proposedRecord.recordType} will be created in the
           selected scope.
         </p>
@@ -211,11 +211,11 @@ function CaptureConversionPreviewPanel({
         item={preview.source}
       />
       <div className="space-y-2 border border-border/70 bg-background px-4 py-3">
-        <h4 className="font-medium text-sm">Proposed record</h4>
+        <h4 className="text-sm font-medium">Proposed record</h4>
         <p className="text-sm">
           {preview.proposedRecord.recordType}: {preview.proposedRecord.title}
         </p>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Target scope: {preview.targetScope.label}
           {preview.targetScope.projectId
             ? ` · ${preview.targetScope.projectId}`
@@ -224,7 +224,7 @@ function CaptureConversionPreviewPanel({
       </div>
       {preview.fieldMappings.length > 0 ? (
         <div className="space-y-2">
-          <h4 className="font-medium text-sm">Field mappings</h4>
+          <h4 className="text-sm font-medium">Field mappings</h4>
           <dl className="space-y-2 text-xs">
             {preview.fieldMappings.map((mapping) => (
               <div
@@ -242,7 +242,7 @@ function CaptureConversionPreviewPanel({
         </div>
       ) : null}
       <div className="space-y-2 border border-border/70 bg-background px-4 py-3">
-        <h4 className="font-medium text-sm">Relation preview</h4>
+        <h4 className="text-sm font-medium">Relation preview</h4>
         <ul className="space-y-1 text-sm">
           {preview.proposedRelations.map((relation) => (
             <li key={`${relation.relation}-${relation.target}`}>
@@ -283,8 +283,8 @@ function CaptureAttachPreviewPanel({
       role="dialog"
     >
       <div>
-        <h3 className="font-semibold text-sm">Attach Preview</h3>
-        <p className="mt-1 text-muted-foreground text-xs">
+        <h3 className="text-sm font-semibold">Attach Preview</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
           Review the relation and target before this Capture Inbox item is
           consumed.
         </p>
@@ -294,11 +294,11 @@ function CaptureAttachPreviewPanel({
         item={preview.source}
       />
       <div className="space-y-2 border border-border/70 bg-background px-4 py-3">
-        <h4 className="font-medium text-sm">Relation preview</h4>
+        <h4 className="text-sm font-medium">Relation preview</h4>
         <p className="text-sm">
           {preview.relationPreview.relation} → {preview.target.title}
         </p>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           {preview.target.recordType} · {preview.target.id}
         </p>
         {preview.crossProject ? (
@@ -340,8 +340,8 @@ export function CaptureUndoPreviewPanel({
       role="dialog"
     >
       <div>
-        <h2 className="font-semibold text-base">Undo Preview</h2>
-        <p className="mt-1 text-muted-foreground text-xs">
+        <h2 className="text-base font-semibold">Undo Preview</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
           Review what returns to the Capture Inbox and what this merge alone
           will remove from the target.
         </p>
@@ -352,12 +352,12 @@ export function CaptureUndoPreviewPanel({
         item={preview.restore}
       />
       <div className="space-y-2 border border-border/70 bg-background px-4 py-3">
-        <h3 className="font-medium text-sm">Only this merge</h3>
-        <p className="text-muted-foreground text-xs">
+        <h3 className="text-sm font-medium">Only this merge</h3>
+        <p className="text-xs text-muted-foreground">
           Relations:{" "}
           {preview.removeFromTarget.attributedRelationIds.join(", ") || "None"}
         </p>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Fields:{" "}
           {preview.removeFromTarget.attributedValueKeys.join(", ") || "None"}
         </p>
@@ -630,7 +630,7 @@ export function CaptureInboxItemActions({
       />
       {actionMessage ? (
         <p
-          className="border border-destructive/40 bg-destructive/5 px-3 py-2 text-destructive text-xs"
+          className="border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive"
           role="alert"
         >
           {actionMessage}

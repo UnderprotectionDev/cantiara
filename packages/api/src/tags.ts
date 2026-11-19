@@ -12,7 +12,7 @@ export type TagRecordType = (typeof TAG_RECORD_TYPE_OPTIONS)[number];
 export const tagRecordTypeSchema = z.enum(TAG_RECORD_TYPE_OPTIONS);
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const revisionSchema = z.number().int().nonnegative().safe();
+const revisionSchema = z.number().int().nonnegative();
 
 export const tagNameSchema = z
   .string()
@@ -71,11 +71,11 @@ export type UndoTagRenameInput = z.input<typeof undoTagRenameInputSchema>;
 
 export const tagSchema = z
   .object({
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: z.iso.datetime({ offset: true }),
     id: identifierSchema,
     name: tagNameSchema,
-    revision: z.number().int().nonnegative().safe(),
-    updatedAt: z.string().datetime({ offset: true }),
+    revision: z.number().int().nonnegative(),
+    updatedAt: z.iso.datetime({ offset: true }),
   })
   .strict();
 
@@ -265,7 +265,7 @@ export interface TagInlineRenameWriter<TTransaction = unknown> {
 
 export const tagSuggestionSchema = z
   .object({
-    projectUsageCount: z.number().int().nonnegative().safe(),
+    projectUsageCount: z.number().int().nonnegative(),
     tag: tagSchema,
   })
   .strict();
@@ -274,7 +274,7 @@ export type TagSuggestion = z.infer<typeof tagSuggestionSchema>;
 
 export const tagAssignmentSchema = z
   .object({
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: z.iso.datetime({ offset: true }),
     id: identifierSchema,
     recordId: identifierSchema,
     recordType: tagRecordTypeSchema,
@@ -286,7 +286,7 @@ export type TagAssignment = z.infer<typeof tagAssignmentSchema>;
 
 export const tagRecordSchema = z
   .object({
-    archivedAt: z.string().datetime({ offset: true }).nullable(),
+    archivedAt: z.iso.datetime({ offset: true }).nullable(),
     id: identifierSchema,
     key: identifierSchema,
     projectId: identifierSchema,
@@ -314,7 +314,7 @@ export const tagRecordsInputSchema = z
   .object({
     projectId: identifierSchema,
   })
-  .merge(tagIdentityFilterSchema.partial())
+  .extend(tagIdentityFilterSchema.partial().shape)
   .strict();
 
 export type TagRecordsInput = z.input<typeof tagRecordsInputSchema>;

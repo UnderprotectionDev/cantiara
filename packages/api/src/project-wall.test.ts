@@ -29,7 +29,7 @@ describe("Project Wall contract", () => {
   test("an unknown skeleton fails loudly instead of headingless walls", () => {
     expect(() =>
       projectWallSkeletonHeadings("Ghost" as ProjectWallSkeleton),
-    ).toThrowError(UNKNOWN_SKELETON);
+    ).toThrow(UNKNOWN_SKELETON);
   });
 
   test("the reorder order lists every card exactly once", () => {

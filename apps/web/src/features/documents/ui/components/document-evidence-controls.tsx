@@ -62,11 +62,11 @@ export function EvidenceRow({
         {binding.pin.end} · {binding.role}
       </p>
       {binding.interpretation ? (
-        <p className="whitespace-pre-wrap break-words">
+        <p className="break-words whitespace-pre-wrap">
           Founder interpretation: {binding.interpretation}
         </p>
       ) : null}
-      <p className="whitespace-pre-wrap break-words">
+      <p className="break-words whitespace-pre-wrap">
         {binding.pin.before}
         <mark>{binding.pin.excerpt}</mark>
         {binding.pin.after}

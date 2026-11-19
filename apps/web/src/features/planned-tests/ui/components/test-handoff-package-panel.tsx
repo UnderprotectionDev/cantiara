@@ -97,7 +97,7 @@ function PackageCopies({
           </span>
         ))}
       </div>
-      <p aria-live="polite" className="text-muted-foreground text-xs">
+      <p aria-live="polite" className="text-xs text-muted-foreground">
         {message}
       </p>
     </li>
@@ -186,16 +186,16 @@ export function TestHandoffPackagePanel({
   return (
     <section
       aria-label={`Package of ${handoff.title}`}
-      className="space-y-3 border-border/70 border-t pt-3"
+      className="space-y-3 border-t border-border/70 pt-3"
     >
-      <h5 className="font-medium text-sm">Package</h5>
+      <h5 className="text-sm font-medium">Package</h5>
       {shownError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {shownError}
         </p>
       ) : null}
       {shareable ? null : (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           {`A ${TEST_HANDOFF_LABEL} produces a package only while it is Ready to share or Shared. Mark it Ready to share first.`}
         </p>
       )}
@@ -210,7 +210,7 @@ export function TestHandoffPackagePanel({
           >
             Preview package
           </Button>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             A preview writes nothing. Producing a package starts no tool and
             grants no access.
           </p>
@@ -262,7 +262,7 @@ export function TestHandoffPackagePanel({
                   Markdown package
                 </p>
                 <pre
-                  className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border/70 p-2 text-xs"
+                  className="max-h-64 overflow-auto rounded-md border border-border/70 p-2 text-xs whitespace-pre-wrap"
                   // biome-ignore lint/a11y/noNoninteractiveTabindex: A scrollable preview must be reachable from the keyboard.
                   tabIndex={0}
                 >
@@ -277,7 +277,7 @@ export function TestHandoffPackagePanel({
                   JSON package
                 </p>
                 <pre
-                  className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border/70 p-2 text-xs"
+                  className="max-h-64 overflow-auto rounded-md border border-border/70 p-2 text-xs whitespace-pre-wrap"
                   // biome-ignore lint/a11y/noNoninteractiveTabindex: A scrollable preview must be reachable from the keyboard.
                   tabIndex={0}
                 >
@@ -296,7 +296,7 @@ export function TestHandoffPackagePanel({
           )}
         </section>
       ) : null}
-      <p aria-live="polite" className="text-muted-foreground text-xs">
+      <p aria-live="polite" className="text-xs text-muted-foreground">
         {message}
       </p>
       {packages.length > 0 ? (

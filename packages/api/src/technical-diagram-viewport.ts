@@ -37,7 +37,7 @@ export const DIAGRAM_NODE_WIDTH = 150;
 export const DIAGRAM_NODE_HEIGHT = 40;
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const coordinateSchema = z.number().finite().min(-1_000_000).max(1_000_000);
+const coordinateSchema = z.number().min(-1_000_000).max(1_000_000);
 
 export const technicalDiagramViewportSchema = z
   .object({
@@ -47,7 +47,7 @@ export const technicalDiagramViewportSchema = z
       .array(identifierSchema)
       .max(PROJECT_WALL_COLLAPSED_MAX)
       .default([]),
-    zoom: z.number().finite().min(DIAGRAM_MIN_ZOOM).max(DIAGRAM_MAX_ZOOM),
+    zoom: z.number().min(DIAGRAM_MIN_ZOOM).max(DIAGRAM_MAX_ZOOM),
   })
   .strict();
 export type TechnicalDiagramViewport = z.infer<

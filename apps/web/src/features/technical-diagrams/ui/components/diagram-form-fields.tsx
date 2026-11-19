@@ -7,7 +7,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import type { FormEvent, ReactNode } from "react";
+import type { ReactNode, SubmitEvent } from "react";
 import { useId } from "react";
 
 /** The slice of a TanStack Form field API that the shared controls bind. */
@@ -102,7 +102,7 @@ export function CheckField({
 
 /** Submits through TanStack Form's `handleSubmit` and keeps the page from reloading. */
 export function submitForm(form: { handleSubmit: () => Promise<unknown> }) {
-  return (event: FormEvent<HTMLFormElement>) => {
+  return (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -116,7 +116,7 @@ export function EditForm({
 }: {
   children: ReactNode;
   label: string;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
 }) {
   return (
     <form

@@ -21,8 +21,8 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 import { usePanelFocus } from "../../hooks/use-panel-focus";
 import { errorText } from "../../lib/test-review-panel";
 import { allItems } from "../../lib/test-review-signal-lines";
@@ -87,11 +87,11 @@ export default function TestReviewFollowUpForm({
       }, "The preview is unavailable.");
     },
   });
-  const values = useStore(form.store, (state) => state.values);
+  const values = useSelector(form.store, (state) => state.values);
   const { mode, selected, workId } = values;
   const target = () => followUpTarget(values);
 
-  function handlePreviewSubmit(event: FormEvent<HTMLFormElement>) {
+  function handlePreviewSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -121,14 +121,14 @@ export default function TestReviewFollowUpForm({
       <h3 className="font-medium" id="test-review-follow-up-heading">
         {TEST_REVIEW_FOLLOW_UP_LABEL}
       </h3>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         A Failed, Blocked or Inconclusive result creates no Bug, Work, Risk,
         Open Question, Decision, notification or priority by itself. Choose
         results, preview the target and origin, then confirm.
       </p>
       <form className="space-y-3" noValidate onSubmit={handlePreviewSubmit}>
         {items.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No Session Tests yet.</p>
+          <p className="text-sm text-muted-foreground">No Session Tests yet.</p>
         ) : (
           <fieldset className="m-0 min-w-0 space-y-1 border-0 p-0 text-sm">
             <legend className="font-medium">Results for follow-up</legend>

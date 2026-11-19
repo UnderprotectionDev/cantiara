@@ -12,7 +12,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 export interface CaptureAttachmentSetupValues {
   relation: CaptureBindRelation;
@@ -49,7 +49,7 @@ export function CaptureAttachmentSetupForm({
     },
   });
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -60,7 +60,7 @@ export function CaptureAttachmentSetupForm({
       className="space-y-3 border border-border/70 bg-muted/15 p-4"
       onSubmit={submit}
     >
-      <h3 className="font-semibold text-sm">Choose existing record</h3>
+      <h3 className="text-sm font-semibold">Choose existing record</h3>
       <form.Field name="targetId">
         {(field) => (
           <Input

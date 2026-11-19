@@ -63,7 +63,7 @@ export function MoodboardWorkspace({
           selectedId={selectedId}
         />
       ) : (
-        <p className="text-muted-foreground text-sm">Loading board…</p>
+        <p className="text-sm text-muted-foreground">Loading board…</p>
       )}
       <MoodboardOutline
         addControls={addControls}

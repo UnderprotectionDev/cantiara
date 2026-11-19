@@ -1,5 +1,5 @@
 import { Button } from "@cantiara/ui/components/button";
-import { useStore } from "@tanstack/react-store";
+import { useSelector } from "@tanstack/react-store";
 import { useCallback } from "react";
 import {
   type ActiveWorkingSetMember,
@@ -38,7 +38,7 @@ function MemberButton({
         type="button"
         variant="outline"
       >
-        <span className="text-muted-foreground text-xs">{member.kind}</span>{" "}
+        <span className="text-xs text-muted-foreground">{member.kind}</span>{" "}
         {member.label}
       </Button>
     </li>
@@ -54,7 +54,7 @@ export default function ActiveWorkingSetTray({
 }: {
   open: OpenActiveWorkingSetMember;
 }) {
-  const { collapsed, members } = useStore(activeWorkingSetStore);
+  const { collapsed, members } = useSelector(activeWorkingSetStore);
   const collapse = useCallback(() => setActiveWorkingSetCollapsed(true), []);
   const show = useCallback(() => setActiveWorkingSetCollapsed(false), []);
   if (members.length === 0) {
@@ -76,10 +76,10 @@ export default function ActiveWorkingSetTray({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="font-medium text-sm">
+          <h2 className="text-sm font-medium">
             Active Working Set ({members.length})
           </h2>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             Held for this session only.
           </p>
         </div>

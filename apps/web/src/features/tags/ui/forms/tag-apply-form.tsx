@@ -7,7 +7,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 export interface TagApplyChoice {
   id: string;
@@ -49,7 +49,7 @@ export function TagApplyForm({
   });
   const selectId = `apply-tag-${record.recordId}`;
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -57,7 +57,7 @@ export function TagApplyForm({
 
   return (
     <form
-      className="flex flex-wrap items-end gap-2 border-border/70 border-t pt-3"
+      className="flex flex-wrap items-end gap-2 border-t border-border/70 pt-3"
       noValidate
       onSubmit={submit}
     >

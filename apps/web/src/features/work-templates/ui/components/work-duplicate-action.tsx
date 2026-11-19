@@ -67,12 +67,12 @@ export default function WorkDuplicateAction({
         Duplicate Work
       </Button>
       {createdWorkKey ? (
-        <p className="text-muted-foreground text-xs" role="status">
+        <p className="text-xs text-muted-foreground" role="status">
           Created Work {createdWorkKey}.
         </p>
       ) : null}
       {error ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}

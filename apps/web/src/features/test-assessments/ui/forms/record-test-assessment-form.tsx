@@ -12,7 +12,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
@@ -57,8 +57,8 @@ export function RecordTestAssessmentForm({
       }
     },
   });
-  const values = useStore(form.store, (state) => state.values);
-  const pending = useStore(form.store, (state) => state.isSubmitting);
+  const values = useSelector(form.store, (state) => state.values);
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
 
   const targetsQuery = useQuery({
     gcTime: 0,
@@ -81,12 +81,12 @@ export function RecordTestAssessmentForm({
       }}
     >
       <h3 className="font-medium">{`Record ${TEST_ASSESSMENT_LABEL}`}</h3>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         A dated snapshot of how you read these test records. It is optional, is
         not a score or a release gate, and is never rewritten.
       </p>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -143,7 +143,7 @@ export function RecordTestAssessmentForm({
         </form.Field>
         {targetsError ? (
           <div className="flex items-center gap-2">
-            <p className="text-destructive text-sm" role="alert">
+            <p className="text-sm text-destructive" role="alert">
               {targetsError}
             </p>
             <Button

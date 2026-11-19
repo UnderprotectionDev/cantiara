@@ -16,10 +16,12 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  MediaPlayer,
-  type MediaPlayerInstance,
-  MediaProvider,
-} from "@vidstack/react";
+  Container,
+  createPlayer,
+  orientationLockFeature,
+} from "@videojs/react";
+import { Audio } from "@videojs/react/audio";
+import { Video, videoFeatures } from "@videojs/react/video";
 import {
   lazy,
   Suspense,
@@ -88,7 +90,7 @@ export function FileAttachmentPreviewView({
         <div className="min-w-0">
           <p className="surface-kicker">{FILE_ATTACHMENT_UI_LABELS.preview}</p>
           <h3
-            className="mt-1 truncate font-semibold text-base"
+            className="mt-1 truncate text-base font-semibold"
             id={`file-attachment-preview-${attachment.id}`}
           >
             {attachment.name}
@@ -107,7 +109,7 @@ export function FileAttachmentPreviewView({
       </header>
 
       {preview.status === "processing" ? (
-        <p className="text-muted-foreground text-sm" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           Preview is processing. This view will update automatically.
         </p>
       ) : null}
@@ -121,7 +123,7 @@ export function FileAttachmentPreviewView({
       ) : null}
 
       {preview.status === "download-only" ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           ZIP files are available for download only.
         </p>
       ) : null}
@@ -163,7 +165,7 @@ function UnavailablePreview({
       <p className="font-medium text-destructive">
         {FILE_ATTACHMENT_UI_LABELS.unavailable}
       </p>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {failureMessage ?? "The preview could not be generated."}
       </p>
       {onRetry && retryable ? (
@@ -259,11 +261,11 @@ function PreviewContent({
     case "text":
       return preview.text ? (
         <div className="overflow-auto rounded-md border bg-muted/10 p-3">
-          <pre className="whitespace-pre-wrap break-words font-mono text-xs/relaxed">
+          <pre className="font-mono text-xs/relaxed break-words whitespace-pre-wrap">
             {preview.text.content}
           </pre>
           {preview.text.truncated ? (
-            <p className="mt-3 border-t pt-3 text-muted-foreground text-xs">
+            <p className="mt-3 border-t pt-3 text-xs text-muted-foreground">
               Preview is truncated. Download the original for the complete file.
             </p>
           ) : null}
@@ -299,7 +301,7 @@ function AssetStatusMessage({
     return <UnavailablePreview onRetry={onRetry} />;
   }
   return (
-    <p className="text-muted-foreground text-sm" role="status">
+    <p className="text-sm text-muted-foreground" role="status">
       Loading preview…
     </p>
   );
@@ -349,7 +351,7 @@ function CsvPreview({
         </tbody>
       </table>
       {csv.truncated ? (
-        <p className="border-t px-3 py-2 text-muted-foreground text-xs">
+        <p className="border-t px-3 py-2 text-xs text-muted-foreground">
           Preview is truncated. Download the original for the complete file.
         </p>
       ) : null}
@@ -357,18 +359,38 @@ function CsvPreview({
   );
 }
 
-function MediaPreview({
-  kind,
-  playback,
-  src,
-  title,
-}: {
+const { Player: AttachmentMediaPlayer, usePlayer: useAttachmentMediaPlayer } =
+  createPlayer({ features: [...videoFeatures, orientationLockFeature] });
+
+interface MediaPreviewProps {
   kind: "audio" | "video";
   playback: FileAttachmentPreviewData["playback"];
   src: string;
   title: string;
-}) {
-  const mediaRef = useRef<MediaPlayerInstance | null>(null);
+}
+
+function MediaPreview(props: MediaPreviewProps) {
+  return (
+    <AttachmentMediaPlayer>
+      <MediaPreviewContent {...props} />
+    </AttachmentMediaPlayer>
+  );
+}
+
+function MediaPreviewContent({
+  kind,
+  playback,
+  src,
+  title,
+}: MediaPreviewProps) {
+  const player = useAttachmentMediaPlayer();
+  const mediaRef = useRef<HTMLAudioElement | HTMLVideoElement | null>(null);
+  const handleMediaRef = useCallback(
+    (element: HTMLAudioElement | HTMLVideoElement | null) => {
+      mediaRef.current = element;
+    },
+    [],
+  );
   const [loop, setLoop] = useState(false);
   const [speed, setSpeed] = useState(playback?.speeds[1] ?? 1);
   const handleSpeedChange = useCallback(
@@ -383,35 +405,48 @@ function MediaPreview({
     setLoop(checked);
   }, []);
   const handleFullscreen = useCallback(() => {
-    mediaRef.current?.enterFullscreen().catch(() => undefined);
-  }, []);
+    player.requestFullscreen().catch(() => undefined);
+  }, [player]);
 
-  useEffect(() => {
+  const handleMediaLoaded = useCallback(() => {
     if (mediaRef.current) {
+      mediaRef.current.defaultPlaybackRate = speed;
       mediaRef.current.playbackRate = speed;
     }
   }, [speed]);
+  useEffect(handleMediaLoaded, [handleMediaLoaded]);
 
   return (
     <div className="space-y-3">
-      <MediaPlayer
-        autoPlay={false}
-        className={
-          kind === "audio"
-            ? "block w-full"
-            : "block max-h-[min(70vh,42rem)] w-full rounded-md bg-black"
-        }
-        controls
-        loop={loop}
-        playbackRate={speed}
-        preload="metadata"
-        ref={mediaRef}
-        src={src}
-        title={title}
-        viewType={kind}
-      >
-        <MediaProvider />
-      </MediaPlayer>
+      <Container>
+        {kind === "audio" ? (
+          <Audio
+            aria-label={title}
+            autoPlay={false}
+            className="block w-full"
+            controls
+            fallback={null}
+            loop={loop}
+            onLoadedMetadata={handleMediaLoaded}
+            preload="metadata"
+            ref={handleMediaRef}
+            src={src}
+          />
+        ) : (
+          <Video
+            aria-label={title}
+            autoPlay={false}
+            className="block max-h-[min(70vh,42rem)] w-full rounded-md bg-black"
+            controls
+            fallback={null}
+            loop={loop}
+            onLoadedMetadata={handleMediaLoaded}
+            preload="metadata"
+            ref={handleMediaRef}
+            src={src}
+          />
+        )}
+      </Container>
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <label className="flex items-center gap-2" htmlFor={speedId}>
           <span>{FILE_ATTACHMENT_UI_LABELS.playbackSpeed}</span>
@@ -461,7 +496,7 @@ function PdfPreview(props: FileAttachmentPdfPreviewProps) {
   return (
     <Suspense
       fallback={
-        <p className="text-muted-foreground text-sm" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           Loading PDF preview…
         </p>
       }
@@ -646,9 +681,9 @@ export function FileAttachmentPreviewPanel({
   if (!open) {
     return null;
   }
-  if (previewQuery.isPending) {
+  if (previewQuery.status === "pending") {
     return (
-      <p className="border-t pt-3 text-muted-foreground text-sm" role="status">
+      <p className="border-t pt-3 text-sm text-muted-foreground" role="status">
         Loading preview…
       </p>
     );
@@ -656,7 +691,7 @@ export function FileAttachmentPreviewPanel({
   if (previewQuery.isError || !preview) {
     return (
       <div className="border-t pt-3" role="alert">
-        <p className="text-destructive text-sm">Preview is unavailable.</p>
+        <p className="text-sm text-destructive">Preview is unavailable.</p>
         <Button
           className="mt-3"
           onClick={handlePreviewRetry}
@@ -706,8 +741,8 @@ export function FileAttachmentPreviewCard({
     <li className="space-y-3 p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h3 className="truncate font-medium text-sm">{attachment.name}</h3>
-          <p className="mt-1 text-muted-foreground text-xs">
+          <h3 className="truncate text-sm font-medium">{attachment.name}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
             {attachment.currentVersion.preview} · Version{" "}
             {attachment.currentVersion.number}
           </p>
@@ -749,12 +784,12 @@ export default function FileAttachmentsSurface({
           {FILE_ATTACHMENT_UI_LABELS.fileAttachment}
         </p>
         <h2
-          className="mt-2 text-balance font-semibold text-2xl tracking-tight sm:text-3xl"
+          className="mt-2 text-2xl font-semibold tracking-tight text-balance sm:text-3xl"
           id="file-attachments-heading"
         >
           File Attachments
         </h2>
-        <p className="mt-3 text-muted-foreground text-sm/relaxed">
+        <p className="mt-3 text-sm/relaxed text-muted-foreground">
           Review supported File Attachments inside Cantiara. Originals remain
           behind the protected asset boundary and are downloaded only on
           request.
@@ -763,18 +798,18 @@ export default function FileAttachmentsSurface({
 
       <FileAttachmentUploadControl projectId={projectId} />
 
-      {attachmentsQuery.isPending ? (
-        <p className="text-muted-foreground text-sm" role="status">
+      {attachmentsQuery.status === "pending" ? (
+        <p className="text-sm text-muted-foreground" role="status">
           Loading File Attachments…
         </p>
       ) : null}
       {attachmentsQuery.isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           File Attachments are unavailable. Try loading this page again.
         </p>
       ) : null}
       {attachmentsQuery.data?.length === 0 ? (
-        <p className="border-y py-8 text-muted-foreground text-sm">
+        <p className="border-y py-8 text-sm text-muted-foreground">
           No File Attachments are available in this Project yet.
         </p>
       ) : null}

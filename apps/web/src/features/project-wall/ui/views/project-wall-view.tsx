@@ -132,7 +132,7 @@ export function ProjectWallLayout({
   }
   return (
     <section aria-label="Project Wall" className="space-y-4">
-      <h2 className="font-semibold text-lg">Project Wall</h2>
+      <h2 className="text-lg font-semibold">Project Wall</h2>
       <CreateWallForm onCreate={actions.onCreate} />
       {skeletons.length > 0 ? (
         <div className="flex flex-wrap gap-2">
@@ -198,7 +198,7 @@ export function ProjectWallLayout({
           <ProjectWallNarrativePanel actions={actions} wall={selected} />
           <ProjectWallFocusOrderEditor actions={actions} wall={selected} />
           <ProjectWallSnapshotPanel actions={actions} wall={selected} />
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             Cards are live references. Moving a card or changing its density
             never edits the source record; edit content with Open Source Record.
           </p>

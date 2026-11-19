@@ -14,7 +14,7 @@ import {
 } from "@cantiara/ui/components/radio-group";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import {
   EMPTY_PROJECT_UPDATE_DRAFT,
   type ProjectUpdateLinkCandidate,
@@ -66,7 +66,7 @@ export function ProjectUpdateForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -78,7 +78,7 @@ export function ProjectUpdateForm({
       onSubmit={submit}
     >
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -182,7 +182,7 @@ export function ProjectUpdateForm({
                 )}
               </form.Field>
             ) : null}
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               The mark is your own judgment of this day. Saving adds a dated{" "}
               {PROJECT_UPDATE_LABEL} and freezes the summary above as it is now;
               a saved {PROJECT_UPDATE_LABEL} is never rewritten.

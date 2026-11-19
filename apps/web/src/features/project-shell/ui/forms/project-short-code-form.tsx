@@ -7,7 +7,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
 import { Check, LockKeyhole, Pencil, Save } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type SubmitEvent, useCallback, useEffect, useState } from "react";
 
 import { useProjectShortCode } from "../../hooks/use-project-short-code";
 
@@ -45,7 +45,7 @@ export default function ProjectShortCodeForm({
     form.setFieldValue("shortCode", project.shortCode);
   }, [form, project.shortCode]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -67,8 +67,8 @@ export default function ProjectShortCodeForm({
     return (
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-muted-foreground text-xs">Short code</p>
-          <p className="mt-1 flex items-center gap-2 font-medium text-sm">
+          <p className="text-xs text-muted-foreground">Short code</p>
+          <p className="mt-1 flex items-center gap-2 text-sm font-medium">
             <span>{project.shortCode}</span>
             {project.shortCodeLocked ? (
               <LockKeyhole
@@ -79,7 +79,7 @@ export default function ProjectShortCodeForm({
           </p>
           {project.shortCodeLocked ? (
             <p
-              className="mt-1 text-muted-foreground text-xs"
+              className="mt-1 text-xs text-muted-foreground"
               id={`short-code-help-${project.id}`}
             >
               Short code is locked after the first Work.
@@ -106,7 +106,7 @@ export default function ProjectShortCodeForm({
   return (
     <form className="space-y-2" onSubmit={handleSubmit}>
       <label
-        className="font-medium text-xs"
+        className="text-xs font-medium"
         htmlFor={`short-code-${project.id}`}
       >
         Short code
@@ -124,7 +124,7 @@ export default function ProjectShortCodeForm({
         )}
       </form.Field>
       {(validationError ?? error) ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {validationError ?? error}
         </p>
       ) : null}

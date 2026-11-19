@@ -35,7 +35,7 @@ export const dailyFocusEventSchema = z
       "Reopened",
       "Resolved",
     ]),
-    occurredAt: z.string().datetime({ offset: true }),
+    occurredAt: z.iso.datetime({ offset: true }),
     projectId: identifierSchema,
     projectName: identifierSchema,
     sourceId: identifierSchema,

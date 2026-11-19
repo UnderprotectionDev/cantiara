@@ -48,7 +48,7 @@ export const workNotNowTrailSchema = z
     grounds: z.array(workNotNowGroundSchema).max(25),
     id: identifierSchema,
     reason: z.string().trim().min(1).max(500),
-    revision: z.number().int().positive().safe(),
+    revision: z.number().int().positive(),
     status: workNotNowStatusSchema,
     workId: identifierSchema,
   })
@@ -70,7 +70,7 @@ export type WorkNotNowTrail = z.infer<typeof workNotNowTrailSchema>;
 export const workNotNowSummarySchema = z
   .object({
     activeTrail: workNotNowTrailSchema.nullable(),
-    revision: z.number().int().nonnegative().safe(),
+    revision: z.number().int().nonnegative(),
   })
   .strict();
 

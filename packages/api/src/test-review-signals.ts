@@ -78,7 +78,7 @@ export const supersessionSchema = z
     newer: resultEndSchema,
     older: resultEndSchema,
     reason: z.string().nullable(),
-    recordedAt: z.string().datetime({ offset: true }),
+    recordedAt: z.iso.datetime({ offset: true }),
   })
   .strict();
 export type TestReviewSupersession = z.infer<typeof supersessionSchema>;
@@ -110,7 +110,7 @@ export const resultBindingSchema = z
     id: identifierSchema,
     judgedSessionTestIds: z.array(z.string()),
     reason: z.string().nullable(),
-    recordedAt: z.string().datetime({ offset: true }),
+    recordedAt: z.iso.datetime({ offset: true }),
     scenarioId: identifierSchema,
     scenarioVersion: z.number().int().min(1),
     sessionTestId: identifierSchema,
@@ -184,7 +184,7 @@ export const followUpLinkSchema = z
     actorAccountId: identifierSchema,
     id: identifierSchema,
     mode: z.enum(["Created", "Attached"]),
-    recordedAt: z.string().datetime({ offset: true }),
+    recordedAt: z.iso.datetime({ offset: true }),
     sessionId: identifierSchema,
     sessionTestId: identifierSchema,
     workId: identifierSchema,

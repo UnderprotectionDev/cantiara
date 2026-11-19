@@ -14,11 +14,10 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { LiteDebouncer } from "@tanstack/pacer-lite";
 import {
-  applyNodeChanges,
   type Edge,
   MarkerType,
   type Node,
-  type NodeChange,
+  type NodeChangeset,
   type NodeProps,
   ReactFlow,
   type ReactFlowInstance,
@@ -237,7 +236,10 @@ function Canvas({
         .then(ready);
       return;
     }
-    instance.fitView({ duration: 0 }).then(ready);
+    // React Flow 13 reads padding as a per-side margin; v12's default 0.1 is (1 - 1/1.1) / 2.
+    instance
+      .fitView({ duration: 0, padding: "4.545454545454546%" })
+      .then(ready);
   }
 
   // `Fit View` returns to the neutral view: every group expands, then all
@@ -245,7 +247,9 @@ function Canvas({
   const pendingFit = useRef<boolean>(false);
   const fitNow = useCallback(() => {
     requestAnimationFrame(() => {
-      reactFlow.fitView({ duration: 0 }).then(() => reportViewport(reactFlow));
+      reactFlow
+        .fitView({ duration: 0, padding: "4.545454545454546%" })
+        .then(() => reportViewport(reactFlow));
     });
   }, [reactFlow, reportViewport]);
   const fitView = useCallback(() => {
@@ -363,9 +367,9 @@ function Canvas({
   }, [fitNow, nodes]);
 
   const onNodesChange = useCallback(
-    (changes: NodeChange<WallNode>[]) => {
-      setNodes((current) => applyNodeChanges(changes, current));
-      const picks = changes.filter((change) => change.type === "select");
+    (changes: NodeChangeset<WallNode>) => {
+      setNodes((current) => changes.applyTo(current));
+      const picks = [...changes].filter((change) => change.type === "select");
       if (picks.length > 0) {
         const next = new Set(selection);
         for (const change of picks) {
@@ -740,7 +744,7 @@ function Canvas({
           </Button>
         ) : null}
       </div>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         {selection.length} selected. Focus a card and press Enter to select it;
         arrows move the selection, Alt+arrows pan, + and - zoom, 0 fits the
         view.

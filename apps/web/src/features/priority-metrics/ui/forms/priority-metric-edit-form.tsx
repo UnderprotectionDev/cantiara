@@ -8,7 +8,7 @@ import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import {
   draftFromMetric,
   type PriorityMetricDraft,
@@ -61,7 +61,7 @@ export function PriorityMetricRow({
     },
   });
 
-  function handleSave(event: FormEvent<HTMLFormElement>) {
+  function handleSave(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     editForm.handleSubmit().catch(() => undefined);
@@ -72,10 +72,10 @@ export function PriorityMetricRow({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <h5 className="font-medium">{metric.name}</h5>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {metric.shortDescription}
           </p>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             {metric.enabled ? "Enabled" : "Disabled"}
           </p>
         </div>
@@ -174,12 +174,12 @@ export function PriorityMetricRow({
             </editForm.Subscribe>
           </FieldGroup>
           {validationError ? (
-            <p className="text-destructive text-sm" role="alert">
+            <p className="text-sm text-destructive" role="alert">
               {validationError}
             </p>
           ) : null}
           {error ? (
-            <p className="text-destructive text-sm" role="alert">
+            <p className="text-sm text-destructive" role="alert">
               {error}
             </p>
           ) : null}

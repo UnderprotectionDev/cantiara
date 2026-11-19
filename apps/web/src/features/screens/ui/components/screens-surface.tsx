@@ -77,7 +77,7 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
   function retry() {
     screens.refetch().catch(() => undefined);
   }
-  if (screens.isPending) {
+  if (screens.status === "pending") {
     return <p role="status">Loading Screens…</p>;
   }
   if (!screens.data) {

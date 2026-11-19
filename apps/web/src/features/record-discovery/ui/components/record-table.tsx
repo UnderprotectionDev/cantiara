@@ -18,12 +18,21 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import {
   type ColumnDef,
+  columnFilteringFeature,
+  columnVisibilityFeature,
+  createFilteredRowModel,
+  createSortedRowModel,
+  filterFn_includesString,
   flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
+  globalFilteringFeature,
+  rowSortingFeature,
   type SortingState,
-  useReactTable,
+  sortFn_alphanumeric,
+  sortFn_basic,
+  sortFn_datetime,
+  sortFn_text,
+  tableFeatures,
+  useTable,
 } from "@tanstack/react-table";
 import {
   type ChangeEvent,
@@ -44,6 +53,22 @@ import RecordTablePasteCorrectionForm, {
   recordTablePasteCorrectionFormId,
 } from "../forms/record-table-paste-correction-form";
 import RecordTablePasteForm from "../forms/record-table-paste-form";
+
+const recordTableFeatures = tableFeatures({
+  columnFilteringFeature,
+  columnVisibilityFeature,
+  globalFilteringFeature,
+  rowSortingFeature,
+  filteredRowModel: createFilteredRowModel(),
+  sortedRowModel: createSortedRowModel(),
+  filterFns: { includesString: filterFn_includesString },
+  sortFns: {
+    alphanumeric: sortFn_alphanumeric,
+    basic: sortFn_basic,
+    datetime: sortFn_datetime,
+    text: sortFn_text,
+  },
+});
 
 const fieldLabels = {
   answer: "Answer",
@@ -603,7 +628,9 @@ function RecordTableGrid({
   const fields = recordTableFieldsByType[
     recordType
   ] as readonly RecordTableField[];
-  const columns = useMemo<ColumnDef<RecordTableRecord, unknown>[]>(
+  const columns = useMemo<
+    ColumnDef<typeof recordTableFeatures, RecordTableRecord>[]
+  >(
     () =>
       fields.map((field) => ({
         accessorFn: (record) => recordField(record, field),
@@ -641,14 +668,12 @@ function RecordTableGrid({
       ),
     [recordType, records],
   );
-  const table = useReactTable({
+  const table = useTable({
+    features: recordTableFeatures,
     columns,
     data: typedRecords,
     enableGlobalFilter: true,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     getRowId: (record) => `${record.projectId}:${record.id}`,
-    getSortedRowModel: getSortedRowModel(),
     globalFilterFn: "includesString",
     onGlobalFilterChange: setFilter,
     onSortingChange: setSorting,

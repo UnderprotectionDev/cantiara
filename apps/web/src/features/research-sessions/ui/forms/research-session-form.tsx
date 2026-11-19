@@ -15,7 +15,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useId, useState } from "react";
+import { type SubmitEvent, useId, useState } from "react";
 import { DateTimePicker } from "@/components/date-picker";
 import {
   researchSessionTimeInput,
@@ -114,7 +114,7 @@ export function ResearchSessionEditor({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     form.handleSubmit().catch(() => undefined);
   }
@@ -126,7 +126,7 @@ export function ResearchSessionEditor({
     >
       <h3 className="font-medium">Research Session</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

@@ -90,7 +90,7 @@ export default function RoadmapPlacementEditor({
       />
       {preview ? (
         <section aria-label="Preview" className="grid gap-3 border-t pt-3">
-          <h4 className="font-medium text-sm">Preview</h4>
+          <h4 className="text-sm font-medium">Preview</h4>
           <dl className="grid gap-1 text-sm">
             <dt className="text-muted-foreground">{preview.fieldLabel}</dt>
             <dd>
@@ -120,7 +120,7 @@ export default function RoadmapPlacementEditor({
         </section>
       ) : null}
       {mutation.isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Plan could not be saved. Reload and try again.
         </p>
       ) : null}

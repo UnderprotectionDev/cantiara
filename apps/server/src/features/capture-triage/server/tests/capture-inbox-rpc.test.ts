@@ -82,6 +82,27 @@ describe("Capture Inbox RPC", () => {
     });
   });
 
+  test("refuses an unparseable Capture link as a validation error without saving", async () => {
+    const create = vi.fn();
+    const captureInbox: CaptureInboxAccess = {
+      create,
+      createBug: vi.fn(),
+      list: vi.fn().mockResolvedValue(emptyInbox),
+      updateBulkSenseMaking: vi.fn(),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(captureInbox),
+    });
+
+    await expect(
+      client.createCapture({
+        content: "Save this thought",
+        link: "not a url",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST", status: 400 });
+    expect(create).not.toHaveBeenCalled();
+  });
+
   test("updates Bulk sense-making through the authenticated Capture Inbox interface", async () => {
     const updateBulkSenseMaking = vi.fn().mockResolvedValue({
       clusters: [{ id: "cluster-ideas", name: "Ideas", position: 0 }],

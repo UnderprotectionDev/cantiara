@@ -44,7 +44,7 @@ export default function ClosureSummarySurface({
       dateHistoryAsync({ projectId, sources: selected }),
     [dateHistoryAsync, projectId],
   );
-  if (sources.isPending) {
+  if (sources.status === "pending") {
     return <p role="status">Loading Closure Summary Draft…</p>;
   }
   if (!sources.data) {

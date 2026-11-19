@@ -157,7 +157,7 @@ function CardRow({
       {canOpen ? (
         <AppLink
           aria-label={`Open Source Record: ${title}`}
-          className="text-primary text-xs underline"
+          className="text-xs text-primary underline"
           href={openPath ?? ""}
         >
           Open Source Record
@@ -181,7 +181,7 @@ function GroupRow({
 }) {
   const { group } = row;
   return (
-    <div className="flex items-center gap-2 py-1 font-medium text-sm">
+    <div className="flex items-center gap-2 py-1 text-sm font-medium">
       <Button
         aria-expanded={!row.collapsed}
         aria-label={`${row.collapsed ? "Expand group" : "Collapse group"}: ${group.title}`}
@@ -215,7 +215,7 @@ function OutlineRowView({
   if (row.kind === "ungrouped") {
     return (
       <p
-        className="py-1 font-medium text-muted-foreground text-sm"
+        className="py-1 text-sm font-medium text-muted-foreground"
         data-outline-index={index}
         tabIndex={-1}
       >
@@ -393,7 +393,7 @@ function LinkList({
     return found ? cardTitle(found) : "Unavailable record";
   };
   if (mine.length === 0) {
-    return <p className="text-muted-foreground text-xs">No Visual links.</p>;
+    return <p className="text-xs text-muted-foreground">No Visual links.</p>;
   }
   return (
     <ul aria-label="Visual links of this card" className="space-y-1 text-xs">
@@ -427,7 +427,7 @@ function Inspector({
 }) {
   return (
     <section aria-label={`Inspector: ${cardTitle(card)}`} className="space-y-2">
-      <h4 className="font-medium text-sm">Inspect: {cardTitle(card)}</h4>
+      <h4 className="text-sm font-medium">Inspect: {cardTitle(card)}</h4>
       <ProjectWallCard
         actions={context.cardActions}
         card={card}
@@ -481,7 +481,7 @@ export function ProjectWallOutline(props: ProjectWallOutlineProps) {
         selection={props.selection}
       />
       {rows.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No cards yet.</p>
+        <p className="text-sm text-muted-foreground">No cards yet.</p>
       ) : null}
       {virtualized ? (
         <VirtualOutline context={context} rows={rows} />

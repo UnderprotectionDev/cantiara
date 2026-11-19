@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// @vitest-environment-options {"settings":{"navigation":{"disableChildFrameNavigation":true}}}
+// @vitest-environment-options {"settings":{"enableIframePageLoading":true,"navigation":{"disableChildFrameNavigation":true}}}
 // biome-ignore-all lint/suspicious/useAwait: React act and asynchronous provider doubles expose promise-based public boundaries.
 
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";

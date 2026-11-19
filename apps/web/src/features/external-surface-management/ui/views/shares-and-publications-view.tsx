@@ -114,10 +114,10 @@ export function SharesAndPublicationsView({
   return (
     <section aria-label={SHARES_AND_PUBLICATIONS_LABEL} className="space-y-4">
       <header className="space-y-1">
-        <h2 className="font-semibold text-2xl tracking-tight">
+        <h2 className="text-2xl font-semibold tracking-tight">
           {SHARES_AND_PUBLICATIONS_LABEL}
         </h2>
-        <p className="text-muted-foreground text-sm">{scopeLabel}</p>
+        <p className="text-sm text-muted-foreground">{scopeLabel}</p>
       </header>
       {error ? <p role="alert">The directory could not be loaded.</p> : null}
       {loading ? <p>Loading…</p> : null}
@@ -143,7 +143,7 @@ export function SharesAndPublicationsView({
                   <div className="font-medium">
                     {row.source.title || row.source.kind}
                   </div>
-                  <div className="text-muted-foreground text-xs">
+                  <div className="text-xs text-muted-foreground">
                     {row.source.kind}
                   </div>
                 </TableCell>

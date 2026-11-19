@@ -14,7 +14,7 @@ export function DdlPreview({ versionId }: { versionId: string }) {
     refetchOnWindowFocus: false,
   });
   const { data } = preview;
-  if (preview.isPending) {
+  if (preview.status === "pending") {
     return <p>Validating PostgreSQL DDL…</p>;
   }
   if (preview.isError || !data) {
@@ -26,7 +26,7 @@ export function DdlPreview({ versionId }: { versionId: string }) {
   return (
     <section aria-label="PostgreSQL DDL" className="space-y-2">
       <h4 className="font-medium">PostgreSQL DDL</h4>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {`${data.version.name} · version ${data.version.number} · model hash ${data.modelHash.slice(0, 12)} · ${data.generatorVersion}`}
       </p>
       <StaticValidationStatus validation={data.validation} />

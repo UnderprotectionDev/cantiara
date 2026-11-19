@@ -56,8 +56,8 @@ export function LinkSharingView({
   return (
     <section aria-label={SHARE_LABEL} className="space-y-6">
       <header className="space-y-1">
-        <h2 className="font-semibold text-2xl tracking-tight">{SHARE_LABEL}</h2>
-        <p className="text-muted-foreground text-sm">
+        <h2 className="text-2xl font-semibold tracking-tight">{SHARE_LABEL}</h2>
+        <p className="text-sm text-muted-foreground">
           Nothing leaves until you approve the exact records, fields, versions
           and files below. Folders, relations and views never add to the scope.
         </p>

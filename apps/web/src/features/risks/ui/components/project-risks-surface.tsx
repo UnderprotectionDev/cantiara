@@ -133,7 +133,7 @@ export default function ProjectRisksSurface({
   function retry() {
     records.refetch().catch(() => undefined);
   }
-  if (records.isPending) {
+  if (records.status === "pending") {
     return <p role="status">Loading Risks…</p>;
   }
   if (records.isError || !records.data) {

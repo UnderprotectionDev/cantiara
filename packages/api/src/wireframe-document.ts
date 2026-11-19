@@ -28,8 +28,8 @@ export type WireframeBlockKind = (typeof WIREFRAME_BLOCK_KINDS)[number];
 export const WIREFRAME_ANIMATION_DURATIONS_MS = [150, 300, 500, 800] as const;
 
 const identifier = z.string().trim().min(1).max(255);
-const coordinate = z.number().finite().min(-100_000).max(100_000);
-const dimension = z.number().finite().positive().max(20_000);
+const coordinate = z.number().min(-100_000).max(100_000);
+const dimension = z.number().positive().max(20_000);
 const label = z.string().max(500);
 
 const textContentSchema = z.discriminatedUnion("mode", [
@@ -148,7 +148,7 @@ export const wireframeLinkedDefinitionSchema = z
     content: linkedContentSchema,
     id: identifier,
     name: z.string().trim().min(1).max(120),
-    revision: z.number().int().min(1).safe(),
+    revision: z.number().int().min(1),
   })
   .strict();
 export type WireframeLinkedDefinition = z.infer<

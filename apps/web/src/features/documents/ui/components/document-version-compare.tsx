@@ -56,7 +56,7 @@ export default function DocumentVersionCompare({
         {selected.type} → {current.type}
       </p>
       <section aria-label="Compare">
-        <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-sm">
+        <pre className="overflow-x-auto font-mono text-sm whitespace-pre-wrap">
           {diffLines(selected.body, current.body).map((part, index) => {
             const formatted = formatPart(part);
             return (

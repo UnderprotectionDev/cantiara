@@ -21,10 +21,10 @@ const FIT_PADDING = 48;
  */
 export const wireframeViewportSchema = z
   .object({
-    centerX: z.number().finite().min(-1_000_000).max(1_000_000),
-    centerY: z.number().finite().min(-1_000_000).max(1_000_000),
+    centerX: z.number().min(-1_000_000).max(1_000_000),
+    centerY: z.number().min(-1_000_000).max(1_000_000),
     collapsedGroups: z.array(z.string().trim().min(1).max(80)).max(50),
-    zoom: z.number().finite().min(VIEWPORT_MIN_ZOOM).max(VIEWPORT_MAX_ZOOM),
+    zoom: z.number().min(VIEWPORT_MIN_ZOOM).max(VIEWPORT_MAX_ZOOM),
   })
   .strict();
 export type WireframeViewport = z.infer<typeof wireframeViewportSchema>;

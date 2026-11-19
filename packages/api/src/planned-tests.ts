@@ -21,8 +21,8 @@ import {
  */
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const timestampSchema = z.string().datetime({ offset: true });
-const versionNumberSchema = z.number().int().min(1).safe();
+const timestampSchema = z.iso.datetime({ offset: true });
+const versionNumberSchema = z.number().int().min(1);
 
 export const PLANNED_TEST_CASE_LABEL = "Planned Test Case";
 export const PLANNED_TESTS_AREA_LABEL = "Tests";
@@ -101,7 +101,7 @@ const plainRelationSchema = z
 /** A Document relation names the exact revision and, optionally, a stable section. */
 const documentRelationSchema = z
   .object({
-    documentRevision: z.number().int().nonnegative().safe(),
+    documentRevision: z.number().int().nonnegative(),
     sectionId: identifierSchema.optional(),
     targetId: identifierSchema,
     targetType: z.literal("Document"),
@@ -594,7 +594,7 @@ export const testHandoffContextRefSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("Feature"), targetId: identifierSchema }).strict(),
   z
     .object({
-      documentRevision: z.number().int().min(0).safe(),
+      documentRevision: z.number().int().min(0),
       kind: z.literal("Document"),
       sectionId: identifierSchema.nullish().transform((value) => value ?? null),
       targetId: identifierSchema,

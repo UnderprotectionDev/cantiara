@@ -12,7 +12,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useEffect, useRef } from "react";
+import { type SubmitEvent, useEffect, useRef } from "react";
 
 /**
  * The `Erase Personal Data` review: the impact first, then the distinct
@@ -56,7 +56,7 @@ export function PersonalDataEraseForm({
     heading.current?.focus();
   }, []);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -88,7 +88,7 @@ export function PersonalDataEraseForm({
         ))}
       </ul>
       <section className="space-y-1">
-        <h4 className="font-medium text-sm">Records that are erased</h4>
+        <h4 className="text-sm font-medium">Records that are erased</h4>
         <ul aria-label="Records that are erased" className="space-y-2 text-sm">
           {preview.sources.map((source) => (
             <li key={source.kind}>
@@ -105,7 +105,7 @@ export function PersonalDataEraseForm({
         </ul>
       </section>
       <section className="space-y-1">
-        <h4 className="font-medium text-sm">Copies elsewhere</h4>
+        <h4 className="text-sm font-medium">Copies elsewhere</h4>
         <ul aria-label="Copies elsewhere" className="space-y-1 text-sm">
           {preview.copies.length === 0 ? (
             <li>No other copies found.</li>
@@ -138,7 +138,7 @@ export function PersonalDataEraseForm({
           {CONFIRM_GITHUB_IDENTITY_LABEL}
         </Button>
         {grant ? (
-          <span className="text-muted-foreground text-sm" role="status">
+          <span className="text-sm text-muted-foreground" role="status">
             GitHub identity confirmed.
           </span>
         ) : null}

@@ -9,7 +9,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { type RiskRecord, riskFormSchema } from "../../lib/risk-form";
 
 export interface RiskDraft {
@@ -82,7 +82,7 @@ export function RiskEditor({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -94,7 +94,7 @@ export function RiskEditor({
     >
       <h3 className="font-medium">{changingStatus ? "Status" : "Risk"}</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

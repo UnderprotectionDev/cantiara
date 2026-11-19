@@ -10,7 +10,7 @@ import {
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 import { mergeUndoFormSchema } from "../../lib/merge-undo-form";
 
 const RESOLUTIONS = mergeUndoResolutionSchema.options;
@@ -44,7 +44,7 @@ export function MergeUndoForm({
     },
   });
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

@@ -6,7 +6,7 @@ import type { TrashCandidate } from "../lib/trash-candidates";
 export function usePreviewMoveToTrash(projectId: string) {
   const queryClient = useQueryClient();
   return function preview(candidate: TrashCandidate) {
-    return queryClient.fetchQuery({
+    return queryClient.query({
       ...orpc.moveToTrashPreview.queryOptions({
         input: {
           projectId,

@@ -33,10 +33,10 @@ function RoadmapCard({ data }: NodeProps<RoadmapNode>) {
     <div
       className={`h-[100px] w-[260px] rounded-lg border bg-card p-3 text-card-foreground ${data.highlighted ? "ring-4 ring-ring" : ""}`}
     >
-      <p className="line-clamp-2 break-words font-medium text-sm">
+      <p className="line-clamp-2 text-sm font-medium break-words">
         {data.title}
       </p>
-      <p className="mt-1 text-muted-foreground text-xs">{data.detail}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{data.detail}</p>
       {data.highlighted === true && (
         <p className="text-xs">Current visual change</p>
       )}
@@ -158,7 +158,7 @@ export default function RoadmapCanvas({
             throw new Error("Roadmap is unavailable.");
           }
           const fitted = current.current.nodes.length
-            ? await flow.fitView({ duration: 0, padding: 0.2 })
+            ? await flow.fitView({ duration: 0, padding: "8.333333333333334%" })
             : await flow.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 0 });
           if (!fitted) {
             throw new Error("Roadmap viewport could not be fitted.");
@@ -192,7 +192,9 @@ export default function RoadmapCanvas({
         </Button>
         <Button
           disabled={!flow}
-          onClick={() => flow?.fitView({ duration: 0, padding: 0.2 })}
+          onClick={() =>
+            flow?.fitView({ duration: 0, padding: "8.333333333333334%" })
+          }
           type="button"
           variant="outline"
         >
@@ -215,7 +217,10 @@ export default function RoadmapCanvas({
           nodeTypes={NODE_TYPES}
           onInit={async (instance) => {
             if (!session?.state.viewport && current.current.nodes.length > 0) {
-              await instance.fitView({ duration: 0, padding: 0.2 });
+              await instance.fitView({
+                duration: 0,
+                padding: "8.333333333333334%",
+              });
             }
             setFlow(instance);
           }}
@@ -225,7 +230,7 @@ export default function RoadmapCanvas({
         />
       </div>
       {!nodes.length && (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No planned Work matches this view.
         </p>
       )}

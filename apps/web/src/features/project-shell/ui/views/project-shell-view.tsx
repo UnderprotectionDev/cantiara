@@ -44,7 +44,7 @@ export default function ProjectShellView({
   const formattingPreferences =
     accountPreferencesQuery.data ?? DEFAULT_ACCOUNT_PREFERENCES;
 
-  if (projectQuery.isPending) {
+  if (projectQuery.status === "pending") {
     return (
       <main className="surface-frame max-w-[1440px]">
         <ClientShellStatus

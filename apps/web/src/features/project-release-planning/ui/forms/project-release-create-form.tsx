@@ -4,7 +4,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import {
   EMPTY_PROJECT_RELEASE_CREATE_DRAFT,
   projectReleaseCreateFormSchema,
@@ -43,7 +43,7 @@ export function ProjectReleaseCreateForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -51,7 +51,7 @@ export function ProjectReleaseCreateForm({
   return (
     <form className="space-y-4" onSubmit={submit}>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -116,7 +116,7 @@ export function ProjectReleaseCreateForm({
                 </label>
               )}
             </form.Field>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Starts as Draft. A Project Release is the publishable scope; it is
               not a Milestone or a Focus Period.
             </p>

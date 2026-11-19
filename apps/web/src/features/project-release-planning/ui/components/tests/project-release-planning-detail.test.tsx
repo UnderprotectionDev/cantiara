@@ -165,7 +165,7 @@ describe("Project Release Planning detail", () => {
       "Intended outcome",
       "Outcome evidence",
     ]) {
-      expect(html).toContain(`<dt class="font-medium text-sm">${label}</dt>`);
+      expect(html).toContain(`<dt class="text-sm font-medium">${label}</dt>`);
     }
     expect(html).toContain("Optional. These fields never block publishing");
     expect(html).toContain("Contact: Early adopter");

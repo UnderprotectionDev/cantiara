@@ -1980,3 +1980,66 @@ describe("server app Link Sharing visitor boundary", () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe("server app OpenAPI reference", () => {
+  test("keeps URL and email formats in generated request schemas", async () => {
+    const { app } = createTestApp();
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/api-reference/spec.json"),
+    );
+    const spec = (await response.json()) as {
+      paths: Record<
+        string,
+        {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: { properties: Record<string, unknown> };
+                };
+              };
+            };
+          };
+        }
+      >;
+    };
+    const requestProperty = (path: string, property: string) =>
+      spec.paths[path]?.post.requestBody.content["application/json"].schema
+        .properties[property];
+
+    expect(response.status).toBe(200);
+    expect(requestProperty("/createCapture", "link")).toEqual({
+      anyOf: [
+        { format: "uri", maxLength: 2048, minLength: 1, type: "string" },
+        { type: "null" },
+      ],
+    });
+    expect(requestProperty("/createContact", "email")).toEqual({
+      format: "email",
+      maxLength: 320,
+      type: "string",
+    });
+    expect(
+      requestProperty("/startExternalExecutionHandoff", "githubContext"),
+    ).toMatchObject({
+      items: { format: "uri", maxLength: 500, minLength: 1, type: "string" },
+    });
+    expect(
+      requestProperty("/recordExternalExecutionHandoffReturn", "externalLinks"),
+    ).toMatchObject({
+      items: { format: "uri", maxLength: 2000, minLength: 1, type: "string" },
+    });
+    expect(requestProperty("/createProject", "logo")).toMatchObject({
+      anyOf: [
+        {
+          anyOf: [
+            { type: "string" },
+            { format: "uri", maxLength: 2000, type: "string" },
+          ],
+        },
+        { type: "null" },
+      ],
+    });
+  });
+});

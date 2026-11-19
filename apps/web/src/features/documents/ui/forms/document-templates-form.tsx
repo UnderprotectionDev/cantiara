@@ -283,7 +283,7 @@ export default function DocumentTemplatesSurface({
       className="space-y-3 rounded-lg border p-4"
     >
       <h3 className="font-medium">Document Templates</h3>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Templates are optional. Each Document has its own identity and never
         follows later template changes.
       </p>
@@ -342,7 +342,7 @@ export default function DocumentTemplatesSurface({
       ) : null}
       {error && mode === null ? <p role="alert">{error}</p> : null}
       {templateSaved && mode === null ? (
-        <p className="text-muted-foreground text-sm" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           Document Template saved. Existing Documents are unchanged.
         </p>
       ) : null}
@@ -472,7 +472,7 @@ export default function DocumentTemplatesSurface({
                         }
                         value={field.state.value}
                       />
-                      <p className="text-muted-foreground text-sm">
+                      <p className="text-sm text-muted-foreground">
                         Placeholders:{" "}
                         {documentTemplateFields(field.state.value).join(", ") ||
                           "None"}

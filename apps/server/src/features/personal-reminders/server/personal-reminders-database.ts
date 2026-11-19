@@ -115,7 +115,7 @@ function sourceKey(
 
 function sourceRecordTypeOf(
   reminder: Pick<PersonalReminderRecord, "sourceRecordType">,
-) {
+): PersonalReminderSourceType {
   return personalReminderSourceTypeSchema.parse(reminder.sourceRecordType);
 }
 

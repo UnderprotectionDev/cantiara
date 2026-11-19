@@ -8,9 +8,9 @@ import { stoppedActivityLabel } from "../../lib/project-retirement-labels";
 function List({ items, title }: { items: string[]; title: string }) {
   return (
     <section aria-label={title} className="space-y-1">
-      <h3 className="font-medium text-sm">{title}</h3>
+      <h3 className="text-sm font-medium">{title}</h3>
       {items.length === 0 ? (
-        <p className="text-muted-foreground text-sm">None.</p>
+        <p className="text-sm text-muted-foreground">None.</p>
       ) : (
         <ul className="list-disc space-y-0.5 pl-5 text-sm">
           {items.map((item) => (
@@ -67,7 +67,7 @@ export function ArchivePreviewPanel({
         items={preview.allowedActions.map((entry) => entry.label)}
         title="Security actions that stay open"
       />
-      <p className="text-muted-foreground text-sm">{preview.githubNotice}</p>
+      <p className="text-sm text-muted-foreground">{preview.githubNotice}</p>
       <div className="flex flex-wrap gap-2">
         <Button
           className="min-h-11"

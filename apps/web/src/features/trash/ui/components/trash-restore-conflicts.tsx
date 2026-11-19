@@ -21,7 +21,7 @@ export function TrashRestoreConflicts({
       className="basis-full space-y-1 rounded-lg border border-destructive/50 p-3"
       role="alert"
     >
-      <h4 className="font-medium text-sm">
+      <h4 className="text-sm font-medium">
         {TRASH_RESTORE_CONFLICTS_LABEL}: {label}
       </h4>
       <ul>
@@ -34,7 +34,7 @@ export function TrashRestoreConflicts({
           </li>
         ))}
       </ul>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Nothing was restored or rebound.
       </p>
     </section>

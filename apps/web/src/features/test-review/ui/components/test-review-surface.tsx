@@ -33,7 +33,7 @@ export default function TestReviewSurface({
       queryClient.invalidateQueries({ queryKey: options.queryKey }),
       refreshSummary(),
     ]);
-  if (review.isPending) {
+  if (review.status === "pending") {
     return <p role="status">Loading Test Review…</p>;
   }
   if (!review.data) {
@@ -63,7 +63,7 @@ export default function TestReviewSurface({
     // The close preview names the remaining Session Tests and carries no
     // token the close needs, so it is a plain read.
     previewClose: (sessionId) =>
-      queryClient.fetchQuery({
+      queryClient.query({
         ...orpc.previewReviewClose.queryOptions({
           input: { projectId, sessionId },
         }),

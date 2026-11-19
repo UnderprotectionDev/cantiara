@@ -1,0 +1,105 @@
+// @vitest-environment happy-dom
+import type { UserFlowView } from "@cantiara/api/user-flow";
+import { act, type ReactNode } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+
+const gestures = vi.hoisted(() => ({
+  move: undefined as
+    | ((event: null, viewport: { x: number; y: number; zoom: number }) => void)
+    | undefined,
+}));
+
+vi.mock("@xyflow/react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@xyflow/react")>()),
+  ReactFlow: ({ onMoveEnd }: { onMoveEnd: typeof gestures.move }) => {
+    gestures.move = onMoveEnd;
+    return null;
+  },
+  ReactFlowProvider: ({ children }: { children: ReactNode }) => children,
+  useReactFlow: () => ({}),
+}));
+
+import UserFlowCanvas from "../user-flow-canvas";
+
+(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
+
+const flow: UserFlowView = {
+  cards: [],
+  createdAt: "2026-10-01T09:00:00.000Z",
+  id: "flow-1",
+  links: [],
+  nodes: [],
+  projectId: "project-1",
+  title: "Purchase path",
+  updatedAt: "2026-10-01T09:00:00.000Z",
+  version: 1,
+};
+
+let root: Root;
+let host: HTMLDivElement;
+const save = vi.fn();
+const saveContent = vi.fn();
+
+function pan(x: number, y: number, zoom: number) {
+  const { move } = gestures;
+  if (!move) {
+    throw new Error("User Flow canvas is not ready for movement");
+  }
+  act(() => move(null, { x, y, zoom }));
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  save.mockReset();
+  saveContent.mockReset();
+  host = document.createElement("div");
+  document.body.append(host);
+  root = createRoot(host);
+  act(() => {
+    root.render(
+      <UserFlowCanvas
+        flow={flow}
+        onSave={saveContent}
+        onViewportChange={save}
+      />,
+    );
+  });
+});
+
+afterEach(() => {
+  act(() => root.unmount());
+  host.remove();
+  vi.useRealTimers();
+});
+
+test("coalesces canvas movement into the last personal viewport without saving content", async () => {
+  pan(0, 0, 1);
+  pan(200, 80, 2);
+  expect(save).not.toHaveBeenCalled();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1000);
+  });
+  expect(save).toHaveBeenCalledExactlyOnceWith({
+    center: { x: 100, y: 50 },
+    collapsed: [],
+    zoom: 2,
+  });
+  expect(saveContent).not.toHaveBeenCalled();
+});
+
+test("leaving the canvas flushes its last personal viewport exactly once", async () => {
+  pan(200, 80, 2);
+  await act(async () => root.unmount());
+  expect(save).toHaveBeenCalledExactlyOnceWith({
+    center: { x: 100, y: 50 },
+    collapsed: [],
+    zoom: 2,
+  });
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(saveContent).not.toHaveBeenCalled();
+  root = createRoot(host);
+});

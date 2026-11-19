@@ -37,8 +37,8 @@ function LookAgainRow({
   }, [label, onOpenSource, openSourceRecord, target]);
   return (
     <li className="space-y-2 rounded-lg border border-border/70 p-4">
-      <h3 className="break-words font-medium">{label}</h3>
-      <p className="text-muted-foreground text-sm">
+      <h3 className="font-medium break-words">{label}</h3>
+      <p className="text-sm text-muted-foreground">
         Review Later
         {signal.evaluationNote ? ` · ${signal.evaluationNote}` : ""}
       </p>
@@ -55,7 +55,7 @@ function LookAgainRow({
       ) : (
         <p role="status">Source record is unavailable.</p>
       )}
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         <time dateTime={signal.occurredAt}>{time}</time>
       </p>
     </li>
@@ -78,7 +78,7 @@ export default function LookAgainList({
     queryKey: [...baseOptions.queryKey, accountId],
   });
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
-  if (signals.isPending) {
+  if (signals.status === "pending") {
     return <p role="status">Loading Look again items…</p>;
   }
   if (signals.isError) {

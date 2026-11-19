@@ -127,7 +127,7 @@ export function SourceRecheckControls({
           </Button>
           {pending ? <p role="status">Saving Source Check…</p> : null}
           {error ? <p role="alert">{error}</p> : null}
-          {checks.isPending || detail.isPending ? (
+          {checks.status === "pending" || detail.isPending ? (
             <p role="status">Loading Source Checks…</p>
           ) : null}
           {checks.isError || detail.isError ? (

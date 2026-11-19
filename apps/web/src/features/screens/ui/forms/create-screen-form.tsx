@@ -3,7 +3,7 @@ import { screenTitleSchema } from "@cantiara/api/screens";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 
 export type CreateScreen = (title: string) => Promise<unknown>;
 
@@ -26,7 +26,7 @@ export function CreateScreenForm({ onCreate }: { onCreate: CreateScreen }) {
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     form.handleSubmit().catch(() => undefined);
   }
@@ -37,7 +37,7 @@ export function CreateScreenForm({ onCreate }: { onCreate: CreateScreen }) {
     >
       <h3 className="font-medium">Create Screen</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

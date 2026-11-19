@@ -45,8 +45,8 @@ import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import {
   type ChangeEvent,
-  type FormEvent,
   type ReactNode,
+  type SubmitEvent,
   useEffect,
   useMemo,
   useRef,
@@ -152,7 +152,7 @@ function CustomFieldClearButton({
 }
 
 function CustomFieldUnsetStatus() {
-  return <span className="text-muted-foreground text-sm">Not evaluated</span>;
+  return <span className="text-sm text-muted-foreground">Not evaluated</span>;
 }
 
 function CustomFieldDateInput({
@@ -431,7 +431,7 @@ function WorkCustomFields({
 }) {
   if (isPending) {
     return (
-      <p className="text-muted-foreground text-sm" role="status">
+      <p className="text-sm text-muted-foreground" role="status">
         Loading Custom fields…
       </p>
     );
@@ -439,7 +439,7 @@ function WorkCustomFields({
 
   if (error) {
     return (
-      <p className="text-destructive text-sm" role="alert">
+      <p className="text-sm text-destructive" role="alert">
         Custom fields could not be loaded. Try loading this page again.
       </p>
     );
@@ -452,7 +452,7 @@ function WorkCustomFields({
   return (
     <section
       aria-labelledby="work-draft-custom-fields-heading"
-      className="space-y-4 border-border/70 border-t pt-5"
+      className="space-y-4 border-t border-border/70 pt-5"
     >
       <div>
         <h4
@@ -461,7 +461,7 @@ function WorkCustomFields({
         >
           Custom fields
         </h4>
-        <p className="mt-1 text-muted-foreground text-xs/relaxed">
+        <p className="mt-1 text-xs/relaxed text-muted-foreground">
           These fields come from this Project’s Work definitions.
         </p>
       </div>
@@ -895,7 +895,7 @@ export default function WorkDraftForm({
     }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     createWork().catch(() => undefined);
@@ -904,14 +904,14 @@ export default function WorkDraftForm({
   const isBusy = isCreating || isSaving;
 
   function draftsContent(): ReactNode {
-    if (draftsQuery.isPending) {
+    if (draftsQuery.status === "pending") {
       return (
-        <p className="mt-2 text-muted-foreground text-sm">Loading Drafts…</p>
+        <p className="mt-2 text-sm text-muted-foreground">Loading Drafts…</p>
       );
     }
     if (draftsQuery.isError) {
       return (
-        <p className="mt-2 text-destructive text-sm" role="alert">
+        <p className="mt-2 text-sm text-destructive" role="alert">
           Drafts are unavailable. Try loading this page again.
         </p>
       );
@@ -919,7 +919,7 @@ export default function WorkDraftForm({
     const drafts = draftsQuery.data ?? [];
     if (drafts.length === 0) {
       return (
-        <p className="mt-2 text-muted-foreground text-sm">No Drafts yet.</p>
+        <p className="mt-2 text-sm text-muted-foreground">No Drafts yet.</p>
       );
     }
     return (
@@ -932,10 +932,10 @@ export default function WorkDraftForm({
               key={draft.id}
             >
               <div className="min-w-0">
-                <p className="truncate font-medium text-sm">
+                <p className="truncate text-sm font-medium">
                   {draft.title || "Untitled Draft"}
                 </p>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                   {projectName ? `${draft.type} · ${projectName}` : draft.type}
                 </p>
               </div>
@@ -980,16 +980,16 @@ export default function WorkDraftForm({
           <h3 className="font-medium text-foreground" id="work-draft-heading">
             Draft
           </h3>
-          <p className="mt-1 text-muted-foreground text-xs/relaxed">
+          <p className="mt-1 text-xs/relaxed text-muted-foreground">
             Changes save automatically while you are online. Create turns this
             Draft into one Work.
           </p>
-          <p className="mt-1 text-muted-foreground text-xs">
+          <p className="mt-1 text-xs text-muted-foreground">
             {projectNameById.get(targetProjectId) ?? targetProjectId}
           </p>
         </div>
         {activeDraftId && connection === "online" ? (
-          <span className="rounded-full border border-border/70 px-2 py-1 text-muted-foreground text-xs">
+          <span className="rounded-full border border-border/70 px-2 py-1 text-xs text-muted-foreground">
             {isSaving ? "Saving…" : "Ready"}
           </span>
         ) : null}
@@ -997,7 +997,7 @@ export default function WorkDraftForm({
 
       {formError ? (
         <div
-          className="rounded-md border border-destructive/25 bg-destructive/5 p-3 text-destructive text-sm"
+          className="rounded-md border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive"
           role="alert"
         >
           {formError}
@@ -1116,7 +1116,7 @@ export default function WorkDraftForm({
 
       <section
         aria-labelledby="work-drafts-heading"
-        className="border-border/70 border-t pt-5"
+        className="border-t border-border/70 pt-5"
       >
         <h3 className="font-medium text-foreground" id="work-drafts-heading">
           Drafts
@@ -1151,7 +1151,7 @@ function DraftMultiSelectField({
 }) {
   return (
     <fieldset className="space-y-2">
-      <legend className="font-medium text-sm">{definition.name}</legend>
+      <legend className="text-sm font-medium">{definition.name}</legend>
       <div className="grid gap-2 sm:grid-cols-2">
         {definition.options.map((option) => {
           const optionId = `${id}-${option}`;
@@ -1185,7 +1185,7 @@ function DraftMultiSelectField({
           onClear={() => onChange(null)}
         />
       ) : (
-        <p className="text-muted-foreground text-xs">Not evaluated</p>
+        <p className="text-xs text-muted-foreground">Not evaluated</p>
       )}
     </fieldset>
   );

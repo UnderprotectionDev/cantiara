@@ -465,7 +465,7 @@ function LiveSectionCard({
 
 function MembershipReasons({ reasons }: { reasons: string[] }) {
   return (
-    <p className="text-muted-foreground text-xs">
+    <p className="text-xs text-muted-foreground">
       <span className="font-medium">Membership reason: </span>
       {reasons.join(" · ")}
     </p>
@@ -643,7 +643,7 @@ function LiveOtherCard({
         <h3 className="font-medium">
           {source.collectionName} · {source.name}
         </h3>
-        <p className="text-muted-foreground text-sm">{source.presentation}</p>
+        <p className="text-sm text-muted-foreground">{source.presentation}</p>
         <SmartCollectionMembers
           onOpenSourceRecord={onOpenSourceRecord}
           source={source}
@@ -685,7 +685,7 @@ function LiveOtherCard({
         · {diagram.view?.name ?? "Default"}
       </p>
       <h3 className="font-medium">{diagram.title}</h3>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {diagram.type} · {diagram.authorityMode}
       </p>
       <ul aria-label="Diagram elements" className="list-inside list-disc">
@@ -740,13 +740,13 @@ function LiveWorkCard({
   );
   return (
     <section aria-label="Live Work block" className="rounded-lg border p-4">
-      <p className="text-muted-foreground text-xs">Live Work block</p>
+      <p className="text-xs text-muted-foreground">Live Work block</p>
       {record ? (
         <>
           <p className="font-medium">
             {record.key} · {record.title}
           </p>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {[
               record.type,
               record.status,
@@ -756,7 +756,7 @@ function LiveWorkCard({
               .filter(Boolean)
               .join(" · ")}
           </p>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Priority metrics:{" "}
             {record.priority.length > 0
               ? record.priority

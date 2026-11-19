@@ -120,13 +120,13 @@ export function TestHandoffContextField({
 
   return (
     <fieldset className="space-y-3 rounded-md border border-border/70 p-3">
-      <legend className="px-1 font-medium text-sm">Package context</legend>
-      <p className="text-muted-foreground text-xs">
+      <legend className="px-1 text-sm font-medium">Package context</legend>
+      <p className="text-xs text-muted-foreground">
         Only the records you add here enter the package, each at one exact
         revision or version.
       </p>
       {value.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No context records.</p>
+        <p className="text-sm text-muted-foreground">No context records.</p>
       ) : (
         <ul aria-label="Selected context records" className="space-y-1 text-sm">
           {value.map((item, index) => (
@@ -149,7 +149,7 @@ export function TestHandoffContextField({
         </ul>
       )}
       {value.length >= TEST_HANDOFF_CONTEXT_REF_MAX ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           A Test Handoff selects at most {TEST_HANDOFF_CONTEXT_REF_MAX} context
           records.
         </p>
@@ -244,7 +244,7 @@ export function TestHandoffContextField({
       )}
       <p
         aria-live="polite"
-        className="text-muted-foreground text-sm"
+        className="text-sm text-muted-foreground"
         id={statusId}
       >
         {message || loadMessage}

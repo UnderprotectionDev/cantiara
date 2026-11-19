@@ -26,13 +26,13 @@ export default function EvidenceRoleGroups({
               <li key={item.id}>
                 <p>{item.source.title ?? "Unavailable source"}</p>
                 {item.pin ? (
-                  <p className="whitespace-pre-wrap break-words">
+                  <p className="break-words whitespace-pre-wrap">
                     Version {item.pin.source.revision} · Range {item.pin.start}–
                     {item.pin.end} · {item.pin.excerpt}
                   </p>
                 ) : null}
                 {item.interpretation ? (
-                  <p className="whitespace-pre-wrap break-words">
+                  <p className="break-words whitespace-pre-wrap">
                     Founder interpretation: {item.interpretation}
                   </p>
                 ) : null}

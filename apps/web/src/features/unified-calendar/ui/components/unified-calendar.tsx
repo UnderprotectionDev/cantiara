@@ -451,7 +451,7 @@ function CalendarDaySection({
       data-calendar-day={day}
       ref={setNodeRef}
     >
-      <h2 className="mb-2 border-border/60 border-b pb-2 font-medium text-sm">
+      <h2 className="mb-2 border-b border-border/60 pb-2 text-sm font-medium">
         {weekdayFormatter.format(new Date(day))} {formattedDate}
       </h2>
       {ranges.map((work) => (
@@ -620,7 +620,7 @@ function CalendarAgenda({
   return (
     <section aria-label="Agenda Calendar">
       {rows.length === 0 ? (
-        <p className="mb-4 text-muted-foreground text-sm">
+        <p className="mb-4 text-sm text-muted-foreground">
           No dated Work in this Calendar view.
         </p>
       ) : null}
@@ -631,7 +631,7 @@ function CalendarAgenda({
             key={`${work.id}:${field}`}
           >
             <div className="flex items-center gap-1">
-              <time className="text-muted-foreground text-sm" dateTime={date}>
+              <time className="text-sm text-muted-foreground" dateTime={date}>
                 {formatAccountDate(date, preferences)}
               </time>
               <CalendarDateControl
@@ -644,7 +644,7 @@ function CalendarAgenda({
                 work={work}
               />
             </div>
-            <span className="font-medium text-sm">{label}</span>
+            <span className="text-sm font-medium">{label}</span>
             <div className="min-w-0 text-sm">
               <span className="font-medium">{work.key}</span> · {work.title}
               {selectedProjectId === "all" ? (
@@ -900,7 +900,7 @@ export default function UnifiedCalendar({
       sensors={sensors}
     >
       {hasVisibleDatedWork ? null : (
-        <p className="mb-4 text-muted-foreground text-sm">
+        <p className="mb-4 text-sm text-muted-foreground">
           No dated Work in this Calendar view.
         </p>
       )}

@@ -78,7 +78,7 @@ export default function ProjectUpdatesSurface({
     [sources],
   );
 
-  if (updates.isPending || profile.isPending) {
+  if (updates.status === "pending" || profile.isPending) {
     return <p role="status">Loading Project Updates…</p>;
   }
   // The snapshot freezes the summary blocks at save, so the four live source

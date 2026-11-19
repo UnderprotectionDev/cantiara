@@ -568,6 +568,6 @@ describe("Custom field value payload guard", () => {
           option: "Blocked",
         }),
       ),
-    ).toThrowError(INVALID_OPTION_MESSAGE);
+    ).toThrow(INVALID_OPTION_MESSAGE);
   });
 });

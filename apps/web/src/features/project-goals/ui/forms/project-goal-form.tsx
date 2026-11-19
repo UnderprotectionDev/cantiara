@@ -8,7 +8,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 
 export interface ProjectGoalDraft {
   description: string;
@@ -103,7 +103,7 @@ export function ProjectGoalEditor({
     },
   });
   const saveLabel = error && !conflict ? "Retry" : "Save";
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -114,7 +114,7 @@ export function ProjectGoalEditor({
       onSubmit={submit}
     >
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -195,8 +195,8 @@ function ProjectGoalValues({ goal }: { goal: ProjectGoalRecord }) {
     <dl className="space-y-3">
       {FIELDS.map(({ name, label }) => (
         <div key={name}>
-          <dt className="font-medium text-sm">{label}</dt>
-          <dd className="whitespace-pre-wrap break-words text-muted-foreground text-sm">
+          <dt className="text-sm font-medium">{label}</dt>
+          <dd className="text-sm break-words whitespace-pre-wrap text-muted-foreground">
             {goal[name] || "—"}
           </dd>
         </div>

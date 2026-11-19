@@ -121,7 +121,7 @@ export function ProductGapsBoard({
   const filtering = Object.values(filter).some(Boolean);
   return (
     <section aria-labelledby="product-gaps-heading" className="space-y-6">
-      <h2 className="font-semibold text-lg" id="product-gaps-heading">
+      <h2 className="text-lg font-semibold" id="product-gaps-heading">
         Product Gaps
       </h2>
       <RecordProductGapForm
@@ -136,7 +136,7 @@ export function ProductGapsBoard({
         tools={tools}
       />
       {gaps.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {filtering
             ? "No Product Gaps match these filters."
             : "No Product Gaps recorded yet."}
@@ -150,11 +150,11 @@ export function ProductGapsBoard({
             >
               <article aria-label={record.title} className="space-y-3">
                 <h3 className="font-medium">{record.title}</h3>
-                <p className="whitespace-pre-wrap text-sm">
+                <p className="text-sm whitespace-pre-wrap">
                   {record.unmetNeed}
                 </p>
                 {record.scope ? (
-                  <p className="whitespace-pre-wrap text-muted-foreground text-sm">{`Scope: ${record.scope}`}</p>
+                  <p className="text-sm whitespace-pre-wrap text-muted-foreground">{`Scope: ${record.scope}`}</p>
                 ) : null}
                 {record.links.length === 0 ? null : (
                   <ul

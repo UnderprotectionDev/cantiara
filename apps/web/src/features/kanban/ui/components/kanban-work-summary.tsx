@@ -41,7 +41,7 @@ export function KanbanWorkDetails({ work }: { work: WorkProfile }) {
   }
 
   return (
-    <div className="space-y-1 text-muted-foreground text-xs">
+    <div className="space-y-1 text-xs text-muted-foreground">
       {work.plannedStartDate ? (
         <p>Planned start: {work.plannedStartDate}</p>
       ) : null}

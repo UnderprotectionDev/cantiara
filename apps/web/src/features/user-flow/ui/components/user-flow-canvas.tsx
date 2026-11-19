@@ -19,10 +19,9 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { LiteDebouncer } from "@tanstack/pacer-lite";
 import {
-  applyNodeChanges,
   type Edge,
   type Node,
-  type NodeChange,
+  type NodeChangeset,
   type NodeProps,
   ReactFlow,
   type ReactFlowInstance,
@@ -115,7 +114,7 @@ function FlowCard({ data, id }: NodeProps<FlowNode>) {
       }}
       tabIndex={0}
     >
-      <p className="font-medium text-xs">
+      <p className="text-xs font-medium">
         {data.kind}
         {data.style === "default" ? "" : ` · ${data.style}`}
       </p>
@@ -366,9 +365,11 @@ function Editor({
   );
 
   const onNodesChange = useCallback(
-    (changes: NodeChange<CanvasCard | FlowNode>[]) => {
-      setCanvasNodes((nodes) => applyNodeChanges(changes, nodes));
-      const selection = changes.filter((change) => change.type === "select");
+    (changes: NodeChangeset<CanvasCard | FlowNode>) => {
+      setCanvasNodes((nodes) => changes.applyTo(nodes));
+      const selection = [...changes].filter(
+        (change) => change.type === "select",
+      );
       if (selection.length > 0) {
         setEditor((state) => {
           const ids = new Set(state.selection);
@@ -426,8 +427,9 @@ function Editor({
     collapsedRef.current = [];
     setCollapsed([]);
     window.requestAnimationFrame(() => {
+      // React Flow 13 reads padding as a per-side margin; v12's default 0.1 is (1 - 1/1.1) / 2.
       reactFlow
-        .fitView({ duration: 0 })
+        .fitView({ duration: 0, padding: "4.545454545454546%" })
         .then(() => rememberViewport(reactFlow.getViewport(), []))
         .catch(() => undefined);
     });
@@ -474,7 +476,9 @@ function Editor({
       collapsedRef.current = resolution.collapsed;
       setCollapsed(resolution.collapsed);
     }
-    instance.fitView({ duration: 0 }).catch(() => undefined);
+    instance
+      .fitView({ duration: 0, padding: "4.545454545454546%" })
+      .catch(() => undefined);
   }
 
   function run(command: EditorCommand) {
@@ -495,6 +499,7 @@ function Editor({
         reactFlow
           .fitView({
             duration: 0,
+            padding: "4.545454545454546%",
             nodes:
               editor.selection.length > 0
                 ? editor.selection.map((id) => ({ id }))
@@ -758,7 +763,7 @@ function Editor({
           snapToGrid={snap}
         />
       </section>
-      <p className="text-muted-foreground text-xs" id="user-flow-shortcuts">
+      <p className="text-xs text-muted-foreground" id="user-flow-shortcuts">
         Shortcuts (Tab to a node first): Enter or Space selects a node (Shift
         adds), arrows nudge the selection (Shift for a grid step), Alt+arrows
         pan, + and - zoom, 0 fits the view, Shift+0 fits the selection, G snaps
@@ -826,7 +831,7 @@ function Editor({
           Discard changes
         </Button>
         {dirty ? (
-          <span className="text-muted-foreground text-xs" role="status">
+          <span className="text-xs text-muted-foreground" role="status">
             Unsaved changes. Save or discard them before placing a node.
           </span>
         ) : null}

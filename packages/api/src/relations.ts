@@ -1012,9 +1012,9 @@ export type UsageLinkPayload = z.output<typeof usageLinkPayloadSchema>;
 
 export const usageLinkSchema = usageLinkPayloadSchema
   .extend({
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: z.iso.datetime({ offset: true }),
     id: identifierSchema,
-    revision: z.number().int().positive().safe(),
+    revision: z.number().int().positive(),
   })
   .strict();
 

@@ -30,7 +30,7 @@ export function DiagramVersionPanel({
     return (
       <section aria-label="Diagram Version" className="space-y-2">
         <h4 className="font-medium">Diagram Version</h4>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           An External Source Link keeps its content in the external tool, so it
           has no Diagram Version.
         </p>
@@ -40,7 +40,7 @@ export function DiagramVersionPanel({
   return (
     <section aria-label="Diagram Version" className="space-y-2">
       <h4 className="font-medium">Diagram Version</h4>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         A Diagram Version is an immutable checkpoint. Live revision{" "}
         {diagram.revision}.
       </p>
@@ -65,7 +65,7 @@ export function DiagramVersionPanel({
         ))}
       </ol>
       {versions.length > 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Restore writes a new live revision; the Diagram Version stays
           unchanged.
         </p>

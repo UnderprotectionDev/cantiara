@@ -18,7 +18,7 @@ export default function StoryTimelineSurface({
     ? { projectId, scope: "Feature" as const, workId }
     : { projectId, scope: "Project" as const };
   const timeline = useQuery(orpc.projectStoryTimeline.queryOptions({ input }));
-  if (timeline.isPending) {
+  if (timeline.status === "pending") {
     return <p role="status">Loading Story Timeline…</p>;
   }
   if (!timeline.data) {

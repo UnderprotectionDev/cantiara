@@ -13,10 +13,12 @@ async function readLimitedBody(request: Request): Promise<string | null> {
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
-  for (;;) {
+  let done = false;
+  while (!done) {
     // biome-ignore lint/performance/noAwaitInLoops: Chunks must be read in order to stop at the limit.
-    const { done, value } = await reader.read();
-    if (done) {
+    const { done: finished, value } = await reader.read();
+    done = finished;
+    if (finished) {
       break;
     }
     total += value.byteLength;

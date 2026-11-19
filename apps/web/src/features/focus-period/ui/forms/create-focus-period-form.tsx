@@ -3,7 +3,7 @@ import { createFocusPeriodInputSchema } from "@cantiara/api/focus-period";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 import { DatePicker } from "@/components/date-picker";
 
 export function CreateFocusPeriodForm({
@@ -42,14 +42,14 @@ export function CreateFocusPeriodForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
   }
   return (
     <section aria-label="Create Focus Period" className="space-y-4">
-      <h2 className="font-semibold text-xl">Create Focus Period</h2>
+      <h2 className="text-xl font-semibold">Create Focus Period</h2>
       <form className="grid gap-4 sm:grid-cols-3" onSubmit={submit}>
         <form.Field name="purpose">
           {(field) => (

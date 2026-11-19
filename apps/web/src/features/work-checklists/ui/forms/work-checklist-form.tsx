@@ -9,8 +9,8 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 import { AppLink } from "@/components/app-link";
 import { resolveChecklistDrafts } from "../../lib/work-checklist-items";
 import { ChecklistConversionPreview } from "../components/checklist-conversion-preview";
@@ -49,7 +49,7 @@ export default function WorkChecklist({
       await saveChecklist(resolved);
     },
   });
-  const drafts = useStore(draftsForm.store, (state) => state.values.drafts);
+  const drafts = useSelector(draftsForm.store, (state) => state.values.drafts);
   const [conversionItemId, setConversionItemId] = useState<string | null>(null);
   const [conversionPending, setConversionPending] = useState(false);
   const [conversionPreview, setConversionPreview] =
@@ -134,7 +134,7 @@ export default function WorkChecklist({
     setConversionPreview(null);
   }
 
-  function handleDraftsSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleDraftsSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     draftsForm.handleSubmit().catch(() => undefined);
@@ -146,15 +146,15 @@ export default function WorkChecklist({
       className="space-y-3 rounded-md border border-border/70 bg-muted/10 p-3"
     >
       <div className="flex items-baseline justify-between gap-3">
-        <h4 className="font-medium text-sm">Checklist</h4>
+        <h4 className="text-sm font-medium">Checklist</h4>
         {resolvedChecklist.length > 0 ? (
-          <p className="text-muted-foreground text-xs tabular-nums">
+          <p className="text-xs text-muted-foreground tabular-nums">
             {completedCount} of {resolvedChecklist.length} complete
           </p>
         ) : null}
       </div>
       {resolvedChecklist.length === 0 ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Add the first small step for this Work.
         </p>
       ) : (

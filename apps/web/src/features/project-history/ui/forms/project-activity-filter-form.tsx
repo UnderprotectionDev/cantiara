@@ -51,7 +51,7 @@ export function ProjectActivityFilterForm({
         <form.Field name="sourceTypes">
           {(field) => (
             <fieldset className="space-y-1">
-              <legend className="font-medium text-sm">Source type</legend>
+              <legend className="text-sm font-medium">Source type</legend>
               {PROJECT_ACTIVITY_SOURCE_TYPES.map((sourceType) => (
                 <div className="flex items-center gap-2" key={sourceType}>
                   <Checkbox
@@ -81,7 +81,7 @@ export function ProjectActivityFilterForm({
         <form.Field name="eventTypes">
           {(field) => (
             <fieldset className="space-y-1">
-              <legend className="font-medium text-sm">Event type</legend>
+              <legend className="text-sm font-medium">Event type</legend>
               {PROJECT_ACTIVITY_EVENT_TYPES.map((eventType) => (
                 <div className="flex items-center gap-2" key={eventType}>
                   <Checkbox

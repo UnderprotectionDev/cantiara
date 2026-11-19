@@ -74,7 +74,7 @@ describe("Project Backlog", () => {
   });
 
   test("shows the loading copy while its prepared collection loads", () => {
-    const html = renderBacklog({ isPending: true });
+    const html = renderBacklog({ isPending: true, status: "pending" });
 
     expect(html).toContain("Loading Backlog…");
     expect(html).toContain('role="status"');

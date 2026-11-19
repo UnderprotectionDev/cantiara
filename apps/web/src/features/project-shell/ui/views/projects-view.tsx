@@ -38,13 +38,13 @@ function ProjectsListSection({
     <section aria-labelledby="projects-list-heading" className="pt-9">
       <div className="mb-4 flex items-baseline justify-between gap-4">
         <h2
-          className="font-semibold text-lg tracking-tight"
+          className="text-lg font-semibold tracking-tight"
           id="projects-list-heading"
         >
           Your Projects
         </h2>
         {data ? (
-          <span className="text-muted-foreground text-xs">
+          <span className="text-xs text-muted-foreground">
             {data.length} {data.length === 1 ? "Project" : "Projects"}
           </span>
         ) : null}
@@ -61,7 +61,7 @@ function ProjectsListSection({
       ) : null}
       {data?.length === 0 ? <ProjectsEmptyState /> : null}
       {data && data.length > 0 ? (
-        <ul className="divide-y border-border/70 border-y">
+        <ul className="divide-y border-y border-border/70">
           {data.map((project) => (
             <ProjectRow key={project.id} project={project} />
           ))}
@@ -132,10 +132,10 @@ export default function ProjectsView({
     <main className="surface-frame max-w-6xl">
       <header className="surface-header flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
         <div className="max-w-2xl">
-          <h1 className="mt-2 text-balance font-semibold text-3xl tracking-tight">
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-balance">
             Projects
           </h1>
-          <p className="mt-3 text-pretty text-muted-foreground text-sm/6">
+          <p className="mt-3 text-sm/6 text-pretty text-muted-foreground">
             Give each line of work a durable home. Start with the essentials;
             add context when the Project needs it.
           </p>
@@ -166,7 +166,7 @@ export default function ProjectsView({
         />
       )}
 
-      {workspaceOverview.isPending ? (
+      {workspaceOverview.status === "pending" ? (
         <section
           aria-label="Loading Workspace overview"
           className="space-y-4 pt-9"
@@ -200,7 +200,7 @@ export default function ProjectsView({
           className={
             selectedModule || selectedSavedList
               ? "pt-1"
-              : "mt-12 border-border/80 border-t pt-9"
+              : "mt-12 border-t border-border/80 pt-9"
           }
         >
           <WorkspaceOverviewView
@@ -215,7 +215,7 @@ export default function ProjectsView({
         </div>
       ) : null}
       {saveWorkspaceOverview.isError ? (
-        <p className="pt-3 text-destructive text-sm" role="alert">
+        <p className="pt-3 text-sm text-destructive" role="alert">
           Workspace overview settings could not be saved. Try again.
         </p>
       ) : null}

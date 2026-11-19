@@ -4,14 +4,14 @@ import { FolderOpen, Plus } from "lucide-react";
 
 export function ProjectsEmptyState() {
   return (
-    <div className="rounded-lg border border-border/80 border-dashed bg-card/45 px-5 py-10 sm:px-6">
+    <div className="rounded-lg border border-dashed border-border/80 bg-card/45 px-5 py-10 sm:px-6">
       <div className="flex max-w-2xl items-start gap-4">
         <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md border bg-background">
           <FolderOpen aria-hidden="true" className="size-4" />
         </div>
         <div>
           <p className="font-medium">No Projects yet.</p>
-          <p className="mt-1 max-w-xl text-muted-foreground text-sm/relaxed">
+          <p className="mt-1 max-w-xl text-sm/relaxed text-muted-foreground">
             Start with a name and one Starter Configuration. Add the rest when
             the Project needs more shape.
           </p>

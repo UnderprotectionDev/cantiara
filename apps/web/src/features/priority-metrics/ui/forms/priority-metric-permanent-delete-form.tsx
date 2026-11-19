@@ -3,7 +3,7 @@ import type { PriorityMetric } from "@cantiara/api/priority-metrics";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 import { priorityMetricPermanentDeleteFormSchema } from "../../lib/priority-metric-delete";
 import {
   PriorityMetricImpactStatus,
@@ -50,7 +50,7 @@ export function PriorityMetricPermanentDeleteConfirmation({
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     deleteForm.handleSubmit().catch(() => undefined);
@@ -63,7 +63,7 @@ export function PriorityMetricPermanentDeleteConfirmation({
       onSubmit={handleSubmit}
     >
       <div>
-        <h6 className="font-medium text-sm">
+        <h6 className="text-sm font-medium">
           Permanently Delete {target.name}?
         </h6>
         <PriorityMetricImpactStatus
@@ -73,7 +73,7 @@ export function PriorityMetricPermanentDeleteConfirmation({
           mode="permanent-delete"
           projectName={projectName}
         />
-        <p className="mt-1 text-muted-foreground text-sm">
+        <p className="mt-1 text-sm text-muted-foreground">
           Confirm GitHub Identity and type the Project name to continue.
         </p>
       </div>
@@ -87,7 +87,7 @@ export function PriorityMetricPermanentDeleteConfirmation({
           Confirm GitHub Identity
         </Button>
         {deleteGrant ? (
-          <span className="text-muted-foreground text-sm" role="status">
+          <span className="text-sm text-muted-foreground" role="status">
             GitHub identity confirmed.
           </span>
         ) : null}

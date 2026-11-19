@@ -58,7 +58,7 @@ export function ClosureSummaryEditorForm({
       <form.Field name="title">
         {(field) => (
           <div className="space-y-1">
-            <label className="font-medium text-sm" htmlFor={`${id}-title`}>
+            <label className="text-sm font-medium" htmlFor={`${id}-title`}>
               Title
             </label>
             <Input
@@ -73,7 +73,7 @@ export function ClosureSummaryEditorForm({
       <form.Field name="markdown">
         {(field) => (
           <div className="space-y-1">
-            <label className="font-medium text-sm" htmlFor={id}>
+            <label className="text-sm font-medium" htmlFor={id}>
               {CLOSURE_SUMMARY_DRAFT_LABEL}
             </label>
             <Textarea

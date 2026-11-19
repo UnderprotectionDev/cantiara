@@ -62,12 +62,12 @@ function ScreenItem({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="font-medium">{screen.title}</h4>
-        <span className="text-muted-foreground text-xs">
+        <span className="text-xs text-muted-foreground">
           {screen.lifecycle}
         </span>
       </div>
       {screen.wireframeVersions.length > 0 ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Wireframe:{" "}
           {screen.wireframeVersions
             .map(({ version }) => `v${version}`)
@@ -75,7 +75,7 @@ function ScreenItem({
         </p>
       ) : null}
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -132,7 +132,7 @@ export function ScreensView({
 }) {
   return (
     <section aria-label="Screens" className="space-y-6" id="screens">
-      <h2 className="font-semibold text-lg">Screens</h2>
+      <h2 className="text-lg font-semibold">Screens</h2>
       {readOnly ? null : <CreateScreenForm onCreate={onCreate} />}
       {templates && !readOnly ? (
         <CreateScreenFromTemplate actions={templates} />
@@ -147,10 +147,10 @@ export function ScreensView({
         return (
           <div className="space-y-3" key={lifecycle}>
             {lifecycle === "Active" ? null : (
-              <h3 className="font-medium text-sm">{lifecycle}</h3>
+              <h3 className="text-sm font-medium">{lifecycle}</h3>
             )}
             {items.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{empty}</p>
+              <p className="text-sm text-muted-foreground">{empty}</p>
             ) : (
               <ul className="space-y-3">
                 {items.map((item) => (

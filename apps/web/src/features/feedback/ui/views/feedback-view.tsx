@@ -120,11 +120,11 @@ function FeedbackRow({
         </div>
       </div>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
-      <p className="whitespace-pre-wrap text-sm">{record.originalMessage}</p>
+      <p className="text-sm whitespace-pre-wrap">{record.originalMessage}</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <IdentitySelect
           disabled={readOnly}
@@ -147,7 +147,7 @@ function FeedbackRow({
           value={record.company?.id ?? ""}
         />
       </div>
-      <dl className="grid gap-1 text-muted-foreground text-xs">
+      <dl className="grid gap-1 text-xs text-muted-foreground">
         {record.channel ? (
           <div className="flex gap-2">
             <dt>Channel</dt>
@@ -249,7 +249,7 @@ export function FeedbackView({
 }) {
   return (
     <section aria-labelledby="feedback-heading" className="space-y-4">
-      <h2 className="font-semibold text-lg" id="feedback-heading">
+      <h2 className="text-lg font-semibold" id="feedback-heading">
         Feedback
       </h2>
       {readOnly ? null : (
@@ -261,7 +261,7 @@ export function FeedbackView({
         />
       )}
       {records.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No Feedback yet.</p>
+        <p className="text-sm text-muted-foreground">No Feedback yet.</p>
       ) : (
         <ul className="space-y-3">
           {records.map((record) => (

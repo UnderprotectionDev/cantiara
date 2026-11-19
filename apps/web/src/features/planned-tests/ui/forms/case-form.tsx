@@ -12,7 +12,7 @@ import {
 } from "@cantiara/ui/components/radio-group";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type SubmitEvent, useEffect, useRef, useState } from "react";
 import { errorText } from "../../lib/error-text";
 import {
   type CaseFormValues,
@@ -86,7 +86,7 @@ export function CaseForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     form.handleSubmit().catch(() => undefined);
   }
@@ -98,7 +98,7 @@ export function CaseForm({
     >
       <h3 className="font-medium">{heading}</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

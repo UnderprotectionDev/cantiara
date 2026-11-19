@@ -26,8 +26,8 @@ import {
 } from "./wireframe-document";
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const revisionSchema = z.number().int().nonnegative().safe();
-const timestampSchema = z.string().datetime({ offset: true });
+const revisionSchema = z.number().int().nonnegative();
+const timestampSchema = z.iso.datetime({ offset: true });
 
 /** Common master-record visibility of a Screen; a Wireframe has none of its own. */
 export const SCREEN_LIFECYCLES = ["Active", "Archived", "In Trash"] as const;
@@ -102,7 +102,7 @@ export const screenWireframeVersionSchema = z
   .object({
     createdAt: timestampSchema,
     id: identifierSchema,
-    version: z.number().int().min(1).safe(),
+    version: z.number().int().min(1),
   })
   .strict();
 
@@ -116,7 +116,7 @@ export const screenRecordSchema = z
     id: identifierSchema,
     lifecycle: screenLifecycleSchema,
     projectId: identifierSchema,
-    revision: z.number().int().min(1).safe(),
+    revision: z.number().int().min(1),
     title: screenTitleSchema,
     updatedAt: timestampSchema,
     wireframeVersions: z.array(screenWireframeVersionSchema),
@@ -461,7 +461,7 @@ export const screenWireframeInputSchema = z
   .object({
     projectId: identifierSchema,
     screenId: identifierSchema,
-    version: z.number().int().min(1).safe().optional(),
+    version: z.number().int().min(1).optional(),
   })
   .strict();
 export type ScreenWireframeInput = z.input<typeof screenWireframeInputSchema>;

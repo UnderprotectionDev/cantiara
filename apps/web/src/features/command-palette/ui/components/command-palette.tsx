@@ -11,11 +11,11 @@ import {
 } from "@cantiara/ui/components/command";
 import { Kbd } from "@cantiara/ui/components/kbd";
 import { useNavigate } from "@tanstack/react-router";
-import { createStore, useStore } from "@tanstack/react-store";
+import { createStore, useSelector } from "@tanstack/react-store";
 import {
-  AlertCircle,
   ArrowLeftRight,
   ChevronLeft,
+  CircleExclamationPoint,
   Command as CommandIcon,
   FileText,
   FolderKanban,
@@ -252,8 +252,8 @@ export default function CommandPalette({
                 <CommandIcon aria-hidden="true" className="size-4" />
               </div>
               <div className="min-w-0">
-                <p className="truncate font-medium text-sm">Command Palette</p>
-                <p className="truncate text-muted-foreground text-xs">
+                <p className="truncate text-sm font-medium">Command Palette</p>
+                <p className="truncate text-xs text-muted-foreground">
                   Run an authorized product command.
                 </p>
               </div>
@@ -274,7 +274,7 @@ export default function CommandPalette({
               >
                 <ChevronLeft aria-hidden="true" />
               </Button>
-              <span className="font-medium text-sm">Choose a target</span>
+              <span className="text-sm font-medium">Choose a target</span>
             </div>
           ) : null}
           <CommandInput
@@ -290,10 +290,10 @@ export default function CommandPalette({
           {failureReason ? (
             <div
               aria-live="assertive"
-              className="flex gap-2 border-destructive border-b bg-destructive/10 px-4 py-3 text-destructive text-xs"
+              className="flex gap-2 border-b border-destructive bg-destructive/10 px-4 py-3 text-xs text-destructive"
               role="alert"
             >
-              <AlertCircle
+              <CircleExclamationPoint
                 aria-hidden="true"
                 className="mt-0.5 size-4 shrink-0"
               />
@@ -330,7 +330,7 @@ export default function CommandPalette({
               <CommandGroup
                 className={
                   commonCommands.length > 0
-                    ? "mt-3 border-border border-t pt-2"
+                    ? "mt-3 border-t border-border pt-2"
                     : undefined
                 }
                 heading="Authorized records"
@@ -371,7 +371,7 @@ function PaletteCommandItem({
 
   return (
     <CommandItem
-      className="min-h-16 items-start gap-3 border border-transparent px-3 py-2.5 transition-colors data-selected:border-border/80 data-selected:bg-accent/60 sm:min-h-[4.5rem]"
+      className="min-h-16 items-start gap-3 border border-transparent px-3 py-2.5 transition-colors sm:min-h-[4.5rem] data-selected:border-border/80 data-selected:bg-accent/60"
       data-command-id={command.id}
       data-scope={command.scope}
       data-selection-count={command.selectionCount}
@@ -391,7 +391,7 @@ function PaletteCommandItem({
         <PaletteCommandIcon command={command} />
       </div>
       <div className="min-w-0 flex-1 space-y-1">
-        <div className="truncate font-medium text-sm">{command.label}</div>
+        <div className="truncate text-sm font-medium">{command.label}</div>
         <div className="flex min-w-0 flex-wrap gap-1.5 text-[10px] leading-4">
           <PaletteMetadata label="Scope" value={command.scope} />
           <PaletteMetadata label="Target" value={command.target} />
@@ -447,7 +447,7 @@ function PaletteMetadata({
   value: number | string;
 }) {
   return (
-    <span className="inline-flex min-w-0 max-w-full truncate border border-border/70 bg-background/30 px-1.5 py-0.5 text-muted-foreground">
+    <span className="inline-flex max-w-full min-w-0 truncate border border-border/70 bg-background/30 px-1.5 py-0.5 text-muted-foreground">
       {label}: {value}
     </span>
   );
@@ -509,7 +509,7 @@ export function CommandPaletteQuickActions() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1 border-border border-l pl-2">
+    <div className="flex flex-wrap items-center gap-1 border-l border-border pl-2">
       <Button
         className="h-11 border border-transparent px-2 hover:border-border"
         onClick={handleSwitchProjectClick}
@@ -557,7 +557,7 @@ export function CommandPaletteProvider({
       open: false,
     }),
   );
-  const { initialQuery, open } = useStore(paletteStore);
+  const { initialQuery, open } = useSelector(paletteStore);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const wasOpenRef = useRef<boolean | null>(null);
   const commandRegistrationTokensRef = useRef(new Map<string, symbol>());

@@ -96,7 +96,7 @@ export function TestAssessmentsView({
   const formatDateTime = accountDateTimeFormatter(preferences);
   return (
     <section aria-labelledby="test-assessments-heading" className="space-y-4">
-      <h2 className="font-semibold text-lg" id="test-assessments-heading">
+      <h2 className="text-lg font-semibold" id="test-assessments-heading">
         {TEST_ASSESSMENTS_SECTION_LABEL}
       </h2>
       <RecordTestAssessmentForm
@@ -104,7 +104,7 @@ export function TestAssessmentsView({
         onRecord={onRecord}
       />
       {assessments.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No Test Assessments yet. Publishing never needs one.
         </p>
       ) : (

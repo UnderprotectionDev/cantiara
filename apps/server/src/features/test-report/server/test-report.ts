@@ -233,7 +233,7 @@ async function requireReferences(
 function assertEnvelopeSize(raw: unknown) {
   let bytes: number;
   try {
-    bytes = new TextEncoder().encode(JSON.stringify(raw) ?? "").length;
+    bytes = new TextEncoder().encode(JSON.stringify(raw) || "").length;
   } catch {
     // The serializer message can quote payload text, so it is not chained.
     // biome-ignore lint/style/useErrorCause: The message quotes payload text and must not be chained.

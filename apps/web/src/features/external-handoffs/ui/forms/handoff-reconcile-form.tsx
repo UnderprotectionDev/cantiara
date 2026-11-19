@@ -11,7 +11,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { errorMessage } from "../../lib/error-message";
 import { HandoffFollowUpFields } from "../components/handoff-follow-up-fields";
 import { HandoffRelationFields } from "../components/handoff-relation-fields";
@@ -117,7 +117,7 @@ export function HandoffReconcileForm({
     },
   });
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -125,17 +125,17 @@ export function HandoffReconcileForm({
 
   return (
     <details className="rounded-sm border border-border/70 bg-card/45">
-      <summary className="cursor-pointer px-3 py-2 font-medium text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <summary className="cursor-pointer px-3 py-2 text-xs font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
         Reconcile
       </summary>
       <form
-        className="space-y-3 border-border/70 border-t p-3"
+        className="space-y-3 border-t border-border/70 p-3"
         noValidate
         onSubmit={submit}
       >
         {preview ? (
           <section aria-label="Reconcile" className="space-y-3">
-            <p className="text-muted-foreground text-xs">
+            <p className="text-xs text-muted-foreground">
               Review each relation and Follow-up Work before confirming.
             </p>
             <form.Field name="selectedRelationIds">
@@ -261,7 +261,7 @@ export function HandoffReconcileForm({
           </>
         )}
         {error ? (
-          <p className="text-destructive text-xs" role="alert">
+          <p className="text-xs text-destructive" role="alert">
             {error}
           </p>
         ) : null}

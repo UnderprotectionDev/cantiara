@@ -75,7 +75,7 @@ function CalendarMutationFeedback({
   return (
     <>
       {dateChangeError ? (
-        <p className="mt-3 text-destructive text-sm" role="alert">
+        <p className="mt-3 text-sm text-destructive" role="alert">
           {dateChangeError}
         </p>
       ) : null}
@@ -139,7 +139,8 @@ export default function UnifiedCalendarView({
   const queries = [preferences, projects, ...workQueries];
   const failed = queries.some((query) => query.isError);
   const loading = !failed && queries.some((query) => query.isPending);
-  const preferencesUnavailable = preferences.isPending || preferences.isError;
+  const preferencesUnavailable =
+    preferences.status === "pending" || preferences.isError;
   const works = workQueries.flatMap((query) => query.data ?? []);
   async function handleCalendarDateError(error: unknown, fallback: string) {
     setDateChangeUndo(null);
@@ -256,8 +257,8 @@ export default function UnifiedCalendarView({
     <ClientShellContent>
       <main className="surface-frame max-w-[1440px]">
         <header className="surface-header">
-          <h1 className="font-semibold text-3xl tracking-tight">Calendar</h1>
-          <p className="mt-3 text-muted-foreground text-sm/6">
+          <h1 className="text-3xl font-semibold tracking-tight">Calendar</h1>
+          <p className="mt-3 text-sm/6 text-muted-foreground">
             Explore Work dates across Projects.
           </p>
         </header>
@@ -275,7 +276,7 @@ export default function UnifiedCalendarView({
         )}
         {loading ? <p role="status">Loading Calendar…</p> : null}
         {failed ? (
-          <p className="text-destructive text-sm" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             Calendar is unavailable. Try loading this page again.
           </p>
         ) : null}
@@ -355,7 +356,7 @@ function CalendarViewControls({
         ))}
       </fieldset>
       <fieldset className="grid gap-1.5">
-        <legend className="font-medium text-sm">Date kinds</legend>
+        <legend className="text-sm font-medium">Date kinds</legend>
         <div className="flex flex-wrap gap-x-3 gap-y-1">
           {CALENDAR_DATE_KINDS.map(({ field, label }) => (
             <label

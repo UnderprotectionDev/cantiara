@@ -25,7 +25,7 @@ const milestoneFieldsSchema = z
   .strict();
 
 export const milestoneSchema = milestoneFieldsSchema
-  .extend({ revision: z.number().int().nonnegative().safe() })
+  .extend({ revision: z.number().int().nonnegative() })
   .strict();
 export type Milestone = z.infer<typeof milestoneSchema>;
 
@@ -88,7 +88,7 @@ const roadmapViewFieldsSchema = z
 const distinctViewFields = (view: { groupBy: string; markBy: string }) =>
   view.groupBy !== view.markBy;
 export const roadmapViewSchema = roadmapViewFieldsSchema
-  .extend({ revision: z.number().int().nonnegative().safe() })
+  .extend({ revision: z.number().int().nonnegative() })
   .refine(distinctViewFields, {
     message: "Group and mark must use different fields.",
   });

@@ -81,11 +81,11 @@ function SectionHeader({
     ? MOODBOARD_UI_LABELS.expand
     : MOODBOARD_UI_LABELS.collapse;
   return (
-    <h4 className="font-medium text-sm">
+    <h4 className="text-sm font-medium">
       <button
         aria-controls={`moodboard-outline-${section.key}`}
         aria-expanded={!section.collapsed}
-        className="rounded px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="rounded px-1 py-1 text-left focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         data-outline-index={index}
         onClick={() => context.onToggleSection(section.key)}
         type="button"
@@ -165,7 +165,7 @@ function ItemRow({ context, dragHandle, index, item }: ItemRowProps) {
         {dragHandle}
         <button
           aria-pressed={selected}
-          className="min-w-0 flex-1 truncate rounded px-1 py-1 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 aria-pressed:font-semibold"
+          className="min-w-0 flex-1 truncate rounded px-1 py-1 text-left text-sm focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none aria-pressed:font-semibold"
           data-outline-index={index}
           onClick={() => context.onSelect(item.id)}
           type="button"
@@ -266,7 +266,7 @@ function SortableItemRow(props: Omit<ItemRowProps, "dragHandle">) {
         dragHandle={
           <button
             aria-label={`Drag ${props.item.label}`}
-            className="cursor-grab rounded px-2 py-1 text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:cursor-grabbing"
+            className="cursor-grab rounded px-2 py-1 text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing"
             type="button"
             {...attributes}
             {...listeners}
@@ -494,7 +494,7 @@ export function MoodboardOutline(props: MoodboardOutlineProps) {
       <h3 className="font-medium">{MOODBOARD_UI_LABELS.outline}</h3>
       {props.addControls}
       {model.rows.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No items yet.</p>
+        <p className="text-sm text-muted-foreground">No items yet.</p>
       ) : null}
       {virtualized ? (
         <VirtualOutline {...model} />

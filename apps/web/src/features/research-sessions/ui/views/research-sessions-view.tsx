@@ -45,7 +45,7 @@ export function ResearchSessionsView({
   return (
     <section aria-label="Research Sessions" className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-semibold text-lg">Research Sessions</h2>
+        <h2 className="text-lg font-semibold">Research Sessions</h2>
         <Button
           disabled={readOnly || editing !== null}
           onClick={() => {
@@ -80,7 +80,7 @@ export function ResearchSessionsView({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="font-medium">{record.title}</h3>
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-sm text-muted-foreground">
                     {record.status} · Consent: {record.consent}
                   </p>
                 </div>
@@ -96,7 +96,7 @@ export function ResearchSessionsView({
                   Edit
                 </Button>
               </div>
-              <p className="whitespace-pre-wrap text-sm">{record.purpose}</p>
+              <p className="text-sm whitespace-pre-wrap">{record.purpose}</p>
               <ResearchSessionNotes
                 bindingActions={bindingActions}
                 onSave={onSaveNote}

@@ -8,7 +8,7 @@ import {
 } from "./work-lifecycle";
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const timestampSchema = z.string().datetime({ offset: true });
+const timestampSchema = z.iso.datetime({ offset: true });
 
 export const WORK_AUTOMATION_UI_LABELS = {
   automationRule: "Automation rule",
@@ -193,10 +193,10 @@ export const workAutomationRuleSchema = z
     id: identifierSchema,
     name: workAutomationRuleNameSchema,
     projectId: identifierSchema,
-    revision: z.number().int().min(1).safe(),
+    revision: z.number().int().min(1),
     trashedAt: timestampSchema.nullable(),
     updatedAt: timestampSchema,
-    version: z.number().int().min(1).safe(),
+    version: z.number().int().min(1),
   })
   .strict();
 
@@ -208,7 +208,7 @@ export const workAutomationRuleVersionSchema = z
     name: workAutomationRuleNameSchema,
     ruleId: identifierSchema,
     savedAt: timestampSchema,
-    version: z.number().int().min(1).safe(),
+    version: z.number().int().min(1),
   })
   .strict();
 
@@ -275,7 +275,7 @@ export const restoreWorkAutomationRuleVersionInputSchema =
   humanMutationEnvelopeSchema
     .extend({
       ruleId: identifierSchema,
-      version: z.number().int().min(1).safe(),
+      version: z.number().int().min(1),
     })
     .strict();
 
@@ -311,7 +311,7 @@ const workAutomationRuleAttributionSchema = z
     conditions: z.array(workAutomationConditionSchema),
     ruleId: identifierSchema,
     ruleName: workAutomationRuleNameSchema,
-    ruleVersion: z.number().int().min(1).safe(),
+    ruleVersion: z.number().int().min(1),
     trigger: workAutomationTriggerSchema,
     triggerEventId: identifierSchema,
   })

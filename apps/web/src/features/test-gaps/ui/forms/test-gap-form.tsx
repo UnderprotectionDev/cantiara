@@ -24,7 +24,7 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { type FormEvent, useId, useState } from "react";
+import { type SubmitEvent, useId, useState } from "react";
 import {
   type CloseFormValues,
   EMPTY_CLOSE_FORM,
@@ -102,7 +102,7 @@ export function GapForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -115,7 +115,7 @@ export function GapForm({
     >
       <h3 className="font-medium">{`File ${TEST_GAP_LABEL}`}</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -239,7 +239,7 @@ export function PlanningControls({
     },
   });
   function submitForm(form: { handleSubmit: () => Promise<void> }) {
-    return (event: FormEvent<HTMLFormElement>) => {
+    return (event: SubmitEvent<HTMLFormElement>) => {
       event.preventDefault();
       event.stopPropagation();
       form.handleSubmit().catch(() => undefined);
@@ -452,7 +452,7 @@ export function CloseForm({
     queryFn: loadDecisions,
     queryKey: ["test-gap-decision-targets", record.id],
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

@@ -7,7 +7,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useEffect } from "react";
+import { type SubmitEvent, useEffect } from "react";
 
 export default function WorkDuplicateForm({
   duplicate,
@@ -67,7 +67,7 @@ export default function WorkDuplicateForm({
     }
   }, [form, preview.data]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -80,18 +80,18 @@ export default function WorkDuplicateForm({
       onSubmit={handleSubmit}
     >
       {preview.isPending ? (
-        <p className="text-muted-foreground text-xs" role="status">
+        <p className="text-xs text-muted-foreground" role="status">
           Loading copy preview…
         </p>
       ) : null}
       {preview.isError ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           Copy preview could not be loaded. Try again.
         </p>
       ) : null}
       {preview.data ? (
         <>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             Copies title, type, description, the checklist, and the selected
             Custom fields into a new Work with a new key. History, relations,
             close outcome, current status, and dates are not copied.
@@ -121,7 +121,7 @@ export default function WorkDuplicateForm({
           </dl>
           {preview.data.customFields.length > 0 ? (
             <fieldset className="space-y-2">
-              <legend className="text-muted-foreground text-xs">
+              <legend className="text-xs text-muted-foreground">
                 Selected field values
               </legend>
               <form.Field name="customFieldDefinitionIds">

@@ -181,7 +181,7 @@ export function WireframeOutline({
   }
 
   if (state.document.blocks.length === 0) {
-    return <p className="text-muted-foreground text-xs">No blocks yet.</p>;
+    return <p className="text-xs text-muted-foreground">No blocks yet.</p>;
   }
   return (
     <div className="space-y-2">

@@ -46,7 +46,7 @@ function EvidenceUse({
         {formatAccountDateTime(use.accessedAt, preferences)} · Range{" "}
         {use.pin.start}–{use.pin.end}
       </p>
-      <p className="whitespace-pre-wrap break-words">{use.pin.excerpt}</p>
+      <p className="break-words whitespace-pre-wrap">{use.pin.excerpt}</p>
       <p>{use.role}</p>
       {use.readOnly ? <p>Archived. Evidence is read-only.</p> : null}
       {use.newerVersionExists ? (

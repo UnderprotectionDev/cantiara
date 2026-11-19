@@ -147,7 +147,7 @@ export function ResearchNoteBindingEditor({
     <section aria-label={heading} className="space-y-3 rounded-lg border p-4">
       <h5 className="font-medium">{heading}</h5>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -161,10 +161,10 @@ export function ResearchNoteBindingEditor({
             <dl aria-label="Field mappings" className="space-y-2">
               {Object.entries(preview.plan.fields).map(([field, value]) => (
                 <div key={field}>
-                  <dt className="font-medium text-sm">
+                  <dt className="text-sm font-medium">
                     {fieldLabels[field] ?? field}
                   </dt>
-                  <dd className="whitespace-pre-wrap text-sm">
+                  <dd className="text-sm whitespace-pre-wrap">
                     {value ?? "Not set"}
                   </dd>
                 </div>
@@ -182,10 +182,10 @@ export function ResearchNoteBindingEditor({
             Version-pinned evidence: revision {preview.plan.pin.source.revision}
             , range {preview.plan.pin.start}–{preview.plan.pin.end}
           </p>
-          <blockquote className="whitespace-pre-wrap border-l-4 pl-3">
+          <blockquote className="border-l-4 pl-3 whitespace-pre-wrap">
             {preview.plan.pin.excerpt}
           </blockquote>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             The original note stays in this Research Session.
           </p>
           <div className="flex flex-wrap gap-2">
@@ -265,7 +265,7 @@ export function ResearchNoteBindingEditor({
                     )}
                   </form.Field>
                 </div>
-                <p className="whitespace-pre-wrap text-sm">
+                <p className="text-sm whitespace-pre-wrap">
                   Range {values.start}–{values.end}:{" "}
                   {note.text.slice(values.start, values.end)}
                 </p>

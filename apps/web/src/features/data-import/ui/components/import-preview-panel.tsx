@@ -60,7 +60,7 @@ function RowTable({
               {row.rowNumber}
             </th>
             <td className="pr-3">{describeRow(row)}</td>
-            <td className="break-words pr-3 text-muted-foreground">
+            <td className="pr-3 break-words text-muted-foreground">
               {Object.entries(row.values)
                 .map(([field, value]) => `${field}: ${value}`)
                 .join("; ")}
@@ -112,14 +112,14 @@ export function ImportPreviewPanel({
     >
       <header className="space-y-1">
         <h3
-          className="font-medium text-lg"
+          className="text-lg font-medium"
           id="import-preview-title"
           ref={heading}
           tabIndex={-1}
         >
           Preview: {preview.fileName}
         </h3>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {preview.format} into {preview.scope.label}
           {preview.catalogType ? ` as ${preview.catalogType}` : " as Document"}.
         </p>

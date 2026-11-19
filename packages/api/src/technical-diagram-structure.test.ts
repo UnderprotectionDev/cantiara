@@ -165,9 +165,9 @@ describe("Technical Diagram structural model", () => {
       participants: [],
       steps: [],
     });
-    expect(() =>
-      resolveStructuralModel("Data Model", architecture),
-    ).toThrowError(StructuralModelError);
+    expect(() => resolveStructuralModel("Data Model", architecture)).toThrow(
+      StructuralModelError,
+    );
   });
 
   test("golden Architecture model uses the closed catalog and typed links", () => {
@@ -490,7 +490,7 @@ describe("Technical Diagram structural model", () => {
         { dsl: "A -> B" },
         { mermaid: "graph TD" },
       ]) {
-        expect(() => resolveStructuralModel(type, source)).toThrowError(
+        expect(() => resolveStructuralModel(type, source)).toThrow(
           StructuralModelError,
         );
       }

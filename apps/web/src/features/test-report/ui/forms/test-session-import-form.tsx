@@ -2,8 +2,8 @@
 import { TEST_SESSION_LABEL } from "@cantiara/api/test-report";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 import { refusalText } from "../../lib/refusal-text";
 import {
   parseTestSessionImport,
@@ -55,8 +55,8 @@ export default function TestSessionImportForm({
       }
     },
   });
-  const pending = useStore(form.store, (state) => state.isSubmitting);
-  function submit(event: FormEvent<HTMLFormElement>) {
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -68,13 +68,13 @@ export default function TestSessionImportForm({
       onSubmit={submit}
     >
       <h3 className="font-medium">{`Import ${TEST_SESSION_LABEL} file`}</h3>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         A JSON file or a Markdown file with YAML frontmatter, using the
         test-report/1 contract. The file is checked as a whole; nothing is
         imported if any part is refused.
       </p>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

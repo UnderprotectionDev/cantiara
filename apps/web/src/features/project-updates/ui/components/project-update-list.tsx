@@ -25,7 +25,7 @@ export function ProjectUpdateList({
 }) {
   if (updates.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         No {PROJECT_UPDATE_LABEL} yet. Each one you save is added here with the
         date; none replaces another.
       </p>
@@ -42,13 +42,13 @@ export function ProjectUpdateList({
             <header className="flex flex-wrap items-baseline gap-3">
               <h3 className="font-semibold">{update.mark}</h3>
               <time
-                className="text-muted-foreground text-sm"
+                className="text-sm text-muted-foreground"
                 dateTime={update.savedAt}
               >
                 {formatAccountDateTime(update.savedAt, formatting)}
               </time>
             </header>
-            <p className="mt-2 whitespace-pre-wrap break-words text-sm">
+            <p className="mt-2 text-sm break-words whitespace-pre-wrap">
               {update.narrative}
             </p>
             {update.links.length ? (

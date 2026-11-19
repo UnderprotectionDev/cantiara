@@ -91,7 +91,7 @@ export default function SpecChangeReviewSurface({
       await queryClient.invalidateQueries({ queryKey: detailOptions.queryKey });
     }
   };
-  if (queue.isPending) {
+  if (queue.status === "pending") {
     return <p role="status">Loading Spec Change Review…</p>;
   }
   if (!queue.data) {

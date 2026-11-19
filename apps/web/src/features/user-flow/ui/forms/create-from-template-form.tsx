@@ -8,7 +8,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 
 import { createUserFlowFromTemplateFormSchema } from "../../lib/user-flow-forms";
 
@@ -47,7 +47,7 @@ export function CreateFromTemplateForm({
   if (templates.length === 0) {
     return null;
   }
-  function submit(event: FormEvent) {
+  function submit(event: SubmitEvent) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

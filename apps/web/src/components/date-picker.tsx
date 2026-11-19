@@ -66,7 +66,7 @@ function DatePicker({
         render={
           <Button
             aria-describedby={ariaDescribedBy}
-            aria-label={ariaLabel}
+            aria-label={`${ariaLabel}: ${triggerText}`}
             className={className ?? "w-full justify-between font-normal"}
             disabled={disabled}
             id={id}

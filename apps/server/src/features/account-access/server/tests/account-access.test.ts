@@ -304,6 +304,39 @@ describe("Account Access", () => {
     expect(markAvailable).not.toHaveBeenCalled();
   });
 
+  test("rejects OAuth token redirects without admitting an account or issuing a session", async () => {
+    const admitAccount = vi.fn();
+    const markUnavailable = vi.fn();
+    const driver = createGitHubCallbackTestDriver(
+      { ...acceptingAccountAdmission(), admitAccount },
+      { markAvailable: vi.fn(), markUnavailable },
+    );
+    const requests: Request[] = [];
+    function githubFetch(input: string | URL | Request, init?: RequestInit) {
+      requests.push(
+        input instanceof Request
+          ? new Request(input, init)
+          : new Request(String(input), init),
+      );
+      return Promise.reject(new TypeError("OAuth token endpoint redirected"));
+    }
+    githubFetch.preconnect = originalFetch.preconnect;
+    globalThis.fetch = githubFetch;
+
+    const response = await driver.completeSignIn();
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.redirect).toBe("error");
+    expect(response.headers.get("location")).toBe(
+      "https://cantiara.example/login?error=sign_in_failed",
+    );
+    expect(response.headers.get("set-cookie") ?? "").not.toContain(
+      "session_token=",
+    );
+    expect(admitAccount).not.toHaveBeenCalled();
+    expect(markUnavailable).toHaveBeenCalledOnce();
+  });
+
   test("does not mark GitHub as waiting for an unauthorized identity token", async () => {
     const markUnavailable = vi.fn();
     const driver = createGitHubCallbackTestDriver(acceptingAccountAdmission(), {

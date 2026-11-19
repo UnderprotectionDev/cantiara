@@ -23,7 +23,7 @@ import {
 } from "@cantiara/ui/components/radio-group";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import {
   type ExportHandoff,
   handoffRecordIds,
@@ -133,7 +133,7 @@ export function ExportForm({
   });
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -149,7 +149,7 @@ export function ExportForm({
         <form.Field name="projectId">
           {(field) => (
             <div className="space-y-1">
-              <label className="font-medium text-sm" htmlFor="export-project">
+              <label className="text-sm font-medium" htmlFor="export-project">
                 Project
               </label>
               <NativeSelect
@@ -171,7 +171,7 @@ export function ExportForm({
       <form.Field name="recordType">
         {(field) => (
           <div className="space-y-1">
-            <label className="font-medium text-sm" htmlFor="export-type">
+            <label className="text-sm font-medium" htmlFor="export-type">
               Record type
             </label>
             <NativeSelect
@@ -229,7 +229,7 @@ export function ExportForm({
           <form.Field name="status">
             {(field) => (
               <div className="space-y-1">
-                <label className="font-medium text-sm" htmlFor="export-status">
+                <label className="text-sm font-medium" htmlFor="export-status">
                   Status filter (optional)
                 </label>
                 <Input
@@ -244,7 +244,7 @@ export function ExportForm({
           <form.Field name="recordIds">
             {(field) => (
               <div className="space-y-1">
-                <label className="font-medium text-sm" htmlFor="export-ids">
+                <label className="text-sm font-medium" htmlFor="export-ids">
                   Record ids (optional)
                 </label>
                 <Textarea
@@ -256,7 +256,7 @@ export function ExportForm({
                   value={field.state.value}
                 />
                 <p
-                  className="text-muted-foreground text-xs"
+                  className="text-xs text-muted-foreground"
                   id="export-ids-help"
                 >
                   Separate ids with spaces, commas or new lines. Leave empty to
@@ -270,7 +270,7 @@ export function ExportForm({
       <form.Field name="format">
         {(field) => (
           <fieldset className="space-y-2">
-            <legend className="font-medium text-sm">Format</legend>
+            <legend className="text-sm font-medium">Format</legend>
             <RadioGroup
               className="flex gap-4"
               disabled={disabled}
@@ -307,7 +307,7 @@ export function ExportForm({
         )}
       </form.Field>
       {refusal ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {refusal}
         </p>
       ) : null}

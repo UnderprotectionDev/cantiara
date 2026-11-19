@@ -122,6 +122,33 @@ describe("File Attachment preview surface", () => {
     expect(markup).not.toContain("autoplay");
   });
 
+  test("renders audio with user-started controls and no external fallback", () => {
+    const markup = renderPreview({
+      attachmentId: attachment.id,
+      downloadPath:
+        "/api/file-attachments/attachment-1/versions/version-1/asset?variant=original",
+      kind: "audio",
+      playback: {
+        autoplay: false,
+        fullscreen: true,
+        loop: "optional",
+        speeds: [0.75, 1, 1.25, 1.5, 2],
+        userInitiated: true,
+      },
+      previewPath:
+        "/api/file-attachments/attachment-1/versions/version-1/asset?variant=original",
+      status: "available",
+      versionId: attachment.currentVersion.id,
+    });
+    expect(markup).toContain("<audio");
+    expect(markup).toContain("controls");
+    expect(markup).toContain("Playback speed");
+    expect(markup).toContain("Loop");
+    expect(markup).not.toContain("autoplay");
+    expect(markup).toContain("Fullscreen");
+    expect(markup).not.toContain("videojs.org");
+  });
+
   test("renders bounded CSV and safe text content as text", () => {
     const csvMarkup = renderPreview({
       attachmentId: attachment.id,

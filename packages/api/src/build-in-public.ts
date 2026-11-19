@@ -408,7 +408,7 @@ export const approveBuildInPublicInputSchema = humanMutationEnvelopeSchema
          */
         featured: z
           .object({
-            endsAt: z.string().datetime(),
+            endsAt: z.iso.datetime(),
             recordId: identifierSchema,
           })
           .strict()

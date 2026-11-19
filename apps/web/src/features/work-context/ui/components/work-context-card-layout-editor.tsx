@@ -221,7 +221,7 @@ export default function WorkContextCardLayoutEditor({
 
   return (
     <div className="mt-3 space-y-5">
-      <p className="text-muted-foreground text-xs/relaxed">
+      <p className="text-xs/relaxed text-muted-foreground">
         Configure the same Work Context Card presentation for every Work of a
         selected type. Work fields, relations, status semantics, and evidence
         stay unchanged.
@@ -247,7 +247,7 @@ export default function WorkContextCardLayoutEditor({
 
       <section aria-labelledby="work-context-section-order-heading">
         <h5
-          className="font-medium text-sm"
+          className="text-sm font-medium"
           id="work-context-section-order-heading"
         >
           Sections
@@ -266,18 +266,18 @@ export default function WorkContextCardLayoutEditor({
                   <p
                     className={
                       hidden
-                        ? "text-muted-foreground text-sm line-through"
+                        ? "text-sm text-muted-foreground line-through"
                         : "text-sm"
                     }
                   >
                     {label}
                   </p>
                   {custom ? (
-                    <p className="mt-1 text-muted-foreground text-xs">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       Custom · {conditionLabel(custom.condition)}
                     </p>
                   ) : (
-                    <p className="mt-1 text-muted-foreground text-xs">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       Prepared section
                     </p>
                   )}
@@ -376,7 +376,7 @@ export default function WorkContextCardLayoutEditor({
           </p>
         </div>
       ) : null}
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         Initial Work fields: {WORK_CONTEXT_INITIAL_FIELDS.join(", ")}
       </p>
       <ConfigurationMutationError error={error ?? localError} />
@@ -403,7 +403,7 @@ function errorMessage(error: unknown, fallback: string) {
 
 function ConfigurationMutationError({ error }: { error: string | null }) {
   return error ? (
-    <p className="text-destructive text-sm" role="alert">
+    <p className="text-sm text-destructive" role="alert">
       {error}
     </p>
   ) : null;

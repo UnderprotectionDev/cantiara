@@ -59,7 +59,7 @@ function Provenance({
 }) {
   const context = Object.entries(provenance.context ?? {});
   return (
-    <dl className="mt-1 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-muted-foreground text-xs">
+    <dl className="mt-1 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
       <dt>Raw result</dt>
       <dd>{provenance.rawResult ?? "Redacted"}</dd>
       <dt>Normalized result</dt>
@@ -110,7 +110,7 @@ function RecordRow({
       >
         {record.label || record.id}
       </AppLink>{" "}
-      <span className="text-muted-foreground text-xs">
+      <span className="text-xs text-muted-foreground">
         {record.kind}
         {record.detail ? ` · ${record.detail}` : ""}
       </span>
@@ -150,7 +150,7 @@ function SectionRow({
           className="mt-2 space-y-2 text-sm"
           id={panelId}
         >
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             Filters:{" "}
             {section.filters
               .map((filter) => `${filter.label}: ${filter.value}`)
@@ -217,14 +217,14 @@ export function TestSummaryView({
       className="space-y-3"
       id={isProject ? "tests-overview" : undefined}
     >
-      <h3 className="font-semibold text-base" id={headingId}>
+      <h3 className="text-base font-semibold" id={headingId}>
         {isProject
           ? TESTS_OVERVIEW_LABEL
           : `${TEST_SUMMARY_LABEL}: ${summary.scope.label}`}
       </h3>
-      <p className="text-muted-foreground text-sm">{introduction}</p>
+      <p className="text-sm text-muted-foreground">{introduction}</p>
       {isProject ? null : (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {TEST_SUMMARY_GITHUB_NOTE}
         </p>
       )}
@@ -235,11 +235,11 @@ export function TestSummaryView({
       />
       {isProject ? null : (
         <div className="space-y-2">
-          <h4 className="font-medium text-sm">
+          <h4 className="text-sm font-medium">
             {TEST_SUMMARY_ATTENTION_LABEL}
           </h4>
           {summary.attention.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Nothing needs attention in the related records.
             </p>
           ) : (

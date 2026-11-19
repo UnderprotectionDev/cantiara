@@ -10,7 +10,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, projectWorksQueryPrefix } from "@/utils/orpc";
@@ -42,7 +42,7 @@ export function HorizonForm({ work }: { work: WorkProfile }) {
       mutation.mutate(parsed.data);
     },
   });
-  const horizon = useStore(form.store, (state) => state.values.horizon);
+  const horizon = useSelector(form.store, (state) => state.values.horizon);
   return (
     <form
       className="flex flex-wrap items-end gap-2"
@@ -84,7 +84,7 @@ export function HorizonForm({ work }: { work: WorkProfile }) {
         Place on horizon
       </Button>
       {mutation.isError ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           Horizon could not be saved. Reload and try again.
         </p>
       ) : null}

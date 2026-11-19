@@ -15,8 +15,8 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 import { DateTimePicker } from "@/components/date-picker";
 import { refusalText } from "../../lib/refusal-text";
 import {
@@ -57,8 +57,8 @@ export default function TestSessionRecordForm({
       }
     },
   });
-  const pending = useStore(form.store, (state) => state.isSubmitting);
-  function submit(event: FormEvent<HTMLFormElement>) {
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -70,12 +70,12 @@ export default function TestSessionRecordForm({
       onSubmit={submit}
     >
       <h3 className="font-medium">{`Record ${TEST_SESSION_LABEL}`}</h3>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         Nothing is recorded until you save. A reported result is history, not
         verified product acceptance.
       </p>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -171,7 +171,7 @@ export default function TestSessionRecordForm({
                 // biome-ignore lint/suspicious/noArrayIndexKey: Drafts have no id and keep their order.
                 key={index}
               >
-                <legend className="px-1 font-medium text-sm">{`${SESSION_TEST_REPORT_LABEL} ${index + 1}`}</legend>
+                <legend className="px-1 text-sm font-medium">{`${SESSION_TEST_REPORT_LABEL} ${index + 1}`}</legend>
                 <div className="grid gap-2 text-sm">
                   <label htmlFor={`test-session-test-${index}-title`}>
                     {`${SESSION_TEST_REPORT_LABEL} ${index + 1} title`}

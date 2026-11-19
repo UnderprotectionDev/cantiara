@@ -167,7 +167,7 @@ export default function WorkChecklistEditor({ work }: { work: WorkProfile }) {
         workKey={work.key}
       />
       {error ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}

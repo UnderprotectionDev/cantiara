@@ -16,11 +16,11 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  type FormEvent,
   type ReactNode,
+  type SubmitEvent,
   useEffect,
   useRef,
   useState,
@@ -122,9 +122,15 @@ export default function SmartCollectionCreateForm({
       create.mutate(parsed.data);
     },
   });
-  const sourceType = useStore(form.store, (state) => state.values.sourceType);
-  const projectIds = useStore(form.store, (state) => state.values.projectIds);
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  const sourceType = useSelector(
+    form.store,
+    (state) => state.values.sourceType,
+  );
+  const projectIds = useSelector(
+    form.store,
+    (state) => state.values.projectIds,
+  );
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -227,12 +233,12 @@ export default function SmartCollectionCreateForm({
   }
   const scopeField =
     sourceType === "Wiki Document" ? (
-      <p className="self-end text-muted-foreground text-sm">Workspace scope</p>
+      <p className="self-end text-sm text-muted-foreground">Workspace scope</p>
     ) : (
       <fieldset className="space-y-2 md:col-span-4">
-        <legend className="font-medium text-sm">Scope</legend>
+        <legend className="text-sm font-medium">Scope</legend>
         {projectsQuery.isError ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Project scope is unavailable.
           </p>
         ) : (

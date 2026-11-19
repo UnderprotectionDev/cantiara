@@ -39,8 +39,8 @@ export function DecisionSupersessionPreviewView({
           <article className="space-y-2 border-b pb-3" key={id}>
             <h4 className="font-medium">{record.title}</h4>
             <p>{change ? `${change.before} → ${change.after}` : record.life}</p>
-            <p className="whitespace-pre-wrap break-words">{record.decision}</p>
-            <p className="whitespace-pre-wrap break-words">
+            <p className="break-words whitespace-pre-wrap">{record.decision}</p>
+            <p className="break-words whitespace-pre-wrap">
               Rationale: {record.rationale || "—"}
             </p>
             <ul aria-label="Evidence">
@@ -68,7 +68,7 @@ export function DecisionSupersessionPreviewView({
           ))}
         </ul>
       ) : null}
-      <p className="whitespace-pre-wrap break-words">
+      <p className="break-words whitespace-pre-wrap">
         Transition rationale: {preview.command.rationale || "—"}
       </p>
       <p>

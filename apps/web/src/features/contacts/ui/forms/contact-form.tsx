@@ -16,11 +16,11 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useId } from "react";
+import { type SubmitEvent, useId } from "react";
 import { contactLabel, NO_COMPANY } from "../../lib/contact-label";
 
 function handleFormSubmit(form: { handleSubmit: () => Promise<void> }) {
-  return (event: FormEvent<HTMLFormElement>) => {
+  return (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -120,7 +120,7 @@ export function CreateContactForm({
         )}
       </contactForm.Field>
       <button
-        className="w-fit rounded-md bg-primary px-3 py-2 text-primary-foreground text-sm"
+        className="w-fit rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground"
         type="submit"
       >
         Create Contact
@@ -173,7 +173,7 @@ export function CreateCompanyForm({
         )}
       </companyForm.Field>
       <button
-        className="w-fit rounded-md bg-primary px-3 py-2 text-primary-foreground text-sm"
+        className="w-fit rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground"
         type="submit"
       >
         Create Company
@@ -305,7 +305,7 @@ export function ContactUpdateForm({
         )}
       </form.Field>
       <button
-        className="w-fit rounded-md bg-primary px-3 py-2 text-primary-foreground text-sm"
+        className="w-fit rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground"
         type="submit"
       >
         Save Contact

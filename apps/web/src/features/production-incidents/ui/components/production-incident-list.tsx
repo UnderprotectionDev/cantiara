@@ -25,15 +25,15 @@ export function ProductionIncidentList({
     <section aria-label="Production Incidents" className="space-y-6">
       <header className="surface-header flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
-          <p className="text-muted-foreground text-sm">Production</p>
-          <h2 className="font-semibold text-2xl tracking-tight">
+          <p className="text-sm text-muted-foreground">Production</p>
+          <h2 className="text-2xl font-semibold tracking-tight">
             Production Incidents
           </h2>
         </div>
         {overview.readOnly ? null : <div>{createControl}</div>}
       </header>
       {overview.readOnly ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           This Project is archived. Its Production Incidents are read-only.
         </p>
       ) : null}
@@ -45,7 +45,7 @@ export function ProductionIncidentList({
       )}
       {groups.map(({ incidents, status }) => (
         <section aria-label={status} className="space-y-2" key={status}>
-          <h3 className="font-medium text-sm">
+          <h3 className="text-sm font-medium">
             {status}{" "}
             <span className="text-muted-foreground">({incidents.length})</span>
           </h3>
@@ -56,16 +56,16 @@ export function ProductionIncidentList({
                   className="grid gap-1 p-4 underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_auto]"
                   href={productionIncidentsHref(projectId, incident.id)}
                 >
-                  <span className="min-w-0 break-words font-medium">
+                  <span className="min-w-0 font-medium break-words">
                     {incident.title}
                   </span>
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-sm text-muted-foreground">
                     {incident.status}
                   </span>
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-sm text-muted-foreground">
                     {formatAccountDateTime(incident.occurredAt, formatting)}
                   </span>
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-sm text-muted-foreground">
                     {linkCount === 1
                       ? "1 linked record"
                       : `${linkCount} linked records`}

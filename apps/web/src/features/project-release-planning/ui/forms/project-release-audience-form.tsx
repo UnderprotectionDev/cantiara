@@ -8,7 +8,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { projectReleaseAudienceFormSchema } from "../../lib/project-release-planning-form";
 
 const TYPES = ["Persona", "Contact", "Company"] as const;
@@ -45,7 +45,7 @@ export function ProjectReleaseAudienceForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -108,7 +108,7 @@ export function ProjectReleaseAudienceForm({
         )}
       </form.Subscribe>
       {error ? (
-        <p className="w-full text-destructive text-sm" role="alert">
+        <p className="w-full text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

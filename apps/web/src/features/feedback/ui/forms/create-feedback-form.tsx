@@ -6,7 +6,7 @@ import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { format } from "date-fns";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { DateTimePicker } from "@/components/date-picker";
 import { createFeedbackFormSchema } from "../../lib/feedback-form";
 import {
@@ -85,7 +85,7 @@ export function CreateFeedbackForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -97,7 +97,7 @@ export function CreateFeedbackForm({
     >
       <h3 className="font-medium">Create Feedback</h3>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -213,7 +213,7 @@ export function CreateFeedbackForm({
               <form.Field name="attachmentIds">
                 {(field) => (
                   <fieldset className="space-y-2" disabled={pending}>
-                    <legend className="font-medium text-sm">Attachments</legend>
+                    <legend className="text-sm font-medium">Attachments</legend>
                     {attachmentOptions.map((attachment) => (
                       <label
                         className="flex min-h-11 items-center gap-3 text-sm"

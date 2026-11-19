@@ -55,7 +55,7 @@ export default function TrashSurface({ projectId }: { projectId: string }) {
     ],
   );
 
-  if (trash.isPending) {
+  if (trash.status === "pending") {
     return <p role="status">Loading {TRASH_LABEL}…</p>;
   }
   if (trash.isError || !trash.data) {

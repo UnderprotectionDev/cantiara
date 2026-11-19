@@ -65,7 +65,7 @@ function CaptureInboxItemDetails({
         ) : null}
       </div>
       {includeContent && item.content ? (
-        <p className="whitespace-pre-wrap text-sm/6">{item.content}</p>
+        <p className="text-sm/6 whitespace-pre-wrap">{item.content}</p>
       ) : null}
       {Object.entries(item.fields).length > 0 ? (
         <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
@@ -112,14 +112,14 @@ function SequentialTriageView({
     <section aria-labelledby="sequential-triage-title" className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-4">
         <div>
-          <p className="text-muted-foreground text-xs">Capture Inbox</p>
+          <p className="text-xs text-muted-foreground">Capture Inbox</p>
           <h2
-            className="mt-1 font-semibold text-xl tracking-tight"
+            className="mt-1 text-xl font-semibold tracking-tight"
             id="sequential-triage-title"
           >
             Sequential triage
           </h2>
-          <p className="mt-2 max-w-xl text-muted-foreground text-sm/6">
+          <p className="mt-2 max-w-xl text-sm/6 text-muted-foreground">
             Focus on one capture. Convert, attach to existing, or delete to
             continue.
           </p>
@@ -145,7 +145,7 @@ function SequentialTriageView({
       </header>
       <article
         aria-label="Sequential triage item"
-        className="space-y-4 border-border/70 border-y py-5"
+        className="space-y-4 border-y border-border/70 py-5"
       >
         <CaptureSourceSummary
           formattingPreferences={formattingPreferences}
@@ -159,7 +159,7 @@ function SequentialTriageView({
         />
         {isResolved ? (
           <p
-            className="border border-border/70 px-3 py-2 text-muted-foreground text-sm"
+            className="border border-border/70 px-3 py-2 text-sm text-muted-foreground"
             role="status"
           >
             This capture was already handled in this session.
@@ -200,13 +200,13 @@ function CaptureInboxGroupView({
     <section
       aria-label={group.label}
       aria-labelledby={headingId}
-      className="border-border/70 border-t"
+      className="border-t border-border/70"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3 border-border/70 border-b py-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 py-3">
         <div className="min-w-0">
-          <p className="text-muted-foreground text-xs">{inboxKind}</p>
+          <p className="text-xs text-muted-foreground">{inboxKind}</p>
           <h2
-            className="mt-1 font-semibold text-base tracking-tight"
+            className="mt-1 text-base font-semibold tracking-tight"
             id={headingId}
           >
             {group.label}
@@ -218,7 +218,7 @@ function CaptureInboxGroupView({
               {group.projectId}
             </p>
           ) : null}
-          <p className="mt-1 text-muted-foreground text-xs">
+          <p className="mt-1 text-xs text-muted-foreground">
             {captureCountLabel(captureCount)}
           </p>
         </div>
@@ -297,9 +297,9 @@ function SequentialTriageSurface({
     >
       <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-4">
         <div>
-          <p className="text-muted-foreground text-xs">Capture Inbox</p>
+          <p className="text-xs text-muted-foreground">Capture Inbox</p>
           <h2
-            className="mt-1 font-semibold text-xl tracking-tight"
+            className="mt-1 text-xl font-semibold tracking-tight"
             id="sequential-triage-complete-title"
           >
             Sequential triage
@@ -309,7 +309,7 @@ function SequentialTriageSurface({
           Back to list
         </Button>
       </header>
-      <p className="border border-border/70 px-4 py-6 text-muted-foreground text-sm">
+      <p className="border border-border/70 px-4 py-6 text-sm text-muted-foreground">
         Sequential triage is complete. No captures are waiting in this session.
       </p>
     </section>
@@ -346,18 +346,18 @@ function CaptureInboxListView({
       return (
         <section
           aria-labelledby="empty-workspace-inbox"
-          className="border-border/70 border-y"
+          className="border-y border-border/70"
         >
-          <div className="border-border/70 border-b py-3">
-            <p className="text-muted-foreground text-xs">Workspace inbox</p>
+          <div className="border-b border-border/70 py-3">
+            <p className="text-xs text-muted-foreground">Workspace inbox</p>
             <h3
-              className="mt-1 font-semibold text-base tracking-tight"
+              className="mt-1 text-base font-semibold tracking-tight"
               id="empty-workspace-inbox"
             >
               Workspace Capture Inbox
             </h3>
           </div>
-          <p className="py-5 text-muted-foreground text-sm">
+          <p className="py-5 text-sm text-muted-foreground">
             No captures in this Inbox.
           </p>
         </section>
@@ -391,22 +391,22 @@ function CaptureInboxListView({
 
   return (
     <section aria-labelledby="capture-list-title" className="min-w-0 space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-4 border-border/70 border-b pb-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-4">
         <div>
           <h2
-            className="font-semibold text-xl tracking-tight"
+            className="text-xl font-semibold tracking-tight"
             id="capture-list-title"
           >
             Saved captures
           </h2>
-          <p className="mt-2 max-w-2xl text-muted-foreground text-sm/6">
+          <p className="mt-2 max-w-2xl text-sm/6 text-muted-foreground">
             Review temporary captures here. Open Capture Inbox when you are
             ready to save a new thought or choose its next destination.
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">
           {groups.length > 0 ? (
-            <span className="shrink-0 text-muted-foreground text-xs">
+            <span className="shrink-0 text-xs text-muted-foreground">
               {captureCountLabel(
                 groups.reduce((count, group) => count + group.items.length, 0),
               )}

@@ -3,7 +3,7 @@ import { userFlowTitleSchema } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useState } from "react";
 
 export function CreateUserFlowForm({
@@ -35,7 +35,7 @@ export function CreateUserFlowForm({
       }
     },
   });
-  const title = useStore(form.store, (state) => state.values.title);
+  const title = useSelector(form.store, (state) => state.values.title);
 
   return (
     <form

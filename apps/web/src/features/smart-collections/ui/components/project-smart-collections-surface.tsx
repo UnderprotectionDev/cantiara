@@ -96,7 +96,7 @@ function previewForDragEvent(
 
 function MembershipReasons({ reasons }: { reasons: string[] }) {
   return (
-    <p className="ml-5 text-muted-foreground text-xs">
+    <p className="ml-5 text-xs text-muted-foreground">
       <span className="font-medium">Membership reason: </span>
       {reasons.join(" · ")}
     </p>
@@ -295,7 +295,7 @@ function MembershipFieldChangePreview({
       className="space-y-1 rounded-md bg-muted/40 p-3"
       role="status"
     >
-      <p className="font-medium text-sm">Field change preview</p>
+      <p className="text-sm font-medium">Field change preview</p>
       <p className="text-sm">{preview.recordName}</p>
       <ul className="list-inside list-disc text-sm">
         {preview.changes.map((change) => (
@@ -304,7 +304,7 @@ function MembershipFieldChangePreview({
           </li>
         ))}
       </ul>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         No membership is written by this preview.
       </p>
     </div>
@@ -382,14 +382,14 @@ function CollectionSubscriptionControls({
       </Label>
       {view.isSubscribed ? null : (
         <p
-          className="ml-6 text-muted-foreground text-xs"
+          className="ml-6 text-xs text-muted-foreground"
           id={`${notifyOnLeaveId}-description`}
         >
           Turn on Subscribe first.
         </p>
       )}
       {subscription.isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Smart Collection subscription could not be updated.
         </p>
       ) : null}
@@ -489,7 +489,7 @@ function CollectionViewCard({
       <h3 className="font-medium">
         {view.collectionName} · {view.name}
       </h3>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {view.sourceType} · {view.presentation}
       </p>
       {view.preparedReason ? null : (
@@ -593,7 +593,7 @@ export default function ProjectSmartCollectionsSurface({
   );
   return (
     <section aria-label="Smart Collection" className="space-y-5">
-      <h2 className="font-semibold text-2xl">Smart Collection</h2>
+      <h2 className="text-2xl font-semibold">Smart Collection</h2>
       <SmartCollectionCreateForm projectId={projectId} />
       {views.isError ? (
         <p role="alert">Smart Collection is unavailable.</p>

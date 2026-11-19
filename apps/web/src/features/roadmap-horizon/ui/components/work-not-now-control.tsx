@@ -56,7 +56,7 @@ function GroundList({
 }) {
   if (grounds.length === 0) {
     return (
-      <p className="text-muted-foreground text-xs">No supporting records.</p>
+      <p className="text-xs text-muted-foreground">No supporting records.</p>
     );
   }
 
@@ -98,14 +98,14 @@ function TrailHistory({
 
   return (
     <section aria-label="History" className="space-y-3 border-t pt-3">
-      <h3 className="font-medium text-xs">History</h3>
+      <h3 className="text-xs font-medium">History</h3>
       <ol className="space-y-3">
         {history.map((trail) => (
           <li
             className="space-y-1 rounded-md border border-border/70 p-3"
             key={trail.id}
           >
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground text-xs">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <Badge
                 variant={trail.status === "Active" ? "secondary" : "outline"}
               >
@@ -114,14 +114,14 @@ function TrailHistory({
               <span>by You</span>
               <time dateTime={trail.createdAt}>{trail.createdAt}</time>
             </div>
-            <p className="whitespace-pre-wrap text-sm">{trail.reason}</p>
+            <p className="text-sm whitespace-pre-wrap">{trail.reason}</p>
             {trail.condition ? (
-              <p className="text-muted-foreground text-xs">
+              <p className="text-xs text-muted-foreground">
                 Re-evaluation condition: {trail.condition}
               </p>
             ) : null}
             {trail.closedAt ? (
-              <p className="text-muted-foreground text-xs">
+              <p className="text-xs text-muted-foreground">
                 {trail.closedBy} ·{" "}
                 <time dateTime={trail.closedAt}>{trail.closedAt}</time>
               </p>
@@ -179,18 +179,18 @@ export function NotNowHistoryPanel({
   return (
     <div className="space-y-4">
       {historyError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Not now history could not be loaded.
         </p>
       ) : null}
       {historyPending ? (
-        <p className="text-muted-foreground text-sm" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           Loading history…
         </p>
       ) : null}
       <TrailHistory history={visibleHistory} sources={sources} />
       {workContextError ? (
-        <p className="text-muted-foreground text-xs" role="status">
+        <p className="text-xs text-muted-foreground" role="status">
           Supporting record links could not be loaded.
         </p>
       ) : null}
@@ -233,24 +233,24 @@ function NotNowPreviewPanel({
   return (
     <div className="space-y-4">
       {currentTrail ? (
-        <p className="rounded-md border border-border/70 px-3 py-2 text-muted-foreground text-xs">
+        <p className="rounded-md border border-border/70 px-3 py-2 text-xs text-muted-foreground">
           The existing reason, condition, and supporting records will remain in
           history. {reviewLaterHandlingPreview(preview.reviewLaterHandling)}
         </p>
       ) : null}
       <dl className="space-y-3 rounded-md border border-border/70 p-3 text-sm">
         <div>
-          <dt className="font-medium text-xs">Reason</dt>
+          <dt className="text-xs font-medium">Reason</dt>
           <dd className="mt-1 whitespace-pre-wrap">{preview.reason}</dd>
         </div>
         {preview.condition ? (
           <div>
-            <dt className="font-medium text-xs">Re-evaluation condition</dt>
+            <dt className="text-xs font-medium">Re-evaluation condition</dt>
             <dd className="mt-1 whitespace-pre-wrap">{preview.condition}</dd>
           </div>
         ) : null}
         <div>
-          <dt className="font-medium text-xs">Supporting records</dt>
+          <dt className="text-xs font-medium">Supporting records</dt>
           <dd className="mt-1">
             <ul className="space-y-1">
               {preview.groundRelationIds.map((relationId) => {
@@ -265,7 +265,7 @@ function NotNowPreviewPanel({
               })}
             </ul>
             {preview.groundRelationIds.length === 0 ? (
-              <p className="text-muted-foreground text-xs">
+              <p className="text-xs text-muted-foreground">
                 No supporting records selected.
               </p>
             ) : null}
@@ -273,7 +273,7 @@ function NotNowPreviewPanel({
         </div>
       </dl>
       {error ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}

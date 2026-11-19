@@ -15,7 +15,7 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { type FormEvent, useId, useState } from "react";
+import { type SubmitEvent, useId, useState } from "react";
 import { client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 
@@ -109,7 +109,7 @@ export default function EvidenceSelection({
       }
     },
   });
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -221,7 +221,7 @@ function SourceEvidenceConfirmation({
         {formatAccountDateTime(plan.accessedAt, preferences)} · Range{" "}
         {plan.pin.start}–{plan.pin.end}
       </p>
-      <p className="whitespace-pre-wrap break-words">{plan.pin.excerpt}</p>
+      <p className="break-words whitespace-pre-wrap">{plan.pin.excerpt}</p>
       <Button
         disabled={pending}
         onClick={() => plan && onSave(use, plan)}
@@ -280,7 +280,7 @@ function EvidenceTargetSelection({
         {formatAccountDateTime(use.accessedAt, preferences)} · Range{" "}
         {use.pin.start}–{use.pin.end}
       </p>
-      <p className="whitespace-pre-wrap break-words">{use.pin.excerpt}</p>
+      <p className="break-words whitespace-pre-wrap">{use.pin.excerpt}</p>
       {findSourceEvidenceMatch(
         use.pin.excerpt,
         source.version.capturedContent,

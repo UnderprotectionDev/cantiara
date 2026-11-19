@@ -129,7 +129,7 @@ export function ScreensOutputPanel({
         }}
       </form.Field>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -141,7 +141,7 @@ export function ScreensOutputPanel({
               <Button disabled={none} size="sm" type="submit">
                 Presentation Mode
               </Button>
-              <span className="text-muted-foreground text-xs">Export</span>
+              <span className="text-xs text-muted-foreground">Export</span>
               {EXPORT_FORMATS.map((format) => (
                 <Button
                   disabled={none}

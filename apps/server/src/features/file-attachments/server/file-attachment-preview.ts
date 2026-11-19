@@ -261,7 +261,7 @@ export function createSharpPreviewProcessor(): FileAttachmentPreviewProcessor {
         );
       }
 
-      let metadata: Metadata;
+      let metadata: Partial<Metadata>;
       try {
         metadata = await sharp(bytes, {
           failOn: "error",

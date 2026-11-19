@@ -15,7 +15,7 @@ import {
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { YouTubePreviewPlayer } from "@/components/youtube-preview-player";
 import {
   defaultShareScopeDraft,
@@ -85,7 +85,7 @@ export function ShareScopeForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -97,7 +97,7 @@ export function ShareScopeForm({
       onSubmit={submit}
     >
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -114,7 +114,7 @@ export function ShareScopeForm({
                 className="grid gap-3 rounded-lg border border-border/70 p-4"
                 key={section.record.itemId}
               >
-                <legend className="px-1 font-medium text-sm">
+                <legend className="px-1 text-sm font-medium">
                   {section.record.label}
                 </legend>
                 <form.Field name="approved">
@@ -277,7 +277,7 @@ function ShareItemRow({
         </span>
       </label>
       {note ? (
-        <p className="ml-6 text-muted-foreground text-xs" id={`${id}-note`}>
+        <p className="ml-6 text-xs text-muted-foreground" id={`${id}-note`}>
           {note}
         </p>
       ) : null}

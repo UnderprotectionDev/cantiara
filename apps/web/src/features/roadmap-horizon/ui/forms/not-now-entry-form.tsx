@@ -169,7 +169,7 @@ export function NotNowEntryForm({
         </form.Field>
       ) : null}
       {error ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -209,20 +209,20 @@ function SupportingRecordsField({
 }) {
   return (
     <fieldset className="space-y-2" disabled={pending}>
-      <legend className="font-medium text-xs">Supporting records</legend>
+      <legend className="text-xs font-medium">Supporting records</legend>
       {workContextPending ? (
-        <p className="text-muted-foreground text-xs" role="status">
+        <p className="text-xs text-muted-foreground" role="status">
           Loading supporting records…
         </p>
       ) : null}
       {workContextError ? (
-        <p className="text-destructive text-xs" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           Supporting records could not be loaded.
         </p>
       ) : null}
       {!(workContextPending || workContextError) &&
       groundOptions.length === 0 ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           No supporting records are linked to this Work.
         </p>
       ) : null}

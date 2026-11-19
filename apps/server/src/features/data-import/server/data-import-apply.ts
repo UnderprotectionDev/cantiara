@@ -39,13 +39,21 @@ import type {
 /** The actor of every import finalize; the account it acts for travels with it. */
 export const IMPORT_ACTOR_ID = "data-import";
 
+type ImportMappedValues = Record<string, string> & {
+  body?: string;
+  description?: string;
+  dueDate?: string;
+  status?: string;
+  title?: string;
+};
+
 export interface ImportFinalRow {
   originKey: string | null;
   /** The living record an update-existing row targets. */
   recordId: string | null;
   rowNumber: number;
   /** Untruncated mapped values: exactly what Apply writes. */
-  values: Record<string, string>;
+  values: ImportMappedValues;
 }
 
 /** The exact set the founder saw: nothing else is ever written. */
@@ -75,14 +83,14 @@ export interface ImportWriteRecord {
   id: string;
   originKey: string | null;
   recordType: ImportRecordType;
-  values: Record<string, string>;
+  values: ImportMappedValues;
 }
 
 export interface ImportWriteUpdate {
   originKey: string | null;
   recordId: string;
   recordType: ImportRecordType;
-  values: Record<string, string>;
+  values: ImportMappedValues;
 }
 
 /** Everything the commit barrier writes in one transaction. */

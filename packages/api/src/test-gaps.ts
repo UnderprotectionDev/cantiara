@@ -62,7 +62,7 @@ const plainRelationSchema = z
 /** A spec section relation names the exact Document revision and, optionally, a stable section. */
 const documentRelationSchema = z
   .object({
-    documentRevision: z.number().int().nonnegative().safe(),
+    documentRevision: z.number().int().nonnegative(),
     sectionId: identifierSchema.optional(),
     targetId: identifierSchema,
     targetType: z.literal("Document"),
@@ -240,7 +240,7 @@ export const testGapCaseBindInputSchema = z
     caseId: identifierSchema,
     gapId: identifierSchema,
     projectId: identifierSchema,
-    version: z.number().int().min(1).safe(),
+    version: z.number().int().min(1),
   })
   .strict();
 export type TestGapCaseBindInput = z.input<typeof testGapCaseBindInputSchema>;

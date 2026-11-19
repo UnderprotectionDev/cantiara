@@ -12,7 +12,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 function Section({ children, title }: { children: ReactNode; title: string }) {
   return (
     <section className="space-y-1">
-      <h4 className="font-medium text-sm">{title}</h4>
+      <h4 className="text-sm font-medium">{title}</h4>
       {children}
     </section>
   );
@@ -31,7 +31,7 @@ function Download({ artifact }: { artifact: ExportArtifact }) {
   useEffect(() => () => URL.revokeObjectURL(url), [url]);
   return (
     <a
-      className="font-medium text-sm underline"
+      className="text-sm font-medium underline"
       download={artifact.fileName}
       href={url}
     >
@@ -237,8 +237,8 @@ export function ExportPreviewPanel({
             : ""}
         </p>
       </Section>
-      <p className="text-muted-foreground text-sm">{preview.nature}</p>
-      <p className="text-muted-foreground text-sm">{preview.residency}</p>
+      <p className="text-sm text-muted-foreground">{preview.nature}</p>
+      <p className="text-sm text-muted-foreground">{preview.residency}</p>
       {preview.formatAvailable ? null : (
         <p className="text-sm" role="status">
           {preview.format} files are not available yet, so this preview cannot

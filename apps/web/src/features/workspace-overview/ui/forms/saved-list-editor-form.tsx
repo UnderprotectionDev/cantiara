@@ -26,7 +26,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { Plus } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { DatePicker } from "@/components/date-picker";
 import { COLUMN_LABELS } from "../../lib/saved-list-columns";
 
@@ -141,7 +141,7 @@ export function SavedListEditor({
     },
   });
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -156,10 +156,10 @@ export function SavedListEditor({
     >
       <div>
         <p className="surface-kicker">Saved lists</p>
-        <h3 className="mt-2 font-semibold text-lg tracking-tight">
+        <h3 className="mt-2 text-lg font-semibold tracking-tight">
           {definition ? "Edit saved list" : "New list"}
         </h3>
-        <p className="mt-1 text-muted-foreground text-sm/relaxed">
+        <p className="mt-1 text-sm/relaxed text-muted-foreground">
           Membership comes from list conditions. There is no manual membership
           or parent Project.
         </p>
@@ -167,7 +167,7 @@ export function SavedListEditor({
 
       {formError ? (
         <div
-          className="rounded-md border border-destructive/25 bg-destructive/5 p-3 text-destructive text-sm"
+          className="rounded-md border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive"
           role="alert"
         >
           {formError}
@@ -192,7 +192,7 @@ export function SavedListEditor({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <fieldset className="space-y-3">
-          <legend className="font-medium text-sm">Lifecycle</legend>
+          <legend className="text-sm font-medium">Lifecycle</legend>
           <div className="grid gap-2 sm:grid-cols-2">
             <form.Field name="lifecycleStatuses">
               {(field) =>
@@ -316,7 +316,7 @@ export function SavedListEditor({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <fieldset className="space-y-3">
-          <legend className="font-medium text-sm">Project areas</legend>
+          <legend className="text-sm font-medium">Project areas</legend>
           <div className="grid gap-2 sm:grid-cols-2">
             <form.Field name="projectAreas">
               {(field) =>
@@ -382,7 +382,7 @@ export function SavedListEditor({
       </div>
 
       <fieldset className="space-y-3">
-        <legend className="font-medium text-sm">Columns</legend>
+        <legend className="text-sm font-medium">Columns</legend>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <form.Field name="columns">
             {(field) =>
@@ -490,7 +490,7 @@ export function SavedListEditor({
         </form.Field>
       </div>
 
-      <div className="flex flex-wrap justify-end gap-2 border-border/70 border-t pt-4">
+      <div className="flex flex-wrap justify-end gap-2 border-t border-border/70 pt-4">
         <Button onClick={onCancel} type="button" variant="ghost">
           Cancel
         </Button>

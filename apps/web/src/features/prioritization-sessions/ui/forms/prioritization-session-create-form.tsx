@@ -5,7 +5,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import type { usePrioritizationSessions } from "../../hooks/use-prioritization-sessions";
 
 export type CreateSessionMutation = ReturnType<
@@ -48,7 +48,7 @@ export default function PrioritizationSessionCreateForm({
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -80,9 +80,9 @@ export default function PrioritizationSessionCreateForm({
       <form.Field name="workIds">
         {(field) => (
           <fieldset className="space-y-2">
-            <legend className="font-medium text-sm">Work scope</legend>
+            <legend className="text-sm font-medium">Work scope</legend>
             {activeWorks.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 No active Work is available to select.
               </p>
             ) : (
@@ -122,7 +122,7 @@ export default function PrioritizationSessionCreateForm({
         )}
       </form.Field>
       {formError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {formError}
         </p>
       ) : null}

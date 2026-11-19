@@ -11,7 +11,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 
 /** Picks the one Contact whose person package is reviewed. */
 export function PersonalDataContactForm({
@@ -42,7 +42,7 @@ export function PersonalDataContactForm({
     <form
       aria-label={`${EXPORT_PERSONAL_DATA_LABEL} selection`}
       className="space-y-3"
-      onSubmit={(event: FormEvent) => {
+      onSubmit={(event: SubmitEvent) => {
         event.preventDefault();
         event.stopPropagation();
         form.handleSubmit().catch(() => undefined);

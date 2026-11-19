@@ -10,7 +10,7 @@ const text255 = z.string().trim().min(1).max(255);
 const optionalText = z.string().trim().max(20_000).nullable();
 const longText = z.string().trim().min(1).max(100_000);
 const optionalLongText = z.string().trim().max(100_000).nullable();
-const revision = z.number().int().nonnegative().safe();
+const revision = z.number().int().nonnegative();
 const timestamp = z.iso.datetime({ offset: true });
 
 export const DECISION_LIFE_OPTIONS = [

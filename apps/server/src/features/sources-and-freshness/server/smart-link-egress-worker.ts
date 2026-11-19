@@ -18,6 +18,7 @@ const network: PreviewTransport = {
     // A new dispatcher per hop pins the validated address, preserving Host and
     // TLS servername. No second DNS lookup or shared cookie/proxy agent occurs.
     const dispatcher = new Agent({
+      allowH2: false,
       autoSelectFamily: false,
       connect: {
         lookup: (_hostname, _options, callback) =>

@@ -36,7 +36,7 @@ export default function MergePreviewPanel({
       aria-label="Merge Preview"
       className="space-y-3 rounded-md border px-4 py-3 text-sm"
     >
-      <h3 className="font-semibold text-lg">Merge Preview</h3>
+      <h3 className="text-lg font-semibold">Merge Preview</h3>
       <p>
         Surviving Contact: <strong>{contactLabel(preview.survivor)}</strong>.{" "}
         {contactLabel(preview.retired)} becomes a redirect to it; nothing is

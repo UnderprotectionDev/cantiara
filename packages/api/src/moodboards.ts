@@ -105,12 +105,12 @@ export type MoodboardVisualOrigin = z.infer<typeof moodboardVisualOriginSchema>;
 export const moodboardVisualSchema = z
   .object({
     caption: moodboardCaptionSchema,
-    createdAt: z.string().datetime(),
+    createdAt: z.iso.datetime(),
     id: identifierSchema,
     kind: z.literal("Visual"),
     origin: moodboardVisualOriginSchema,
     position: z.number().int().nonnegative(),
-    updatedAt: z.string().datetime(),
+    updatedAt: z.iso.datetime(),
     /** View-local Crop and Rotate 90°; bound to this exact origin. */
     view: visualViewSchema,
   })
@@ -176,13 +176,13 @@ export type PaletteGroup = z.infer<typeof paletteGroupSchema>;
 export const colorSwatchSchema = z
   .object({
     color: colorSwatchHexSchema,
-    createdAt: z.string().datetime(),
+    createdAt: z.iso.datetime(),
     id: identifierSchema,
     kind: z.literal("Color Swatch"),
     note: colorSwatchNoteSchema,
     paletteGroupId: identifierSchema.nullable(),
     position: z.number().int().nonnegative(),
-    updatedAt: z.string().datetime(),
+    updatedAt: z.iso.datetime(),
   })
   .strict();
 
@@ -198,7 +198,7 @@ export type MoodboardItem = z.infer<typeof moodboardItemSchema>;
 
 export const moodboardSchema = z
   .object({
-    createdAt: z.string().datetime(),
+    createdAt: z.iso.datetime(),
     /** Optional view-local Presentation Mode order; empty means board order. */
     focusOrder: z.array(identifierSchema),
     id: identifierSchema,
@@ -207,7 +207,7 @@ export const moodboardSchema = z
     projectId: identifierSchema,
     revision: z.number().int().nonnegative(),
     title: moodboardTitleSchema,
-    updatedAt: z.string().datetime(),
+    updatedAt: z.iso.datetime(),
   })
   .strict();
 

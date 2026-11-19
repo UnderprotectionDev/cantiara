@@ -336,8 +336,8 @@ function RoadmapPresentation({
     >
       <header className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
         <div>
-          <h2 className="font-semibold text-2xl">Roadmap</h2>
-          <p className="text-muted-foreground text-sm">
+          <h2 className="text-2xl font-semibold">Roadmap</h2>
+          <p className="text-sm text-muted-foreground">
             {presentationViewName(selection, presentationView)}
           </p>
         </div>
@@ -357,8 +357,8 @@ function RoadmapPresentation({
     <>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">
-          <h2 className="font-semibold text-2xl">Roadmap</h2>
-          <p className="text-muted-foreground text-sm">
+          <h2 className="text-2xl font-semibold">Roadmap</h2>
+          <p className="text-sm text-muted-foreground">
             Horizons describe direction. They do not start Work, set dates, or
             promise a release.
           </p>

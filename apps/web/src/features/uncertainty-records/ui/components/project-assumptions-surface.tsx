@@ -135,7 +135,7 @@ export default function ProjectAssumptionsSurface({
   function retry() {
     records.refetch().catch(() => undefined);
   }
-  if (records.isPending) {
+  if (records.status === "pending") {
     return <p role="status">Loading Assumptions…</p>;
   }
   if (records.isError || !records.data) {

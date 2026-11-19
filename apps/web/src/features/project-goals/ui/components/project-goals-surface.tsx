@@ -94,7 +94,7 @@ export default function ProjectGoalsSurface({
     pendingProjectGoalSave.current = null;
     setSavedMessage(undefined);
   }
-  if (goals.isPending) {
+  if (goals.status === "pending") {
     return <p role="status">Loading Goals…</p>;
   }
   if (goals.isError || !goals.data) {

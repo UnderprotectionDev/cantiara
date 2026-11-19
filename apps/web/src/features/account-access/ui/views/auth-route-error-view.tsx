@@ -100,7 +100,7 @@ function SessionCheckFailureNotice({
       role="alert"
     >
       <h1
-        className="font-semibold text-3xl text-foreground tracking-tight"
+        className="text-3xl font-semibold tracking-tight text-foreground"
         id="auth-connection-error-title"
       >
         {isSessionCheckFailure
@@ -118,10 +118,10 @@ function SessionCheckFailureNotice({
           "Support reference unavailable."
         )}
       </p>
-      <p className="mt-3 text-foreground/75 text-sm">
+      <p className="mt-3 text-sm text-foreground/75">
         {supportWriteOutcomeLabel(writeOutcome)}
       </p>
-      <p className="mt-1 text-foreground/75 text-sm">
+      <p className="mt-1 text-sm text-foreground/75">
         {supportRetryBound(canRetry)}
       </p>
       <div className="mt-6">

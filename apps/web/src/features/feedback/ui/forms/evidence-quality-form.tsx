@@ -18,8 +18,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 
 type EvidenceCommand = Pick<
   SetFeedbackEvidenceInput,
@@ -119,9 +119,9 @@ export function EvidenceQualityPanel({
       }
     },
   });
-  const pending = useStore(form.store, (state) => state.isSubmitting);
-  const drafts = useStore(form.store, (state) => state.values.quality);
-  function submit(event: FormEvent<HTMLFormElement>) {
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
+  const drafts = useSelector(form.store, (state) => state.values.quality);
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -133,7 +133,7 @@ export function EvidenceQualityPanel({
         Evidence quality for {origin.workKey}
       </summary>
       <form className="mt-3 space-y-3" onSubmit={submit}>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           Optional. Leave a field blank or enter Unknown. These values describe
           this link only and are separate from the original message.
         </p>
@@ -213,7 +213,7 @@ export function EvidenceQualityPanel({
                 </label>
               </div>
               {entry?.founderInterpretation ? (
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                   Founder interpretation by {entry.author} at{" "}
                   <time dateTime={entry.recordedAt}>{entry.recordedAt}</time>
                 </p>
@@ -276,8 +276,8 @@ export function EvidenceQualityPanel({
           <p
             className={
               status.kind === "error"
-                ? "text-destructive text-sm"
-                : "text-muted-foreground text-sm"
+                ? "text-sm text-destructive"
+                : "text-sm text-muted-foreground"
             }
             role={status.kind === "error" ? "alert" : "status"}
           >

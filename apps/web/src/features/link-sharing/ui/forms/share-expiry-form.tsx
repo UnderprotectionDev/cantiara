@@ -2,7 +2,7 @@
 
 import { Button } from "@cantiara/ui/components/button";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useId, useState } from "react";
+import { type SubmitEvent, useId, useState } from "react";
 import { DateTimePicker } from "@/components/date-picker";
 import { shareExpiryFormSchema } from "../../lib/share-lifecycle";
 
@@ -62,7 +62,7 @@ export function ShareExpiryForm({
     },
     onSubmitMeta: { action: "" } as { action: string },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     // Enter in the date picker is only ever the neutral expiry save. The
@@ -86,14 +86,14 @@ export function ShareExpiryForm({
               onChange={field.handleChange}
               value={field.state.value}
             />
-            <p className="text-muted-foreground text-xs" id={`${id}-zone`}>
+            <p className="text-xs text-muted-foreground" id={`${id}-zone`}>
               Your profile time zone: {timeZone}. Leave empty for no expiry.
             </p>
           </div>
         )}
       </form.Field>
       {error ? (
-        <p className="text-destructive text-sm" id={`${id}-error`} role="alert">
+        <p className="text-sm text-destructive" id={`${id}-error`} role="alert">
           {error}
         </p>
       ) : null}

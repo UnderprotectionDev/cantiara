@@ -78,7 +78,7 @@ export default function PublicRoadmapReviewForm({
         Save interval
       </Button>
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}

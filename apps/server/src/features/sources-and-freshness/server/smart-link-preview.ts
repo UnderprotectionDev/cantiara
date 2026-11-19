@@ -146,16 +146,20 @@ async function readPublic(
   throw new Error("Redirect limit");
 }
 
-function metadata(html: string) {
+function metadata(html: string, parseFallback = true) {
   let title = "";
   let ogTitle = "";
   let image = "";
   let inTitle = false;
+  let inFallback = false;
   const stack: string[] = [];
   const text: string[] = [];
   const parser = new Parser(
     {
       onopentag(name, attrs) {
+        if (name === "noframes" || name === "noembed") {
+          inFallback = true;
+        }
         if (ignoredTags.has(name)) {
           stack.push(name);
         }
@@ -173,13 +177,25 @@ function metadata(html: string) {
         }
       },
       ontext(value) {
+        if (inFallback && !parseFallback) {
+          return;
+        }
         if (inTitle) {
           title += value;
         } else if (!stack.length) {
-          text.push(value);
+          // htmlparser2 12 emits noframes/noembed as raw text. Parse their
+          // fallback once to preserve the capture while bounding nested parsing.
+          text.push(
+            inFallback && parseFallback
+              ? metadata(value, false).rawCapturedContent
+              : value,
+          );
         }
       },
       onclosetag(name) {
+        if (name === "noframes" || name === "noembed") {
+          inFallback = false;
+        }
         if (name === "title") {
           inTitle = false;
         }
@@ -197,6 +213,7 @@ function metadata(html: string) {
   return {
     title: (ogTitle || title).trim().slice(0, 255),
     image,
+    rawCapturedContent: text.join(""),
     capturedContent: text
       .join("")
       .replace(whitespacePattern, " ")

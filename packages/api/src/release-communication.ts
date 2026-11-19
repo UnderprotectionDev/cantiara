@@ -3,7 +3,7 @@ import { z } from "zod";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const timestampSchema = z.string().datetime({ offset: true });
+const timestampSchema = z.iso.datetime({ offset: true });
 
 export const RELEASE_COMMUNICATION_UI_LABELS = {
   accessObservation: "Access observation",
@@ -87,7 +87,7 @@ export const releaseNoteSchema = z
     projectId: identifierSchema,
     publishedAt: timestampSchema.nullable(),
     releaseId: identifierSchema,
-    revision: z.number().int().min(0).safe(),
+    revision: z.number().int().min(0),
     scopeWorkIds: z.array(identifierSchema).min(1),
     status: releaseNoteStatusSchema,
     tagIds: z.array(identifierSchema),
@@ -113,7 +113,7 @@ export type ReleaseNoteDraftInput = z.input<typeof releaseNoteDraftInputSchema>;
 
 export const saveReleaseNoteDraftInputSchema = releaseNoteDraftInputSchema
   .extend({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     noteId: identifierSchema.optional(),
   })
   .strict();

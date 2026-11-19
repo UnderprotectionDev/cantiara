@@ -27,7 +27,7 @@ export function CanvasTextOverlay({
   return (
     <textarea
       aria-label="Edit canvas text"
-      className="absolute resize-none rounded border border-blue-500 bg-white px-1 text-slate-900 text-sm outline-none"
+      className="absolute resize-none rounded border border-blue-500 bg-white px-1 text-sm text-slate-900 outline-none"
       onBlur={() => onCommit(draft)}
       onChange={(event) => setDraft(event.target.value)}
       onKeyDown={(event) => {

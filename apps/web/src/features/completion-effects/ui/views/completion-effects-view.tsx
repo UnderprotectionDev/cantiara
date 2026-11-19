@@ -17,13 +17,13 @@ export default function CompletionEffectsView({
     completionEffectsPreferencesQueryOptions(accountId),
   );
 
-  if (preferences.isPending) {
+  if (preferences.status === "pending") {
     return (
       <main className="surface-frame max-w-6xl">
-        <h1 className="font-semibold text-3xl tracking-tight">
+        <h1 className="text-3xl font-semibold tracking-tight">
           Completion effects
         </h1>
-        <p className="mt-3 text-muted-foreground text-sm">
+        <p className="mt-3 text-sm text-muted-foreground">
           Loading completion effects…
         </p>
       </main>
@@ -33,7 +33,7 @@ export default function CompletionEffectsView({
   if (preferences.isError) {
     return (
       <main className="surface-frame max-w-6xl">
-        <h1 className="font-semibold text-3xl tracking-tight">
+        <h1 className="text-3xl font-semibold tracking-tight">
           Completion effects
         </h1>
         <div
@@ -59,13 +59,13 @@ export default function CompletionEffectsView({
   return (
     <main className="surface-frame max-w-6xl">
       <header className="surface-header max-w-3xl">
-        <p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.16em]">
+        <p className="text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase">
           Account · Experimental
         </p>
-        <h1 className="mt-3 text-balance font-semibold text-3xl tracking-tight">
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-balance">
           Completion effects
         </h1>
-        <p className="mt-3 max-w-2xl text-muted-foreground text-sm/6">
+        <p className="mt-3 max-w-2xl text-sm/6 text-muted-foreground">
           Choose a quiet, original celebration for Work you complete. Your
           selection applies across every Project.
         </p>

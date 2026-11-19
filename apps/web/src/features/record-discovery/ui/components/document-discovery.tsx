@@ -248,7 +248,7 @@ export function DecisionStatusFilter({
           </NativeSelectOption>
         ))}
       </NativeSelect>
-      <p className="text-muted-foreground text-xs">Filters Decisions only.</p>
+      <p className="text-xs text-muted-foreground">Filters Decisions only.</p>
     </div>
   );
 }
@@ -571,7 +571,7 @@ function RecordSearchSurface({
         onChangeArchived={onChangeArchived}
         onChangeQuery={onChangeQuery}
         onOpenSource={onOpenSource}
-        pending={searchResults.isPending && Boolean(query.trim())}
+        pending={searchResults.status === "pending" && Boolean(query.trim())}
         query={query}
         results={searchResults.data}
       />
@@ -664,7 +664,7 @@ function RecordIndexSurface({
         onChangeType={changeType}
         onOpenSource={onOpenSource}
         pending={
-          indexResults.isPending ||
+          indexResults.status === "pending" ||
           projectsQuery.isPending ||
           (metadataIndex && indexInventory.isPending)
         }
@@ -719,7 +719,7 @@ function RecordTableSurface({
       onProjectChange={onProjectChange}
       onRecordTypeChange={onRecordTypeChange}
       onSaveCell={saveTableCell}
-      pending={tableRecords.isPending || projectsQuery.isPending}
+      pending={tableRecords.status === "pending" || projectsQuery.isPending}
       projectId={projectId}
       projects={projectsQuery.data ?? []}
       records={tableRecords.data ?? []}

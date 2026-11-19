@@ -28,7 +28,7 @@ export default function ProjectArchiveControl({
   const preview = useArchivePreview(projectId, previewing);
   const transition = useRetirementTransition();
 
-  if (archived.isPending) {
+  if (archived.status === "pending") {
     return null;
   }
 

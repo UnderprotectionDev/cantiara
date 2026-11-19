@@ -17,7 +17,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useId, useState } from "react";
+import { type SubmitEvent, useId, useState } from "react";
 
 export type SaveResearchNote = (
   note: ResearchSessionNoteInput,
@@ -93,7 +93,7 @@ export function ResearchSessionNoteEditor({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -106,7 +106,7 @@ export function ResearchSessionNoteEditor({
     >
       {error ? (
         <p
-          className="text-destructive text-sm"
+          className="text-sm text-destructive"
           id={`${prefix}-error`}
           role="alert"
         >
@@ -158,7 +158,7 @@ export function ResearchSessionNoteEditor({
                 <>
                   <h4 className="font-medium">{kind}</h4>
                   <p
-                    className="text-muted-foreground text-sm"
+                    className="text-sm text-muted-foreground"
                     id={`${prefix}-help`}
                   >
                     {explanations[kind]}

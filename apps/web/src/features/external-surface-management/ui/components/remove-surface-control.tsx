@@ -61,7 +61,7 @@ export function RemoveSurfaceControl({
         </Button>
       </div>
       {failed ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           That did not work. Try again.
         </p>
       ) : null}

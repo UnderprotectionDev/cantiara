@@ -139,6 +139,7 @@ async function exchangeGitHubAuthorizationCode(
       body,
       headers,
       method: "POST",
+      redirect: "error",
     });
     return parseGitHubOAuthTokenResponse(response, githubAvailability);
   } catch {

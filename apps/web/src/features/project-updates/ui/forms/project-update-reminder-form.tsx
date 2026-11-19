@@ -20,7 +20,7 @@ import {
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { projectUpdateReminderFormSchema } from "../../lib/project-update-form";
 
 export interface ProjectUpdateReminderControls {
@@ -87,7 +87,7 @@ export function ProjectUpdateReminderForm({
       setBusy(false);
     }
   }
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -116,7 +116,7 @@ export function ProjectUpdateReminderForm({
         </div>
       ) : null}
       {error ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -193,7 +193,7 @@ export function ProjectUpdateReminderForm({
             </label>
           )}
         </form.Field>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Optional. A reminder only opens this form; skipping it saves nothing.
         </p>
         <Button disabled={busy} type="submit" variant="outline">

@@ -121,16 +121,16 @@ export function BindList({
       {binds.map((bind) => (
         <li className="space-y-1 rounded-md border p-3" key={bind.id}>
           <RecordReference reference={bind.record} />
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             Origin Location: User Flow {bind.origin.userFlowId} · node{" "}
             {bind.origin.nodeId} · version {bind.origin.flowVersion}
           </p>
           {bind.origin.node ? (
-            <p className="whitespace-pre-wrap text-xs">
+            <p className="text-xs whitespace-pre-wrap">
               Node at origin: {bind.origin.node.text}
             </p>
           ) : null}
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             Bound to version {bind.boundVersion}
           </p>
           {bind.rebindAvailable && onRebind ? (

@@ -54,7 +54,7 @@ export function ProjectGoalsView({
         >
           {selectedId ? "Goals" : "Overview"}
         </AppLink>
-        <h2 className="font-semibold text-2xl tracking-tight">{heading}</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">{heading}</h2>
       </header>
       {savedMessage ? (
         <p className="text-sm" role="status">
@@ -66,13 +66,13 @@ export function ProjectGoalsView({
       ) : null}
       {selected ? (
         <>
-          <h3 className="break-words font-medium text-xl">{selected.title}</h3>
+          <h3 className="text-xl font-medium break-words">{selected.title}</h3>
           <dl className="space-y-5 rounded-lg border border-border/70 p-5">
             {FIELDS.filter((field) => field.name !== "title").map(
               ({ name, label }) => (
                 <div key={name}>
-                  <dt className="font-medium text-sm">{label}</dt>
-                  <dd className="mt-1 whitespace-pre-wrap break-words text-muted-foreground text-sm">
+                  <dt className="text-sm font-medium">{label}</dt>
+                  <dd className="mt-1 text-sm break-words whitespace-pre-wrap text-muted-foreground">
                     {selected[name] || "—"}
                   </dd>
                 </div>

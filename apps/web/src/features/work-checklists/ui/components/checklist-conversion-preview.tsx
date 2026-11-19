@@ -20,7 +20,7 @@ export function ChecklistConversionPreview({
       className="basis-full space-y-2 rounded-md border border-primary/25 bg-primary/5 p-3 text-xs"
       role="status"
     >
-      <p className="font-medium text-sm">Convert to independent Work</p>
+      <p className="text-sm font-medium">Convert to independent Work</p>
       <p>
         Title: <strong>{preview.newWork.title}</strong>
       </p>

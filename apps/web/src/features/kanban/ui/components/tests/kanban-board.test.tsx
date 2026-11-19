@@ -91,7 +91,7 @@ async function renderBoardWithFailedWorkContext(work: WorkProfile) {
     input: { workId: work.id },
   });
   await queryClient
-    .fetchQuery({
+    .query({
       ...options,
       queryFn: () => Promise.reject(new Error("Network unavailable")),
       retry: false,

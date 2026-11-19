@@ -10,7 +10,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useEffect, useRef } from "react";
+import { type SubmitEvent, useEffect, useRef } from "react";
 import { redactFormSchema } from "../../lib/redact-form";
 
 /**
@@ -60,7 +60,7 @@ export function RedactForm({
     heading.current?.focus();
   }, []);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -148,7 +148,7 @@ export function RedactForm({
               {CONFIRM_GITHUB_IDENTITY_LABEL}
             </Button>
             {grant ? (
-              <span className="text-muted-foreground text-sm" role="status">
+              <span className="text-sm text-muted-foreground" role="status">
                 GitHub identity confirmed.
               </span>
             ) : null}

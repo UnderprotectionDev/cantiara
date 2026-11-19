@@ -284,23 +284,23 @@ export default function RecordActionEditor({
 
   return (
     <div className="mt-3 space-y-4">
-      <p className="max-w-2xl text-muted-foreground text-xs/relaxed">
+      <p className="max-w-2xl text-xs/relaxed text-muted-foreground">
         Define Work status, Daily Focus, Related Work, and existing Custom field
         steps. Date, Number, and Select fields can ask for a value when the
         action runs. Each Record Action targets one Work record.
       </p>
-      {recordActions.query.isPending ? (
-        <p className="text-muted-foreground text-sm" role="status">
+      {recordActions.query.status === "pending" ? (
+        <p className="text-sm text-muted-foreground" role="status">
           Loading Record Actions…
         </p>
       ) : null}
       {recordActions.query.isError ? (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           Record Actions could not be loaded. Try loading this page again.
         </p>
       ) : null}
       {actions.length === 0 && !recordActions.query.isPending ? (
-        <p className="rounded-md border border-dashed p-4 text-muted-foreground text-sm">
+        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           No Record Actions yet. Define the first action below.
         </p>
       ) : (
@@ -312,8 +312,8 @@ export default function RecordActionEditor({
             >
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="font-medium text-sm">{action.name}</p>
-                  <ul className="mt-2 list-inside list-disc text-muted-foreground text-xs">
+                  <p className="text-sm font-medium">{action.name}</p>
+                  <ul className="mt-2 list-inside list-disc text-xs text-muted-foreground">
                     {action.steps.map((step) => (
                       <li key={stepKey(step)}>
                         {stepSummary(step, definitions)}
@@ -364,7 +364,7 @@ export default function RecordActionEditor({
 
       <form
         aria-label="Record Action"
-        className="space-y-5 border-border/70 border-t pt-5"
+        className="space-y-5 border-t border-border/70 pt-5"
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
@@ -373,7 +373,7 @@ export default function RecordActionEditor({
         }}
       >
         <div className="flex items-center justify-between gap-4">
-          <h5 className="font-medium text-sm">
+          <h5 className="text-sm font-medium">
             {editing ? "Edit Record Action" : "Record Action"}
           </h5>
           {editing ? (
@@ -401,7 +401,7 @@ export default function RecordActionEditor({
           )}
         </form.Field>
         <fieldset className="grid gap-4 rounded-md border border-border/70 p-4 sm:grid-cols-2">
-          <legend className="px-1 font-medium text-sm">Steps</legend>
+          <legend className="px-1 text-sm font-medium">Steps</legend>
           <form.Field name="workStatus">
             {(field) => (
               <Field>
@@ -480,9 +480,9 @@ export default function RecordActionEditor({
           </form.Field>
         </fieldset>
         <fieldset className="space-y-3 rounded-md border border-border/70 p-4">
-          <legend className="px-1 font-medium text-sm">Custom field</legend>
+          <legend className="px-1 text-sm font-medium">Custom field</legend>
           {definitions.length === 0 ? (
-            <p className="text-muted-foreground text-xs">
+            <p className="text-xs text-muted-foreground">
               No active Custom fields are available for Work.
             </p>
           ) : (
@@ -510,7 +510,7 @@ export default function RecordActionEditor({
           )}
         </fieldset>
         {error ? (
-          <p className="text-destructive text-sm" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             {error}
           </p>
         ) : null}
@@ -581,7 +581,7 @@ function CustomFieldStepControl({
             </label>
           ) : null}
           {value.kind === "runtime-input" ? (
-            <p className="text-muted-foreground text-xs">
+            <p className="text-xs text-muted-foreground">
               Choose this value before previewing the action.
             </p>
           ) : (

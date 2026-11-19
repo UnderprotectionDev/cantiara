@@ -8,8 +8,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 import { errorText } from "../../lib/test-review-panel";
 import { allItems, endLine } from "../../lib/test-review-signal-lines";
 import type { TestReviewSignalData } from "../../lib/test-review-signal-types";
@@ -59,7 +59,7 @@ export default function TestReviewSupersedesForm({
       }
     },
   });
-  const { newer, older } = useStore(form.store, (state) => state.values);
+  const { newer, older } = useSelector(form.store, (state) => state.values);
   const byId = new Map(
     sessions.flatMap((session) =>
       session.items.map((item) => [item.id, { item, session }] as const),
@@ -68,12 +68,12 @@ export default function TestReviewSupersedesForm({
   const newerRecord = byId.get(newer);
   const olderRecord = byId.get(older);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
   }
-  const pending = useStore(form.store, (state) => state.isSubmitting);
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
 
   return (
     <section
@@ -83,12 +83,12 @@ export default function TestReviewSupersedesForm({
       <h3 className="font-medium" id="test-review-supersedes-heading">
         {TEST_REVIEW_SUPERSEDES_LABEL}
       </h3>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         A newer Session Test supersedes an older one of the same type. The
         relation is directed and acyclic; neither result is changed or deleted.
       </p>
       {items.length < 2 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           Two Session Tests are needed to relate them.
         </p>
       ) : (
