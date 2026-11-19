@@ -118,7 +118,7 @@ Artboard `Ready`: adım 3 doldurulmuş, uygulama eylemi etkin. → `20.1` GitHub
 #### Engelli
 Artboard `Blocked by active surface`. Aktif bir Dış yüzey kaydı hâlâ kullanıyorsa veya hassas içerik güvenle kaldırılmadıysa uygulama eylemi yok; neden ve ilgili yer gösterilir (Dış yüzey yönetimi veya `Redact` → `20.7`).
 #### Name mismatch
-Yazılan Hesap veya Proje adı uyuşmazsa alan altında sessiz satır içi hata `The name does not match.`; yazma yok. Metnin sahibi burasıdır: `01.9` ve `06.8` buraya yönlendirir.
+Yazılan Hesap veya Proje adı uyuşmazsa alan altında sessiz satır içi hata `The name does not match.`; yazma yok. Metnin sahibi burasıdır: `01.7` ve `06.8` buraya yönlendirir.
 #### Waiting for GitHub
 → `20.1 · Waiting for GitHub`. Grant tüketilemediği sürece erken kalıcı silme uygulanmaz; erişimi azaltan Dış yüzey iptali bundan etkilenmez.
 #### Finalizing
@@ -540,7 +540,7 @@ Kayıt formlarındaki çatışma cümlesi desenidir; ekranlar yalnız tür adın
 
 ### Finalizing
 Çok adımlı yazma bariyeri geçince `Finalizing`; sahte `Cancel` yok. Sonuç tam commit veya tam rollback makbuzu.
-Devam eden işlem satırı (in-flight): her işlem satırı kesin durumunu (`Finalizing`, tam commit / tam rollback makbuzu) bu ortak etiketle gösterir; bariyerden önce iptal edilen iş makbuzuyla listelenir. `01.10` (Closing) ve `08.26` (Archive) bu satır etiketini yazmaz, `20.14`'e bağlanır ve yalnız kendi iş türü ayrıntısını tutar.
+Devam eden işlem satırı (in-flight): her işlem satırı kesin durumunu (`Finalizing`, tam commit / tam rollback makbuzu) bu ortak etiketle gösterir; bariyerden önce iptal edilen iş makbuzuyla listelenir. `01.8` (Closing) ve `08.26` (Archive) bu satır etiketini yazmaz, `20.14`'e bağlanır ve yalnız kendi iş türü ayrıntısını tutar.
 - **Label'lar:** `Finalizing`, `Cancel` (yalnız bariyer öncesi).
 
 ### Aktör satırı
@@ -615,7 +615,7 @@ Güncel olmayan Belge yazmasında eşleşen bir Çakışma Taslağı varsa toast
 - `20.16 · Offline · Empty state · 1440`
 
 ### Bant / boş durum
-Sayfa içeriğinin üstünde satır içi bant; içerik okunamıyorsa tam boş durum bloğu. Başlık, tek cümle açıklama, `Last saved` zamanı (Hesap yerel ayarı ve saat dilimiyle, → `01.6`), koşullu risk satırı, `Retry`.
+Sayfa içeriğinin üstünde satır içi bant; içerik okunamıyorsa tam boş durum bloğu. Başlık, tek cümle açıklama, `Last saved` zamanı (Hesap yerel ayarı ve saat dilimiyle, → `01.5`), koşullu risk satırı, `Retry`.
 - **Label'lar:** `You’re offline`, `Last saved`, `Not yet` (henüz başarılı kayıt yok), `Unsaved changes may be lost`, `Retry`.
 
 ### Durumlar
@@ -680,7 +680,7 @@ Giriş yüzeyi, düğme ve bekleme durumları → `01.1 · Login`; bu ekranın t
 #### Revoked
 Başka cihazdan `Revoke Session` sonrası veya GitHub login OAuth yetkisi geri çekildiğinde: aynı ekran.
 #### Account closing
-Hesap `Closing` geçişine girince bütün oturumlar sona erer; kurucu aynı ekranı görür. GitHub ile yeniden girişte korunan rotalar `01.10 · Account Closure Status` ekranına yönlenir ve üstte `20.23` bandı görünür.
+Hesap `Closing` geçişine girince bütün oturumlar sona erer; kurucu aynı ekranı görür. GitHub ile yeniden girişte korunan rotalar `01.8 · Account Closure Status` ekranına yönlenir ve üstte `20.23` bandı görünür.
 #### Waiting for GitHub
 → `01.1`.
 #### Session unavailable (karşıt)
@@ -753,7 +753,7 @@ Dialog kapanır; kaynak yerinde kalır, yeni İşe bağlantı görünür.
 - `20.23 · Account Closing Banner · Workspace surface · 1440`
 
 ### Bant
-Yüzey başlığının hemen altında tam genişlik ince bant; yalnız dondurmada görünür. Yazma eylemleri pasiftir ve nedeni bantla aynı cümleyi izler. `Closing` başladığında oturumlar sona erer (→ `20.20 › Account closing`); kurucu GitHub ile yeniden girince korunan rotalar `01.10 · Account Closure Status` ekranına yönlenir ve bu bant üstte görünür. Bant iki eylem sunar: kapanışı iptal etmek (`Cancel closing`; yeniden `Confirm GitHub Identity` ister → `20.1`, ad yazdırmaz) ve `Workspace Exit Package` ekranına (`02.14`) gitmek. `Closing` geçişinin kendisi `01.10`'dadır; burada yeniden çizilmez.
+Yüzey başlığının hemen altında tam genişlik ince bant; yalnız dondurmada görünür. Yazma eylemleri pasiftir ve nedeni bantla aynı cümleyi izler. `Closing` başladığında oturumlar sona erer (→ `20.20 › Account closing`); kurucu GitHub ile yeniden girince korunan rotalar `01.8 · Account Closure Status` ekranına yönlenir ve bu bant üstte görünür. Bant iki eylem sunar: kapanışı iptal etmek (`Cancel closing`; yeniden `Confirm GitHub Identity` ister → `20.1`, ad yazdırmaz) ve `Workspace Exit Package` ekranına (`02.14`) gitmek. `Closing` geçişinin kendisi `01.8`'dadır; burada yeniden çizilmez.
 - **Label'lar:** `This Account is closing. Only cancelling the closure and exporting are available.`, `Cancel closing`, `Workspace Exit Package`.
 
 ### Durumlar

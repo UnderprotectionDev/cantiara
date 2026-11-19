@@ -476,7 +476,7 @@ Girecekler: kullanıcı içeriği, ek sürümleri, kimlikler, ilişkiler, geçmi
 
 ### Parola
 Parola ve tekrar alanı; sunucuda saklanmadığını, unutulursa paketin okunamayacağını, kurtarma kodu veya şifresiz kopya olmadığını söyleyen uyarı. Uyuşmazlıkta alan altında `The passwords do not match.`.
-Parola kaybı cümlesinin tek sahibi burasıdır; `01.9` ve `01.10` bu cümleyi referansla gösterir: `If you forget the package password, the Workspace Exit Package cannot be read. There is no recovery code and no unencrypted copy.`.
+Parola kaybı cümlesinin tek sahibi burasıdır; `01.7` ve `01.8` bu cümleyi referansla gösterir: `If you forget the package password, the Workspace Exit Package cannot be read. There is no recovery code and no unencrypted copy.`.
 - **Label'lar:** `Package password`, `Confirm package password`, `The passwords do not match.`, `If you forget the package password, the Workspace Exit Package cannot be read. There is no recovery code and no unencrypted copy.`.
 
 ### Üretim ve indirme
@@ -496,7 +496,7 @@ Parola kaybı cümlesinin tek sahibi burasıdır; `01.9` ve `01.10` bu cümleyi 
 #### Error
 Üretim başarısız; parola saklanmadığı için yeniden girilmesi gerekir (→ `20.15 · Support Reference Error`).
 #### Account closure
-Hesap kapanış dondurmasında zorunlu adım: en az bir başarılı üretim ve 30 gün indirilebilirlik; seçili dışa aktarmanın (→ `20.5 · Export`) ayrı eylem olduğu notu. Kapanış akışı → `01.10 · Account Closure Status`.
+Hesap kapanış dondurmasında zorunlu adım: en az bir başarılı üretim ve 30 gün indirilebilirlik; seçili dışa aktarmanın (→ `20.5 · Export`) ayrı eylem olduğu notu. Kapanış akışı → `01.8 · Account Closure Status`.
 
 **Spec:** [82 Çalışma Alanı Çıkış Paketi](../../specs/82-workspace-exit/spec.md), [84 Hesap Kapatma](../../specs/84-account-closure/spec.md) (`Account closure`).
 

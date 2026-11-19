@@ -5,13 +5,13 @@ Hesap düzeyi yüzeyler: giriş, oturumlar, tercihler ve Hesabı kapatma.
 | Ekran | Ne çizilir |
 |---|---|
 | [01.1 · Login](#011--login) | tek düğmeli GitHub giriş bloğu |
-| [01.3 · Account menu](#013--account-menu) | üst çubuktan açılan Hesap menüsü |
-| [01.4 · My Account · Sessions](#014--my-account--sessions) | oturum listesi ve `Close Account` girişi |
-| [01.5 · Revoke Session](#015--revoke-session) | oturum iptal onay dialog'u |
-| [01.6 · Preferences](#016--preferences) | Hesap tercih formu ve `Preview` |
-| [01.7 · Completion effects](#017--completion-effects) | Bitiriş efekti tema ve palet seçimi |
-| [01.9 · Close Account](#019--close-account) | adımlı Hesap kapatma dialog'u |
-| [01.10 · Account Closure Status](#0110--account-closure-status) | `Closing` ve dondurma durum ekranı |
+| [01.2 · Account menu](#012--account-menu) | üst çubuktan açılan Hesap menüsü |
+| [01.3 · My Account · Sessions](#013--my-account--sessions) | oturum listesi ve `Close Account` girişi |
+| [01.4 · Revoke Session](#014--revoke-session) | oturum iptal onay dialog'u |
+| [01.5 · Preferences](#015--preferences) | Hesap tercih formu ve `Preview` |
+| [01.6 · Completion effects](#016--completion-effects) | Bitiriş efekti tema ve palet seçimi |
+| [01.7 · Close Account](#017--close-account) | adımlı Hesap kapatma dialog'u |
+| [01.8 · Account Closure Status](#018--account-closure-status) | `Closing` ve dondurma durum ekranı |
 
 ## 01.1 · Login
 > Kurucu yalnız GitHub kimliğiyle Hesabına ve tek Çalışma Alanına girer.
@@ -43,15 +43,15 @@ Giriş yüzeyinin tek sahibi bu ekrandır; `20.20` ve `00.1` giriş bloğunu yen
 
 **Spec:** [01 Account Access](../../specs/01-account-access/spec.md)
 
-## 01.3 · Account menu
+## 01.2 · Account menu
 > Hesap ve oturum eylemlerine üst çubuktan tek bir erişilebilir menüyle ulaşılır.
 
 **Artboard'lar**
-- `01.3 · Account menu · Open · 1440`
+- `01.2 · Account menu · Open · 1440`
 
 ### Menü
 Grup başlığı, Hesap kimliği satırı, gezinme öğeleri ve `Sign Out`. Açık menünün içeriğinin ve bu artboard'ın tek sahibi burasıdır; tetik ve gösterdiği ad → `00.12 · Navigation` › Gruplar (Hesap). Menü klavyeyle açılır ve kapanır; `Sign Out` oturumu bitirir ve `01.1 · Signed out` durumuna döner. Çalışma Alanı yönetimi girişleri (`Trash`, `Shares and Publications`, `Workspace Exit Package`, `Archive`) menüde mi `More` altında mı duracağı → `00.12 · Navigation` › Gruplar (Çalışma Alanı yönetimi); menüde dururlarsa gezinme öğeleri grubunda listelenir. Oturumsuz rotalarda menü yoktur (→ `00.12` › Gruplar, Marka).
-- **Label'lar:** `Account menu` (tetiğin adı), `My Account` (grup başlığı ve 01.4'e giden öğe), `Sessions`, `Sign Out` (spec 01); `Preferences` (spec 02); `Completion effects` (spec 23)
+- **Label'lar:** `Account menu` (tetiğin adı), `My Account` (grup başlığı ve 01.3'e giden öğe), `Sessions`, `Sign Out` (spec 01); `Preferences` (spec 02); `Completion effects` (spec 23)
 
 ### Durumlar
 #### Loading
@@ -59,12 +59,12 @@ Grup başlığı, Hesap kimliği satırı, gezinme öğeleri ve `Sign Out`. Aç�
 
 **Spec:** [01 Account Access](../../specs/01-account-access/spec.md), [02 Account Preferences](../../specs/02-account-preferences/spec.md), [23 Completion Effects](../../specs/23-completion-effects/spec.md), [84 Account Closure](../../specs/84-account-closure/spec.md)
 
-## 01.4 · My Account · Sessions
+## 01.3 · My Account · Sessions
 > Kurucu hangi cihazların Hesaba erişebildiğini görür ve tanımadığı erişimi hemen keser; Hesabı kapatma girişi de bu sayfadadır.
 
 **Artboard'lar**
-- `01.4 · My Account · Sessions · Default · 1440`
-- `01.4 · My Account · Sessions · Only current session · 1440`
+- `01.3 · My Account · Sessions · Default · 1440`
+- `01.3 · My Account · Sessions · Only current session · 1440`
 
 ### Sayfa başlığı
 Başlık, açıklama ve toplu iptal.
@@ -79,7 +79,7 @@ Yakalama uzantısı bağlantıları. Sahibi → `03.9 · Extension links`; durum
 - **Label'lar:** `Extension links`
 
 ### Close Account
-Ayrılmış bölüm. Kısa açıklama Hesabın ve tek Çalışma Alanının birlikte kapandığını anlatır; aşama sırası ve süreler → `01.10 · Zaman çizelgesi`.
+Ayrılmış bölüm. Kısa açıklama Hesabın ve tek Çalışma Alanının birlikte kapandığını anlatır; aşama sırası ve süreler → `01.8 · Zaman çizelgesi`.
 - **Label'lar:** `Close Account`
 
 ### Workspace Exit Package
@@ -94,7 +94,7 @@ Yer tutucu satırlar ve `Loading sessions…`.
 #### Only current session
 Liste tek satırdır. `Revoke Other Sessions` pasif görünür.
 #### GitHub outage
-Sayfa aynı kalır. Oturum iptali GitHub kesintisinde de çalışır (→ `20.1 · Waiting for GitHub`). `Close Account` akışı bekler (→ `01.9 · Waiting for GitHub`).
+Sayfa aynı kalır. Oturum iptali GitHub kesintisinde de çalışır (→ `20.1 · Waiting for GitHub`). `Close Account` akışı bekler (→ `01.7 · Waiting for GitHub`).
 #### Revoked
 İptal edilen satır listeden çıkar ve sonuç bildirimi görünür: tek oturum için `Session revoked.`, `Revoke Other Sessions` sonrası `Other sessions revoked.`. İptal edilen cihazdaki sonraki yazma kapalı başarısız olur ve o cihaz `01.1 · Session ended` durumuna düşer.
 #### Revoke failed
@@ -102,12 +102,12 @@ Sayfa aynı kalır. Oturum iptali GitHub kesintisinde de çalışır (→ `20.1 
 
 **Spec:** [01 Account Access](../../specs/01-account-access/spec.md), [84 Account Closure](../../specs/84-account-closure/spec.md), [06 Capture Triage](../../specs/06-capture-triage/spec.md) (`Extension links` bölümü)
 
-## 01.5 · Revoke Session
+## 01.4 · Revoke Session
 > Bir oturumun ya da diğer bütün oturumların erişimi kesilmeden önce sonuç açıkça söylenir.
 
 **Artboard'lar**
-- `01.5 · Revoke Session · One session · 1440`
-- `01.5 · Revoke Session · Other sessions · 1440`
+- `01.4 · Revoke Session · One session · 1440`
+- `01.4 · Revoke Session · Other sessions · 1440`
 
 ### Onay
 Küçük onay dialog'u: başlık, sonuç cümlesi ve iki düğme. Başlık soru biçiminde yazılmaz; spec label'ıdır.
@@ -119,15 +119,15 @@ Onay düğmesi bekleme durumunda.
 
 **Spec:** [01 Account Access](../../specs/01-account-access/spec.md)
 
-## 01.6 · Preferences
+## 01.5 · Preferences
 > Locale, saat dilimi, tarih biçimi, haftanın ilk günü ve Appearance tercihi Hesap düzeyinde bir kez seçilir ve bütün Projelerde aynı görünür.
 
 **Artboard'lar**
-- `01.6 · Preferences · Default · 1440`
-- `01.6 · Preferences · First login suggestion · 1440`
-- `01.6 · Preferences · Disconnected · 1440`
-- `01.6 · Preferences · Saved · 1440`
-- `01.6 · Preferences · Save failed · 1440`
+- `01.5 · Preferences · Default · 1440`
+- `01.5 · Preferences · First login suggestion · 1440`
+- `01.5 · Preferences · Disconnected · 1440`
+- `01.5 · Preferences · Saved · 1440`
+- `01.5 · Preferences · Save failed · 1440`
 
 ### Browser suggestion
 Formun üstünde, ilk girişte önerilen locale ve saat dilimi; öneri uygulanmış sayılmaz.
@@ -165,14 +165,14 @@ Başka bir yerden kaydedilmiş güncel değer gösterilir (→ `20.14 · Write R
 
 **Spec:** [02 Account Preferences](../../specs/02-account-preferences/spec.md), [03 Web and macOS Client](../../specs/03-web-macos-client/spec.md)
 
-## 01.7 · Completion effects
+## 01.6 · Completion effects
 > Varsayılan olarak kapalı, deneysel Bitiriş efekti Hesap düzeyinde açılır ve kapalı katalogdan tek tema ile tek palet seçilir; hareket yalnız `Preview` ile başlar.
 
 **Artboard'lar**
-- `01.7 · Completion effects · Default off · 1440`
-- `01.7 · Completion effects · Enabled · 1440`
-- `01.7 · Completion effects · Previewing · 1440`
-- `01.7 · Completion effects · Reduce Motion · 1440`
+- `01.6 · Completion effects · Default off · 1440`
+- `01.6 · Completion effects · Enabled · 1440`
+- `01.6 · Completion effects · Previewing · 1440`
+- `01.6 · Completion effects · Reduce Motion · 1440`
 
 ### Başlık
 Sayfa başlığı ve `Experimental` rozeti.
@@ -218,15 +218,15 @@ Efektin oynadığı yer ve her zaman görünen `Work completed` bildirimi (`Reop
 
 **Spec:** [23 Completion Effects](../../specs/23-completion-effects/spec.md)
 
-## 01.9 · Close Account
+## 01.7 · Close Account
 > Hesabı ve tek Çalışma Alanını kapatma GitHub teyidi ve yazılan Hesap adıyla başlar; akış sonuçlarını önceden açıkça söyler.
 
 **Artboard'lar**
-- `01.9 · Close Account · Not confirmed · 1440`
-- `01.9 · Close Account · Ready · 1440`
+- `01.7 · Close Account · Not confirmed · 1440`
+- `01.7 · Close Account · Ready · 1440`
 
 ### Sonuçlar
-Adımlı dialog'un başında, sonuçları önceden söyleyen kısa liste. Aşama sırası ve içerikleri → `01.10 · Zaman çizelgesi`; paket ve parola kaybı cümlesi → `02.14 · Parola` (kapanışta aynı cümle burada yeniden gösterilir, yeniden yazılmaz).
+Adımlı dialog'un başında, sonuçları önceden söyleyen kısa liste. Aşama sırası ve içerikleri → `01.8 · Zaman çizelgesi`; paket ve parola kaybı cümlesi → `02.14 · Parola` (kapanışta aynı cümle burada yeniden gösterilir, yeniden yazılmaz).
 - **Label'lar:** `Close Account`, `Closing`, `Workspace Exit Package`
 
 ### GitHub teyidi
@@ -252,17 +252,17 @@ GitHub teyidi tamamlanmış ve `Type the Account name to confirm` alanındaki ad
 #### Starting
 Düğme bekleme durumunda.
 #### Started
-Dialog kapanır; Hesap `Closing` geçişine girer (→ `01.10` › Closing).
+Dialog kapanır; Hesap `Closing` geçişine girer (→ `01.8` › Closing).
 
 **Spec:** [84 Account Closure](../../specs/84-account-closure/spec.md), [01 Account Access](../../specs/01-account-access/spec.md), [82 Workspace Exit](../../specs/82-workspace-exit/spec.md)
 
-## 01.10 · Account Closure Status
+## 01.8 · Account Closure Status
 > `Closing` boşaltması ve ardından 30 günlük dondurma tek bir dürüst durum ekranında görünür; bu ekrandan iptal edilebilir ve çıkış paketi alınabilir.
 
 **Artboard'lar**
-- `01.10 · Account Closure Status · Closing · 1440`
-- `01.10 · Account Closure Status · Freeze no package · 1440`
-- `01.10 · Account Closure Status · Freeze package ready · 1440`
+- `01.8 · Account Closure Status · Closing · 1440`
+- `01.8 · Account Closure Status · Freeze no package · 1440`
+- `01.8 · Account Closure Status · Freeze package ready · 1440`
 
 ### Durum başlığı
 Geçerli aşamanın adı ve tek cümlelik açıklama. `Closing` başladığında kurucunun bütün oturumları biter. Kurucu GitHub ile yeniden girince korunan rotalar bu ekrana yönlenir; ekran normal kabuk içinde açılır ve üst bant → `20.23 · Account Closing Banner` görünür. Kalıcı silme aşaması ayrı bir ad almaz, tarih satırıyla (`Permanent deletion on {date}`) anılır; `Permanently deleted` kırık referans nedenidir, aşama adı olarak kullanılmaz.

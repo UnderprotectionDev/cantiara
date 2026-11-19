@@ -994,7 +994,7 @@ Ekranın sabit bildirim alanında 10 sn: durum ikonu, metin, `Reopen`. `Reopen` 
 - **Label'lar:** `Work completed`, `Reopen`.
 
 ### Efekt katmanı
-Yalnız kapatılan İşin başlığı, satırı veya kartı çevresinde en fazla 1,2 sn dekoratif katman; Hesapta seçili tema/palet (örnek `Calm` · `Haze`). Odağı çalmaz, girdiyi yakalamaz, kaydırmayı ve gezinmeyi engellemez, yüzey değişince temizlenir. Ses, titreşim ve flaş yoktur; çalışırken ayrı durdurma kontrolü yoktur. Ayarlar → `01.7 · Completion effects` › Başlık.
+Yalnız kapatılan İşin başlığı, satırı veya kartı çevresinde en fazla 1,2 sn dekoratif katman; Hesapta seçili tema/palet (örnek `Calm` · `Haze`). Odağı çalmaz, girdiyi yakalamaz, kaydırmayı ve gezinmeyi engellemez, yüzey değişince temizlenir. Ses, titreşim ve flaş yoktur; çalışırken ayrı durdurma kontrolü yoktur. Ayarlar → `01.6 · Completion effects` › Başlık.
 
 ### Durumlar
 #### Effect off

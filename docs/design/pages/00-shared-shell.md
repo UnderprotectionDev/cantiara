@@ -53,7 +53,7 @@ Etkin rotanın tek yüzeyi (örnek: Luma Project shell, `#work`); odaklanabilir 
 Bu ekran `More` menüsünü ayrı artboard olarak çizmez. İçerik tek yerde tanımlıdır: kişisel yüzeyler (`Drafts` → `02.10`, `Contacts` → `06.1`) ve Çalışma Alanı yönetimi grubu → `00.12 · Navigation` › Gruplar. Bu ekran yalnız menünün konumunu ve katman sırasını belirler.
 
 ### Appearance menüsü
-`Account menu open · Appearance + workspace` artboard'ı Appearance seçicisini hesap menüsüyle birlikte çizer. Değerler (`Light`, `Dark`; `System` yok) ve kural → `01.6 · Preferences`; tetik yeri → `01.3 · Account menu`. Label bu ekranda yeniden yazılmaz.
+`Account menu open · Appearance + workspace` artboard'ı Appearance seçicisini hesap menüsüyle birlikte çizer. Değerler (`Light`, `Dark`; `System` yok) ve kural → `01.5 · Preferences`; tetik yeri → `01.2 · Account menu`. Label bu ekranda yeniden yazılmaz.
 
 ### Çevrimdışı bant ve sonuç bildirimleri
 Katman sırası: bant üst çubuğun hemen altında tam genişlikte durur; sonuç bildirimleri ekranın alt köşesinde yığılır. İçerik ve durumlar → `20.16 · Offline` ve `20.15 · Support Reference Error` (aynı mantık `00.12 › Offline`).
@@ -410,7 +410,7 @@ Yalnız gövde kayar, başlık ve alt şerit sabit kalır. Kaydırma çubuğu ov
 - **Proje alanları:** Daima erişilir girişler (`Overview`, `Tags`, `Smart Collection`, `All Tools`), etkin çekirdek alanlar, ince ayırıcı, pinli ek alanlar. Pinlenmemiş etkin alanlar yalnız `All Tools` içindedir (→ `08.2`). `Design` tek seferde bir iç hedef gösterir (iç hedef listesi → `13.1`). Seçili giriş `aria-current="location"`.
 - **Configuration Mode:** Mod açıkken günlük yüzey ve gezinme yapılandırma yüzeyine döner; düğme Proje başlığındadır (→ `08.1`); açıkken etiketi `Exit Configuration Mode` olur (→ `08.1`).
 - **Araçlar:** Komut Paleti tetiği `Command Palette` etiketi ve `Ctrl+K` / `⌘K` ipucu, solunda `Switch Project` ve `Create` hızlı eylemleri; 768'de yalnız ikon kalır, hızlı eylemler gizlenir; `Search` → `02.7`; `Favorites` → `00.9`, `Notification Center` → `00.5`; `Active Working Set` boşken pasif, doluyken üye sayısı (bildirim sayısı değildir) → `00.8`. `Notification Center` için okunmamış sayı rozeti çizilmez.
-- **Hesap:** `Account menu` tetiği 1440'ta `Alex Morgan`, 768'de `A` gösterir. Açık menü içeriği ve artboard'ı → `01.3`; Appearance değerleri (`Light`/`Dark`) → `01.6`.
+- **Hesap:** `Account menu` tetiği 1440'ta `Alex Morgan`, 768'de `A` gösterir. Açık menü içeriği ve artboard'ı → `01.2`; Appearance değerleri (`Light`/`Dark`) → `01.5`.
 - **Skip link:** İlk Tab durağı; `Skip to main content` odağı ana içerik alanına taşır.
 
 ### Durumlar

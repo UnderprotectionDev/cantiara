@@ -1687,19 +1687,19 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Giriş başlığı | `Welcome to Cantiara` | Login ekranı başlığı (`docs/design` 01.1) |
 | Giriş açıklama satırı | `Sign in with the GitHub identity that owns your Workspace.` | Login bloğundaki tek açıklama satırı (`docs/design` 01.1) |
 | Giriş başarısız bildirimi | `Sign-in could not be completed. Please try again.` | Bütün GitHub giriş hatalarında aynı genel bildirim (`docs/design` 01.1) |
-| Hesabım | `My Account` | Hesap menüsü grup başlığı ve Oturumlar sayfasına giden öğe (`docs/design` 01.3) |
-| Oturumlar açıklaması | `Review the devices signed in to your Account and revoke access you no longer recognize.` | Sessions sayfa başlığı altındaki açıklama (`docs/design` 01.4) |
-| Etkin oturumlar | `Active sessions` | Sessions sayfasındaki oturum listesi başlığı (`docs/design` 01.4) |
-| Oturumlar yükleniyor | `Loading sessions…` | Sessions sayfası yükleme metni (`docs/design` 01.4) |
-| Oturumlar kullanılamıyor | `Sessions are unavailable.` | Sessions sayfası hata durumu ilk cümlesi (`docs/design` 01.4) |
-| Tek oturum iptal sonucu | `{device} will lose access immediately.` | Revoke Session onayında sonuç cümlesi (`docs/design` 01.5) |
-| Diğer oturumlar iptal sonucu | `Every session except this one will lose access immediately.` | Revoke Other Sessions onayında sonuç cümlesi (`docs/design` 01.5) |
-| Önizleme bitti | `Preview finished.` | Bitiriş efekti önizlemesi bittiğinde bildirim (`docs/design` 01.7) |
-| Durağan örnek açıklaması | `Static sample shown. {description}` | Reduce Motion açıkken Preview yerine durağan kare açıklaması (`docs/design` 01.7) |
-| Bitiriş efekti kaydetme hatası | `Completion effects could not be saved. Refresh to try again.` | Completion effects kaydetme hatası (`docs/design` 01.7) |
-| Paket indirme son tarihi | `Download available until {date}` | Dondurmada Workspace Exit Package indirilebilir kalacağı son tarih satırı (`docs/design` 01.10) |
-| Kapanış iptal edildi | `Account closing cancelled.` | Cancel closing grant'ı tüketilince sonuç bildirimi (`docs/design` 01.10) |
-| Dondurmada redaksiyon engeli | `Cancel closing before starting a new redaction.` | Dondurmada yeni redaksiyonun önce iptal gerektirdiğini söyleyen not (`docs/design` 01.10) |
+| Hesabım | `My Account` | Hesap menüsü grup başlığı ve Oturumlar sayfasına giden öğe (`docs/design` 01.2) |
+| Oturumlar açıklaması | `Review the devices signed in to your Account and revoke access you no longer recognize.` | Sessions sayfa başlığı altındaki açıklama (`docs/design` 01.3) |
+| Etkin oturumlar | `Active sessions` | Sessions sayfasındaki oturum listesi başlığı (`docs/design` 01.3) |
+| Oturumlar yükleniyor | `Loading sessions…` | Sessions sayfası yükleme metni (`docs/design` 01.3) |
+| Oturumlar kullanılamıyor | `Sessions are unavailable.` | Sessions sayfası hata durumu ilk cümlesi (`docs/design` 01.3) |
+| Tek oturum iptal sonucu | `{device} will lose access immediately.` | Revoke Session onayında sonuç cümlesi (`docs/design` 01.4) |
+| Diğer oturumlar iptal sonucu | `Every session except this one will lose access immediately.` | Revoke Other Sessions onayında sonuç cümlesi (`docs/design` 01.4) |
+| Önizleme bitti | `Preview finished.` | Bitiriş efekti önizlemesi bittiğinde bildirim (`docs/design` 01.6) |
+| Durağan örnek açıklaması | `Static sample shown. {description}` | Reduce Motion açıkken Preview yerine durağan kare açıklaması (`docs/design` 01.6) |
+| Bitiriş efekti kaydetme hatası | `Completion effects could not be saved. Refresh to try again.` | Completion effects kaydetme hatası (`docs/design` 01.6) |
+| Paket indirme son tarihi | `Download available until {date}` | Dondurmada Workspace Exit Package indirilebilir kalacağı son tarih satırı (`docs/design` 01.8) |
+| Kapanış iptal edildi | `Account closing cancelled.` | Cancel closing grant'ı tüketilince sonuç bildirimi (`docs/design` 01.8) |
+| Dondurmada redaksiyon engeli | `Cancel closing before starting a new redaction.` | Dondurmada yeni redaksiyonun önce iptal gerektirdiğini söyleyen not (`docs/design` 01.8) |
 | Projelerim | `Your Projects` | Projects sayfasındaki Proje listesi alt başlığı (`docs/design` 02.1) |
 | Modülleri düzenle | `Arrange modules` | Customize overview modül düzeni başlığı (`docs/design` 02.2) |
 | Mevcut kaynak | `Existing source` | Canlı blok kaynak seçicisinin adı (`docs/design` 02.2) |

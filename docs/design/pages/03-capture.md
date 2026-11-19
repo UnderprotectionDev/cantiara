@@ -260,7 +260,7 @@ Safari: "This browser cannot pair with Web Capture.".
 - `03.9 · Extension links · Default · 1440`
 - `03.9 · Extension links · Code generated · 1440`
 
-Yer: Hesap güvenlik yüzeyi (→ `01.4 · My Account · Sessions` › Extension links); içerik ve durum metinlerinin sahibi bu ekrandır.
+Yer: Hesap güvenlik yüzeyi (→ `01.3 · My Account · Sessions` › Extension links); içerik ve durum metinlerinin sahibi bu ekrandır.
 
 ### Başlık ve kod
 `Extension links`; "Pair a browser with Web Capture and revoke individual links…"; üretilen kod ve süre metni.
