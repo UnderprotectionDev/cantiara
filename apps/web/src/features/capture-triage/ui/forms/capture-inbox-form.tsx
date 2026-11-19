@@ -17,7 +17,7 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ChangeEvent, type FormEvent, useRef, useState } from "react";
+import { type ChangeEvent, type SubmitEvent, useRef, useState } from "react";
 
 import {
   useClientShell,
@@ -146,17 +146,17 @@ export default function CaptureInboxForm({
   });
 
   function markDirty() {
-    if (!(createCapture.status === "pending")) {
+    if (!createCapture.isPending) {
       pendingCaptureKey.current = null;
     }
-    if (!(createBug.status === "pending")) {
+    if (!createBug.isPending) {
       pendingBugKey.current = null;
     }
     shell.markUnsavedChanges();
     setActionMessage(null);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -402,9 +402,7 @@ export default function CaptureInboxForm({
               values.content.trim().length > 0 &&
               projectIsSet &&
               supportedTemplate;
-            const writePending =
-              createCapture.status === "pending" ||
-              createBug.status === "pending";
+            const writePending = createCapture.isPending || createBug.isPending;
 
             return (
               <div className="flex flex-wrap items-center gap-3 border-t pt-5">
@@ -413,7 +411,7 @@ export default function CaptureInboxForm({
                   disabled={connection === "offline" || writePending}
                   type="submit"
                 >
-                  {createCapture.status === "pending" ? "Saving…" : "Save"}
+                  {createCapture.isPending ? "Saving…" : "Save"}
                 </Button>
                 <Button
                   aria-describedby="create-bug-unavailable"
@@ -423,7 +421,7 @@ export default function CaptureInboxForm({
                   type="button"
                   variant="outline"
                 >
-                  {createBug.status === "pending" ? "Creating…" : "Create Bug"}
+                  {createBug.isPending ? "Creating…" : "Create Bug"}
                 </Button>
               </div>
             );

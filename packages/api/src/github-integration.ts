@@ -33,7 +33,7 @@ import type {
 
 const identifierSchema = z.string().trim().min(1).max(255);
 const numericGitHubIdSchema = z.number().int().positive();
-const timestampSchema = z.string().datetime({ offset: true });
+const timestampSchema = z.iso.datetime({ offset: true });
 
 // ---------------------------------------------------------------------------
 // English UI labels (spec 61 Implementation Decisions).
@@ -209,7 +209,7 @@ export type GitHubTriageState = (typeof GITHUB_TRIAGE_STATES)[number];
 export const gitHubRepositorySchema = z
   .object({
     fullName: z.string(),
-    htmlUrl: z.string().url(),
+    htmlUrl: z.url(),
     name: z.string().min(1),
     owner: z.string().min(1),
     private: z.boolean(),
@@ -256,7 +256,7 @@ export const gitHubRepositoryLinkSchema = z
     connection: z.enum(GITHUB_CONNECTIONS),
     disconnectedAt: timestampSchema.nullable(),
     externalRecordCount: z.number().int().nonnegative(),
-    htmlUrl: z.string().url(),
+    htmlUrl: z.url(),
     id: z.string(),
     installationId: numericGitHubIdSchema,
     linkedAt: timestampSchema,
@@ -293,7 +293,7 @@ export const GITHUB_RECORD_LIFECYCLES = [
 export const gitHubExternalRecordSchema = z
   .object({
     githubId: numericGitHubIdSchema,
-    htmlUrl: z.string().url(),
+    htmlUrl: z.url(),
     id: z.string(),
     kind: z.enum(GITHUB_RECORD_KINDS),
     labels: z.array(z.string()),
@@ -479,7 +479,7 @@ export const gitHubOverviewSchema = z
 export type GitHubOverview = z.infer<typeof gitHubOverviewSchema>;
 
 export const gitHubInstallStartOutputSchema = z
-  .object({ installUrl: z.string().url() })
+  .object({ installUrl: z.url() })
   .strict();
 
 export const gitHubInstallCompleteOutputSchema = z

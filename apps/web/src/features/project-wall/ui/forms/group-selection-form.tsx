@@ -3,7 +3,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useId } from "react";
+import { type SubmitEvent, useId } from "react";
 import { createGroupFormSchema } from "../../lib/project-wall-narrative-forms";
 
 export default function GroupSelectionForm({
@@ -27,7 +27,7 @@ export default function GroupSelectionForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

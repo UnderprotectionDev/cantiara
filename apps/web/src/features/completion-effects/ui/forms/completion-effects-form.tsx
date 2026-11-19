@@ -17,8 +17,8 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, Sparkles } from "lucide-react";
 import {
-  type FormEvent,
   type MouseEvent,
+  type SubmitEvent,
   useEffect,
   useRef,
   useState,
@@ -240,7 +240,7 @@ export default function CompletionEffectsForm({
     }, COMPLETION_EFFECT_PREVIEW_DURATION_MS);
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     await form.handleSubmit().catch(() => undefined);

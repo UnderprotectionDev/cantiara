@@ -10,7 +10,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { fetchCurrentWork } from "@/lib/fetch-current-work";
@@ -147,7 +147,7 @@ export function PeriodLeftoverDecisions({
     form.setFieldValue("selectedWorkIds", []);
   }
   const { confirmAbandon, destination, selectedWorkIds, targetPeriodId } =
-    useStore(form.store, (state) => state.values);
+    useSelector(form.store, (state) => state.values);
   return period.status === "Closed" && undecided.length ? (
     <section
       aria-label="Still-open Work decisions"

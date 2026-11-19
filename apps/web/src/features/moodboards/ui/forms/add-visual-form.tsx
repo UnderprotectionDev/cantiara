@@ -12,7 +12,7 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useState } from "react";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
@@ -77,7 +77,10 @@ export function AddVisualForm({
       );
     },
   });
-  const originKind = useStore(form.store, (state) => state.values.originKind);
+  const originKind = useSelector(
+    form.store,
+    (state) => state.values.originKind,
+  );
 
   return (
     <form

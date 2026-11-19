@@ -27,7 +27,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 import { DatePicker } from "@/components/date-picker";
 import type { RecordActionRunnerState } from "../../hooks/use-record-action-runner";
 import { useRecordActionRuntimeInputForm } from "../../hooks/use-record-action-runtime-input-form";
@@ -333,7 +333,7 @@ function RecordActionRuntimeInputForm({
     <form
       aria-label="Record Action inputs"
       className="space-y-4 rounded-md border p-3"
-      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+      onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
         event.preventDefault();
         event.stopPropagation();
         form.handleSubmit().catch(() => undefined);

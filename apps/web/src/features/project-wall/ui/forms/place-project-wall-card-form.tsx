@@ -10,7 +10,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 import {
   optionKey,
@@ -63,7 +63,7 @@ export function AddCardForm({
       }
     },
   });
-  function submit(event: FormEvent) {
+  function submit(event: SubmitEvent) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

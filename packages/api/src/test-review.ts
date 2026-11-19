@@ -271,7 +271,7 @@ export const testResultEventSchema = z
     previousEventId: z.string().nullable(),
     /** `null` once the content was redacted; a Redaction keeps its reason. */
     reason: z.string().nullable(),
-    recordedAt: z.string().datetime({ offset: true }),
+    recordedAt: z.iso.datetime({ offset: true }),
     /** True when a Redaction replaced this event's content. */
     redacted: z.boolean(),
     redactedEventId: z.string().nullable(),
@@ -330,7 +330,7 @@ export const testReviewEventSchema = z
     fromState: stateSchema,
     id: identifierSchema,
     reason: z.string().nullable(),
-    recordedAt: z.string().datetime({ offset: true }),
+    recordedAt: z.iso.datetime({ offset: true }),
     /** Exact open items kept when a session was closed; `null` otherwise. */
     remaining: z.array(testReviewRemainingSchema).nullable(),
     sessionId: identifierSchema,
@@ -350,7 +350,7 @@ export const testReviewSessionSchema = z
     /** Set while the session is Closed and a later event arrived. */
     newContextAfterClose: z.boolean(),
     projectId: identifierSchema,
-    reportedAt: z.string().datetime({ offset: true }),
+    reportedAt: z.iso.datetime({ offset: true }),
     /** Who reported it, as the acceptance recorded it; `null` when unknown. */
     reporter: z.string().nullable(),
     reviewState: stateSchema,

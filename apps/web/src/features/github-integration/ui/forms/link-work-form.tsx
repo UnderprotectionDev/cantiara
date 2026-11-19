@@ -12,7 +12,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useState } from "react";
 import { errorText } from "../../lib/github-error-text";
 import type { LinkWorkValues } from "../../lib/github-forms";
@@ -87,8 +87,8 @@ export function LinkWorkForm({
       }
     },
   });
-  const values = useStore(form.store, (state) => state.values);
-  const pending = useStore(form.store, (state) => state.isSubmitting);
+  const values = useSelector(form.store, (state) => state.values);
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
   const selected = records.find((record) => record.id === values.recordId);
   const requiredAllowed =
     values.target === "record" && selected?.kind === "Pull request";

@@ -94,7 +94,7 @@ export default function PersonalReminderControl({
     setOpen(true);
   }
 
-  const pending = create.status === "pending" || cancel.status === "pending";
+  const pending = create.isPending || cancel.isPending;
   return (
     <>
       <div className="flex flex-wrap gap-2">

@@ -333,3 +333,70 @@ test("does not submit dirty values against a newer Account Preferences revision"
     await otherContext.close();
   }
 });
+
+test("keeps the React Flow canvas on the saved Appearance instead of the OS color scheme", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=account-preferences`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as { cookie: E2ESessionCookie };
+  await context.addCookies([setup.cookie]);
+
+  const projectName = "Appearance Canvas Project";
+  await page.goto("/projects/new");
+  await page.getByLabel("Project Name").fill(projectName);
+  await page.getByLabel("Starter Configuration").selectOption("Solo SaaS");
+  await page.getByRole("button", { name: "Create Project" }).click();
+  await page.getByRole("link", { name: projectName, exact: true }).click();
+  const projectUrl = page.url();
+
+  async function saveAppearance(appearance: "Dark" | "Light") {
+    await page.goto("/account/preferences");
+    await page
+      .getByRole("combobox", { name: "Appearance" })
+      .selectOption(appearance);
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(
+      page.getByRole("main").getByText("Preferences saved.", { exact: true }),
+    ).toBeVisible();
+  }
+
+  async function roadmapCanvasScheme() {
+    await page.goto(projectUrl);
+    await page
+      .getByRole("navigation", { name: "Project navigation" })
+      .getByRole("link", { name: "Work", exact: true })
+      .click();
+    await page
+      .getByRole("navigation", { name: "Planning surfaces" })
+      .getByRole("link", { name: "Roadmap", exact: true })
+      .click();
+    const flow = page
+      .getByRole("region", { name: "Roadmap canvas", exact: true })
+      .locator(".react-flow");
+    await expect(flow).toBeVisible();
+    return flow.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { background: style.backgroundColor, scheme: style.colorScheme };
+    });
+  }
+
+  await page.emulateMedia({ colorScheme: "dark" });
+  await saveAppearance("Light");
+  await expect(roadmapCanvasScheme()).resolves.toEqual({
+    background: "rgba(0, 0, 0, 0)",
+    scheme: "light",
+  });
+
+  await page.emulateMedia({ colorScheme: "light" });
+  await saveAppearance("Dark");
+  await expect(roadmapCanvasScheme()).resolves.toEqual({
+    background: "rgb(20, 20, 20)",
+    scheme: "dark",
+  });
+});

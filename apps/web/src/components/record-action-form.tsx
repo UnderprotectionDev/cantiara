@@ -223,9 +223,9 @@ export default function RecordActionEditor({
   );
   const pending =
     disabled ||
-    recordActions.create.status === "pending" ||
-    recordActions.update.status === "pending" ||
-    recordActions.moveToTrash.status === "pending";
+    recordActions.create.isPending ||
+    recordActions.update.isPending ||
+    recordActions.moveToTrash.isPending;
   const form = useForm({
     defaultValues: EMPTY_DRAFT,
     onSubmit: ({ value }) => submitDraft(value),
@@ -299,7 +299,7 @@ export default function RecordActionEditor({
           Record Actions could not be loaded. Try loading this page again.
         </p>
       ) : null}
-      {actions.length === 0 && !(recordActions.query.status === "pending") ? (
+      {actions.length === 0 && !recordActions.query.isPending ? (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           No Record Actions yet. Define the first action below.
         </p>

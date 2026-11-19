@@ -142,7 +142,7 @@ export default function WorkContextCard({
   useEffect(() => {
     if (
       !registerCommand ||
-      relationsQuery.status === "pending" ||
+      relationsQuery.isPending ||
       relationsQuery.isError
     ) {
       return;
@@ -164,7 +164,7 @@ export default function WorkContextCard({
     copyCommandRegistrationKey,
     registerCommand,
     relationsQuery.isError,
-    relationsQuery.status,
+    relationsQuery.isPending,
   ]);
   const [copyState, setCopyState] = useState<"idle" | "copying" | "copied">(
     "idle",
@@ -269,7 +269,7 @@ export default function WorkContextCard({
 
       <WhyChain
         isError={workContextQuery.isError}
-        isPending={workContextQuery.status === "pending"}
+        isPending={workContextQuery.isPending}
         sources={contextModel.whyChain}
         work={work}
         workStatusLabels={workStatusLabels}
@@ -299,7 +299,7 @@ export default function WorkContextCard({
       <PriorityFoundations
         foundations={contextModel.priorityFoundations}
         isError={workContextQuery.isError}
-        isPending={workContextQuery.status === "pending"}
+        isPending={workContextQuery.isPending}
         work={work}
         workStatusLabels={workStatusLabels}
       />
@@ -309,7 +309,7 @@ export default function WorkContextCard({
           return (
             <PreparedSection
               isError={relationsQuery.isError}
-              isPending={relationsQuery.status === "pending"}
+              isPending={relationsQuery.isPending}
               key={section.key}
               section={section.prepared}
               sources={sourcesForWorkContextSection(
@@ -325,7 +325,7 @@ export default function WorkContextCard({
           return (
             <CustomSection
               isError={relationsQuery.isError}
-              isPending={relationsQuery.status === "pending"}
+              isPending={relationsQuery.isPending}
               key={section.key}
               section={section.custom}
               sources={sourcesForWorkContextCustomSection(

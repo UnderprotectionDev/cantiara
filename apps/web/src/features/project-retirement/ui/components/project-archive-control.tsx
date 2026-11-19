@@ -58,13 +58,13 @@ export default function ProjectArchiveControl({
           {ARCHIVE_LABEL}
         </Button>
       )}
-      {previewing && preview.status === "pending" ? <p>Loading…</p> : null}
+      {previewing && preview.isPending ? <p>Loading…</p> : null}
       {previewing && preview.isError ? (
         <p role="alert">The archive preview could not be loaded.</p>
       ) : null}
       {previewing && preview.data ? (
         <ArchivePreviewPanel
-          busy={transition.status === "pending"}
+          busy={transition.isPending}
           onCancel={() => setPreviewing(false)}
           onConfirm={() =>
             transition.mutate(

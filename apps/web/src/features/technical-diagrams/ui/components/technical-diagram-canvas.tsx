@@ -123,7 +123,8 @@ function Canvas({
     if (expectedOpening.current === "restore") {
       // The measured frame no longer shows content where the nominal one did;
       // fall back to the fit the plain save would have taken.
-      reactFlow.fitView({ duration: 0 });
+      // React Flow 13 reads padding as a per-side margin; v12's default 0.1 is (1 - 1/1.1) / 2.
+      reactFlow.fitView({ duration: 0, padding: "4.545454545454546%" });
     }
   }, [reactFlow]);
   const [collapsed, setCollapsed] = useState(opening.collapsed);
@@ -153,7 +154,7 @@ function Canvas({
     setCollapsed(neutral.collapsed);
     // One frame later the expanded groups are part of what is fitted.
     requestAnimationFrame(() => {
-      reactFlow.fitView({ duration: 0 });
+      reactFlow.fitView({ duration: 0, padding: "4.545454545454546%" });
       report(neutral.collapsed);
     });
   };
@@ -255,6 +256,7 @@ function Canvas({
           edges={edges}
           elementsSelectable
           fitView={!restored}
+          fitViewOptions={{ padding: "4.545454545454546%" }}
           maxZoom={DIAGRAM_MAX_ZOOM}
           minZoom={DIAGRAM_MIN_ZOOM}
           nodes={nodes}

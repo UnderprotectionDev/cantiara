@@ -22,12 +22,15 @@ import {
   columnVisibilityFeature,
   createFilteredRowModel,
   createSortedRowModel,
-  filterFns,
+  filterFn_includesString,
   flexRender,
   globalFilteringFeature,
   rowSortingFeature,
   type SortingState,
-  sortFns,
+  sortFn_alphanumeric,
+  sortFn_basic,
+  sortFn_datetime,
+  sortFn_text,
   tableFeatures,
   useTable,
 } from "@tanstack/react-table";
@@ -58,8 +61,13 @@ const recordTableFeatures = tableFeatures({
   rowSortingFeature,
   filteredRowModel: createFilteredRowModel(),
   sortedRowModel: createSortedRowModel(),
-  filterFns,
-  sortFns,
+  filterFns: { includesString: filterFn_includesString },
+  sortFns: {
+    alphanumeric: sortFn_alphanumeric,
+    basic: sortFn_basic,
+    datetime: sortFn_datetime,
+    text: sortFn_text,
+  },
 });
 
 const fieldLabels = {

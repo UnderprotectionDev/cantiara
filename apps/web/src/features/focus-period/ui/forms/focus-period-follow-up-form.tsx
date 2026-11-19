@@ -12,7 +12,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -57,7 +57,7 @@ export function FollowUpWorkSection({
       setShowPreview(true);
     },
   });
-  const { description, learning, projectId, title } = useStore(
+  const { description, learning, projectId, title } = useSelector(
     form.store,
     (state) => state.values,
   );

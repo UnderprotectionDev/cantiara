@@ -11,7 +11,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useState } from "react";
 import type { PlaceNodeDraft } from "../../lib/place-node-draft";
 import { createOutlineNodeFormSchema } from "../../lib/user-flow-forms";
@@ -56,7 +56,7 @@ export function PlaceNodeForm({
     },
   });
   const needsScreen =
-    useStore(form.store, (state) => state.values.kind) === "Screen";
+    useSelector(form.store, (state) => state.values.kind) === "Screen";
 
   return (
     <form

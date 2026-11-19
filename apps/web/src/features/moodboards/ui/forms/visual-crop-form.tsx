@@ -10,7 +10,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 
 const BASIS_POINTS_PER_PERCENT = 100;
 const INSET_EDGES = ["top", "right", "bottom", "left"] as const;
@@ -45,7 +45,7 @@ export default function VisualCropForm({
     },
   });
 
-  function applyCrop(event: FormEvent<HTMLFormElement>) {
+  function applyCrop(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

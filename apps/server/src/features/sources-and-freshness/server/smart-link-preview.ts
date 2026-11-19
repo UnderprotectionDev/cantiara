@@ -146,19 +146,19 @@ async function readPublic(
   throw new Error("Redirect limit");
 }
 
-function metadata(html: string, parseNoFrames = true) {
+function metadata(html: string, parseFallback = true) {
   let title = "";
   let ogTitle = "";
   let image = "";
   let inTitle = false;
-  let inNoFrames = false;
+  let inFallback = false;
   const stack: string[] = [];
   const text: string[] = [];
   const parser = new Parser(
     {
       onopentag(name, attrs) {
-        if (name === "noframes") {
-          inNoFrames = true;
+        if (name === "noframes" || name === "noembed") {
+          inFallback = true;
         }
         if (ignoredTags.has(name)) {
           stack.push(name);
@@ -177,24 +177,24 @@ function metadata(html: string, parseNoFrames = true) {
         }
       },
       ontext(value) {
-        if (inNoFrames && !parseNoFrames) {
+        if (inFallback && !parseFallback) {
           return;
         }
         if (inTitle) {
           title += value;
         } else if (!stack.length) {
-          // htmlparser2 12 emits noframes as raw text. Parse its fallback once
-          // to retain the existing capture while bounding nested parsing.
+          // htmlparser2 12 emits noframes/noembed as raw text. Parse their
+          // fallback once to preserve the capture while bounding nested parsing.
           text.push(
-            inNoFrames && parseNoFrames
+            inFallback && parseFallback
               ? metadata(value, false).rawCapturedContent
               : value,
           );
         }
       },
       onclosetag(name) {
-        if (name === "noframes") {
-          inNoFrames = false;
+        if (name === "noframes" || name === "noembed") {
+          inFallback = false;
         }
         if (name === "title") {
           inTitle = false;

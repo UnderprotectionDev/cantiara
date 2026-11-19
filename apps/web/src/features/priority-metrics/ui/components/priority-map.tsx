@@ -74,7 +74,7 @@ export default function PriorityMap({ projectId }: { projectId: string }) {
     }
   });
 
-  if (workQuery.status === "pending" || valuesQuery.status === "pending") {
+  if (workQuery.status === "pending" || valuesQuery.isPending) {
     return (
       <section aria-label="Priority Map" className="space-y-3">
         <h3 className="text-lg font-medium">Priority Map</h3>

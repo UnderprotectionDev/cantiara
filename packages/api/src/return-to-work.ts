@@ -11,7 +11,7 @@ export const returnContextInputSchema = z
 export const nextConcreteStepSchema = z.string().trim().max(4000).nullable();
 export const saveNextConcreteStepInputSchema = returnContextInputSchema
   .extend({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: identifier,
     nextConcreteStep: nextConcreteStepSchema.transform(
       (value) => value || null,

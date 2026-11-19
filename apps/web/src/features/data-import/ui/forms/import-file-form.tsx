@@ -12,8 +12,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 import {
   buildPreviewInput,
   IMPORT_FILE_ACCEPT,
@@ -73,9 +73,9 @@ export default function ImportFileForm({
       }
     },
   });
-  const pending = useStore(form.store, (state) => state.isSubmitting);
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

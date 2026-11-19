@@ -12,7 +12,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
@@ -57,8 +57,8 @@ export function RecordTestAssessmentForm({
       }
     },
   });
-  const values = useStore(form.store, (state) => state.values);
-  const pending = useStore(form.store, (state) => state.isSubmitting);
+  const values = useSelector(form.store, (state) => state.values);
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
 
   const targetsQuery = useQuery({
     gcTime: 0,

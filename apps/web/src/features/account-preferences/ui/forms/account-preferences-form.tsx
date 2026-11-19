@@ -20,10 +20,10 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, CircleAlert, Globe2, WifiOff } from "lucide-react";
+import { Check, CircleExclamationPoint, Globe2, WifiOff } from "lucide-react";
 import {
   type ChangeEvent,
-  type FormEvent,
+  type SubmitEvent,
   useEffect,
   useRef,
   useState,
@@ -147,7 +147,7 @@ function AccountPreferencesSaveStatus({
     return null;
   }
 
-  const StatusIcon = isOnline ? CircleAlert : WifiOff;
+  const StatusIcon = isOnline ? CircleExclamationPoint : WifiOff;
 
   return (
     <div
@@ -347,7 +347,7 @@ export default function AccountPreferencesForm({
     form.setFieldValue("timeZone", suggestion.timeZone);
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     await form.handleSubmit().catch(() => undefined);

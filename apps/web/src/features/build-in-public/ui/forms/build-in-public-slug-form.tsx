@@ -6,7 +6,7 @@ import type {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useState } from "react";
 import {
   parseSetSlug,
@@ -45,7 +45,7 @@ export function BuildInPublicSlugForm({
       }
     },
   });
-  const slugValues = useStore(slugForm.store, (state) => state.values);
+  const slugValues = useSelector(slugForm.store, (state) => state.values);
   const { confirmRedirect, slug } = slugValues;
   return (
     <form

@@ -665,8 +665,8 @@ function RecordIndexSurface({
         onOpenSource={onOpenSource}
         pending={
           indexResults.status === "pending" ||
-          projectsQuery.status === "pending" ||
-          (metadataIndex && indexInventory.status === "pending")
+          projectsQuery.isPending ||
+          (metadataIndex && indexInventory.isPending)
         }
         projects={projects}
         results={indexResults.data}
@@ -719,9 +719,7 @@ function RecordTableSurface({
       onProjectChange={onProjectChange}
       onRecordTypeChange={onRecordTypeChange}
       onSaveCell={saveTableCell}
-      pending={
-        tableRecords.status === "pending" || projectsQuery.status === "pending"
-      }
+      pending={tableRecords.status === "pending" || projectsQuery.isPending}
       projectId={projectId}
       projects={projectsQuery.data ?? []}
       records={tableRecords.data ?? []}

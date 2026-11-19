@@ -45,8 +45,8 @@ import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import {
   type ChangeEvent,
-  type FormEvent,
   type ReactNode,
+  type SubmitEvent,
   useEffect,
   useMemo,
   useRef,
@@ -895,7 +895,7 @@ export default function WorkDraftForm({
     }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     createWork().catch(() => undefined);
@@ -1092,7 +1092,7 @@ export default function WorkDraftForm({
               disabled={isBusy}
               error={customFieldsQuery.isError}
               formattingPreferences={accountFormattingPreferences}
-              isPending={customFieldsQuery.status === "pending"}
+              isPending={customFieldsQuery.isPending}
               onChange={updateCustomFieldValue}
               values={customFieldValues}
             />

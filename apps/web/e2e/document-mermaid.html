@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Document preview fixture</title>
+  </head>
+  <body>
+    <div id="preview"></div>
+    <script type="module">
+    import "../src/index.css";
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import DocumentPreview from "../src/features/documents/ui/components/document-preview.tsx";
+
+    const params = new URLSearchParams(location.search);
+    createRoot(document.getElementById("preview")).render(
+      createElement(DocumentPreview, {
+        source: `\`\`\`mermaid\n${params.get("mermaid")}\n\`\`\``,
+      }),
+    );
+    </script>
+  </body>
+</html>

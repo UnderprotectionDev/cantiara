@@ -65,7 +65,7 @@ export const webCaptureSendInputSchema = z
   .superRefine((input, context) => {
     if (input.kind === "screenshot" && !input.mediaDataUrl) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Screenshots require a staged image.",
         path: ["mediaDataUrl"],
       });

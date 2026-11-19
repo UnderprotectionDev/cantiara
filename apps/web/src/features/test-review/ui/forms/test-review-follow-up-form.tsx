@@ -21,8 +21,8 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 import { usePanelFocus } from "../../hooks/use-panel-focus";
 import { errorText } from "../../lib/test-review-panel";
 import { allItems } from "../../lib/test-review-signal-lines";
@@ -87,11 +87,11 @@ export default function TestReviewFollowUpForm({
       }, "The preview is unavailable.");
     },
   });
-  const values = useStore(form.store, (state) => state.values);
+  const values = useSelector(form.store, (state) => state.values);
   const { mode, selected, workId } = values;
   const target = () => followUpTarget(values);
 
-  function handlePreviewSubmit(event: FormEvent<HTMLFormElement>) {
+  function handlePreviewSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

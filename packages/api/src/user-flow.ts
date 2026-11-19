@@ -9,7 +9,7 @@ import type { BrokenReferenceView } from "./relations";
 import { workTypeSchema } from "./work-lifecycle";
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const versionSchema = z.number().int().min(1).safe();
+const versionSchema = z.number().int().min(1);
 
 /**
  * Closed semantic set of a User Flow node. Colour and shape are never a second
@@ -64,9 +64,7 @@ const nodeTextSchema = z
   .string()
   .max(5000, "Node text must be 5000 characters or fewer.");
 
-const positionSchema = z
-  .object({ x: z.number().finite(), y: z.number().finite() })
-  .strict();
+const positionSchema = z.object({ x: z.number(), y: z.number() }).strict();
 
 const nodeFields = {
   kind: userFlowNodeKindSchema,
@@ -1304,7 +1302,7 @@ export const userFlowViewportSchema = z
     center: positionSchema,
     /** Section node ids collapsed in this account's view only. */
     collapsed: z.array(identifierSchema).max(USER_FLOW_NODE_LIMIT).default([]),
-    zoom: z.number().finite().min(USER_FLOW_MIN_ZOOM).max(USER_FLOW_MAX_ZOOM),
+    zoom: z.number().min(USER_FLOW_MIN_ZOOM).max(USER_FLOW_MAX_ZOOM),
   })
   .strict();
 export type UserFlowViewport = z.infer<typeof userFlowViewportSchema>;

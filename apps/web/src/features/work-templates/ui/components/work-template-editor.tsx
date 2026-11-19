@@ -61,10 +61,10 @@ export default function WorkTemplateEditor({
   );
   const pending =
     disabled ||
-    templates.create.status === "pending" ||
-    templates.instantiate.status === "pending" ||
-    templates.update.status === "pending" ||
-    templates.moveToTrash.status === "pending";
+    templates.create.isPending ||
+    templates.instantiate.isPending ||
+    templates.update.isPending ||
+    templates.moveToTrash.isPending;
   const [formVersion, setFormVersion] = useState(0);
 
   function resetDraft() {
@@ -140,7 +140,7 @@ export default function WorkTemplateEditor({
           Created Work {createdWorkKey}.
         </p>
       ) : null}
-      {list.length === 0 && !(templates.query.status === "pending") ? (
+      {list.length === 0 && !templates.query.isPending ? (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           No Work Templates yet. Define the first reusable starting point below.
         </p>

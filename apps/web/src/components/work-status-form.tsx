@@ -22,7 +22,7 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  type FormEvent,
+  type SubmitEvent,
   useCallback,
   useEffect,
   useRef,
@@ -326,7 +326,7 @@ export default function WorkStatusForm({
     requestedStatusAction,
   ]);
 
-  function handleCloseSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleCloseSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     closeForm.handleSubmit().catch(() => undefined);

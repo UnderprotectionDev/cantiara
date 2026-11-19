@@ -124,7 +124,7 @@ export default function PlannedTestsSurface({
         }}
         readOnly={cases.data.readOnly}
       />
-      {handoffs.status === "pending" || sessionTests.status === "pending" ? (
+      {handoffs.status === "pending" || sessionTests.isPending ? (
         <p role="status">Loading Test Handoffs…</p>
       ) : null}
       {handoffs.data && sessionTests.data ? (
@@ -207,7 +207,7 @@ export default function PlannedTestsSurface({
         />
       ) : null}
       {handoffs.status === "pending" ||
-      sessionTests.status === "pending" ||
+      sessionTests.isPending ||
       (handoffs.data && sessionTests.data) ? null : (
         <div className="space-y-3">
           <p role="alert">Test Handoffs are unavailable.</p>

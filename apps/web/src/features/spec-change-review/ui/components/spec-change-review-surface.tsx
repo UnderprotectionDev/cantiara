@@ -109,7 +109,7 @@ export default function SpecChangeReviewSurface({
     );
   }
   let markStatus = "";
-  if (mark.status === "pending") {
+  if (mark.isPending) {
     markStatus = "Saving review status…";
   } else if (mark.isError) {
     markStatus = "The review status could not be saved. Reload and try again.";

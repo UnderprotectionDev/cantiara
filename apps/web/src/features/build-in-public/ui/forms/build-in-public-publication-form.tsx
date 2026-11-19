@@ -7,8 +7,8 @@ import type {
 } from "@cantiara/api/build-in-public-publication";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 import { parseEnableIndexing } from "../../lib/build-in-public-publication-form";
 
 import { BuildInPublicSlugForm } from "./build-in-public-slug-form";
@@ -58,13 +58,13 @@ export function BuildInPublicPublicationPanel({
       }
     },
   });
-  const acknowledged = useStore(
+  const acknowledged = useSelector(
     indexingForm.store,
     (state) => state.values.acknowledged,
   );
   const submitWith =
     (form: { handleSubmit: () => Promise<void> }) =>
-    (event: FormEvent<HTMLFormElement>) => {
+    (event: SubmitEvent<HTMLFormElement>) => {
       event.preventDefault();
       event.stopPropagation();
       form.handleSubmit().catch(() => undefined);

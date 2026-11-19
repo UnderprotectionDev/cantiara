@@ -14,7 +14,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import type { ReactNode, RefObject } from "react";
 import { DateTimePicker } from "@/components/date-picker";
 import {
@@ -108,7 +108,7 @@ export function PersonalReminderForm({
       });
     },
   });
-  const fireAt = useStore(form.store, (state) => state.values.fireAt);
+  const fireAt = useSelector(form.store, (state) => state.values.fireAt);
   const showCondition =
     action === "Review Later" && supportsOpenCondition(sourceRecordType);
   const showSection =

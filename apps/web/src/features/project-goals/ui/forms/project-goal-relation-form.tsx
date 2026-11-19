@@ -6,8 +6,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useEffect } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useEffect } from "react";
 import { goalRelationFormSchema } from "../../lib/goal-relation-form";
 import {
   type GoalRelationChange,
@@ -42,7 +42,7 @@ export function ProjectGoalRelationForm({
   useEffect(() => {
     form.setFieldValue("selection", "");
   }, [settledChanges]);
-  const { kind, selection } = useStore(form.store, (state) => state.values);
+  const { kind, selection } = useSelector(form.store, (state) => state.values);
   const candidates = detail.candidates.filter(
     (source) =>
       isAllowedRelationEndpoints(kind, source.recordType, "Project Goal") &&
@@ -71,7 +71,7 @@ export function ProjectGoalRelationForm({
       baseRevision: previous?.revision ?? 0,
     }).catch(() => undefined);
   }
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

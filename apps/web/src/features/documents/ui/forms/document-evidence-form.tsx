@@ -21,9 +21,9 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useRef, useState } from "react";
+import { type SubmitEvent, useRef, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { documentEvidenceFormSchema } from "../../lib/document-evidence-form";
@@ -72,7 +72,7 @@ export default function DocumentEvidenceForm({
     },
     onSubmit: ({ value }) => preview(value),
   });
-  const { targetId, title, type } = useStore(
+  const { targetId, title, type } = useSelector(
     form.store,
     (state) => state.values,
   );
@@ -193,7 +193,7 @@ export default function DocumentEvidenceForm({
       setPending(false);
     }
   }
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

@@ -12,8 +12,8 @@ import {
 } from "./work-lifecycle";
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const revisionSchema = z.number().int().nonnegative().safe();
-const timestampSchema = z.string().datetime({ offset: true });
+const revisionSchema = z.number().int().nonnegative();
+const timestampSchema = z.iso.datetime({ offset: true });
 
 /** Closed lifecycle; none of these values is a Work status or a Source version. */
 export const FEEDBACK_STATUSES = ["New", "Reviewed", "Archived"] as const;

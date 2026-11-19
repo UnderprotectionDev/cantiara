@@ -11,7 +11,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { errorMessage } from "../../lib/error-message";
 import { HandoffFollowUpFields } from "../components/handoff-follow-up-fields";
 import { HandoffRelationFields } from "../components/handoff-relation-fields";
@@ -117,7 +117,7 @@ export function HandoffReconcileForm({
     },
   });
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

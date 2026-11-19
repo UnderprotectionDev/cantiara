@@ -55,7 +55,7 @@ export interface MigrationArtifact {
 
 export const confirmMigrationArtifactInputSchema = z
   .object({
-    clientIdempotencyKey: z.string().uuid(),
+    clientIdempotencyKey: z.uuid(),
     confirmedDestructiveOperationIds: z.array(z.string().min(1)).default([]),
     editedUpSql: z.string().max(500_000).nullable().default(null),
     sourceVersionId: z.string().min(1),

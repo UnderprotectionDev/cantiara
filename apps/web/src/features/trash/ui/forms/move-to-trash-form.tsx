@@ -14,7 +14,7 @@ import {
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useEffect, useRef } from "react";
+import { type SubmitEvent, useEffect, useRef } from "react";
 import type { TrashCandidate } from "../../lib/trash-candidates";
 import { TrashConfigurationImpactList } from "../components/trash-configuration-impact";
 
@@ -59,7 +59,7 @@ export function MoveToTrashForm({
     heading.current?.focus();
   }, []);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

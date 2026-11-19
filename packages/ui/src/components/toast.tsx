@@ -8,7 +8,7 @@ import {
   InfoIcon,
   Loader2Icon,
   OctagonXIcon,
-  TriangleAlertIcon,
+  TriangleExclamationPointIcon,
   XIcon,
 } from "lucide-react";
 import type * as React from "react";
@@ -148,7 +148,7 @@ function ToastIcon({ type }: { type: string | undefined }) {
   }
 
   if (type === "warning") {
-    icon = <TriangleAlertIcon aria-hidden="true" />;
+    icon = <TriangleExclamationPointIcon aria-hidden="true" />;
   }
 
   if (type === "error") {

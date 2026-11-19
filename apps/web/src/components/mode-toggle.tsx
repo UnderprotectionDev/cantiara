@@ -136,7 +136,7 @@ export function ModeToggle() {
           <DropdownMenuItem
             disabled={
               preferences.status === "pending" ||
-              saveAppearance.status === "pending" ||
+              saveAppearance.isPending ||
               appearance === currentAppearance
             }
             key={appearance}

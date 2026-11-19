@@ -55,7 +55,7 @@ export interface DiagramVersionReference {
 
 export const createDiagramVersionInputSchema = z
   .object({
-    clientIdempotencyKey: z.string().uuid(),
+    clientIdempotencyKey: z.uuid(),
     diagramId: z.string().min(1),
     name: z.string().trim().min(1).max(255),
   })

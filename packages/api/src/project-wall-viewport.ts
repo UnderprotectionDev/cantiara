@@ -24,7 +24,7 @@ export const PROJECT_WALL_SCENE_LINK_LIMIT = 750;
 export const PROJECT_WALL_COLLAPSED_MAX = 5000;
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const coordinateSchema = z.number().finite().min(-1_000_000).max(1_000_000);
+const coordinateSchema = z.number().min(-1_000_000).max(1_000_000);
 
 export const projectWallViewportSchema = z
   .object({
@@ -36,7 +36,7 @@ export const projectWallViewportSchema = z
       .default([]),
     zoom: z
       .number()
-      .finite()
+
       .min(PROJECT_WALL_MIN_ZOOM)
       .max(PROJECT_WALL_MAX_ZOOM),
   })

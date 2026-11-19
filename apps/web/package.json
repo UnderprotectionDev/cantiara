@@ -51,7 +51,7 @@
     "@tiptap/react": "3.34.0",
     "@tiptap/starter-kit": "3.34.0",
     "@uppy/core": "6.3.1",
-    "@vidstack/react": "1.15.7",
+    "@videojs/react": "10.5.0",
     "@xyflow/react": "13.0.2",
     "better-auth": "catalog:",
     "date-fns": "^4.4.0",

@@ -9,8 +9,8 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 import { AppLink } from "@/components/app-link";
 import { resolveChecklistDrafts } from "../../lib/work-checklist-items";
 import { ChecklistConversionPreview } from "../components/checklist-conversion-preview";
@@ -49,7 +49,7 @@ export default function WorkChecklist({
       await saveChecklist(resolved);
     },
   });
-  const drafts = useStore(draftsForm.store, (state) => state.values.drafts);
+  const drafts = useSelector(draftsForm.store, (state) => state.values.drafts);
   const [conversionItemId, setConversionItemId] = useState<string | null>(null);
   const [conversionPending, setConversionPending] = useState(false);
   const [conversionPreview, setConversionPreview] =
@@ -134,7 +134,7 @@ export default function WorkChecklist({
     setConversionPreview(null);
   }
 
-  function handleDraftsSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleDraftsSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     draftsForm.handleSubmit().catch(() => undefined);

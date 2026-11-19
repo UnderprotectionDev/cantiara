@@ -13,7 +13,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useState } from "react";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
@@ -63,7 +63,7 @@ export function AddColorSwatchForm({
       );
     },
   });
-  const entry = useStore(form.store, (state) => state.values.entry);
+  const entry = useSelector(form.store, (state) => state.values.entry);
   const normalized = normalizeColorHex(entry);
 
   async function pickFromVisual() {

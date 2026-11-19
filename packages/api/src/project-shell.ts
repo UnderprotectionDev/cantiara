@@ -848,7 +848,7 @@ export type ProjectShellConfigurationChange = z.input<
 
 export const updateProjectConfigurationInputSchema = z
   .object({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     change: projectShellConfigurationChangeSchema,
     clientIdempotencyKey: z.string().trim().min(1).max(255),
     projectId: z.string().trim().min(1),
@@ -861,7 +861,7 @@ export type UpdateProjectConfigurationInput = z.input<
 
 export const previewWorkContextLayoutInputSchema = z
   .object({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     change: workContextLayoutChangeSchema,
     projectId: z.string().trim().min(1),
   })
@@ -873,7 +873,7 @@ export type PreviewWorkContextLayoutInput = z.input<
 
 export const undoWorkContextLayoutInputSchema = z
   .object({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: z.string().trim().min(1).max(255),
     projectId: z.string().trim().min(1),
     receiptId: z.string().trim().min(1).max(255),
@@ -1153,7 +1153,7 @@ const projectLogoSchema = z.union([
       /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/,
       "Logo must be an uploaded PNG, JPEG, WebP, or GIF image.",
     ),
-  z.string().trim().url().max(2000),
+  z.string().trim().check(z.url()).max(2000),
 ]);
 
 const optionalProjectLogoSchema = projectLogoSchema.nullable().optional();
@@ -1207,7 +1207,7 @@ export const createProjectInputSchema = createProjectInputObjectSchema
 
 const createProjectMutationInputObjectSchema = createProjectInputObjectSchema
   .extend({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: z.string().trim().min(1).max(255),
   })
   .strict();
@@ -1246,7 +1246,7 @@ export type CreateProjectMutationInput = z.input<
 
 export const updateProjectShortCodeInputSchema = z
   .object({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: z.string().trim().min(1).max(255),
     projectId: z.string().trim().min(1),
     shortCode: shortCodeSchema,
@@ -1260,7 +1260,7 @@ export type UpdateProjectShortCodeInput = z.input<
 export const enableProjectAreaInputSchema = z
   .object({
     area: projectAreaSchema,
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: z.string().trim().min(1).max(255),
     projectId: z.string().trim().min(1),
   })

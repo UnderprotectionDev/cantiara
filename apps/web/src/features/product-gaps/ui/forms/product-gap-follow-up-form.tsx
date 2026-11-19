@@ -18,7 +18,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useId, useState } from "react";
 import { useProductGapLinkTargets } from "../../hooks/use-product-gap-link-targets";
 import { errorText } from "../../lib/product-gap-form";
@@ -116,7 +116,7 @@ export function FollowUpPanel({
       }
     },
   });
-  const kind = useStore(form.store, (state) => state.values.kind);
+  const kind = useSelector(form.store, (state) => state.values.kind);
 
   const { data: targets = [], isError: targetsFailed } =
     useProductGapLinkTargets(

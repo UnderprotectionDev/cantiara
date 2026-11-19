@@ -105,7 +105,7 @@ export type ParsedCopyPriorityMetricDefinitionsPayload = z.output<
 
 export const priorityMetricSchema = z
   .object({
-    createdAt: z.string().datetime(),
+    createdAt: z.iso.datetime(),
     enabled: z.boolean(),
     id: identifierSchema,
     name: priorityMetricNameSchema,
@@ -113,8 +113,8 @@ export const priorityMetricSchema = z
     rankDescriptions: priorityMetricRankDescriptionsSchema,
     revision: z.number().int().nonnegative(),
     shortDescription: priorityMetricShortDescriptionSchema,
-    trashedAt: z.string().datetime().nullable(),
-    updatedAt: z.string().datetime(),
+    trashedAt: z.iso.datetime().nullable(),
+    updatedAt: z.iso.datetime(),
   })
   .strict();
 
@@ -175,13 +175,13 @@ export const deletePriorityMetricMutationInputSchema =
 
 export const priorityMetricValueSchema = z
   .object({
-    createdAt: z.string().datetime(),
+    createdAt: z.iso.datetime(),
     id: identifierSchema,
     metricId: identifierSchema,
     projectId: identifierSchema,
     rank: priorityMetricRankSchema,
     revision: z.number().int().nonnegative(),
-    updatedAt: z.string().datetime(),
+    updatedAt: z.iso.datetime(),
     workId: identifierSchema,
   })
   .strict();

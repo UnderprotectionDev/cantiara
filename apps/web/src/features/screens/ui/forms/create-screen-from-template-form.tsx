@@ -6,7 +6,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { createScreenFromTemplateFormSchema } from "../../lib/screen-forms";
 import type { ScreenTemplateActions } from "../../lib/screen-template-actions";
 
@@ -41,7 +41,7 @@ export function CreateScreenFromTemplate({
   if (!firstTemplateId) {
     return null;
   }
-  function submit(event: FormEvent) {
+  function submit(event: SubmitEvent) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

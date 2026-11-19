@@ -5,7 +5,7 @@ import {
   SEQUENCE_MESSAGE_KINDS,
 } from "@cantiara/api/technical-diagram-structure";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useId } from "react";
+import { type SubmitEvent, useId } from "react";
 
 import { addControlGroup, addMessage } from "../../lib/technical-diagram-edit";
 import { CHOOSE, ids } from "../../lib/technical-diagram-field-options";
@@ -75,7 +75,7 @@ export function AddStepForms({
   const participants = [CHOOSE, ...ids(model.participants)];
   const groupHelpId = useId();
   const submitAs =
-    (meta: "group" | "message") => (event: FormEvent<HTMLFormElement>) => {
+    (meta: "group" | "message") => (event: SubmitEvent<HTMLFormElement>) => {
       event.preventDefault();
       event.stopPropagation();
       form.handleSubmit(meta).catch(() => undefined);

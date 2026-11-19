@@ -246,8 +246,8 @@ const recordActionPreviewFields = z
   .object({
     actionId: identifierSchema,
     actionName: recordActionNameSchema,
-    actionRevision: z.number().int().min(1).safe(),
-    baseRevision: z.number().int().nonnegative().safe(),
+    actionRevision: z.number().int().min(1),
+    baseRevision: z.number().int().nonnegative(),
     changes: z
       .array(
         z
@@ -287,7 +287,7 @@ export type RecordActionPreview = z.infer<typeof recordActionPreviewFields>;
 export const recordActionRunPayloadSchema = z
   .object({
     actionId: identifierSchema,
-    actionRevision: z.number().int().min(1).safe(),
+    actionRevision: z.number().int().min(1),
     focusDate: customFieldDateValueSchema,
     previewFingerprint: z.string().regex(/^[0-9a-f]{64}$/i),
     runtimeInputs: recordActionRuntimeInputsSchema,
@@ -318,12 +318,12 @@ export type UndoRecordActionInput = z.infer<typeof undoRecordActionInputSchema>;
 
 export const recordActionSchema = recordActionDefinitionFields
   .extend({
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: z.iso.datetime({ offset: true }),
     id: identifierSchema,
     projectId: identifierSchema,
-    revision: z.number().int().min(1).safe(),
-    trashedAt: z.string().datetime({ offset: true }).nullable(),
-    updatedAt: z.string().datetime({ offset: true }),
+    revision: z.number().int().min(1),
+    trashedAt: z.iso.datetime({ offset: true }).nullable(),
+    updatedAt: z.iso.datetime({ offset: true }),
   })
   .strict()
   .superRefine(validateRecordActionDefinition);

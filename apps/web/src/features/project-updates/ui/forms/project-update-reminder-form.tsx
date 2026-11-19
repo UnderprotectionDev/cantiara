@@ -20,7 +20,7 @@ import {
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { projectUpdateReminderFormSchema } from "../../lib/project-update-form";
 
 export interface ProjectUpdateReminderControls {
@@ -87,7 +87,7 @@ export function ProjectUpdateReminderForm({
       setBusy(false);
     }
   }
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

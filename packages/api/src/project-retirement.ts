@@ -160,7 +160,7 @@ export type PreviewArchiveProjectInput = z.infer<
 >;
 
 const transitionShape = {
-  baseRevision: z.number().int().nonnegative().safe(),
+  baseRevision: z.number().int().nonnegative(),
   clientIdempotencyKey: z.string().trim().min(1).max(255),
   projectId: identifier,
 };
@@ -343,7 +343,7 @@ export type LivingRelation = z.infer<typeof livingRelationSchema>;
  */
 export const restoreProjectToArchiveInputSchema = z
   .object({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: z.string().trim().min(1).max(255),
     entryId: identifier,
     projectId: identifier,

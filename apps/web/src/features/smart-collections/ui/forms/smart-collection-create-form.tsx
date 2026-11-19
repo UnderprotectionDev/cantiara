@@ -16,11 +16,11 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  type FormEvent,
   type ReactNode,
+  type SubmitEvent,
   useEffect,
   useRef,
   useState,
@@ -122,9 +122,15 @@ export default function SmartCollectionCreateForm({
       create.mutate(parsed.data);
     },
   });
-  const sourceType = useStore(form.store, (state) => state.values.sourceType);
-  const projectIds = useStore(form.store, (state) => state.values.projectIds);
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  const sourceType = useSelector(
+    form.store,
+    (state) => state.values.sourceType,
+  );
+  const projectIds = useSelector(
+    form.store,
+    (state) => state.values.projectIds,
+  );
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

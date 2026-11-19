@@ -16,11 +16,11 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useId } from "react";
+import { type SubmitEvent, useId } from "react";
 import { contactLabel, NO_COMPANY } from "../../lib/contact-label";
 
 function handleFormSubmit(form: { handleSubmit: () => Promise<void> }) {
-  return (event: FormEvent<HTMLFormElement>) => {
+  return (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

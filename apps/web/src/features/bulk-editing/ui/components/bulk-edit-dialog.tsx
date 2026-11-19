@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
-import { useSelector, useStore } from "@tanstack/react-store";
+import { useSelector } from "@tanstack/react-store";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef, useState } from "react";
 import { getWorkStatusLabel } from "@/components/work-status-form";
@@ -691,7 +691,7 @@ export default function BulkEditDialog({
 }) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
-  const operationState = useStore(bulkEditOperationStore);
+  const operationState = useSelector(bulkEditOperationStore);
   const operation = operationState.operations
     .filter((candidate) => candidate.projectId === projectId)
     .at(-1);

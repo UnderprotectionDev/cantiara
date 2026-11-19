@@ -23,11 +23,7 @@ export default function LiveRoadmapCanvas({
   const milestones = useQuery(
     orpc.projectMilestones.queryOptions({ input: { projectId } }),
   );
-  if (
-    works.status === "pending" ||
-    origins.status === "pending" ||
-    milestones.status === "pending"
-  ) {
+  if (works.status === "pending" || origins.isPending || milestones.isPending) {
     return <p role="status">Loading Roadmap…</p>;
   }
   const available = !(works.isError || origins.isError || milestones.isError);

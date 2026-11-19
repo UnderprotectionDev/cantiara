@@ -3,7 +3,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 import { createProjectWallFormSchema } from "../../lib/project-wall-forms";
 
@@ -25,7 +25,7 @@ export function CreateWallForm({
       }
     },
   });
-  function submit(event: FormEvent) {
+  function submit(event: SubmitEvent) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

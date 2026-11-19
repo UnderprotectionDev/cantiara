@@ -91,14 +91,14 @@ export const restorePrioritizationSessionMutationInputSchema =
 
 export const prioritizationSessionSchema = z
   .object({
-    closedAt: z.string().datetime().nullable(),
-    createdAt: z.string().datetime(),
+    closedAt: z.iso.datetime().nullable(),
+    createdAt: z.iso.datetime(),
     id: identifierSchema,
     name: prioritizationSessionNameSchema,
     projectId: identifierSchema,
     revision: z.number().int().nonnegative(),
-    trashedAt: z.string().datetime().nullable(),
-    updatedAt: z.string().datetime(),
+    trashedAt: z.iso.datetime().nullable(),
+    updatedAt: z.iso.datetime(),
     workIds: orderedWorkIdsSchema,
   })
   .strict();

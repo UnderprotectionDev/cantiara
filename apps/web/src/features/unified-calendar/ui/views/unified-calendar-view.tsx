@@ -138,8 +138,7 @@ export default function UnifiedCalendarView({
   });
   const queries = [preferences, projects, ...workQueries];
   const failed = queries.some((query) => query.isError);
-  const loading =
-    !failed && queries.some((query) => query.status === "pending");
+  const loading = !failed && queries.some((query) => query.isPending);
   const preferencesUnavailable =
     preferences.status === "pending" || preferences.isError;
   const works = workQueries.flatMap((query) => query.data ?? []);
@@ -211,7 +210,7 @@ export default function UnifiedCalendarView({
   });
 
   const saving = [updateCalendarDate, undoCalendarDate].some(
-    (mutation) => mutation.status === "pending",
+    (mutation) => mutation.isPending,
   );
 
   function updateSearch(next: Partial<CalendarSearch>) {

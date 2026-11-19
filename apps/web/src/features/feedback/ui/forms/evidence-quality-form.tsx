@@ -18,8 +18,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 
 type EvidenceCommand = Pick<
   SetFeedbackEvidenceInput,
@@ -119,9 +119,9 @@ export function EvidenceQualityPanel({
       }
     },
   });
-  const pending = useStore(form.store, (state) => state.isSubmitting);
-  const drafts = useStore(form.store, (state) => state.values.quality);
-  function submit(event: FormEvent<HTMLFormElement>) {
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
+  const drafts = useSelector(form.store, (state) => state.values.quality);
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

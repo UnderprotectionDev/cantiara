@@ -6,15 +6,15 @@ export const evidenceSourceSchema = z
     recordType: id,
     recordId: id,
     projectId: id,
-    revision: z.number().int().nonnegative().safe(),
+    revision: z.number().int().nonnegative(),
     componentId: id.nullable(),
   })
   .strict();
 export const versionPinnedEvidenceSchema = z
   .object({
     source: evidenceSourceSchema,
-    start: z.number().int().nonnegative().safe(),
-    end: z.number().int().positive().safe(),
+    start: z.number().int().nonnegative(),
+    end: z.number().int().positive(),
     excerpt: z
       .string()
       .min(1)

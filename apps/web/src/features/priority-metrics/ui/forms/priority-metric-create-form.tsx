@@ -8,7 +8,7 @@ import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 import { errorMessage } from "../../lib/error-message";
 import { EMPTY_DRAFT } from "../../lib/priority-metric-draft";
 import { RankDescriptionsFields } from "../components/rank-descriptions-fields";
@@ -54,7 +54,7 @@ export function PriorityMetricCreateForm({
     },
   });
 
-  function handleCreate(event: FormEvent<HTMLFormElement>) {
+  function handleCreate(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     createForm.handleSubmit().catch(() => undefined);

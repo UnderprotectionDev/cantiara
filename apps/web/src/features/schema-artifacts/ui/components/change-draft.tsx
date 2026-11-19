@@ -227,7 +227,7 @@ export function ChangeDraft({
               id,
               label: `${operation} ${path}`,
             }))}
-          disabled={confirm.status === "pending"}
+          disabled={confirm.isPending}
           onConfirm={(input) =>
             confirm.mutate({
               ...input,

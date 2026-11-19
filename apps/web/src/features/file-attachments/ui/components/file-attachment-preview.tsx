@@ -16,10 +16,12 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  MediaPlayer,
-  type MediaPlayerInstance,
-  MediaProvider,
-} from "@vidstack/react";
+  Container,
+  createPlayer,
+  orientationLockFeature,
+} from "@videojs/react";
+import { Audio } from "@videojs/react/audio";
+import { Video, videoFeatures } from "@videojs/react/video";
 import {
   lazy,
   Suspense,
@@ -357,18 +359,38 @@ function CsvPreview({
   );
 }
 
-function MediaPreview({
-  kind,
-  playback,
-  src,
-  title,
-}: {
+const { Player: AttachmentMediaPlayer, usePlayer: useAttachmentMediaPlayer } =
+  createPlayer({ features: [...videoFeatures, orientationLockFeature] });
+
+interface MediaPreviewProps {
   kind: "audio" | "video";
   playback: FileAttachmentPreviewData["playback"];
   src: string;
   title: string;
-}) {
-  const mediaRef = useRef<MediaPlayerInstance | null>(null);
+}
+
+function MediaPreview(props: MediaPreviewProps) {
+  return (
+    <AttachmentMediaPlayer>
+      <MediaPreviewContent {...props} />
+    </AttachmentMediaPlayer>
+  );
+}
+
+function MediaPreviewContent({
+  kind,
+  playback,
+  src,
+  title,
+}: MediaPreviewProps) {
+  const player = useAttachmentMediaPlayer();
+  const mediaRef = useRef<HTMLAudioElement | HTMLVideoElement | null>(null);
+  const handleMediaRef = useCallback(
+    (element: HTMLAudioElement | HTMLVideoElement | null) => {
+      mediaRef.current = element;
+    },
+    [],
+  );
   const [loop, setLoop] = useState(false);
   const [speed, setSpeed] = useState(playback?.speeds[1] ?? 1);
   const handleSpeedChange = useCallback(
@@ -383,35 +405,48 @@ function MediaPreview({
     setLoop(checked);
   }, []);
   const handleFullscreen = useCallback(() => {
-    mediaRef.current?.enterFullscreen().catch(() => undefined);
-  }, []);
+    player.requestFullscreen().catch(() => undefined);
+  }, [player]);
 
-  useEffect(() => {
+  const handleMediaLoaded = useCallback(() => {
     if (mediaRef.current) {
+      mediaRef.current.defaultPlaybackRate = speed;
       mediaRef.current.playbackRate = speed;
     }
   }, [speed]);
+  useEffect(handleMediaLoaded, [handleMediaLoaded]);
 
   return (
     <div className="space-y-3">
-      <MediaPlayer
-        autoPlay={false}
-        className={
-          kind === "audio"
-            ? "block w-full"
-            : "block max-h-[min(70vh,42rem)] w-full rounded-md bg-black"
-        }
-        controls
-        loop={loop}
-        playbackRate={speed}
-        preload="metadata"
-        ref={mediaRef}
-        src={src}
-        title={title}
-        viewType={kind}
-      >
-        <MediaProvider />
-      </MediaPlayer>
+      <Container>
+        {kind === "audio" ? (
+          <Audio
+            aria-label={title}
+            autoPlay={false}
+            className="block w-full"
+            controls
+            fallback={null}
+            loop={loop}
+            onLoadedMetadata={handleMediaLoaded}
+            preload="metadata"
+            ref={handleMediaRef}
+            src={src}
+          />
+        ) : (
+          <Video
+            aria-label={title}
+            autoPlay={false}
+            className="block max-h-[min(70vh,42rem)] w-full rounded-md bg-black"
+            controls
+            fallback={null}
+            loop={loop}
+            onLoadedMetadata={handleMediaLoaded}
+            preload="metadata"
+            ref={handleMediaRef}
+            src={src}
+          />
+        )}
+      </Container>
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <label className="flex items-center gap-2" htmlFor={speedId}>
           <span>{FILE_ATTACHMENT_UI_LABELS.playbackSpeed}</span>

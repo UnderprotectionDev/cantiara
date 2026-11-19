@@ -11,8 +11,8 @@ import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useEffect, useRef } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useEffect, useRef } from "react";
 import { DateTimePicker } from "@/components/date-picker";
 import {
   featureCandidates,
@@ -126,7 +126,7 @@ export function BuildInPublicPreviewPanel({
       }
     },
   });
-  const values = useStore(form.store, (state) => state.values);
+  const values = useSelector(form.store, (state) => state.values);
   const approved = new Set(values.approved);
   const { featuredRecord, featuredUntil, publishAnyway } = values;
   const previousFingerprint = useRef(preview.fingerprint);
@@ -156,7 +156,7 @@ export function BuildInPublicPreviewPanel({
     <form
       aria-labelledby="bip-preview-title"
       className="grid gap-3"
-      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+      onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
         event.preventDefault();
         event.stopPropagation();
         form.handleSubmit().catch(() => undefined);

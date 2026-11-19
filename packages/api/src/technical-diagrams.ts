@@ -62,8 +62,8 @@ export const saveDiagramLayoutInputSchema = z
       z.string().min(1),
       z
         .object({
-          x: z.number().finite().min(-100_000).max(100_000),
-          y: z.number().finite().min(-100_000).max(100_000),
+          x: z.number().min(-100_000).max(100_000),
+          y: z.number().min(-100_000).max(100_000),
         })
         .strict(),
     ),
@@ -93,14 +93,14 @@ export const mermaidConversionInputSchema = z
 
 export const confirmMermaidConversionInputSchema = mermaidConversionInputSchema
   .extend({
-    clientIdempotencyKey: z.string().uuid(),
+    clientIdempotencyKey: z.uuid(),
     previewToken: z.string().min(1),
   })
   .strict();
 
 export const createDiagramViewInputSchema = z
   .object({
-    clientIdempotencyKey: z.string().uuid(),
+    clientIdempotencyKey: z.uuid(),
     diagramId: z.string().min(1),
     name: z.string().trim().min(1).max(255),
     selectedNodeIds: z.array(z.string().min(1)).min(1),

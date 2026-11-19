@@ -162,7 +162,7 @@ export default function ProjectsView({
         <ProjectsListSection
           data={projects.data}
           isError={projects.isError}
-          isPending={projects.status === "pending"}
+          isPending={projects.isPending}
         />
       )}
 

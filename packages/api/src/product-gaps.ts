@@ -521,7 +521,7 @@ export const TOOL_ESCAPE_REASON_PRD_VALUES: Record<ToolEscapeReason, string> = {
 
 export const TOOL_ESCAPE_TOOL_MAX = 120;
 
-const timestampSchema = z.string().datetime({ offset: true });
+const timestampSchema = z.iso.datetime({ offset: true });
 
 const optionalNote = z
   .string()

@@ -13,7 +13,7 @@ export type MutationActorType = (typeof MUTATION_ACTOR_TYPES)[number];
 export const mutationActorTypeSchema = z.enum(MUTATION_ACTOR_TYPES);
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const revisionSchema = z.number().int().nonnegative().safe();
+const revisionSchema = z.number().int().nonnegative();
 const idempotencyKeySchema = identifierSchema;
 const payloadFingerprintSchema = z
   .string()

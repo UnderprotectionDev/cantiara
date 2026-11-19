@@ -3,7 +3,7 @@ import type { PriorityMetric } from "@cantiara/api/priority-metrics";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 import { priorityMetricPermanentDeleteFormSchema } from "../../lib/priority-metric-delete";
 import {
   PriorityMetricImpactStatus,
@@ -50,7 +50,7 @@ export function PriorityMetricPermanentDeleteConfirmation({
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     deleteForm.handleSubmit().catch(() => undefined);

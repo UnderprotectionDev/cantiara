@@ -43,12 +43,12 @@ export default function ExtensionLinksSection({
           </p>
         </div>
         <Button
-          disabled={generatePairingCode.status === "pending"}
+          disabled={generatePairingCode.isPending}
           onClick={handleGeneratePairingCode}
           size="sm"
           type="button"
         >
-          {generatePairingCode.status === "pending"
+          {generatePairingCode.isPending
             ? "Generating…"
             : "Generate pairing code"}
         </Button>
@@ -114,7 +114,7 @@ export default function ExtensionLinksSection({
               </div>
               <Button
                 data-link-id={link.id}
-                disabled={revokeLink.status === "pending"}
+                disabled={revokeLink.isPending}
                 onClick={handleRevokeLink}
                 size="sm"
                 type="button"

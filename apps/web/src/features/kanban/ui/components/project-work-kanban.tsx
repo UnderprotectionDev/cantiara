@@ -117,8 +117,7 @@ export default function ProjectWorkKanban({
     );
   }
 
-  const isDisabled =
-    connection === "offline" || updateStatus.status === "pending";
+  const isDisabled = connection === "offline" || updateStatus.isPending;
   const works = sortKanbanWorks(
     filterDefaultKanbanWorks(query.data, today),
     sort,

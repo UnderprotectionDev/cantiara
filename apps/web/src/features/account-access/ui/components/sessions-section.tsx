@@ -38,9 +38,7 @@ export default function SessionsSection({
         </div>
         <RevokeConfirmation
           description="Every session except this one will lose access immediately."
-          disabled={
-            otherSessionCount === 0 || revokeOtherSessions.status === "pending"
-          }
+          disabled={otherSessionCount === 0 || revokeOtherSessions.isPending}
           label="Revoke Other Sessions"
           onConfirm={revokeOtherSessions.mutate}
           targetSessionAlias=""
@@ -104,7 +102,7 @@ export default function SessionsSection({
                 {productSession.current ? null : (
                   <RevokeConfirmation
                     description={`${productSession.device} will lose access immediately.`}
-                    disabled={revokeSession.status === "pending"}
+                    disabled={revokeSession.isPending}
                     label="Revoke Session"
                     onConfirm={revokeSession.mutate}
                     targetSessionAlias={productSession.id}

@@ -10,7 +10,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { errorText } from "../../lib/github-error-text";
@@ -66,8 +66,8 @@ export function LinkRepositoryForm({
       }
     },
   });
-  const values = useStore(form.store, (state) => state.values);
-  const pending = useStore(form.store, (state) => state.isSubmitting);
+  const values = useSelector(form.store, (state) => state.values);
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
   const installationId = Number(values.installationId);
   const repositories = useQuery({
     enabled: installationId > 0,

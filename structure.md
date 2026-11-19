@@ -64,6 +64,7 @@ Seams come from the owning spec's Testing Decisions; this says only where the fi
 | Server root app, env and wiring | `apps/server/src/` (next to the file) | `<file>.test.ts`, `<file>.integration.test.ts` |
 | Package | Next to the file | `<file>.test.ts`, `<file>.integration.test.ts` |
 | Browser end-to-end | `apps/web/e2e/` | `<feature-or-flow>.e2e.ts` |
+| Browser fixture page for end-to-end (one feature's production component on synthetic data, served by the web dev server) | `apps/web/e2e/` | `<feature-or-flow>.html`, named after its `.e2e.ts` |
 | Server fixtures for browser end-to-end | `apps/server/e2e/` | `<feature-or-flow>-fixture.ts`, `<feature-or-flow>-server.ts` |
 
 ## Approved exceptions

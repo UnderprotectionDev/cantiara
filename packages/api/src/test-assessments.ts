@@ -13,7 +13,7 @@ import { z } from "zod";
  */
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const timestampSchema = z.string().datetime({ offset: true });
+const timestampSchema = z.iso.datetime({ offset: true });
 
 export const TEST_ASSESSMENT_LABEL = "Test Assessment";
 export const TEST_ASSESSMENTS_SECTION_LABEL = "Recent Test Assessments";

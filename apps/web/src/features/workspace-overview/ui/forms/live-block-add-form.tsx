@@ -9,7 +9,7 @@ import {
 } from "@cantiara/ui/components/select";
 import { useForm } from "@tanstack/react-form";
 import { Plus } from "lucide-react";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 import {
   liveBlockFormSchema,
   MAX_LIVE_BLOCKS,
@@ -47,7 +47,7 @@ export function LiveBlockAddForm({
   });
   const full = selectedCount >= MAX_LIVE_BLOCKS;
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

@@ -15,8 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 import { parseEnableIndexing } from "../../lib/wiki-publish-approval";
 
 interface WikiPublicationPanelProps {
@@ -65,7 +65,7 @@ export function WikiPublicationPanel({
       setIndexingOpen(false);
     },
   });
-  const acknowledged = useStore(
+  const acknowledged = useSelector(
     indexingForm.store,
     (state) => state.values.acknowledged,
   );
@@ -178,7 +178,7 @@ export function WikiPublicationPanel({
           <form
             aria-label={WIKI_PUBLISHING_UI_LABELS.enableIndexing}
             className="grid gap-4"
-            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+            onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
               event.preventDefault();
               event.stopPropagation();
               indexingForm.handleSubmit().catch(() => undefined);

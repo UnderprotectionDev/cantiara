@@ -4,7 +4,7 @@ import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 import { brokenReferenceReasonSchema } from "./relations";
 
 const id = z.string().trim().min(1).max(255);
-const offset = z.number().int().nonnegative().safe();
+const offset = z.number().int().nonnegative();
 
 /** Closed catalog for Document-sourced `Bind as evidence to existing record` and `Convert to new record and bind`. */
 export const DOCUMENT_EVIDENCE_TARGET_TYPES = [
@@ -69,7 +69,7 @@ export const previewDocumentEvidenceInputSchema = documentSelectionSchema
   .extend({
     versionRevision: z.number().int().positive(),
     start: offset,
-    end: z.number().int().positive().safe(),
+    end: z.number().int().positive(),
     bindingId: id.optional(),
     target: documentEvidenceTargetSchema.optional(),
     newRecord: documentEvidenceNewRecordSchema.optional(),

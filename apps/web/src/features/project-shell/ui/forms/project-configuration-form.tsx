@@ -17,7 +17,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useCallback, useState } from "react";
+import { type SubmitEvent, useCallback, useState } from "react";
 import CustomFieldEditor from "@/components/custom-field-editor-form";
 import RecordActionEditor from "@/components/record-action-form";
 import PriorityMetricEditor from "@/features/priority-metrics/ui/components/priority-metric-editor";
@@ -51,7 +51,7 @@ function submitConfigurationChange(
 }
 
 function handleFormSubmit(form: { handleSubmit: () => Promise<void> }) {
-  return (event: FormEvent<HTMLFormElement>) => {
+  return (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

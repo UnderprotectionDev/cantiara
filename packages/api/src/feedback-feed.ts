@@ -3,7 +3,7 @@ import { z } from "zod";
 import { feedbackAttachmentSchema, feedbackStatusSchema } from "./feedback";
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const timestampSchema = z.string().datetime({ offset: true });
+const timestampSchema = z.iso.datetime({ offset: true });
 
 /** The two master record kinds the Feed reads; a row is never a third kind. */
 export const FEED_ROW_KINDS = ["Feedback", "Source"] as const;

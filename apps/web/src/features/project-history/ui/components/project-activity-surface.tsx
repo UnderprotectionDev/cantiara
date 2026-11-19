@@ -26,7 +26,7 @@ function ProjectActivityPages({
     refetch();
   }, [refetch]);
 
-  if (query.status === "pending") {
+  if (query.isPending) {
     return <p role="status">Loading Project Activity…</p>;
   }
   if (!activity) {

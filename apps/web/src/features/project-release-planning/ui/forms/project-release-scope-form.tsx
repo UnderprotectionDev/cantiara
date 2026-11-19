@@ -7,7 +7,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { projectReleaseScopeFormSchema } from "../../lib/project-release-planning-form";
 
 /** `Add Work to scope`: one explicit Work of this Project at a time. */
@@ -36,7 +36,7 @@ export function ProjectReleaseScopeForm({
       }
     },
   });
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

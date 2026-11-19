@@ -22,7 +22,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 
 import {
   type DefinitionRevisionArgs,
@@ -150,10 +150,10 @@ export default function CustomFieldEditor({
       definitions={query.data ?? []}
       disabled={
         disabled ||
-        update.status === "pending" ||
-        moveToTrash.status === "pending" ||
-        restore.status === "pending" ||
-        deletePermanently.status === "pending"
+        update.isPending ||
+        moveToTrash.isPending ||
+        restore.isPending ||
+        deletePermanently.isPending
       }
       editingId={editingId}
       onCancelEdit={() => setEditingId(null)}
@@ -213,7 +213,7 @@ export default function CustomFieldEditor({
     );
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
@@ -251,7 +251,7 @@ export default function CustomFieldEditor({
               <Field>
                 <FieldLabel htmlFor="custom-field-name">Field name</FieldLabel>
                 <Input
-                  disabled={disabled || create.status === "pending"}
+                  disabled={disabled || create.isPending}
                   id="custom-field-name"
                   name={field.name}
                   onChange={(event) => field.handleChange(event.target.value)}
@@ -266,7 +266,7 @@ export default function CustomFieldEditor({
               <Field>
                 <FieldLabel htmlFor="custom-field-type">Type</FieldLabel>
                 <NativeSelect
-                  disabled={disabled || create.status === "pending"}
+                  disabled={disabled || create.isPending}
                   id="custom-field-type"
                   name={field.name}
                   onChange={(event) =>
@@ -294,7 +294,7 @@ export default function CustomFieldEditor({
                         Options
                       </FieldLabel>
                       <Textarea
-                        disabled={disabled || create.status === "pending"}
+                        disabled={disabled || create.isPending}
                         id="custom-field-options"
                         name={field.name}
                         onChange={(event) =>
@@ -317,7 +317,7 @@ export default function CustomFieldEditor({
           <form.Field name="recordTypes">
             {(field) => (
               <RecordTypesFieldset
-                disabled={disabled || create.status === "pending"}
+                disabled={disabled || create.isPending}
                 name="Record types"
                 onCheckedChange={(recordType, checked) =>
                   field.handleChange(
@@ -347,10 +347,10 @@ export default function CustomFieldEditor({
         <form.Subscribe selector={(state) => state.isSubmitting}>
           {(isSubmitting) => (
             <Button
-              disabled={disabled || isSubmitting || create.status === "pending"}
+              disabled={disabled || isSubmitting || create.isPending}
               type="submit"
             >
-              {isSubmitting || create.status === "pending"
+              {isSubmitting || create.isPending
                 ? "Adding…"
                 : "Add custom field"}
             </Button>
@@ -568,7 +568,7 @@ function CustomFieldEditForm({
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

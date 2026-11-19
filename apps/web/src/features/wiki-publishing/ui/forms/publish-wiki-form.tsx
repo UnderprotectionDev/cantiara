@@ -19,8 +19,8 @@ import {
 } from "@cantiara/ui/components/dialog";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useEffect, useRef } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useEffect, useRef } from "react";
 import {
   EMPTY_WIKI_PUBLISH_FORM,
   isValidWikiSlug,
@@ -114,7 +114,7 @@ export function PublishWikiDialog({
       }
     },
   });
-  const values = useStore(form.store, (state) => state.values);
+  const values = useSelector(form.store, (state) => state.values);
   const approved = new Set(values.approved);
   const slugValid = isValidWikiSlug(values.slug);
   const previousFingerprint = useRef(preview.fingerprint);
@@ -129,7 +129,7 @@ export function PublishWikiDialog({
   const placeholders = leavingPlaceholders(preview, approved);
   const blocked =
     (placeholders.length > 0 && !values.publishAnyway) || !slugValid;
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

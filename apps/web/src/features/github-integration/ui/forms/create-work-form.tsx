@@ -13,7 +13,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useState } from "react";
 import { errorText } from "../../lib/github-error-text";
 import {
@@ -67,7 +67,7 @@ function DraftForm({
       }
     },
   });
-  const pending = useStore(form.store, (state) => state.isSubmitting);
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
   return (
     <form
       aria-label={`${GITHUB_CREATE_WORK_LABEL} draft`}
@@ -184,7 +184,7 @@ export function CreateWorkForm({
       }
     },
   });
-  const loading = useStore(pickForm.store, (state) => state.isSubmitting);
+  const loading = useSelector(pickForm.store, (state) => state.isSubmitting);
   return (
     <section
       aria-labelledby={headingId}

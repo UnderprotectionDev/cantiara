@@ -128,7 +128,7 @@ export default function LinkSharingSurface({
       }}
       preview={preview.data}
       previewError={preview.isError}
-      previewLoading={root !== null && preview.status === "pending"}
+      previewLoading={root !== null && preview.isPending}
       roots={roots.data}
       selectedKey={selectedKey}
     />

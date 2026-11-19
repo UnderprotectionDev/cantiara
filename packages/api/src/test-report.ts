@@ -131,7 +131,7 @@ export const TEST_REPORT_EVIDENCE_TYPES = [
 const textField = (max: number) => z.string().min(1).max(max);
 const opaqueId = z.string().min(1).max(255);
 const rfc3339 = z.iso.datetime({ offset: true });
-const positiveInt = z.number().int().min(1).safe();
+const positiveInt = z.number().int().min(1);
 
 export const testReportExecutorSchema = z
   .object({

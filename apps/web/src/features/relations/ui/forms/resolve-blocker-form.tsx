@@ -2,7 +2,7 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 import { resolveBlockerFormSchema } from "../../lib/relation-forms";
 
@@ -36,7 +36,7 @@ export function ResolveBlockerForm({
   return (
     <form
       className="flex w-full flex-col gap-2 sm:max-w-sm"
-      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+      onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
         event.preventDefault();
         event.stopPropagation();
         form.handleSubmit().catch(() => undefined);

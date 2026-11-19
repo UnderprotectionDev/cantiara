@@ -13,7 +13,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clampCoordinate } from "../../lib/file-attachment-markup-geometry";
 
@@ -216,7 +216,7 @@ export default function FileAttachmentLocationBinder({
     },
   });
 
-  const mode = useStore(form.store, (state) => state.values.mode);
+  const mode = useSelector(form.store, (state) => state.values.mode);
 
   useEffect(() => {
     const values = locationBinderValues(location, projectId);
@@ -231,7 +231,7 @@ export default function FileAttachmentLocationBinder({
   }, [form, location, projectId]);
 
   const handleFormSubmit = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
+    (event: React.SubmitEvent<HTMLFormElement>) => {
       event.preventDefault();
       form.handleSubmit().catch(() => undefined);
     },

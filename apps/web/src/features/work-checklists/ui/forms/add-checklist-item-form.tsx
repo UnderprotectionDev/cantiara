@@ -6,7 +6,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 export function AddChecklistItemForm({
   disabled,
@@ -35,7 +35,7 @@ export function AddChecklistItemForm({
     },
   });
 
-  function handleAddItemSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleAddItemSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     addItemForm.handleSubmit().catch(() => undefined);

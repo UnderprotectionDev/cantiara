@@ -18,7 +18,7 @@ export default function ExportSurface() {
   // A list screen's exact view, handed over once for this visit.
   const [handoff] = useState(takeExportHandoff);
 
-  if (catalog.status === "pending" || projects.status === "pending") {
+  if (catalog.status === "pending" || projects.isPending) {
     return <p role="status">Loading {EXPORT_LABEL}…</p>;
   }
   if (catalog.isError || projects.isError || !catalog.data || !projects.data) {

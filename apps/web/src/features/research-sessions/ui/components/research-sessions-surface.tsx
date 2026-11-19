@@ -171,7 +171,7 @@ export default function ResearchSessionsSurface({
   function startEditing() {
     pending.current = null;
   }
-  if (query.status === "pending" || preferences.status === "pending") {
+  if (query.status === "pending" || preferences.isPending) {
     return <p role="status">Loading Research Sessions…</p>;
   }
   if (!(query.data && preferences.data)) {

@@ -1,5 +1,5 @@
 import { Button } from "@cantiara/ui/components/button";
-import { useStore } from "@tanstack/react-store";
+import { useSelector } from "@tanstack/react-store";
 import { useCallback } from "react";
 import {
   type ActiveWorkingSetMember,
@@ -54,7 +54,7 @@ export default function ActiveWorkingSetTray({
 }: {
   open: OpenActiveWorkingSetMember;
 }) {
-  const { collapsed, members } = useStore(activeWorkingSetStore);
+  const { collapsed, members } = useSelector(activeWorkingSetStore);
   const collapse = useCallback(() => setActiveWorkingSetCollapsed(true), []);
   const show = useCallback(() => setActiveWorkingSetCollapsed(false), []);
   if (members.length === 0) {

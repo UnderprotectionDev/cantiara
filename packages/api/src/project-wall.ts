@@ -138,7 +138,7 @@ export const PROJECT_WALL_DENSITY_FIELDS: Record<
   },
 };
 
-const coordinateSchema = z.number().finite().min(-100_000).max(100_000);
+const coordinateSchema = z.number().min(-100_000).max(100_000);
 export const projectWallPositionSchema = z
   .object({ x: coordinateSchema, y: coordinateSchema })
   .strict();

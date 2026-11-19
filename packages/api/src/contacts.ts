@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 const identifierSchema = z.string().trim().min(1).max(255);
-const revisionSchema = z.number().int().nonnegative().safe();
-const timestampSchema = z.string().datetime({ offset: true });
+const revisionSchema = z.number().int().nonnegative();
+const timestampSchema = z.iso.datetime({ offset: true });
 
 export const contactDisplayNameSchema = z
   .string()
@@ -24,7 +24,7 @@ export const contactEmailSchema = z
   .string()
   .trim()
   .max(320, "Email must be 320 characters or fewer.")
-  .email("Enter a valid email address.")
+  .check(z.email("Enter a valid email address."))
   .transform(normalizeContactEmail);
 
 /**
@@ -106,7 +106,7 @@ export type ContactIdentityInput = z.input<typeof contactIdentityInputSchema>;
 export const companySchema = z
   .object({
     archivedAt: timestampSchema.nullable(),
-    contactCount: z.number().int().nonnegative().safe(),
+    contactCount: z.number().int().nonnegative(),
     createdAt: timestampSchema,
     id: identifierSchema,
     name: companyNameSchema,
@@ -311,7 +311,7 @@ export type MergeUndoConflict = z.infer<typeof mergeUndoConflictSchema>;
 /** Content that no longer exists, so undo cannot bring it back. */
 export const mergeUndoMissingSchema = z
   .object({
-    count: z.number().int().positive().safe(),
+    count: z.number().int().positive(),
     kind: z.enum(["Feedback link", "Persona link", "Company link"]),
   })
   .strict();

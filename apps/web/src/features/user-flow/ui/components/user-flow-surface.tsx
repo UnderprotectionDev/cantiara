@@ -266,7 +266,7 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
       onSelect={setSelectedId}
       readOnly={false}
       selected={
-        flow.data && !(viewport.status === "pending") ? (
+        flow.data && !viewport.isPending ? (
           <div className="space-y-4">
             <Suspense fallback={<p role="status">Loading canvas…</p>}>
               <UserFlowCanvas

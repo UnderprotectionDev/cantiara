@@ -14,8 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useEffect, useRef } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useEffect, useRef } from "react";
 import {
   EMPTY_PUBLISH_FORM,
   type PublishFormValues,
@@ -87,7 +87,7 @@ export function PublishPreviewDialog({
       }
     },
   });
-  const values = useStore(form.store, (state) => state.values);
+  const values = useSelector(form.store, (state) => state.values);
   const selection = selectionOf(values);
   const previousFingerprint = useRef(preview.fingerprint);
   useEffect(() => {
@@ -114,7 +114,7 @@ export function PublishPreviewDialog({
         <form
           aria-label="Publish preview"
           className="grid gap-4"
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
+          onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
             event.preventDefault();
             event.stopPropagation();
             form.handleSubmit().catch(() => undefined);

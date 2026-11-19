@@ -202,11 +202,10 @@ function SelectedDecisionActions({
   return (
     <>
       {" "}
-      {selected && graph.status === "pending" ? (
+      {selected && graph.isPending ? (
         <p role="status">Loading Decision chain…</p>
       ) : null}
-      {selected &&
-      (graph.isError || !(graph.status === "pending" || graph.data)) ? (
+      {selected && (graph.isError || !(graph.isPending || graph.data)) ? (
         <p role="alert">Decision chain is unavailable.</p>
       ) : null}
       {selected ? (

@@ -343,7 +343,7 @@ function DailyFocusDayView({
                 </Link>
                 <Button
                   aria-label={`Remove ${work.title} from Daily Focus`}
-                  disabled={remove.status === "pending"}
+                  disabled={remove.isPending}
                   onClick={() => remove.mutate(work.id)}
                   size="sm"
                   type="button"
@@ -462,7 +462,7 @@ function DailyFocusDayView({
                 </Link>
                 <div className="flex gap-2 sm:shrink-0">
                   <Button
-                    disabled={add.status === "pending"}
+                    disabled={add.isPending}
                     onClick={() => add.mutate(candidate.id)}
                     size="sm"
                     type="button"
@@ -505,7 +505,7 @@ function DailyFocusDayView({
           available={dailyFocus.data?.available ?? []}
           focusDate={focusDate}
           onAdd={add.mutateAsync}
-          pending={add.status === "pending"}
+          pending={add.isPending}
         />
         {add.isError || remove.isError ? (
           <p className="mt-3 text-sm text-destructive" role="alert">

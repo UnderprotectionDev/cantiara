@@ -361,7 +361,7 @@ function validateRecordTableFields(
 
 export const recordTableCellUpdateInputSchema = z
   .object({
-    baseRevision: z.number().int().nonnegative().safe(),
+    baseRevision: z.number().int().nonnegative(),
     clientIdempotencyKey: z.string().trim().min(1).max(100),
     field: z.string().trim().min(1).max(100),
     projectId: z.string().trim().min(1).max(200),
@@ -380,7 +380,7 @@ const recordTablePasteRowSchema = z.discriminatedUnion("kind", [
       kind: z.literal("update"),
       recordId: z.string().trim().min(1).max(200),
       projectId: z.string().trim().min(1).max(200),
-      baseRevision: z.number().int().nonnegative().safe(),
+      baseRevision: z.number().int().nonnegative(),
       fields: z.record(z.string(), z.unknown()),
     })
     .strict(),

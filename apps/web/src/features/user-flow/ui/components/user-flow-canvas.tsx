@@ -427,8 +427,9 @@ function Editor({
     collapsedRef.current = [];
     setCollapsed([]);
     window.requestAnimationFrame(() => {
+      // React Flow 13 reads padding as a per-side margin; v12's default 0.1 is (1 - 1/1.1) / 2.
       reactFlow
-        .fitView({ duration: 0 })
+        .fitView({ duration: 0, padding: "4.545454545454546%" })
         .then(() => rememberViewport(reactFlow.getViewport(), []))
         .catch(() => undefined);
     });
@@ -475,7 +476,9 @@ function Editor({
       collapsedRef.current = resolution.collapsed;
       setCollapsed(resolution.collapsed);
     }
-    instance.fitView({ duration: 0 }).catch(() => undefined);
+    instance
+      .fitView({ duration: 0, padding: "4.545454545454546%" })
+      .catch(() => undefined);
   }
 
   function run(command: EditorCommand) {
@@ -496,6 +499,7 @@ function Editor({
         reactFlow
           .fitView({
             duration: 0,
+            padding: "4.545454545454546%",
             nodes:
               editor.selection.length > 0
                 ? editor.selection.map((id) => ({ id }))

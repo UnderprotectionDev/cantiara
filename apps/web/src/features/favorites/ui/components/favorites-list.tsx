@@ -63,10 +63,10 @@ function FavoriteRow({
             {current.life ? ` · ${current.life}` : ""}
           </p>
           <Button
-            aria-busy={opening.status === "pending"}
+            aria-busy={opening.isPending}
             aria-label={`Open source record: ${current.title}`}
             className="min-h-11"
-            disabled={opening.status === "pending"}
+            disabled={opening.isPending}
             onClick={open}
             type="button"
             variant="outline"

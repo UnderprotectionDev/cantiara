@@ -11,11 +11,11 @@ import {
 } from "@cantiara/ui/components/command";
 import { Kbd } from "@cantiara/ui/components/kbd";
 import { useNavigate } from "@tanstack/react-router";
-import { createStore, useStore } from "@tanstack/react-store";
+import { createStore, useSelector } from "@tanstack/react-store";
 import {
-  AlertCircle,
   ArrowLeftRight,
   ChevronLeft,
+  CircleExclamationPoint,
   Command as CommandIcon,
   FileText,
   FolderKanban,
@@ -293,7 +293,7 @@ export default function CommandPalette({
               className="flex gap-2 border-b border-destructive bg-destructive/10 px-4 py-3 text-xs text-destructive"
               role="alert"
             >
-              <AlertCircle
+              <CircleExclamationPoint
                 aria-hidden="true"
                 className="mt-0.5 size-4 shrink-0"
               />
@@ -557,7 +557,7 @@ export function CommandPaletteProvider({
       open: false,
     }),
   );
-  const { initialQuery, open } = useStore(paletteStore);
+  const { initialQuery, open } = useSelector(paletteStore);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const wasOpenRef = useRef<boolean | null>(null);
   const commandRegistrationTokensRef = useRef(new Map<string, symbol>());

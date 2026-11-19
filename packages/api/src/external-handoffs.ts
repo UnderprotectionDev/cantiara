@@ -51,7 +51,7 @@ const githubContextIdentifierSchema = z
   .trim()
   .min(1)
   .max(500)
-  .url()
+  .check(z.url())
   .refine(isPermittedGitHubIdentifier, {
     message: "Use a GitHub repository, issue, pull request, or commit URL.",
   });
@@ -153,7 +153,7 @@ export const externalExecutionHandoffHistoryEventSchema = z
     eventId: identifierSchema,
     eventType: externalExecutionHandoffHistoryEventTypeSchema,
     handoffId: identifierSchema,
-    occurredAt: z.string().datetime({ offset: true }),
+    occurredAt: z.iso.datetime({ offset: true }),
   })
   .strict();
 
@@ -181,7 +181,7 @@ export const externalExecutionHandoffWorkSnapshotSchema = z
     description: z.string().nullable(),
     id: identifierSchema,
     key: identifierSchema,
-    revision: z.number().int().nonnegative().safe(),
+    revision: z.number().int().nonnegative(),
     status: workStatusSchema,
     targetDate: z.string().nullable(),
     title: textFieldSchema,
@@ -199,7 +199,7 @@ export const externalExecutionHandoffSelectedVersionsSchema = z
     work: z
       .object({
         recordId: identifierSchema,
-        revision: z.number().int().nonnegative().safe(),
+        revision: z.number().int().nonnegative(),
         recordType: z.literal("Work"),
       })
       .strict()
@@ -216,7 +216,7 @@ const externalLinkSchema = z
   .trim()
   .min(1)
   .max(2000)
-  .url()
+  .check(z.url())
   .refine((value) => {
     try {
       const url = new URL(value);
@@ -240,7 +240,7 @@ export const externalExecutionHandoffResultInputSchema = z
 
 export const externalExecutionHandoffResultSchema =
   externalExecutionHandoffResultInputSchema
-    .extend({ returnedAt: z.string().datetime({ offset: true }) })
+    .extend({ returnedAt: z.iso.datetime({ offset: true }) })
     .strict();
 
 export type ExternalExecutionHandoffResult = z.infer<
@@ -421,7 +421,7 @@ export type ConfirmExternalExecutionHandoffReconcileInput = z.infer<
 
 export const externalExecutionHandoffReconcileDecisionSchema = z
   .object({
-    confirmedAt: z.string().datetime({ offset: true }),
+    confirmedAt: z.iso.datetime({ offset: true }),
     confirmedBy: identifierSchema,
     decisionId: identifierSchema,
     previewId: identifierSchema,
@@ -457,19 +457,19 @@ export const externalExecutionHandoffSchema = z
   .object({
     cancellationReason: optionalTextFieldSchema.nullable(),
     constraints: optionalTextFieldSchema,
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: z.iso.datetime({ offset: true }),
     executor: textFieldSchema,
     expectedOutput: textFieldSchema,
     githubContext: githubContextSchema,
     handoffId: identifierSchema,
     includeWork: z.boolean(),
     packageMarkdown: z.string().min(1),
-    packageProducedAt: z.string().datetime({ offset: true }),
+    packageProducedAt: z.iso.datetime({ offset: true }),
     purpose: textFieldSchema,
     reconcileDecision:
       externalExecutionHandoffReconcileDecisionSchema.nullable(),
     result: externalExecutionHandoffResultSchema.nullable(),
-    selectedWorkRevision: z.number().int().nonnegative().safe().nullable(),
+    selectedWorkRevision: z.number().int().nonnegative().nullable(),
     status: externalExecutionHandoffStatusSchema,
     workId: identifierSchema,
   })
@@ -556,7 +556,7 @@ export function renderExternalExecutionHandoffPackage({
   if (input.workId !== work.id) {
     throw new Error("The selected Work does not match the handoff owner.");
   }
-  const timestamp = z.string().datetime({ offset: true }).parse(producedAt);
+  const timestamp = z.iso.datetime({ offset: true }).parse(producedAt);
   const id = identifierSchema.parse(handoffId);
 
   const sections = [

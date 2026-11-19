@@ -70,6 +70,44 @@ describe("Sources and Freshness isolated preview", () => {
       ).toMatchObject({ kind: "preview", capturedContent: "Before After" });
     },
   );
+  test("preserves plain noembed fallback text without scripts or markup", async () => {
+    const network = previewNetwork();
+    network.request = async () => ({
+      status: 200,
+      headers: { "content-type": "text/html" },
+      body: new TextEncoder().encode(
+        "<title>Title</title>Visible<noembed><p>Fallback</p><script>secret()</script></noembed>After",
+      ),
+    });
+    expect(
+      await createSmartLinkPreview(network)("https://example.org/research"),
+    ).toMatchObject({
+      kind: "preview",
+      title: "Title",
+      capturedContent: "VisibleFallback After",
+    });
+  });
+  test.each([
+    { outer: "noembed", inner: "noembed", depth: 2 },
+    { outer: "noembed", inner: "noembed", depth: 500 },
+    { outer: "noembed", inner: "noframes", depth: 2 },
+    { outer: "noframes", inner: "noembed", depth: 2 },
+  ])(
+    "excludes scripts in nested $outer/$inner fallback at depth $depth",
+    async ({ outer, inner, depth }) => {
+      const network = previewNetwork();
+      network.request = async () => ({
+        status: 200,
+        headers: { "content-type": "text/html" },
+        body: new TextEncoder().encode(
+          `Before<${outer}>${`<${inner}>`.repeat(depth)}<script>secret()</script>${`</${inner}>`.repeat(depth)}</${outer}>After`,
+        ),
+      });
+      expect(
+        await createSmartLinkPreview(network)("https://example.org/research"),
+      ).toMatchObject({ kind: "preview", capturedContent: "Before After" });
+    },
+  );
   test("returns a transient preview and sanitized capture without creating a Source", async () => {
     const preview = await createSmartLinkPreview(previewNetwork())(
       "https://example.org/research",

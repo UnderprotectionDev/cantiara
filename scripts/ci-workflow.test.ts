@@ -153,6 +153,29 @@ test("restored caches reuse dependencies and transforms without skipping tests",
   expect(turboCache?.with?.key).toContain("bun.lock");
 });
 
+test("Node-based tools run on the pinned Bun and a supported Node", () => {
+  for (const name of [
+    "database-integration",
+    "server-integration",
+    "unit-integration",
+    "browser-integration",
+    "command-palette-performance",
+  ]) {
+    const steps = workflow.jobs[name]?.steps ?? [];
+    const bun = steps.find((step) => step.uses === "oven-sh/setup-bun@v2");
+    const nodeIndex = steps.findIndex(
+      (step) => step.uses === "actions/setup-node@v4",
+    );
+    const installIndex = steps.findIndex((step) =>
+      step.run?.includes("bun install --frozen-lockfile"),
+    );
+    expect(bun?.with?.["bun-version"]).toBe("1.4.4");
+    expect(nodeIndex).toBeGreaterThan(-1);
+    expect(nodeIndex).toBeLessThan(installIndex);
+    expect(steps[nodeIndex]?.with?.["node-version"]).toBe("^24.15.0");
+  }
+});
+
 test("the integration gate rejects failed, skipped and cancelled validation groups", () => {
   expect(workflow.jobs["core-integration"]).toBeUndefined();
   const expectedDependencies = {

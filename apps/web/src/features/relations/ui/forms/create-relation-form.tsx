@@ -6,8 +6,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, type ReactNode, useEffect } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type ReactNode, type SubmitEvent, useEffect } from "react";
 
 import {
   createRelationFormSchema,
@@ -47,7 +47,7 @@ export function CreateRelationForm({
       onPreview(parsed.data);
     },
   });
-  const targetWorkId = useStore(
+  const targetWorkId = useSelector(
     form.store,
     (state) => state.values.targetWorkId,
   );
@@ -66,7 +66,7 @@ export function CreateRelationForm({
   return (
     <form
       className="mt-3 grid gap-2 rounded-md border border-border/70 bg-muted/20 p-3"
-      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+      onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
         event.preventDefault();
         event.stopPropagation();
         form.handleSubmit().catch(() => undefined);

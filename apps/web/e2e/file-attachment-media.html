@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>File Attachment preview fixture</title>
+  </head>
+  <body>
+    <div id="preview"></div>
+    <script type="module">
+    import "../src/index.css";
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { FileAttachmentPreviewView } from "../src/features/file-attachments/ui/components/file-attachment-preview.tsx";
+
+    const params = new URLSearchParams(location.search);
+    const root = createRoot(document.getElementById("preview"));
+    const kind = params.get("kind") === "audio" ? "audio" : "video";
+    let asset;
+    if (kind === "audio") {
+      const bytes = new ArrayBuffer(44 + 16_000);
+      const data = new DataView(bytes);
+      const text = (offset, value) => {
+        for (const [index, character] of [...value].entries()) {
+          data.setUint8(offset + index, character.charCodeAt(0));
+        }
+      };
+      text(0, "RIFF");
+      data.setUint32(4, 36 + 16_000, true);
+      text(8, "WAVE");
+      text(12, "fmt ");
+      data.setUint32(16, 16, true);
+      data.setUint16(20, 1, true);
+      data.setUint16(22, 1, true);
+      data.setUint32(24, 8000, true);
+      data.setUint32(28, 16_000, true);
+      data.setUint16(32, 2, true);
+      data.setUint16(34, 16, true);
+      text(36, "data");
+      data.setUint32(40, 16_000, true);
+      asset = new Blob([bytes], { type: "audio/wav" });
+    } else {
+      const canvas = document.createElement("canvas");
+      canvas.width = 160;
+      canvas.height = 90;
+      const stream = canvas.captureStream(10);
+      const recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+      const chunks = [];
+      recorder.addEventListener("dataavailable", (event) =>
+        chunks.push(event.data),
+      );
+      const recorded = new Promise((resolve) =>
+        recorder.addEventListener("stop", resolve, { once: true }),
+      );
+      recorder.start();
+      const paint = setInterval(() => {
+        canvas.getContext("2d").fillRect(0, 0, 160, 90);
+      }, 50);
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      recorder.stop();
+      await recorded;
+      clearInterval(paint);
+      for (const track of stream.getTracks()) {
+        track.stop();
+      }
+      asset = new Blob(chunks, { type: "video/webm" });
+    }
+    const assetURL = URL.createObjectURL(asset);
+    const version = {
+      byteSize: asset.size,
+      contentHash: "a".repeat(64),
+      createdAt: "2026-11-19T00:00:00.000Z",
+      detectedMimeType: asset.type,
+      extension: kind === "audio" ? ".wav" : ".webm",
+      fileName: "Media fixture",
+      id: "version-1",
+      mimeType: asset.type,
+      number: 1,
+      preview: kind,
+    };
+    root.render(
+      createElement(FileAttachmentPreviewView, {
+        attachment: {
+          id: "attachment-1",
+          name: "Media fixture",
+          currentVersion: version,
+          createdAt: version.createdAt,
+          updatedAt: version.createdAt,
+          lifecycleStatus: "Active",
+          revision: 0,
+          scope: { kind: "project", projectId: "project-1" },
+        },
+        assetStatus: "ready",
+        assetURL,
+        onDownload: () => undefined,
+        preview: {
+          attachmentId: "attachment-1",
+          versionId: "version-1",
+          kind,
+          status: "available",
+          previewPath:
+            "/api/file-attachments/attachment-1/versions/version-1/asset?variant=original",
+          downloadPath:
+            "/api/file-attachments/attachment-1/versions/version-1/asset?variant=original",
+          playback: {
+            autoplay: false,
+            fullscreen: true,
+            loop: "optional",
+            speeds: [0.75, 1, 1.25, 1.5, 2],
+            userInitiated: true,
+          },
+        },
+      }),
+    );
+    addEventListener("pagehide", () => URL.revokeObjectURL(assetURL), {
+      once: true,
+    });
+    </script>
+  </body>
+</html>

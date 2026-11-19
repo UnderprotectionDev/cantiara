@@ -7,7 +7,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
 import { Check, LockKeyhole, Pencil, Save } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type SubmitEvent, useCallback, useEffect, useState } from "react";
 
 import { useProjectShortCode } from "../../hooks/use-project-short-code";
 
@@ -45,7 +45,7 @@ export default function ProjectShortCodeForm({
     form.setFieldValue("shortCode", project.shortCode);
   }, [form, project.shortCode]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

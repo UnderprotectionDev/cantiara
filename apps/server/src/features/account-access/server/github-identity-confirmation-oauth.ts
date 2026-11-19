@@ -14,6 +14,7 @@ export interface GitHubOAuthFetchInit {
   body?: URLSearchParams;
   headers?: Record<string, string>;
   method?: string;
+  redirect?: "error";
 }
 
 export interface GitHubOAuthFetchResponse {
@@ -101,6 +102,7 @@ export function createGitHubIdentityConfirmationOAuth({
           "content-type": "application/x-www-form-urlencoded",
         },
         method: "POST",
+        redirect: "error",
       });
     } catch {
       await markUnavailable();

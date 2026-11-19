@@ -7,7 +7,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useEffect } from "react";
+import { type SubmitEvent, useEffect } from "react";
 
 export default function WorkDuplicateForm({
   duplicate,
@@ -67,7 +67,7 @@ export default function WorkDuplicateForm({
     }
   }, [form, preview.data]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

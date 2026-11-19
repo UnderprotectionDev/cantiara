@@ -236,7 +236,10 @@ function Canvas({
         .then(ready);
       return;
     }
-    instance.fitView({ duration: 0 }).then(ready);
+    // React Flow 13 reads padding as a per-side margin; v12's default 0.1 is (1 - 1/1.1) / 2.
+    instance
+      .fitView({ duration: 0, padding: "4.545454545454546%" })
+      .then(ready);
   }
 
   // `Fit View` returns to the neutral view: every group expands, then all
@@ -244,7 +247,9 @@ function Canvas({
   const pendingFit = useRef<boolean>(false);
   const fitNow = useCallback(() => {
     requestAnimationFrame(() => {
-      reactFlow.fitView({ duration: 0 }).then(() => reportViewport(reactFlow));
+      reactFlow
+        .fitView({ duration: 0, padding: "4.545454545454546%" })
+        .then(() => reportViewport(reactFlow));
     });
   }, [reactFlow, reportViewport]);
   const fitView = useCallback(() => {

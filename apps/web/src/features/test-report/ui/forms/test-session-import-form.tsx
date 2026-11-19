@@ -2,8 +2,8 @@
 import { TEST_SESSION_LABEL } from "@cantiara/api/test-report";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 import { refusalText } from "../../lib/refusal-text";
 import {
   parseTestSessionImport,
@@ -55,8 +55,8 @@ export default function TestSessionImportForm({
       }
     },
   });
-  const pending = useStore(form.store, (state) => state.isSubmitting);
-  function submit(event: FormEvent<HTMLFormElement>) {
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

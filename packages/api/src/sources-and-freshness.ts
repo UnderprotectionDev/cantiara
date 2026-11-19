@@ -49,7 +49,7 @@ export const sourceVersionSchema = z
   .object({
     ...sourceCaptureFields,
     sourceId: identifier,
-    revision: z.number().int().positive().safe(),
+    revision: z.number().int().positive(),
     savedAt: timestamp,
   })
   .strict();
@@ -58,7 +58,7 @@ export const sourceRecordSchema = z
     id: identifier,
     projectId: identifier,
     sourceType: z.literal("Source"),
-    revision: z.number().int().positive().safe(),
+    revision: z.number().int().positive(),
     createdAt: timestamp,
     updatedAt: timestamp,
     version: sourceVersionSchema,

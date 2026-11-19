@@ -3,7 +3,7 @@ import type { TestReviewClosePreview } from "@cantiara/api/test-review";
 import { Button } from "@cantiara/ui/components/button";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 import { usePanelFocus } from "../../hooks/use-panel-focus";
 import { closeSessionFormSchema } from "../../lib/test-review-forms";
 
@@ -27,7 +27,7 @@ export default function CloseSessionForm({
       }
     },
   });
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

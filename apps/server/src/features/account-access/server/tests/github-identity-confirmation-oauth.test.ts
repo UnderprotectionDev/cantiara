@@ -43,7 +43,7 @@ describe("Account Access Confirm GitHub Identity OAuth", () => {
       clientSecret: "github-client-secret",
       fetch: (input, init) => {
         if (input instanceof Request) {
-          requests.push(new Request(input, init));
+          requests.push(new Request(String(input), init));
         } else {
           requests.push(new Request(input.toString(), init));
         }
@@ -92,6 +92,34 @@ describe("Account Access Confirm GitHub Identity OAuth", () => {
       "Bearer github-access-token",
     );
     expect(markAvailable).toHaveBeenCalledOnce();
+  });
+
+  test("rejects token redirects without requesting identity or confirming access", async () => {
+    const requests: Request[] = [];
+    const markAvailable = vi.fn();
+    const markUnavailable = vi.fn();
+    const oauth = createGitHubIdentityConfirmationOAuth({
+      callbackURL:
+        "https://api.cantiara.example/api/auth/confirm-github-identity/callback",
+      clientId: "github-client-id",
+      clientSecret: "github-client-secret",
+      fetch: (input, init) => {
+        requests.push(new Request(String(input), init));
+        return Promise.reject(new TypeError("OAuth token endpoint redirected"));
+      },
+      githubAvailability: { markAvailable, markUnavailable },
+    });
+
+    await expect(
+      oauth.exchangeAuthorizationCode({
+        code: "authorization-code",
+        codeVerifier: "V".repeat(43),
+      }),
+    ).resolves.toBeNull();
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.redirect).toBe("error");
+    expect(markAvailable).not.toHaveBeenCalled();
+    expect(markUnavailable).toHaveBeenCalledOnce();
   });
 
   test("marks GitHub unavailable and returns no identity when the provider is down", async () => {

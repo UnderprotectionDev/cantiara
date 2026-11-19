@@ -14,7 +14,7 @@ import {
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useEffect, useMemo, useRef } from "react";
+import { type SubmitEvent, useEffect, useMemo, useRef } from "react";
 
 const formatSchema = personalDataProduceInputSchema.shape.format;
 
@@ -119,7 +119,7 @@ export function PersonalDataPreviewPanel({
       <form
         aria-label="Create package"
         className="space-y-4"
-        onSubmit={(event: FormEvent<HTMLFormElement>) => {
+        onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
           event.preventDefault();
           event.stopPropagation();
           form.handleSubmit().catch(() => undefined);

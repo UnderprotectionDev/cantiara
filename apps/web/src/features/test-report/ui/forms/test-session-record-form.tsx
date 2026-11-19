@@ -15,8 +15,8 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useState } from "react";
 import { DateTimePicker } from "@/components/date-picker";
 import { refusalText } from "../../lib/refusal-text";
 import {
@@ -57,8 +57,8 @@ export default function TestSessionRecordForm({
       }
     },
   });
-  const pending = useStore(form.store, (state) => state.isSubmitting);
-  function submit(event: FormEvent<HTMLFormElement>) {
+  const pending = useSelector(form.store, (state) => state.isSubmitting);
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

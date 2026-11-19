@@ -12,8 +12,8 @@ import {
 } from "@cantiara/api/smart-link-preview";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm, useStore } from "@tanstack/react-form";
-import { type ClipboardEvent, type FormEvent, useRef, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type ClipboardEvent, type SubmitEvent, useRef, useState } from "react";
 import { YouTubePreviewPlayer } from "@/components/youtube-preview-player";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 
@@ -45,7 +45,7 @@ export function SmartLinkComposer({
       await load(parsed.data.url);
     },
   });
-  const url = useStore(form.store, (state) => state.values.url);
+  const url = useSelector(form.store, (state) => state.values.url);
   async function load(value: string) {
     requestNumber.current += 1;
     const request = requestNumber.current;
@@ -80,7 +80,7 @@ export function SmartLinkComposer({
     setMessage("");
     setLoading(false);
   }
-  function requestPreview(event: FormEvent<HTMLFormElement>) {
+  function requestPreview(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);

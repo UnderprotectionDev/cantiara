@@ -13,7 +13,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import {
   CONDITION_KINDS,
   type CustomSectionValues,
@@ -58,7 +58,7 @@ export function WorkContextCustomSectionForm({
       formApi.setFieldValue("title", "");
     },
   });
-  const values = useStore(form.store, (state) => state.values);
+  const values = useSelector(form.store, (state) => state.values);
   const { conditionKind, title } = values;
   const statusLabel =
     pickOption(WORK_STATUS_OPTIONS, values.status) ?? "Any status";
