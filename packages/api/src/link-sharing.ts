@@ -418,6 +418,12 @@ export class LinkSharingStateError extends Error {
   }
 }
 
+export class LinkSharingExpiryError extends LinkSharingStateError {
+  constructor() {
+    super("Choose an expiry in the future.");
+  }
+}
+
 /** Starting or revoking shares too often; try again after `retryAfterSeconds`. */
 export class LinkSharingRateLimitError extends Error {
   readonly code = "LINK_SHARING_RATE_LIMITED" as const;

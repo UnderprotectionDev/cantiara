@@ -1,12 +1,13 @@
 import { ORPCError, type ORPCErrorConstructorMap } from "@orpc/server";
 import {
   LinkSharingConflictError,
+  LinkSharingExpiryError,
   LinkSharingPlaceholdersError,
   LinkSharingRateLimitError,
   LinkSharingScopeError,
   LinkSharingStateError,
 } from "./link-sharing";
-import type { linkSharingErrors } from "./support-reference-rpc-errors";
+import type { linkSharingErrors } from "./link-sharing-rpc-errors";
 
 export async function linkSharingWrite<T>(
   errors: ORPCErrorConstructorMap<typeof linkSharingErrors>,
@@ -15,7 +16,7 @@ export async function linkSharingWrite<T>(
 ): Promise<T> {
   try {
     const result = await write();
-    if (result === null) {
+    if (!result) {
       throw new ORPCError("NOT_FOUND");
     }
     return result;
@@ -34,6 +35,12 @@ export async function linkSharingWrite<T>(
     }
     if (error instanceof LinkSharingScopeError) {
       throw errors.LINK_SHARING_SCOPE_INVALID({ cause: error });
+    }
+    if (error instanceof LinkSharingExpiryError) {
+      throw errors.LINK_SHARING_EXPIRY_NOT_IN_FUTURE({
+        cause: error,
+        data: { targetId },
+      });
     }
     if (error instanceof LinkSharingStateError) {
       throw errors.LINK_SHARING_STATE_INVALID({

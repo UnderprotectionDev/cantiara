@@ -155,6 +155,9 @@ export class ResearchSessionConsentError extends Error {
   }
 }
 
+/** A receipt exists, but its pinned content is no longer permitted. */
+export class ResearchSessionBindingConsentError extends Error {}
+
 export class ResearchSessionAccessError extends Error {
   readonly reason: "unavailable" | "project-archived" | "invalid-binding";
 

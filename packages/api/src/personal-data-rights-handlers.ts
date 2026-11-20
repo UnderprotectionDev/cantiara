@@ -13,7 +13,7 @@ import {
 import {
   type personalDataErrors,
   personalDataRpcCode,
-} from "./support-reference-rpc-errors";
+} from "./personal-data-rights-rpc-errors";
 
 type PersonalDataRpcErrors = ORPCErrorConstructorMap<typeof personalDataErrors>;
 

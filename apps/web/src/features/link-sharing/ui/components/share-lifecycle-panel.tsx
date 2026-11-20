@@ -11,8 +11,8 @@ import {
 } from "@cantiara/api/link-sharing";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
-import { isDefinedError, ORPCError } from "@orpc/client";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { linkSharingRefusalMessage } from "../../lib/link-sharing-refusal";
 import {
   defaultNewExpiry,
   expiryInput,
@@ -57,12 +57,7 @@ export function ShareLifecyclePanel({
       setStatus(done);
     } catch (failure) {
       setError(
-        failure instanceof ORPCError &&
-          isDefinedError(failure) &&
-          (failure.code === "LINK_SHARING_STATE_INVALID" ||
-            failure.code === "LINK_SHARING_RATE_LIMITED")
-          ? failure.message
-          : "That did not work. Try again.",
+        linkSharingRefusalMessage(failure) ?? "That did not work. Try again.",
       );
     }
   }

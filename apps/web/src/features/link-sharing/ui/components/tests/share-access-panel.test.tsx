@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { ORPCError } from "@orpc/client";
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -86,6 +87,34 @@ describe("Share access panel", () => {
     expect(buttons()).not.toContain("Copy link");
     expect(buttons()).toContain("Rotate link");
   });
+
+  test.each(["Rotate link", "Remove password"])(
+    "%s shows a typed Link Sharing refusal",
+    async (action) => {
+      const reject = vi.fn().mockRejectedValue(
+        new ORPCError("LINK_SHARING_STATE_INVALID", {
+          defined: true,
+          status: 409,
+        }),
+      );
+      mount({
+        onRotate: reject,
+        onRemovePassword: reject,
+        passwordProtected: true,
+      });
+      act(() => {
+        const button = [...(host?.querySelectorAll("button") ?? [])].find(
+          (item) => item.textContent === action,
+        );
+        expect(button).toBeDefined();
+        button?.click();
+      });
+      await flush();
+      expect(host?.querySelector('[role="alert"]')?.textContent).toBe(
+        "This action is unavailable for the current link state.",
+      );
+    },
+  );
 
   test("adds a password through a labelled password field and reports it saved", async () => {
     const props = mount();

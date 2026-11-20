@@ -21,6 +21,8 @@ import {
   captureResearchSessionContent,
   captureResearchSessionInputSchema,
   ResearchSessionAccessError,
+  ResearchSessionBindingConsentError,
+  ResearchSessionConsentError,
   type ResearchSessionRecord,
   type ResearchSessionsAccess,
   researchSessionConvertPreview,
@@ -411,14 +413,25 @@ export function createDatabaseResearchSessions(
       const binding = researchEvidenceBindingSchema.parse(
         receipt.nextValue.binding,
       );
-      // A retry resolves the durable receipt even after its temporary preview is swept.
-      // Recheck current permission before returning any pinned text from that receipt.
+      // Recheck Consent before returning a receipt's pinned content, even
+      // when replaying a commit that has already written the binding.
       const { componentId } = binding.pin.source;
       if (!componentId) {
-        throw new MutationConflictError(input.id);
+        throw new Error(
+          "The Research Session binding has no source component.",
+        );
       }
       const { session } = await readSession(accountId, input);
-      researchSessionConvertPreview(session, componentId);
+      try {
+        researchSessionConvertPreview(session, componentId);
+      } catch (error) {
+        if (error instanceof ResearchSessionConsentError) {
+          throw new ResearchSessionBindingConsentError(error.message, {
+            cause: error,
+          });
+        }
+        throw error;
+      }
       const [current] = await database
         .select()
         .from(evidenceBinding)

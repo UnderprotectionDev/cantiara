@@ -243,6 +243,7 @@ import {
   focusPeriodIdInputSchema,
   focusPeriodMembershipInputSchema,
 } from "../focus-period";
+import { focusPeriodMembershipErrors } from "../focus-period-rpc-errors";
 import {
   gitHubChecksInputSchema,
   gitHubChecksOutputSchema,
@@ -297,6 +298,7 @@ import {
   shareRootsInputSchema,
 } from "../link-sharing";
 import { linkSharingWrite } from "../link-sharing-handlers";
+import { linkSharingErrors } from "../link-sharing-rpc-errors";
 import {
   MoodboardSnapshotError,
   moodboardSnapshotExportInputSchema,
@@ -361,6 +363,7 @@ import {
   personalDataPreviewHandler,
   personalDataProduceHandler,
 } from "../personal-data-rights-handlers";
+import { personalDataErrors } from "../personal-data-rights-rpc-errors";
 import {
   cancelPersonalReminderInputSchema,
   cancelWorkReviewLaterInputSchema,
@@ -636,6 +639,7 @@ import {
 import {
   captureResearchSessionInputSchema,
   ResearchSessionAccessError,
+  ResearchSessionBindingConsentError,
   ResearchSessionConsentError,
   researchSessionConvertPreview,
   researchSessionConvertPreviewInputSchema,
@@ -645,6 +649,7 @@ import {
   saveResearchSessionInputSchema,
   saveResearchSessionNoteInputSchema,
 } from "../research-sessions";
+import { researchSessionErrors } from "../research-sessions-rpc-errors";
 import {
   returnContextInputSchema,
   saveNextConcreteStepInputSchema,
@@ -701,6 +706,7 @@ import {
   SecurityRedactionTypedNameMismatchError,
   securityRedactionPreviewInputSchema,
 } from "../security-redaction";
+import { securityRedactionErrors } from "../security-redaction-rpc-errors";
 import {
   createSmartCollectionInputSchema,
   SmartCollectionConflictError,
@@ -747,13 +753,6 @@ import {
   specChangeReviewFollowUpId,
   specChangeReviewFollowUpPayloadSchema,
 } from "../spec-change-review-follow-up";
-import {
-  focusPeriodMembershipErrors,
-  linkSharingErrors,
-  personalDataErrors,
-  researchSessionErrors,
-  securityRedactionErrors,
-} from "../support-reference-rpc-errors";
 import {
   applyTagInputSchema,
   createTagInputSchema,
@@ -993,6 +992,9 @@ function rethrowResearchSessionError(
   error: unknown,
   errors: ORPCErrorConstructorMap<typeof researchSessionErrors>,
 ): never {
+  if (error instanceof ResearchSessionBindingConsentError) {
+    throw errors.RESEARCH_SESSION_BINDING_CONSENT_REQUIRED({ cause: error });
+  }
   if (error instanceof ResearchSessionConsentError) {
     throw errors.RESEARCH_SESSION_CONSENT_REQUIRED({ cause: error });
   }
@@ -4947,7 +4949,7 @@ async function securityRedactionWrite<T>(
 ): Promise<T> {
   try {
     const result = await write();
-    if (result === null) {
+    if (!result) {
       throw new ORPCError("NOT_FOUND");
     }
     return result;

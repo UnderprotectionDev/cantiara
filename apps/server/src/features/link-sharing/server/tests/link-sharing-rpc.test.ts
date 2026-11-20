@@ -93,7 +93,8 @@ describe("Link Sharing RPC seam", () => {
     await expect(
       client.setShareExpiry({ expiresAt: "2000-01-01T00:00:00Z", surfaceId }),
     ).rejects.toMatchObject({
-      code: "LINK_SHARING_STATE_INVALID",
+      code: "LINK_SHARING_EXPIRY_NOT_IN_FUTURE",
+      message: "Choose an expiry in the future.",
       defined: true,
       status: 409,
       data: { targetId: surfaceId },

@@ -1,8 +1,10 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Consent attempts are deliberately sequential at the same revision to prove rollback.
+import type { Context } from "@cantiara/api/context";
 import {
   researchSessionContentInputSchema,
   researchSessionConvertPreview,
 } from "@cantiara/api/research-sessions";
+import { appRouter } from "@cantiara/api/routers/index";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import {
@@ -10,12 +12,24 @@ import {
   fileAttachmentVersion,
 } from "@cantiara/db/schema/file-attachments";
 import { project } from "@cantiara/db/schema/project";
-import { eq } from "drizzle-orm";
+import { createRouterClient } from "@orpc/server";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import {
   createDatabaseResearchSessions,
   sweepExpiredResearchBindingPreviews,
 } from "../research-sessions-database";
+
+function researchSessionClient(
+  accountId: string,
+  researchSessions: ReturnType<typeof createDatabaseResearchSessions>,
+) {
+  const context = {
+    researchSessions,
+    session: { user: { id: accountId } },
+  } as Context;
+  return createRouterClient(appRouter, { context });
+}
 
 const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 (url ? describe : describe.skip)(
@@ -23,17 +37,25 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
   () => {
     const db = url ? createDb({ DATABASE_URL: url }) : undefined;
     const accountId = crypto.randomUUID();
+    const foreignAccountId = crypto.randomUUID();
     const projectId = crypto.randomUUID();
     const workspaceId = crypto.randomUUID();
     beforeAll(async () => {
       if (!db) {
         throw new Error("Database required");
       }
-      await db.insert(user).values({
-        id: accountId,
-        name: "Founder",
-        email: `${accountId}@example.invalid`,
-      });
+      await db.insert(user).values([
+        {
+          id: accountId,
+          name: "Founder",
+          email: `${accountId}@example.invalid`,
+        },
+        {
+          id: foreignAccountId,
+          name: "Other Founder",
+          email: `${foreignAccountId}@example.invalid`,
+        },
+      ]);
       await db
         .insert(workspace)
         .values({ id: workspaceId, ownerAccountId: accountId });
@@ -46,8 +68,82 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
       });
     });
     afterAll(async () => {
-      await db?.delete(user).where(eq(user.id, accountId));
+      await db
+        ?.delete(user)
+        .where(inArray(user.id, [accountId, foreignAccountId]));
       await db?.$client.end();
+    });
+    test("snapshot and convert previews require both the owning Account and exact Project", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const sessions = createDatabaseResearchSessions(db);
+      const otherProjectId = crypto.randomUUID();
+      await db.insert(project).values({
+        id: otherProjectId,
+        workspaceId,
+        name: "Other Research Project",
+        shortCode: `M${otherProjectId.slice(0, 6).toUpperCase()}`,
+        starterConfiguration: "Blank Project",
+      });
+      const session = await sessions.save(accountId, {
+        id: crypto.randomUUID(),
+        projectId,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        fields: {
+          title: "Export interview",
+          purpose: "Understand demand",
+          consent: "Allowed",
+        },
+      });
+      const contentId = "research-quote";
+      await sessions.capture(accountId, {
+        id: session.id,
+        projectId,
+        baseRevision: session.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        content: {
+          id: contentId,
+          kind: "Participant quote",
+          text: "Add CSV export",
+        },
+      });
+      const owner = researchSessionClient(accountId, sessions);
+      const foreign = researchSessionClient(foreignAccountId, sessions);
+      const snapshot = {
+        id: session.id,
+        projectId,
+        selection: { contentIds: [contentId] },
+      };
+      const convert = { id: session.id, projectId, contentId };
+      await expect(
+        owner.previewResearchSessionSnapshot(snapshot),
+      ).resolves.toHaveLength(1);
+      await expect(
+        owner.previewResearchSessionConvert(convert),
+      ).resolves.toMatchObject({
+        sessionId: session.id,
+        content: { id: contentId },
+      });
+      await expect(
+        foreign.previewResearchSessionSnapshot(snapshot),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await expect(
+        foreign.previewResearchSessionConvert(convert),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await expect(
+        owner.previewResearchSessionSnapshot({
+          ...snapshot,
+          projectId: otherProjectId,
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await expect(
+        owner.previewResearchSessionConvert({
+          ...convert,
+          projectId: otherProjectId,
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
     });
     test.each(["Not asked", "Not allowed"] as const)(
       "%s rejects protected bytes and later Allowed cannot resurrect them",
@@ -735,8 +831,14 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
         },
       });
       await expect(
-        sessions.confirmBinding(accountId, command),
-      ).rejects.toThrow();
+        researchSessionClient(
+          accountId,
+          sessions,
+        ).confirmResearchSessionBinding(command),
+      ).rejects.toMatchObject({
+        code: "RESEARCH_SESSION_BINDING_CONSENT_REQUIRED",
+        defined: true,
+      });
     });
 
     test.each(["source", "target"] as const)(

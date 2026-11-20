@@ -291,4 +291,39 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
       .getByRole("heading", { name: "Still-open Work", exact: true })
       .locator(".."),
   ).toContainText("Work is unavailable.");
+
+  async function createPlannedPeriod(purpose: string) {
+    await page.getByLabel("Purpose").fill(purpose);
+    await pickDate(page, page.getByLabel("Start date"), "2099-02-01");
+    await pickDate(page, page.getByLabel("End date"), "2099-02-08");
+    await page.getByRole("button", { name: "Create Focus Period" }).click();
+    const planned = page.getByRole("region", { name: purpose, exact: true });
+    await expect(planned).toContainText("Planned");
+    return planned;
+  }
+  const firstPlan = await createPlannedPeriod("First planned window");
+  const work = {
+    label: "Focus Period Project · FOC-3 · Review Focus Period release",
+  };
+  await firstPlan.getByLabel("Select Work", { exact: true }).selectOption(work);
+  await firstPlan
+    .getByRole("button", { name: "Add Work", exact: true })
+    .click();
+  await expect(
+    firstPlan.getByRole("link", { name: REVIEW_WORK_NAME }),
+  ).toBeVisible();
+
+  const secondPlan = await createPlannedPeriod("Second planned window");
+  await secondPlan
+    .getByLabel("Select Work", { exact: true })
+    .selectOption(work);
+  await secondPlan
+    .getByRole("button", { name: "Add Work", exact: true })
+    .click();
+  await expect(
+    page.getByText("Work is already in another Focus Period.", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    secondPlan.getByRole("link", { name: REVIEW_WORK_NAME }),
+  ).toHaveCount(0);
 });

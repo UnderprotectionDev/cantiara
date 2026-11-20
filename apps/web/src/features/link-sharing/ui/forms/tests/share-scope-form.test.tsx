@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import type { ShareItem, ShareScopePreview } from "@cantiara/api/link-sharing";
+import { ORPCError } from "@orpc/client";
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -110,6 +111,22 @@ describe("Approve scope form", () => {
     );
     expect(host?.querySelector('button[type="submit"]')?.textContent).toBe(
       "Approve scope",
+    );
+  });
+
+  test("shows the typed refusal from Approve scope", async () => {
+    mount(
+      basePreview(),
+      vi.fn<Submit>().mockRejectedValue(
+        new ORPCError("LINK_SHARING_RATE_LIMITED", {
+          defined: true,
+          status: 429,
+        }),
+      ),
+    );
+    await submit();
+    expect(host?.querySelector('[role="alert"]')?.textContent).toBe(
+      "Too many share changes. Try again later.",
     );
   });
 

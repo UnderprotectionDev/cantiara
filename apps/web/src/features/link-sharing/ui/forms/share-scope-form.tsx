@@ -14,10 +14,10 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
-import { isDefinedError, ORPCError } from "@orpc/client";
 import { useForm } from "@tanstack/react-form";
 import { type SubmitEvent, useState } from "react";
 import { YouTubePreviewPlayer } from "@/components/youtube-preview-player";
+import { linkSharingRefusalMessage } from "../../lib/link-sharing-refusal";
 import {
   defaultShareScopeDraft,
   groupsNeedingChoice,
@@ -81,13 +81,8 @@ export function ShareScopeForm({
         });
       } catch (failure) {
         setError(
-          failure instanceof ORPCError &&
-            isDefinedError(failure) &&
-            (failure.code === "LINK_SHARING_PLACEHOLDERS_UNRESOLVED" ||
-              failure.code === "LINK_SHARING_SCOPE_INVALID" ||
-              failure.code === "LINK_SHARING_RATE_LIMITED")
-            ? failure.message
-            : "The scope could not be approved. Review the preview and try again.",
+          linkSharingRefusalMessage(failure) ??
+            "The scope could not be approved. Review the preview and try again.",
         );
       }
     },

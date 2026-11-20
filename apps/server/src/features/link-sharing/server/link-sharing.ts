@@ -6,6 +6,7 @@ import {
   type LinkSharingAccess,
   LinkSharingConflictError,
   LinkSharingEventLogError,
+  LinkSharingExpiryError,
   LinkSharingPlaceholdersError,
   LinkSharingRateLimitError,
   LinkSharingScopeError,
@@ -862,7 +863,7 @@ export function createLinkSharing(
     }
     const at = new Date(expiresAt);
     if (at <= now()) {
-      throw new LinkSharingStateError("Choose an expiry in the future.");
+      throw new LinkSharingExpiryError();
     }
     return at;
   }

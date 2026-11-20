@@ -3,7 +3,7 @@ import type {
   EXPORT_PERSONAL_DATA_LABEL,
 } from "@cantiara/api/personal-data-rights";
 
-import { personalDataErrors } from "@cantiara/api/support-reference-rpc-errors";
+import { personalDataErrors } from "@cantiara/api/personal-data-rights-rpc-errors";
 import { isDefinedError, ORPCError } from "@orpc/client";
 
 export type PersonalDataAction =
