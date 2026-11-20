@@ -92,8 +92,6 @@ export function SourceEvidenceControls({
   const [editor, setEditor] = useState<{ use?: SourceEvidenceUse } | null>(
     null,
   );
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const command = useRef<{
     fingerprint: string;
     id: string;
@@ -105,13 +103,10 @@ export function SourceEvidenceControls({
   const cache = useQueryClient();
   async function saved(
     input: typeof selection & { clientIdempotencyKey: string },
-    success: string,
   ) {
     if (command.current?.key === input.clientIdempotencyKey) {
       command.current = null;
       setEditor(null);
-      setError(null);
-      setMessage(success);
     }
     await cache.invalidateQueries({
       queryKey: orpc.sourceEvidenceUses.queryKey({
@@ -123,27 +118,21 @@ export function SourceEvidenceControls({
     orpc.reviewSourceEvidence.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.reviewSourceEvidence(input),
-      onSuccess: (_, input) =>
-        saved(
-          input,
-          input.decision === "Reviewed; keep current version"
-            ? input.decision
-            : "Rebind to new version saved.",
-        ),
+      onSuccess: (_, input) => saved(input),
     }),
   );
   const bindEvidence = useMutation(
     orpc.bindSourceEvidence.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.bindSourceEvidence(input),
-      onSuccess: (_, input) => saved(input, "Version-pinned evidence saved."),
+      onSuccess: (_, input) => saved(input),
     }),
   );
   const pending = reviewEvidence.isPending || bindEvidence.isPending;
   function begin(use?: SourceEvidenceUse) {
     setEditor({ use });
-    setError(null);
-    setMessage(null);
+    reviewEvidence.reset();
+    bindEvidence.reset();
   }
   async function save(use?: SourceEvidenceUse, plan?: SourceEvidencePlan) {
     if (pending || readOnly || use?.readOnly || !(use || plan)) {
@@ -164,9 +153,9 @@ export function SourceEvidenceControls({
       };
     }
     const identity = command.current;
-    setError(null);
     try {
       if (use) {
+        bindEvidence.reset();
         await reviewEvidence.mutateAsync({
           ...selection,
           bindingId: use.id,
@@ -179,6 +168,7 @@ export function SourceEvidenceControls({
           ...(plan ? { plan } : {}),
         });
       } else if (plan) {
+        reviewEvidence.reset();
         await bindEvidence.mutateAsync({
           ...selection,
           id: identity.id,
@@ -188,11 +178,21 @@ export function SourceEvidenceControls({
         });
       }
     } catch {
-      setError(
-        "Evidence could not be saved. Reload if the Source, target or bind changed, then preview again.",
-      );
+      // Query retains the failed command and exposes its error.
     }
   }
+  const error =
+    reviewEvidence.isError || bindEvidence.isError
+      ? "Evidence could not be saved. Reload if the Source, target or bind changed, then preview again."
+      : null;
+  const reviewMessage =
+    reviewEvidence.variables?.decision === "Reviewed; keep current version"
+      ? reviewEvidence.variables.decision
+      : "Rebind to new version saved.";
+  const bindMessage = bindEvidence.isSuccess
+    ? "Version-pinned evidence saved."
+    : null;
+  const message = reviewEvidence.isSuccess ? reviewMessage : bindMessage;
   const unavailable = uses.isError || uses.data === null;
   return (
     <div aria-busy={pending} className="space-y-3">

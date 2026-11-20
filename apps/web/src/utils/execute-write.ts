@@ -10,10 +10,10 @@ export function executeWrite<T, Variables>(
     error: unknown,
     variables: Variables,
   ) => Promise<unknown>,
-  retryInSurface = false,
+  meta?: { presentsSupportFailure?: boolean; retryInSurface?: boolean },
 ) {
   const options = queryClient.defaultMutationOptions({
-    meta: { onlineWrite: true, retryInSurface },
+    meta: { ...meta, onlineWrite: true },
     mutationFn: write,
     onSettled,
     networkMode: "always",

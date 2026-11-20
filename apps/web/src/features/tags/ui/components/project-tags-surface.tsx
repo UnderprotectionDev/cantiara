@@ -72,10 +72,12 @@ export default function ProjectTagsSurface({
   projectId: string;
 }) {
   const [filterTagId, setFilterTagId] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [renameError, setRenameError] = useState<string | null>(null);
-  const [renameUndo, setRenameUndo] = useState<TagRenameUndo | null>(null);
+  const [formValidationError, setFormValidationError] = useState<string | null>(
+    null,
+  );
+  const [renameValidationError, setRenameValidationError] = useState<
+    string | null
+  >(null);
   const queryClient = useQueryClient();
   const { recordsQuery, tagsQuery } = useTags(
     projectId,
@@ -86,11 +88,7 @@ export default function ProjectTagsSurface({
     orpc.createTag.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.createTag(input),
-      onError: (error) => {
-        setFormError(errorMessage(error, "Tag could not be created."));
-      },
       onSuccess: async () => {
-        setFormError(null);
         await invalidateTagQueries(queryClient);
       },
     }),
@@ -100,11 +98,7 @@ export default function ProjectTagsSurface({
     orpc.applyTag.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.applyTag(input),
-      onError: (error) => {
-        setActionError(errorMessage(error, "Tag could not be applied."));
-      },
       onSuccess: async () => {
-        setActionError(null);
         await invalidateTagMembershipQueries(queryClient);
       },
     }),
@@ -114,30 +108,20 @@ export default function ProjectTagsSurface({
     orpc.removeTag.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.removeTag(input),
-      onError: (error) => {
-        setActionError(errorMessage(error, "Tag could not be removed."));
-      },
       onSuccess: async () => {
-        setActionError(null);
         await invalidateTagMembershipQueries(queryClient);
       },
     }),
   );
 
+  const [renameUndo, setRenameUndo] = useState<TagRenameUndo>();
   const rename = useMutation(
     orpc.renameTag.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.renameTag(input),
-      onError: (error) => {
-        setRenameError(errorMessage(error, "Tag could not be renamed."));
-      },
-      onSuccess: async (renamed) => {
-        setRenameError(null);
-        setRenameUndo({
-          baseRevision: renamed.tag.revision,
-          receiptId: renamed.receiptId,
-          tagId: renamed.tag.id,
-        });
+      onSuccess: async ({ receiptId, tag }) => {
+        setRenameUndo({ baseRevision: tag.revision, receiptId, tagId: tag.id });
+        undoRename.reset();
         await invalidateTagRenameQueries(queryClient);
       },
     }),
@@ -147,18 +131,34 @@ export default function ProjectTagsSurface({
     orpc.undoTagRename.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.undoTagRename(input),
-      onError: (error) => {
-        setRenameError(errorMessage(error, "Tag could not be undone safely."));
-      },
-      onSuccess: async (_, { receiptId }) => {
-        setRenameError(null);
+      onSuccess: async (_result, { receiptId }) => {
         setRenameUndo((current) =>
-          current?.receiptId === receiptId ? null : current,
+          current?.receiptId === receiptId ? undefined : current,
         );
         await invalidateTagRenameQueries(queryClient);
       },
     }),
   );
+
+  const applyError = apply.isError
+    ? errorMessage(apply.error, "Tag could not be applied.")
+    : null;
+  const actionError = remove.isError
+    ? errorMessage(remove.error, "Tag could not be removed.")
+    : applyError;
+  const formError =
+    formValidationError ??
+    (create.isError
+      ? errorMessage(create.error, "Tag could not be created.")
+      : null);
+  const renameFailure = rename.isError
+    ? errorMessage(rename.error, "Tag could not be renamed.")
+    : null;
+  const renameError =
+    renameValidationError ??
+    (undoRename.isError
+      ? errorMessage(undoRename.error, "Tag could not be undone safely.")
+      : renameFailure);
 
   return (
     <section aria-labelledby="tags-heading" className="space-y-8" id="tags">
@@ -178,8 +178,11 @@ export default function ProjectTagsSurface({
 
       <CreateTagForm
         error={formError}
-        onCreate={(name) => create.mutateAsync({ name })}
-        onValidationError={setFormError}
+        onCreate={(name) => {
+          setFormValidationError(null);
+          return create.mutateAsync({ name });
+        }}
+        onValidationError={setFormValidationError}
         pending={create.isPending}
       />
 
@@ -193,15 +196,15 @@ export default function ProjectTagsSurface({
         <TagPicker
           filterTagId={filterTagId}
           onFilterChange={setFilterTagId}
-          onRename={(input) =>
+          onRename={(input) => {
             rename.mutate(
               commandVariables(
                 input,
                 rename.isError ? rename.variables : undefined,
               ),
-            )
-          }
-          onRenameValidationError={setRenameError}
+            );
+          }}
+          onRenameValidationError={setRenameValidationError}
           renameError={renameError}
           renamePending={rename.isPending}
           tags={tagsQuery.data ?? []}
@@ -218,9 +221,12 @@ export default function ProjectTagsSurface({
                   ({ tag }) => tag.id === renameUndo.tagId,
                 )?.tag;
                 if (!currentTag) {
-                  setRenameError("Tag could not be undone. Reload this page.");
+                  setRenameValidationError(
+                    "Tag could not be undone. Reload this page.",
+                  );
                   return;
                 }
+                setRenameValidationError(null);
                 undoRename.mutate(
                   commandVariables(
                     renameUndo,
@@ -238,8 +244,14 @@ export default function ProjectTagsSurface({
         ) : null}
         <TagRecordList
           applyPending={apply.isPending}
-          onApply={(input) => apply.mutateAsync(input)}
-          onRemove={(input) => remove.mutate(input)}
+          onApply={(input) => {
+            remove.reset();
+            return apply.mutateAsync(input);
+          }}
+          onRemove={(input) => {
+            apply.reset();
+            remove.mutate(input);
+          }}
           records={recordsQuery.data ?? []}
           recordsError={recordsQuery.isError}
           recordsPending={recordsQuery.isPending}

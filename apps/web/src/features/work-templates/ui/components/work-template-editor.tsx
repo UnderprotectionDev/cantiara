@@ -51,13 +51,11 @@ export default function WorkTemplateEditor({
   );
   const [editing, setEditing] = useState<WorkTemplate | null>(null);
   const [instantiating, setInstantiating] = useState<WorkTemplate | null>(null);
-  const [createdWorkKey, setCreatedWorkKey] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const templates = useWorkTemplates(projectId, {
-    onCreatedWork: (key) => {
-      setCreatedWorkKey(key);
+    onCreatedWork: () => {
       setInstantiating(null);
-      setError(null);
+      setValidationError(null);
     },
     onSavedTemplate: resetDraft,
   });
@@ -82,11 +80,11 @@ export default function WorkTemplateEditor({
   function resetDraft() {
     setFormVersion((version) => version + 1);
     setEditing(null);
-    setError(null);
+    setValidationError(null);
   }
 
   async function saveTemplate(input: ParsedCreateWorkTemplateInput) {
-    setError(null);
+    setValidationError(null);
     try {
       if (editing) {
         const { projectId: _projectId, ...rest } = input;
@@ -108,19 +106,15 @@ export default function WorkTemplateEditor({
           ),
         );
       }
-    } catch (mutationError) {
-      setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : "Work Template could not be saved.",
-      );
+    } catch {
+      // Query exposes the failure and retains the submitted variables for retry.
     }
   }
 
   const list = templates.query.data ?? [];
 
   async function instantiateTemplate(template: WorkTemplate, title: string) {
-    setError(null);
+    setValidationError(null);
     try {
       await templates.instantiate.mutateAsync(
         commandVariables(
@@ -135,14 +129,21 @@ export default function WorkTemplateEditor({
             : undefined,
         ),
       );
-    } catch (mutationError) {
-      setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : "Work could not be created from this template.",
-      );
+    } catch {
+      // Query exposes the failure and retains the submitted variables for retry.
     }
   }
+
+  const createdWorkKey =
+    templates.instantiate.data?.projectId === projectId
+      ? templates.instantiate.data.key
+      : undefined;
+  const save = editing ? templates.update : templates.create;
+  const failure = instantiating
+    ? templates.instantiate.error
+    : (save.error ?? templates.moveToTrash.error);
+  const error =
+    validationError ?? (failure instanceof Error ? failure.message : null);
 
   return (
     <div className="mt-3 space-y-6" data-work-template-editor="true">
@@ -192,8 +193,8 @@ export default function WorkTemplateEditor({
                       disabled={pending}
                       onClick={() => {
                         setInstantiating(template);
-                        setCreatedWorkKey(null);
-                        setError(null);
+                        templates.instantiate.reset();
+                        setValidationError(null);
                       }}
                       size="xs"
                       type="button"
@@ -203,9 +204,11 @@ export default function WorkTemplateEditor({
                     <Button
                       disabled={pending}
                       onClick={() => {
+                        templates.update.reset();
+                        templates.moveToTrash.reset();
                         setEditing(template);
                         setFormVersion((version) => version + 1);
-                        setError(null);
+                        setValidationError(null);
                       }}
                       size="xs"
                       type="button"
@@ -226,14 +229,6 @@ export default function WorkTemplateEditor({
                               ? templates.moveToTrash.variables
                               : undefined,
                           ),
-                          {
-                            onError: (mutationError) =>
-                              setError(
-                                mutationError instanceof Error
-                                  ? mutationError.message
-                                  : "Work Template could not be moved to Trash.",
-                              ),
-                          },
                         )
                       }
                       size="xs"
@@ -279,10 +274,11 @@ export default function WorkTemplateEditor({
                     disabled={pending}
                     onCancel={() => {
                       setInstantiating(null);
-                      setError(null);
+                      templates.instantiate.reset();
+                      setValidationError(null);
                     }}
                     onCreate={(title) => instantiateTemplate(template, title)}
-                    onValidationError={setError}
+                    onValidationError={setValidationError}
                     template={template}
                   />
                 ) : null}
@@ -298,9 +294,13 @@ export default function WorkTemplateEditor({
         editing={editing}
         error={error}
         key={`${editing?.id ?? "new"}:${formVersion}`}
-        onCancel={resetDraft}
+        onCancel={() => {
+          templates.create.reset();
+          templates.update.reset();
+          resetDraft();
+        }}
         onSave={saveTemplate}
-        onValidationError={setError}
+        onValidationError={setValidationError}
         pending={pending}
         previewDate={previewDate}
         projectId={projectId}

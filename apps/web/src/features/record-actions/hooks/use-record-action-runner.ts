@@ -1,8 +1,6 @@
 import type {
-  ApplyRecordActionInput,
   PreviewRecordActionInput,
   RecordAction,
-  RecordActionPreview,
   RecordActionRuntimeInputs,
   UndoRecordActionInput,
 } from "@cantiara/api/record-actions";
@@ -12,14 +10,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { commandVariables } from "@/lib/command-variables";
 import { fetchCurrentWork } from "@/lib/fetch-current-work";
 import {
   client,
   invalidateSmartCollectionMembership,
   orpc,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
+
+type RecordActionRefreshContext = Pick<
+  Parameters<typeof client.applyRecordAction>[0],
+  "focusDate" | "runtimeInputs"
+>;
 
 interface ActiveRecordAction {
   action: RecordAction;
@@ -67,31 +69,19 @@ export function useRecordActionRunner(projectId: string) {
     ...runtimeWorksQueryOptions,
     enabled: needsRuntimeRelationInput,
   });
-  const [preview, setPreview] = useState<RecordActionPreview | null>(null);
-  const [applyCommand, setApplyCommand] =
-    useState<ApplyRecordActionInput | null>(null);
-  const [applyResult, setApplyResult] = useState<Awaited<
-    ReturnType<typeof client.applyRecordAction>
-  > | null>(null);
-  const [undoCommand, setUndoCommand] = useState<UndoRecordActionInput | null>(
-    null,
-  );
   const [isPreparingUndo, setIsPreparingUndo] = useState(false);
-  const [undoReceipt, setUndoReceipt] = useState<Awaited<
-    ReturnType<typeof client.undoRecordAction>
-  > | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [undoPreparationError, setUndoPreparationError] = useState<unknown>();
 
   // A committed run or its undo can change Work status, Daily Focus
   // membership, custom field values and related Works in one write; refresh
   // every surface that reads them.
   async function refreshWork(
-    work: WorkProfile,
-    run: Pick<RecordActionPreview, "focusDate" | "runtimeInputs"> | null,
+    workId: string,
+    run: RecordActionRefreshContext | null,
   ) {
     const relationRecordIds = [
-      work.id,
-      ...Object.values(run?.runtimeInputs.relations ?? {}).map(
+      workId,
+      ...Object.values(run?.runtimeInputs?.relations ?? {}).map(
         (relation) => relation.recordId,
       ),
     ];
@@ -109,15 +99,15 @@ export function useRecordActionRunner(projectId: string) {
       queryClient.invalidateQueries({
         queryKey: orpc.customFieldValues.queryOptions({
           input: {
-            projectId: work.projectId,
-            recordId: work.id,
+            projectId,
+            recordId: workId,
             recordType: "Work",
           },
         }).queryKey,
       }),
       queryClient.invalidateQueries({
         queryKey: orpc.customFieldProjectValues.queryOptions({
-          input: { projectId: work.projectId, recordType: "Work" },
+          input: { projectId, recordType: "Work" },
         }).queryKey,
       }),
       ...relationRecordIds.flatMap((recordId) =>
@@ -129,72 +119,72 @@ export function useRecordActionRunner(projectId: string) {
           }),
         ),
       ),
-      queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
       queryClient.invalidateQueries({
-        queryKey: orpc.work.queryOptions({ input: { workId: work.id } })
-          .queryKey,
+        queryKey: orpc.projectWorks.queryKey({ input: { projectId } }),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.work.queryOptions({ input: { workId } }).queryKey,
       }),
       queryClient.invalidateQueries({
         queryKey: orpc.scopeTree.queryOptions({
-          input: { projectId: work.projectId },
+          input: { projectId },
         }).queryKey,
       }),
     ]);
   }
 
   const previewMutation = useMutation({
+    mutationKey: orpc.previewRecordAction.mutationKey(),
     mutationFn: (input: PreviewRecordActionInput) =>
       client.previewRecordAction(input),
-    onError: (mutationError) => setError(mutationErrorMessage(mutationError)),
-    onSuccess: (nextPreview) => {
-      setError(null);
-      setPreview(nextPreview);
-    },
   });
-
-  const applyMutation = useMutation({
-    mutationFn: (input: ApplyRecordActionInput) =>
-      runOnlineOnlyWrite(() => client.applyRecordAction(input)),
-    onError: (mutationError) => setError(mutationErrorMessage(mutationError)),
-    onSuccess: async (result, command) => {
-      setApplyResult(result);
-      setApplyCommand(null);
-      setError(null);
-      if (result.status === "committed" && active) {
-        await refreshWork(active.work, command);
-      }
-    },
-  });
-
+  const applyMutation = useMutation(
+    orpc.applyRecordAction.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.applyRecordAction(input),
+      onSuccess: async (result, command) => {
+        if (result.status === "committed") {
+          await refreshWork(command.workId, command);
+        }
+      },
+    }),
+  );
   const undoMutation = useMutation({
-    mutationFn: (input: UndoRecordActionInput) =>
-      runOnlineOnlyWrite(() => client.undoRecordAction(input)),
-    onError: (mutationError) => setError(mutationErrorMessage(mutationError)),
-    onSuccess: async (receipt) => {
-      setUndoReceipt(receipt);
-      setUndoCommand(null);
-      setError(null);
-      if (active) {
-        await refreshWork(active.work, preview);
-      }
+    mutationKey: orpc.undoRecordAction.mutationKey(),
+    meta: { onlineWrite: true },
+    mutationFn: ({
+      command,
+    }: {
+      command: UndoRecordActionInput;
+      run: RecordActionRefreshContext | null;
+    }) => client.undoRecordAction(command),
+    onSuccess: async (_, { command, run }) => {
+      await refreshWork(command.workId, run);
     },
   });
+  const preview = previewMutation.data ?? null;
+  const applyResult = applyMutation.data ?? null;
+  const undoReceipt = undoMutation.data ?? null;
+  const failure =
+    undoPreparationError ??
+    undoMutation.error ??
+    applyMutation.error ??
+    previewMutation.error;
+  const error = failure ? mutationErrorMessage(failure) : null;
 
+  function resetRun() {
+    setUndoPreparationError(undefined);
+    previewMutation.reset();
+    applyMutation.reset();
+    undoMutation.reset();
+  }
   function start(action: RecordAction, work: WorkProfile) {
     if (connection === "offline" || work.archivedAt !== null) {
       return;
     }
     setActive({ action, work });
     setRunVersion((current) => current + 1);
-    setPreview(null);
-    setApplyCommand(null);
-    setApplyResult(null);
-    setUndoCommand(null);
-    setUndoReceipt(null);
-    setError(null);
-    previewMutation.reset();
-    applyMutation.reset();
-    undoMutation.reset();
+    resetRun();
     if (!recordActionStepsNeedRuntimeInputs(action.steps)) {
       previewMutation.mutate({
         actionId: action.id,
@@ -208,8 +198,7 @@ export function useRecordActionRunner(projectId: string) {
     if (!active || connection === "offline" || previewMutation.isPending) {
       return;
     }
-    setPreview(null);
-    setError(null);
+    resetRun();
     previewMutation.mutate({
       actionId: active.action.id,
       runtimeInputs,
@@ -221,9 +210,7 @@ export function useRecordActionRunner(projectId: string) {
     if (previewMutation.isPending || applyMutation.isPending) {
       return;
     }
-    setPreview(null);
-    setApplyCommand(null);
-    setError(null);
+    resetRun();
   }
 
   function apply() {
@@ -235,17 +222,23 @@ export function useRecordActionRunner(projectId: string) {
     ) {
       return;
     }
-    const command = applyCommand ?? {
-      actionId: preview.actionId,
-      actionRevision: preview.actionRevision,
-      baseRevision: preview.baseRevision,
-      clientIdempotencyKey: crypto.randomUUID(),
-      focusDate: preview.focusDate,
-      previewFingerprint: preview.previewFingerprint,
-      runtimeInputs: preview.runtimeInputs,
-      workId: preview.workId,
-    };
-    setApplyCommand(command);
+    const command = commandVariables<
+      Omit<
+        Parameters<typeof client.applyRecordAction>[0],
+        "clientIdempotencyKey"
+      >
+    >(
+      {
+        actionId: preview.actionId,
+        actionRevision: preview.actionRevision,
+        baseRevision: preview.baseRevision,
+        focusDate: preview.focusDate,
+        previewFingerprint: preview.previewFingerprint,
+        runtimeInputs: preview.runtimeInputs,
+        workId: preview.workId,
+      },
+      applyMutation.isError ? applyMutation.variables : undefined,
+    );
     applyMutation.mutate(command);
   }
 
@@ -255,12 +248,14 @@ export function useRecordActionRunner(projectId: string) {
       applyResult?.status !== "committed" ||
       connection === "offline" ||
       active.work.archivedAt !== null ||
-      undoMutation.isPending
+      undoMutation.isPending ||
+      isPreparingUndo
     ) {
       return;
     }
-    if (undoCommand) {
-      undoMutation.mutate(undoCommand);
+    setUndoPreparationError(undefined);
+    if (undoMutation.isError) {
+      undoMutation.mutate(undoMutation.variables);
       return;
     }
 
@@ -273,10 +268,15 @@ export function useRecordActionRunner(projectId: string) {
         receiptId: applyResult.receipt.id,
         workId: active.work.id,
       };
-      setUndoCommand(command);
-      undoMutation.mutate(command);
+      undoMutation.mutate({
+        command,
+        run: preview && {
+          focusDate: preview.focusDate,
+          runtimeInputs: preview.runtimeInputs,
+        },
+      });
     } catch (mutationError) {
-      setError(mutationErrorMessage(mutationError));
+      setUndoPreparationError(mutationError);
     } finally {
       setIsPreparingUndo(false);
     }
@@ -287,15 +287,7 @@ export function useRecordActionRunner(projectId: string) {
       return;
     }
     setActive(null);
-    setPreview(null);
-    setApplyCommand(null);
-    setApplyResult(null);
-    setUndoCommand(null);
-    setUndoReceipt(null);
-    setError(null);
-    previewMutation.reset();
-    applyMutation.reset();
-    undoMutation.reset();
+    resetRun();
   }
 
   return {

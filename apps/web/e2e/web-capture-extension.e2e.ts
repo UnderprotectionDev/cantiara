@@ -287,6 +287,14 @@ async function runExtensionJourney(
                   return Promise.resolve();
                 },
                 set: (values: Record<string, unknown>) => {
+                  const link = values.webCaptureLink as {
+                    lastSuccessfulSave?: string | null;
+                  };
+                  if (link.lastSuccessfulSave) {
+                    return Promise.reject(
+                      new Error("Fixture storage write failed"),
+                    );
+                  }
                   Object.assign(storage, values);
                   return Promise.resolve();
                 },

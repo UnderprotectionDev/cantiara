@@ -156,7 +156,11 @@ export async function pairWebCapture(input: {
   return stored;
 }
 
-export async function listWebCaptureTargets(token: string, search: string) {
+export async function listWebCaptureTargets(
+  token: string,
+  search: string,
+  signal?: AbortSignal,
+) {
   const query = new URLSearchParams();
   if (search.trim()) {
     query.set("search", search.trim());
@@ -165,7 +169,7 @@ export async function listWebCaptureTargets(token: string, search: string) {
   const response = await request(
     `/api/web-capture/inboxes${suffix}`,
     webCaptureTargetsResponseSchema,
-    { method: "GET" },
+    { method: "GET", signal },
     token,
   );
   return response.targets;
@@ -194,11 +198,15 @@ export async function sendWebCapture(
     token,
   );
   const savedAt = new Date().toISOString();
-  const stored = await getStoredWebCaptureLink();
-  if (stored) {
-    await browser.storage.local.set({
-      [STORAGE_KEY]: { ...stored, lastSuccessfulSave: savedAt },
-    });
+  try {
+    const stored = await getStoredWebCaptureLink();
+    if (stored?.token === token) {
+      await browser.storage.local.set({
+        [STORAGE_KEY]: { ...stored, lastSuccessfulSave: savedAt },
+      });
+    }
+  } catch {
+    // The server already issued the receipt. Local metadata is best effort.
   }
   return { ...response, savedAt };
 }

@@ -1,6 +1,5 @@
 import type { ProjectShellConfigurationChange } from "@cantiara/api/project-shell";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
@@ -10,18 +9,10 @@ export function useProjectConfiguration(
   baseRevision: number,
 ) {
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
   const mutation = usePreparedMutation(
     orpc.updateProjectConfiguration.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.updateProjectConfiguration(input),
-      onError: (mutationError) => {
-        setError(
-          mutationError instanceof Error
-            ? mutationError.message
-            : "Project configuration could not be changed. Try again.",
-        );
-      },
       onSuccess: async (
         nextProject,
         { change, projectId: targetProjectId },
@@ -29,7 +20,6 @@ export function useProjectConfiguration(
         const projectQueryKey = orpc.project.queryKey({
           input: { projectId: targetProjectId },
         });
-        setError(null);
         queryClient.setQueryData(projectQueryKey, nextProject);
         await queryClient.invalidateQueries({
           queryKey: projectQueryKey,
@@ -53,5 +43,9 @@ export function useProjectConfiguration(
     }),
   );
 
+  const failure =
+    mutation.error?.message ??
+    "Project configuration could not be changed. Try again.";
+  const error = mutation.isError ? failure : null;
   return { error, mutation };
 }

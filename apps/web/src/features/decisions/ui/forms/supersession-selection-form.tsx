@@ -8,24 +8,23 @@ import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { useState } from "react";
 
 export function SupersessionSelectionForm({
   selection,
   records,
   onPreview,
   onCancel,
+  previewFailed = false,
 }: {
   selection: DecisionSupersessionSelection;
   records: DecisionSupersessionGraph["records"];
   onPreview: (selection: DecisionSupersessionSelection) => Promise<void>;
   onCancel: () => void;
+  previewFailed?: boolean;
 }) {
-  const [error, setError] = useState<string>();
   const form = useForm({
     defaultValues: { predecessorIds: selection.predecessorIds, rationale: "" },
     onSubmit: async ({ value }) => {
-      setError(undefined);
       const parsed = decisionSupersessionSelectionSchema.safeParse({
         ...selection,
         predecessorIds: value.predecessorIds,
@@ -35,13 +34,7 @@ export function SupersessionSelectionForm({
       if (!parsed.success) {
         return;
       }
-      try {
-        await onPreview(parsed.data);
-      } catch {
-        setError(
-          "Decisions changed or are unavailable. Review your selection and try again.",
-        );
-      }
+      await onPreview(parsed.data);
     },
   });
   return (
@@ -58,7 +51,12 @@ export function SupersessionSelectionForm({
           ? "Supersede another decision"
           : "Remove supersession"}
       </h3>
-      {error ? <p role="alert">{error}</p> : null}
+      {previewFailed ? (
+        <p role="alert">
+          Decisions changed or are unavailable. Review your selection and try
+          again.
+        </p>
+      ) : null}
       <form.Subscribe selector={(state) => state.isSubmitting}>
         {(pending) => (
           <>

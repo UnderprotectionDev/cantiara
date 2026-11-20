@@ -15,8 +15,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { diffLines } from "diff";
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { type MouseEvent, useEffect, useMemo, useState } from "react";
+import { commandVariables } from "@/lib/command-variables";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -99,13 +99,10 @@ export default function DocumentConflictDrafts({
   );
   const drafts = useQuery(draftOptions);
   const current = useQuery(currentOptions);
-  const [comparison, setComparison] = useState<DraftComparison | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [independentSeed, setIndependentSeed] = useState<{
     initial: ConflictResultValues;
     result: ConflictResultValues;
   } | null>(null);
-  const request = useRef<{ fingerprint: string; key: string } | null>(null);
 
   const rejectedDraftId = rejected?.id ?? null;
   useEffect(() => {
@@ -125,42 +122,25 @@ export default function DocumentConflictDrafts({
   ]);
 
   const resolve = useMutation({
-    mutationFn: ({
-      action,
-      independent,
-      result,
-    }: {
+    meta: { onlineWrite: true },
+    mutationFn: (input: {
       action: "Apply parts" | "Create Document" | "Delete";
+      clientIdempotencyKey: string;
+      comparison: DraftComparison;
+      documentId: string;
       independent: ConflictResultValues | null;
-      result: ConflictResultValues;
     }) =>
-      runOnlineOnlyWrite(() => {
-        if (!comparison) {
-          throw new Error("Compare a Conflict Draft first.");
-        }
-        const edited = { ...comparison, ...result };
-        const fingerprint = JSON.stringify({
-          action,
-          comparison: edited,
-          independent,
-        });
-        if (request.current?.fingerprint !== fingerprint) {
-          request.current = { fingerprint, key: crypto.randomUUID() };
-        }
-        return resolveComparedDraft(
-          documentId,
-          action,
-          edited,
-          independent,
-          request.current.key,
-          queryClient,
-        );
-      }),
+      resolveComparedDraft(
+        input.documentId,
+        input.action,
+        input.comparison,
+        input.independent,
+        input.clientIdempotencyKey,
+        queryClient,
+      ),
     onSuccess: async (document) => {
-      request.current = null;
-      setComparison(null);
+      compare.reset();
       setIndependentSeed(null);
-      setError(null);
       onResolved(document);
       await queryClient.invalidateQueries({ queryKey: draftOptions.queryKey });
       await queryClient.invalidateQueries({
@@ -168,12 +148,7 @@ export default function DocumentConflictDrafts({
       });
       await Promise.all(invalidateSmartCollectionMembership(queryClient));
     },
-    onError: (failure) => {
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Conflict Draft could not be resolved.",
-      );
+    onError: () => {
       queryClient
         .invalidateQueries({ queryKey: currentOptions.queryKey })
         .catch(() => undefined);
@@ -200,19 +175,14 @@ export default function DocumentConflictDrafts({
         type: document.type,
       };
     },
-    onMutate: () => {
-      setComparison(null);
-      setError(null);
-    },
-    onSuccess: setComparison,
-    onError: (failure) => {
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "The current Document could not be loaded.",
-      );
-    },
   });
+  const comparison = compare.data ?? null;
+  const compareError = compare.isError
+    ? compare.error.message || "The current Document could not be loaded."
+    : null;
+  const error = resolve.isError
+    ? resolve.error.message || "Conflict Draft could not be resolved."
+    : compareError;
   if (rejected && !available.some((draft) => draft.id === rejected.id)) {
     available.push(rejected);
   }
@@ -221,14 +191,34 @@ export default function DocumentConflictDrafts({
       (item) => item.id === event.currentTarget.dataset.draftId,
     );
     if (draft) {
+      resolve.reset();
       compare.mutate(draft);
     }
   }
+  function resolveDraft(
+    action: "Apply parts" | "Create Document" | "Delete",
+    result: ConflictResultValues,
+    independent: ConflictResultValues | null = null,
+  ) {
+    if (comparison) {
+      resolve.mutate(
+        commandVariables(
+          {
+            action,
+            comparison: { ...comparison, ...result },
+            documentId,
+            independent,
+          },
+          resolve.isError ? resolve.variables : undefined,
+        ),
+      );
+    }
+  }
   function applyParts(result: ConflictResultValues) {
-    resolve.mutate({ action: "Apply parts", independent: null, result });
+    resolveDraft("Apply parts", result);
   }
   function deleteDraft(result: ConflictResultValues) {
-    resolve.mutate({ action: "Delete", independent: null, result });
+    resolveDraft("Delete", result);
   }
   function openIndependent(result: ConflictResultValues) {
     if (comparison) {
@@ -252,11 +242,7 @@ export default function DocumentConflictDrafts({
   }
   function createIndependent(independent: ConflictResultValues) {
     if (independentSeed) {
-      resolve.mutate({
-        action: "Create Document",
-        independent,
-        result: independentSeed.result,
-      });
+      resolveDraft("Create Document", independentSeed.result, independent);
     }
   }
   const changes = comparison

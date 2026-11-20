@@ -24,6 +24,9 @@ vi.mock("@/features/web-macos-client/store/client-shell", () => ({
 }));
 vi.mock("@/utils/orpc", () => {
   const options = (name: string) => ({
+    mutationKey: () => [name],
+    mutationOptions: (configuration: object) => configuration,
+    queryKey: ({ input }: { input?: unknown } = {}) => [name, input],
     queryOptions: ({ input }: { input?: unknown } = {}) => ({
       queryFn: () => (name === "work" ? rpc.work(input) : []),
       queryKey: [name, input],
@@ -37,6 +40,9 @@ vi.mock("@/utils/orpc", () => {
       ),
     orpc: Object.fromEntries(
       [
+        "applyRecordAction",
+        "previewRecordAction",
+        "undoRecordAction",
         "customFieldProjectValues",
         "customFieldValues",
         "customFields",
@@ -49,7 +55,6 @@ vi.mock("@/utils/orpc", () => {
         "work",
       ].map((name) => [name, options(name)]),
     ),
-    projectWorksQueryPrefix: ["projectWorksPrefix"],
   };
 });
 
@@ -91,12 +96,11 @@ const preview = {
   workId: "w1",
 } as unknown as RecordActionPreview;
 
-test("a committed Record Action refreshes every surface its steps can change", async () => {
+test("a Record Action Retry reuses its command and refreshes the affected surfaces", async () => {
   rpc.previewRecordAction.mockResolvedValue(preview);
-  rpc.applyRecordAction.mockResolvedValue({
-    receipt: { id: "r1" },
-    status: "committed",
-  });
+  rpc.applyRecordAction
+    .mockRejectedValueOnce(new Error("Connection interrupted."))
+    .mockResolvedValue({ receipt: { id: "r1" }, status: "committed" });
   const cache = new QueryClient();
   const invalidate = vi.spyOn(cache, "invalidateQueries");
   let runner: ReturnType<typeof useRecordActionRunner> | undefined;
@@ -113,9 +117,17 @@ test("a committed Record Action refreshes every surface its steps can change", a
     ),
   );
   await act(async () => runner?.start(action, work));
+  await vi.waitFor(() => expect(runner?.preview).toEqual(preview));
   await act(async () => runner?.apply());
+  await vi.waitFor(() => expect(runner?.applyError).toBe(true));
+  expect(rpc.applyRecordAction).toHaveBeenCalledTimes(1);
+  expect(invalidate).not.toHaveBeenCalled();
 
-  expect(rpc.applyRecordAction).toHaveBeenCalled();
+  await act(async () => runner?.apply());
+  expect(rpc.applyRecordAction).toHaveBeenCalledTimes(2);
+  expect(rpc.applyRecordAction.mock.calls[1]).toEqual(
+    rpc.applyRecordAction.mock.calls[0],
+  );
   const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey);
   expect(keys).toContainEqual(["smartCollectionViews"]);
   expect(keys).toContainEqual(["dailyFocusDay", { focusDate: "2026-11-17" }]);

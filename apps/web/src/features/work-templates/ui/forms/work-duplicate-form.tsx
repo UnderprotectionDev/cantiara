@@ -16,7 +16,6 @@ export default function WorkDuplicateForm({
   preview,
   work,
   pending,
-  setError,
   setOpen,
 }: {
   duplicate: import("@tanstack/react-query").UseMutationResult<
@@ -31,9 +30,6 @@ export default function WorkDuplicateForm({
   >;
   work: WorkProfile;
   pending: boolean;
-  setError: import("react").Dispatch<
-    import("react").SetStateAction<string | null>
-  >;
   setOpen: import("react").Dispatch<import("react").SetStateAction<boolean>>;
 }) {
   const previewDefinitionIds = preview.data?.customFields.map(
@@ -43,7 +39,7 @@ export default function WorkDuplicateForm({
     defaultValues: {
       customFieldDefinitionIds: previewDefinitionIds ?? ([] as string[]),
     },
-    onSubmit: async ({ value }) => {
+    onSubmit: async ({ value, formApi }) => {
       const parsed = duplicateWorkMutationInputSchema.safeParse(
         commandVariables(
           {
@@ -55,10 +51,14 @@ export default function WorkDuplicateForm({
         ),
       );
       if (!parsed.success) {
-        setError(
-          parsed.error.issues[0]?.message ??
-            "Work could not be duplicated. Try again.",
-        );
+        formApi.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ??
+              "Work could not be duplicated. Try again.",
+            fields: {},
+          },
+        });
         return;
       }
       await duplicate.mutateAsync(parsed.data).catch(() => undefined);
@@ -85,6 +85,11 @@ export default function WorkDuplicateForm({
       className="w-full space-y-3 rounded-md border border-border/70 bg-background/80 p-3 text-left"
       onSubmit={handleSubmit}
     >
+      <form.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+        {(error) =>
+          typeof error === "string" ? <p role="alert">{error}</p> : null
+        }
+      </form.Subscribe>
       {preview.isPending ? (
         <p className="text-xs text-muted-foreground" role="status">
           Loading copy preview…

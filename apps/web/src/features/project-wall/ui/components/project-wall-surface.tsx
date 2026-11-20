@@ -76,7 +76,7 @@ export default function ProjectWallSurface({
               }),
             ]);
           },
-          retryInSurface,
+          { retryInSurface },
         );
         return { ok: true as const, result };
       } catch (cause) {

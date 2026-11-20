@@ -2,7 +2,8 @@ import type {
   WebCaptureKind,
   WebCapturePairingInput,
 } from "@cantiara/api/web-capture";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   captureActiveTabScreenshot,
@@ -16,7 +17,6 @@ import {
   sendWebCapture,
   WebCaptureApiError,
   type WebCaptureDraft,
-  type WebCaptureTarget,
 } from "../../lib/web-capture";
 import {
   CAPTURE_ACTIONS,
@@ -36,16 +36,32 @@ async function clearStoredWebCaptureLinkBestEffort() {
   }
 }
 
+function needsPairing(error: unknown) {
+  return (
+    error instanceof WebCaptureApiError &&
+    (error.status === 401 || error.code === "WEB_CAPTURE_REAUTH_REQUIRED")
+  );
+}
+
+function pairingErrorMessage(error: unknown) {
+  return error instanceof WebCaptureApiError &&
+    error.code === "WEB_CAPTURE_PAIRING_INVALID"
+    ? PAIRING_INVALID_MESSAGE
+    : "This browser could not be paired.";
+}
+
+function sendErrorMessage(error: unknown) {
+  return needsPairing(error)
+    ? "This browser needs to be paired again before it can write."
+    : "Capture could not be sent. No local queue was created.";
+}
+
 export function WebCaptureView() {
   const browser = useMemo(() => getWebCaptureBrowser(), []);
   const [link, setLink] = useState<StoredWebCaptureLink | null>(null);
   const [draft, setDraft] = useState<WebCaptureDraft | null>(null);
-  const [targets, setTargets] = useState<WebCaptureTarget[]>([]);
   const [targetSearch, setTargetSearch] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
-  const [isPairing, setIsPairing] = useState(false);
-  const [isSending, setIsSending] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [isReading, setIsReading] = useState(true);
 
   useEffect(() => {
@@ -62,7 +78,7 @@ export function WebCaptureView() {
         if (!active) {
           return;
         }
-        setError(
+        setLocalError(
           reason instanceof Error
             ? reason.message
             : "This page cannot be captured.",
@@ -74,41 +90,95 @@ export function WebCaptureView() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!link) {
-      setTargets([]);
-      return;
-    }
-    let active = true;
-    listWebCaptureTargets(link.token, targetSearch)
-      .then((nextTargets) => {
-        if (!active) {
-          return;
-        }
-        setTargets(nextTargets);
-      })
-      .catch((reason: unknown) => {
-        if (!active) {
-          return;
-        }
-        if (reason instanceof WebCaptureApiError && reason.status === 401) {
-          clearStoredWebCaptureLinkBestEffort();
-          setLink(null);
-          setError(
-            "This browser needs to be paired again before it can read Inbox targets.",
-          );
-        } else {
-          setError("Inbox targets are unavailable.");
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [link, targetSearch]);
+  const search = targetSearch.trim();
+  const targetQuery = useQuery({
+    queryKey: ["web-capture-targets", link?.id, search],
+    queryFn: link
+      ? ({ signal }) => listWebCaptureTargets(link.token, search, signal)
+      : skipToken,
+  });
+  const targets = targetQuery.data ?? [];
 
-  const chooseCapture = useCallback(async (kind: WebCaptureKind) => {
-    setError(null);
-    setStatus(null);
+  useEffect(() => {
+    if (
+      link &&
+      targetQuery.error instanceof WebCaptureApiError &&
+      targetQuery.error.status === 401
+    ) {
+      clearStoredWebCaptureLinkBestEffort().catch(() => undefined);
+      setLink(null);
+      setLocalError(
+        "This browser needs to be paired again before it can read Inbox targets.",
+      );
+    }
+  }, [link, targetQuery.error]);
+
+  const pairingInput = useRef<WebCapturePairingInput | null>(null);
+  const pair = useMutation({
+    mutationFn: async () => {
+      const input = pairingInput.current;
+      pairingInput.current = null;
+      if (!(input && navigator.onLine)) {
+        throw new Error("This browser could not be paired.");
+      }
+      setLink(await pairWebCapture(input));
+    },
+  });
+
+  const clipToSend = useRef<{
+    draft: WebCaptureDraft;
+    token: string;
+    projectId: string | null;
+  } | null>(null);
+  const lastCommand = useRef<{
+    draftId: string;
+    projectId: string | null;
+    key: string;
+  } | null>(null);
+  const send = useMutation({
+    mutationFn: async () => {
+      const clip = clipToSend.current;
+      clipToSend.current = null;
+      if (!(clip && navigator.onLine)) {
+        throw new Error(
+          "Capture could not be sent. No local queue was created.",
+        );
+      }
+      const receipt = await sendWebCapture(
+        clip.token,
+        clip.draft,
+        clip.projectId,
+      );
+      setLink((current) =>
+        current?.token === clip.token
+          ? { ...current, lastSuccessfulSave: receipt.savedAt }
+          : current,
+      );
+      return receipt;
+    },
+    onError: async (reason) => {
+      if (needsPairing(reason)) {
+        await clearStoredWebCaptureLinkBestEffort();
+        setLink(null);
+      }
+    },
+  });
+
+  const busy = pair.isPending || send.isPending;
+  const targetError =
+    link && targetQuery.isError ? "Inbox targets are unavailable." : null;
+  const sendError = send.isError ? sendErrorMessage(send.error) : null;
+  const pairError = pair.isError ? pairingErrorMessage(pair.error) : null;
+  const error = localError ?? sendError ?? pairError ?? targetError;
+  const pairedMessage = pair.isSuccess
+    ? "This browser is paired with Web Capture."
+    : null;
+  const status = send.isSuccess ? "Sent to Capture Inbox." : pairedMessage;
+
+  async function chooseCapture(kind: WebCaptureKind) {
+    setLocalError(null);
+    send.reset();
+    pair.reset();
     try {
       const currentTab = await readActiveTab(
         kind === "selected-text" || kind === "selected-image",
@@ -120,61 +190,48 @@ export function WebCaptureView() {
         setDraft(draftFor(kind, currentTab));
       }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Capture failed.");
-    }
-  }, []);
-
-  async function handlePair(input: WebCapturePairingInput) {
-    setError(null);
-    setStatus(null);
-    setIsPairing(true);
-    try {
-      const stored = await pairWebCapture(input);
-      setLink(stored);
-      setStatus("This browser is paired with Web Capture.");
-    } catch (reason) {
-      setError(
-        reason instanceof WebCaptureApiError &&
-          reason.code === "WEB_CAPTURE_PAIRING_INVALID"
-          ? PAIRING_INVALID_MESSAGE
-          : "This browser could not be paired.",
+      setLocalError(
+        reason instanceof Error ? reason.message : "Capture failed.",
       );
-    } finally {
-      setIsPairing(false);
     }
   }
 
-  async function handleSend(targetId: string) {
-    if (!(link && draft)) {
+  async function handlePair(input: WebCapturePairingInput) {
+    if (busy || pairingInput.current) {
       return;
     }
-    setError(null);
-    setStatus(null);
-    setIsSending(true);
-    try {
-      const result = await sendWebCapture(
-        link.token,
-        draft,
-        targets.find((target) => target.id === targetId)?.projectId ?? null,
-      );
-      setLink((current) =>
-        current ? { ...current, lastSuccessfulSave: result.savedAt } : current,
-      );
-      setStatus("Sent to Capture Inbox.");
-    } catch (reason) {
-      if (
-        reason instanceof WebCaptureApiError &&
-        (reason.status === 401 || reason.code === "WEB_CAPTURE_REAUTH_REQUIRED")
-      ) {
-        await clearStoredWebCaptureLink();
-        setLink(null);
-        setError("This browser needs to be paired again before it can write.");
-      } else {
-        setError("Capture could not be sent. No local queue was created.");
-      }
-    } finally {
-      setIsSending(false);
+    setLocalError(null);
+    send.reset();
+    pairingInput.current = input;
+    await pair.mutateAsync().catch(() => undefined);
+  }
+
+  async function handleSend(targetId: string) {
+    const target = targets.find(({ id }) => id === targetId);
+    if (busy || !(link && draft && target)) {
+      return;
     }
+    setLocalError(null);
+    pair.reset();
+    const { projectId } = target;
+    const draftId = draft.clientIdempotencyKey;
+    const previous = lastCommand.current;
+    if (previous?.draftId !== draftId || previous.projectId !== projectId) {
+      lastCommand.current = {
+        draftId,
+        projectId,
+        key: previous?.draftId === draftId ? crypto.randomUUID() : draftId,
+      };
+    }
+    clipToSend.current = {
+      draft: {
+        ...draft,
+        clientIdempotencyKey: lastCommand.current?.key ?? draftId,
+      },
+      projectId,
+      token: link.token,
+    };
+    await send.mutateAsync().catch(() => undefined);
   }
 
   if (isReading) {
@@ -204,6 +261,7 @@ export function WebCaptureView() {
           {CAPTURE_ACTIONS.map((action) => (
             <button
               className={draft?.kind === action.kind ? "selected" : ""}
+              disabled={busy}
               key={action.kind}
               onClick={() => chooseCapture(action.kind)}
               type="button"
@@ -216,11 +274,11 @@ export function WebCaptureView() {
 
       <WebCapturePairing
         browser={browser}
-        isPairing={isPairing}
+        isPairing={busy}
         link={link}
         onInvalid={() => {
-          setStatus(null);
-          setError(PAIRING_INVALID_MESSAGE);
+          pair.reset();
+          setLocalError(PAIRING_INVALID_MESSAGE);
         }}
         onPair={handlePair}
       />
@@ -228,11 +286,13 @@ export function WebCaptureView() {
       {draft ? (
         <WebCaptureSendForm
           draft={draft}
-          isSending={isSending}
+          isSending={busy}
           link={link}
           onInvalid={() => {
-            setStatus(null);
-            setError("Capture could not be sent. No local queue was created.");
+            send.reset();
+            setLocalError(
+              "Capture could not be sent. No local queue was created.",
+            );
           }}
           onSend={handleSend}
           onTargetSearchChange={setTargetSearch}

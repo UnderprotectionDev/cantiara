@@ -217,7 +217,7 @@ test("retries Undo with its original Tag command and refreshes the affected quer
     invalidate.mockClear();
     await act(async () => {
       undoButton()?.click();
-      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(host.textContent).toContain("Undo failed.");
     expect(undoButton()).toBeDefined();
@@ -225,6 +225,7 @@ test("retries Undo with its original Tag command and refreshes the affected quer
 
     await act(async () => {
       await presentFailure.mock.calls[0]?.[1].retry?.();
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(rpc.undoTagRename).toHaveBeenCalledTimes(2);
     expect(rpc.undoTagRename.mock.calls[1][0]).toEqual(

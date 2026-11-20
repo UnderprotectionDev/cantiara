@@ -32,6 +32,7 @@ const candidate = (
 });
 
 const handlers = {
+  reviewId: "review-1",
   onConfirmFollowUp: () => Promise.resolve(),
   onPreviewFollowUp: () => Promise.reject(new Error("unused")),
 };

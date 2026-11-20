@@ -27,11 +27,14 @@ export default function DocumentBulkConversionDialog({
   bulkRows,
   bulkConversionKey,
 }: {
-  convertListToWork: import("@tanstack/react-query").UseMutationResult<
-    WorkProfile[],
-    Error,
-    string[],
-    unknown
+  convertListToWork: Pick<
+    import("@tanstack/react-query").UseMutationResult<
+      WorkProfile[],
+      Error,
+      string[],
+      unknown
+    >,
+    "mutate" | "isPending" | "isError" | "error"
   >;
   setBulkConversionOpen: import("react").Dispatch<
     import("react").SetStateAction<boolean>
@@ -86,11 +89,14 @@ function DocumentBulkConversionForm({
 }: {
   bulkConversionKey: import("react").RefObject<string | null>;
   bulkRows: DocumentListRow[];
-  convertListToWork: import("@tanstack/react-query").UseMutationResult<
-    WorkProfile[],
-    Error,
-    string[],
-    unknown
+  convertListToWork: Pick<
+    import("@tanstack/react-query").UseMutationResult<
+      WorkProfile[],
+      Error,
+      string[],
+      unknown
+    >,
+    "mutate" | "isPending" | "isError" | "error"
   >;
   onCancel: () => void;
 }) {
@@ -153,7 +159,7 @@ function DocumentBulkConversionForm({
         )}
       </bulkForm.Field>
       {convertListToWork.isError ? (
-        <p role="alert">{convertListToWork.error.message}</p>
+        <p role="alert">{convertListToWork.error?.message}</p>
       ) : null}
       <DialogFooter>
         <Button

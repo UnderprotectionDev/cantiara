@@ -165,15 +165,19 @@ test("retries Create from template with the same command and refreshes the relev
       form.dispatchEvent(
         new Event("submit", { bubbles: true, cancelable: true }),
       );
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(title.value).toBe("Ship release");
-    expect(host.textContent).toContain(writeError.message);
+    await vi.waitFor(() =>
+      expect(host.textContent).toContain(writeError.message),
+    );
     expect(queryClient.getQueryState(projectWorkKey)?.isInvalidated).toBe(
       false,
     );
 
     await act(async () => {
       await presentFailure.mock.calls[0]?.[1].retry?.();
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(rpc.instantiateWorkTemplate).toHaveBeenCalledTimes(2);
     expect(rpc.instantiateWorkTemplate.mock.calls[1][0]).toEqual(
@@ -183,8 +187,12 @@ test("retries Create from template with the same command and refreshes the relev
     expect(queryClient.getQueryState(otherProjectKey)?.isInvalidated).toBe(
       false,
     );
-    expect(host.textContent).toContain("Created Work PAY-42.");
-    expect(host.textContent).not.toContain(writeError.message);
+    await vi.waitFor(() =>
+      expect(host.textContent).toContain("Created Work PAY-42."),
+    );
+    await vi.waitFor(() =>
+      expect(host.textContent).not.toContain(writeError.message),
+    );
   } finally {
     act(() => root.unmount());
     host.remove();
@@ -248,11 +256,13 @@ test("saving the same Work Template again after a failure retains its command an
         form?.dispatchEvent(
           new Event("submit", { bubbles: true, cancelable: true }),
         );
-        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
       });
     }
     await submit();
-    expect(host.textContent).toContain(writeError.message);
+    await vi.waitFor(() =>
+      expect(host.textContent).toContain(writeError.message),
+    );
     expect(checklist.value).toBe("Draft release notes");
     expect(refetch).not.toHaveBeenCalled();
 
@@ -262,7 +272,9 @@ test("saving the same Work Template again after a failure retains its command an
       rpc.createWorkTemplate.mock.calls[0][0],
     );
     expect(refetch).toHaveBeenCalledWith({ queryKey: templatesKey });
-    expect(host.textContent).not.toContain(writeError.message);
+    await vi.waitFor(() =>
+      expect(host.textContent).not.toContain(writeError.message),
+    );
   } finally {
     act(() => root.unmount());
     host.remove();

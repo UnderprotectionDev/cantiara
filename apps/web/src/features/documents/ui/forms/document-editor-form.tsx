@@ -6,8 +6,6 @@ import {
   type DocumentEvidenceTargetType,
   documentTypeSchema,
 } from "@cantiara/api/documents";
-import type { ProjectSourceRecord } from "@cantiara/api/project-source-records";
-import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
@@ -34,10 +32,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import ActiveWorkingSetControl from "@/components/active-working-set-control";
 import FavoriteControl from "@/components/favorite-control";
 import PersonalReminderControl from "@/components/personal-reminder-control";
-import {
-  defaultClientShell,
-  runOnlineOnlyWrite,
-} from "@/features/web-macos-client/store/client-shell";
+import { defaultClientShell } from "@/features/web-macos-client/store/client-shell";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import {
   client,
@@ -159,10 +154,6 @@ export default function DocumentEditor({
       setView("preview");
     }
   }, [targetSectionId]);
-  const [convertedDiagram, setConvertedDiagram] = useState<{
-    id: string;
-    title: string;
-  } | null>(null);
   const conversionKey = useRef<string | null>(null);
   const pinEvidenceKey = useRef<string | null>(null);
   const recordConversionKey = useRef<string | null>(null);
@@ -221,59 +212,83 @@ export default function DocumentEditor({
     }),
     enabled: conversionSelection !== null,
   });
-  const convertDiagram = useMutation({
-    mutationFn: () => {
-      if (!conversionSelection) {
-        throw new Error("No Mermaid block selected.");
+  const diagramWrite = useMutation({
+    mutationKey: orpc.convertMermaidToTechnicalDiagram.mutationKey(),
+    meta: { onlineWrite: true },
+    mutationFn: (
+      input:
+        | Parameters<typeof client.convertMermaidToTechnicalDiagram>[0]
+        | Error,
+    ) => {
+      if (input instanceof Error) {
+        throw input;
       }
-      if (
-        !matchesDiagramConversionPreview(
-          conversionPreview.data,
-          conversionSelection,
-          conversionTitle,
-          originalBlockOutcome,
-        )
-      ) {
-        throw new Error("Preview the Mermaid conversion again.");
-      }
-      const previewToken = conversionPreview.data?.previewToken as string;
-      conversionKey.current ??= crypto.randomUUID();
-      return runOnlineOnlyWrite(() =>
-        client.convertMermaidToTechnicalDiagram({
-          documentId: record.id,
-          documentRevision: revision,
-          blockStart: conversionSelection.start,
-          blockEnd: conversionSelection.end,
-          originalBlock: originalBlockOutcome,
-          title: conversionTitle,
-          previewToken,
-          clientIdempotencyKey: conversionKey.current as string,
-        }),
-      );
+      return client.convertMermaidToTechnicalDiagram(input);
     },
-    onSuccess: async (created) => {
-      if (
-        originalBlockOutcome === "Replace with live reference" &&
-        conversionSelection
-      ) {
-        const committed = await queryClient.query({
-          ...orpc.document.queryOptions({ input: { documentId: record.id } }),
-          staleTime: 0,
-        });
-        editSession.accept(committed);
-        form.setFieldValue("body", committed.body);
-        setPreviewBody(committed.body);
+    onSuccess: async (_, input) => {
+      if (input instanceof Error) {
+        return;
       }
-      setConversionSelection(null);
-      conversionKey.current = null;
-      if (created) {
-        setConvertedDiagram({ id: created.id, title: created.title });
+      if (conversionKey.current === input.clientIdempotencyKey) {
+        if (input.originalBlock === "Replace with live reference") {
+          const committed = await queryClient.query({
+            ...orpc.document.queryOptions({
+              input: { documentId: input.documentId },
+            }),
+            staleTime: 0,
+          });
+          if (conversionKey.current === input.clientIdempotencyKey) {
+            editSession.accept(committed);
+            form.setFieldValue("body", committed.body);
+            setPreviewBody(committed.body);
+          }
+        }
+        if (conversionKey.current === input.clientIdempotencyKey) {
+          setConversionSelection(null);
+          conversionKey.current = null;
+        }
       }
       await queryClient.invalidateQueries({
         queryKey: orpc.technicalDiagrams.key(),
       });
     },
   });
+  const convertDiagram = {
+    ...diagramWrite,
+    mutate() {
+      if (!conversionSelection) {
+        diagramWrite.mutate(new Error("No Mermaid block selected."));
+        return;
+      }
+      const reviewed = conversionPreview.data;
+      if (
+        !(
+          reviewed &&
+          matchesDiagramConversionPreview(
+            reviewed,
+            conversionSelection,
+            conversionTitle,
+            originalBlockOutcome,
+          )
+        )
+      ) {
+        diagramWrite.mutate(new Error("Preview the Mermaid conversion again."));
+        return;
+      }
+      conversionKey.current ??= crypto.randomUUID();
+      diagramWrite.mutate({
+        documentId: record.id,
+        documentRevision: revision,
+        blockStart: conversionSelection.start,
+        blockEnd: conversionSelection.end,
+        originalBlock: originalBlockOutcome,
+        title: conversionTitle,
+        previewToken: reviewed.previewToken,
+        clientIdempotencyKey: conversionKey.current,
+      });
+    },
+  };
+  const convertedDiagram = diagramWrite.data ?? null;
   const works = useDocumentWorkSources(record, view);
   const bulkRows = documentListRows(savedBody);
   const recordReferenceOptions = documentRecordReferenceOptions(
@@ -406,11 +421,34 @@ export default function DocumentEditor({
       body: record.body,
     });
   }
-  const pinEvidence = useMutation({
-    mutationFn: (target: {
+  const evidenceWrite = useMutation({
+    mutationKey: orpc.pinDocumentEvidence.mutationKey(),
+    meta: { onlineWrite: true },
+    mutationFn: (
+      input: Parameters<typeof client.pinDocumentEvidence>[0] | Error,
+    ) => {
+      if (input instanceof Error) {
+        throw input;
+      }
+      return client.pinDocumentEvidence(input);
+    },
+    onSuccess: async (_, input) => {
+      if (
+        !(input instanceof Error) &&
+        pinEvidenceKey.current === input.clientIdempotencyKey
+      ) {
+        pinEvidenceKey.current = null;
+        setPinEvidenceOpen(false);
+      }
+      await queryClient.invalidateQueries({ queryKey: orpc.usageLinks.key() });
+    },
+  });
+  const pinEvidence = {
+    ...evidenceWrite,
+    mutate(target: {
       targetRecordId: string;
       targetRecordType: DocumentEvidenceTargetType;
-    }) => {
+    }) {
       const selection = selectedTextRange;
       const body = form.getFieldValue("body");
       if (
@@ -419,183 +457,214 @@ export default function DocumentEditor({
         target.targetRecordId.length === 0 ||
         body !== savedBody
       ) {
-        throw new Error("Select saved Document text and an evidence target.");
+        evidenceWrite.mutate(
+          new Error("Select saved Document text and an evidence target."),
+        );
+        return;
       }
       pinEvidenceKey.current ??= crypto.randomUUID();
-      return runOnlineOnlyWrite(() =>
-        client.pinDocumentEvidence({
-          baseRevision: 0,
-          clientIdempotencyKey: pinEvidenceKey.current as string,
-          documentId: record.id,
-          documentRevision: revision,
-          selectionEnd: selection.end,
-          selectionStart: selection.start,
-          selectedText: body.slice(selection.start, selection.end),
-          targetRecordId: target.targetRecordId,
-          targetRecordType: target.targetRecordType,
-        }),
-      );
-    },
-    onSuccess: async () => {
-      pinEvidenceKey.current = null;
-      setPinEvidenceOpen(false);
-      await queryClient.invalidateQueries({ queryKey: orpc.usageLinks.key() });
-    },
-  });
-  const convertSelectedText = useMutation<
-    WorkProfile | ProjectSourceRecord | null,
-    Error,
-    { recordType: DocumentConversionRecordType; title: string }
-  >({
-    mutationFn: async (input: {
-      recordType: DocumentConversionRecordType;
-      title: string;
-    }) => {
-      const { projectId } = record;
-      if (projectId === null) {
-        throw new Error("A Project is required for record conversion.");
-      }
-      const selection = selectedTextRange;
-      const body = form.getFieldValue("body");
-      if (
-        !selection ||
-        selection.end <= selection.start ||
-        body !== savedBody ||
-        !input.title.trim()
-      ) {
-        throw new Error("Select saved Document text and review the record.");
-      }
-      recordConversionKey.current ??= crypto.randomUUID();
-      recordConversionId.current ??= crypto.randomUUID();
-      const documentEvidence = {
+      evidenceWrite.mutate({
+        ...target,
+        baseRevision: 0,
+        clientIdempotencyKey: pinEvidenceKey.current,
         documentId: record.id,
         documentRevision: revision,
         selectionEnd: selection.end,
         selectionStart: selection.start,
         selectedText: body.slice(selection.start, selection.end),
-      };
-      if (input.recordType === "Work") {
-        return await runOnlineOnlyWrite(() =>
-          client.createWork({
-            baseRevision: 0,
-            clientIdempotencyKey: recordConversionKey.current as string,
-            description: documentEvidence.selectedText,
-            documentEvidence,
-            effort: null,
-            plannedStartDate: null,
-            projectId,
-            targetDate: null,
-            title: input.title,
-            type: "Task",
-          }),
-        );
+      });
+    },
+  };
+  const selectedTextWrite = useMutation({
+    meta: { onlineWrite: true },
+    mutationFn: async (
+      input:
+        | { kind: "Work"; command: Parameters<typeof client.createWork>[0] }
+        | {
+            kind: "Source";
+            command: Parameters<typeof client.createProjectSourceRecord>[0];
+          }
+        | Error,
+    ) => {
+      if (input instanceof Error) {
+        throw input;
       }
-      const commonInput = {
+      if (input.kind === "Work") {
+        await client.createWork(input.command);
+        return;
+      }
+      await client.createProjectSourceRecord(input.command);
+    },
+    onSuccess: async (_, input) => {
+      if (input instanceof Error) {
+        return;
+      }
+      const { clientIdempotencyKey, projectId } = input.command;
+      if (recordConversionKey.current === clientIdempotencyKey) {
+        setRecordConversionOpen(false);
+        recordConversionKey.current = null;
+        recordConversionId.current = null;
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: orpc.usageLinks.key() }),
+        ...(input.kind === "Work"
+          ? [
+              queryClient.invalidateQueries({
+                queryKey: orpc.projectWorks.queryKey({ input: { projectId } }),
+              }),
+              ...invalidateSmartCollectionMembership(queryClient),
+            ]
+          : [
+              queryClient.invalidateQueries({
+                queryKey: orpc.projectSourceRecords.queryKey({
+                  input: { projectId },
+                }),
+              }),
+            ]),
+      ]);
+    },
+  });
+  const convertSelectedText = {
+    ...selectedTextWrite,
+    mutate(input: { recordType: DocumentConversionRecordType; title: string }) {
+      const { projectId } = record;
+      const selection = selectedTextRange;
+      const body = form.getFieldValue("body");
+      if (
+        !(projectId && selection) ||
+        selection.end <= selection.start ||
+        body !== savedBody ||
+        !input.title.trim()
+      ) {
+        selectedTextWrite.mutate(
+          new Error("Select saved Document text and review the record."),
+        );
+        return;
+      }
+      recordConversionKey.current ??= crypto.randomUUID();
+      recordConversionId.current ??= crypto.randomUUID();
+      const selectedText = body.slice(selection.start, selection.end);
+      const command = {
         baseRevision: 0,
-        clientIdempotencyKey: recordConversionKey.current as string,
-        documentEvidence,
-        id: recordConversionId.current as string,
+        clientIdempotencyKey: recordConversionKey.current,
+        documentEvidence: {
+          documentId: record.id,
+          documentRevision: revision,
+          selectionEnd: selection.end,
+          selectionStart: selection.start,
+          selectedText,
+        },
         projectId,
         title: input.title,
       };
-      switch (input.recordType) {
-        case "Decision":
-          return await runOnlineOnlyWrite(() =>
-            client.createProjectSourceRecord({
-              ...commonInput,
-              decision: documentEvidence.selectedText,
-              rationale: null,
-              sourceType: "Decision",
-            }),
-          );
-        case "Risk":
-          return await runOnlineOnlyWrite(() =>
-            client.createProjectSourceRecord({
-              ...commonInput,
-              description: documentEvidence.selectedText,
-              impact: null,
-              probability: null,
-              response: null,
-              sourceType: "Risk",
-            }),
-          );
-        case "Assumption":
-          return await runOnlineOnlyWrite(() =>
-            client.createProjectSourceRecord({
-              ...commonInput,
-              rationale: null,
-              sourceType: "Assumption",
-              statement: documentEvidence.selectedText,
-            }),
-          );
-        case "Open Question":
-          return await runOnlineOnlyWrite(() =>
-            client.createProjectSourceRecord({
-              ...commonInput,
-              context: null,
-              question: documentEvidence.selectedText,
-              sourceType: "Open Question",
-            }),
-          );
-        default:
-          throw new Error("Unsupported Document record type.");
+      if (input.recordType === "Work") {
+        selectedTextWrite.mutate({
+          kind: "Work",
+          command: {
+            ...command,
+            description: selectedText,
+            effort: null,
+            plannedStartDate: null,
+            targetDate: null,
+            type: "Task",
+          },
+        });
+        return;
       }
+      const details = {
+        Decision: {
+          decision: selectedText,
+          rationale: null,
+          sourceType: "Decision",
+        },
+        Risk: {
+          description: selectedText,
+          impact: null,
+          probability: null,
+          response: null,
+          sourceType: "Risk",
+        },
+        Assumption: {
+          rationale: null,
+          statement: selectedText,
+          sourceType: "Assumption",
+        },
+        "Open Question": {
+          context: null,
+          question: selectedText,
+          sourceType: "Open Question",
+        },
+      } as const;
+      selectedTextWrite.mutate({
+        kind: "Source",
+        command: {
+          ...command,
+          ...details[input.recordType],
+          id: recordConversionId.current,
+        },
+      });
     },
-    onSuccess: async () => {
-      setRecordConversionOpen(false);
-      recordConversionKey.current = null;
-      recordConversionId.current = null;
-      await queryClient.invalidateQueries({
-        queryKey: orpc.projectWorks.key(),
-      });
-      await Promise.all(invalidateSmartCollectionMembership(queryClient));
-      await queryClient.invalidateQueries({
-        queryKey: orpc.projectSourceRecords.key(),
-      });
-      await queryClient.invalidateQueries({ queryKey: orpc.usageLinks.key() });
+  };
+  const listWrite = useMutation({
+    mutationKey: orpc.createDocumentWorkBatch.mutationKey(),
+    meta: { onlineWrite: true },
+    mutationFn: (
+      input: Parameters<typeof client.createDocumentWorkBatch>[0] | Error,
+    ) => {
+      if (input instanceof Error) {
+        throw input;
+      }
+      return client.createDocumentWorkBatch(input);
+    },
+    onSuccess: async (_, input) => {
+      if (input instanceof Error) {
+        return;
+      }
+      if (bulkConversionKey.current === input.clientIdempotencyKey) {
+        setBulkConversionOpen(false);
+        bulkConversionKey.current = null;
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectWorks.queryKey({
+            input: { projectId: input.projectId },
+          }),
+        }),
+        ...invalidateSmartCollectionMembership(queryClient),
+        queryClient.invalidateQueries({ queryKey: orpc.usageLinks.key() }),
+      ]);
     },
   });
-  const convertListToWork = useMutation({
-    mutationFn: (selectedKeys: string[]) => {
+  const convertListToWork = {
+    ...listWrite,
+    mutate(selectedKeys: string[]) {
       const { projectId } = record;
       const body = form.getFieldValue("body");
       const selectedBulkRows = bulkRows.filter(({ start, end }) =>
         selectedKeys.includes(`${start}:${end}`),
       );
-      if (
-        projectId === null ||
-        body !== savedBody ||
-        selectedBulkRows.length === 0
-      ) {
-        throw new Error("Save the Document and choose list rows first.");
+      if (!projectId || body !== savedBody || selectedBulkRows.length === 0) {
+        listWrite.mutate(
+          new Error("Save the Document and choose list rows first."),
+        );
+        return;
       }
       bulkConversionKey.current ??= crypto.randomUUID();
-      return runOnlineOnlyWrite(() =>
-        client.createDocumentWorkBatch({
-          baseRevision: 0,
-          clientIdempotencyKey: bulkConversionKey.current as string,
-          documentId: record.id,
-          documentRevision: revision,
-          items: selectedBulkRows.map((row) => ({
-            selectedText: body.slice(row.start, row.end),
-            selectionEnd: row.end,
-            selectionStart: row.start,
-            title: titleFromSelectedText(row.text),
-          })),
-          projectId,
-        }),
-      );
-    },
-    onSuccess: async () => {
-      setBulkConversionOpen(false);
-      bulkConversionKey.current = null;
-      await queryClient.invalidateQueries({
-        queryKey: orpc.projectWorks.key(),
+      listWrite.mutate({
+        baseRevision: 0,
+        clientIdempotencyKey: bulkConversionKey.current,
+        documentId: record.id,
+        documentRevision: revision,
+        items: selectedBulkRows.map((row) => ({
+          selectedText: body.slice(row.start, row.end),
+          selectionEnd: row.end,
+          selectionStart: row.start,
+          title: titleFromSelectedText(row.text),
+        })),
+        projectId,
       });
-      await Promise.all(invalidateSmartCollectionMembership(queryClient));
-      await queryClient.invalidateQueries({ queryKey: orpc.usageLinks.key() });
     },
-  });
+  };
   function richUpdatesAllowed(): boolean {
     return allowRichUpdates.current;
   }

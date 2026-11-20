@@ -3,7 +3,7 @@ import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { ReturnContext } from "@cantiara/api/return-to-work";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import { NextConcreteStepForm } from "../forms/next-concrete-step-form";
 import ReturnCards from "./return-cards";
@@ -20,15 +20,19 @@ export default function ReturnToWork({ projectId, workId }: ReturnContext) {
   const preferences =
     useQuery(accountPreferencesQueryOptions()).data ??
     DEFAULT_ACCOUNT_PREFERENCES;
-  const [visitError, setVisitError] = useState(false);
   const viewedContext = useRef<string | null>(null);
   const visitsInFlight = useRef(new Set<string>());
-  const { mutateAsync: saveVisit } = useMutation(
+  const visit = useMutation(
     orpc.markReturnContextViewed.mutationOptions({
       meta: { onlineWrite: true, retryInSurface: true },
       mutationFn: (context) => client.markReturnContextViewed(context),
     }),
   );
+  const saveVisit = visit.mutateAsync;
+  const visitError =
+    visit.isError &&
+    visit.variables.projectId === projectId &&
+    visit.variables.workId === workId;
   const markViewed = useCallback(() => {
     const contextKey = `${projectId}:${workId ?? ""}`;
     if (
@@ -44,9 +48,8 @@ export default function ReturnToWork({ projectId, workId }: ReturnContext) {
     saveVisit({ projectId, ...(workId ? { workId } : {}) })
       .then(() => {
         viewedContext.current = contextKey;
-        setVisitError(false);
       })
-      .catch(() => setVisitError(true))
+      .catch(() => undefined)
       .finally(() => visitsInFlight.current.delete(contextKey));
   }, [projectId, workId, query.isSuccess, query.isFetching, saveVisit]);
   useEffect(() => {

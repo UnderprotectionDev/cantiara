@@ -19,7 +19,9 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { orpc } from "@/utils/orpc";
 
 /** Identity of one confirmation attempt; reused on retry so the Work is created once. */
 export interface FollowUpCommandIdentity {
@@ -106,46 +108,56 @@ export function SpecFollowUpDialog({
   onClose,
   onConfirm,
   onPreview,
+  reviewId,
 }: {
   candidate: SpecChangeReviewCandidate;
   name: string;
   onClose: () => void;
   onConfirm: ConfirmFollowUp;
   onPreview: PreviewFollowUp;
+  reviewId: string;
 }) {
   const [workType, setWorkType] = useState<SpecFollowUpWorkType>("Task");
-  const [preview, setPreview] =
-    useState<SpecChangeReviewFollowUpPreview | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(true);
   const identity = useRef<FollowUpCommandIdentity | null>(null);
-  const previewRef = useRef(onPreview);
-  previewRef.current = onPreview;
-  const candidateRef = useRef(candidate);
-  candidateRef.current = candidate;
-
-  // The preview is read-only and re-derived for the chosen Work type.
+  const mounted = useRef<boolean>(false);
   useEffect(() => {
-    let current = true;
-    setPending(true);
-    setPreview(null);
-    setError(null);
-    identity.current = null;
-    previewRef
-      .current(candidateRef.current, workType)
-      .then((next) => current && setPreview(next))
-      .catch(
-        () =>
-          current &&
-          setError("The preview could not be loaded. Reload and try again."),
-      )
-      .finally(() => current && setPending(false));
+    mounted.current = true;
     return () => {
-      current = false;
+      mounted.current = false;
     };
-  }, [workType]);
+  }, []);
+  const previewQuery = useQuery({
+    ...orpc.previewSpecChangeReviewFollowUp.queryOptions({
+      input: {
+        candidate: candidate.identity,
+        reviewId,
+        workType,
+      },
+    }),
+    queryFn: () => onPreview(candidate, workType),
+    gcTime: 0,
+    retry: false,
+  });
+  const commit = useMutation({
+    meta: { onlineWrite: true },
+    mutationFn: (command: Parameters<ConfirmFollowUp>) => onConfirm(...command),
+    onSuccess: (_, [, , confirmed]) => {
+      if (mounted.current && identity.current === confirmed) {
+        onClose();
+      }
+    },
+  });
+  const preview = previewQuery.data;
+  const pending = previewQuery.status === "pending" || commit.isPending;
+  let error: string | null = null;
+  if (previewQuery.isError) {
+    error = "The preview could not be loaded. Reload and try again.";
+  } else if (commit.isError) {
+    error =
+      "The Work could not be created. If the review changed, preview again.";
+  }
 
-  async function confirm() {
+  function confirm() {
     if (!preview || pending) {
       return;
     }
@@ -153,18 +165,7 @@ export function SpecFollowUpDialog({
       key: crypto.randomUUID(),
       workId: crypto.randomUUID(),
     };
-    setPending(true);
-    setError(null);
-    try {
-      await onConfirm(candidate, preview, identity.current);
-      identity.current = null;
-      onClose();
-    } catch {
-      setError(
-        "The Work could not be created. If the review changed, preview again.",
-      );
-      setPending(false);
-    }
+    commit.mutate([candidate, preview, identity.current]);
   }
 
   return (
@@ -182,9 +183,11 @@ export function SpecFollowUpDialog({
           <NativeSelect
             disabled={pending}
             id="spec-follow-up-work-type"
-            onChange={(event) =>
-              setWorkType(event.target.value as SpecFollowUpWorkType)
-            }
+            onChange={(event) => {
+              identity.current = null;
+              commit.reset();
+              setWorkType(event.target.value as SpecFollowUpWorkType);
+            }}
             value={workType}
           >
             {SPEC_FOLLOW_UP_WORK_TYPES.map((value) => (

@@ -5,7 +5,7 @@ import type {
   CustomFieldValueRecord,
   ParsedCustomFieldValuePayload,
 } from "@cantiara/api/custom-fields";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
@@ -144,39 +144,41 @@ export function useCustomFieldValues(
     ]);
   };
 
-  const setValue = useMutation({
-    mutationFn: (input: SetCustomFieldValueArgs) => {
-      if (!recordId) {
-        throw new Error("A record is required before saving a Custom field.");
-      }
-      return runOnlineOnlyWrite(() =>
-        client.setCustomFieldValue({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-          recordId,
-          recordType,
-        }),
-      );
-    },
-    onSuccess: invalidate,
-  });
+  const setValue = usePreparedMutation(
+    orpc.setCustomFieldValue.mutationOptions({
+      mutationFn: (input) => {
+        if (!input.recordId) {
+          throw new Error("A record is required before saving a Custom field.");
+        }
+        return client.setCustomFieldValue(input);
+      },
+      onSuccess: invalidate,
+    }),
+    (input: SetCustomFieldValueArgs) => ({
+      ...input,
+      recordId: recordId ?? "",
+      recordType,
+    }),
+  );
 
-  const clearValue = useMutation({
-    mutationFn: (input: ClearCustomFieldValueArgs) => {
-      if (!recordId) {
-        throw new Error("A record is required before clearing a Custom field.");
-      }
-      return runOnlineOnlyWrite(() =>
-        client.clearCustomFieldValue({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-          recordId,
-          recordType,
-        }),
-      );
-    },
-    onSuccess: invalidate,
-  });
+  const clearValue = usePreparedMutation(
+    orpc.clearCustomFieldValue.mutationOptions({
+      mutationFn: (input) => {
+        if (!input.recordId) {
+          throw new Error(
+            "A record is required before clearing a Custom field.",
+          );
+        }
+        return client.clearCustomFieldValue(input);
+      },
+      onSuccess: invalidate,
+    }),
+    (input: ClearCustomFieldValueArgs) => ({
+      ...input,
+      recordId: recordId ?? "",
+      recordType,
+    }),
+  );
 
   return { clearValue, query, setValue };
 }

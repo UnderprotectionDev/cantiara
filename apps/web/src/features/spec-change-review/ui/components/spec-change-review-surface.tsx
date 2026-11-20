@@ -1,18 +1,13 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Retry binds to the queue query.
 import { Button } from "@cantiara/ui/components/button";
-import {
-  skipToken,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 
 import {
   client,
   invalidateSmartCollectionMembership,
   orpc,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
 import { SpecChangeReviewView } from "../views/spec-change-review-view";
 import type { MarkCandidate } from "./spec-change-review-candidates";
@@ -35,25 +30,28 @@ export default function SpecChangeReviewSurface({
     input: selectedId ? { reviewId: selectedId } : skipToken,
   });
   const detail = useQuery(detailOptions);
-  const mark = useMutation({
-    mutationFn: ({
+  const mark = usePreparedMutation(
+    orpc.markSpecChangeReviewCandidate.mutationOptions({
+      mutationFn: (input) => client.markSpecChangeReviewCandidate(input),
+      onSuccess: (_, { reviewId }) =>
+        queryClient.invalidateQueries({
+          queryKey: orpc.specChangeReview.queryKey({ input: { reviewId } }),
+        }),
+    }),
+    ({
       args: [candidate, state, note],
       reviewId,
     }: {
       args: Parameters<MarkCandidate>;
       reviewId: string;
-    }) =>
-      client.markSpecChangeReviewCandidate({
-        baseRevision: candidate.review.revision,
-        candidate: candidate.identity,
-        clientIdempotencyKey: crypto.randomUUID(),
-        note,
-        reviewId,
-        state,
-      }),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: detailOptions.queryKey }),
-  });
+    }) => ({
+      baseRevision: candidate.review.revision,
+      candidate: candidate.identity,
+      note,
+      reviewId,
+      state,
+    }),
+  );
   const previewFollowUp: PreviewFollowUp = (candidate, workType) =>
     detail.data
       ? client.previewSpecChangeReviewFollowUp({
@@ -67,29 +65,26 @@ export default function SpecChangeReviewSurface({
     preview,
     identity,
   ) => {
-    if (!detail.data) {
-      throw new Error("No review is open.");
-    }
-    try {
-      const created = await client.createSpecChangeReviewFollowUp({
-        baseRevision: 0,
-        candidate: candidate.identity,
-        clientIdempotencyKey: identity.key,
-        previewFingerprint: preview.fingerprint,
-        reviewId: detail.data.review.id,
-        workId: identity.workId,
-        workType: preview.plan.work.type,
-      });
-      // The follow-up created Work, so Work lists and Smart Collection
-      // membership read it again.
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
-        ...invalidateSmartCollectionMembership(queryClient),
-      ]);
-      return created;
-    } finally {
-      await queryClient.invalidateQueries({ queryKey: detailOptions.queryKey });
-    }
+    const { reviewId } = preview.plan;
+    const created = await client.createSpecChangeReviewFollowUp({
+      baseRevision: 0,
+      candidate: candidate.identity,
+      clientIdempotencyKey: identity.key,
+      previewFingerprint: preview.fingerprint,
+      reviewId,
+      workId: identity.workId,
+      workType: preview.plan.work.type,
+    });
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: orpc.projectWorks.queryKey({ input: { projectId } }),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.specChangeReview.queryKey({ input: { reviewId } }),
+      }),
+      ...invalidateSmartCollectionMembership(queryClient),
+    ]);
+    return created;
   };
   if (queue.status === "pending") {
     return <p role="status">Loading Spec Change Review…</p>;

@@ -83,7 +83,10 @@ test("confirming a follow-up refreshes Work lists and Smart Collection membershi
   await act(async () => {
     await hoisted.captured.onConfirmFollowUp?.(
       { identity: {} },
-      { fingerprint: "fingerprint-1", plan: { work: { type: "Task" } } },
+      {
+        fingerprint: "fingerprint-1",
+        plan: { reviewId: "review-1", work: { type: "Task" } },
+      },
       { key: "key-1", workId: "work-1" },
     );
   });

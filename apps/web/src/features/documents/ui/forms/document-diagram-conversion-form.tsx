@@ -53,11 +53,14 @@ export default function DocumentDiagramConversionDialog({
     Error
   >;
   record: Document;
-  convertDiagram: import("@tanstack/react-query").UseMutationResult<
-    import("@cantiara/api/technical-diagrams").TechnicalDiagramSource,
-    Error,
-    void,
-    unknown
+  convertDiagram: Pick<
+    import("@tanstack/react-query").UseMutationResult<
+      import("@cantiara/api/technical-diagrams").TechnicalDiagramSource,
+      Error,
+      void,
+      unknown
+    >,
+    "mutate" | "isPending" | "isError" | "error"
   >;
 }) {
   const form = useForm({
@@ -216,7 +219,7 @@ export default function DocumentDiagramConversionDialog({
             <p role="alert">{conversionPreview.error.message}</p>
           ) : null}
           {convertDiagram.isError ? (
-            <p role="alert">{convertDiagram.error.message}</p>
+            <p role="alert">{convertDiagram.error?.message}</p>
           ) : null}
         </form>
         <DialogFooter>

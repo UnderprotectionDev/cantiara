@@ -7,7 +7,8 @@ const rpc = vi.hoisted(() => ({ organize: vi.fn(), preview: vi.fn() }));
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({
   runOnlineOnlyWrite: (write: () => Promise<unknown>) => write(),
 }));
-vi.mock("@/utils/orpc", () => ({
+vi.mock("@/utils/orpc", async (load) => ({
+  ...(await load<typeof import("@/utils/orpc")>()),
   client: {
     organizeDocument: rpc.organize,
     previewDocumentOrganization: rpc.preview,
@@ -63,12 +64,16 @@ test("previews an archive change, then applies it with one save identity", async
         </QueryClientProvider>,
       ),
     );
-    await act(async () => button("Preview").click());
+    await act(async () => {
+      button("Preview").click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(rpc.preview).toHaveBeenCalledWith({
       action: "archive",
       archived: true,
       documentId: "doc",
     });
+    await vi.waitFor(() => expect(button("Apply").disabled).toBe(false));
     await act(async () => button("Apply").click());
     expect(rpc.organize).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -23,7 +23,7 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type SubmitEvent, useRef, useState } from "react";
 import type { z } from "zod";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+
 import { client, orpc } from "@/utils/orpc";
 import { documentExportFormSchema } from "../../lib/document-export-form";
 import { DocumentTransferPreviewPanel } from "../components/document-transfer-preview";
@@ -43,11 +43,7 @@ export default function DocumentTransferForm({
   onCommitted: (record: Document) => Promise<void>;
 }) {
   const [action, setAction] = useState<TransferAction | null>(null);
-  const [preview, setPreview] = useState<DocumentTransferPreview | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [exportPreview, setExportPreview] = useState<Awaited<
-    ReturnType<typeof client.exportDocument>
-  > | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: {
       attachmentIds: [] as string[],
@@ -57,6 +53,11 @@ export default function DocumentTransferForm({
       version: record.revision,
     },
     onSubmit: async () => {
+      setValidationError(null);
+      apply.reset();
+      cancelPreview.reset();
+      pending.current = null;
+      activeWriteKey.current = undefined;
       if (!action) {
         return;
       }
@@ -67,7 +68,7 @@ export default function DocumentTransferForm({
           revision: form.state.values.version,
         });
         if (!parsed.success) {
-          setError("Document export preview is unavailable.");
+          setValidationError("Document export preview is unavailable.");
           return;
         }
         await inspect
@@ -77,7 +78,7 @@ export default function DocumentTransferForm({
       }
       const parsed = documentTransferInputSchema.safeParse(command(action));
       if (!parsed.success) {
-        setError(
+        setValidationError(
           parsed.error.issues[0]?.message ??
             "Document transfer preview is unavailable.",
         );
@@ -88,10 +89,8 @@ export default function DocumentTransferForm({
         .catch(() => undefined);
     },
   });
+  const activeWriteKey = useRef<string | undefined>(undefined);
   const pending = useRef<{ key: string; newDocumentId: string } | null>(null);
-  const confirmed = useRef<
-    Parameters<typeof client.transferDocument>[0] | null
-  >(null);
   const projects = useQuery({
     ...orpc.projects.queryOptions(),
     enabled: action === "Move" || action === "Copy",
@@ -106,25 +105,6 @@ export default function DocumentTransferForm({
     }),
     enabled: action === "Assign File Attachments" && !!record.projectId,
   });
-  const childOptions =
-    preview?.descendants ??
-    documents.filter((item) => {
-      if (item.id === record.id) {
-        return false;
-      }
-      try {
-        return selectDocumentMove(
-          documents.map((candidate) => ({
-            id: candidate.id,
-            parentDocumentId: candidate.parentDocumentId ?? null,
-          })),
-          record.id,
-          [item.id],
-        ).includes(item.id);
-      } catch {
-        return false;
-      }
-    });
   function command(
     nextAction: DocumentTransferInput["action"],
   ): DocumentTransferInput {
@@ -151,66 +131,79 @@ export default function DocumentTransferForm({
     };
   }
   const inspect = useMutation({
+    gcTime: 0,
     mutationFn: async (
       request:
-        | {
-            input: z.infer<typeof documentExportFormSchema>;
-            kind: "export";
-          }
+        | { input: z.infer<typeof documentExportFormSchema>; kind: "export" }
         | { input: DocumentTransferInput; kind: "transfer" },
     ) => {
       if (request.kind === "export") {
-        setExportPreview(await client.exportDocument(request.input));
-        return;
+        return {
+          kind: "export" as const,
+          snapshot: await client.exportDocument(request.input),
+        };
       }
       const result = await client.previewDocumentTransfer(request.input);
       if (!("externalSurfaceIds" in result)) {
         throw new Error("Document transfer preview is unavailable.");
       }
-      setPreview(result);
-    },
-    onError: (failure) => setError(failure.message),
-  });
-  const apply = useMutation({
-    mutationFn: async (nextAction: DocumentTransferInput["action"]) => {
-      const selection = command(nextAction);
-      let currentPreview = preview;
-      if (nextAction === "Cancel External Surface") {
-        pending.current = {
-          key: crypto.randomUUID(),
-          newDocumentId: crypto.randomUUID(),
-        };
-        const result = await client.previewDocumentTransfer(selection);
-        if (!("externalSurfaceIds" in result)) {
-          throw new Error("Document transfer preview is unavailable.");
-        }
-        currentPreview = result;
-      }
-      if (!(currentPreview && pending.current)) {
-        throw new Error("Preview before Apply.");
-      }
-      confirmed.current ??= {
-        ...selection,
-        previewFingerprint: currentPreview.fingerprint,
-        baseRevision: nextAction === "Copy" ? 0 : record.revision,
-        clientIdempotencyKey: pending.current.key,
+      return {
+        kind: "transfer" as const,
+        preview: result,
+        reviewedInput: request.input,
       };
-      const confirmedInput = confirmed.current;
-      return runOnlineOnlyWrite(() => client.transferDocument(confirmedInput));
     },
-    onSuccess: async (saved, nextAction) => {
-      await onCommitted(saved);
-      setPreview(null);
-      pending.current = null;
-      confirmed.current = null;
-      setError(null);
-      if (nextAction !== "Cancel External Surface") {
-        setAction(null);
-      }
-    },
-    onError: (failure) => setError(failure.message),
   });
+  const reviewed = inspect.data?.kind === "transfer" ? inspect.data : null;
+  const preview = reviewed?.preview ?? null;
+  const exportPreview =
+    inspect.data?.kind === "export" ? inspect.data.snapshot : null;
+  const cancelPreview = useMutation({
+    mutationFn: async (input: DocumentTransferInput) => {
+      const result = await client.previewDocumentTransfer(input);
+      if (!("externalSurfaceIds" in result)) {
+        throw new Error("Document transfer preview is unavailable.");
+      }
+      return result;
+    },
+  });
+  const apply = useMutation(
+    orpc.transferDocument.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.transferDocument(input),
+      onSuccess: async (saved, input) => {
+        await onCommitted(saved);
+        if (activeWriteKey.current !== input.clientIdempotencyKey) {
+          return;
+        }
+        resetPreview();
+        if (input.action !== "Cancel External Surface") {
+          setAction(null);
+        }
+      },
+    }),
+  );
+  const childOptions =
+    preview?.descendants ??
+    documents.filter((item) => {
+      if (item.id === record.id) {
+        return false;
+      }
+      try {
+        return selectDocumentMove(
+          documents.map((candidate) => ({
+            id: candidate.id,
+            parentDocumentId: candidate.parentDocumentId ?? null,
+          })),
+          record.id,
+          [item.id],
+        ).includes(item.id);
+      } catch {
+        return false;
+      }
+    });
   const download = useMutation({
+    gcTime: 0,
     mutationFn: () => {
       if (!exportPreview) {
         throw new Error("Preview before Download.");
@@ -237,16 +230,17 @@ export default function DocumentTransferForm({
       link.download = `${record.title.replace(/[^\p{L}\p{N}._-]+/gu, "-") || "document"}.${snapshot.format === "PDF" ? "pdf" : "md"}`;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
-      setAction(null);
+      handleCancel();
     },
-    onError: (failure) => setError(failure.message),
   });
   function resetPreview() {
-    confirmed.current = null;
-    setPreview(null);
-    setExportPreview(null);
+    inspect.reset();
+    cancelPreview.reset();
+    apply.reset();
+    download.reset();
     pending.current = null;
-    setError(null);
+    activeWriteKey.current = undefined;
+    setValidationError(null);
   }
   function open(next: "Move" | "Copy" | "Export" | "Assign File Attachments") {
     resetPreview();
@@ -256,7 +250,15 @@ export default function DocumentTransferForm({
     form.setFieldValue("version", record.revision);
     setAction(next);
   }
-  const busy = apply.isPending || inspect.isPending || download.isPending;
+  const busy =
+    apply.isPending ||
+    cancelPreview.isPending ||
+    inspect.isPending ||
+    download.isPending;
+  const error =
+    validationError ??
+    (apply.error ?? cancelPreview.error ?? inspect.error ?? download.error)
+      ?.message;
   function handleMove() {
     open("Move");
   }
@@ -271,7 +273,7 @@ export default function DocumentTransferForm({
   }
   function handleOpenChange(isOpen: boolean) {
     if (!(isOpen || busy)) {
-      setAction(null);
+      handleCancel();
     }
   }
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -279,18 +281,48 @@ export default function DocumentTransferForm({
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
   }
-  function handleCancelSurface() {
-    apply.mutate("Cancel External Surface");
+  async function handleCancelSurface() {
+    if (
+      apply.isError &&
+      apply.variables?.action === "Cancel External Surface"
+    ) {
+      apply.mutate(apply.variables);
+      return;
+    }
+    const selection = command("Cancel External Surface");
+    const cancellation = await cancelPreview
+      .mutateAsync(selection)
+      .catch(() => undefined);
+    if (cancellation) {
+      const key = crypto.randomUUID();
+      activeWriteKey.current = key;
+      apply.mutate({
+        ...selection,
+        baseRevision: record.revision,
+        clientIdempotencyKey: key,
+        previewFingerprint: cancellation.fingerprint,
+      });
+    }
   }
   function handleDownload() {
     download.mutate();
   }
   function handleApply() {
-    if (action && action !== "Export") {
-      apply.mutate(action);
+    if (reviewed && pending.current) {
+      activeWriteKey.current = pending.current.key;
+      apply.mutate({
+        ...reviewed.reviewedInput,
+        baseRevision:
+          reviewed.reviewedInput.action === "Copy"
+            ? 0
+            : reviewed.reviewedInput.sourceRevision,
+        clientIdempotencyKey: pending.current.key,
+        previewFingerprint: reviewed.preview.fingerprint,
+      });
     }
   }
   function handleCancel() {
+    resetPreview();
     setAction(null);
   }
   return (

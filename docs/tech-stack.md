@@ -157,7 +157,7 @@ Return to Work calls the canvas owner's public viewport API through `packages/ap
 | Tauri Stronghold eklentisi | Masaüstü secret saklama |
 | Tauri Process eklentisi | İmzalı updater kurulumu sonrası uygulamayı yeniden başlatma |
 | Tauri Updater eklentisi | Masaüstü güncellemeleri |
-| WXT | React tarayıcı uzantısı; React modülü `@wxt-dev/module-react`, geliştirme tarayıcısı çalıştırıcısı `web-ext` |
+| WXT | React tarayıcı uzantısı; React modülü `@wxt-dev/module-react`, geliştirme tarayıcısı çalıştırıcısı `web-ext`. Web Capture popup istekleri TanStack Query ile izlenir; token ve eşleme kodu Query cache dışında kalır. |
 | Next.js | Yalnız Fumadocs dokümantasyon uygulamasının server/RSC framework'ü; ana ürün web uygulamasını veya API backend'ini taşımaz |
 | Fumadocs + Fumadocs MDX | `Next.js: Fumadocs MDX` şablonunu kullanan dokümantasyon sitesi ve repository içi MDX içerik kaynağı; Tailwind derlemesi yalnız bu uygulamada `postcss` ile çalışır |
 | GitHub Releases | Masaüstü sürüm dağıtımı ve imzalı macOS package acceptance candidate ile ham kanıt arşivi için kalıcı release sınırı |
