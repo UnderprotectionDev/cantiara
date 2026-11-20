@@ -3,9 +3,8 @@ import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { SourceCheck } from "@cantiara/api/source-recheck";
 import type { SourceRecord } from "@cantiara/api/sources-and-freshness";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { SourceCheckCompare } from "./source-check-compare";
 
@@ -18,10 +17,42 @@ export function SourceRecheckControls({
   preferences: AccountPreferences;
   readOnly: boolean;
 }) {
+  const recheckSourceMutation = useMutation(
+    orpc.recheckSource.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.recheckSource(input),
+      onSuccess: async (_, input) => {
+        if (recheckAttempt.current?.id === input.id) {
+          recheckAttempt.current = null;
+        }
+        await refresh(input);
+      },
+    }),
+  );
+  const decideSourceCheckMutation = useMutation(
+    orpc.decideSourceCheck.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.decideSourceCheck(input),
+      onSuccess: async (_, input) => {
+        if (decisionKey.current?.key === input.clientIdempotencyKey) {
+          decisionKey.current = null;
+        }
+        await refresh(input);
+      },
+    }),
+  );
   const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const recheckId = useRef<string | null>(null);
+  const recheckAttempt = useRef<{ fingerprint: string; id: string } | null>(
+    null,
+  );
+  const pending =
+    recheckSourceMutation.isPending || decideSourceCheckMutation.isPending;
+  const recheckError = recheckSourceMutation.isError
+    ? "Source Check could not be saved. Reload before retrying if the Source changed."
+    : null;
+  const error = decideSourceCheckMutation.isError
+    ? "The Source or Source Check changed. Reload before deciding."
+    : recheckError;
   const decisionKey = useRef<{ fingerprint: string; key: string } | null>(null);
   const cache = useQueryClient();
   const selection = { sourceId: source.id, projectId: source.projectId };
@@ -31,76 +62,65 @@ export function SourceRecheckControls({
   const uses = useQuery({ ...useOptions, enabled: open });
   const checks = useQuery({ ...checkOptions, enabled: open });
   const detail = useQuery({ ...versionOptions, enabled: open });
-  async function refresh() {
+  async function refresh({ projectId, sourceId }: typeof selection) {
+    const input = { projectId, sourceId };
     await Promise.all([
-      cache.invalidateQueries({ queryKey: useOptions.queryKey }),
-      cache.invalidateQueries({ queryKey: checkOptions.queryKey }),
-      cache.invalidateQueries({ queryKey: versionOptions.queryKey }),
       cache.invalidateQueries({
-        queryKey: orpc.projectSources.queryOptions({
-          input: { projectId: source.projectId },
-        }).queryKey,
+        queryKey: orpc.sourceEvidenceUses.queryOptions({ input }).queryKey,
+      }),
+      cache.invalidateQueries({
+        queryKey: orpc.sourceChecks.queryOptions({ input }).queryKey,
+      }),
+      cache.invalidateQueries({
+        queryKey: orpc.source.queryOptions({ input }).queryKey,
+      }),
+      cache.invalidateQueries({
+        queryKey: orpc.projectSources.queryOptions({ input: { projectId } })
+          .queryKey,
       }),
     ]);
   }
-  async function recheck() {
+  function recheck() {
     if (pending) {
       return;
     }
-    setPending(true);
-    setError(null);
-    recheckId.current ??= crypto.randomUUID();
-    const id = recheckId.current;
-    try {
-      await runOnlineOnlyWrite(() =>
-        client.recheckSource({
-          ...selection,
-          id,
-          expectedSourceRevision: source.revision,
-        }),
-      );
-      recheckId.current = null;
-      await refresh();
-    } catch {
-      setError(
-        "Source Check could not be saved. Reload before retrying if the Source changed.",
-      );
-    } finally {
-      setPending(false);
+    decideSourceCheckMutation.reset();
+    const fingerprint = JSON.stringify([selection, source.revision]);
+    if (recheckAttempt.current?.fingerprint !== fingerprint) {
+      recheckAttempt.current = { fingerprint, id: crypto.randomUUID() };
     }
+    recheckSourceMutation.mutate({
+      ...selection,
+      id: recheckAttempt.current.id,
+      expectedSourceRevision: source.revision,
+    });
   }
-  async function decide(
+  function decide(
     check: SourceCheck,
     decision: "Keep current version" | "Save as new Source version",
   ) {
     if (pending) {
       return;
     }
-    setPending(true);
-    setError(null);
-    const fingerprint = `${check.id}:${check.revision}:${source.revision}:${decision}`;
+    recheckSourceMutation.reset();
+    const fingerprint = JSON.stringify([
+      selection,
+      check.id,
+      check.revision,
+      source.revision,
+      decision,
+    ]);
     if (decisionKey.current?.fingerprint !== fingerprint) {
       decisionKey.current = { fingerprint, key: crypto.randomUUID() };
     }
-    const command = decisionKey.current;
-    try {
-      await runOnlineOnlyWrite(() =>
-        client.decideSourceCheck({
-          ...selection,
-          checkId: check.id,
-          baseRevision: check.revision,
-          expectedSourceRevision: source.revision,
-          clientIdempotencyKey: command.key,
-          decision,
-        }),
-      );
-      decisionKey.current = null;
-      await refresh();
-    } catch {
-      setError("The Source or Source Check changed. Reload before deciding.");
-    } finally {
-      setPending(false);
-    }
+    decideSourceCheckMutation.mutate({
+      ...selection,
+      checkId: check.id,
+      baseRevision: check.revision,
+      expectedSourceRevision: source.revision,
+      clientIdempotencyKey: decisionKey.current.key,
+      decision,
+    });
   }
   return (
     <div aria-busy={pending} className="space-y-3">

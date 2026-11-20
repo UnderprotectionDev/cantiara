@@ -3,7 +3,6 @@ import type {
   ProjectWallDensity,
   ProjectWallHighlight,
   ProjectWallPosition,
-  ProjectWallRelationPreview,
   ProjectWallSourceType,
 } from "@cantiara/api/project-wall";
 import {
@@ -12,15 +11,18 @@ import {
 } from "@cantiara/api/project-wall-viewport";
 import {
   skipToken,
+  useMutation,
+  useMutationState,
   useQueries,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { executeWrite } from "@/utils/execute-write";
 import { client, orpc } from "@/utils/orpc";
 import { usePersonalProjectWallView } from "../../hooks/use-personal-project-wall-view";
+import { useProjectWallRelation } from "../../hooks/use-project-wall-relation";
 import { AddCardForm } from "../forms/place-project-wall-card-form";
 import {
   type ProjectWallActions,
@@ -39,7 +41,6 @@ export default function ProjectWallSurface({
 }) {
   const queryClient = useQueryClient();
   const [chosenId, setChosenId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const listOptions = orpc.projectWalls.queryOptions({ input: { projectId } });
   const walls = useQuery(listOptions);
   const selectedId = chosenId ?? walls.data?.[0]?.id ?? null;
@@ -54,49 +55,55 @@ export default function ProjectWallSurface({
     orpc.projectWallSourceOptions.queryOptions({ input: { projectId } }),
   );
 
+  const wallId = wall.data?.id;
+
   /**
    * Runs one wall write and refreshes the wall queries. The result tells the
    * caller whether the write persisted: `ok: true` with the seam's return
    * value, or `ok: false` with the reason surfaced as the page error.
    */
   const write = useCallback(
-    async <T,>(operation: () => Promise<T>) => {
-      setError(null);
+    async <T,>(
+      operation: () => Promise<T>,
+      retryInSurface = false,
+      targetWallId = wallId,
+    ) => {
       try {
-        const result = await runOnlineOnlyWrite(operation);
-        return { ok: true as const, result };
-      } catch (cause) {
-        setError(
-          cause instanceof Error && cause.message
-            ? cause.message
-            : "Project Wall change failed.",
+        const result = await executeWrite(
+          queryClient,
+          { projectId, wallId: targetWallId },
+          operation,
+          async () => {
+            const invalidations = [
+              queryClient.invalidateQueries({
+                queryKey: orpc.projectWalls.key({ input: { projectId } }),
+              }),
+            ];
+            if (targetWallId) {
+              invalidations.push(
+                queryClient.invalidateQueries({
+                  queryKey: orpc.projectWall.key({
+                    input: { projectId, wallId: targetWallId },
+                  }),
+                }),
+              );
+            }
+            await Promise.all(invalidations);
+          },
+          { retryInSurface, mutationKey: ["project-wall-write", projectId] },
         );
+        return { ok: true as const, result };
+      } catch {
         return { ok: false as const };
-      } finally {
-        await queryClient.invalidateQueries({
-          queryKey: orpc.projectWalls.key(),
-        });
-        await queryClient.invalidateQueries({
-          queryKey: orpc.projectWall.key(),
-        });
       }
     },
-    [queryClient],
+    [projectId, queryClient, wallId],
   );
-
-  const wallId = wall.data?.id;
 
   // Personal viewport and view-local group collapse: this account, this wall.
   const personal = usePersonalProjectWallView(projectId, wallId ?? null);
   const { schedule } = personal;
-  const [chosenCollapse, setChosenCollapse] = useState<{
-    collapsed: string[];
-    wallId: string;
-  } | null>(null);
-  const collapsedIds =
-    chosenCollapse && chosenCollapse.wallId === wallId
-      ? chosenCollapse.collapsed
-      : (personal.saved?.collapsed ?? []);
+  const collapsedIds = personal.saved?.collapsed ?? [];
   const collapsedRef = useRef(collapsedIds);
   collapsedRef.current = collapsedIds;
   const lastView = useRef<{
@@ -116,7 +123,6 @@ export default function ProjectWallSurface({
   const setCollapsed = useCallback(
     (collapsed: string[]) => {
       if (wallId) {
-        setChosenCollapse({ collapsed, wallId });
         saveView(collapsed);
       }
     },
@@ -138,6 +144,8 @@ export default function ProjectWallSurface({
     [collapsedIds, wall.data],
   );
 
+  const createRelation = useProjectWallRelation(projectId, wallId ?? "");
+
   const actions: ProjectWallActions = {
     onCreateFromSkeleton: async (skeleton) => {
       const attempt = await write(() =>
@@ -157,18 +165,11 @@ export default function ProjectWallSurface({
           wallId: wallId ?? "",
         }),
       ).then((attempt) => attempt.ok),
-    onCreateRelation: ({ baseRevision, kind, linkId, previewId }) =>
-      write(() =>
-        client.createProjectWallPersistentRelation({
-          baseRevision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          kind,
-          linkId,
-          previewId,
-          projectId,
-          wallId: wallId ?? "",
-        }),
-      ).then((attempt) => attempt.ok),
+    onCreateRelation: (input) =>
+      createRelation.mutateAsync(input).then(
+        () => true,
+        () => false,
+      ),
     onDeleteGroup: (groupId) =>
       write(() =>
         client.deleteProjectWallGroup({
@@ -186,49 +187,30 @@ export default function ProjectWallSurface({
         }),
       ).then((attempt) => attempt.ok),
     onPreviewRelation: (request) =>
-      write(() =>
-        client.previewProjectWallPersistentRelation({
-          ...request,
-          projectId,
-          wallId: wallId ?? "",
+      queryClient.query({
+        ...orpc.previewProjectWallPersistentRelation.queryOptions({
+          input: { ...request, projectId, wallId: wallId ?? "" },
         }),
-      ).then((attempt) =>
-        attempt.ok ? (attempt.result as ProjectWallRelationPreview) : undefined,
-      ),
+        gcTime: 0,
+        staleTime: 0,
+      }),
     onExportSnapshot: async (scope, format) => {
-      // A snapshot reads the wall; it is not a write, so nothing refetches.
-      try {
-        const output = await client.exportProjectWallSnapshot({
-          ...scope,
-          format,
-          projectId,
-          wallId: wallId ?? "",
-        });
-        return output.files;
-      } catch (cause) {
-        // The refusal reason (an oversized scope) is the user's action item.
-        setError(
-          cause instanceof Error && cause.message
-            ? cause.message
-            : "Snapshot could not be created.",
-        );
-      }
+      const output = await client.exportProjectWallSnapshot({
+        ...scope,
+        format,
+        projectId,
+        wallId: wallId ?? "",
+      });
+      return output.files;
     },
-    onPreviewSnapshot: async (scope) => {
-      try {
-        return await client.previewProjectWallSnapshot({
-          ...scope,
-          projectId,
-          wallId: wallId ?? "",
-        });
-      } catch (cause) {
-        setError(
-          cause instanceof Error && cause.message
-            ? cause.message
-            : "Snapshot could not be created.",
-        );
-      }
-    },
+    onPreviewSnapshot: (scope) =>
+      queryClient.query({
+        ...orpc.previewProjectWallSnapshot.queryOptions({
+          input: { ...scope, projectId, wallId: wallId ?? "" },
+        }),
+        gcTime: 0,
+        staleTime: 0,
+      }),
     onSetFocusOrder: (cardIds) =>
       write(() =>
         client.setProjectWallFocusOrder({
@@ -275,8 +257,10 @@ export default function ProjectWallSurface({
       return false;
     },
     onDelete: async (id) => {
-      const attempt = await write(() =>
-        client.deleteProjectWall({ projectId, wallId: id }),
+      const attempt = await write(
+        () => client.deleteProjectWall({ projectId, wallId: id }),
+        false,
+        id,
       );
       if (attempt.ok) {
         setChosenId(null);
@@ -284,8 +268,10 @@ export default function ProjectWallSurface({
       return attempt.ok;
     },
     onRename: (id, title) =>
-      write(() =>
-        client.renameProjectWall({ projectId, title, wallId: id }),
+      write(
+        () => client.renameProjectWall({ projectId, title, wallId: id }),
+        false,
+        id,
       ).then((attempt) => attempt.ok),
     onSelect: setChosenId,
   };
@@ -383,19 +369,94 @@ export default function ProjectWallSurface({
     [diagramVersions, projectId, wallId, write],
   );
 
-  async function onMove(
+  const move = useMutation(
+    orpc.moveProjectWallCards.mutationOptions({
+      meta: { onlineWrite: true, retryInSurface: true },
+      scope: { id: `project-wall-card-moves:${projectId}:${wallId}` },
+      mutationFn: (input) => client.moveProjectWallCards(input),
+      onMutate: async ({ moves, ...input }) => {
+        const { queryKey } = orpc.projectWall.queryOptions({ input });
+        await queryClient.cancelQueries({ exact: true, queryKey });
+        const previous = queryClient.getQueryData<typeof wall.data>(queryKey);
+        const positions = new Map(
+          moves.map(({ cardId, position }) => [cardId, position]),
+        );
+        queryClient.setQueryData<typeof wall.data>(
+          queryKey,
+          (current) =>
+            current && {
+              ...current,
+              cards: current.cards.map((card) => {
+                const position = positions.get(card.id);
+                return position ? { ...card, position } : card;
+              }),
+            },
+        );
+        return previous;
+      },
+      onError: (_, { moves, ...input }, previous) => {
+        if (!previous) {
+          return;
+        }
+        const { queryKey } = orpc.projectWall.queryOptions({ input });
+        const attempted = new Map(
+          moves.map(({ cardId, position }) => [cardId, position]),
+        );
+        const original = new Map(
+          previous.cards.map(({ id, position }) => [id, position]),
+        );
+        queryClient.setQueryData<typeof wall.data>(
+          queryKey,
+          (current) =>
+            current && {
+              ...current,
+              cards: current.cards.map((card) => {
+                const before = original.get(card.id);
+                const after = attempted.get(card.id);
+                if (
+                  before &&
+                  after?.x === card.position.x &&
+                  after.y === card.position.y
+                ) {
+                  return { ...card, position: before };
+                }
+                return card;
+              }),
+            },
+        );
+      },
+      onSettled: (_, _failure, { projectId: owner, wallId: target }) => {
+        const mutationKey = orpc.moveProjectWallCards.mutationKey();
+        if (
+          queryClient.isMutating({
+            mutationKey,
+            predicate: (entry) => {
+              const input = entry.state.variables as
+                | { projectId?: string; wallId?: string }
+                | undefined;
+              return input?.projectId === owner && input.wallId === target;
+            },
+          }) <= 1
+        ) {
+          return queryClient.invalidateQueries({
+            queryKey: orpc.projectWall.key({
+              input: { projectId: owner, wallId: target },
+            }),
+          });
+        }
+      },
+    }),
+  );
+  function onMove(
     moves: Array<{ cardId: string; position: ProjectWallPosition }>,
   ) {
-    // The canvas reverts its optimistic overlay when this resolves false.
-    return (
-      await write(() =>
-        client.moveProjectWallCards({
-          moves,
-          projectId,
-          wallId: wallId ?? "",
-        }),
-      )
-    ).ok;
+    if (!wallId || moves.length === 0) {
+      return Promise.resolve(false);
+    }
+    return move.mutateAsync({ moves, projectId, wallId }).then(
+      () => true,
+      () => false,
+    );
   }
 
   async function onReorder(cardIds: string[]) {
@@ -444,13 +505,25 @@ export default function ProjectWallSurface({
           missed += 1;
         }
       }
-      if (missed > 0) {
-        setError(
-          reason ||
-            `${cardIds.length - missed} of ${cardIds.length} cards joined the group; retrying adds the rest.`,
-        );
-      }
-    }).then((attempt) => attempt.ok);
+      return missed > 0
+        ? reason ||
+            `${cardIds.length - missed} of ${cardIds.length} cards joined the group.`
+        : undefined;
+    }, true).then((attempt) => attempt.ok);
+  const writeResults = useMutationState({
+    filters: { mutationKey: ["project-wall-write", projectId] },
+    select: (mutation) => mutation.state,
+  });
+  const latest = [writeResults.at(-1), move, createRelation].reduce(
+    (previous, attempt) =>
+      attempt && (!previous || attempt.submittedAt >= previous.submittedAt)
+        ? attempt
+        : previous,
+  );
+  const failure = latest?.error;
+  const warning = typeof latest?.data === "string" ? latest.data : null;
+  const error =
+    failure instanceof Error ? failure.message : "Project Wall change failed.";
 
   if (walls.status === "pending") {
     return <p role="status">Loading Project Walls…</p>;
@@ -513,7 +586,8 @@ export default function ProjectWallSurface({
         skeletons={skeletons.data ?? []}
         walls={walls.data}
       />
-      {error ? <p role="alert">{error}</p> : null}
+      {failure ? <p role="alert">{error}</p> : null}
+      {warning ? <p role="alert">{warning}</p> : null}
       {personal.saveError ? <p role="status">{personal.saveError}</p> : null}
     </div>
   );

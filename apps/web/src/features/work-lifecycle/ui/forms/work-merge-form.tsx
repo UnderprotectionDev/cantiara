@@ -3,9 +3,8 @@
 import {
   mergeWorkInputSchema,
   type WorkMergeField,
-  type WorkMergePreview,
+  type WorkMergePreviewInput,
   type WorkMergeResolution,
-  type WorkMergeResult,
   type WorkProfile,
   workMergePreviewInputSchema,
 } from "@cantiara/api/work-lifecycle";
@@ -15,15 +14,14 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { useQueryClient } from "@tanstack/react-query";
-import { type SubmitEvent, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { type SubmitEvent, useRef, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { commandVariables } from "@/lib/command-variables";
 import {
   client,
   invalidateSmartCollectionMembership,
   orpc,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
 
 function mergeErrorMessage(error: unknown) {
@@ -51,18 +49,52 @@ function isMergeFieldResolution(value: string): value is WorkMergeResolution {
 
 export default function WorkMergeForm({
   candidates,
-  onMerged,
   work,
 }: {
   candidates: WorkProfile[];
-  onMerged?: (result: WorkMergeResult) => void;
   work: WorkProfile;
 }) {
+  const activeConfirmation = useRef<string | undefined>(undefined);
+  const mergeWorkMutation = useMutation(
+    orpc.mergeWork.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.mergeWork(input),
+      onSuccess: async (
+        result,
+        { clientIdempotencyKey, duplicateWorkId, survivingWorkId },
+      ) => {
+        const projectId = result.work.projectId ?? work.projectId;
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectWorks.queryOptions({ input: { projectId } })
+              .queryKey,
+          }),
+          ...[duplicateWorkId, survivingWorkId].map((workId) =>
+            queryClient.invalidateQueries({
+              queryKey: orpc.work.queryOptions({ input: { workId } }).queryKey,
+            }),
+          ),
+          ...invalidateSmartCollectionMembership(queryClient),
+        ]);
+        if (activeConfirmation.current === clientIdempotencyKey) {
+          reset();
+        }
+      },
+    }),
+  );
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [preview, setPreview] = useState<WorkMergePreview | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const inspect = useMutation({
+    mutationKey: orpc.workMergePreview.mutationKey(),
+    mutationFn: (input: WorkMergePreviewInput) =>
+      client.workMergePreview(input),
+  });
+  const preview = inspect.data;
+  const writeError = mergeWorkMutation.error ?? inspect.error;
+  const error =
+    validationError ?? (writeError ? mergeErrorMessage(writeError) : null);
 
   const form = useForm({
     defaultValues: {
@@ -79,11 +111,10 @@ export default function WorkMergeForm({
       if (!previewInput.success) {
         return;
       }
-      setError(null);
+      setValidationError(null);
       try {
         if (!preview) {
-          const nextPreview = await client.workMergePreview(previewInput.data);
-          setPreview(nextPreview);
+          await inspect.mutateAsync(previewInput.data);
           form.setFieldValue("fieldResolutions", {});
           return;
         }
@@ -92,59 +123,47 @@ export default function WorkMergeForm({
           (field) => field.conflict && !value.fieldResolutions[field.key],
         );
         if (unresolvedFields.length > 0) {
-          setError("Resolve every Field conflict before confirming the merge.");
+          setValidationError(
+            "Resolve every Field conflict before confirming the merge.",
+          );
           return;
         }
 
-        const mergeInput = mergeWorkInputSchema.safeParse({
-          baseRevision: preview.survivingWork.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          duplicateRevision: preview.duplicateWork.revision,
-          duplicateWorkId: preview.duplicateWork.id,
-          fieldResolutions: value.fieldResolutions,
-          previewId: preview.previewId,
-          survivingWorkId: preview.survivingWork.id,
-        });
+        const mergeInput = mergeWorkInputSchema.safeParse(
+          commandVariables(
+            {
+              baseRevision: preview.survivingWork.revision,
+              duplicateRevision: preview.duplicateWork.revision,
+              duplicateWorkId: preview.duplicateWork.id,
+              fieldResolutions: value.fieldResolutions,
+              previewId: preview.previewId,
+              survivingWorkId: preview.survivingWork.id,
+            },
+            mergeWorkMutation.isError ? mergeWorkMutation.variables : undefined,
+          ),
+        );
         if (!mergeInput.success) {
-          setError(mergeErrorMessage(null));
+          setValidationError(mergeErrorMessage(null));
           return;
         }
-        const result = await runOnlineOnlyWrite(() =>
-          client.mergeWork(mergeInput.data),
-        );
-        await Promise.all([
-          queryClient.invalidateQueries({
-            queryKey: projectWorksQueryPrefix,
-          }),
-          queryClient.invalidateQueries({
-            queryKey: orpc.projectWorks.queryOptions({
-              input: { archived: false, projectId: work.projectId },
-            }).queryKey,
-          }),
-          queryClient.invalidateQueries({
-            queryKey: orpc.projectWorks.queryOptions({
-              input: { archived: true, projectId: work.projectId },
-            }).queryKey,
-          }),
-          queryClient.invalidateQueries({
-            queryKey: orpc.work.queryOptions({
-              input: { workId: preview.survivingWork.id },
-            }).queryKey,
-          }),
-          ...invalidateSmartCollectionMembership(queryClient),
-        ]);
-        onMerged?.(result);
-        reset();
-      } catch (submitError) {
-        setError(mergeErrorMessage(submitError));
+        activeConfirmation.current = mergeInput.data.clientIdempotencyKey;
+        await mergeWorkMutation.mutateAsync(mergeInput.data);
+      } catch {
+        // The observer reports request errors, including after Retry.
       }
     },
   });
 
+  function resetPreview() {
+    activeConfirmation.current = undefined;
+    inspect.reset();
+    mergeWorkMutation.reset();
+    setValidationError(null);
+  }
+
   function reset() {
     setOpen(false);
-    setPreview(null);
-    setError(null);
+    resetPreview();
     form.reset();
     form.setFieldValue("survivingWorkId", candidates[0]?.id ?? "");
   }
@@ -215,9 +234,9 @@ export default function WorkMergeForm({
                       name={field.name}
                       onChange={(event) => {
                         field.handleChange(event.target.value);
-                        setPreview(null);
+                        resetPreview();
                         form.setFieldValue("fieldResolutions", {});
-                        setError(null);
+                        setValidationError(null);
                       }}
                       value={field.state.value}
                     >
@@ -383,9 +402,9 @@ export default function WorkMergeForm({
                   <Button
                     disabled={isSubmitting}
                     onClick={() => {
-                      setPreview(null);
+                      resetPreview();
                       form.setFieldValue("fieldResolutions", {});
-                      setError(null);
+                      setValidationError(null);
                     }}
                     size="xs"
                     type="button"

@@ -42,6 +42,8 @@ Proje bazlı özel alan tanımları yalnız kendi Projesinde yaşar. Desteklenen
 
 ## Testing Decisions
 
+- A new record has no Custom field values query. Writes to an existing record refresh its values and the owning Project values.
+
 - **What a good test is.** Tests observe Project Custom Fields through its public interface: create each type; bind to Work (and a second supported type); value round-trip; empty distinct from Boolean false; field absent on unbound type; Lookup/Formula rejected; Session Test rejects definition; two Projects same name stay independent; Markdown body not converted; tag rename/merge absent. They do not assert column names. Expected values are the closed type catalog and bindings.
 - **Seam (one).** Project Custom Fields — the product-facing definition/value interface. Configuration Mode is a host. Search/filter may be a thin API used later by Universal Search; this suite asserts the field is offered to search, not the full Search ranking. Playwright for Arama ve ilişki’s field matrix is this seam through the UI.
 - **UI copy at the seam.** The Configuration Mode editor exposes the labels `Custom field`, `Field name`, `Type`, `Options`, `Record types`, `Custom fields`, and `Add custom field`; the Playwright acceptance path checks these controls together with the closed type and binding catalogs.

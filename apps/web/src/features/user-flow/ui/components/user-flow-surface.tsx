@@ -3,9 +3,13 @@ import type {
   UserFlowViewport,
 } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
-import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { lazy, Suspense, useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import type { EditorDocument } from "../../lib/flow-editor";
 import type { PromoteChoice } from "../forms/promote-to-screen-form";
@@ -19,6 +23,99 @@ import {
 const UserFlowCanvas = lazy(() => import("./user-flow-canvas"));
 
 export default function UserFlowSurface({ projectId }: { projectId: string }) {
+  const createUserFlowFromTemplateMutation = useMutation(
+    orpc.createUserFlowFromTemplate.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.createUserFlowFromTemplate(input),
+      onSuccess: async (created, { projectId: affectedProject }) => {
+        setSelectedId(created.id);
+        await refresh(affectedProject, created.id);
+      },
+    }),
+  );
+  const createUserFlowMutation = useMutation(
+    orpc.createUserFlow.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.createUserFlow(input),
+      onSuccess: async (created, { projectId: affectedProject }) => {
+        setSelectedId(created.id);
+        await refresh(affectedProject, created.id);
+      },
+    }),
+  );
+  const saveViewportMutation = useMutation(
+    orpc.saveUserFlowViewport.mutationOptions({
+      meta: { onlineWrite: true, retryInSurface: true },
+      mutationFn: (input) => client.saveUserFlowViewport(input),
+    }),
+  );
+  const saveUserFlowVersionMutation = useMutation(
+    orpc.saveUserFlowVersion.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.saveUserFlowVersion(input),
+      onSettled: (_, _error, { projectId: affectedProject, userFlowId }) =>
+        refresh(affectedProject, userFlowId),
+    }),
+  );
+  const placeUserFlowNodeMutation = useMutation(
+    orpc.placeUserFlowNode.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.placeUserFlowNode(input),
+      onSettled: (_, _error, { projectId: affectedProject, userFlowId }) =>
+        refresh(affectedProject, userFlowId),
+    }),
+  );
+  const convertUserFlowNodeMutation = useMutation(
+    orpc.convertUserFlowNode.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.convertUserFlowNode(input),
+      onSettled: (_, _error, { projectId: affectedProject, userFlowId }) =>
+        refresh(affectedProject, userFlowId),
+    }),
+  );
+  const placeUserFlowCardMutation = useMutation(
+    orpc.placeUserFlowCard.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.placeUserFlowCard(input),
+      onSettled: (_, _error, { projectId: affectedProject, userFlowId }) =>
+        refresh(affectedProject, userFlowId),
+    }),
+  );
+  const promoteUserFlowNodeMutation = useMutation(
+    orpc.promoteUserFlowNode.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.promoteUserFlowNode(input),
+      onSettled: (_, _error, { projectId: affectedProject, userFlowId }) =>
+        Promise.all([
+          refresh(affectedProject, userFlowId),
+          queryClient.invalidateQueries({
+            queryKey: orpc.userFlowScreens.key({
+              input: { projectId: affectedProject },
+            }),
+          }),
+        ]),
+    }),
+  );
+  const rebindUserFlowBindMutation = useMutation(
+    orpc.rebindUserFlowBind.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.rebindUserFlowBind(input),
+      onSettled: (_, _error, { projectId: affectedProject, userFlowId }) =>
+        refresh(affectedProject, userFlowId),
+    }),
+  );
+  const saveUserFlowTemplateMutation = useMutation(
+    orpc.saveUserFlowTemplate.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.saveUserFlowTemplate(input),
+      onSuccess: (_, { projectId: affectedProject }) =>
+        queryClient.invalidateQueries({
+          queryKey: orpc.userFlowTemplates.key({
+            input: { projectId: affectedProject },
+          }),
+        }),
+    }),
+  );
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -49,44 +146,51 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
     orpc.userFlowTemplates.queryOptions({ input: { projectId } }),
   );
 
-  async function refresh() {
-    await queryClient.invalidateQueries({ queryKey: orpc.userFlows.key() });
-    await queryClient.invalidateQueries({ queryKey: orpc.userFlow.key() });
-    await queryClient.invalidateQueries({ queryKey: orpc.userFlowBinds.key() });
-    await queryClient.invalidateQueries({
-      queryKey: orpc.userFlowCardRecords.key(),
-    });
+  async function refresh(affectedProject: string, userFlowId: string) {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: orpc.userFlows.key({ input: { projectId: affectedProject } }),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.userFlow.key({
+          input: { projectId: affectedProject, userFlowId },
+        }),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.userFlowBinds.key({
+          input: { projectId: affectedProject, userFlowId },
+        }),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.userFlowCardRecords.key({
+          input: { projectId: affectedProject },
+        }),
+      }),
+    ]);
   }
   async function createFromTemplate(templateId: string, title: string) {
-    const created = await runOnlineOnlyWrite(() =>
-      client.createUserFlowFromTemplate({ projectId, templateId, title }),
-    );
-    setSelectedId(created.id);
-    await refresh();
+    await createUserFlowFromTemplateMutation.mutateAsync({
+      projectId,
+      templateId,
+      title,
+    });
   }
   async function create(title: string) {
-    const created = await runOnlineOnlyWrite(() =>
-      client.createUserFlow({ projectId, title }),
-    );
-    setSelectedId(created.id);
-    await refresh();
+    await createUserFlowMutation.mutateAsync({
+      projectId,
+      title,
+    });
   }
   async function saveDocument(document: EditorDocument) {
     if (!flow.data) {
       return;
     }
-    try {
-      await runOnlineOnlyWrite(() =>
-        client.saveUserFlowVersion({
-          document,
-          expectedVersion: flow.data.version,
-          projectId,
-          userFlowId: flow.data.id,
-        }),
-      );
-    } finally {
-      await refresh();
-    }
+    await saveUserFlowVersionMutation.mutateAsync({
+      document,
+      expectedVersion: flow.data.version,
+      projectId,
+      userFlowId: flow.data.id,
+    });
   }
   // A personal working position, not content: it writes no version and is not offline-queued.
   function saveViewport(next: UserFlowViewport) {
@@ -94,78 +198,81 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
       return;
     }
     queryClient.setQueryData(viewportOptions.queryKey, next);
-    client
-      .saveUserFlowViewport({
-        projectId,
-        userFlowId: flow.data.id,
-        viewport: next,
-      })
-      .catch(() => undefined);
+    saveViewportMutation.mutate({
+      projectId,
+      userFlowId: flow.data.id,
+      viewport: next,
+    });
   }
   async function placeNode(draft: PlaceNodeDraft) {
     if (!flow.data) {
       return;
     }
-    try {
-      await runOnlineOnlyWrite(() =>
-        client.placeUserFlowNode({
-          expectedVersion: flow.data.version,
-          kind: draft.kind,
-          projectId,
-          screenId: draft.screenId,
-          text: draft.text,
-          userFlowId: flow.data.id,
-        }),
-      );
-    } finally {
-      await refresh();
-    }
+    await placeUserFlowNodeMutation.mutateAsync({
+      expectedVersion: flow.data.version,
+      kind: draft.kind,
+      projectId,
+      screenId: draft.screenId,
+      text: draft.text,
+      userFlowId: flow.data.id,
+    });
   }
 
   const tools: UserFlowDetailTools | undefined = flow.data
     ? {
         binds: binds.data ?? [],
         cardRecords: cardRecords.data ?? [],
-        onConvertConfirm: async (nodeId, plan, identity) => {
-          try {
-            return await runOnlineOnlyWrite(() =>
-              client.convertUserFlowNode({
-                baseRevision: 0,
-                clientIdempotencyKey: identity.key,
-                id: identity.id,
-                nodeId,
-                plan,
-                projectId,
-                recordId: identity.recordId,
-                userFlowId: flow.data.id,
-              }),
-            );
-          } finally {
-            await refresh();
-          }
-        },
-        onConvertPreview: (nodeId, target, workType) =>
-          client.previewUserFlowConvert({
+        convertWrite: convertUserFlowNodeMutation.variables
+          ? {
+              nodeId: convertUserFlowNodeMutation.variables.nodeId,
+              error: convertUserFlowNodeMutation.error,
+              isPending: convertUserFlowNodeMutation.isPending,
+              isSuccess: convertUserFlowNodeMutation.isSuccess,
+            }
+          : undefined,
+        rebindWrite: rebindUserFlowBindMutation.variables
+          ? {
+              bindId: rebindUserFlowBindMutation.variables.bindId,
+              error: rebindUserFlowBindMutation.error,
+              isPending: rebindUserFlowBindMutation.isPending,
+              isSuccess: rebindUserFlowBindMutation.isSuccess,
+            }
+          : undefined,
+        resetConvert: convertUserFlowNodeMutation.reset,
+        resetRebind: rebindUserFlowBindMutation.reset,
+        onConvertConfirm: async (nodeId, plan, identity) =>
+          await convertUserFlowNodeMutation.mutateAsync({
+            baseRevision: 0,
+            clientIdempotencyKey: identity.key,
+            id: identity.id,
             nodeId,
+            plan,
             projectId,
-            target,
+            recordId: identity.recordId,
             userFlowId: flow.data.id,
-            workType,
+          }),
+        onConvertPreview: (nodeId, target, workType) =>
+          queryClient.query({
+            ...orpc.previewUserFlowConvert.queryOptions({
+              input: {
+                nodeId,
+                projectId,
+                target,
+                userFlowId: flow.data.id,
+                workType,
+              },
+            }),
+            gcTime: 0,
+            staleTime: 0,
           }),
         onPlaceCard: async (kind, recordId) => {
-          try {
-            await runOnlineOnlyWrite(() =>
-              client.placeUserFlowCard({
-                expectedVersion: flow.data.version,
-                kind,
-                projectId,
-                recordId,
-                userFlowId: flow.data.id,
-              }),
-            );
-          } finally {
-            await refresh();
-          }
+          await placeUserFlowCardMutation.mutateAsync({
+            expectedVersion: flow.data.version,
+            kind,
+            projectId,
+            recordId,
+            userFlowId: flow.data.id,
+          });
         },
         onPreviewRebind: (bindId) =>
           client.previewUserFlowRebind({
@@ -174,36 +281,21 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
             userFlowId: flow.data.id,
           }),
         onPromote: async (nodeId: string, choice: PromoteChoice) => {
-          try {
-            await runOnlineOnlyWrite(() =>
-              client.promoteUserFlowNode({
-                expectedVersion: flow.data.version,
-                nodeId,
-                projectId,
-                screen: choice,
-                userFlowId: flow.data.id,
-              }),
-            );
-          } finally {
-            await refresh();
-            await queryClient.invalidateQueries({
-              queryKey: orpc.userFlowScreens.key(),
-            });
-          }
+          await promoteUserFlowNodeMutation.mutateAsync({
+            expectedVersion: flow.data.version,
+            nodeId,
+            projectId,
+            screen: choice,
+            userFlowId: flow.data.id,
+          });
         },
         onRebind: async (bindId: string, plan: UserFlowRebindPlan) => {
-          try {
-            await runOnlineOnlyWrite(() =>
-              client.rebindUserFlowBind({
-                bindId,
-                plan,
-                projectId,
-                userFlowId: flow.data.id,
-              }),
-            );
-          } finally {
-            await refresh();
-          }
+          await rebindUserFlowBindMutation.mutateAsync({
+            bindId,
+            plan,
+            projectId,
+            userFlowId: flow.data.id,
+          });
         },
         // Removing a live card saves this flow without it; the source record is not written.
         onRemoveCard: (cardId) =>
@@ -228,16 +320,11 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
             })),
           }),
         onSaveTemplate: async (name, nodeIds) => {
-          await runOnlineOnlyWrite(() =>
-            client.saveUserFlowTemplate({
-              name,
-              nodeIds,
-              projectId,
-              userFlowId: flow.data.id,
-            }),
-          );
-          await queryClient.invalidateQueries({
-            queryKey: orpc.userFlowTemplates.key(),
+          await saveUserFlowTemplateMutation.mutateAsync({
+            name,
+            nodeIds,
+            projectId,
+            userFlowId: flow.data.id,
           });
         },
       }
@@ -275,6 +362,14 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
                 onDirtyChange={setDirty}
                 onSave={saveDocument}
                 onViewportChange={saveViewport}
+                resetSave={saveUserFlowVersionMutation.reset}
+                saveError={
+                  saveUserFlowVersionMutation.variables?.userFlowId ===
+                  flow.data.id
+                    ? saveUserFlowVersionMutation.error
+                    : undefined
+                }
+                saving={saveUserFlowVersionMutation.isPending}
                 screenOptions={screens.data ?? []}
               />
             </Suspense>

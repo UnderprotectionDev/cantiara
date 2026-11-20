@@ -206,6 +206,9 @@ interface CanvasProps {
   onSave?: (document: EditorDocument) => Promise<unknown>;
   /** Reports the personal viewport; it is never part of a saved version. */
   onViewportChange?: (viewport: UserFlowViewport) => void;
+  resetSave?: () => void;
+  saveError?: unknown;
+  saving?: boolean;
   screenOptions?: ScreenOption[];
 }
 
@@ -218,6 +221,9 @@ function Editor({
   onDirtyChange,
   onSave,
   onViewportChange,
+  saveError,
+  resetSave,
+  saving = false,
   screenOptions = [],
 }: CanvasProps) {
   const reactFlow = useReactFlow();
@@ -264,8 +270,13 @@ function Editor({
     createEditor(toEditorDocument(flow)),
   );
   const [snap, setSnap] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  let error: string | null = null;
+  if (saveError) {
+    error =
+      saveError instanceof Error
+        ? saveError.message
+        : "User Flow could not be saved.";
+  }
   const [textDraft, setTextDraft] = useState<string | null>(null);
   const dirty = isDirty(editor);
 
@@ -563,23 +574,8 @@ function Editor({
     }
   }
 
-  async function save() {
-    if (!onSave) {
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSave(editor.document);
-      setError(null);
-    } catch (failure) {
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "User Flow could not be saved.",
-      );
-    } finally {
-      setSaving(false);
-    }
+  function save() {
+    onSave?.(editor.document).catch(() => undefined);
   }
 
   const hasSelection = editor.selection.length > 0;
@@ -824,7 +820,10 @@ function Editor({
         </Button>
         <Button
           disabled={!dirty}
-          onClick={() => setEditor(createEditor(toEditorDocument(flow)))}
+          onClick={() => {
+            resetSave?.();
+            setEditor(createEditor(toEditorDocument(flow)));
+          }}
           type="button"
           variant="outline"
         >

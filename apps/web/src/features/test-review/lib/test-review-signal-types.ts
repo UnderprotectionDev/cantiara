@@ -10,11 +10,18 @@ export interface TestReviewSignalActions {
     scenarioVersion: number,
     sessionTestId: string,
   ) => Promise<unknown>;
+  bindState?: { error: unknown; isPending: boolean };
   commitFollowUp: (
     sessionTestIds: string[],
     target: FollowUpTargetInput,
     preview: TestFollowUpPreview,
   ) => Promise<unknown>;
+  followUpState?: {
+    error: unknown;
+    isPending: boolean;
+    isSuccess: boolean;
+    reset: () => void;
+  };
   previewFollowUp: (
     sessionTestIds: string[],
     target: FollowUpTargetInput,

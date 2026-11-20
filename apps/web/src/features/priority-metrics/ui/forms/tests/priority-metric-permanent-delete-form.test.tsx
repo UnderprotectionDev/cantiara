@@ -31,7 +31,7 @@ describe("Priority metric permanent delete form", () => {
     const html = renderToStaticMarkup(
       createElement(PriorityMetricPermanentDeleteConfirmation, {
         confirmationPending: false,
-        deleteGrant: null,
+        identityConfirmed: false,
         deleting: false,
         disabled: false,
         effect: {
@@ -65,7 +65,7 @@ describe("Priority metric permanent delete form", () => {
       root.render(
         createElement(PriorityMetricPermanentDeleteConfirmation, {
           confirmationPending: false,
-          deleteGrant: "grant",
+          identityConfirmed: true,
           deleting: false,
           disabled: false,
           effect: {

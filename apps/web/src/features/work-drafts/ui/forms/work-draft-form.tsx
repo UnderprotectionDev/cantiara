@@ -9,6 +9,9 @@ import type {
   ParsedCustomFieldValuePayload,
 } from "@cantiara/api/custom-fields";
 import {
+  type DeleteWorkDraftInput,
+  type FinalizeWorkDraftInput,
+  type SaveWorkDraftInput,
   type WorkDraft,
   type WorkDraftCustomFieldValue,
   workDraftFormSchema,
@@ -39,8 +42,8 @@ import {
 } from "@cantiara/ui/components/popover";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { LiteDebouncer } from "@tanstack/pacer-lite";
-import { useForm } from "@tanstack/react-form";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import {
@@ -57,12 +60,14 @@ import {
   useClientShell,
   useClientShellConnection,
 } from "@/features/web-macos-client/hooks/use-client-shell";
+import { buildSupportReferenceFailure } from "@/features/web-macos-client/lib/support-reference";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
+import { commandVariables } from "@/lib/command-variables";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import {
   client,
   invalidateSmartCollectionMembership,
   orpc,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
 import {
   activeDraftCustomFieldValues,
@@ -101,8 +106,43 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-function serializeValues(values: WorkDraftFormValues) {
-  return JSON.stringify(values);
+type DraftSaveMode = "autosave" | "manual" | "create";
+
+interface DraftSaveAttempt {
+  command: SaveWorkDraftInput;
+  editVersion: number;
+  mode: DraftSaveMode;
+}
+
+interface DraftFinalization {
+  command: FinalizeWorkDraftInput;
+  editVersion: number;
+  replaceOnEdit?: boolean;
+}
+
+interface DraftWriteFailure {
+  error: unknown;
+  isError: boolean;
+}
+
+function draftFormError(
+  validationError: string | undefined,
+  save: DraftWriteFailure & { variables?: DraftSaveAttempt },
+  finalize: DraftWriteFailure,
+  remove: DraftWriteFailure,
+) {
+  if (finalize.isError || (save.isError && save.variables?.mode === "create")) {
+    return errorMessage(
+      finalize.isError ? finalize.error : save.error,
+      "Work could not be created. Try again.",
+    );
+  }
+  if (save.isError) {
+    return errorMessage(save.error, "Draft could not be saved. Try again.");
+  }
+  return remove.isError
+    ? errorMessage(remove.error, "Draft could not be deleted. Try again.")
+    : validationError;
 }
 
 export function workDraftInitialValues(
@@ -543,14 +583,7 @@ export default function WorkDraftForm({
   const shell = useClientShell();
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
-  const [activeDraftId, setActiveDraftId] = useState<string>(() =>
-    crypto.randomUUID(),
-  );
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [createdWorkKey, setCreatedWorkKey] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [resumed, setResumed] = useState(false);
   // The Draft editor's target Project follows the resumed Draft; new Drafts
   // target the Project whose surface opened the form.
   const [targetProjectId, setTargetProjectId] = useState(projectId);
@@ -558,15 +591,21 @@ export default function WorkDraftForm({
     () => workDraftInitialValues(initialType),
     [initialType],
   );
-  const draftIdRef = useRef<string>(activeDraftId);
+  const [newDraftId] = useState(() => crypto.randomUUID());
+  const draftIdRef = useRef<string>(newDraftId);
   const revisionRef = useRef(0);
+  const editVersionRef = useRef(0);
+  const autosaveEpochRef = useRef(0);
   const saveSequenceRef = useRef(Promise.resolve());
-  const lastFinalizeKeyRef = useRef<{
-    draftId: string;
-    key: string;
-  } | null>(null);
+  const pendingSaveRef = useRef<SaveWorkDraftInput | undefined>(undefined);
+  const pendingFinalizationRef = useRef<DraftFinalization | undefined>(
+    undefined,
+  );
   const saveDraftRef = useRef<
-    (values: WorkDraftFormValues) => Promise<WorkDraft>
+    (
+      values: WorkDraftFormValues,
+      mode: DraftSaveMode,
+    ) => Promise<WorkDraft | undefined>
   >(() => Promise.reject(new Error("Draft save is not ready.")));
 
   // Drafts are personal to the account: the Drafts surface lists every Draft
@@ -590,112 +629,215 @@ export default function WorkDraftForm({
   const projectNameById = new Map(
     (projectsQuery.data ?? []).map((project) => [project.id, project.name]),
   );
-  const worksQueryKey = orpc.projectWorks.queryOptions({
-    input: { projectId },
-  }).queryKey;
-  const projectQueryKey = orpc.project.queryOptions({
-    input: { projectId },
-  }).queryKey;
-  const scopeTreeQueryKey = orpc.scopeTree.queryOptions({
-    input: { projectId },
-  }).queryKey;
-  const customFieldProjectValuesQueryKey =
-    orpc.customFieldProjectValues.queryOptions({
-      input: { projectId, recordType: "Work" },
-    }).queryKey;
-
   useEffect(() => {
     setTargetProjectId(projectId);
   }, [projectId]);
 
   const form = useForm({
     defaultValues: initialValues,
-    onSubmit: async () => undefined,
+    validators: {
+      onSubmit: ({ value }) => {
+        if (
+          pendingFinalizationRef.current?.command.draftId === draftIdRef.current
+        ) {
+          return;
+        }
+        const parsed = createWorkInputSchema.safeParse({
+          description: value.description.trim() ? value.description : null,
+          projectId: targetProjectId,
+          title: value.title,
+          type: value.type,
+        });
+        return parsed.success
+          ? undefined
+          : (parsed.error.issues[0]?.message ?? "Check the form.");
+      },
+    },
+    onSubmit: ({ value }) => createWork(value),
   });
+  const validationError = useSelector(
+    form.store,
+    (state) => state.errorMap.onSubmit,
+  );
+  const isCreating = useSelector(form.store, (state) => state.isSubmitting);
 
-  async function updateDraftList(saved: WorkDraft) {
-    await queryClient.cancelQueries({ queryKey: draftsQueryKey });
-    queryClient.setQueryData<WorkDraft[]>(draftsQueryKey, (drafts = []) => [
-      saved,
-      ...drafts.filter((draft) => draft.id !== saved.id),
-    ]);
-  }
-
-  function setNewDraft() {
-    const nextDraftId = crypto.randomUUID();
-    draftIdRef.current = nextDraftId;
+  function setNewDraft(values?: WorkDraftFormValues) {
+    draftIdRef.current = crypto.randomUUID();
     revisionRef.current = 0;
-    setActiveDraftId(nextDraftId);
-    setTargetProjectId(projectId);
+    editVersionRef.current += 1;
+    pendingSaveRef.current = undefined;
+    pendingFinalizationRef.current = undefined;
+    setTargetProjectId(values ? targetProjectId : projectId);
     form.reset(initialValues);
-    shell.markUnsavedChanges(false);
+    if (values) {
+      form.reset(values, { keepDefaultValues: true });
+    }
+    shell.markUnsavedChanges(Boolean(values));
   }
+
+  function removeDraftFromCache(draftId: string) {
+    queryClient.setQueryData<WorkDraft[]>(draftsQueryKey, (drafts = []) =>
+      drafts.filter((draft) => draft.id !== draftId),
+    );
+  }
+
+  const saveMutation = useMutation({
+    mutationKey: orpc.saveWorkDraft.mutationKey(),
+    meta: { onlineWrite: true, retryInSurface: true },
+    mutationFn: ({ command }: DraftSaveAttempt) =>
+      client.saveWorkDraft(command),
+    onSuccess: async (saved, { command, editVersion }) => {
+      if (
+        pendingSaveRef.current?.clientIdempotencyKey ===
+        command.clientIdempotencyKey
+      ) {
+        pendingSaveRef.current = undefined;
+      }
+      await queryClient.cancelQueries({ queryKey: draftsQueryKey });
+      queryClient.setQueryData<WorkDraft[]>(draftsQueryKey, (drafts = []) => [
+        saved,
+        ...drafts.filter((draft) => draft.id !== saved.id),
+      ]);
+      if (draftIdRef.current === saved.id) {
+        revisionRef.current = saved.revision;
+        shell.recordSuccessfulSave(new Date(saved.updatedAt));
+        if (editVersionRef.current !== editVersion) {
+          shell.markUnsavedChanges();
+        }
+      }
+    },
+  });
+  const finalizeMutation = useMutation({
+    mutationKey: orpc.finalizeWorkDraft.mutationKey(),
+    meta: { onlineWrite: true, retryInSurface: true },
+    mutationFn: ({ command }: DraftFinalization) =>
+      client.finalizeWorkDraft(command),
+    onError: (error, attempt) => {
+      if (
+        pendingFinalizationRef.current === attempt &&
+        buildSupportReferenceFailure(error, { kind: "mutation" })
+          .writeOutcome === "not-written"
+      ) {
+        pendingFinalizationRef.current = { ...attempt, replaceOnEdit: true };
+      }
+    },
+    onSuccess: (work, { command, editVersion }) => {
+      removeDraftFromCache(command.draftId);
+      if (draftIdRef.current === command.draftId) {
+        shell.recordSuccessfulSave();
+        setNewDraft(
+          editVersionRef.current === editVersion
+            ? undefined
+            : form.state.values,
+        );
+      }
+      // A committed Create is complete even while dependent views refetch.
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: draftsQueryKey }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectWorks.key({
+            input: { projectId: work.projectId },
+          }),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.project.queryKey({
+            input: { projectId: work.projectId },
+          }),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.scopeTree.queryKey({
+            input: { projectId: work.projectId },
+          }),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.customFieldProjectValues.queryKey({
+            input: { projectId: work.projectId, recordType: "Work" },
+          }),
+        }),
+        ...invalidateSmartCollectionMembership(queryClient),
+      ]).catch(() => undefined);
+    },
+  });
+  const deleteMutation = usePreparedMutation(
+    orpc.deleteWorkDraft.mutationOptions({
+      meta: { retryInSurface: true },
+      mutationFn: (input) => client.deleteWorkDraft(input),
+      onSuccess: (_, { draftId }) => {
+        removeDraftFromCache(draftId);
+        if (draftId === draftIdRef.current) {
+          shell.recordSuccessfulSave();
+          setNewDraft();
+        }
+      },
+    }),
+    (input: Omit<DeleteWorkDraftInput, "clientIdempotencyKey">) => input,
+  );
 
   function resumeDraft(draft: WorkDraft) {
     debouncer.cancel();
+    if (
+      draftIdRef.current !== draft.id ||
+      revisionRef.current !== draft.revision
+    ) {
+      pendingSaveRef.current = undefined;
+      pendingFinalizationRef.current = undefined;
+    }
     draftIdRef.current = draft.id;
     revisionRef.current = draft.revision;
-    setActiveDraftId(draft.id);
+    editVersionRef.current += 1;
     setTargetProjectId(draft.projectId);
     form.reset(draftValues(draft), { keepDefaultValues: true });
-    setActionMessage("Draft resumed.");
-    setCreatedWorkKey(null);
-    setFormError(null);
+    saveMutation.reset();
+    finalizeMutation.reset();
+    deleteMutation.reset();
+    setResumed(true);
     shell.recordSuccessfulSave(new Date(draft.updatedAt));
   }
 
-  const saveDraftNow = (values: WorkDraftFormValues) => {
+  const saveDraftNow = (values: WorkDraftFormValues, mode: DraftSaveMode) => {
+    const draftId = draftIdRef.current;
+    const editVersion = editVersionRef.current;
+    const autosaveEpoch = autosaveEpochRef.current;
     const operation = async () => {
-      setIsSaving(true);
-      try {
-        const parsed = workDraftFormSchema.safeParse({
-          checklist: [],
-          // Draft Custom field values are form state (11): entries no longer
-          // backed by an active Work definition are dropped before saving, so
-          // a stale value can never fail `Create` after the definition was
-          // trashed, unbound, or its option removed.
-          customFieldValues: customFieldsQuery.data
-            ? activeDraftCustomFieldValues(
-                values.customFieldValues,
-                workCustomFieldDefinitions,
-              )
-            : values.customFieldValues,
-          description: values.description.trim() ? values.description : null,
-          projectId: targetProjectId,
-          title: values.title,
-          type: values.type,
-        });
-        if (!parsed.success) {
-          throw new Error(
-            parsed.error.issues[0]?.message ??
-              "Draft could not be saved. Check the form.",
-          );
-        }
-        const saved = await shell.runWrite(() =>
-          client.saveWorkDraft({
-            ...parsed.data,
-            baseRevision: revisionRef.current,
-            clientIdempotencyKey: crypto.randomUUID(),
-            draftId: draftIdRef.current,
-          }),
-        );
-        revisionRef.current = saved.revision;
-        setActiveDraftId(saved.id);
-        draftIdRef.current = saved.id;
-        await updateDraftList(saved);
-
-        if (serializeValues(form.state.values) === serializeValues(values)) {
-          shell.recordSuccessfulSave(new Date(saved.updatedAt));
-        } else {
-          shell.markUnsavedChanges();
-        }
-        return saved;
-      } finally {
-        setIsSaving(false);
+      if (
+        draftId !== draftIdRef.current ||
+        (mode === "autosave" && autosaveEpoch !== autosaveEpochRef.current)
+      ) {
+        return;
       }
+      const parsed = workDraftFormSchema.safeParse({
+        checklist: [],
+        // Drop values whose field is no longer available in this Project.
+        customFieldValues: customFieldsQuery.data
+          ? activeDraftCustomFieldValues(
+              values.customFieldValues,
+              workCustomFieldDefinitions,
+            )
+          : values.customFieldValues,
+        description: values.description.trim() ? values.description : null,
+        projectId: targetProjectId,
+        title: values.title,
+        type: values.type,
+      });
+      if (!parsed.success) {
+        form.setErrorMap({
+          onSubmit:
+            parsed.error.issues[0]?.message ??
+            "Draft could not be saved. Check the form.",
+        });
+        return;
+      }
+      const command = commandVariables<
+        Omit<SaveWorkDraftInput, "clientIdempotencyKey">
+      >(
+        { ...parsed.data, baseRevision: revisionRef.current, draftId },
+        pendingSaveRef.current,
+      );
+      pendingSaveRef.current = command;
+      return await saveMutation.mutateAsync({ command, editVersion, mode });
     };
 
-    const sequenced = saveSequenceRef.current.then(operation, operation);
+    const sequenced = saveSequenceRef.current.then(operation);
     saveSequenceRef.current = sequenced.then(
       () => undefined,
       () => undefined,
@@ -709,11 +851,7 @@ export default function WorkDraftForm({
     () =>
       new LiteDebouncer(
         (values: WorkDraftFormValues) => {
-          saveDraftRef.current(values).catch((error: unknown) => {
-            setFormError(
-              errorMessage(error, "Draft could not be saved. Try again."),
-            );
-          });
+          saveDraftRef.current(values, "autosave").catch(() => undefined);
         },
         { wait: 700 },
       ),
@@ -731,6 +869,7 @@ export default function WorkDraftForm({
   useEffect(() => {
     const subscription = shell.subscribe((state) => {
       if (state.connection === "offline") {
+        autosaveEpochRef.current += 1;
         debouncer.cancel();
       }
     });
@@ -740,11 +879,17 @@ export default function WorkDraftForm({
   useEffect(() => () => debouncer.cancel(), [debouncer]);
 
   function queueAutosave(values: WorkDraftFormValues) {
-    setActionMessage(null);
-    setCreatedWorkKey(null);
-    setFormError(null);
+    editVersionRef.current += 1;
+    setResumed(false);
+    finalizeMutation.reset();
+    deleteMutation.reset();
+    saveMutation.reset();
+    form.setErrorMap({ onSubmit: undefined });
     shell.markUnsavedChanges();
-    if (connection === "online") {
+    if (pendingFinalizationRef.current?.replaceOnEdit) {
+      pendingFinalizationRef.current = undefined;
+    }
+    if (connection === "online" && !pendingFinalizationRef.current) {
       debouncer.maybeExecute(values);
     }
   }
@@ -765,143 +910,74 @@ export default function WorkDraftForm({
 
   async function saveCurrentDraft() {
     debouncer.cancel();
-    setFormError(null);
-    setActionMessage(null);
-    try {
-      await saveDraftNow(form.state.values);
-      setActionMessage("Draft saved.");
-    } catch (error) {
-      setFormError(errorMessage(error, "Draft could not be saved. Try again."));
-    }
+    setResumed(false);
+    form.setErrorMap({ onSubmit: undefined });
+    finalizeMutation.reset();
+    deleteMutation.reset();
+    await saveDraftNow(form.state.values, "manual");
   }
 
-  async function createWork() {
+  async function createWork(values: WorkDraftFormValues) {
     debouncer.cancel();
-    setFormError(null);
-    setActionMessage(null);
-    setCreatedWorkKey(null);
-
-    const parsed = createWorkInputSchema.safeParse({
-      description: form.state.values.description.trim()
-        ? form.state.values.description
-        : null,
-      projectId: targetProjectId,
-      title: form.state.values.title,
-      type: form.state.values.type,
-    });
-    if (!parsed.success) {
-      setFormError(parsed.error.issues[0]?.message ?? "Check the form.");
+    setResumed(false);
+    saveMutation.reset();
+    deleteMutation.reset();
+    // The previous request may have consumed the Draft. Replay that exact
+    // finalization before issuing any new save against the same Draft.
+    const previous = pendingFinalizationRef.current;
+    if (previous?.command.draftId === draftIdRef.current) {
+      await finalizeMutation.mutateAsync(previous).catch(() => undefined);
       return;
     }
 
-    setIsCreating(true);
-    try {
-      const saved = await saveDraftNow(form.state.values);
-      // Reuse the finalization key for this Draft across retries so a lost
-      // response or server restart replays the same Work instead of wedging
-      // the Draft behind a stale finalization reservation.
-      const priorFinalization = lastFinalizeKeyRef.current;
-      const finalizeKey =
-        priorFinalization?.draftId === saved.id
-          ? priorFinalization.key
-          : crypto.randomUUID();
-      lastFinalizeKeyRef.current = { draftId: saved.id, key: finalizeKey };
-      const work = await shell.runWrite(() =>
-        client.finalizeWorkDraft({
+    const editVersion = editVersionRef.current;
+    const saved = await saveDraftNow(values, "create").catch(() => undefined);
+    if (saved) {
+      const attempt = {
+        command: commandVariables({
           baseRevision: saved.revision,
-          clientIdempotencyKey: finalizeKey,
           draftId: saved.id,
         }),
-      );
-      lastFinalizeKeyRef.current = null;
-      setCreatedWorkKey(work.key);
-      setActionMessage(null);
-      setNewDraft();
-      queryClient.setQueryData<WorkDraft[]>(draftsQueryKey, (drafts = []) =>
-        drafts.filter((draft) => draft.id !== saved.id),
-      );
-      // The finalization is committed; cache refreshes should not lock the new Draft editor.
-      setIsCreating(false);
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: projectWorksQueryPrefix,
-        }),
-        queryClient.invalidateQueries({ queryKey: draftsQueryKey }),
-        queryClient.invalidateQueries({ queryKey: worksQueryKey }),
-        queryClient.invalidateQueries({ queryKey: projectQueryKey }),
-        queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
-        queryClient.invalidateQueries({
-          queryKey: customFieldProjectValuesQueryKey,
-        }),
-        ...invalidateSmartCollectionMembership(queryClient),
-        ...(work.projectId === projectId
-          ? []
-          : [
-              queryClient.invalidateQueries({
-                queryKey: orpc.projectWorks.queryOptions({
-                  input: { projectId: work.projectId },
-                }).queryKey,
-              }),
-              queryClient.invalidateQueries({
-                queryKey: orpc.project.queryOptions({
-                  input: { projectId: work.projectId },
-                }).queryKey,
-              }),
-              queryClient.invalidateQueries({
-                queryKey: orpc.scopeTree.queryOptions({
-                  input: { projectId: work.projectId },
-                }).queryKey,
-              }),
-              queryClient.invalidateQueries({
-                queryKey: orpc.customFieldProjectValues.queryOptions({
-                  input: { projectId: work.projectId, recordType: "Work" },
-                }).queryKey,
-              }),
-            ]),
-      ]);
-    } catch (error) {
-      setFormError(
-        errorMessage(error, "Work could not be created. Try again."),
-      );
-    } finally {
-      setIsCreating(false);
+        editVersion,
+      };
+      pendingFinalizationRef.current = attempt;
+      await finalizeMutation.mutateAsync(attempt).catch(() => undefined);
     }
   }
 
   async function deleteDraft(draft: WorkDraft) {
     debouncer.cancel();
-    setFormError(null);
-    setActionMessage(null);
-    try {
-      await saveSequenceRef.current;
-      await shell.runWrite(() =>
-        client.deleteWorkDraft({
-          baseRevision: draft.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          draftId: draft.id,
-        }),
-      );
-      queryClient.setQueryData<WorkDraft[]>(draftsQueryKey, (drafts = []) =>
-        drafts.filter((candidate) => candidate.id !== draft.id),
-      );
-      if (draft.id === draftIdRef.current) {
-        setNewDraft();
-      }
-      setActionMessage("Draft deleted.");
-    } catch (error) {
-      setFormError(
-        errorMessage(error, "Draft could not be deleted. Try again."),
-      );
-    }
+    setResumed(false);
+    form.setErrorMap({ onSubmit: undefined });
+    saveMutation.reset();
+    finalizeMutation.reset();
+    await saveSequenceRef.current;
+    const baseRevision =
+      draft.id === draftIdRef.current ? revisionRef.current : draft.revision;
+    await deleteMutation.mutateAsync({ baseRevision, draftId: draft.id });
   }
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    createWork().catch(() => undefined);
+    form.handleSubmit().catch(() => undefined);
   }
 
-  const isBusy = isCreating || isSaving;
+  const formError = draftFormError(
+    validationError,
+    saveMutation,
+    finalizeMutation,
+    deleteMutation,
+  );
+  let actionMessage = resumed ? "Draft resumed." : undefined;
+  if (saveMutation.isSuccess && saveMutation.variables?.mode === "manual") {
+    actionMessage = "Draft saved.";
+  } else if (deleteMutation.isSuccess) {
+    actionMessage = "Draft deleted.";
+  }
+  const createdWorkKey = finalizeMutation.data?.key;
+  const isSaving = saveMutation.isPending;
+  const isBusy = isCreating || isSaving || deleteMutation.isPending;
 
   function draftsContent(): ReactNode {
     if (draftsQuery.status === "pending") {
@@ -988,7 +1064,7 @@ export default function WorkDraftForm({
             {projectNameById.get(targetProjectId) ?? targetProjectId}
           </p>
         </div>
-        {activeDraftId && connection === "online" ? (
+        {connection === "online" ? (
           <span className="rounded-full border border-border/70 px-2 py-1 text-xs text-muted-foreground">
             {isSaving ? "Saving…" : "Ready"}
           </span>

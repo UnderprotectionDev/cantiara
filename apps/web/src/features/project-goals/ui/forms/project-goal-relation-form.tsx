@@ -23,7 +23,7 @@ export function ProjectGoalRelationForm({
   detail: ProjectGoalDetail;
   onAdd: (change: GoalRelationChange) => Promise<unknown>;
   pending: boolean;
-  /** Counts saved relation changes; each one clears the Record choice. */
+  /** Submission timestamp of the saved relation. */
   settledChanges: number;
 }) {
   const form = useForm({
@@ -40,7 +40,9 @@ export function ProjectGoalRelationForm({
   });
   // biome-ignore lint/correctness/useExhaustiveDependencies: A saved change is the only trigger that clears the Record choice.
   useEffect(() => {
-    form.setFieldValue("selection", "");
+    if (settledChanges) {
+      form.setFieldValue("selection", "");
+    }
   }, [settledChanges]);
   const { kind, selection } = useSelector(form.store, (state) => state.values);
   const candidates = detail.candidates.filter(
@@ -97,7 +99,9 @@ export function ProjectGoalRelationForm({
                 field.handleChange(
                   event.target.value as GoalRelationChange["kind"],
                 );
-                form.setFieldValue("selection", "");
+                if (settledChanges) {
+                  form.setFieldValue("selection", "");
+                }
               }}
               value={field.state.value}
             >

@@ -11,10 +11,10 @@ import {
   type ChangeEvent,
   type SubmitEvent,
   useCallback,
+  useEffect,
   useRef,
   useState,
 } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { orpc } from "@/utils/orpc";
 import { uploadFileAttachment } from "../../lib/file-attachment-upload";
 import { parseUploadSelection } from "../../lib/file-attachment-upload-form";
@@ -53,80 +53,126 @@ export function FileAttachmentUploadControl({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<UploadPhase>("idle");
-  const pendingClientIdempotencyKey = useRef<string | null>(null);
-  const stagingController = useRef<AbortController | null>(null);
-  const attachmentsQuery = orpc.fileAttachments.queryOptions({
-    input: { scope: { kind: "project", projectId } },
-  });
+  const [finalizingKey, setFinalizingKey] = useState<string>();
+  const uploadInput = useRef<{
+    file: File;
+    key: string;
+    projectId: string;
+  } | null>(null);
+  const staging = useRef<{ controller: AbortController; key: string } | null>(
+    null,
+  );
+  useEffect(() => () => staging.current?.controller.abort(), []);
   const form = useForm({
     defaultValues: { file: null as File | null },
     onSubmit: async ({ value }) => {
       const parsed = parseUploadSelection(value.file);
-      if (!parsed.ok) {
+      if (!parsed.ok || uploadMutation.isPending || staging.current) {
         return;
       }
       try {
-        await uploadMutation.mutateAsync(parsed.file);
+        if (
+          uploadInput.current?.file !== parsed.file ||
+          uploadInput.current.projectId !== projectId
+        ) {
+          uploadInput.current = {
+            file: parsed.file,
+            key: crypto.randomUUID(),
+            projectId,
+          };
+        }
+        const { key } = uploadInput.current;
+        staging.current = { controller: new AbortController(), key };
+        await uploadMutation.mutateAsync({
+          clientIdempotencyKey: key,
+          projectId,
+        });
       } catch {
-        // `onError` already shows the failure; the chosen file stays selected.
+        // Query reports the failure and the chosen file stays selected.
       }
     },
   });
   const selectedFile = useSelector(form.store, (state) => state.values.file);
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => {
-      const clientIdempotencyKey =
-        pendingClientIdempotencyKey.current ?? crypto.randomUUID();
-      pendingClientIdempotencyKey.current = clientIdempotencyKey;
-      const controller = new AbortController();
-      stagingController.current = controller;
-      setPhase("staging");
-      return runOnlineOnlyWrite(() =>
-        uploadFileAttachment(
-          file,
-          {
-            kind: "project",
-            projectId,
+    gcTime: 0,
+    meta: { onlineWrite: true, privateInput: true },
+    mutationKey: orpc.finalizeFileAttachment.mutationKey(),
+    mutationFn: ({
+      clientIdempotencyKey,
+      projectId: targetProjectId,
+    }: {
+      clientIdempotencyKey: string;
+      projectId: string;
+    }) => {
+      const prepared = uploadInput.current;
+      const attempt = staging.current;
+      if (
+        prepared?.key !== clientIdempotencyKey ||
+        attempt?.key !== clientIdempotencyKey
+      ) {
+        throw new DOMException(
+          "The staging upload was cancelled.",
+          "AbortError",
+        );
+      }
+      return uploadFileAttachment(
+        prepared.file,
+        { kind: "project", projectId: targetProjectId },
+        { createIdempotencyKey: () => clientIdempotencyKey },
+        {
+          onFinalizeStart: () => {
+            staging.current = null;
+            setFinalizingKey(clientIdempotencyKey);
           },
-          { createIdempotencyKey: () => clientIdempotencyKey },
-          {
-            onFinalizeStart: () => setPhase("finalizing"),
-            signal: controller.signal,
-          },
-        ),
+          signal: attempt.controller.signal,
+        },
       );
     },
-    onError: (uploadError) => {
-      if (!isUploadAbortError(uploadError)) {
-        setError(uploadErrorMessage(uploadError));
+    onSettled: (_, _failure, { clientIdempotencyKey }) => {
+      if (staging.current?.key === clientIdempotencyKey) {
+        staging.current = null;
       }
+      setFinalizingKey((key) =>
+        key === clientIdempotencyKey ? undefined : key,
+      );
     },
-    onSettled: () => {
-      stagingController.current = null;
-      setPhase("idle");
-    },
-    onSuccess: async () => {
-      setError(null);
-      form.reset();
-      pendingClientIdempotencyKey.current = null;
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+    onSuccess: async (
+      _,
+      { clientIdempotencyKey, projectId: targetProjectId },
+    ) => {
+      if (uploadInput.current?.key === clientIdempotencyKey) {
+        form.reset();
+        uploadInput.current = null;
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
       }
       await queryClient.invalidateQueries({
-        queryKey: attachmentsQuery.queryKey,
+        queryKey: orpc.fileAttachments.queryKey({
+          input: { scope: { kind: "project", projectId: targetProjectId } },
+        }),
       });
     },
   });
+  const { reset: resetUpload } = uploadMutation;
+  const pendingPhase =
+    finalizingKey &&
+    uploadMutation.variables?.clientIdempotencyKey === finalizingKey
+      ? "finalizing"
+      : "staging";
+  const phase = uploadMutation.isPending ? pendingPhase : "idle";
+  const error =
+    uploadMutation.isError && !isUploadAbortError(uploadMutation.error)
+      ? uploadErrorMessage(uploadMutation.error)
+      : null;
 
   const handleFileChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
       form.setFieldValue("file", event.target.files?.[0] ?? null);
-      pendingClientIdempotencyKey.current = null;
-      setError(null);
+      uploadInput.current = null;
+      resetUpload();
     },
-    [form],
+    [form, resetUpload],
   );
 
   const handleChooseFile = useCallback(() => {
@@ -143,20 +189,19 @@ export function FileAttachmentUploadControl({
   );
 
   const handleCancel = useCallback(() => {
-    if (phase === "finalizing") {
-      // The barrier started with finalize; the spec forbids a fake Cancel.
+    if (phase !== "idle" && !staging.current) {
+      // Cancel is available only while staging still owns an abort signal.
       return;
     }
-    if (phase === "staging") {
-      stagingController.current?.abort();
-    }
-    setError(null);
+    staging.current?.controller.abort();
+    staging.current = null;
+    resetUpload();
     form.reset();
-    pendingClientIdempotencyKey.current = null;
+    uploadInput.current = null;
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  }, [form, phase]);
+  }, [form, phase, resetUpload]);
 
   const uploadLabel = uploadLabelForPhase(phase);
 

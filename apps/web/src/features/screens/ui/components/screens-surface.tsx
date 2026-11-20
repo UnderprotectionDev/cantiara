@@ -3,8 +3,8 @@ import type {
   ScreenRecord,
 } from "@cantiara/api/screens";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 import type { ScreenTemplateActions } from "../../lib/screen-template-actions";
 import { ScreensView } from "../views/screens-view";
@@ -12,15 +12,58 @@ import ScreensOutputSurface from "./screens-output-surface";
 import WireframeSurface from "./wireframe-surface";
 
 export default function ScreensSurface({ projectId }: { projectId: string }) {
+  const refresh = (_result: unknown, input: { projectId: string }) =>
+    queryClient.invalidateQueries({
+      queryKey: orpc.projectScreens.key({
+        input: { projectId: input.projectId },
+      }),
+    });
+  const createScreenMutation = usePreparedMutation(
+    {
+      mutationKey: orpc.createScreen.mutationKey(),
+      mutationFn: (input: {
+        clientIdempotencyKey: string;
+        projectId: string;
+        title: string;
+      }) => client.createScreen(input),
+      onSuccess: refresh,
+    },
+    (title: string) => ({ projectId, title }),
+  );
+  const createScreenFromTemplateMutation = usePreparedMutation(
+    {
+      mutationKey: orpc.createScreenFromTemplate.mutationKey(),
+      mutationFn: (input: {
+        clientIdempotencyKey: string;
+        projectId: string;
+        templateId: string;
+        title: string;
+      }) => client.createScreenFromTemplate(input),
+      onSuccess: refresh,
+    },
+    ({ templateId, title }: { templateId: string; title: string }) => ({
+      projectId,
+      templateId,
+      title,
+    }),
+  );
+  const setScreenLifecycleMutation = useMutation(
+    orpc.setScreenLifecycle.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.setScreenLifecycle(input),
+      onSettled: (_, _error, { projectId: affectedProject }) =>
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectScreens.key({
+            input: { projectId: affectedProject },
+          }),
+        }),
+    }),
+  );
   const queryClient = useQueryClient();
   const options = orpc.projectScreens.queryOptions({ input: { projectId } });
   const screens = useQuery(options);
-  async function refresh() {
-    await queryClient.invalidateQueries({ queryKey: options.queryKey });
-  }
   async function create(title: string) {
-    await runOnlineOnlyWrite(() => client.createScreen({ projectId, title }));
-    await refresh();
+    await createScreenMutation.mutateAsync(title);
   }
   const templateOptions = orpc.screenTemplates.queryOptions({
     input: { projectId },
@@ -28,22 +71,18 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
   const templateList = useQuery(templateOptions);
   const templates: ScreenTemplateActions = {
     create: async (templateId, title) => {
-      await runOnlineOnlyWrite(() =>
-        client.createScreenFromTemplate({ projectId, templateId, title }),
-      );
-      await refresh();
+      await createScreenFromTemplateMutation.mutateAsync({ templateId, title });
     },
-    save: async (screen, wireframeVersion, name) => {
-      await runOnlineOnlyWrite(() =>
-        client.saveScreenTemplate({
-          name,
-          projectId,
-          screenId: screen.id,
-          wireframeVersion,
-        }),
-      );
+    save: async (screen, wireframeVersion, name, clientIdempotencyKey) => {
+      await client.saveScreenTemplate({
+        clientIdempotencyKey,
+        name,
+        projectId,
+        screenId: screen.id,
+        wireframeVersion,
+      });
       await queryClient.invalidateQueries({
-        queryKey: templateOptions.queryKey,
+        queryKey: orpc.screenTemplates.key({ input: { projectId } }),
       });
     },
     templates: templateList.data ?? [],
@@ -52,18 +91,12 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
     screen: ScreenRecord,
     action: ScreenLifecycleAction,
   ) {
-    try {
-      await runOnlineOnlyWrite(() =>
-        client.setScreenLifecycle({
-          action,
-          expectedRevision: screen.revision,
-          projectId,
-          screenId: screen.id,
-        }),
-      );
-    } finally {
-      await refresh();
-    }
+    await setScreenLifecycleMutation.mutateAsync({
+      action,
+      expectedRevision: screen.revision,
+      projectId,
+      screenId: screen.id,
+    });
   }
   function renderWireframe(screen: ScreenRecord) {
     return (
@@ -91,6 +124,11 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-6">
       <ScreensView
+        lifecycleWrite={{
+          failed: setScreenLifecycleMutation.isError,
+          pending: setScreenLifecycleMutation.isPending,
+          screenId: setScreenLifecycleMutation.variables?.screenId,
+        }}
         onCreate={create}
         onSetLifecycle={setLifecycle}
         readOnly={screens.data.readOnly}

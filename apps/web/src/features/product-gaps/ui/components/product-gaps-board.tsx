@@ -2,6 +2,7 @@
 import {
   PRODUCT_GAP_LABEL,
   PRODUCT_GAP_STATUSES,
+  type ProductGapFollowUpPlan,
   type ProductGapRecord,
   type ProductGapStatus,
 } from "@cantiara/api/product-gaps";
@@ -11,7 +12,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useId, useState } from "react";
+import { useId } from "react";
 import {
   EMPTY_GAP_FILTER,
   errorText,
@@ -44,35 +45,41 @@ export type SetGapStatus = (
   status: ProductGapStatus,
 ) => Promise<unknown>;
 
+interface GapWriteState {
+  error: unknown;
+  isPending: boolean;
+  isSuccess: boolean;
+  variables?: { gapId: string; status?: ProductGapStatus };
+}
+
 function StatusControl({
   onSetStatus,
   record,
+  write,
 }: {
   onSetStatus: SetGapStatus;
+  write?: GapWriteState;
   record: ProductGapRecord;
 }) {
   const id = useId();
-  const [error, setError] = useState<string>();
-  const [message, setMessage] = useState("");
-  async function change(status: ProductGapStatus) {
-    setError(undefined);
-    setMessage("");
-    try {
-      await onSetStatus(record, status);
-      setMessage(`Status changed to ${status}.`);
-    } catch (caught) {
-      setError(errorText(caught, `${PRODUCT_GAP_LABEL} was not updated.`));
-    }
-  }
+  const error = write?.error
+    ? errorText(write.error, `${PRODUCT_GAP_LABEL} was not updated.`)
+    : undefined;
+  const message = write?.isSuccess
+    ? `Status changed to ${write.variables?.status}.`
+    : "";
   return (
     <Field className="gap-1 text-sm">
       <FieldLabel
         htmlFor={`${id}-status`}
       >{`Status of ${record.title}`}</FieldLabel>
       <NativeSelect
+        disabled={write?.isPending}
         id={`${id}-status`}
         onChange={(event) =>
-          change(event.target.value as ProductGapStatus).catch(() => undefined)
+          onSetStatus(record, event.target.value as ProductGapStatus).catch(
+            () => undefined,
+          )
         }
         value={record.status}
       >
@@ -102,6 +109,8 @@ export function ProductGapsBoard({
   onPreviewFollowUp,
   onRecord,
   onSetStatus,
+  statusWrite,
+  followUpWrite,
   tools,
 }: {
   filter?: GapFilterValues;
@@ -116,6 +125,11 @@ export function ProductGapsBoard({
   onPreviewFollowUp: PreviewFollowUp;
   onRecord: RecordGap;
   onSetStatus: SetGapStatus;
+  statusWrite?: GapWriteState;
+  followUpWrite?: GapWriteState & {
+    reset: () => void;
+    variables?: { gapId: string; plan: ProductGapFollowUpPlan };
+  };
   tools: string[];
 }) {
   const filtering = Object.values(filter).some(Boolean);
@@ -175,12 +189,25 @@ export function ProductGapsBoard({
                   onCloseEscape={onCloseEscape}
                   record={record}
                 />
-                <StatusControl onSetStatus={onSetStatus} record={record} />
+                <StatusControl
+                  onSetStatus={onSetStatus}
+                  record={record}
+                  write={
+                    statusWrite?.variables?.gapId === record.id
+                      ? statusWrite
+                      : undefined
+                  }
+                />
                 <FollowUpPanel
                   loadTargets={loadTargets}
                   onConfirm={onConfirmFollowUp}
                   onPreview={onPreviewFollowUp}
                   record={record}
+                  write={
+                    followUpWrite?.variables?.gapId === record.id
+                      ? followUpWrite
+                      : undefined
+                  }
                 />
               </article>
             </li>

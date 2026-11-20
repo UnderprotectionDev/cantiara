@@ -42,6 +42,8 @@ Birleşik Takvim planlanan başlangıç, hedef ve yeniden görünme tarihlerini 
 
 ## Testing Decisions
 
+- The Unified Calendar seam verifies that Undo keeps the active receipt after failure and reuses the same command on retry, then refreshes the affected Project’s Work.
+
 - **What a good test is.** Tests observe Unified Calendar through its public interface: the same selected date kinds across day/week/month/Agenda, Agenda rows limited to the selected month's dates and selected Project scope, range vs day positions, a start–target range present on each spanned day in week/month, drag of one represented field with preview, status unchanged, no Event record. They do not assert calendar-grid internals. Expected values are product rules (kinds do not mix; drag writes one field; Agenda is not an Event).
 - **Seam (one).** Unified Calendar — the dated-record presentation and single-field date update interface. Kanban, Backlog, Daily Focus, personal reminders, and external sync are counterparts, not this module.
 - **Modules under test.** Unified Calendar only. Reminder records, Event entities, Work status, and export/sync adapters are out except as counterparts.

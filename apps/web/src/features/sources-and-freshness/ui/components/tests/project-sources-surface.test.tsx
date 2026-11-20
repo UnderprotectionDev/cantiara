@@ -11,30 +11,54 @@ vi.mock("@/env", () => ({
   env: { VITE_SERVER_URL: "https://api.example.org" },
 }));
 
-vi.mock("@/utils/orpc", () => ({
-  client: {},
-  orpc: {
-    sourceEvidenceUses: {
-      queryOptions: () => ({ queryKey: ["uses"], queryFn: async () => null }),
-    },
-    sourceEvidenceTargets: {
-      queryOptions: () => ({ queryKey: ["targets"], queryFn: async () => [] }),
-    },
-    sourceChecks: {
-      queryOptions: () => ({ queryKey: ["checks"], queryFn: async () => [] }),
-    },
-    source: {
-      queryOptions: () => ({ queryKey: ["source"], queryFn: async () => null }),
-    },
-    projectSources: {
-      queryOptions: () => ({
-        queryKey: ["sources"],
-        staleTime: Number.POSITIVE_INFINITY,
-        queryFn: () => Promise.reject(new Error("Unexpected fetch")),
-      }),
-    },
-  },
-}));
+vi.mock("@/utils/orpc", async (importActual) => {
+  const actual = await importActual<typeof import("@/utils/orpc")>();
+  return {
+    ...actual,
+    client: {},
+    orpc: new Proxy(actual.orpc, {
+      get(target, property, receiver) {
+        const overrides = {
+          sourceEvidenceUses: {
+            queryOptions: () => ({
+              queryKey: ["uses"],
+              queryFn: async () => null,
+            }),
+          },
+          sourceEvidenceTargets: {
+            queryOptions: () => ({
+              queryKey: ["targets"],
+              queryFn: async () => [],
+            }),
+          },
+          sourceChecks: {
+            queryOptions: () => ({
+              queryKey: ["checks"],
+              queryFn: async () => [],
+            }),
+          },
+          source: {
+            queryOptions: () => ({
+              queryKey: ["source"],
+              queryFn: async () => null,
+            }),
+          },
+          projectSources: {
+            queryOptions: () => ({
+              queryKey: ["sources"],
+              staleTime: Number.POSITIVE_INFINITY,
+              queryFn: () => Promise.reject(new Error("Unexpected fetch")),
+            }),
+          },
+        };
+        return (
+          Reflect.get(overrides, property) ??
+          Reflect.get(target, property, receiver)
+        );
+      },
+    }),
+  };
+});
 
 test("saved Source access times follow the selected account timezone, locale and date format", () => {
   const cache = new QueryClient();

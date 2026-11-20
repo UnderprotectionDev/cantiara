@@ -22,13 +22,14 @@ import {
   type GitHubTriagePreview,
 } from "@cantiara/api/github-integration";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   type MouseEvent as ReactMouseEvent,
   useEffect,
   useRef,
   useState,
 } from "react";
+import { orpc } from "@/utils/orpc";
 import { errorText } from "../../lib/github-error-text";
 import { linkActionsFor, syncNowMessage } from "../../lib/github-sync-labels";
 import { GitHubLinkPreviewPanel } from "../components/github-link-preview";
@@ -68,6 +69,41 @@ export interface GitHubIntegrationActions {
   }>;
 }
 
+type GitHubCommand =
+  | { kind: "install" }
+  | { kind: "disconnect" | "reconnect" | "skip" | "sync"; linkId: string };
+
+async function sendGitHubCommand(
+  actions: GitHubIntegrationActions,
+  command: GitHubCommand,
+) {
+  switch (command.kind) {
+    case "install":
+      await actions.onStartInstall();
+      return "Opening GitHub…";
+    case "disconnect":
+      await actions.onDisconnect(command.linkId);
+      return "Disconnected.";
+    case "reconnect":
+      await actions.onReconnect(command.linkId);
+      return "Reconnected.";
+    case "skip":
+      await actions.onSkipTriage(command.linkId);
+      return "Triage skipped.";
+    case "sync": {
+      const result = await actions.onSyncNow(command.linkId);
+      return [
+        syncNowMessage(result),
+        ...result.restoredDiffs.map(
+          ({ from, to }) => `${from.title} became ${to.title}.`,
+        ),
+      ].join(" ");
+    }
+    default:
+      return command satisfies never;
+  }
+}
+
 function PermissionsPanel({ app }: { app: GitHubOverview["app"] }) {
   return (
     <section
@@ -93,10 +129,12 @@ function PermissionsPanel({ app }: { app: GitHubOverview["app"] }) {
 
 function TriagePanel({
   link,
+  projectId,
   loadTriage,
   onSkip,
 }: {
   link: GitHubRepositoryLink;
+  projectId: string;
   loadTriage: GitHubIntegrationActions["loadTriage"];
   onSkip: () => void;
 }) {
@@ -105,7 +143,9 @@ function TriagePanel({
     enabled: open,
     gcTime: 0,
     queryFn: () => loadTriage(link.id),
-    queryKey: ["github-triage", link.id],
+    queryKey: orpc.gitHubTriagePreview.queryKey({
+      input: { linkId: link.id, projectId },
+    }),
   });
   const headingId = `github-triage-${link.id}`;
   if (link.triage === "Skipped") {
@@ -177,15 +217,14 @@ function LinkItem({
   actions,
   formattingPreferences,
   link,
+  projectId,
   run,
 }: {
   actions: GitHubIntegrationActions;
   formattingPreferences: AccountPreferences;
   link: GitHubRepositoryLink;
-  run: <T>(
-    done: string | ((result: T) => string),
-    action: () => Promise<T>,
-  ) => void;
+  projectId: string;
+  run: (command: GitHubCommand) => void;
 }) {
   const nameId = `github-link-${link.id}`;
   const available = linkActionsFor(link.connection);
@@ -209,15 +248,20 @@ function LinkItem({
     enabled: pending !== undefined,
     gcTime: 0,
     queryFn: () => actions.loadPreview(pending ?? "Reconnect", link.id),
-    queryKey: ["github-link-preview", link.id, pending],
+    queryKey: (pending === "Disconnect"
+      ? orpc.previewGitHubDisconnect
+      : orpc.previewGitHubReconnect
+    ).queryKey({
+      input: { linkId: link.id, projectId },
+    }),
   });
   const confirm = () => {
     const action = pending;
     setPending(undefined);
     if (action === "Disconnect") {
-      run("Disconnected.", () => actions.onDisconnect(link.id));
+      run({ kind: "disconnect", linkId: link.id });
     } else if (action === "Reconnect") {
-      run("Reconnected.", () => actions.onReconnect(link.id));
+      run({ kind: "reconnect", linkId: link.id });
     }
   };
   return (
@@ -254,18 +298,7 @@ function LinkItem({
         {available.canSyncNow ? (
           <Button
             aria-describedby={nameId}
-            onClick={() =>
-              run(
-                (result: Awaited<ReturnType<typeof actions.onSyncNow>>) =>
-                  [
-                    syncNowMessage(result),
-                    ...result.restoredDiffs.map(
-                      ({ from, to }) => `${from.title} became ${to.title}.`,
-                    ),
-                  ].join(" "),
-                () => actions.onSyncNow(link.id),
-              )
-            }
+            onClick={() => run({ kind: "sync", linkId: link.id })}
             type="button"
             variant="outline"
           >
@@ -307,9 +340,8 @@ function LinkItem({
       <TriagePanel
         link={link}
         loadTriage={actions.loadTriage}
-        onSkip={() =>
-          run("Triage skipped.", () => actions.onSkipTriage(link.id))
-        }
+        onSkip={() => run({ kind: "skip", linkId: link.id })}
+        projectId={projectId}
       />
     </li>
   );
@@ -317,15 +349,19 @@ function LinkItem({
 
 function RecordSearch({
   onSearch,
+  projectId,
 }: {
   onSearch: GitHubIntegrationActions["onSearch"];
+  projectId: string;
 }) {
   const [search, setSearch] = useState({ submitted: false, text: "" });
   const results = useQuery({
     enabled: search.submitted,
     gcTime: 0,
     queryFn: () => onSearch(search.text),
-    queryKey: ["github-record-search", search.text],
+    queryKey: orpc.searchGitHubRecords.queryKey({
+      input: { projectId, query: search.text },
+    }),
   });
   return (
     <section
@@ -374,31 +410,34 @@ function RecordSearch({
 export function GitHubIntegrationView({
   actions,
   formattingPreferences = DEFAULT_ACCOUNT_PREFERENCES,
+  onCommandSuccess,
   overview,
+  projectId,
 }: {
   actions: GitHubIntegrationActions;
   formattingPreferences?: AccountPreferences;
+  onCommandSuccess?: () => Promise<unknown>;
   overview: GitHubOverview;
+  projectId: string;
 }) {
-  const [notice, setNotice] = useState<GitHubNoticeState>();
-  const run = <T,>(
-    done: string | ((result: T) => string),
-    action: () => Promise<T>,
-  ) => {
-    setNotice(undefined);
-    action().then(
-      (result) =>
-        setNotice({
-          kind: "status",
-          text: typeof done === "string" ? done : done(result),
-        }),
-      (caught: unknown) =>
-        setNotice({
-          kind: "alert",
-          text: errorText(caught, "The GitHub action did not finish."),
-        }),
-    );
-  };
+  const write = useMutation({
+    meta: { onlineWrite: true, retryInSurface: true },
+    mutationFn: (command: GitHubCommand) => sendGitHubCommand(actions, command),
+    onSuccess: (_, command) => {
+      if (command.kind !== "install") {
+        return onCommandSuccess?.();
+      }
+    },
+  });
+  let notice: GitHubNoticeState | undefined;
+  if (write.isError) {
+    notice = {
+      kind: "alert",
+      text: errorText(write.error, "The GitHub action did not finish."),
+    };
+  } else if (write.isSuccess) {
+    notice = { kind: "status", text: write.data };
+  }
   const { app, installations, links, readOnly } = overview;
   return (
     <section aria-labelledby="github-heading" className="space-y-5">
@@ -422,8 +461,8 @@ export function GitHubIntegrationView({
       <PermissionsPanel app={app} />
       <div className="space-y-2">
         <Button
-          disabled={!app.configured || readOnly}
-          onClick={() => run("Opening GitHub…", () => actions.onStartInstall())}
+          disabled={!app.configured || readOnly || write.isPending}
+          onClick={() => write.mutate({ kind: "install" })}
           type="button"
         >
           {GITHUB_INSTALL_LABEL}
@@ -444,6 +483,7 @@ export function GitHubIntegrationView({
           installations={installations}
           loadRepositories={actions.loadRepositories}
           onLink={actions.onLink}
+          projectId={projectId}
         />
       )}
       <section aria-labelledby="github-links-heading" className="space-y-3">
@@ -462,13 +502,16 @@ export function GitHubIntegrationView({
                 formattingPreferences={formattingPreferences}
                 key={link.id}
                 link={link}
-                run={run}
+                projectId={projectId}
+                run={write.mutate}
               />
             ))}
           </ul>
         )}
       </section>
-      {links.length > 0 ? <RecordSearch onSearch={actions.onSearch} /> : null}
+      {links.length > 0 ? (
+        <RecordSearch onSearch={actions.onSearch} projectId={projectId} />
+      ) : null}
     </section>
   );
 }

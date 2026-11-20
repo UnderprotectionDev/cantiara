@@ -22,7 +22,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { orpc } from "@/utils/orpc";
 import { convertAndBindFormSchema } from "../../lib/user-flow-forms";
 
 /** Identity of one confirmation attempt; reused on retry so the record is created once. */
@@ -101,20 +103,41 @@ export function ConvertAndBindDialog({
   onClose,
   onConfirm,
   onPreview,
+  resetWrite,
+  write,
 }: {
   node: UserFlowNodeView;
   onClose: () => void;
   onConfirm: ConfirmConvertAndBind;
   onPreview: PreviewConvertAndBind;
+  resetWrite?: () => void;
+  write?: { error: unknown; isPending: boolean; isSuccess: boolean };
 }) {
-  const [plan, setPlan] = useState<UserFlowConvertPlan | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const inspect = useMutation({
+    mutationKey: orpc.previewUserFlowConvert.mutationKey(),
+    mutationFn: (values: Parameters<PreviewConvertAndBind>) =>
+      onPreview(...values),
+    meta: { presentsSupportFailure: true },
+  });
+  const plan = inspect.data;
+  const pending = inspect.isPending || Boolean(write?.isPending);
   const identity = useRef<ConvertAndBindIdentity | null>(null);
-
+  let error: string | null = null;
+  if (inspect.isError) {
+    error =
+      "The preview could not be loaded. Save or discard edits and try again.";
+  } else if (write?.error && plan) {
+    error = `The ${plan.record.type} could not be created. If the User Flow changed, preview again.`;
+  }
+  const completed = write?.isSuccess;
+  useEffect(() => {
+    if (completed) {
+      onClose();
+    }
+  }, [completed, onClose]);
   function reset() {
-    setPlan(null);
-    setError(null);
+    inspect.reset();
+    resetWrite?.();
     identity.current = null;
   }
   const form = useForm({
@@ -134,19 +157,12 @@ export function ConvertAndBindDialog({
     if (!parsed.success) {
       return;
     }
-    setPending(true);
     reset();
-    try {
-      setPlan(await onPreview(parsed.data.target, parsed.data.workType));
-    } catch {
-      setError(
-        "The preview could not be loaded. Save or discard edits and try again.",
-      );
-    } finally {
-      setPending(false);
-    }
+    await inspect
+      .mutateAsync([parsed.data.target, parsed.data.workType])
+      .catch(() => undefined);
   }
-  async function confirm() {
+  function confirm() {
     if (!plan || pending) {
       return;
     }
@@ -155,19 +171,7 @@ export function ConvertAndBindDialog({
       key: crypto.randomUUID(),
       recordId: crypto.randomUUID(),
     };
-    setPending(true);
-    setError(null);
-    try {
-      await onConfirm(plan, identity.current);
-      identity.current = null;
-      onClose();
-    } catch {
-      setError(
-        `The ${plan.record.type} could not be created. If the User Flow changed, preview again.`,
-      );
-    } finally {
-      setPending(false);
-    }
+    onConfirm(plan, identity.current).catch(() => undefined);
   }
   return (
     <Dialog onOpenChange={(open) => !open && onClose()} open>

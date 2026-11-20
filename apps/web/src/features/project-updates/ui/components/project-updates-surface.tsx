@@ -3,9 +3,8 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { ProjectOverviewSources } from "@cantiara/api/project-overview";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { useCreateProjectUpdate } from "../../hooks/use-create-project-update";
 import {
@@ -25,6 +24,22 @@ export default function ProjectUpdatesSurface({
 }: {
   projectId: string;
 }) {
+  const configureProjectUpdateReminderMutation = useMutation(
+    orpc.configureProjectUpdateReminder.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (command) => client.configureProjectUpdateReminder(command),
+      onSuccess: (_, { projectId: affectedProject }) =>
+        refreshReminder(affectedProject),
+    }),
+  );
+  const skipProjectUpdateReminderMutation = useMutation(
+    orpc.skipProjectUpdateReminder.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (command) => client.skipProjectUpdateReminder(command),
+      onSuccess: (_, { projectId: affectedProject }) =>
+        refreshReminder(affectedProject),
+    }),
+  );
   const input = { projectId };
   const updates = useQuery(orpc.projectUpdates.queryOptions({ input }));
   const profile = useQuery(orpc.project.queryOptions({ input }));
@@ -36,9 +51,9 @@ export default function ProjectUpdatesSurface({
   const reminder = useQuery(orpc.projectUpdateReminder.queryOptions({ input }));
   const queryClient = useQueryClient();
   const create = useCreateProjectUpdate();
-  const refreshReminder = () =>
+  const refreshReminder = (id: string) =>
     queryClient.invalidateQueries({
-      queryKey: orpc.projectUpdateReminder.key(),
+      queryKey: orpc.projectUpdateReminder.key({ input: { projectId: id } }),
     });
 
   const sources = useMemo<ProjectOverviewSources>(
@@ -122,20 +137,23 @@ export default function ProjectUpdatesSurface({
       reminder={
         reminder.data
           ? {
+              configureError: configureProjectUpdateReminderMutation.isError,
+              configurePending:
+                configureProjectUpdateReminderMutation.isPending,
+              skipError: skipProjectUpdateReminderMutation.isError,
+              skipPending: skipProjectUpdateReminderMutation.isPending,
               onConfigure: async (values) => {
-                await runOnlineOnlyWrite(() =>
-                  client.configureProjectUpdateReminder({
-                    ...values,
-                    projectId,
-                  }),
-                );
-                await refreshReminder();
+                skipProjectUpdateReminderMutation.reset();
+                await configureProjectUpdateReminderMutation.mutateAsync({
+                  ...values,
+                  projectId,
+                });
               },
               onSkip: async () => {
-                await runOnlineOnlyWrite(() =>
-                  client.skipProjectUpdateReminder({ projectId }),
-                );
-                await refreshReminder();
+                configureProjectUpdateReminderMutation.reset();
+                await skipProjectUpdateReminderMutation.mutateAsync({
+                  projectId,
+                });
               },
               reminder: reminder.data,
             }

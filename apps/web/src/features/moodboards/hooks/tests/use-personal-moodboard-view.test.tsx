@@ -10,6 +10,10 @@ const saveMoodboardPersonalView = vi.hoisted(() => vi.fn());
 vi.mock("@/utils/orpc", () => ({
   client: { saveMoodboardPersonalView },
   orpc: {
+    saveMoodboardPersonalView: {
+      mutationKey: () => ["saveMoodboardPersonalView"],
+    },
+
     moodboardPersonalView: {
       queryOptions: () => ({
         queryFn: () => ({ collapsed: [], viewport: null }),

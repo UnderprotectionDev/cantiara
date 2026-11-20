@@ -1,34 +1,41 @@
-import { useQueryClient } from "@tanstack/react-query";
+import type { ApproveShareScopeInput } from "@cantiara/api/link-sharing";
+import { hashKey, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import type { IssuedShareLink } from "../lib/share-access";
 
-type ApproveInput = Parameters<typeof client.approveShareScope>[0];
-
-/**
- * Approves one scope online. The approval id belongs to one attempt, so a retry
- * of the same selection is replayed by the server instead of adding a second
- * revision; a changed selection gets a new id. The preview is read again after.
- */
-export function useApproveShareScope() {
+/** A changed selection starts a new approval. A retry replays its approval id. */
+export function useApproveShareScope(
+  issueLink: (link: IssuedShareLink) => void,
+) {
   const queryClient = useQueryClient();
   const attempt = useRef<{ fingerprint: string; id: string } | null>(null);
-  return async function approve(input: Omit<ApproveInput, "approvalId">) {
-    const fingerprint = JSON.stringify(input);
+  const approval = useMutation({
+    ...orpc.approveShareScope.mutationOptions(),
+    meta: { onlineWrite: true },
+    mutationFn: async (input: ApproveShareScopeInput) => {
+      const { accessToken, ...approved } =
+        await client.approveShareScope(input);
+      if (accessToken) {
+        issueLink({ surfaceId: approved.surfaceId, token: accessToken });
+      }
+      return approved;
+    },
+    onSuccess: (_, input) => {
+      if (attempt.current?.id === input.approvalId) {
+        attempt.current = null;
+      }
+    },
+    onSettled: (_, __, { root }) =>
+      queryClient.invalidateQueries({
+        queryKey: orpc.previewShareScope.queryKey({ input: { root } }),
+      }),
+  });
+  return function approve(input: Omit<ApproveShareScopeInput, "approvalId">) {
+    const fingerprint = hashKey([input]);
     if (attempt.current?.fingerprint !== fingerprint) {
       attempt.current = { fingerprint, id: crypto.randomUUID() };
     }
-    const { id } = attempt.current;
-    try {
-      const approved = await runOnlineOnlyWrite(() =>
-        client.approveShareScope({ ...input, approvalId: id }),
-      );
-      attempt.current = null;
-      return approved;
-    } finally {
-      await queryClient.invalidateQueries({
-        queryKey: orpc.previewShareScope.key(),
-      });
-    }
+    return approval.mutateAsync({ ...input, approvalId: attempt.current.id });
   };
 }

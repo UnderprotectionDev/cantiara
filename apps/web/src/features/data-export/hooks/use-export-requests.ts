@@ -1,10 +1,16 @@
 import type { ExportPreview, ExportRequest } from "@cantiara/api/data-export";
-import { client } from "@/utils/orpc";
+import { useQueryClient } from "@tanstack/react-query";
+import { client, orpc } from "@/utils/orpc";
 
 /** Reads the closed-world preview. The Workspace is not changed. */
 export function useExportPreview() {
+  const cache = useQueryClient();
   return function preview(request: ExportRequest) {
-    return client.exportPreview(request);
+    return cache.query({
+      ...orpc.exportPreview.queryOptions({ input: request }),
+      gcTime: 0,
+      staleTime: 0,
+    });
   };
 }
 

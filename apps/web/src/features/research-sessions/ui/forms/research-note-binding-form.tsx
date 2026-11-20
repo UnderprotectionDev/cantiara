@@ -21,6 +21,7 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { type SyntheticEvent, useId, useState } from "react";
+import { commandVariables } from "@/lib/command-variables";
 import { isResearchSessionConflict } from "../../lib/research-session-conflict";
 
 const fieldLabels: Record<string, string> = {
@@ -42,6 +43,8 @@ export function ResearchNoteBindingEditor({
   onPreview,
   onConfirm,
   onCancel,
+  previewState,
+  confirmState,
 }: {
   record: Pick<
     ResearchSessionRecord,
@@ -58,13 +61,26 @@ export function ResearchNoteBindingEditor({
     key: string,
   ) => Promise<ResearchEvidenceBinding>;
   onCancel: () => void;
+  previewState?: ResearchBindingPreviewState;
+  confirmState?: { error: unknown; isPending: boolean };
 }) {
   const prefix = useId();
-  const [preview, setPreview] = useState<ResearchBindingPreview>();
-  const [confirmationKey, setConfirmationKey] = useState("");
-  const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState<string>();
-  const [conflict, setConflict] = useState(false);
+  const preview =
+    previewState?.variables?.id === record.id &&
+    previewState.variables.contentId === note.id
+      ? previewState.data
+      : undefined;
+  const confirming = confirmState?.isPending ?? false;
+  const conflict = isResearchSessionConflict(confirmState?.error);
+  const [validationError, setValidationError] = useState<string>();
+  let error = validationError;
+  if (previewState?.error) {
+    error = "Preview is unavailable. Retry or cancel; your draft is kept.";
+  } else if (confirmState?.error) {
+    error = conflict
+      ? "Research Session changed or preview expired. Cancel and reopen the preview."
+      : "Binding could not be confirmed. Retry with this same preview; your draft is kept.";
+  }
   const form = useForm({
     defaultValues: {
       type: "",
@@ -76,7 +92,7 @@ export function ResearchNoteBindingEditor({
       end: note.text.length,
     },
     onSubmit: async ({ value }) => {
-      setError(undefined);
+      setValidationError(undefined);
       const parsed = previewResearchSessionBindingInputSchema.safeParse({
         id: record.id,
         projectId: record.projectId,
@@ -98,17 +114,16 @@ export function ResearchNoteBindingEditor({
         },
       });
       if (!parsed.success) {
-        setError("Choose the target and complete its fields.");
+        setValidationError("Choose the target and complete its fields.");
         return;
       }
-      try {
-        setPreview(await onPreview(parsed.data));
-        setConfirmationKey(crypto.randomUUID());
-      } catch {
-        setError(
-          "Preview is unavailable. Retry or cancel; your draft is kept.",
-        );
-      }
+      const { clientIdempotencyKey: _initialKey, ...input } = parsed.data;
+      await onPreview(
+        commandVariables(
+          input,
+          previewState?.error ? previewState.variables : undefined,
+        ),
+      );
     },
   });
   function selectText(event: SyntheticEvent<HTMLTextAreaElement>) {
@@ -118,24 +133,9 @@ export function ResearchNoteBindingEditor({
       form.setFieldValue("end", selectionEnd);
     }
   }
-  async function confirm() {
-    if (!preview || confirming) {
-      return;
-    }
-    setConfirming(true);
-    setError(undefined);
-    try {
-      await onConfirm(preview, confirmationKey);
-    } catch (cause) {
-      const changed = isResearchSessionConflict(cause);
-      setConflict(changed);
-      setError(
-        changed
-          ? "Research Session changed or preview expired. Cancel and reopen the preview."
-          : "Binding could not be confirmed. Retry with this same preview; your draft is kept.",
-      );
-    } finally {
-      setConfirming(false);
+  function confirm() {
+    if (preview && !confirming) {
+      onConfirm(preview, preview.previewId).catch(() => undefined);
     }
   }
   const confirmationLabel = error ? "Retry" : "Confirm";
@@ -432,4 +432,11 @@ export interface ResearchBindingActions {
     input: PreviewResearchSessionBindingInput,
   ) => Promise<ResearchBindingPreview>;
   targets: (record: ResearchSessionRecord) => Promise<ResearchBindingTargets>;
+}
+
+export interface ResearchBindingPreviewState {
+  data?: ResearchBindingPreview;
+  error: unknown;
+  reset: () => void;
+  variables?: PreviewResearchSessionBindingInput;
 }

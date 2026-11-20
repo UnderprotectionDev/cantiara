@@ -11,26 +11,47 @@ const rpc = vi.hoisted(() => ({
   recheckSource: vi.fn(),
   decideSourceCheck: vi.fn(),
 }));
-vi.mock("@/utils/orpc", () => ({
-  client: rpc,
-  orpc: {
-    sourceEvidenceUses: {
-      queryOptions: () => ({ queryKey: ["uses"], queryFn: async () => null }),
-    },
-    sourceChecks: {
-      queryOptions: () => ({ queryKey: ["checks"], queryFn: async () => [] }),
-    },
-    source: {
-      queryOptions: () => ({ queryKey: ["source"], queryFn: async () => null }),
-    },
-    projectSources: {
-      queryOptions: () => ({
-        queryKey: ["sources"],
-        queryFn: async () => null,
-      }),
-    },
-  },
-}));
+vi.mock("@/utils/orpc", async (importActual) => {
+  const actual = await importActual<typeof import("@/utils/orpc")>();
+  return {
+    ...actual,
+    client: rpc,
+    orpc: new Proxy(actual.orpc, {
+      get(target, property, receiver) {
+        const overrides = {
+          sourceEvidenceUses: {
+            queryOptions: () => ({
+              queryKey: ["uses"],
+              queryFn: async () => null,
+            }),
+          },
+          sourceChecks: {
+            queryOptions: () => ({
+              queryKey: ["checks"],
+              queryFn: async () => [],
+            }),
+          },
+          source: {
+            queryOptions: () => ({
+              queryKey: ["source"],
+              queryFn: async () => null,
+            }),
+          },
+          projectSources: {
+            queryOptions: () => ({
+              queryKey: ["sources"],
+              queryFn: async () => null,
+            }),
+          },
+        };
+        return (
+          Reflect.get(overrides, property) ??
+          Reflect.get(target, property, receiver)
+        );
+      },
+    }),
+  };
+});
 
 const source = {
   id: "source-1",

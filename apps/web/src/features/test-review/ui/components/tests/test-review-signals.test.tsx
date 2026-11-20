@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import type { TestReviewSession } from "@cantiara/api/test-review";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
@@ -162,12 +163,14 @@ async function mount(actions: TestReviewSignalActions, readOnly = false) {
   root = createRoot(host);
   await act(() => {
     root?.render(
-      <TestReviewSignals
-        actions={actions}
-        data={data}
-        readOnly={readOnly}
-        sessions={sessions}
-      />,
+      <QueryClientProvider client={new QueryClient()}>
+        <TestReviewSignals
+          actions={actions}
+          data={data}
+          readOnly={readOnly}
+          sessions={sessions}
+        />
+      </QueryClientProvider>,
     );
   });
 }
@@ -256,14 +259,18 @@ test("Create follow-up work previews target, Originates from and Origin Location
     mode: "new",
     workType: "Task",
   });
-  const text = document.body.textContent ?? "";
-  expect(text).toContain("Originates from: Test Session Claude Code run");
-  expect(text).toContain("Origin Location: Session Test Checkout (immutable)");
-  expect(actions.commitFollowUp).not.toHaveBeenCalled();
-  const heading = document.getElementById(
-    "test-review-follow-up-preview-heading",
-  );
-  expect(document.activeElement).toBe(heading);
+  await vi.waitFor(async () => {
+    await act(async () => undefined);
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Originates from: Test Session Claude Code run");
+    expect(text).toContain(
+      "Origin Location: Session Test Checkout (immutable)",
+    );
+    expect(actions.commitFollowUp).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(
+      document.getElementById("test-review-follow-up-preview-heading"),
+    );
+  });
   await click(button("Create follow-up work"));
   expect(actions.commitFollowUp).toHaveBeenCalledTimes(1);
 });

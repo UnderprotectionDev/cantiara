@@ -5,71 +5,49 @@ import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
 import { useForm } from "@tanstack/react-form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client } from "@/utils/orpc";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
+import { client, orpc } from "@/utils/orpc";
 import { diagramViewSchema } from "../../lib/technical-diagram-form-schemas";
 
 export function DiagramViewForm({
   diagramId,
   error,
   nodes,
-  onError,
+  projectId,
   views,
 }: {
   diagramId: string;
   error: string | null;
   nodes: ReturnType<typeof diagramGraph>["nodes"];
-  onError: (message: string | null) => void;
+  projectId: string;
   views: readonly { id: string; name: string; selectedNodeIds: string[] }[];
 }) {
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries();
-  const pendingKey = useRef<string | null>(null);
-  const create = useMutation({
-    mutationFn: ({
-      name,
-      selectedNodeIds,
-    }: {
-      name: string;
-      selectedNodeIds: string[];
-    }) => {
-      pendingKey.current ??= crypto.randomUUID();
-      return runOnlineOnlyWrite(() =>
-        client.createDiagramView({
-          clientIdempotencyKey: pendingKey.current as string,
-          diagramId,
-          name,
-          selectedNodeIds,
-        }),
-      );
-    },
-    onSuccess: async () => {
-      pendingKey.current = null;
-      onError(null);
-      // A new Diagram View can become the diagram's current view (a view named
-      // "Default"), so the diagram query is invalidated with the views list.
-      await invalidate();
-    },
-    onError: (failure) =>
-      onError(
-        failure instanceof Error
-          ? failure.message
-          : "Diagram View could not be saved.",
-      ),
-  });
+  const invalidate = () =>
+    Promise.all(
+      [
+        orpc.technicalDiagrams.key({ input: { projectId } }),
+        orpc.technicalDiagram.queryKey({ input: { diagramId } }),
+        orpc.technicalDiagramViews.queryKey({ input: { diagramId } }),
+      ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    );
+  const create = usePreparedMutation(
+    orpc.createDiagramView.mutationOptions({
+      mutationFn: (input) => client.createDiagramView(input),
+      // A view named "Default" can become the current diagram view.
+      onSuccess: invalidate,
+    }),
+    (input: { name: string; selectedNodeIds: string[] }) => ({
+      ...input,
+      diagramId,
+    }),
+  );
   const form = useForm({
     defaultValues: {
       name: "",
       selectedNodeIds: nodes.map(({ id }) => id),
-    },
-    // Any edit starts a new save attempt, so it gets a fresh idempotency key.
-    listeners: {
-      onChange: () => {
-        pendingKey.current = null;
-      },
     },
     onSubmit: async ({ value, formApi }) => {
       if (!diagramViewSchema.safeParse(value).success) {
@@ -81,6 +59,9 @@ export function DiagramViewForm({
         .catch(() => undefined);
     },
   });
+  const requestError = create.isError
+    ? create.error.message || "Diagram View could not be saved."
+    : error;
   return (
     <section aria-label="Diagram View" className="space-y-2">
       <h4 className="font-medium">Diagram View</h4>
@@ -150,7 +131,7 @@ export function DiagramViewForm({
           )}
         </form.Subscribe>
       </form>
-      {error ? <p role="alert">{error}</p> : null}
+      {requestError ? <p role="alert">{requestError}</p> : null}
     </section>
   );
 }

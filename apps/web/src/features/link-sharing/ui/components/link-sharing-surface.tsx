@@ -13,7 +13,8 @@ import type { IssuedShareLink } from "../../lib/share-access";
 import { LinkSharingView } from "../views/link-sharing-view";
 
 function rootOf(key: string, roots: readonly ShareRoot[]): ShareRoot | null {
-  return roots.find((root) => `${root.kind}:${root.id}` === key) ?? null;
+  const root = roots.find((record) => `${record.kind}:${record.id}` === key);
+  return root ? { id: root.id, kind: root.kind } : null;
 }
 
 /**
@@ -30,9 +31,8 @@ export default function LinkSharingSurface({
     orpc.shareRoots.queryOptions({ input: { projectId } }),
   );
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
-  const approve = useApproveShareScope();
   const [issued, setIssued] = useState<IssuedShareLink | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const approve = useApproveShareScope(setIssued);
   const root = rootOf(selectedKey, roots.data ?? []);
   const preview = useQuery({
     ...orpc.previewShareScope.queryOptions({
@@ -41,7 +41,12 @@ export default function LinkSharingSurface({
     enabled: root !== null,
   });
   const surfaceId = preview.data?.surface?.surfaceId;
-  const access = useShareAccess(surfaceId);
+  const access = useShareAccess(root, surfaceId, setIssued, () =>
+    setIssued(null),
+  );
+  const revoked =
+    access.lifecycleFeedback?.action === "revoke" &&
+    access.lifecycleFeedback.status === "success";
 
   if (roots.status === "pending") {
     return <p role="status">Loading Share…</p>;
@@ -68,62 +73,38 @@ export default function LinkSharingSurface({
         issuedToken:
           issued && issued.surfaceId === surfaceId ? issued.token : null,
         onRemovePassword: () => access.setPassword(null),
-        onRotate: async () => {
-          const rotated = await access.rotateToken();
-          if (rotated.token) {
-            setIssued({ surfaceId: rotated.surfaceId, token: rotated.token });
-          }
-        },
+        onRotate: access.rotateToken,
         onSavePassword: (password) => access.setPassword(password),
+        rotation: access.rotationFeedback,
         serverUrl: env.VITE_SERVER_URL,
       }}
       formatting={preferences.data ?? DEFAULT_ACCOUNT_PREFERENCES}
       lifecycle={{
+        feedback: access.lifecycleFeedback,
         onReopen: (expiresAt) => access.reopen(expiresAt),
-        onReshare: async (expiresAt) => {
-          const shared = await access.reshare(expiresAt);
-          // The new token is returned once, with the new surface.
-          if (shared.accessToken) {
-            setIssued({
-              surfaceId: shared.surfaceId,
-              token: shared.accessToken,
-            });
-          }
-          return shared;
-        },
-        onRevoke: async () => {
-          const revoked = await access.revoke();
-          setIssued(null);
-          setNotice(
-            "Link revoked. It can never be used again; approving the scope again makes a new link.",
-          );
-          return revoked;
-        },
+        onReshare: access.reshare,
+        onRevoke: access.revoke,
         onSetExpiry: (expiresAt) => access.setExpiry(expiresAt),
       }}
-      notice={notice}
+      notice={
+        revoked
+          ? "Link revoked. It can never be used again; approving the scope again makes a new link."
+          : null
+      }
       onApprove={async (values) => {
         if (!(root && preview.data)) {
           throw new Error("No scope to approve");
         }
-        const approved = await approve({
+        return await approve({
           approvedItemIds: values.approved,
           liveItemIds: values.live,
           publishAnyway: values.publishAnyway,
           root,
           surfaceId: preview.data.surface?.surfaceId,
         });
-        // The token is returned once, when the approval creates the surface.
-        if (approved.accessToken) {
-          setIssued({
-            surfaceId: approved.surfaceId,
-            token: approved.accessToken,
-          });
-        }
-        return approved;
       }}
       onSelectRoot={(key) => {
-        setNotice(null);
+        access.resetFeedback();
         setSelectedKey(key);
       }}
       preview={preview.data}

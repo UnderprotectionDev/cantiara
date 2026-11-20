@@ -3,6 +3,7 @@ import {
   type MutationDatabaseTargetAdapter,
 } from "@cantiara/api/mutation-contract-database";
 import {
+  type ParsedCreateTagInput,
   type Tag,
   type TagAssignment,
   type TagInlineRenameWriter,
@@ -404,7 +405,13 @@ export function createDatabaseTags(
       return existing ? toTagAssignment(existing) : null;
     },
 
-    async create(workspaceId, input) {
+    async create(workspaceId, input, accountId) {
+      if (input.clientIdempotencyKey) {
+        return createTagWithReceipt(database, workspaceId, accountId, {
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          name: input.name,
+        });
+      }
       const [created] = await database
         .insert(workspaceTag)
         .values({
@@ -559,6 +566,77 @@ export function createDatabaseTags(
     rename: createDatabaseTagRename(database, options),
     store,
   });
+}
+
+async function createTagWithReceipt(
+  database: Database,
+  workspaceId: string,
+  accountId: string,
+  { clientIdempotencyKey, name }: Required<ParsedCreateTagInput>,
+) {
+  const target: MutationDatabaseTargetAdapter<TagMutationValue> = {
+    async find(executor, targetId, lock) {
+      if ((await findWorkspaceId(executor, accountId, lock)) !== workspaceId) {
+        return null;
+      }
+      const existing = await findWorkspaceTag(executor, workspaceId, targetId);
+      return existing
+        ? toTagMutationTarget(existing)
+        : { id: targetId, revision: 0, value: { tag: null } };
+    },
+    async update(executor, input) {
+      const candidate = input.nextValue.tag;
+      if (!candidate || input.expectedRevision !== 0) {
+        return null;
+      }
+      const [created] = await executor
+        .insert(workspaceTag)
+        .values({
+          createdAt: input.committedAt,
+          id: input.targetId,
+          name: candidate.name,
+          nameKey: tagNameKey(candidate.name),
+          revision: 1,
+          updatedAt: input.committedAt,
+          workspaceId,
+        })
+        .onConflictDoNothing()
+        .returning();
+      if (!created) {
+        throw new TagNameConflictError(candidate.name);
+      }
+      return toTagMutationTarget(created);
+    },
+  };
+  const contract = createDatabaseMutationContract(database, { target });
+  const receipt = await contract.mutate(
+    {
+      actor: { actorId: accountId, type: "User" },
+      baseRevision: 0,
+      clientIdempotencyKey,
+      kind: "human",
+      payload: { name, operation: "create-tag", workspaceId },
+      targetId: clientIdempotencyKey,
+    },
+    ({ committedAt, currentValue }) => {
+      if (currentValue.tag) {
+        throw new TagNameConflictError(name);
+      }
+      return {
+        tag: {
+          createdAt: committedAt,
+          id: clientIdempotencyKey,
+          name,
+          revision: 1,
+          updatedAt: committedAt,
+        },
+      };
+    },
+  );
+  if (!receipt.nextValue.tag) {
+    throw new TagNotFoundError(clientIdempotencyKey);
+  }
+  return receipt.nextValue.tag;
 }
 
 export function createDatabaseTagMutationContracts(

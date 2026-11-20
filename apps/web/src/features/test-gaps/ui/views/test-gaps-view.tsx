@@ -59,6 +59,7 @@ function GapItem({
   loadDecisions,
   onClose,
   onPlanCase,
+  onPlanningSuccess,
   onPlanHandoff,
   onUnplanCase,
   onUnplanHandoff,
@@ -71,6 +72,7 @@ function GapItem({
   loadDecisions: LoadDecisions;
   onClose: CloseGap;
   onPlanCase: PlanWithCase;
+  onPlanningSuccess?: () => Promise<unknown>;
   onPlanHandoff: PlanWithHandoff;
   onUnplanCase: PlanWithCase;
   onUnplanHandoff: PlanWithHandoff;
@@ -116,6 +118,7 @@ function GapItem({
               handoffs={handoffs}
               onPlanCase={onPlanCase}
               onPlanHandoff={onPlanHandoff}
+              onPlanningSuccess={onPlanningSuccess}
               onUnplanCase={onUnplanCase}
               onUnplanHandoff={onUnplanHandoff}
               readOnly={readOnly || record.closure !== null}
@@ -182,6 +185,8 @@ function OpenAndPlannedGaps({ gaps }: { gaps: TestGapRecord[] }) {
  */
 export function TestGapsView({
   cases,
+  onCreateSuccess,
+  projectId,
   gaps,
   handoffs,
   loadDecisions,
@@ -189,6 +194,7 @@ export function TestGapsView({
   onClose,
   onCreate,
   onPlanCase,
+  onPlanningSuccess,
   onPlanHandoff,
   onUnplanCase,
   onUnplanHandoff,
@@ -196,6 +202,8 @@ export function TestGapsView({
   sessionTests,
 }: {
   cases: PlannedTestCaseRecord[];
+  onCreateSuccess?: () => Promise<unknown>;
+  projectId: string;
   gaps: TestGapRecord[];
   handoffs: TestHandoffRecord[];
   loadDecisions: LoadDecisions;
@@ -203,6 +211,7 @@ export function TestGapsView({
   onClose: CloseGap;
   onCreate: SubmitGap;
   onPlanCase: PlanWithCase;
+  onPlanningSuccess?: () => Promise<unknown>;
   onPlanHandoff: PlanWithHandoff;
   onUnplanCase: PlanWithCase;
   onUnplanHandoff: PlanWithHandoff;
@@ -219,7 +228,12 @@ export function TestGapsView({
           This Project is archived. Test Gaps are read-only.
         </p>
       ) : (
-        <GapForm loadTargets={loadTargets} onSubmit={onCreate} />
+        <GapForm
+          loadTargets={loadTargets}
+          onCreateSuccess={onCreateSuccess}
+          onSubmit={onCreate}
+          projectId={projectId}
+        />
       )}
       <OpenAndPlannedGaps gaps={gaps} />
       {gaps.length === 0 ? (
@@ -235,6 +249,7 @@ export function TestGapsView({
               onClose={onClose}
               onPlanCase={onPlanCase}
               onPlanHandoff={onPlanHandoff}
+              onPlanningSuccess={onPlanningSuccess}
               onUnplanCase={onUnplanCase}
               onUnplanHandoff={onUnplanHandoff}
               readOnly={readOnly}

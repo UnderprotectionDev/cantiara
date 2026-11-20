@@ -12,15 +12,23 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { useRef } from "react";
 import { fetchCurrentWork } from "@/lib/fetch-current-work";
-import { client, invalidateSmartCollectionMembership } from "@/utils/orpc";
+import { executeWrite } from "@/utils/execute-write";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
+
+type CloseWorkCommand = Parameters<typeof client.closeWork>[0];
 
 async function abandonSelectedWork(
   queryClient: QueryClient,
   periodId: string,
   workIds: string[],
   closeAnyway: boolean,
+  attempts: Map<string, CloseWorkCommand>,
   decide: (
     input: Parameters<typeof client.decideFocusPeriodLeftovers>[0],
   ) => Promise<unknown>,
@@ -37,15 +45,42 @@ async function abandonSelectedWork(
       if (hasChecks && !closeAnyway) {
         throw new Error("Review closure checks or select Close anyway.");
       }
-      await runOnlineOnlyWrite(() =>
-        client.closeWork({
-          workId: selectedWorkId,
-          baseRevision: current.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          closureResult: "Abandoned",
-          ...(closeAnyway ? { closureCheck: "Close anyway" as const } : {}),
-        }),
+      const closureCheck = closeAnyway ? ("Close anyway" as const) : undefined;
+      const previous = attempts.get(selectedWorkId);
+      const command =
+        previous && previous.closureCheck === closureCheck
+          ? previous
+          : {
+              workId: selectedWorkId,
+              baseRevision: current.revision,
+              clientIdempotencyKey: crypto.randomUUID(),
+              closureResult: "Abandoned" as const,
+              closureCheck,
+            };
+      attempts.set(selectedWorkId, command);
+      await executeWrite(
+        queryClient,
+        command,
+        (input) => client.closeWork(input),
+        async (_, error) => {
+          if (!error) {
+            await Promise.all([
+              queryClient.invalidateQueries({
+                queryKey: orpc.work.queryKey({
+                  input: { workId: command.workId },
+                }),
+              }),
+              queryClient.invalidateQueries({
+                queryKey: orpc.projectWorks.queryKey({
+                  input: { projectId: current.projectId },
+                }),
+              }),
+            ]);
+          }
+        },
+        { presentsSupportFailure: true },
       );
+      attempts.delete(selectedWorkId);
     } else if (current.closureResult !== "Abandoned") {
       throw new Error("Work was already completed.");
     }
@@ -93,6 +128,7 @@ export function PeriodLeftoverDecisions({
   ) => Promise<void>;
 }) {
   const queryClient = useQueryClient();
+  const closeAttempts = useRef(new Map<string, CloseWorkCommand>());
   const form = useForm({
     defaultValues: {
       selectedWorkIds: [],
@@ -117,6 +153,7 @@ export function PeriodLeftoverDecisions({
         period.id,
         selectedWorkIds,
         closeAnyway,
+        closeAttempts.current,
         decide.mutateAsync,
         (decidedWorkId) =>
           form.setFieldValue("selectedWorkIds", (ids) =>

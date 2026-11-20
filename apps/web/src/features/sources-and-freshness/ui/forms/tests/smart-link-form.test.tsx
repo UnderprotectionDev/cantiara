@@ -7,10 +7,34 @@ import {
   previewFallback,
   type SmartLinkPreview,
 } from "@cantiara/api/smart-link-preview";
-import { act } from "react";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useMutation,
+} from "@tanstack/react-query";
+import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { SmartLinkComposer } from "../smart-link-form";
+import { SmartLinkComposer as Composer } from "../smart-link-form";
+
+function ComposerWithWrite({
+  onSave,
+  ...props
+}: Omit<React.ComponentProps<typeof Composer>, "write">) {
+  const write = useMutation({ mutationFn: onSave });
+  return <Composer {...props} onSave={write.mutateAsync} write={write} />;
+}
+
+function SmartLinkComposer(
+  props: React.ComponentProps<typeof ComposerWithWrite>,
+) {
+  const [cache] = useState(() => new QueryClient());
+  return (
+    <QueryClientProvider client={cache}>
+      <ComposerWithWrite {...props} />
+    </QueryClientProvider>
+  );
+}
 
 const containers: HTMLElement[] = [];
 afterEach(() => {
@@ -295,6 +319,7 @@ describe("Sources and Freshness preview surface", () => {
         "https://youtu.be/dQw4w9WgXcQ",
       ),
     );
+    await act(() => vi.advanceTimersByTimeAsync(0));
     await act(async () => button(container, "Load YouTube").click());
     expect(container.querySelector("iframe")).not.toBeNull();
     await act(async () => vi.advanceTimersByTime(15_000));

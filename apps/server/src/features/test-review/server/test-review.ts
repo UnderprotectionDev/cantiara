@@ -119,6 +119,15 @@ export class TestReviewAlreadyWithdrawnError extends Error {
   }
 }
 
+class TestReviewCommandConflictError extends Error {
+  readonly code = "TEST_REVIEW_COMMAND_CONFLICT";
+
+  constructor() {
+    super("This command has already been used for a different review change.");
+    this.name = "TestReviewCommandConflictError";
+  }
+}
+
 /** The records changed since the preview was shown; nothing was written. */
 export class TestReviewPreviewStaleError extends Error {
   readonly code = "TEST_REVIEW_PREVIEW_STALE" as const;
@@ -182,11 +191,12 @@ function event(
     TestReviewStoredEvent,
     "action" | "batchId" | "fromState" | "reason" | "remaining" | "toState"
   > & { sessionTestId: string | null },
+  id: string = crypto.randomUUID(),
 ): TestReviewStoredEvent {
   return {
     ...fields,
     actorAccountId: accountId,
-    id: crypto.randomUUID(),
+    id,
     recordedAt: new Date().toISOString(),
     sessionId: session.id,
   };
@@ -352,13 +362,92 @@ function resultEvent(
     | "sessionId"
     | "sessionTestId"
   >,
+  id: string = crypto.randomUUID(),
 ): TestResultStoredEvent {
   return {
     ...fields,
     actorAccountId: accountId,
-    id: crypto.randomUUID(),
+    id,
     recordedAt: new Date().toISOString(),
   };
+}
+
+async function reviewCommandId(
+  operation: string,
+  accountId: string,
+  input: { clientIdempotencyKey?: string; projectId: string },
+): Promise<string | undefined> {
+  if (input.clientIdempotencyKey) {
+    return await fingerprintMutationPayload([
+      operation,
+      accountId,
+      input.projectId,
+      input.clientIdempotencyKey,
+    ]);
+  }
+}
+
+async function reviewStateReplay(
+  transaction: TestReviewTransaction,
+  id: string | undefined,
+  input: { reason: string | null; sessionId: string; state: TestReviewState },
+  sessionTestId: string | null,
+) {
+  if (!id) {
+    return;
+  }
+  const previous = (await transaction.listEvents()).find(
+    (entry) => entry.id === id,
+  );
+  if (!previous) {
+    return;
+  }
+  if (
+    previous.sessionId !== input.sessionId ||
+    previous.sessionTestId !== sessionTestId ||
+    previous.toState !== input.state ||
+    previous.reason !== input.reason
+  ) {
+    throw new TestReviewCommandConflictError();
+  }
+  return { outcome: "applied" as const, remaining: previous.remaining ?? [] };
+}
+
+async function resultCommand(
+  transaction: TestReviewTransaction,
+  accountId: string,
+  input: {
+    clientIdempotencyKey?: string;
+    projectId: string;
+    reason: string;
+    sessionId: string;
+  },
+  matches: (event: TestResultStoredEvent) => boolean,
+) {
+  // Existing event rows are the receipt. The scoped key includes no result
+  // content, so a later redaction never leaves a second copy of the content.
+  const id = await reviewCommandId(
+    "test-review-result-event",
+    accountId,
+    input,
+  );
+  if (!id) {
+    return { id, replay: undefined };
+  }
+  const events = await transaction.listResultEvents();
+  const stored = events.find((entry) => entry.id === id);
+  if (!stored) {
+    return { id, replay: undefined };
+  }
+  if (
+    stored.sessionId !== input.sessionId ||
+    stored.reason !== input.reason ||
+    !matches(stored)
+  ) {
+    throw new TestReviewCommandConflictError();
+  }
+  const replay = viewResultEvents(events).find((entry) => entry.id === id);
+  return { id, replay: replay ? { event: replay } : undefined };
 }
 
 async function receipt(
@@ -371,6 +460,54 @@ async function receipt(
     throw new TestReviewRecordNotFoundError(id);
   }
   return { event: found };
+}
+
+async function reviewBulkCommand(
+  transaction: TestReviewTransaction,
+  accountId: string,
+  input: CommitBulkReviewInput,
+  session: TestReviewSession,
+) {
+  const key = await reviewCommandId("test-review-bulk", accountId, input);
+  if (!key) {
+    return { id: crypto.randomUUID(), replay: undefined };
+  }
+  const fingerprint = await fingerprintMutationPayload({
+    previewFingerprint: input.previewFingerprint,
+    sessionId: input.sessionId,
+    sessionTestIds: [...input.sessionTestIds].sort(),
+  });
+  const id = `${key}:${fingerprint}`;
+  const events = (await transaction.listEvents()).filter(
+    (entry) =>
+      entry.action === "Bulk review" && entry.batchId?.startsWith(`${key}:`),
+  );
+  if (events.length === 0) {
+    return { id, replay: undefined };
+  }
+  if (events.some((entry) => entry.batchId !== id)) {
+    throw new TestReviewCommandConflictError();
+  }
+  const original = new Map(
+    events.map((entry) => [entry.sessionTestId ?? session.id, entry.fromState]),
+  );
+  const { changes, unchanged } = bulkChanges(session, input.sessionTestIds);
+  const views = [...changes, ...unchanged];
+  const ordered = [
+    session.id,
+    ...[...session.items]
+      .sort(
+        (a, b) =>
+          (a.position ?? 0) - (b.position ?? 0) || a.id.localeCompare(b.id),
+      )
+      .map((item) => item.id),
+  ];
+  const changed = ordered.flatMap((recordId) => {
+    const from = original.get(recordId);
+    const record = views.find((item) => item.id === recordId);
+    return from && record ? [{ ...record, from }] : [];
+  });
+  return { id, replay: { changed, outcome: "applied" as const } };
 }
 
 function bulkFingerprint(changes: TestReviewChange[]) {
@@ -571,6 +708,49 @@ async function listOf(transaction: TestReviewTransaction) {
   };
 }
 
+async function resolveSupersession(
+  transaction: TestReviewTransaction,
+  accountId: string,
+  input: ReturnType<typeof supersedeInputSchema.parse>,
+) {
+  const edges = await transaction.listSupersessions();
+  const id = await reviewCommandId("test-review-supersede", accountId, input);
+  const previous = id && edges.find((candidate) => candidate.id === id);
+  const samePair = (candidate: (typeof edges)[number]) =>
+    candidate.newerSessionTestId === input.newerSessionTestId &&
+    candidate.olderSessionTestId === input.olderSessionTestId;
+  if (previous && (!samePair(previous) || previous.reason !== input.reason)) {
+    throw new TestReviewCommandConflictError();
+  }
+  const existing = edges.find(samePair);
+  const edge = existing ?? {
+    actorAccountId: accountId,
+    id: id ?? crypto.randomUUID(),
+    newerSessionTestId: input.newerSessionTestId,
+    olderSessionTestId: input.olderSessionTestId,
+    reason: input.reason,
+    recordedAt: new Date().toISOString(),
+  };
+  if (
+    !existing &&
+    supersedeClosesCycle(
+      edges,
+      input.newerSessionTestId,
+      input.olderSessionTestId,
+    )
+  ) {
+    throw new TestReviewSupersedeCycleError();
+  }
+  if (!existing) {
+    await transaction.appendSupersession(edge);
+  }
+  return {
+    edge,
+    outcome:
+      existing && !previous ? ("unchanged" as const) : ("applied" as const),
+  };
+}
+
 export function createTestReview(store: TestReviewStore): TestReviewAccess {
   async function read<T>(
     accountId: string,
@@ -610,6 +790,21 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
     async bindValidResult(accountId, rawInput: BindValidResultInput) {
       const input = bindValidResultInputSchema.parse(rawInput);
       return await write(accountId, input.projectId, async (transaction) => {
+        const id = await reviewCommandId("test-review-bind", accountId, input);
+        const previous =
+          id &&
+          (await transaction.listBindings()).find((entry) => entry.id === id);
+        if (previous) {
+          if (
+            previous.reason !== input.reason ||
+            previous.scenarioId !== input.scenarioId ||
+            previous.scenarioVersion !== input.scenarioVersion ||
+            previous.sessionTestId !== input.sessionTestId
+          ) {
+            throw new TestReviewCommandConflictError();
+          }
+          return { binding: previous };
+        }
         const viewed = await viewAll(transaction);
         const members = viewed.flatMap((session) =>
           session.items.filter(
@@ -625,7 +820,7 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
         }
         const binding: TestResultBindingStored = {
           actorAccountId: accountId,
-          id: crypto.randomUUID(),
+          id: id ?? crypto.randomUUID(),
           judgedSessionTestIds: members.map((item) => item.id),
           reason: input.reason,
           recordedAt: new Date().toISOString(),
@@ -681,6 +876,15 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
           transaction,
           input.sessionId,
         );
+        const { id: batchId, replay } = await reviewBulkCommand(
+          transaction,
+          accountId,
+          input,
+          session,
+        );
+        if (replay) {
+          return replay;
+        }
         const { changes } = bulkChanges(session, input.sessionTestIds);
         // Nothing left to change (a retry): records already Reviewed are left.
         if (changes.length === 0) {
@@ -691,7 +895,6 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
         if ((await bulkFingerprint(changes)) !== input.previewFingerprint) {
           throw new TestReviewPreviewStaleError();
         }
-        const batchId = crypto.randomUUID();
         const itemIds = changes
           .filter((change) => change.kind === "Session Test")
           .map((change) => change.id);
@@ -761,18 +964,35 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
     async recordCorrection(accountId, rawInput: RecordCorrectionInput) {
       const input = recordCorrectionInputSchema.parse(rawInput);
       return await write(accountId, input.projectId, async (transaction) => {
+        const { id, replay } = await resultCommand(
+          transaction,
+          accountId,
+          input,
+          (entry) =>
+            entry.kind === "Correction" &&
+            entry.sessionTestId === input.sessionTestId &&
+            entry.correctedResult === input.correctedResult &&
+            entry.note === input.note,
+        );
+        if (replay) {
+          return replay;
+        }
         const { head, session } = await resolveResultTarget(transaction, input);
-        const added = resultEvent(accountId, {
-          correctedResult: input.correctedResult,
-          kind: "Correction",
-          note: input.note,
-          previousEventId: head?.id ?? null,
-          reason: input.reason,
-          redactedEventId: null,
-          redactedField: null,
-          sessionId: session.id,
-          sessionTestId: input.sessionTestId,
-        });
+        const added = resultEvent(
+          accountId,
+          {
+            correctedResult: input.correctedResult,
+            kind: "Correction",
+            note: input.note,
+            previousEventId: head?.id ?? null,
+            reason: input.reason,
+            redactedEventId: null,
+            redactedField: null,
+            sessionId: session.id,
+            sessionTestId: input.sessionTestId,
+          },
+          id,
+        );
         await transaction.appendResultEvents([added]);
         return await receipt(transaction, added.id);
       });
@@ -781,23 +1001,40 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
     async recordRedaction(accountId, rawInput: RecordRedactionInput) {
       const input = recordRedactionInputSchema.parse(rawInput);
       return await write(accountId, input.projectId, async (transaction) => {
+        const { id, replay } = await resultCommand(
+          transaction,
+          accountId,
+          input,
+          (entry) =>
+            entry.kind === "Redaction" &&
+            entry.redactedEventId === input.eventId &&
+            (input.eventId !== null ||
+              entry.sessionTestId === input.sessionTestId),
+        );
+        if (replay) {
+          return replay;
+        }
         const session = await requireSession(transaction, input.sessionId);
         const { field, sessionTestId } = redactionTarget(
           session,
           await transaction.listResultEvents(),
           input,
         );
-        const added = resultEvent(accountId, {
-          correctedResult: null,
-          kind: "Redaction",
-          note: null,
-          previousEventId: null,
-          reason: input.reason,
-          redactedEventId: input.eventId,
-          redactedField: field,
-          sessionId: session.id,
-          sessionTestId,
-        });
+        const added = resultEvent(
+          accountId,
+          {
+            correctedResult: null,
+            kind: "Redaction",
+            note: null,
+            previousEventId: null,
+            reason: input.reason,
+            redactedEventId: input.eventId,
+            redactedField: field,
+            sessionId: session.id,
+            sessionTestId,
+          },
+          id,
+        );
         await transaction.appendResultEvents([added]);
         if (input.eventId !== null) {
           await transaction.eraseResultEventContent(input.eventId);
@@ -809,21 +1046,36 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
     async recordWithdrawal(accountId, rawInput: RecordWithdrawalInput) {
       const input = recordWithdrawalInputSchema.parse(rawInput);
       return await write(accountId, input.projectId, async (transaction) => {
+        const { id, replay } = await resultCommand(
+          transaction,
+          accountId,
+          input,
+          (entry) =>
+            entry.kind === "Withdrawal" &&
+            entry.sessionTestId === input.sessionTestId,
+        );
+        if (replay) {
+          return replay;
+        }
         const { head, session } = await resolveResultTarget(transaction, input);
         if (head?.kind === "Withdrawal") {
           throw new TestReviewAlreadyWithdrawnError();
         }
-        const added = resultEvent(accountId, {
-          correctedResult: null,
-          kind: "Withdrawal",
-          note: null,
-          previousEventId: head?.id ?? null,
-          reason: input.reason,
-          redactedEventId: null,
-          redactedField: null,
-          sessionId: session.id,
-          sessionTestId: input.sessionTestId,
-        });
+        const added = resultEvent(
+          accountId,
+          {
+            correctedResult: null,
+            kind: "Withdrawal",
+            note: null,
+            previousEventId: head?.id ?? null,
+            reason: input.reason,
+            redactedEventId: null,
+            redactedField: null,
+            sessionId: session.id,
+            sessionTestId: input.sessionTestId,
+          },
+          id,
+        );
         await transaction.appendResultEvents([added]);
         return await receipt(transaction, added.id);
       });
@@ -832,8 +1084,24 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
     async setItemReviewState(accountId, rawInput: SetItemReviewStateInput) {
       const input = setItemReviewStateInputSchema.parse(rawInput);
       return await write(accountId, input.projectId, async (transaction) => {
+        const id = await reviewCommandId(
+          "test-review-item-state",
+          accountId,
+          input,
+        );
+        const previous = await reviewStateReplay(
+          transaction,
+          id,
+          input,
+          input.sessionTestId,
+        );
+        if (previous) {
+          return previous;
+        }
         const session = await requireSession(transaction, input.sessionId);
-        const item = session.items.find(({ id }) => id === input.sessionTestId);
+        const item = session.items.find(
+          (entry) => entry.id === input.sessionTestId,
+        );
         if (!item) {
           throw new TestReviewRecordNotFoundError(input.sessionTestId);
         }
@@ -842,15 +1110,20 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
         }
         await transaction.writeItemStates([item.id], input.state);
         await transaction.appendEvents([
-          event(session, accountId, {
-            action: "Review state set",
-            batchId: null,
-            fromState: item.reviewState,
-            reason: input.reason,
-            remaining: null,
-            sessionTestId: item.id,
-            toState: input.state,
-          }),
+          event(
+            session,
+            accountId,
+            {
+              action: "Review state set",
+              batchId: null,
+              fromState: item.reviewState,
+              reason: input.reason,
+              remaining: null,
+              sessionTestId: item.id,
+              toState: input.state,
+            },
+            id,
+          ),
         ]);
         return { outcome: "applied" as const, remaining: [] };
       });
@@ -862,6 +1135,15 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
     ) {
       const input = setSessionReviewStateInputSchema.parse(rawInput);
       return await write(accountId, input.projectId, async (transaction) => {
+        const id = await reviewCommandId(
+          "test-review-session-state",
+          accountId,
+          input,
+        );
+        const previous = await reviewStateReplay(transaction, id, input, null);
+        if (previous) {
+          return previous;
+        }
         const session = await requireSession(transaction, input.sessionId);
         if (session.reviewState === input.state) {
           return { outcome: "unchanged" as const, remaining: [] };
@@ -871,15 +1153,20 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
           input.state === "Closed" ? remainingOpenItems(session) : [];
         await transaction.writeSessionState(session.id, input.state);
         await transaction.appendEvents([
-          event(session, accountId, {
-            action: "Review state set",
-            batchId: null,
-            fromState: session.reviewState,
-            reason: input.reason,
-            remaining: input.state === "Closed" ? remaining : null,
-            sessionTestId: null,
-            toState: input.state,
-          }),
+          event(
+            session,
+            accountId,
+            {
+              action: "Review state set",
+              batchId: null,
+              fromState: session.reviewState,
+              reason: input.reason,
+              remaining: input.state === "Closed" ? remaining : null,
+              sessionTestId: null,
+              toState: input.state,
+            },
+            id,
+          ),
         ]);
         return { outcome: "applied" as const, remaining };
       });
@@ -910,33 +1197,11 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
         const sessions = await transaction.listSessions();
         locateItem(sessions, input.newerSessionTestId);
         locateItem(sessions, input.olderSessionTestId);
-        const edges = await transaction.listSupersessions();
-        const existing = edges.find(
-          (candidate) =>
-            candidate.newerSessionTestId === input.newerSessionTestId &&
-            candidate.olderSessionTestId === input.olderSessionTestId,
+        const { edge, outcome } = await resolveSupersession(
+          transaction,
+          accountId,
+          input,
         );
-        const edge = existing ?? {
-          actorAccountId: accountId,
-          id: crypto.randomUUID(),
-          newerSessionTestId: input.newerSessionTestId,
-          olderSessionTestId: input.olderSessionTestId,
-          reason: input.reason,
-          recordedAt: new Date().toISOString(),
-        };
-        if (
-          !existing &&
-          supersedeClosesCycle(
-            edges,
-            input.newerSessionTestId,
-            input.olderSessionTestId,
-          )
-        ) {
-          throw new TestReviewSupersedeCycleError();
-        }
-        if (!existing) {
-          await transaction.appendSupersession(edge);
-        }
         const [supersession] = viewSupersessions(
           signalSessions(await viewAll(transaction)),
           [edge],
@@ -945,7 +1210,7 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
           throw new TestReviewRecordNotFoundError(edge.id);
         }
         return {
-          outcome: existing ? ("unchanged" as const) : ("applied" as const),
+          outcome,
           supersession,
         };
       });

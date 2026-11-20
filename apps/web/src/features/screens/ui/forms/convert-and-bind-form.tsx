@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected block.
 import {
   CONVERT_AND_BIND_TARGET_TYPES,
+  type ConfirmConvertAndBindInput,
   type ConvertAndBindPlan,
   type ConvertAndBindTargetType,
   convertAndBindWorkTypeSchema,
@@ -13,7 +14,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { orpc } from "@/utils/orpc";
 import { convertAndBindFormSchema } from "../../lib/screen-forms";
 
 const WORK_TYPES = convertAndBindWorkTypeSchema.options;
@@ -27,7 +30,9 @@ export interface ConvertPreviewRequest {
 
 export interface ConvertAndBindActions {
   /** Confirms the exact previewed plan; creates exactly one record. */
-  confirm: (plan: ConvertAndBindPlan) => Promise<ScreenBlockOriginView>;
+  confirm: (
+    input: ConfirmConvertAndBindInput,
+  ) => Promise<ScreenBlockOriginView>;
   /** Read-only: nothing exists until `confirm`. */
   preview: (input: ConvertPreviewRequest) => Promise<ConvertAndBindPlan>;
 }
@@ -45,9 +50,28 @@ export function ConvertAndBindPanel({
   blockId: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [plan, setPlan] = useState<ConvertAndBindPlan>();
-  const [created, setCreated] = useState<ScreenBlockOriginView>();
-  const [error, setError] = useState<string>();
+  const preview = useMutation({
+    meta: { retryInSurface: true },
+    mutationFn: (request: ConvertPreviewRequest) => actions.preview(request),
+    mutationKey: orpc.previewConvertAndBind.mutationKey(),
+  });
+  const confirm = useMutation({
+    meta: { onlineWrite: true, retryInSurface: true },
+    mutationFn: (input: ConfirmConvertAndBindInput) => actions.confirm(input),
+    mutationKey: orpc.confirmConvertAndBind.mutationKey(),
+  });
+  const plan = preview.data;
+  const created = confirm.data;
+  const busy = preview.isPending || confirm.isPending;
+  const previewError = preview.isError ? "Preview is unavailable." : undefined;
+  const requestError = confirm.isError
+    ? "The preview is out of date. Preview again."
+    : previewError;
+
+  function resetPreview() {
+    preview.reset();
+    confirm.reset();
+  }
 
   const form = useForm({
     defaultValues: {
@@ -55,33 +79,47 @@ export function ConvertAndBindPanel({
       title: "",
       workType: "Task" as (typeof WORK_TYPES)[number],
     },
-    // Any edit invalidates the previewed plan.
-    listeners: { onChange: () => setPlan(undefined) },
+    listeners: { onChange: resetPreview },
+    validators: {
+      onSubmit: ({ value }) =>
+        convertAndBindFormSchema.safeParse(value).success
+          ? undefined
+          : "Preview is unavailable.",
+    },
     onSubmit: async ({ value }) => {
-      const parsed = convertAndBindFormSchema.safeParse(value);
-      if (!parsed.success) {
-        setError("Preview is unavailable.");
-        return;
-      }
-      await run(async () => {
-        setPlan(await actions.preview({ blockId, ...parsed.data }));
-      }, "Preview is unavailable.");
+      confirm.reset();
+      await preview.mutateAsync({
+        blockId,
+        ...convertAndBindFormSchema.parse(value),
+      });
     },
   });
 
   function close() {
     setOpen(false);
-    setPlan(undefined);
-    setError(undefined);
+    resetPreview();
   }
 
-  async function run(action: () => Promise<void>, message: string) {
-    setError(undefined);
-    try {
-      await action();
-    } catch {
-      setError(message);
+  function confirmPlan() {
+    if (!plan || busy) {
+      return;
     }
+    const input =
+      confirm.isError && confirm.variables?.plan === plan
+        ? confirm.variables
+        : {
+            originId: crypto.randomUUID(),
+            plan,
+            projectId: plan.projectId,
+            recordId: crypto.randomUUID(),
+            screenId: plan.screenId,
+          };
+    confirm.mutate(input, {
+      onSuccess: () => {
+        setOpen(false);
+        preview.reset();
+      },
+    });
   }
 
   if (!open) {
@@ -89,7 +127,7 @@ export function ConvertAndBindPanel({
       <div className="space-y-1">
         <Button
           onClick={() => {
-            setCreated(undefined);
+            confirm.reset();
             setOpen(true);
           }}
           size="sm"
@@ -117,7 +155,10 @@ export function ConvertAndBindPanel({
         form.handleSubmit().catch(() => undefined);
       }}
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <fieldset
+        className="flex flex-wrap items-center gap-2"
+        disabled={confirm.isPending}
+      >
         <label className="text-xs" htmlFor="convert-target-type">
           Target type
         </label>
@@ -184,13 +225,13 @@ export function ConvertAndBindPanel({
             />
           )}
         </form.Field>
-        <Button size="sm" type="submit">
+        <Button disabled={busy} size="sm" type="submit">
           Preview
         </Button>
         <Button onClick={close} size="sm" type="button" variant="ghost">
           Cancel
         </Button>
-      </div>
+      </fieldset>
       {plan ? (
         <dl aria-label="Convert and Bind preview" className="space-y-1 text-xs">
           <div>
@@ -223,24 +264,20 @@ export function ConvertAndBindPanel({
         </dl>
       ) : null}
       {plan ? (
-        <Button
-          onClick={() =>
-            run(async () => {
-              setCreated(await actions.confirm(plan));
-              close();
-            }, "The preview is out of date. Preview again.")
-          }
-          size="sm"
-          type="button"
-        >
+        <Button disabled={busy} onClick={confirmPlan} size="sm" type="button">
           Confirm
         </Button>
       ) : null}
-      {error ? (
-        <p className="text-xs text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
+      <form.Subscribe selector={(state) => state.errorMap.onSubmit}>
+        {(validationError) => {
+          const error = validationError ?? requestError;
+          return error ? (
+            <p className="text-xs text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null;
+        }}
+      </form.Subscribe>
     </form>
   );
 }

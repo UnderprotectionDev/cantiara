@@ -218,3 +218,22 @@ export function buildSupportReferenceFailure(
     writeOutcomeLabel: supportWriteOutcomeLabel(writeOutcome),
   };
 }
+
+/** Keeps an upstream failure's approved Support fields without retaining its cause. */
+export class PrivateWriteFailure extends Error {
+  readonly notice: SupportReferenceFailure;
+
+  constructor(error: unknown, message: string) {
+    super(message);
+    this.notice = buildSupportReferenceFailure(error, {
+      kind: "mutation",
+      retryCount: 1,
+    });
+  }
+}
+
+export function privateWriteNotice(error: unknown) {
+  return error instanceof PrivateWriteFailure
+    ? error.notice
+    : buildSupportReferenceFailure(error, { kind: "mutation", retryCount: 1 });
+}

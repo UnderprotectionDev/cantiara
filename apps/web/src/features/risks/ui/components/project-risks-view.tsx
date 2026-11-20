@@ -23,6 +23,8 @@ export function ProjectRisksView({
   onTransition,
   onStartEditing,
   savedMessage,
+  saveError,
+  savePending,
 }: {
   records: RiskRecord[];
   projectId: string;
@@ -32,12 +34,17 @@ export function ProjectRisksView({
   onTransition: (draft: RiskDraft, record?: RiskRecord) => Promise<unknown>;
   onStartEditing?: () => void;
   savedMessage?: string;
+  saveError?: unknown;
+  savePending?: boolean;
 }) {
   const [editingMode, setEditingMode] = useState<
     "create" | "edit" | "status" | undefined
   >(undefined);
   const selected = records.find((record) => record.id === selectedId);
   const editing: RiskEditing | undefined = (() => {
+    if (savedMessage) {
+      return;
+    }
     if (editingMode === "create") {
       return { mode: editingMode, record: undefined };
     }
@@ -83,6 +90,8 @@ export function ProjectRisksView({
           onCancel={() => setEditingMode(undefined)}
           onSave={save}
           record={editing.record}
+          saveError={saveError}
+          savePending={savePending}
         />
       ) : null}
       {records.length ? (

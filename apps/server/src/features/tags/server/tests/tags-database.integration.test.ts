@@ -51,6 +51,25 @@ describeDatabase("Tags PostgreSQL integration", () => {
     await database?.$client.end();
   });
 
+  test("replays the same committed Tag creation and rejects a changed payload", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const tags = createDatabaseTags(database);
+    const input = { clientIdempotencyKey: crypto.randomUUID(), name: "Replay" };
+    const initial = await tags.create(accountId, input);
+    expect(await tags.create(accountId, input)).toEqual(initial);
+    await expect(
+      tags.create(accountId, { ...input, name: "Different" }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(
+      tags.create(accountId, {
+        ...input,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toBeInstanceOf(TagNameConflictError);
+  });
+
   test("shares one identity across Projects and ranks current usage", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

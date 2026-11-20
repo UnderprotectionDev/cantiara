@@ -10,23 +10,44 @@ const rpc = vi.hoisted(() => ({ export: vi.fn(), preview: vi.fn() }));
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({
   runOnlineOnlyWrite: (write: () => Promise<unknown>) => write(),
 }));
-vi.mock("@/utils/orpc", () => ({
-  client: {
-    exportDocument: rpc.export,
-    previewDocumentTransfer: rpc.preview,
-  },
-  orpc: {
-    documentVersions: {
-      queryOptions: () => ({ queryFn: async () => [], queryKey: ["versions"] }),
+vi.mock("@/utils/orpc", async (load) => {
+  const actual = await load<typeof import("@/utils/orpc")>();
+  return {
+    ...actual,
+    client: {
+      exportDocument: rpc.export,
+      previewDocumentTransfer: rpc.preview,
     },
-    fileAttachments: {
-      queryOptions: () => ({ queryFn: async () => [], queryKey: ["files"] }),
-    },
-    projects: {
-      queryOptions: () => ({ queryFn: async () => [], queryKey: ["projects"] }),
-    },
-  },
-}));
+    orpc: new Proxy(actual.orpc, {
+      get(target, property, receiver) {
+        const reads = {
+          documentVersions: {
+            queryOptions: () => ({
+              queryFn: async () => [],
+              queryKey: ["versions"],
+            }),
+          },
+          fileAttachments: {
+            queryOptions: () => ({
+              queryFn: async () => [],
+              queryKey: ["files"],
+            }),
+          },
+          projects: {
+            queryOptions: () => ({
+              queryFn: async () => [],
+              queryKey: ["projects"],
+            }),
+          },
+        };
+        return (
+          Reflect.get(reads, property) ??
+          Reflect.get(target, property, receiver)
+        );
+      },
+    }),
+  };
+});
 
 import DocumentTransferForm from "../document-transfer-form";
 

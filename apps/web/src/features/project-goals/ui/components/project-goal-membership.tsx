@@ -1,7 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { commandVariables } from "@/lib/command-variables";
 import { client, orpc } from "@/utils/orpc";
 import type { GoalRelationChange } from "../../lib/goal-relation-selection";
 import { ProjectGoalMembershipView } from "./project-goal-membership-panel";
@@ -13,12 +12,23 @@ export default function ProjectGoalMembership({
   projectId: string;
   goalId: string;
 }) {
+  const setProjectGoalRelationMutation = useMutation(
+    orpc.setProjectGoalRelation.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.setProjectGoalRelation(input),
+      onSuccess: (_, { projectId: targetProject, goalId: id }) =>
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectGoalDetail.queryKey({
+            input: { projectId: targetProject, id },
+          }),
+        }),
+    }),
+  );
   const options = orpc.projectGoalDetail.queryOptions({
     input: { projectId, id: goalId },
   });
   const detail = useQuery(options);
   const queryClient = useQueryClient();
-  const pending = useRef<{ fingerprint: string; key: string } | null>(null);
   async function setRelation(change: GoalRelationChange) {
     const payload = {
       projectId,
@@ -29,18 +39,14 @@ export default function ProjectGoalMembership({
       attached: change.attached,
       baseRevision: change.baseRevision,
     };
-    const fingerprint = JSON.stringify(payload);
-    if (pending.current?.fingerprint !== fingerprint) {
-      pending.current = { fingerprint, key: crypto.randomUUID() };
-    }
-    await runOnlineOnlyWrite(() =>
-      client.setProjectGoalRelation({
-        ...payload,
-        clientIdempotencyKey: pending.current?.key ?? "",
-      }),
+    await setProjectGoalRelationMutation.mutateAsync(
+      commandVariables(
+        payload,
+        setProjectGoalRelationMutation.isError
+          ? setProjectGoalRelationMutation.variables
+          : undefined,
+      ),
     );
-    pending.current = null;
-    await queryClient.invalidateQueries({ queryKey: options.queryKey });
   }
   function retry() {
     detail.refetch().catch(() => undefined);
@@ -61,8 +67,18 @@ export default function ProjectGoalMembership({
   return (
     <ProjectGoalMembershipView
       detail={detail.data}
+      failed={setProjectGoalRelationMutation.isError}
       onSetRelation={setRelation}
+      pending={setProjectGoalRelationMutation.isPending}
       projectId={projectId}
+      saved={
+        setProjectGoalRelationMutation.isSuccess
+          ? {
+              attached: setProjectGoalRelationMutation.variables.attached,
+              at: setProjectGoalRelationMutation.submittedAt,
+            }
+          : undefined
+      }
     />
   );
 }

@@ -1,6 +1,11 @@
 // @vitest-environment happy-dom
 // biome-ignore-all lint/performance/noJsxPropsBind: The test renders the form with inline handlers.
 
+import {
+  QueryClient,
+  QueryClientProvider,
+  useMutation,
+} from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
@@ -18,22 +23,33 @@ afterEach(() => {
   host?.remove();
 });
 
-function mount(onPreview: () => Promise<never>) {
+function mount(
+  onPreview: React.ComponentProps<typeof HandoffReconcileForm>["onPreview"],
+) {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  act(() => {
-    root?.render(
+  function Probe() {
+    const preview = useMutation({ mutationFn: onPreview });
+    return (
       <HandoffReconcileForm
         disabled={false}
         handoffId="handoff-1"
         onConfirm={() => Promise.resolve()}
-        onPreview={onPreview}
+        onPreview={preview.mutateAsync}
+        previewState={preview}
         relatedWorks={[]}
         workKey="CAN-1"
-      />,
+      />
     );
-  });
+  }
+  act(() =>
+    root?.render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Probe />
+      </QueryClientProvider>,
+    ),
+  );
 }
 
 function click(label: string) {
@@ -81,5 +97,7 @@ test("Reconcile preview sends the trimmed Follow-up Work through the form", asyn
     followUpWorks: [{ title: "Write docs", type: "Task" }],
     handoffId: "handoff-1",
   });
-  expect(host?.querySelector('[role="alert"]')?.textContent).toBe("stop");
+  await vi.waitFor(() =>
+    expect(host?.querySelector('[role="alert"]')?.textContent).toBe("stop"),
+  );
 });

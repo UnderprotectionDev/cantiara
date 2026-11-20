@@ -17,28 +17,40 @@ vi.mock("@/features/web-macos-client/hooks/use-client-shell", () => ({
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({
   runOnlineOnlyWrite: (write: () => Promise<unknown>) => write(),
 }));
-vi.mock("@/utils/orpc", () => ({
-  client: rpc,
-  orpc: {
-    projectWorks: {
-      queryOptions: ({ input }: { input: unknown }) => ({
-        queryKey: ["projectWorks", input],
-      }),
-    },
-    smartCollectionViews: { key: () => ["smartCollectionViews"] },
-    documentLiveOtherBlocks: { key: () => ["documentLiveOtherBlocks"] },
-    work: {
-      queryOptions: ({ input }: { input: unknown }) => ({
-        queryKey: ["work", input],
-      }),
-    },
-  },
-  projectWorksQueryPrefix: ["projectWorksPrefix"],
-  invalidateSmartCollectionMembership: (queries: QueryClient) =>
-    [["smartCollectionViews"], ["documentLiveOtherBlocks"]].map((queryKey) =>
-      queries.invalidateQueries({ queryKey }),
-    ),
-}));
+vi.mock("@/utils/orpc", async (importActual) => {
+  const actual = await importActual<typeof import("@/utils/orpc")>();
+  return {
+    ...actual,
+    client: rpc,
+    orpc: new Proxy(actual.orpc, {
+      get(target, property, receiver) {
+        const overrides = {
+          projectWorks: {
+            queryOptions: ({ input }: { input: unknown }) => ({
+              queryKey: ["projectWorks", input],
+            }),
+          },
+          smartCollectionViews: { key: () => ["smartCollectionViews"] },
+          documentLiveOtherBlocks: { key: () => ["documentLiveOtherBlocks"] },
+          work: {
+            queryOptions: ({ input }: { input: unknown }) => ({
+              queryKey: ["work", input],
+            }),
+          },
+        };
+        return (
+          Reflect.get(overrides, property) ??
+          Reflect.get(target, property, receiver)
+        );
+      },
+    }),
+    projectWorksQueryPrefix: ["projectWorksPrefix"],
+    invalidateSmartCollectionMembership: (queries: QueryClient) =>
+      [["smartCollectionViews"], ["documentLiveOtherBlocks"]].map((queryKey) =>
+        queries.invalidateQueries({ queryKey }),
+      ),
+  };
+});
 
 const work = { id: "w1", key: "A-1", projectId: "p1" } as WorkProfile;
 const survivor = { id: "w2", key: "A-2", title: "Other" } as WorkProfile;
@@ -58,7 +70,7 @@ test("confirming a merge refreshes Smart Collection membership", async () => {
   const cache = new QueryClient();
   const invalidate = vi.spyOn(cache, "invalidateQueries");
   rpc.workMergePreview.mockResolvedValue(preview);
-  rpc.mergeWork.mockResolvedValue({});
+  rpc.mergeWork.mockResolvedValue({ work });
   const click = async (label: string) => {
     const button = Array.from(container.querySelectorAll("button")).find(
       (value) => value.textContent === label,

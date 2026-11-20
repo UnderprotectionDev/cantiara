@@ -1,4 +1,8 @@
 import {
+  fingerprintMutationPayload,
+  mutationPayloadSchema,
+} from "@cantiara/api/mutation-and-undo";
+import {
   buildConvertAndBindPlan,
   confirmConvertAndBindInputSchema,
   confirmRebindInputSchema,
@@ -25,12 +29,16 @@ import {
 import {
   createLinkedBlockInputSchema,
   createScreenInputSchema,
+  type LinkedBlockChangePlan,
+  type LinkedBlockRecord,
   linkedBlockChangeInputSchema,
+  type ParsedLinkedBlockChangeInput,
   resolveScreenInputSchema,
   resolveScreenTarget,
   type ScreenStore,
   type ScreensAccess,
   type ScreenWireframe,
+  type StoredHeadDocument,
   type StoredWireframe,
   saveScreenWireframeInputSchema,
   screenProjectInputSchema,
@@ -184,6 +192,19 @@ export function createScreens(store: ScreenStore): ScreensAccess {
     apply: boolean,
   ) {
     const input = linkedBlockChangeInputSchema.parse(rawInput);
+    if (apply) {
+      const saved = await store.applyLinkedBlockChange(
+        accountId,
+        input,
+        (definition, documents) =>
+          linkedPlan(input, definition, documents, true),
+      );
+      if (!saved) {
+        throw new LinkedBlockNotFoundError(input.definitionId);
+      }
+      return saved;
+    }
+
     const current = await store.findLinkedBlock(
       accountId,
       input.projectId,
@@ -192,6 +213,19 @@ export function createScreens(store: ScreenStore): ScreensAccess {
     if (!current) {
       throw new LinkedBlockNotFoundError(input.definitionId);
     }
+    const heads = await store.headDocuments(accountId, input.projectId);
+    if (!heads) {
+      throw new ScreenProjectNotFoundError(input.projectId);
+    }
+    return linkedPlan(input, current, heads, false).result;
+  }
+
+  function linkedPlan(
+    input: ParsedLinkedBlockChangeInput,
+    current: LinkedBlockRecord,
+    heads: StoredHeadDocument[],
+    apply: boolean,
+  ): LinkedBlockChangePlan {
     if (
       input.expectedRevision !== undefined &&
       input.expectedRevision !== current.revision
@@ -203,10 +237,6 @@ export function createScreens(store: ScreenStore): ScreensAccess {
         "INVALID_COMMAND",
         "A linked block keeps its kind when its source changes.",
       );
-    }
-    const heads = await store.headDocuments(accountId, input.projectId);
-    if (!heads) {
-      throw new ScreenProjectNotFoundError(input.projectId);
     }
     const screens: LinkedBlockScreen[] = heads.map((head) => ({
       document: parseWireframeDocument(head.document),
@@ -224,8 +254,9 @@ export function createScreens(store: ScreenStore): ScreensAccess {
       name: current.name,
       revision: current.revision + 1,
     };
+    const result = { affectedScreens, applied: apply, definition };
     if (!apply) {
-      return { affectedScreens, applied: false, definition };
+      return { result, updates: [] };
     }
     const updates = affectedScreens.flatMap(({ screenId }) => {
       const screen = screens.find((item) => item.screenId === screenId);
@@ -240,15 +271,7 @@ export function createScreens(store: ScreenStore): ScreensAccess {
           ]
         : [];
     });
-    const saved = await store.applyLinkedBlockChange(accountId, input, updates);
-    if (!saved) {
-      throw new LinkedBlockNotFoundError(input.definitionId);
-    }
-    return {
-      affectedScreens,
-      applied: true,
-      definition: { ...definition, revision: saved.revision },
-    };
+    return { result, updates };
   }
 
   async function liveCardsFor(
@@ -531,9 +554,8 @@ export function createScreens(store: ScreenStore): ScreensAccess {
       );
       // Sanitized before storing: nothing that points back at the source Project.
       const saved = await store.saveTemplate(accountId, {
+        ...input,
         document: sanitizeTemplateDocument(stored.document),
-        name: input.name,
-        projectId: input.projectId,
       });
       if (!saved) {
         throw new ScreenProjectNotFoundError(input.projectId);
@@ -561,6 +583,7 @@ export function createScreens(store: ScreenStore): ScreensAccess {
         throw new ScreenTemplateNotFoundError(input.templateId);
       }
       const created = await store.createScreenFromTemplate(accountId, {
+        clientIdempotencyKey: input.clientIdempotencyKey,
         projectId: input.projectId,
         template,
         title: input.title,
@@ -651,22 +674,40 @@ export function createScreens(store: ScreenStore): ScreensAccess {
       return toWireframe(accountId, parsed.screenId, stored);
     },
 
-    async attachWireframeVersion(accountId, projectId, screenId, document) {
+    async attachWireframeVersion(
+      accountId,
+      projectId,
+      screenId,
+      document,
+      clientIdempotencyKey,
+    ) {
       const parsed = resolveScreenInputSchema.parse({ projectId, screenId });
       // A saved version keeps the then-visible live text, not a live alias.
-      let frozen: WireframeDocument | undefined;
-      if (document !== undefined) {
-        const parsedDocument = parseWireframeDocument(document);
-        frozen = freezeLiveText(
-          parsedDocument,
-          await lookupFor(accountId, parsedDocument),
-        );
-      }
+      const parsedDocument =
+        document === undefined ? undefined : parseWireframeDocument(document);
+      const frozen = parsedDocument
+        ? freezeLiveText(
+            parsedDocument,
+            await lookupFor(accountId, parsedDocument),
+          )
+        : undefined;
+      const command = clientIdempotencyKey
+        ? {
+            clientIdempotencyKey,
+            payloadFingerprint: await fingerprintMutationPayload(
+              mutationPayloadSchema.parse({
+                ...parsed,
+                document: parsedDocument ?? null,
+              }),
+            ),
+          }
+        : undefined;
       const record = await store.attachWireframeVersion(
         accountId,
         parsed.projectId,
         parsed.screenId,
         frozen,
+        command,
       );
       if (!record) {
         throw new ScreenNotFoundError(parsed.screenId);

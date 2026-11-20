@@ -14,6 +14,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { errorText } from "../../lib/github-error-text";
 import {
@@ -165,26 +166,29 @@ export function CreateWorkForm({
   records: GitHubExternalRecord[];
 }) {
   const issues = records.filter((record) => record.kind === "Issue");
-  const [preview, setPreview] = useState<GitHubCreateWorkPreview>();
-  const [error, setError] = useState<string>();
+  const inspect = useMutation({
+    mutationFn: (recordId: string) => onPreview(recordId),
+    meta: { presentsSupportFailure: true },
+  });
+  const { data: preview } = inspect;
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const error =
+    validationError ??
+    (inspect.error && errorText(inspect.error, "The draft is unavailable."));
   const headingId = "github-create-work-heading";
   const pickForm = useForm({
     defaultValues: { recordId: "" },
     onSubmit: async ({ value }) => {
-      setError(undefined);
+      setValidationError(null);
       const parsed = parsePreviewCreateWork(value);
       if (!parsed.ok) {
-        setError(parsed.message);
+        setValidationError(parsed.message);
         return;
       }
-      try {
-        setPreview(await onPreview(parsed.data.recordId));
-      } catch (caught) {
-        setError(errorText(caught, "The draft is unavailable."));
-      }
+      await inspect.mutateAsync(parsed.data.recordId).catch(() => undefined);
     },
   });
-  const loading = useSelector(pickForm.store, (state) => state.isSubmitting);
+  const loading = inspect.isPending;
   return (
     <section
       aria-labelledby={headingId}
@@ -195,7 +199,7 @@ export function CreateWorkForm({
       </h4>
       {preview ? (
         <DraftForm
-          onCancel={() => setPreview(undefined)}
+          onCancel={inspect.reset}
           onCreate={onCreate}
           preview={preview}
         />
@@ -217,7 +221,10 @@ export function CreateWorkForm({
                   className="w-full"
                   id="github-create-work-issue"
                   name={field.name}
-                  onChange={(event) => field.handleChange(event.target.value)}
+                  onChange={(event) => {
+                    inspect.reset();
+                    field.handleChange(event.target.value);
+                  }}
                   value={field.state.value}
                 >
                   <NativeSelectOption value="">

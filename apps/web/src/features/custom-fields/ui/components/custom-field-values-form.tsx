@@ -39,7 +39,7 @@ import {
   type CustomFieldDraftValues,
   useCustomFields,
   useCustomFieldValues,
-} from "@/lib/use-custom-fields";
+} from "@/features/custom-fields/hooks/use-custom-fields";
 
 function valueInputId(
   definition: CustomFieldDefinition,
@@ -309,7 +309,7 @@ export default function CustomFieldValuesForm({
   const values = useCustomFieldValues(projectId, recordType, recordId, {
     enabled: recordItems === undefined,
   });
-  const [actionError, setActionError] = useState<string | null>(null);
+  const writeError = values.setValue.error ?? values.clearValue.error;
 
   if (
     definitionsQuery.status === "pending" ||
@@ -350,7 +350,6 @@ export default function CustomFieldValuesForm({
     item: CustomFieldValueListItem,
     nextValue: ParsedCustomFieldValuePayload | null,
   ) {
-    setActionError(null);
     if (!recordId) {
       onDraftValuesChange?.({
         ...draftValues,
@@ -359,25 +358,23 @@ export default function CustomFieldValuesForm({
       return;
     }
 
-    try {
-      if (nextValue === null) {
-        await values.clearValue.mutateAsync({
+    if (nextValue === null) {
+      values.setValue.reset();
+      await values.clearValue
+        .mutateAsync({
           baseRevision: valueRevision(item),
           definitionId: item.definition.id,
-        });
-      } else {
-        await values.setValue.mutateAsync({
+        })
+        .catch(() => undefined);
+    } else {
+      values.clearValue.reset();
+      await values.setValue
+        .mutateAsync({
           baseRevision: valueRevision(item),
           definitionId: item.definition.id,
           payload: nextValue,
-        });
-      }
-    } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "Custom field values could not be saved.",
-      );
+        })
+        .catch(() => undefined);
     }
   }
 
@@ -392,9 +389,9 @@ export default function CustomFieldValuesForm({
         items={items}
         recordId={recordId}
       />
-      {actionError ? (
+      {writeError ? (
         <p className="text-sm text-destructive" role="alert">
-          {actionError}
+          {writeError.message || "Custom field values could not be saved."}
         </p>
       ) : null}
     </section>

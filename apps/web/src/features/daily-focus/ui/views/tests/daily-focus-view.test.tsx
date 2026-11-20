@@ -53,6 +53,9 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@/utils/orpc", () => ({
   accountPreferencesQueryOptions: () => ({}),
   orpc: {
+    addToDailyFocus: { mutationKey: () => ["addToDailyFocus"] },
+    removeFromDailyFocus: { mutationKey: () => ["removeFromDailyFocus"] },
+
     dailyFocusClose: {
       queryOptions: ({ input }: { input: { focusDate: string } }) => {
         mocks.closeInput(input.focusDate);

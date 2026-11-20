@@ -9,6 +9,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
+import { orpc } from "@/utils/orpc";
 import type { RelationDraft } from "../../lib/planned-test-form";
 
 export type LoadRelationTargets = (
@@ -24,10 +25,12 @@ export function PlannedTestRelationsField({
   idPrefix,
   loadTargets,
   onChange,
+  projectId,
   value,
 }: {
   idPrefix: string;
   loadTargets: LoadRelationTargets;
+  projectId: string;
   onChange: (relations: RelationDraft[]) => void;
   value: RelationDraft[];
 }) {
@@ -37,7 +40,9 @@ export function PlannedTestRelationsField({
   const targetsQuery = useQuery({
     gcTime: 0,
     queryFn: () => loadTargets(targetType),
-    queryKey: ["planned-test-relation-targets", targetType],
+    queryKey: orpc.plannedTestRelationTargets.queryKey({
+      input: { projectId, targetType },
+    }),
   });
   const targets = targetsQuery.data;
   const [targetId, setTargetId] = useState("");

@@ -7,9 +7,10 @@ import {
   type TestHandoffRecord,
 } from "@cantiara/api/planned-tests";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { writeTextToClipboard } from "@/lib/clipboard";
+import { orpc } from "@/utils/orpc";
 import { errorText } from "../../lib/error-text";
 import { downloadPackageText } from "../../lib/test-handoff-form";
 
@@ -124,15 +125,11 @@ export function TestHandoffPackagePanel({
   readOnly: boolean;
 }) {
   const queryClient = useQueryClient();
-  const [preview, setPreview] = useState<TestHandoffPackagePreview>();
-  const [error, setError] = useState<string>();
-  const [message, setMessage] = useState("");
-  const [pending, setPending] = useState(false);
   const shareable = TEST_HANDOFF_PACKAGE_STATES.includes(handoff.state);
-
   const packagesKey = [
-    "test-handoff-packages",
-    handoff.id,
+    ...orpc.projectTestHandoffPackages.queryKey({
+      input: { handoffId: handoff.id, projectId: handoff.projectId },
+    }),
     handoff.packageVersion,
   ] as const;
   const packagesQuery = useQuery({
@@ -140,46 +137,80 @@ export function TestHandoffPackagePanel({
     queryFn: () => loadPackages(handoff),
     queryKey: packagesKey,
   });
+  const inspect = useMutation({
+    mutationKey: orpc.previewTestHandoffPackage.mutationKey(),
+    mutationFn: onPreview,
+  });
+  const produce = useMutation({
+    mutationKey: orpc.produceTestHandoffPackage.mutationKey(),
+    meta: { onlineWrite: true },
+    mutationFn: (input: {
+      handoff: TestHandoffRecord;
+      preview: TestHandoffPackagePreview;
+    }) => onProduce(input.handoff, input.preview),
+    onSuccess: (record, input) => {
+      const { id: handoffId, projectId } = input.handoff;
+      queryClient.setQueryData<TestHandoffPackageRecord[]>(
+        [
+          ...orpc.projectTestHandoffPackages.queryKey({
+            input: { handoffId, projectId },
+          }),
+          input.handoff.packageVersion,
+        ],
+        (current) => [
+          record,
+          ...(current ?? []).filter(
+            (entry) => entry.packageVersion !== record.packageVersion,
+          ),
+        ],
+      );
+    },
+    onSettled: async (_, error, { handoff: { id: handoffId, projectId } }) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectTestHandoffs.queryKey({ input: { projectId } }),
+        }),
+        ...(error
+          ? [
+              queryClient.invalidateQueries({
+                queryKey: orpc.projectTestHandoffPackages.queryKey({
+                  input: { handoffId, projectId },
+                }),
+              }),
+            ]
+          : []),
+      ]);
+    },
+  });
+  const preview = produce.isSuccess ? undefined : inspect.data;
   const packages = packagesQuery.data ?? [];
-  const shownError =
-    error ||
-    (packagesQuery.isError
-      ? "Produced packages could not be loaded."
-      : undefined);
-
-  async function showPreview() {
-    setError(undefined);
-    setMessage("");
-    setPending(true);
-    try {
-      setPreview(await onPreview(handoff));
-    } catch (caught) {
-      setPreview(undefined);
-      setError(errorText(caught, "The package could not be previewed."));
-    } finally {
-      setPending(false);
-    }
+  const pending = inspect.isPending || produce.isPending;
+  const message = produce.data
+    ? `Package version ${produce.data.packageVersion} produced.`
+    : "";
+  let shownError = packagesQuery.isError
+    ? "Produced packages could not be loaded."
+    : undefined;
+  if (inspect.isError) {
+    shownError = errorText(
+      inspect.error,
+      "The package could not be previewed.",
+    );
+  }
+  if (produce.isError) {
+    shownError = errorText(produce.error, "The package was not produced.");
   }
 
-  async function confirm() {
-    if (!preview) {
-      return;
-    }
-    setError(undefined);
-    setPending(true);
-    try {
-      const produced = await onProduce(handoff, preview);
-      setPreview(undefined);
-      queryClient.setQueryData<TestHandoffPackageRecord[]>(
-        packagesKey,
-        (current) => [produced, ...(current ?? [])],
+  function showPreview() {
+    produce.reset();
+    inspect.mutate(handoff);
+  }
+
+  function confirm() {
+    if (preview) {
+      produce.mutate(
+        produce.isError ? produce.variables : { handoff, preview },
       );
-      setMessage(`Package version ${produced.packageVersion} produced.`);
-    } catch (caught) {
-      setPreview(undefined);
-      setError(errorText(caught, "The package was not produced."));
-    } finally {
-      setPending(false);
     }
   }
 

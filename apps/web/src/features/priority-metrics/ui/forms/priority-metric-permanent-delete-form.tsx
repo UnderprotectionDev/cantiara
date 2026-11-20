@@ -12,7 +12,7 @@ import {
 
 export function PriorityMetricPermanentDeleteConfirmation({
   confirmationPending,
-  deleteGrant,
+  identityConfirmed,
   deleting,
   disabled,
   effect,
@@ -25,7 +25,7 @@ export function PriorityMetricPermanentDeleteConfirmation({
   target,
 }: {
   confirmationPending: boolean;
-  deleteGrant: string | null;
+  identityConfirmed: boolean;
   deleting: boolean;
   disabled: boolean;
   effect: PriorityMetricTrashEffect | undefined;
@@ -43,10 +43,14 @@ export function PriorityMetricPermanentDeleteConfirmation({
       const parsed =
         priorityMetricPermanentDeleteFormSchema(projectName).safeParse(value);
       // Permanently Delete stays disabled until the typed name matches.
-      if (!parsed.success) {
+      if (
+        !(parsed.success && identityConfirmed && effect) ||
+        disabled ||
+        deleting
+      ) {
         return;
       }
-      await onSubmit(value.typedProjectName);
+      await onSubmit(parsed.data.typedProjectName);
     },
   });
 
@@ -79,14 +83,14 @@ export function PriorityMetricPermanentDeleteConfirmation({
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button
-          disabled={disabled || confirmationPending}
+          disabled={disabled || confirmationPending || deleting}
           onClick={onRequestConfirmation}
           type="button"
           variant="outline"
         >
           Confirm GitHub Identity
         </Button>
-        {deleteGrant ? (
+        {identityConfirmed ? (
           <span className="text-sm text-muted-foreground" role="status">
             GitHub identity confirmed.
           </span>
@@ -119,7 +123,7 @@ export function PriorityMetricPermanentDeleteConfirmation({
               disabled={
                 disabled ||
                 deleting ||
-                !deleteGrant ||
+                !identityConfirmed ||
                 !effect ||
                 typedProjectName.trim() !== projectName
               }

@@ -1,9 +1,8 @@
 import type { AssumptionRecord } from "@cantiara/api/uncertainty-records";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import EvidenceFlowPanel from "@/features/evidence/ui/components/evidence-flow-panel";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -19,6 +18,30 @@ export default function ProjectAssumptionsSurface({
   projectId: string;
   selectedId?: string;
 }) {
+  const updateProjectSourceRecordMutation = useMutation(
+    orpc.updateProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (request) => client.updateProjectSourceRecord(request),
+      onSuccess: (_, { sourceId, clientIdempotencyKey }) =>
+        refresh(sourceId, clientIdempotencyKey),
+    }),
+  );
+  const createProjectSourceRecordMutation = useMutation(
+    orpc.createProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (request) => client.createProjectSourceRecord(request),
+      onSuccess: ({ id }, { clientIdempotencyKey }) =>
+        refresh(id, clientIdempotencyKey),
+    }),
+  );
+  const transitionProjectSourceRecordMutation = useMutation(
+    orpc.transitionProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.transitionProjectSourceRecord(input),
+      onSuccess: (_, { sourceId, clientIdempotencyKey }) =>
+        refresh(sourceId, clientIdempotencyKey),
+    }),
+  );
   const queryClient = useQueryClient();
   const options = orpc.projectAssumptions.queryOptions({
     input: { projectId },
@@ -28,7 +51,11 @@ export default function ProjectAssumptionsSurface({
     ...orpc.documents.queryOptions({ input: { projectId } }),
     enabled: records.data?.readOnly === false,
   });
-  const [savedMessage, setSavedMessage] = useState<string>();
+  const saved = [
+    createProjectSourceRecordMutation,
+    updateProjectSourceRecordMutation,
+    transitionProjectSourceRecordMutation,
+  ].some((mutation) => mutation.isSuccess);
   const pendingWrite = useRef<{
     fingerprint: string;
     id: string;
@@ -49,9 +76,10 @@ export default function ProjectAssumptionsSurface({
     }
     return pendingWrite.current;
   }
-  async function refresh(sourceId: string) {
-    pendingWrite.current = null;
-    setSavedMessage("Assumption saved.");
+  async function refresh(sourceId: string, commandKey: string) {
+    if (pendingWrite.current?.key === commandKey) {
+      pendingWrite.current = null;
+    }
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: options.queryKey }),
       queryClient.invalidateQueries({
@@ -79,22 +107,19 @@ export default function ProjectAssumptionsSurface({
       { operation: "save", ...fields },
       record,
     );
-    await runOnlineOnlyWrite(() =>
-      record
-        ? client.updateProjectSourceRecord({
-            ...fields,
-            sourceId: id,
-            baseRevision: record.revision,
-            clientIdempotencyKey: key,
-          })
-        : client.createProjectSourceRecord({
-            ...fields,
-            id,
-            baseRevision: 0,
-            clientIdempotencyKey: key,
-          }),
-    );
-    await refresh(id);
+    await (record
+      ? updateProjectSourceRecordMutation.mutateAsync({
+          ...fields,
+          sourceId: id,
+          baseRevision: record.revision,
+          clientIdempotencyKey: key,
+        })
+      : createProjectSourceRecordMutation.mutateAsync({
+          ...fields,
+          id,
+          baseRevision: 0,
+          clientIdempotencyKey: key,
+        }));
   }
   async function transition(
     life: AssumptionRecord["life"],
@@ -119,18 +144,17 @@ export default function ProjectAssumptionsSurface({
       { operation: "transition", ...fields },
       record,
     );
-    await runOnlineOnlyWrite(() =>
-      client.transitionProjectSourceRecord({
-        ...fields,
-        baseRevision: record.revision,
-        clientIdempotencyKey: key,
-      }),
-    );
-    await refresh(record.id);
+    await transitionProjectSourceRecordMutation.mutateAsync({
+      ...fields,
+      baseRevision: record.revision,
+      clientIdempotencyKey: key,
+    });
   }
   function startEditing() {
     pendingWrite.current = null;
-    setSavedMessage(undefined);
+    createProjectSourceRecordMutation.reset();
+    updateProjectSourceRecordMutation.reset();
+    transitionProjectSourceRecordMutation.reset();
   }
   function retry() {
     records.refetch().catch(() => undefined);
@@ -172,7 +196,7 @@ export default function ProjectAssumptionsSurface({
         onTransition={transition}
         projectId={projectId}
         renderEvidenceFlow={renderEvidenceFlow}
-        savedMessage={savedMessage}
+        savedMessage={saved ? "Assumption saved." : undefined}
         selectedId={selectedId}
       />
     </div>

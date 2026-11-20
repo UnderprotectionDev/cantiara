@@ -28,7 +28,7 @@ const preview = (
 });
 
 function render(
-  grant: string | null,
+  grant: boolean,
   overrides: Partial<TrashEarlyDeletePreview> = {},
 ) {
   return renderToStaticMarkup(
@@ -47,7 +47,7 @@ function render(
 
 describe("PermanentlyDeleteForm", () => {
   test("shows the effect, the consumed Confirm GitHub Identity step and a labelled name field", () => {
-    const html = render(null);
+    const html = render(false);
 
     expect(html).toContain("Permanently Delete");
     expect(html).toContain("Work: Ship it");
@@ -58,7 +58,7 @@ describe("PermanentlyDeleteForm", () => {
   });
 
   test("names a Project delete group as one unit and lists blockers as an alert", () => {
-    const html = render("g", {
+    const html = render(true, {
       blockers: ["active-surface"],
       groupId: "grp",
     });

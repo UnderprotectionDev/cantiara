@@ -16,8 +16,12 @@ import { useState } from "react";
 import { useExternalExecutionHandoffs } from "@/features/external-handoffs/hooks/use-external-handoffs";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { writeTextToClipboard } from "@/lib/clipboard";
+import { errorMessage } from "../../lib/error-message";
 import { CancelHandoffForm } from "../forms/cancel-handoff-form";
-import { HandoffReconcileForm } from "../forms/handoff-reconcile-form";
+import {
+  HandoffReconcileForm,
+  type ReconcileReadState,
+} from "../forms/handoff-reconcile-form";
 import { HandoffReturnForm } from "../forms/handoff-return-form";
 import { StartHandoffForm } from "../forms/start-handoff-form";
 
@@ -120,6 +124,13 @@ function HandoffResult({ handoff }: { handoff: ExternalExecutionHandoff }) {
   );
 }
 
+function handoffObserver<T extends { variables?: { handoffId: string } }>(
+  observer: T,
+  handoffId: string,
+) {
+  return observer.variables?.handoffId === handoffId ? observer : undefined;
+}
+
 function HandoffStatusControls({
   confirmDisabled,
   handoff,
@@ -127,6 +138,8 @@ function HandoffStatusControls({
   onPreview,
   onRecordReturn,
   previewDisabled,
+  previewState,
+  confirmError,
   recordReturnDisabled,
   relatedWorks,
   work,
@@ -143,6 +156,8 @@ function HandoffStatusControls({
     input: RecordExternalExecutionHandoffReturnInput,
   ) => Promise<unknown>;
   previewDisabled: boolean;
+  previewState?: ReconcileReadState;
+  confirmError?: unknown;
   recordReturnDisabled: boolean;
   relatedWorks: readonly ExternalExecutionHandoffRelatedWork[];
   work: WorkProfile;
@@ -163,10 +178,12 @@ function HandoffStatusControls({
     case "Result returned":
       return (
         <HandoffReconcileForm
+          confirmError={confirmError}
           disabled={previewDisabled || confirmDisabled}
           handoffId={handoff.handoffId}
           onConfirm={onConfirm}
           onPreview={onPreview}
+          previewState={previewState}
           relatedWorks={relatedWorks}
           workKey={work.key}
         />
@@ -209,7 +226,6 @@ export default function ExternalExecutionHandoffPanel({
   const connection = useClientShellConnection();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [formError, setFormError] = useState<string | null>(null);
-  const [writeError, setWriteError] = useState<string | null>(null);
   const [copiedHandoffId, setCopiedHandoffId] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const {
@@ -273,7 +289,9 @@ export default function ExternalExecutionHandoffPanel({
           disabled={connection === "offline"}
           onClick={() => {
             setExpanded(true);
-            setWriteError(null);
+            if (!start.isPending) {
+              start.reset();
+            }
             setFormError(null);
           }}
           size="xs"
@@ -378,13 +396,25 @@ export default function ExternalExecutionHandoffPanel({
               <HandoffResult handoff={handoff} />
               <HandoffStatusControls
                 confirmDisabled={confirmReconcile.isPending}
+                confirmError={
+                  handoffObserver(confirmReconcile, handoff.handoffId)?.error
+                }
                 handoff={handoff}
                 onConfirm={(input) => confirmReconcile.mutateAsync(input)}
-                onPreview={(input) => previewReconcile.mutateAsync(input)}
+                onPreview={(input) => {
+                  if (!confirmReconcile.isPending) {
+                    confirmReconcile.reset();
+                  }
+                  return previewReconcile.mutateAsync(input);
+                }}
                 onRecordReturn={(input) => recordReturn.mutateAsync(input)}
                 previewDisabled={
                   previewReconcile.isPending || connection === "offline"
                 }
+                previewState={handoffObserver(
+                  previewReconcile,
+                  handoff.handoffId,
+                )}
                 recordReturnDisabled={
                   recordReturn.isPending || connection === "offline"
                 }
@@ -403,15 +433,13 @@ export default function ExternalExecutionHandoffPanel({
             formError={formError}
             onClearErrors={() => {
               setFormError(null);
-              setWriteError(null);
               setCopyError(null);
             }}
             onFormError={setFormError}
             onStart={(input) => start.mutateAsync(input)}
-            onWriteError={setWriteError}
             pending={pending}
             work={work}
-            writeError={writeError}
+            writeError={start.isError ? errorMessage(start.error) : null}
           />
         </div>
       ) : null}

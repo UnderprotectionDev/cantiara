@@ -6,10 +6,13 @@ import {
   type WorkTemplate,
 } from "@cantiara/api/work-templates";
 import { Button } from "@cantiara/ui/components/button";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useMemo, useState } from "react";
 import { useWorkTemplates } from "@/features/work-templates/hooks/use-work-templates";
-import { useCustomFields } from "@/lib/use-custom-fields";
+import { commandVariables } from "@/lib/command-variables";
+import { orpc } from "@/utils/orpc";
+
 import { InstantiateWorkTemplateForm } from "../forms/instantiate-work-template-form";
 import { WorkTemplateForm } from "../forms/work-template-form";
 
@@ -43,21 +46,28 @@ export default function WorkTemplateEditor({
   previewDate?: string;
   projectId: string;
 }) {
-  const templates = useWorkTemplates(projectId);
-  const customFields = useCustomFields(projectId);
+  const customFields = useQuery(
+    orpc.customFields.queryOptions({ input: { projectId } }),
+  );
   const [editing, setEditing] = useState<WorkTemplate | null>(null);
   const [instantiating, setInstantiating] = useState<WorkTemplate | null>(null);
-  const [createdWorkKey, setCreatedWorkKey] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const templates = useWorkTemplates(projectId, {
+    onCreatedWork: () => {
+      setInstantiating(null);
+      setValidationError(null);
+    },
+    onSavedTemplate: resetDraft,
+  });
   const definitions = useMemo(
     () =>
-      (customFields.query.data ?? []).filter(
+      (customFields.data ?? []).filter(
         (definition) =>
           definition.trashedAt === null &&
           definition.type !== "Date" &&
           definition.recordTypes.includes("Work"),
       ),
-    [customFields.query.data],
+    [customFields.data],
   );
   const pending =
     disabled ||
@@ -70,53 +80,70 @@ export default function WorkTemplateEditor({
   function resetDraft() {
     setFormVersion((version) => version + 1);
     setEditing(null);
-    setError(null);
+    setValidationError(null);
   }
 
   async function saveTemplate(input: ParsedCreateWorkTemplateInput) {
-    setError(null);
+    setValidationError(null);
     try {
       if (editing) {
         const { projectId: _projectId, ...rest } = input;
-        await templates.update.mutateAsync({
-          ...rest,
-          baseRevision: editing.revision,
-          templateId: editing.id,
-        });
+        await templates.update.mutateAsync(
+          commandVariables(
+            {
+              ...rest,
+              baseRevision: editing.revision,
+              templateId: editing.id,
+            },
+            templates.update.isError ? templates.update.variables : undefined,
+          ),
+        );
       } else {
-        await templates.create.mutateAsync(input);
+        await templates.create.mutateAsync(
+          commandVariables(
+            { ...input, baseRevision: 0 },
+            templates.create.isError ? templates.create.variables : undefined,
+          ),
+        );
       }
-      resetDraft();
-    } catch (mutationError) {
-      setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : "Work Template could not be saved.",
-      );
+    } catch {
+      // Query exposes the failure and retains the submitted variables for retry.
     }
   }
 
   const list = templates.query.data ?? [];
 
   async function instantiateTemplate(template: WorkTemplate, title: string) {
-    setError(null);
+    setValidationError(null);
     try {
-      const work = await templates.instantiate.mutateAsync({
-        baseRevision: template.revision,
-        createDate: previewDate,
-        templateId: template.id,
-        title,
-      });
-      setCreatedWorkKey(work.key);
-      setInstantiating(null);
-    } catch (mutationError) {
-      setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : "Work could not be created from this template.",
+      await templates.instantiate.mutateAsync(
+        commandVariables(
+          {
+            baseRevision: template.revision,
+            createDate: previewDate,
+            templateId: template.id,
+            title,
+          },
+          templates.instantiate.isError
+            ? templates.instantiate.variables
+            : undefined,
+        ),
       );
+    } catch {
+      // Query exposes the failure and retains the submitted variables for retry.
     }
   }
+
+  const createdWorkKey =
+    templates.instantiate.data?.projectId === projectId
+      ? templates.instantiate.data.key
+      : undefined;
+  const save = editing ? templates.update : templates.create;
+  const failure = instantiating
+    ? templates.instantiate.error
+    : (save.error ?? templates.moveToTrash.error);
+  const error =
+    validationError ?? (failure instanceof Error ? failure.message : null);
 
   return (
     <div className="mt-3 space-y-6" data-work-template-editor="true">
@@ -166,8 +193,8 @@ export default function WorkTemplateEditor({
                       disabled={pending}
                       onClick={() => {
                         setInstantiating(template);
-                        setCreatedWorkKey(null);
-                        setError(null);
+                        templates.instantiate.reset();
+                        setValidationError(null);
                       }}
                       size="xs"
                       type="button"
@@ -177,9 +204,11 @@ export default function WorkTemplateEditor({
                     <Button
                       disabled={pending}
                       onClick={() => {
+                        templates.update.reset();
+                        templates.moveToTrash.reset();
                         setEditing(template);
                         setFormVersion((version) => version + 1);
-                        setError(null);
+                        setValidationError(null);
                       }}
                       size="xs"
                       type="button"
@@ -191,18 +220,15 @@ export default function WorkTemplateEditor({
                       disabled={pending}
                       onClick={() =>
                         templates.moveToTrash.mutate(
-                          {
-                            baseRevision: template.revision,
-                            templateId: template.id,
-                          },
-                          {
-                            onError: (mutationError) =>
-                              setError(
-                                mutationError instanceof Error
-                                  ? mutationError.message
-                                  : "Work Template could not be moved to Trash.",
-                              ),
-                          },
+                          commandVariables(
+                            {
+                              baseRevision: template.revision,
+                              templateId: template.id,
+                            },
+                            templates.moveToTrash.isError
+                              ? templates.moveToTrash.variables
+                              : undefined,
+                          ),
                         )
                       }
                       size="xs"
@@ -248,10 +274,11 @@ export default function WorkTemplateEditor({
                     disabled={pending}
                     onCancel={() => {
                       setInstantiating(null);
-                      setError(null);
+                      templates.instantiate.reset();
+                      setValidationError(null);
                     }}
                     onCreate={(title) => instantiateTemplate(template, title)}
-                    onValidationError={setError}
+                    onValidationError={setValidationError}
                     template={template}
                   />
                 ) : null}
@@ -262,14 +289,18 @@ export default function WorkTemplateEditor({
       )}
 
       <WorkTemplateForm
-        customFieldsLoaded={Boolean(customFields.query.data)}
+        customFieldsLoaded={Boolean(customFields.data)}
         definitions={definitions}
         editing={editing}
         error={error}
         key={`${editing?.id ?? "new"}:${formVersion}`}
-        onCancel={resetDraft}
+        onCancel={() => {
+          templates.create.reset();
+          templates.update.reset();
+          resetDraft();
+        }}
         onSave={saveTemplate}
-        onValidationError={setError}
+        onValidationError={setValidationError}
         pending={pending}
         previewDate={previewDate}
         projectId={projectId}

@@ -1,14 +1,14 @@
 import type {
   CreateCustomFieldInput,
-  CustomFieldDefinition,
   CustomFieldRecordType,
   CustomFieldValueListItem,
   CustomFieldValueRecord,
   ParsedCustomFieldValuePayload,
 } from "@cantiara/api/custom-fields";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 
 export interface UpdateCustomFieldArgs {
@@ -51,61 +51,56 @@ export function useCustomFields(projectId: string) {
     await queryClient.invalidateQueries({ queryKey });
   };
 
-  const create = useMutation({
-    mutationFn: (input: CreateCustomFieldInput) =>
-      runOnlineOnlyWrite(() =>
-        client.createCustomField({
-          ...input,
-          baseRevision: 0,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const create = usePreparedMutation(
+    orpc.createCustomField.mutationOptions({
+      mutationFn: (input) => client.createCustomField(input),
+      onSuccess: invalidate,
+    }),
+    (input: CreateCustomFieldInput) => ({
+      ...input,
+      baseRevision: 0,
+    }),
+  );
 
-  const update = useMutation({
-    mutationFn: (input: UpdateCustomFieldArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.updateCustomField({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const update = usePreparedMutation(
+    orpc.updateCustomField.mutationOptions({
+      mutationFn: (input) => client.updateCustomField(input),
+      onSuccess: invalidate,
+    }),
+    (input: UpdateCustomFieldArgs) => ({
+      ...input,
+    }),
+  );
 
-  const moveToTrash = useMutation({
-    mutationFn: (input: DefinitionRevisionArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.trashCustomField({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const moveToTrash = usePreparedMutation(
+    orpc.trashCustomField.mutationOptions({
+      mutationFn: (input) => client.trashCustomField(input),
+      onSuccess: invalidate,
+    }),
+    (input: DefinitionRevisionArgs) => ({
+      ...input,
+    }),
+  );
 
-  const restore = useMutation({
-    mutationFn: (input: DefinitionRevisionArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.restoreCustomField({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const restore = usePreparedMutation(
+    orpc.restoreCustomField.mutationOptions({
+      mutationFn: (input) => client.restoreCustomField(input),
+      onSuccess: invalidate,
+    }),
+    (input: DefinitionRevisionArgs) => ({
+      ...input,
+    }),
+  );
 
-  const deletePermanently = useMutation({
-    mutationFn: (input: DefinitionRevisionArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.deleteCustomField({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const deletePermanently = usePreparedMutation(
+    orpc.deleteCustomField.mutationOptions({
+      mutationFn: (input) => client.deleteCustomField(input),
+      onSuccess: invalidate,
+    }),
+    (input: DefinitionRevisionArgs) => ({
+      ...input,
+    }),
+  );
 
   return {
     create,
@@ -125,11 +120,7 @@ export function useCustomFieldValues(
 ) {
   const queryClient = useQueryClient();
   const valuesQueryOptions = orpc.customFieldValues.queryOptions({
-    input: {
-      projectId,
-      recordId: recordId ?? "new-record",
-      recordType,
-    },
+    input: recordId ? { projectId, recordId, recordType } : skipToken,
   });
   const query = useQuery({
     ...valuesQueryOptions,
@@ -140,7 +131,7 @@ export function useCustomFieldValues(
   // invalidating both keeps either source fresh after a value write.
   const invalidate = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey }),
+      ...(recordId ? [queryClient.invalidateQueries({ queryKey })] : []),
       queryClient.invalidateQueries({
         queryKey: orpc.customFieldProjectValues.queryOptions({
           input: { projectId, recordType },
@@ -149,39 +140,41 @@ export function useCustomFieldValues(
     ]);
   };
 
-  const setValue = useMutation({
-    mutationFn: (input: SetCustomFieldValueArgs) => {
-      if (!recordId) {
-        throw new Error("A record is required before saving a Custom field.");
-      }
-      return runOnlineOnlyWrite(() =>
-        client.setCustomFieldValue({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-          recordId,
-          recordType,
-        }),
-      );
-    },
-    onSuccess: invalidate,
-  });
+  const setValue = usePreparedMutation(
+    orpc.setCustomFieldValue.mutationOptions({
+      mutationFn: (input) => {
+        if (!input.recordId) {
+          throw new Error("A record is required before saving a Custom field.");
+        }
+        return client.setCustomFieldValue(input);
+      },
+      onSuccess: invalidate,
+    }),
+    (input: SetCustomFieldValueArgs) => ({
+      ...input,
+      recordId: recordId ?? "",
+      recordType,
+    }),
+  );
 
-  const clearValue = useMutation({
-    mutationFn: (input: ClearCustomFieldValueArgs) => {
-      if (!recordId) {
-        throw new Error("A record is required before clearing a Custom field.");
-      }
-      return runOnlineOnlyWrite(() =>
-        client.clearCustomFieldValue({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-          recordId,
-          recordType,
-        }),
-      );
-    },
-    onSuccess: invalidate,
-  });
+  const clearValue = usePreparedMutation(
+    orpc.clearCustomFieldValue.mutationOptions({
+      mutationFn: (input) => {
+        if (!input.recordId) {
+          throw new Error(
+            "A record is required before clearing a Custom field.",
+          );
+        }
+        return client.clearCustomFieldValue(input);
+      },
+      onSuccess: invalidate,
+    }),
+    (input: ClearCustomFieldValueArgs) => ({
+      ...input,
+      recordId: recordId ?? "",
+      recordType,
+    }),
+  );
 
   return { clearValue, query, setValue };
 }
@@ -196,39 +189,6 @@ export function useCustomFieldProjectValues(
     }),
   );
   return { query };
-}
-
-function projectValueItems(
-  projectValues: {
-    definitions: CustomFieldDefinition[];
-    values: CustomFieldValueRecord[];
-  },
-  recordId: string,
-): CustomFieldValueListItem[] {
-  return projectValues.definitions.map((definition) => ({
-    definition,
-    value:
-      projectValues.values.find(
-        (candidate) =>
-          candidate.definitionId === definition.id &&
-          candidate.recordId === recordId,
-      ) ?? null,
-  }));
-}
-
-export function customFieldItemsForRecord(
-  projectValues:
-    | {
-        definitions: CustomFieldDefinition[];
-        values: CustomFieldValueRecord[];
-      }
-    | undefined,
-  recordId: string,
-): CustomFieldValueListItem[] {
-  if (!projectValues) {
-    return [];
-  }
-  return projectValueItems(projectValues, recordId);
 }
 
 function sameCustomFieldValue(

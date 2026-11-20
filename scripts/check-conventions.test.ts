@@ -172,6 +172,21 @@ export const useNoteOwner = () => [useContact, contactLabel, useProject, Project
     expect(output).not.toContain("project-shell/hooks/use-project");
   });
 
+  test("only the documented Project composition root may import feature UI", () => {
+    const shell = "apps/web/src/features/project-shell";
+    const input =
+      'import Editor from "@/features/custom-fields/ui/forms/custom-field-editor-form";';
+    const view = `${input}
+export const Project = () => <Editor />;
+`;
+    write(`${shell}/ui/components/project-shell-surface.tsx`, view);
+    write(`${shell}/ui/components/project-controls.tsx`, view);
+    const { exitCode, output } = check();
+    expect(exitCode).toBe(1);
+    expect(output).toContain("project-controls.tsx:1 [import]");
+    expect(output).not.toContain("project-shell-surface.tsx:1 [import]");
+  });
+
   test("a dependency the stack rejects or does not own", () => {
     write(
       "package.json",

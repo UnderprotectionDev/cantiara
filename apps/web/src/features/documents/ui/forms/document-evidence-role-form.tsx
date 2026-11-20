@@ -13,9 +13,8 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { documentEvidenceRoleFormSchema } from "../../lib/document-evidence-form";
 import { EvidenceRoleHistory } from "../components/document-evidence-role-history";
@@ -28,6 +27,12 @@ export default function DocumentEvidenceRoleForm({
   binding: DocumentEvidenceBinding;
   record: Document;
 }) {
+  const setDocumentEvidenceRoleMutation = useMutation(
+    orpc.setDocumentEvidenceRole.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.setDocumentEvidenceRole(input),
+    }),
+  );
   const cache = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const command = useRef<string | null>(null);
@@ -55,16 +60,14 @@ export default function DocumentEvidenceRoleForm({
       command.current ??= crypto.randomUUID();
       setError(null);
       try {
-        await runOnlineOnlyWrite(() =>
-          client.setDocumentEvidenceRole({
-            ...selection,
-            id: binding.id,
-            baseRevision: binding.revision,
-            clientIdempotencyKey: command.current ?? crypto.randomUUID(),
-            role: parsed.data.role,
-            interpretation: parsed.data.interpretation,
-          }),
-        );
+        await setDocumentEvidenceRoleMutation.mutateAsync({
+          ...selection,
+          id: binding.id,
+          baseRevision: binding.revision,
+          clientIdempotencyKey: command.current ?? crypto.randomUUID(),
+          role: parsed.data.role,
+          interpretation: parsed.data.interpretation,
+        });
         command.current = null;
         await cache.invalidateQueries({
           queryKey: orpc.documentEvidenceBindings.key(),

@@ -10,6 +10,10 @@ const save = vi.hoisted(() => vi.fn());
 vi.mock("@/utils/orpc", () => ({
   client: { saveTechnicalDiagramViewport: save },
   orpc: {
+    saveTechnicalDiagramViewport: {
+      mutationKey: () => ["saveTechnicalDiagramViewport"],
+    },
+
     technicalDiagramViewport: {
       queryOptions: ({ input }: { input: unknown }) => ({
         queryFn: () => Promise.resolve(null),

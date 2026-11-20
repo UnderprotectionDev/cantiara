@@ -18,25 +18,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
-import { type QueryClient, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useSelector } from "@tanstack/react-store";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef, useState } from "react";
 import { getWorkStatusLabel } from "@/components/work-status-form";
 import type { UserInitiatedWorkCloseOutcome } from "@/features/completion-effects/hooks/use-user-initiated-work-success";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
-import {
-  buildSupportReferenceFailure,
-  type SupportReferenceFailure,
-} from "@/features/web-macos-client/lib/support-reference";
+import { buildSupportReferenceFailure } from "@/features/web-macos-client/lib/support-reference";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
 import { fetchCurrentWork } from "@/lib/fetch-current-work";
+import { executeWrite } from "@/utils/execute-write";
 import {
   client,
   invalidateSmartCollectionMembership,
   orpc,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
 import type { BulkWorkSelection } from "../../hooks/use-bulk-work-selection";
 import type { BulkEditStatusFormInput } from "../../lib/bulk-edit-form";
@@ -155,6 +156,7 @@ function bulkEditPreviewMatchesInput({
 async function applyStatusToWork(
   record: BulkEditRecordSnapshot,
   currentPreview: BulkEditPreview,
+  clientIdempotencyKey: string,
   onCloseOutcome: (outcome: UserInitiatedWorkCloseOutcome) => void,
 ) {
   const { closePreview, work } = record;
@@ -164,7 +166,7 @@ async function applyStatusToWork(
   }
   const mutationEnvelope = {
     baseRevision: work.revision,
-    clientIdempotencyKey: crypto.randomUUID(),
+    clientIdempotencyKey,
     workId: work.id,
   };
   if (nextStatus === "Closed") {
@@ -223,22 +225,12 @@ async function applyStatusToWork(
 
 async function refreshBulkEditQueries(
   queryClient: QueryClient,
-  {
-    archived,
-    projectId,
-    records,
-  }: {
-    archived: boolean;
-    projectId: string;
-    records: readonly BulkEditRecordSnapshot[];
-  },
+  projectId: string,
+  workIds: readonly string[],
 ) {
   await Promise.all([
-    queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
     queryClient.invalidateQueries({
-      queryKey: orpc.projectWorks.queryOptions({
-        input: { archived, projectId },
-      }).queryKey,
+      queryKey: orpc.projectWorks.queryKey({ input: { projectId } }),
     }),
     queryClient.invalidateQueries({
       queryKey: orpc.scopeTree.queryOptions({
@@ -246,27 +238,28 @@ async function refreshBulkEditQueries(
       }).queryKey,
     }),
     ...invalidateSmartCollectionMembership(queryClient),
-    ...records.map(({ work }) =>
+    ...workIds.map((workId) =>
       queryClient.invalidateQueries({
-        queryKey: orpc.work.queryOptions({
-          input: { workId: work.id },
-        }).queryKey,
+        queryKey: orpc.work.queryOptions({ input: { workId } }).queryKey,
       }),
     ),
   ]);
 }
 
-async function buildBulkEditPreview({
-  closureReason,
-  closureResult,
-  selectedWorks,
-  targetStatus,
-}: {
-  closureReason: string;
-  closureResult: WorkClosureResult;
-  selectedWorks: readonly WorkProfile[];
-  targetStatus: WorkStatus;
-}): Promise<BulkEditPreview> {
+async function buildBulkEditPreview(
+  queryClient: QueryClient,
+  {
+    closureReason,
+    closureResult,
+    selectedWorks,
+    targetStatus,
+  }: {
+    closureReason: string;
+    closureResult: WorkClosureResult;
+    selectedWorks: readonly WorkProfile[];
+    targetStatus: WorkStatus;
+  },
+): Promise<BulkEditPreview> {
   const closePreviews = new Map<string, WorkClosePreview>();
   if (targetStatus === "Closed") {
     const worksToClose = selectedWorks.filter(
@@ -277,7 +270,13 @@ async function buildBulkEditPreview({
         async (work) =>
           [
             work.id,
-            await client.workClosePreview({ workId: work.id }),
+            await queryClient.query({
+              ...orpc.workClosePreview.queryOptions({
+                input: { workId: work.id },
+              }),
+              staleTime: 0,
+              gcTime: 0,
+            }),
           ] as const,
       ),
     );
@@ -298,14 +297,12 @@ async function buildBulkEditPreview({
 }
 
 async function runBulkEditOperation({
-  archived,
   operationId,
   onCloseOutcome,
   preview,
   projectId,
   queryClient,
 }: {
-  archived: boolean;
   operationId: string;
   onCloseOutcome: (outcome: UserInitiatedWorkCloseOutcome) => void;
   preview: BulkEditPreview;
@@ -323,6 +320,7 @@ async function runBulkEditOperation({
         const receiptId = await applyStatusToWork(
           record,
           preview,
+          `${operationId}:${recordIndex}`,
           onCloseOutcome,
         );
         recordBulkEditResult(operationId, {
@@ -355,11 +353,11 @@ async function runBulkEditOperation({
         () => applyNextRecord(),
       ),
     );
-    await refreshBulkEditQueries(queryClient, {
-      archived,
+    await refreshBulkEditQueries(
+      queryClient,
       projectId,
-      records: preview.records,
-    });
+      preview.records.map(({ work }) => work.id),
+    );
   } finally {
     completeBulkEditOperation(operationId);
   }
@@ -401,20 +399,27 @@ async function undoBulkEditResult(
     undoing: true,
   }));
   try {
-    const currentWork = await fetchCurrentWork(queryClient, result.workId);
-    await runOnlineOnlyWrite(() =>
-      client.undoWorkStatus({
-        baseRevision: currentWork.revision,
-        clientIdempotencyKey: crypto.randomUUID(),
-        receiptId: result.receiptId as string,
-        workId: result.workId,
-      }),
+    const command = result.undoCommand ?? {
+      baseRevision: (await fetchCurrentWork(queryClient, result.workId))
+        .revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      receiptId: result.receiptId,
+      workId: result.workId,
+    };
+    updateResult((candidate) => ({ ...candidate, undoCommand: command }));
+    await executeWrite(
+      queryClient,
+      command,
+      (input) => client.undoWorkStatus(input),
+      async (_, error) => {
+        if (!error) {
+          await refreshBulkEditQueries(queryClient, operation.projectId, [
+            result.workId,
+          ]);
+        }
+      },
+      { presentsSupportFailure: true },
     );
-    await refreshBulkEditQueries(queryClient, {
-      archived: operation.archived,
-      projectId: operation.projectId,
-      records: operation.preview.records,
-    });
     updateResult((candidate) => ({
       key: candidate.key,
       status: "Undone",
@@ -698,21 +703,55 @@ export default function BulkEditDialog({
   const [formKey, setFormKey] = useState(0);
   const [input, setInput] = useState(BULK_EDIT_STATUS_FORM_DEFAULTS);
   const { closureReason, closureResult, targetStatus } = input;
-  const [preview, setPreview] = useState<BulkEditPreview | null>(null);
-  const [previewError, setPreviewError] =
-    useState<SupportReferenceFailure | null>(null);
-  const [isPreviewing, setIsPreviewing] = useState(false);
-  const [progress, setProgress] = useState<{
-    completed: number;
-    total: number;
-  } | null>(null);
+  const previewMutation = useMutation({
+    meta: { presentsSupportFailure: true },
+    mutationFn: (values: Parameters<typeof buildBulkEditPreview>[1]) =>
+      buildBulkEditPreview(queryClient, values),
+  });
+  const applyMutation = useMutation({
+    meta: { onlineWrite: true, presentsSupportFailure: true },
+    mutationFn: async ({
+      operationId,
+      preview: reviewed,
+    }: {
+      operationId: string;
+      preview: BulkEditPreview;
+    }) => {
+      startBulkEditOperation({
+        archived,
+        id: operationId,
+        phase: "applying",
+        preview: reviewed,
+        projectId,
+      });
+      await runBulkEditOperation({
+        operationId,
+        onCloseOutcome,
+        preview: reviewed,
+        projectId,
+        queryClient,
+      });
+    },
+  });
+  const preview = previewMutation.data ?? null;
+  const previewError = previewMutation.isError
+    ? buildSupportReferenceFailure(previewMutation.error, { kind: "query" })
+    : null;
+  const applyError = applyMutation.isError
+    ? buildSupportReferenceFailure(applyMutation.error, {
+        kind: "mutation",
+        retryCount: 1,
+      })
+    : null;
+  const failure = applyError ?? previewError;
+  const isPreviewing = previewMutation.isPending;
   const displayedPreview = operation?.preview ?? preview;
   const displayedProgress = operation
     ? {
         completed: operation.completed,
         total: operation.preview.records.length,
       }
-    : progress;
+    : null;
   const currentSignature = useMemo(
     () => inputSignature(selectedWorks),
     [selectedWorks],
@@ -741,9 +780,8 @@ export default function BulkEditDialog({
   function resetForm() {
     setFormKey((key) => key + 1);
     setInput(BULK_EDIT_STATUS_FORM_DEFAULTS);
-    setPreview(null);
-    setPreviewError(null);
-    setProgress(null);
+    previewMutation.reset();
+    applyMutation.reset();
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -754,69 +792,37 @@ export default function BulkEditDialog({
     if (selectedWorks.length === 0) {
       return;
     }
-    setPreviewError(null);
-    setIsPreviewing(true);
-    setProgress(null);
-    try {
-      setPreview(
-        await buildBulkEditPreview({
-          closureReason: values.closureReason,
-          closureResult: values.closureResult,
-          selectedWorks,
-          targetStatus: values.targetStatus,
-        }),
-      );
-    } catch (error) {
-      setPreview(null);
-      setPreviewError(buildSupportReferenceFailure(error, { kind: "query" }));
-    } finally {
-      setIsPreviewing(false);
-    }
+    applyMutation.reset();
+    await previewMutation
+      .mutateAsync({ ...values, selectedWorks })
+      .catch(() => undefined);
   }
 
   function apply() {
     if (
-      preview === null ||
-      !previewMatchesCurrentInput ||
-      changedRecords.length === 0
+      !(preview && previewMatchesCurrentInput) ||
+      changedRecords.length === 0 ||
+      applyMutation.isPending
     ) {
       return;
     }
-    const previewToApply = preview;
-    const operationId = crypto.randomUUID();
-    setPreviewError(null);
-    setProgress({ completed: 0, total: previewToApply.records.length });
-    startBulkEditOperation({
-      archived,
-      id: operationId,
-      phase: "applying",
-      preview: previewToApply,
-      projectId,
-    });
-    runBulkEditOperation({
-      archived,
-      operationId,
-      onCloseOutcome,
-      preview: previewToApply,
-      projectId,
-      queryClient,
-    }).catch(() => completeBulkEditOperation(operationId));
+    applyMutation.mutate({ operationId: crypto.randomUUID(), preview });
   }
 
   function changeStatus(status: WorkStatus | "") {
     setInput((previous) => ({ ...previous, targetStatus: status }));
-    setPreviewError(null);
-    setProgress(null);
+    previewMutation.reset();
+    applyMutation.reset();
   }
 
   function changeClosureResult(result: WorkClosureResult) {
     setInput((previous) => ({ ...previous, closureResult: result }));
-    setProgress(null);
+    applyMutation.reset();
   }
 
   function changeClosureReason(reason: string) {
     setInput((previous) => ({ ...previous, closureReason: reason }));
-    setProgress(null);
+    applyMutation.reset();
   }
 
   return (
@@ -855,12 +861,12 @@ export default function BulkEditDialog({
           workStatusLabels={workStatusLabels}
         />
 
-        {previewError ? (
+        {failure ? (
           <div className="space-y-1 text-sm">
             <p className="text-destructive" role="alert">
-              {previewError.reason}
+              {failure.reason}
             </p>
-            <SupportReferenceNotice failure={previewError} />
+            <SupportReferenceNotice failure={failure} />
           </div>
         ) : null}
 

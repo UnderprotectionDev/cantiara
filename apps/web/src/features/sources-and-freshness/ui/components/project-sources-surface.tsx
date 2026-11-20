@@ -3,11 +3,10 @@ import {
   DEFAULT_ACCOUNT_PREFERENCES,
 } from "@cantiara/api/account-preferences";
 import type { SmartLinkPreview } from "@cantiara/api/smart-link-preview";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { env } from "@/env";
 import { isTauriRuntime } from "@/features/account-access/lib/tauri-session";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 import { useSmartLinkPreview } from "../../hooks/use-smart-link-preview";
@@ -23,6 +22,14 @@ export default function ProjectSourcesSurface({
   projectId: string;
   preferences?: AccountPreferences;
 }) {
+  const createSourceMutation = useMutation(
+    orpc.createSource.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.createSource(input),
+      onSuccess: () =>
+        queryClient.invalidateQueries({ queryKey: options.queryKey }),
+    }),
+  );
   const options = orpc.projectSources.queryOptions({ input: { projectId } });
   const sources = useQuery(options);
   const queryClient = useQueryClient();
@@ -42,20 +49,17 @@ export default function ProjectSourcesSurface({
       };
     }
     const command = pending.current;
-    await runOnlineOnlyWrite(() =>
-      client.createSource({
-        id: command.id,
-        clientIdempotencyKey: command.key,
-        baseRevision: 0,
-        projectId,
-        url: value.url,
-        title: value.title,
-        capturedContent: value.capturedContent,
-        accessedAt: value.accessedAt,
-        provider: value.player ? "YouTube" : null,
-      }),
-    );
-    await queryClient.invalidateQueries({ queryKey: options.queryKey });
+    await createSourceMutation.mutateAsync({
+      id: command.id,
+      clientIdempotencyKey: command.key,
+      baseRevision: 0,
+      projectId,
+      url: value.url,
+      title: value.title,
+      capturedContent: value.capturedContent,
+      accessedAt: value.accessedAt,
+      provider: value.player ? "YouTube" : null,
+    });
     pending.current = null;
   }
   if (sources.status === "pending") {
@@ -76,6 +80,7 @@ export default function ProjectSourcesSurface({
         onSave={save}
         preferences={preferences}
         readOnly={readOnly}
+        write={createSourceMutation}
         youtubePlayerOrigin={
           isTauriRuntime() ? new URL(env.VITE_SERVER_URL).origin : undefined
         }

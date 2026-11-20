@@ -14,8 +14,15 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
+import { useMutation } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clampCoordinate } from "../../lib/file-attachment-markup-geometry";
+
+export interface LocationBindStatus {
+  isError: boolean;
+  isPending: boolean;
+  reset: () => void;
+}
 
 export type LocationKind = "point" | "region";
 
@@ -76,6 +83,7 @@ function locationFromBinderValues(
 
 export default function FileAttachmentLocationBinder({
   attachmentId,
+  bindStatus,
   location,
   locationKind,
   onBind,
@@ -88,6 +96,7 @@ export default function FileAttachmentLocationBinder({
   versionId,
 }: {
   attachmentId: string;
+  bindStatus?: LocationBindStatus;
   location: FileAttachmentLocation;
   locationKind: LocationKind;
   onBind?: (input: FileAttachmentLocationBindInput) => void | Promise<void>;
@@ -101,9 +110,29 @@ export default function FileAttachmentLocationBinder({
   projectId?: string;
   versionId: string;
 }) {
-  const [preview, setPreview] =
-    useState<FileAttachmentLocationBindPreview | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const inspect = useMutation({
+    meta: { presentsSupportFailure: true },
+    mutationFn: (input: FileAttachmentLocationBindPreviewInput) =>
+      onPreview?.(input) ??
+      Promise.reject(
+        new Error(FILE_ATTACHMENT_UI_LABELS.locationPreviewUnavailable),
+      ),
+  });
+  const { data: preview } = inspect;
+  const resetBind = bindStatus?.reset;
+  const resetPreview = useCallback(() => {
+    inspect.reset();
+    resetBind?.();
+  }, [inspect.reset, resetBind]);
+  const [validationError, setError] = useState<string | null>(null);
+  let error = validationError;
+  if (!error && inspect.isError) {
+    error = FILE_ATTACHMENT_UI_LABELS.locationPreviewUnavailable;
+  }
+  if (!error && bindStatus?.isError) {
+    error = FILE_ATTACHMENT_UI_LABELS.locationBindFailed;
+  }
+  const pending = inspect.isPending || bindStatus?.isPending;
   const bindIdempotencyKey = useRef<string | null>(null);
   const submitAction = useRef<"bind" | "preview">("preview");
   const form = useForm({
@@ -119,9 +148,9 @@ export default function FileAttachmentLocationBinder({
         locationKind,
         pageCount,
       );
-      onLocationChange(nextLocation);
 
       if (submitAction.current === "preview") {
+        resetBind?.();
         bindIdempotencyKey.current = null;
         if (!onPreview) {
           setError(FILE_ATTACHMENT_UI_LABELS.locationPreviewUnavailable);
@@ -159,10 +188,10 @@ export default function FileAttachmentLocationBinder({
           return;
         }
         try {
-          setPreview(await onPreview(previewInput.data));
           setError(null);
+          await inspect.mutateAsync(previewInput.data);
         } catch {
-          setError(FILE_ATTACHMENT_UI_LABELS.locationPreviewUnavailable);
+          // The preview observer exposes this failure.
         }
         return;
       }
@@ -207,11 +236,11 @@ export default function FileAttachmentLocationBinder({
       }
       try {
         await onBind(bindInput.data);
-        setPreview(null);
+        resetPreview();
         bindIdempotencyKey.current = null;
         onClose();
       } catch {
-        setError(FILE_ATTACHMENT_UI_LABELS.locationBindFailed);
+        // Query reports the failure and keeps this plan available for retry.
       }
     },
   });
@@ -226,9 +255,9 @@ export default function FileAttachmentLocationBinder({
     form.setFieldValue("width", values.width);
     form.setFieldValue("x", values.x);
     form.setFieldValue("y", values.y);
-    setPreview(null);
+    resetPreview();
     bindIdempotencyKey.current = null;
-  }, [form, location, projectId]);
+  }, [form, location, projectId, resetPreview]);
 
   const handleFormSubmit = useCallback(
     (event: React.SubmitEvent<HTMLFormElement>) => {
@@ -242,23 +271,23 @@ export default function FileAttachmentLocationBinder({
     (event: React.MouseEvent<HTMLButtonElement>) => {
       const nextKind = event.currentTarget.dataset.locationKind;
       if (nextKind === "point" || nextKind === "region") {
-        setPreview(null);
+        resetPreview();
         bindIdempotencyKey.current = null;
         onLocationKindChange(nextKind);
       }
     },
-    [onLocationKindChange],
+    [onLocationKindChange, resetPreview],
   );
   const handleMode = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       const nextMode = event.currentTarget.dataset.mode;
       if (nextMode === "new" || nextMode === "existing") {
-        setPreview(null);
+        resetPreview();
         bindIdempotencyKey.current = null;
         form.setFieldValue("mode", nextMode);
       }
     },
-    [form],
+    [form, resetPreview],
   );
   return (
     <form
@@ -332,7 +361,7 @@ export default function FileAttachmentLocationBinder({
                         pageCount,
                       ),
                     );
-                    setPreview(null);
+                    resetPreview();
                   }}
                   type="number"
                   value={field.state.value}
@@ -358,7 +387,7 @@ export default function FileAttachmentLocationBinder({
                       pageCount,
                     ),
                   );
-                  setPreview(null);
+                  resetPreview();
                 }}
                 type="number"
                 value={field.state.value}
@@ -383,7 +412,7 @@ export default function FileAttachmentLocationBinder({
                       pageCount,
                     ),
                   );
-                  setPreview(null);
+                  resetPreview();
                 }}
                 type="number"
                 value={field.state.value}
@@ -413,7 +442,7 @@ export default function FileAttachmentLocationBinder({
                           pageCount,
                         ),
                       );
-                      setPreview(null);
+                      resetPreview();
                     }}
                     type="number"
                     value={field.state.value}
@@ -441,7 +470,7 @@ export default function FileAttachmentLocationBinder({
                           pageCount,
                         ),
                       );
-                      setPreview(null);
+                      resetPreview();
                     }}
                     type="number"
                     value={field.state.value}
@@ -465,7 +494,7 @@ export default function FileAttachmentLocationBinder({
                 name={field.name}
                 onChange={(event) => {
                   field.handleChange(event.target.value);
-                  setPreview(null);
+                  resetPreview();
                 }}
                 value={field.state.value}
               />
@@ -487,7 +516,7 @@ export default function FileAttachmentLocationBinder({
                     name={field.name}
                     onChange={(event) => {
                       field.handleChange(event.target.value);
-                      setPreview(null);
+                      resetPreview();
                     }}
                     value={field.state.value}
                   />
@@ -507,7 +536,7 @@ export default function FileAttachmentLocationBinder({
                   name={field.name}
                   onChange={(event) => {
                     field.handleChange(event.target.value);
-                    setPreview(null);
+                    resetPreview();
                   }}
                   value={field.state.value}
                 />
@@ -527,7 +556,7 @@ export default function FileAttachmentLocationBinder({
                   name={field.name}
                   onChange={(event) => {
                     field.handleChange(event.target.value);
-                    setPreview(null);
+                    resetPreview();
                   }}
                   value={field.state.value}
                 />
@@ -553,6 +582,7 @@ export default function FileAttachmentLocationBinder({
       ) : null}
       <div className="flex gap-2">
         <Button
+          disabled={pending}
           onClick={() => {
             submitAction.current = "preview";
           }}
@@ -563,7 +593,7 @@ export default function FileAttachmentLocationBinder({
           {FILE_ATTACHMENT_UI_LABELS.preview}
         </Button>
         <Button
-          disabled={!(preview && onBind)}
+          disabled={pending || !(preview && onBind)}
           onClick={() => {
             submitAction.current = "bind";
           }}
@@ -572,7 +602,13 @@ export default function FileAttachmentLocationBinder({
         >
           {FILE_ATTACHMENT_UI_LABELS.confirm}
         </Button>
-        <Button onClick={onClose} size="xs" type="button" variant="ghost">
+        <Button
+          disabled={bindStatus?.isPending}
+          onClick={onClose}
+          size="xs"
+          type="button"
+          variant="ghost"
+        >
           {FILE_ATTACHMENT_UI_LABELS.cancel}
         </Button>
       </div>

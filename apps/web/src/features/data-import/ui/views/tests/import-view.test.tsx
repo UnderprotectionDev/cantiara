@@ -7,10 +7,13 @@ import type {
   ImportReceipt,
   PreviewImportInput,
 } from "@cantiara/api/data-import";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
+import { orpc } from "@/utils/orpc";
 import { rememberLastApplyKey } from "../../../lib/import-form";
+import { invalidateImportQueries } from "../../../lib/invalidate-import-queries";
 import { ImportView } from "../import-view";
 
 (
@@ -101,27 +104,33 @@ afterEach(() => {
 });
 
 function mount(
-  onPreview: (input: PreviewImportInput) => Promise<ImportPreview>,
+  onPreview: React.ComponentProps<typeof ImportView>["onPreview"],
   handlers: {
     onApply?: (input: ApplyImportInput) => Promise<ImportApplyResult>;
     onCancel?: (stagingId: string) => Promise<unknown>;
+    onCommitted?: React.ComponentProps<typeof ImportView>["onCommitted"];
     onReopenReceipt?: (idempotencyKey: string) => Promise<ImportReceipt>;
   } = {},
 ) {
   host = document.createElement("div");
+  const client = new QueryClient();
   document.body.append(host);
   root = createRoot(host);
   act(() => {
     root?.render(
-      <ImportView
-        onApply={handlers.onApply ?? (() => Promise.reject(new Error("no")))}
-        onCancel={handlers.onCancel ?? (() => Promise.resolve({}))}
-        onPreview={onPreview}
-        onReopenReceipt={handlers.onReopenReceipt}
-        projects={[{ id: "p1", name: "Project Atlas" }]}
-      />,
+      <QueryClientProvider client={client}>
+        <ImportView
+          onApply={handlers.onApply ?? (() => Promise.reject(new Error("no")))}
+          onCancel={handlers.onCancel ?? (() => Promise.resolve({}))}
+          onCommitted={handlers.onCommitted}
+          onPreview={onPreview}
+          onReopenReceipt={handlers.onReopenReceipt}
+          projects={[{ id: "p1", name: "Project Atlas" }]}
+        />
+      </QueryClientProvider>,
     );
   });
+  return client;
 }
 
 function button(label: string) {
@@ -133,7 +142,7 @@ function button(label: string) {
 async function click(label: string) {
   await act(async () => {
     button(label)?.click();
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
 
@@ -163,6 +172,11 @@ async function choose(files: File[], scope: string, type: string) {
       .querySelector("form")
       ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   });
+  await vi.waitFor(() => {
+    if (button("Preview import")?.disabled !== false) {
+      throw new Error("The preview request is still pending.");
+    }
+  });
 }
 
 test("shows the Import surface with the write-free preview and a blocked Apply Import", async () => {
@@ -185,6 +199,7 @@ test("shows the Import surface with the write-free preview and a blocked Apply I
       fileName: "risks.csv",
       scope: { kind: "project", projectId: "p1" },
     }),
+    expect.any(AbortSignal),
   );
   const text = document.body.textContent ?? "";
   expect(text).toContain("Nothing has been written to your records.");
@@ -204,7 +219,64 @@ test("dropping an invalid row previews again with that row excluded", async () =
 
   expect(onPreview).toHaveBeenLastCalledWith(
     expect.objectContaining({ excludedRows: [2] }),
+    expect.any(AbortSignal),
   );
+});
+
+test("rapid row exclusions keep the latest exact preview when responses arrive out of order", async () => {
+  const older = Promise.withResolvers<ImportPreview>();
+  const latest = Promise.withResolvers<ImportPreview>();
+  const twoInvalidRows: ImportPreview = {
+    ...preview,
+    invalidRows: [
+      ...preview.invalidRows,
+      { action: "invalid", problems: ["Refused"], rowNumber: 3, values: {} },
+    ],
+    invalidTotal: 2,
+  };
+  const onPreview = vi
+    .fn<
+      (input: PreviewImportInput, signal: AbortSignal) => Promise<ImportPreview>
+    >()
+    .mockResolvedValueOnce(twoInvalidRows)
+    .mockReturnValueOnce(older.promise)
+    .mockReturnValueOnce(latest.promise);
+  const client = mount(onPreview);
+  const fileContent = "Name\nRaw import source\n";
+  await choose([new File([fileContent], "risks.csv")], "project:p1", "Risk");
+  await vi.waitFor(() => expect(button("Exclude row")).toBeDefined());
+  await click("Exclude row");
+  act(() => {
+    const otherRow = [...document.querySelectorAll("button")]
+      .filter((candidate) => candidate.textContent === "Exclude row")
+      .at(-1);
+    otherRow?.click();
+  });
+  expect(onPreview).toHaveBeenLastCalledWith(
+    expect.objectContaining({ excludedRows: [2, 3] }),
+    expect.any(AbortSignal),
+  );
+  expect(button("Apply Import")?.disabled ?? true).toBe(true);
+  expect(onPreview.mock.calls[1]?.[1].aborted).toBe(true);
+  expect(
+    client
+      .getQueryCache()
+      .getAll()
+      .some((entry) =>
+        JSON.stringify(entry.queryKey).includes(JSON.stringify(fileContent)),
+      ),
+  ).toBe(false);
+
+  await act(async () => {
+    latest.resolve(validPreview);
+    await latest.promise;
+  });
+  await vi.waitFor(() => expect(button("Apply Import")?.disabled).toBe(false));
+  await act(async () => {
+    older.resolve(twoInvalidRows);
+    await older.promise;
+  });
+  expect(button("Apply Import")?.disabled).toBe(false);
 });
 
 test("Apply Import confirms the exact previewed set once and shows the receipt", async () => {
@@ -288,8 +360,10 @@ test("a dropped connection offers Retry with the same key", async () => {
   await choose([new File(["Name\nSlip\n"], "risks.csv")], "project:p1", "Risk");
 
   await click("Apply Import");
-  expect(document.querySelector('[role="alert"]')?.textContent).toBe(
-    "Network lost",
+  await vi.waitFor(() =>
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+      "Network lost",
+    ),
   );
   await click("Retry");
 
@@ -297,7 +371,9 @@ test("a dropped connection offers Retry with the same key", async () => {
     ([input]) => (input as ApplyImportInput).idempotencyKey,
   );
   expect(keys[0]).toBe(keys[1]);
-  expect(document.body.textContent).toContain("Import receipt");
+  await vi.waitFor(() =>
+    expect(document.body.textContent).toContain("Import receipt"),
+  );
 });
 
 test("passes the number of chosen files so the server can refuse a multi-file choice", async () => {
@@ -314,6 +390,7 @@ test("passes the number of chosen files so the server can refuse a multi-file ch
 
   expect(onPreview).toHaveBeenCalledWith(
     expect.objectContaining({ fileCount: 2, scope: { kind: "wiki" } }),
+    expect.any(AbortSignal),
   );
   expect(document.querySelector('[role="alert"]')?.textContent).toBe(
     "Import takes one file at a time.",
@@ -355,4 +432,31 @@ test("without a stored key no reopen control is offered", () => {
   mount(vi.fn());
 
   expect(button("Reopen receipt")).toBeUndefined();
+});
+
+test("a committed Risk import invalidates its Project Risk list only", async () => {
+  const queryClient = new QueryClient();
+  const affected = orpc.projectRisks.queryKey({ input: { projectId: "p1" } });
+  const anotherProject = orpc.projectRisks.queryKey({
+    input: { projectId: "p2" },
+  });
+  const unrelated = orpc.projectWorks.queryKey({ input: { projectId: "p1" } });
+  for (const key of [affected, anotherProject, unrelated]) {
+    queryClient.setQueryData(key, []);
+  }
+  mount(() => Promise.resolve(validPreview), {
+    onApply: () =>
+      Promise.resolve({ receipt, replayed: false, status: "committed" }),
+    onCommitted: (result, scope) =>
+      invalidateImportQueries(queryClient, result, scope),
+  });
+  await choose([new File(["Name\nSlip\n"], "risks.csv")], "project:p1", "Risk");
+  await click("Apply Import");
+  await vi.waitFor(() =>
+    expect(document.body.textContent).toContain("Import receipt"),
+  );
+  expect(queryClient.getQueryState(affected)?.isInvalidated).toBe(true);
+  expect(queryClient.getQueryState(anotherProject)?.isInvalidated).toBe(false);
+  expect(queryClient.getQueryState(unrelated)?.isInvalidated).toBe(false);
+  queryClient.clear();
 });

@@ -1,6 +1,5 @@
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { authClient } from "@/lib/auth-client";
@@ -13,39 +12,40 @@ const SIGN_IN_FAILURE_MESSAGE =
   "Sign-in could not be completed. Please try again.";
 
 export default function GitHubSignInView() {
-  const [isWaitingForGitHub, setIsWaitingForGitHub] = useState(false);
   const githubAvailability = useQuery({
     ...orpc.githubAvailability.queryOptions(),
     retry: false,
   });
   const isGitHubUnavailable = githubAvailability.data?.status === "waiting";
 
-  async function signIn() {
-    if (isTauriRuntime()) {
+  const signIn = useMutation({
+    meta: { presentsSupportFailure: true },
+    retry: false,
+    mutationFn: async (platform: "tauri" | "web") => {
       try {
-        await openTauriGitHubSignIn();
+        if (platform === "tauri") {
+          await openTauriGitHubSignIn();
+          return;
+        }
+        const result = await authClient.signIn.social({
+          callbackURL: createGitHubSignInCallbackUrl(window.location.origin),
+          provider: "github",
+        });
+        if (!result.error) {
+          return;
+        }
       } catch {
-        toast.error(SIGN_IN_FAILURE_MESSAGE);
+        // The SDK response and redirect state stay within the auth transport.
       }
-      return;
-    }
+      throw new Error(SIGN_IN_FAILURE_MESSAGE);
+    },
+    onError: () => toast.error(SIGN_IN_FAILURE_MESSAGE),
+  });
+  const isWaitingForGitHub =
+    signIn.variables === "web" && (signIn.isPending || signIn.isSuccess);
 
-    setIsWaitingForGitHub(true);
-
-    try {
-      const result = await authClient.signIn.social({
-        callbackURL: createGitHubSignInCallbackUrl(window.location.origin),
-        provider: "github",
-      });
-
-      if (result.error) {
-        setIsWaitingForGitHub(false);
-        toast.error(SIGN_IN_FAILURE_MESSAGE);
-      }
-    } catch {
-      setIsWaitingForGitHub(false);
-      toast.error(SIGN_IN_FAILURE_MESSAGE);
-    }
+  function startSignIn() {
+    signIn.mutate(isTauriRuntime() ? "tauri" : "web");
   }
 
   return (
@@ -62,8 +62,8 @@ export default function GitHubSignInView() {
         <Button
           aria-busy={isWaitingForGitHub}
           className="min-h-11 w-full"
-          disabled={isWaitingForGitHub}
-          onClick={signIn}
+          disabled={signIn.isPending || isWaitingForGitHub}
+          onClick={startSignIn}
           type="button"
         >
           Continue with GitHub

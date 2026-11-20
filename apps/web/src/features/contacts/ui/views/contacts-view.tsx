@@ -16,7 +16,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { contactLabel, NO_COMPANY } from "../../lib/contact-label";
 import MergePreviewPanel, {
@@ -40,6 +39,45 @@ export function undoFailureMessage(previewUnavailable: boolean) {
     : "Merge could not be undone. The Undo Merge Preview was refreshed; review it and confirm again.";
 }
 
+function latestContactError(
+  writes: { isError: boolean; message: string | null; submittedAt: number }[],
+) {
+  const [latest] = writes.toSorted(
+    (left, right) => right.submittedAt - left.submittedAt,
+  );
+  return latest?.isError ? latest.message : null;
+}
+
+async function contactWriteSucceeded<T>(write: Promise<T>) {
+  try {
+    await write;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function writeWithPreviewRefresh<T, R>(
+  result: Promise<T>,
+  refreshPreview: () => Promise<R>,
+) {
+  try {
+    await result;
+  } catch {
+    await refreshPreview();
+  }
+}
+
+function selectedContact(
+  contacts: Contact[] | undefined,
+  selectedId: string | null,
+  openedId?: string,
+) {
+  return (
+    contacts?.find(({ id }) => id === (selectedId ?? openedId)) ?? contacts?.[0]
+  );
+}
+
 export default function ContactsView({ contactId }: { contactId?: string }) {
   const queryClient = useQueryClient();
   const contacts = useQuery(orpc.contacts.queryOptions());
@@ -52,11 +90,12 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     enabled: contactId !== undefined,
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const selected =
-    contacts.data?.find(
-      (contact) => contact.id === (selectedId ?? opened.data?.contact.id),
-    ) ?? contacts.data?.[0];
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const selected = selectedContact(
+    contacts.data,
+    selectedId,
+    opened.data?.contact.id,
+  );
 
   const refresh = () =>
     Promise.all([
@@ -71,21 +110,27 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
       }),
     ]);
   const createContact = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.createContact.mutationKey(),
     mutationFn: (input: Parameters<typeof client.createContact>[0]) =>
-      runOnlineOnlyWrite(() => client.createContact(input)),
+      client.createContact(input),
     onSuccess: async (contact) => {
       setSelectedId(contact.id);
       await refresh();
     },
   });
   const createCompany = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.createCompany.mutationKey(),
     mutationFn: (input: Parameters<typeof client.createCompany>[0]) =>
-      runOnlineOnlyWrite(() => client.createCompany(input)),
+      client.createCompany(input),
     onSuccess: refresh,
   });
   const setCompany = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.setContactCompany.mutationKey(),
     mutationFn: (input: Parameters<typeof client.setContactCompany>[0]) =>
-      runOnlineOnlyWrite(() => client.setContactCompany(input)),
+      client.setContactCompany(input),
     onSuccess: refresh,
   });
   const [mergePair, setMergePair] = useState<{
@@ -99,8 +144,10 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     enabled: mergePair !== null,
   });
   const mergeContacts = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.mergeContacts.mutationKey(),
     mutationFn: (input: Parameters<typeof client.mergeContacts>[0]) =>
-      runOnlineOnlyWrite(() => client.mergeContacts(input)),
+      client.mergeContacts(input),
     onSuccess: async (result) => {
       setMergePair(null);
       setSelectedId(result.survivor.id);
@@ -108,7 +155,6 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     },
   });
   const [undoRetiredId, setUndoRetiredId] = useState<string | null>(null);
-  const [undoNotice, setUndoNotice] = useState<string | null>(null);
   const undoPreview = useQuery({
     ...orpc.contactMergeUndoPreview.queryOptions({
       input: { retiredId: undoRetiredId ?? "" },
@@ -117,11 +163,12 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     retry: false,
   });
   const undoMerge = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.undoMerge.mutationKey(),
     mutationFn: (input: Parameters<typeof client.undoMerge>[0]) =>
-      runOnlineOnlyWrite(() => client.undoMerge(input)),
+      client.undoMerge(input),
     onSuccess: async (result) => {
       setUndoRetiredId(null);
-      setUndoNotice(undoResultNotice(result));
       setSelectedId(result.restored.id);
       await Promise.all([
         refresh(),
@@ -134,53 +181,77 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     },
   });
   const updateContact = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.updateContact.mutationKey(),
     mutationFn: (input: Parameters<typeof client.updateContact>[0]) =>
-      runOnlineOnlyWrite(() => client.updateContact(input)),
+      client.updateContact(input),
     onSuccess: refresh,
   });
 
+  const undoNotice = undoResultNotice(undoMerge.data);
+  const error =
+    validationError ??
+    latestContactError([
+      { ...updateContact, message: "Contact could not be saved." },
+      { ...createContact, message: "Contact could not be created." },
+      { ...createCompany, message: "Company could not be created." },
+      { ...setCompany, message: "Belongs to Company could not be updated." },
+      {
+        ...mergeContacts,
+        message:
+          "Contacts could not be merged. The Merge Preview was refreshed; review it and confirm again.",
+      },
+      { ...undoMerge, message: undoFailureMessage(undoPreview.isError) },
+    ]);
+
   async function submitContactUpdate(input: ParsedUpdateContactInput) {
-    setError(null);
-    try {
-      await updateContact.mutateAsync(input);
-    } catch {
-      setError("Contact could not be saved.");
-    }
+    setValidationError(null);
+    await updateContact.mutateAsync(input).catch(() => undefined);
   }
 
-  async function submitContactCreate(input: ParsedCreateContactInput) {
-    setError(null);
-    try {
-      await createContact.mutateAsync(input);
-      return true;
-    } catch {
-      setError("Contact could not be created.");
-      return false;
-    }
+  function submitContactCreate(input: ParsedCreateContactInput) {
+    setValidationError(null);
+    return contactWriteSucceeded(createContact.mutateAsync(input));
   }
 
-  async function submitCompanyCreate(input: ParsedCreateCompanyInput) {
-    setError(null);
-    try {
-      await createCompany.mutateAsync(input);
-      return true;
-    } catch {
-      setError("Company could not be created.");
-      return false;
-    }
+  function submitCompanyCreate(input: ParsedCreateCompanyInput) {
+    setValidationError(null);
+    return contactWriteSucceeded(createCompany.mutateAsync(input));
   }
 
   async function changeCompany(contact: Contact, companyId: string) {
-    setError(null);
-    try {
-      await setCompany.mutateAsync({
+    setValidationError(null);
+    await setCompany
+      .mutateAsync({
         companyId: companyId === NO_COMPANY ? null : companyId,
         contactId: contact.id,
         expectedRevision: contact.revision,
-      });
-    } catch {
-      setError("Belongs to Company could not be updated.");
+      })
+      .catch(() => undefined);
+  }
+
+  function confirmMerge() {
+    if (!(mergePair && mergePreview.data)) {
+      return Promise.resolve();
     }
+    setValidationError(null);
+    return writeWithPreviewRefresh(
+      mergeContacts.mutateAsync(
+        mergeContactsRequest(mergePair, mergePreview.data),
+      ),
+      mergePreview.refetch,
+    );
+  }
+
+  function confirmUndo(resolution: Parameters<typeof undoMergeRequest>[1]) {
+    if (!undoPreview.data) {
+      return Promise.resolve();
+    }
+    setValidationError(null);
+    return writeWithPreviewRefresh(
+      undoMerge.mutateAsync(undoMergeRequest(undoPreview.data, resolution)),
+      undoPreview.refetch,
+    );
   }
 
   return (
@@ -205,14 +276,14 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
           <CreateContactForm
             companies={companies.data}
             onCreate={submitContactCreate}
-            onInvalid={setError}
+            onInvalid={setValidationError}
           />
         </section>
         <section aria-label="Create Company" className="space-y-4">
           <h2 className="text-xl font-semibold">Create Company</h2>
           <CreateCompanyForm
             onCreate={submitCompanyCreate}
-            onInvalid={setError}
+            onInvalid={setValidationError}
           />
         </section>
       </div>
@@ -256,19 +327,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
       {mergePair && mergePreview.data ? (
         <MergePreviewPanel
           onCancel={() => setMergePair(null)}
-          onConfirm={async () => {
-            setError(null);
-            try {
-              await mergeContacts.mutateAsync(
-                mergeContactsRequest(mergePair, mergePreview.data),
-              );
-            } catch {
-              setError(
-                "Contacts could not be merged. The Merge Preview was refreshed; review it and confirm again.",
-              );
-              await mergePreview.refetch();
-            }
-          }}
+          onConfirm={confirmMerge}
           pending={mergeContacts.isPending}
           preview={mergePreview.data}
         />
@@ -277,17 +336,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
         <MergeUndoPanel
           key={undoPreview.data.mergeId}
           onCancel={() => setUndoRetiredId(null)}
-          onConfirm={async (resolution) => {
-            setError(null);
-            try {
-              await undoMerge.mutateAsync(
-                undoMergeRequest(undoPreview.data, resolution),
-              );
-            } catch {
-              const refreshed = await undoPreview.refetch();
-              setError(undoFailureMessage(refreshed.isError));
-            }
-          }}
+          onConfirm={confirmUndo}
           pending={undoMerge.isPending}
           preview={undoPreview.data}
         />
@@ -309,7 +358,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
           <button
             className="rounded-md border px-2 py-1"
             onClick={() => {
-              setUndoNotice(null);
+              undoMerge.reset();
               setUndoRetiredId(opened.data.redirectedFrom);
             }}
             type="button"
@@ -323,7 +372,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
           companies={companies.data ?? []}
           contact={selected}
           onCompanyChange={changeCompany}
-          onInvalid={setError}
+          onInvalid={setValidationError}
           onUpdate={submitContactUpdate}
         />
       ) : null}

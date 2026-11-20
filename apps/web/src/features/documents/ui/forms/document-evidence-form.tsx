@@ -2,7 +2,6 @@
 import {
   DOCUMENT_EVIDENCE_TARGET_TYPES,
   type DocumentEvidenceBinding,
-  type DocumentEvidencePlan,
   previewDocumentEvidenceInputSchema,
 } from "@cantiara/api/document-evidence";
 import type { Document } from "@cantiara/api/documents";
@@ -22,9 +21,8 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type SubmitEvent, useRef, useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { documentEvidenceFormSchema } from "../../lib/document-evidence-form";
 import { EvidencePreview } from "../components/document-evidence-preview";
@@ -37,6 +35,56 @@ interface Range {
   start: number;
 }
 
+function evidenceRequestError(
+  previewFailed: boolean,
+  invalidRequest: boolean,
+  saveFailed: boolean,
+) {
+  if (previewFailed || invalidRequest) {
+    return "Evidence preview is unavailable. Save the Document and reselect the text.";
+  }
+  if (saveFailed) {
+    return "Evidence could not be saved. Reload if the Document or target changed, then preview again.";
+  }
+  return null;
+}
+
+function evidenceRequest(
+  base: {
+    documentId: string;
+    end: number;
+    projectId: string;
+    start: number;
+    versionRevision: number;
+  },
+  values: { title: string; type: TargetType; workType: WorkType },
+  chosen: { type: TargetType; projectId: string; recordId: string } | undefined,
+  mode: Mode,
+  rebind: DocumentEvidenceBinding | null,
+) {
+  if (rebind) {
+    return { ...base, bindingId: rebind.id };
+  }
+  if (mode === "bind" && chosen) {
+    return {
+      ...base,
+      target: {
+        type: chosen.type,
+        projectId: chosen.projectId,
+        recordId: chosen.recordId,
+      },
+    };
+  }
+  return {
+    ...base,
+    newRecord: {
+      type: values.type,
+      projectId: base.projectId,
+      title: values.title,
+      ...(values.type === "Work" ? { workType: values.workType } : {}),
+    },
+  };
+}
 export default function DocumentEvidenceForm({
   mode,
   onClose,
@@ -50,11 +98,44 @@ export default function DocumentEvidenceForm({
   rebind: DocumentEvidenceBinding | null;
   record: Document;
 }) {
+  const confirmDocumentEvidenceMutation = useMutation(
+    orpc.confirmDocumentEvidence.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.confirmDocumentEvidence(input),
+      onSuccess: async (_, input) => {
+        if (command.current?.key === input.clientIdempotencyKey) {
+          command.current = null;
+          onClose();
+        }
+        await cache.invalidateQueries({
+          queryKey: orpc.documentEvidenceBindings.key({
+            input: { documentId: input.documentId, projectId: input.projectId },
+          }),
+        });
+      },
+    }),
+  );
   const { projectId } = record;
   const cache = useQueryClient();
-  const [plan, setPlan] = useState<DocumentEvidencePlan | null>(null);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const inspect = useMutation({
+    mutationKey: orpc.previewDocumentEvidence.mutationKey(),
+    mutationFn: (input: Parameters<typeof client.previewDocumentEvidence>[0]) =>
+      cache.query({
+        ...orpc.previewDocumentEvidence.queryOptions({ input }),
+        gcTime: 0,
+        staleTime: 0,
+      }),
+    meta: { presentsSupportFailure: true },
+  });
+  const plan = inspect.data;
+  const pending =
+    inspect.isPending || confirmDocumentEvidenceMutation.isPending;
+  const [invalidRequest, setInvalidRequest] = useState(false);
+  const error = evidenceRequestError(
+    inspect.isError,
+    invalidRequest,
+    confirmDocumentEvidenceMutation.isError,
+  );
   const command = useRef<{ id: string; key: string; recordId: string } | null>(
     null,
   );
@@ -85,42 +166,10 @@ export default function DocumentEvidenceForm({
   }
 
   function changed() {
-    setPlan(null);
+    inspect.reset();
+    confirmDocumentEvidenceMutation.reset();
+    setInvalidRequest(false);
     command.current = null;
-  }
-  function request(
-    base: {
-      documentId: string;
-      end: number;
-      projectId: string;
-      start: number;
-      versionRevision: number;
-    },
-    values: { title: string; type: TargetType; workType: WorkType },
-    chosen: (typeof candidates)[number] | undefined,
-  ) {
-    if (rebind) {
-      return { ...base, bindingId: rebind.id };
-    }
-    if (mode === "bind" && chosen) {
-      return {
-        ...base,
-        target: {
-          type: chosen.type,
-          projectId: chosen.projectId,
-          recordId: chosen.recordId,
-        },
-      };
-    }
-    return {
-      ...base,
-      newRecord: {
-        type: values.type,
-        projectId: base.projectId,
-        title: values.title,
-        ...(values.type === "Work" ? { workType: values.workType } : {}),
-      },
-    };
   }
   async function preview(value: unknown) {
     const parsedValue = documentEvidenceFormSchema.safeParse(value);
@@ -133,28 +182,19 @@ export default function DocumentEvidenceForm({
     const chosen = candidates.find(
       (target) => target.recordId === values.targetId,
     );
-    setPending(true);
-    setError(null);
-    try {
-      const base = {
-        ...selection,
-        versionRevision: record.revision,
-        start: range.start,
-        end: range.end,
-      };
-      const input = previewDocumentEvidenceInputSchema.safeParse(
-        request(base, values, chosen),
-      );
-      if (!input.success) {
-        throw new Error("Evidence preview is unavailable.");
-      }
-      setPlan(await client.previewDocumentEvidence(input.data));
-    } catch {
-      setError(
-        "Evidence preview is unavailable. Save the Document and reselect the text.",
-      );
-    } finally {
-      setPending(false);
+    const base = {
+      ...selection,
+      versionRevision: record.revision,
+      start: range.start,
+      end: range.end,
+    };
+    const input = previewDocumentEvidenceInputSchema.safeParse(
+      evidenceRequest(base, values, chosen, mode, rebind),
+    );
+    setInvalidRequest(!input.success);
+    if (input.success) {
+      confirmDocumentEvidenceMutation.reset();
+      await inspect.mutateAsync(input.data).catch(() => undefined);
     }
   }
   async function confirm() {
@@ -167,31 +207,16 @@ export default function DocumentEvidenceForm({
       recordId: crypto.randomUUID(),
     };
     const identity = command.current;
-    setPending(true);
-    setError(null);
-    try {
-      await runOnlineOnlyWrite(() =>
-        client.confirmDocumentEvidence({
-          ...selection,
-          id: identity.id,
-          baseRevision: plan.bindingRevision,
-          clientIdempotencyKey: identity.key,
-          plan,
-          ...(plan.mode === "create" ? { recordId: identity.recordId } : {}),
-        }),
-      );
-      command.current = null;
-      await cache.invalidateQueries({
-        queryKey: orpc.documentEvidenceBindings.key(),
-      });
-      onClose();
-    } catch {
-      setError(
-        "Evidence could not be saved. Reload if the Document or target changed, then preview again.",
-      );
-    } finally {
-      setPending(false);
-    }
+    await confirmDocumentEvidenceMutation
+      .mutateAsync({
+        ...selection,
+        id: identity.id,
+        baseRevision: plan.bindingRevision,
+        clientIdempotencyKey: identity.key,
+        plan,
+        ...(plan.mode === "create" ? { recordId: identity.recordId } : {}),
+      })
+      .catch(() => undefined);
   }
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();

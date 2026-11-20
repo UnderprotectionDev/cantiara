@@ -1,25 +1,56 @@
-import { useQuery } from "@tanstack/react-query";
-
-import { client } from "@/utils/orpc";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { client, orpc } from "@/utils/orpc";
 import type { GitHubAppSetup } from "../lib/github-app-setup-search";
 
-/**
- * Finishes the GitHub App install GitHub redirected back from. The server
- * checks the signed state against the signed-in account, so a forged or
- * foreign link is refused; the query runs once and never retries.
- */
+/** Completes the callback once per signed setup while this surface is open. */
 export function useCompleteGitHubInstall(setup: GitHubAppSetup) {
   const { installationId, state } = setup;
-  return useQuery({
-    enabled: installationId !== undefined && state !== undefined,
-    gcTime: 0,
-    queryFn: () =>
-      client.completeGitHubAppInstall({
-        installationId: installationId ?? 0,
-        state: state ?? "",
+  const queryClient = useQueryClient();
+  const attempted = useRef<GitHubAppSetup | undefined>(undefined);
+  const completion = useMutation({
+    mutationKey: orpc.completeGitHubAppInstall.mutationKey(),
+    meta: { onlineWrite: true, privateInput: true },
+    mutationFn: async (id: number) => {
+      if (!state) {
+        throw new Error("The GitHub App install could not be finished.");
+      }
+      const { installation, projectId } = await client.completeGitHubAppInstall(
+        {
+          installationId: id,
+          state,
+        },
+      );
+      return {
+        installation: { accountLogin: installation.accountLogin },
+        projectId,
+      };
+    },
+    onSuccess: ({ projectId }) =>
+      queryClient.invalidateQueries({
+        queryKey: orpc.projectGitHubOverview.queryKey({ input: { projectId } }),
       }),
-    queryKey: ["github-app-install-complete", installationId, state],
-    retry: false,
-    staleTime: Number.POSITIVE_INFINITY,
   });
+  const { mutate } = completion;
+  useEffect(() => {
+    if (
+      installationId === undefined ||
+      !state ||
+      (attempted.current?.installationId === installationId &&
+        attempted.current?.state === state)
+    ) {
+      return;
+    }
+    attempted.current = { installationId, state };
+    mutate(installationId);
+  }, [installationId, mutate, state]);
+  return {
+    data:
+      state && completion.variables === installationId
+        ? completion.data
+        : undefined,
+    error: completion.error,
+    isError: completion.isError,
+    isPending: Boolean(state) && (completion.isIdle || completion.isPending),
+  };
 }

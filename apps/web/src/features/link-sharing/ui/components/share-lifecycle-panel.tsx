@@ -12,6 +12,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import type { ShareLifecycleFeedback } from "../../hooks/use-share-access";
 import { linkSharingRefusalMessage } from "../../lib/link-sharing-refusal";
 import {
   defaultNewExpiry,
@@ -22,6 +23,22 @@ import { ShareExpiryForm } from "../forms/share-expiry-form";
 
 type Confirming = "reopen" | "revoke" | null;
 
+function successMessage(feedback: ShareLifecycleFeedback | null) {
+  if (feedback?.status !== "success") {
+    return null;
+  }
+  switch (feedback.action) {
+    case "reopen":
+      return "The same link is open again. Old holders can use it.";
+    case "reshare":
+      return "A new link was created. The expired link stays closed.";
+    case "expiry":
+      return feedback.expiresAt ? "Expiry saved." : "Expiry removed.";
+    default:
+      return null;
+  }
+}
+
 /**
  * Expiry, reopen, reshare and revoke of one Dış yüzey. Expiry is reversible
  * and deletes nothing; after it, `Reshare with a new link` (a new URL) and
@@ -29,6 +46,7 @@ type Confirming = "reopen" | "revoke" | null;
  * two separate actions. `Revoke` is terminal and says so before it runs.
  */
 export function ShareLifecyclePanel({
+  feedback,
   onReopen,
   onReshare,
   onRevoke,
@@ -36,6 +54,7 @@ export function ShareLifecyclePanel({
   surface,
   timeZone,
 }: {
+  feedback: ShareLifecycleFeedback | null;
   onReopen: (expiresAt: string | null) => Promise<unknown>;
   onReshare: (expiresAt: string | null) => Promise<unknown>;
   onRevoke: () => Promise<unknown>;
@@ -43,22 +62,26 @@ export function ShareLifecyclePanel({
   surface: Pick<ShareSurfaceSummary, "expiresAt" | "state">;
   timeZone: string;
 }) {
-  const [confirming, setConfirming] = useState<Confirming>(null);
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [confirmation, setConfirming] = useState<Confirming>(null);
+  const confirming =
+    feedback?.action === confirmation && feedback.status === "success"
+      ? null
+      : confirmation;
+  const status = successMessage(feedback);
+  const error =
+    feedback?.status === "error"
+      ? (linkSharingRefusalMessage(feedback.error) ??
+        "That did not work. Try again.")
+      : null;
+  const pending = feedback?.status === "pending";
   const expired = surface.state === "Expired";
 
-  async function run(work: () => Promise<unknown>, done: string) {
-    setStatus(null);
-    setError(null);
+  async function confirm(work: () => Promise<unknown>) {
     try {
       await work();
       setConfirming(null);
-      setStatus(done);
-    } catch (failure) {
-      setError(
-        linkSharingRefusalMessage(failure) ?? "That did not work. Try again.",
-      );
+    } catch {
+      // The mutation observer shows the refusal while confirmation stays open.
     }
   }
   return (
@@ -76,19 +99,10 @@ export function ShareLifecyclePanel({
         <ExpiredActions
           confirming={confirming === "reopen"}
           onCancel={() => setConfirming(null)}
-          onConfirmReopen={(expiresAt) =>
-            run(
-              () => onReopen(expiresAt),
-              "The same link is open again. Old holders can use it.",
-            )
-          }
-          onReshare={(expiresAt) =>
-            run(
-              () => onReshare(expiresAt),
-              "A new link was created. The expired link stays closed.",
-            )
-          }
+          onConfirmReopen={(expiresAt) => confirm(() => onReopen(expiresAt))}
+          onReshare={(expiresAt) => onReshare(expiresAt).catch(() => undefined)}
           onStartReopen={() => setConfirming("reopen")}
+          pending={pending}
           timeZone={timeZone}
         />
       ) : (
@@ -100,13 +114,13 @@ export function ShareLifecyclePanel({
               : []),
           ]}
           defaultActionId="set"
+          disabled={pending}
           initial={expiryInput(surface.expiresAt, timeZone)}
           key={surface.expiresAt ?? "none"}
           legend="Link expiry"
           onSubmit={(id, expiresAt) =>
-            run(
-              () => onSetExpiry(id === "clear" ? null : expiresAt),
-              id === "clear" ? "Expiry removed." : "Expiry saved.",
+            onSetExpiry(id === "clear" ? null : expiresAt).catch(
+              () => undefined,
             )
           }
           timeZone={timeZone}
@@ -119,12 +133,12 @@ export function ShareLifecyclePanel({
             description="Revoke is permanent. This link and its token never work again, every open visit ends, and nothing can reopen it. Sharing again makes a new link."
             heading="Revoke this link?"
             onCancel={() => setConfirming(null)}
-            onConfirm={() =>
-              run(onRevoke, "Link revoked. It can never be used again.")
-            }
+            onConfirm={() => confirm(onRevoke)}
+            pending={pending}
           />
         ) : (
           <Button
+            disabled={pending}
             onClick={() => setConfirming("revoke")}
             type="button"
             variant="destructive"
@@ -149,6 +163,7 @@ function ExpiredActions({
   onConfirmReopen,
   onReshare,
   onStartReopen,
+  pending,
   timeZone,
 }: {
   confirming: boolean;
@@ -156,6 +171,7 @@ function ExpiredActions({
   onConfirmReopen: (expiresAt: string | null) => Promise<unknown>;
   onReshare: (expiresAt: string | null) => Promise<unknown>;
   onStartReopen: () => void;
+  pending: boolean;
   timeZone: string;
 }) {
   const [pendingExpiry, setPendingExpiry] = useState<string | null>(null);
@@ -168,6 +184,7 @@ function ExpiredActions({
         heading="Reopen the same link?"
         onCancel={onCancel}
         onConfirm={() => onConfirmReopen(pendingExpiry)}
+        pending={pending}
       />
     );
   }
@@ -177,6 +194,7 @@ function ExpiredActions({
         { id: "reshare", label: RESHARE_LABEL, variant: "default" },
         { id: "reopen", label: REOPEN_LABEL },
       ]}
+      disabled={pending}
       initial={defaultNewExpiry(timeZone)}
       legend="New expiry (optional)"
       onSubmit={(id, expiresAt) => {
@@ -199,6 +217,7 @@ function ConfirmGroup({
   heading,
   onCancel,
   onConfirm,
+  pending,
 }: {
   acknowledge?: string;
   confirmLabel: string;
@@ -206,21 +225,13 @@ function ConfirmGroup({
   heading: string;
   onCancel: () => void;
   onConfirm: () => Promise<unknown>;
+  pending: boolean;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [acknowledged, setAcknowledged] = useState(!acknowledge);
-  const [pending, setPending] = useState(false);
   useEffect(() => {
     headingRef.current?.focus();
   }, []);
-  async function confirm() {
-    setPending(true);
-    try {
-      await onConfirm();
-    } finally {
-      setPending(false);
-    }
-  }
   return (
     <fieldset
       aria-labelledby="share-confirm-heading"
@@ -251,7 +262,7 @@ function ConfirmGroup({
       <div className="flex flex-wrap gap-2">
         <Button
           disabled={!acknowledged || pending}
-          onClick={confirm}
+          onClick={() => onConfirm().catch(() => undefined)}
           type="button"
           variant="destructive"
         >

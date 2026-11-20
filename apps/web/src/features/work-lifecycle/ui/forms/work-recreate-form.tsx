@@ -13,16 +13,14 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import {
   client,
   invalidateSmartCollectionMembership,
   orpc,
   projectsQueryOptions,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
 
 function recreateErrorMessage(error: unknown) {
@@ -46,6 +44,32 @@ function updateSelection<T>(values: T[], value: T, checked: boolean) {
 }
 
 export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
+  const recreateWorkMutation = useMutation(
+    orpc.recreateWork.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.recreateWork(input),
+      onSuccess: async (recreatedWork) => {
+        pendingRecreate.current = null;
+        inspect.reset();
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectWorks.queryOptions({
+              input: { projectId: work.projectId },
+            }).queryKey,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectWorks.queryOptions({
+              input: { projectId: recreatedWork.projectId },
+            }).queryKey,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: projectsQueryOptions().queryKey,
+          }),
+          ...invalidateSmartCollectionMembership(queryClient),
+        ]);
+      },
+    }),
+  );
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
   const projectsQuery = useQuery(projectsQueryOptions());
@@ -58,9 +82,21 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
     [projectsQuery.data, work.projectId],
   );
   const [open, setOpen] = useState(false);
-  const [preview, setPreview] = useState<WorkRecreatePreview | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [recreatedKey, setRecreatedKey] = useState<string | null>(null);
+  const inspect = useMutation({
+    meta: { presentsSupportFailure: true },
+    mutationFn: (input: Parameters<typeof client.workRecreatePreview>[0]) =>
+      queryClient.query({
+        ...orpc.workRecreatePreview.queryOptions({ input }),
+        gcTime: 0,
+        staleTime: 0,
+      }),
+  });
+  const { data: preview } = inspect;
+  const recreatedKey = recreateWorkMutation.data?.key;
+  const [invalidRequest, setInvalidRequest] = useState(false);
+  const failure = inspect.error ?? recreateWorkMutation.error;
+  const error =
+    invalidRequest || failure ? recreateErrorMessage(failure) : null;
   const pendingRecreate = useRef<{
     clientIdempotencyKey: string;
     selection: string;
@@ -74,20 +110,17 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
     },
     onSubmit: async ({ value }) => {
       try {
-        setError(null);
+        setInvalidRequest(false);
         if (!preview) {
           const previewInput = workRecreatePreviewInputSchema.safeParse({
             sourceWorkId: work.id,
             targetProjectId: value.targetProjectId,
           });
           if (!previewInput.success) {
-            setError(recreateErrorMessage(null));
+            setInvalidRequest(true);
             return;
           }
-          const nextPreview = await client.workRecreatePreview(
-            previewInput.data,
-          );
-          setPreview(nextPreview);
+          const nextPreview = await inspect.mutateAsync(previewInput.data);
           pendingRecreate.current = null;
           form.setFieldValue(
             "selectedFields",
@@ -120,36 +153,12 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
           targetProjectId: preview.targetProject.id,
         });
         if (!recreateInput.success) {
-          setError(recreateErrorMessage(null));
+          setInvalidRequest(true);
           return;
         }
-        const recreatedWork = await runOnlineOnlyWrite(() =>
-          client.recreateWork(recreateInput.data),
-        );
-        pendingRecreate.current = null;
-        setRecreatedKey(recreatedWork.key);
-        setPreview(null);
-        await Promise.all([
-          queryClient.invalidateQueries({
-            queryKey: projectWorksQueryPrefix,
-          }),
-          queryClient.invalidateQueries({
-            queryKey: orpc.projectWorks.queryOptions({
-              input: { projectId: work.projectId },
-            }).queryKey,
-          }),
-          queryClient.invalidateQueries({
-            queryKey: orpc.projectWorks.queryOptions({
-              input: { projectId: recreatedWork.projectId },
-            }).queryKey,
-          }),
-          queryClient.invalidateQueries({
-            queryKey: projectsQueryOptions().queryKey,
-          }),
-          ...invalidateSmartCollectionMembership(queryClient),
-        ]);
-      } catch (submitError) {
-        setError(recreateErrorMessage(submitError));
+        await recreateWorkMutation.mutateAsync(recreateInput.data);
+      } catch {
+        // The preview and creation observers report request failures.
       }
     },
   });
@@ -213,8 +222,8 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
                 name={field.name}
                 onChange={(event) => {
                   field.handleChange(event.target.value);
-                  setPreview(null);
-                  setRecreatedKey(null);
+                  inspect.reset();
+                  recreateWorkMutation.reset();
                   pendingRecreate.current = null;
                 }}
                 value={field.state.value}
@@ -327,7 +336,7 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
                       Confirm
                     </Button>
                     <Button
-                      onClick={() => setPreview(null)}
+                      onClick={() => inspect.reset()}
                       size="xs"
                       type="button"
                       variant="outline"
@@ -358,8 +367,8 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
                 <Button
                   onClick={() => {
                     setOpen(false);
-                    setError(null);
-                    setRecreatedKey(null);
+                    setInvalidRequest(false);
+                    recreateWorkMutation.reset();
                   }}
                   size="xs"
                   type="button"

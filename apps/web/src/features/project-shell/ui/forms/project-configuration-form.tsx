@@ -17,8 +17,12 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useCallback, useState } from "react";
-import CustomFieldEditor from "@/components/custom-field-editor-form";
+import {
+  type ComponentType,
+  type SubmitEvent,
+  useCallback,
+  useState,
+} from "react";
 import RecordActionEditor from "@/components/record-action-form";
 import PriorityMetricEditor from "@/features/priority-metrics/ui/components/priority-metric-editor";
 import { useProjectAreaEnable } from "@/features/project-shell/hooks/use-project-area-enable";
@@ -65,6 +69,11 @@ interface ProjectAreasNavigationPreview {
   restorePreviewOpen: boolean;
 }
 
+type CustomFieldEditorComponent = ComponentType<{
+  disabled: boolean;
+  projectId: string;
+}>;
+
 function configurationHostsForGroup(group: ConfigurationHostGroup) {
   return CONFIGURATION_HOSTS.filter((host) => host.group === group);
 }
@@ -72,6 +81,7 @@ function configurationHostsForGroup(group: ConfigurationHostGroup) {
 export default function ProjectConfigurationForm({
   baseRevision,
   configuration,
+  CustomFieldEditor,
   configurationHost,
   onConfigurationHostChange,
   projectId,
@@ -80,6 +90,7 @@ export default function ProjectConfigurationForm({
 }: {
   baseRevision: number;
   configuration: ProjectShellConfiguration;
+  CustomFieldEditor: CustomFieldEditorComponent;
   configurationHost: ConfigurationHost | null;
   onConfigurationHostChange: (host: ConfigurationHost | null) => void;
   projectId: string;
@@ -210,6 +221,7 @@ export default function ProjectConfigurationForm({
           {configurationHost ? (
             <ConfigurationHostPanel
               baseRevision={baseRevision}
+              CustomFieldEditor={CustomFieldEditor}
               configuration={configuration}
               disabled={disabled}
               error={combinedError}
@@ -266,6 +278,7 @@ function ConfigurationHostButton({
 function ConfigurationHostPanel({
   baseRevision,
   configuration,
+  CustomFieldEditor,
   disabled,
   error,
   label,
@@ -278,6 +291,7 @@ function ConfigurationHostPanel({
 }: {
   baseRevision: number;
   configuration: ProjectShellConfiguration;
+  CustomFieldEditor: CustomFieldEditorComponent;
   disabled: boolean;
   error: string | null;
   label: ConfigurationHost;
@@ -308,6 +322,7 @@ function ConfigurationHostPanel({
       </h4>
       <ConfigurationHostContent
         baseRevision={baseRevision}
+        CustomFieldEditor={CustomFieldEditor}
         configuration={configuration}
         disabled={disabled}
         error={error}
@@ -327,6 +342,7 @@ function ConfigurationHostPanel({
 function ConfigurationHostContent({
   baseRevision,
   configuration,
+  CustomFieldEditor,
   disabled,
   error,
   label,
@@ -340,6 +356,7 @@ function ConfigurationHostContent({
 }: {
   baseRevision: number;
   configuration: ProjectShellConfiguration;
+  CustomFieldEditor: CustomFieldEditorComponent;
   disabled: boolean;
   error: string | null;
   label: ConfigurationHost;

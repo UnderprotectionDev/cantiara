@@ -1,5 +1,10 @@
 // @vitest-environment happy-dom
 import { ORPCError } from "@orpc/client";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useMutation,
+} from "@tanstack/react-query";
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -30,16 +35,33 @@ function mount(overrides: Partial<Props> = {}) {
     onRotate: vi.fn(async () => undefined),
     onSavePassword: vi.fn(async () => undefined),
     passwordProtected: false,
+    rotation: null,
     serverUrl: "https://api.cantiara.example/",
     ...overrides,
   };
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
+  const client = new QueryClient();
   act(() => {
-    root?.render(<ShareAccessPanel {...props} />);
+    root?.render(
+      <QueryClientProvider client={client}>
+        <PanelWithMutation {...props} />
+      </QueryClientProvider>,
+    );
   });
   return props;
+}
+
+function PanelWithMutation(props: Props) {
+  const rotation = useMutation({ mutationFn: props.onRotate });
+  return (
+    <ShareAccessPanel
+      {...props}
+      onRotate={rotation.mutateAsync}
+      rotation={rotation}
+    />
+  );
 }
 
 const buttons = () =>

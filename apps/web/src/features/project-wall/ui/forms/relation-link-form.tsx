@@ -15,7 +15,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useRef } from "react";
+import { orpc } from "@/utils/orpc";
 import { relationKindFormSchema } from "../../lib/project-wall-narrative-forms";
 import { cardName } from "../../lib/project-wall-narrative-labels";
 import type { ProjectWallNarrativeActions } from "../components/project-wall-narrative";
@@ -74,38 +76,46 @@ export function RelationLinkForm({
       to.sourceType !== "Smart Collection" &&
       isAllowedRelationEndpoints(option, from.sourceType, to.sourceType),
   );
-  const [preview, setPreview] = useState<ProjectWallRelationPreview | null>(
-    null,
-  );
+  const readPreview = useMutation({
+    meta: { retryInSurface: true },
+    mutationFn: (input: Parameters<typeof actions.onPreviewRelation>[0]) =>
+      actions.onPreviewRelation(input),
+    mutationKey: orpc.previewProjectWallPersistentRelation.mutationKey(),
+  });
+  const inFlight = useRef(false);
+  const preview = readPreview.data;
+  const error =
+    readPreview.error instanceof Error
+      ? readPreview.error.message
+      : "Project Wall change failed.";
   const form = useForm({
     defaultValues: { kind: (kinds[0] ?? "Related") as RelationKind },
-    // Changing the kind invalidates the previewed relation.
-    listeners: { onChange: () => setPreview(null) },
-    onSubmit: async ({ value }) => {
+    listeners: { onChange: readPreview.reset },
+    onSubmit: ({ value }) => {
       const parsed = relationKindFormSchema.safeParse(value);
-      if (!parsed.success) {
-        return;
+      if (parsed.success) {
+        readPreview.mutate({ kind: parsed.data.kind, linkId: link.id });
       }
-      setPreview(
-        (await actions.onPreviewRelation({
-          kind: parsed.data.kind,
-          linkId: link.id,
-        })) ?? null,
-      );
     },
   });
 
   async function confirm() {
-    if (!preview) {
+    if (!(preview && readPreview.variables) || inFlight.current) {
       return;
     }
-    await actions.onCreateRelation({
-      baseRevision: preview.relation.baseRevision,
-      kind: form.state.values.kind,
-      linkId: link.id,
-      previewId: preview.relation.previewId,
-    });
-    setPreview(null);
+    inFlight.current = true;
+    try {
+      const created = await actions.onCreateRelation({
+        baseRevision: preview.relation.baseRevision,
+        ...readPreview.variables,
+        previewId: preview.relation.previewId,
+      });
+      if (created !== false) {
+        readPreview.reset();
+      }
+    } finally {
+      inFlight.current = false;
+    }
   }
 
   return (
@@ -141,7 +151,7 @@ export function RelationLinkForm({
           )}
         </form.Field>
         <Button
-          disabled={kinds.length === 0}
+          disabled={kinds.length === 0 || readPreview.isPending}
           size="sm"
           type="submit"
           variant="outline"
@@ -157,9 +167,10 @@ export function RelationLinkForm({
           Unbind
         </Button>
       </form>
+      {readPreview.isError ? <p role="alert">{error}</p> : null}
       {preview ? (
         <RelationPreviewPanel
-          onCancel={() => setPreview(null)}
+          onCancel={readPreview.reset}
           onConfirm={confirm}
           preview={preview}
         />

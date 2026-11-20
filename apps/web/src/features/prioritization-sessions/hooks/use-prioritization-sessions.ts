@@ -1,7 +1,7 @@
 import type { PrioritizationSession } from "@cantiara/api/prioritization-sessions";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 
 export function usePrioritizationSessions(projectId: string) {
@@ -31,88 +31,73 @@ export function usePrioritizationSessions(projectId: string) {
     ]);
   }
 
-  const createSession = useMutation({
-    mutationFn: (input: { name: string; workIds: string[] }) =>
-      runOnlineOnlyWrite(() =>
-        client.createPrioritizationSession({
-          ...input,
-          baseRevision: 0,
-          clientIdempotencyKey: crypto.randomUUID(),
-          projectId,
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const createSession = usePreparedMutation(
+    orpc.createPrioritizationSession.mutationOptions({
+      mutationFn: (input) => client.createPrioritizationSession(input),
+      onSuccess: invalidate,
+    }),
+    (input: { name: string; workIds: string[] }) => ({
+      ...input,
+      baseRevision: 0,
+      projectId,
+    }),
+  );
 
-  const updateSessionOrder = useMutation({
-    mutationFn: (input: {
-      session: PrioritizationSession;
-      workIds: string[];
-    }) =>
-      runOnlineOnlyWrite(() =>
-        client.updatePrioritizationSessionOrder({
-          baseRevision: input.session.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          sessionId: input.session.id,
-          workIds: input.workIds,
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const updateSessionOrder = usePreparedMutation(
+    orpc.updatePrioritizationSessionOrder.mutationOptions({
+      mutationFn: (input) => client.updatePrioritizationSessionOrder(input),
+      onSuccess: invalidate,
+    }),
+    (input: { session: PrioritizationSession; workIds: string[] }) => ({
+      baseRevision: input.session.revision,
+      sessionId: input.session.id,
+      workIds: input.workIds,
+    }),
+  );
 
-  const closeSession = useMutation({
-    mutationFn: (session: PrioritizationSession) =>
-      runOnlineOnlyWrite(() =>
-        client.closePrioritizationSession({
-          baseRevision: session.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          sessionId: session.id,
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const closeSession = usePreparedMutation(
+    orpc.closePrioritizationSession.mutationOptions({
+      mutationFn: (input) => client.closePrioritizationSession(input),
+      onSuccess: invalidate,
+    }),
+    (session: PrioritizationSession) => ({
+      baseRevision: session.revision,
+      sessionId: session.id,
+    }),
+  );
 
-  const trashSession = useMutation({
-    mutationFn: (session: PrioritizationSession) =>
-      runOnlineOnlyWrite(() =>
-        client.trashPrioritizationSession({
-          baseRevision: session.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          sessionId: session.id,
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const trashSession = usePreparedMutation(
+    orpc.trashPrioritizationSession.mutationOptions({
+      mutationFn: (input) => client.trashPrioritizationSession(input),
+      onSuccess: invalidate,
+    }),
+    (session: PrioritizationSession) => ({
+      baseRevision: session.revision,
+      sessionId: session.id,
+    }),
+  );
 
-  const restoreSession = useMutation({
-    mutationFn: (session: PrioritizationSession) =>
-      runOnlineOnlyWrite(() =>
-        client.restorePrioritizationSession({
-          baseRevision: session.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          sessionId: session.id,
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const restoreSession = usePreparedMutation(
+    orpc.restorePrioritizationSession.mutationOptions({
+      mutationFn: (input) => client.restorePrioritizationSession(input),
+      onSuccess: invalidate,
+    }),
+    (session: PrioritizationSession) => ({
+      baseRevision: session.revision,
+      sessionId: session.id,
+    }),
+  );
 
-  const updateBacklogOrder = useMutation({
-    mutationFn: (workIds: string[]) => {
-      const order = backlogQuery.data;
-      if (!order) {
-        throw new Error("Backlog order is unavailable.");
-      }
-      return runOnlineOnlyWrite(() =>
-        client.updateBacklogOrder({
-          baseRevision: order.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          projectId,
-          workIds,
-        }),
-      );
-    },
-    onSuccess: invalidate,
-  });
+  const updateBacklogOrder = usePreparedMutation(
+    orpc.updateBacklogOrder.mutationOptions({
+      mutationFn: (input) => client.updateBacklogOrder(input),
+      onSuccess: invalidate,
+    }),
+    (input: { baseRevision: number; workIds: string[] }) => ({
+      ...input,
+      projectId,
+    }),
+  );
 
   return {
     allWorkQuery,

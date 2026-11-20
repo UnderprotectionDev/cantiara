@@ -103,8 +103,14 @@ export default function PrioritizationSurface({
 
   function moveBacklogWork(workId: string, offset: -1 | 1) {
     const next = moveWorkInOrder(orderedBacklogIds, workId, offset);
-    if (next.some((id, index) => id !== orderedBacklogIds[index])) {
-      updateBacklogOrder.mutate(next);
+    if (
+      backlogQuery.data &&
+      next.some((id, index) => id !== orderedBacklogIds[index])
+    ) {
+      updateBacklogOrder.mutate({
+        baseRevision: backlogQuery.data.revision,
+        workIds: next,
+      });
     }
   }
 
@@ -635,24 +641,11 @@ function PrioritizationSessionCollection({
   activeWorks: WorkProfile[];
   busy: boolean;
   orderedBacklogIds: string[];
-  updateSessionOrder: import("@tanstack/react-query").UseMutationResult<
-    PrioritizationSession,
-    Error,
-    { session: PrioritizationSession; workIds: string[] },
-    unknown
-  >;
-  closeSession: import("@tanstack/react-query").UseMutationResult<
-    PrioritizationSession,
-    Error,
-    PrioritizationSession,
-    unknown
-  >;
-  trashSession: import("@tanstack/react-query").UseMutationResult<
-    PrioritizationSession,
-    Error,
-    PrioritizationSession,
-    unknown
-  >;
+  updateSessionOrder: ReturnType<
+    typeof usePrioritizationSessions
+  >["updateSessionOrder"];
+  closeSession: ReturnType<typeof usePrioritizationSessions>["closeSession"];
+  trashSession: ReturnType<typeof usePrioritizationSessions>["trashSession"];
   priorityValues: import("@tanstack/react-query").UseQueryResult<
     PriorityMetricProjectValues,
     Error
@@ -660,12 +653,9 @@ function PrioritizationSessionCollection({
   workContextById: Map<string, UseQueryResult<WorkContextProjection, Error>>;
   workById: Map<string, WorkProfile>;
   trashedSessions: PrioritizationSession[];
-  restoreSession: import("@tanstack/react-query").UseMutationResult<
-    PrioritizationSession,
-    Error,
-    PrioritizationSession,
-    unknown
-  >;
+  restoreSession: ReturnType<
+    typeof usePrioritizationSessions
+  >["restoreSession"];
 }) {
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
   const formatAccountDate = accountDateFormatter(preferences.data);

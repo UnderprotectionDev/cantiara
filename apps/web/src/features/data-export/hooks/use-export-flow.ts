@@ -3,7 +3,9 @@ import type {
   ExportPreview,
   ExportRequest,
 } from "@cantiara/api/data-export";
-import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { buildSupportReferenceFailure } from "@/features/web-macos-client/lib/support-reference";
+import { orpc } from "@/utils/orpc";
 import { exportRefusalMessage } from "../lib/export-refusal";
 
 /**
@@ -20,54 +22,49 @@ export function useExportFlow({
     preview: ExportPreview,
   ) => Promise<ExportArtifact>;
 }) {
-  const [pending, setPending] = useState(false);
-  const [refusal, setRefusal] = useState<string | null>(null);
-  const [reviewing, setReviewing] = useState<{
-    preview: ExportPreview;
-    request: ExportRequest;
-  } | null>(null);
-  const [produced, setProduced] = useState<ExportArtifact | null>(null);
-
-  async function review(request: ExportRequest) {
-    setPending(true);
-    setRefusal(null);
-    setProduced(null);
-    setReviewing(null);
-    try {
-      setReviewing({ preview: await onPreview(request), request });
-    } catch (error) {
-      setRefusal(exportRefusalMessage(error));
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function confirm() {
-    if (!reviewing) {
-      return;
-    }
-    setPending(true);
-    setRefusal(null);
-    try {
-      setProduced(await onProduce(reviewing.request, reviewing.preview));
-    } catch (error) {
-      setRefusal(exportRefusalMessage(error));
-    } finally {
-      setPending(false);
-    }
-  }
+  const inspect = useMutation({
+    mutationKey: orpc.exportPreview.mutationKey(),
+    gcTime: 0,
+    meta: { presentsSupportFailure: true },
+    mutationFn: onPreview,
+  });
+  const produce = useMutation({
+    mutationKey: orpc.exportProduce.mutationKey(),
+    gcTime: 0,
+    meta: { presentsSupportFailure: true },
+    mutationFn: ({
+      request,
+      preview,
+    }: {
+      request: ExportRequest;
+      preview: ExportPreview;
+    }) => onProduce(request, preview),
+  });
+  const reviewing = inspect.isSuccess
+    ? { preview: inspect.data, request: inspect.variables }
+    : null;
+  const error = produce.error ?? inspect.error;
 
   return {
     cancel: () => {
-      setReviewing(null);
-      setProduced(null);
-      setRefusal(null);
+      inspect.reset();
+      produce.reset();
     },
-    confirm,
-    pending,
-    produced,
-    refusal,
-    review,
+    confirm: () => {
+      if (reviewing && !produce.isPending) {
+        produce.mutate(reviewing);
+      }
+    },
+    failure: error
+      ? buildSupportReferenceFailure(error, { kind: "query" })
+      : null,
+    pending: inspect.isPending || produce.isPending,
+    produced: produce.data ?? null,
+    refusal: error ? exportRefusalMessage(error) : null,
+    review: (request: ExportRequest) => {
+      produce.reset();
+      inspect.mutate(request);
+    },
     reviewing,
   };
 }

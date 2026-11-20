@@ -10,6 +10,8 @@ const save = vi.hoisted(() => vi.fn());
 vi.mock("@/utils/orpc", () => ({
   client: { saveProjectWallViewport: save },
   orpc: {
+    saveProjectWallViewport: { mutationKey: () => ["saveProjectWallViewport"] },
+
     projectWallViewport: {
       queryOptions: ({ input }: { input: unknown }) => ({
         queryFn: () => Promise.resolve(null),
@@ -80,6 +82,12 @@ test("saves the last personal Project Wall view once after movement settles", as
     schedule(last);
   });
   expect(save).not.toHaveBeenCalled();
+  expect(
+    queries.getQueryData([
+      "projectWallViewport",
+      { projectId: "project-1", wallId: "wall-1" },
+    ]),
+  ).toEqual(last);
   await act(async () => {
     await vi.advanceTimersByTimeAsync(1000);
   });
@@ -88,6 +96,12 @@ test("saves the last personal Project Wall view once after movement settles", as
     viewport: last,
     wallId: "wall-1",
   });
+  expect(
+    queries.getQueryData([
+      "projectWallViewport",
+      { projectId: "project-1", wallId: "wall-1" },
+    ]),
+  ).toEqual(last);
 });
 
 test("switching walls saves the pending position to the wall that was left", async () => {

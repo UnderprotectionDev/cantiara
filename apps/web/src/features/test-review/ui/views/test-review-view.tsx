@@ -20,8 +20,10 @@ import {
 } from "@cantiara/api/test-review-signals";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { accountDateTimeFormatter } from "@/features/account-preferences/lib/account-preferences-format";
+import { orpc } from "@/utils/orpc";
 import { usePanelFocus } from "../../hooks/use-panel-focus";
 import type { TestResultEventDraft } from "../../lib/test-review-forms";
 import { errorText } from "../../lib/test-review-panel";
@@ -32,6 +34,13 @@ import {
 } from "../components/test-review-signals";
 import CloseSessionForm from "../forms/close-session-form";
 import TestResultEventForm from "../forms/test-result-event-form";
+
+export interface SessionReviewWriteState {
+  error: unknown;
+  isPending: boolean;
+  isSuccess: boolean;
+  submittedAt: number;
+}
 
 export interface TestReviewActions {
   commitBulk: (
@@ -364,51 +373,78 @@ type Panel =
   | { kind: "close"; preview: TestReviewClosePreview }
   | { ids: string[]; kind: "bulk"; preview: TestReviewBulkPreview };
 
+function reviewFeedbackError(previewError: unknown, writeError: unknown) {
+  if (previewError) {
+    return errorText(previewError, "The preview is unavailable.");
+  }
+  if (writeError) {
+    return errorText(writeError, "The review was not saved.");
+  }
+}
+
 function SessionReview({
   actions,
   preferences,
   readOnly,
   resultEvents,
   session,
+  writeState,
 }: {
   actions: TestReviewActions;
   preferences?: AccountPreferences;
   readOnly: boolean;
   resultEvents: TestResultEvent[];
   session: TestReviewSession;
+  writeState?: SessionReviewWriteState;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [panel, setPanel] = useState<Panel | null>(null);
-  const [error, setError] = useState<string>();
-  const [notice, setNotice] = useState<string>();
-  const [pending, setPending] = useState(false);
+  const [noticeLabel, setNoticeLabel] = useState("Review saved.");
+  const [feedbackAfter, setFeedbackAfter] = useState(0);
+  const inspectClose = useMutation({
+    mutationKey: orpc.previewReviewClose.mutationKey(),
+    mutationFn: () => actions.previewClose(session.id),
+    meta: { retryInSurface: true },
+  });
+  const inspectBulk = useMutation({
+    mutationKey: orpc.previewReviewBulk.mutationKey(),
+    mutationFn: (ids: string[]) => actions.previewBulk(session.id, ids),
+    meta: { retryInSurface: true },
+  });
+  const pending = Boolean(
+    writeState?.isPending || inspectClose.isPending || inspectBulk.isPending,
+  );
   const disabled = readOnly || pending;
+  const currentWrite =
+    writeState && writeState.submittedAt >= feedbackAfter
+      ? writeState
+      : undefined;
+  const success = currentWrite?.isSuccess;
+  const previewError = inspectClose.error ?? inspectBulk.error;
+  const error = reviewFeedbackError(previewError, currentWrite?.error);
+  const notice = success ? noticeLabel : undefined;
 
-  async function run(work: () => Promise<unknown>, done?: string) {
-    setError(undefined);
-    setNotice(undefined);
-    setPending(true);
+  async function run(work: () => Promise<unknown>, done = "Review saved.") {
+    setFeedbackAfter(Date.now());
+    setNoticeLabel(done);
+    inspectClose.reset();
+    inspectBulk.reset();
     try {
       await work();
       setPanel(null);
-      setNotice(done ?? "Review saved.");
-    } catch (caught) {
-      setError(errorText(caught, "The review was not saved."));
-    } finally {
-      setPending(false);
+    } catch {
+      // The owning mutation presents the failure and retains the submitted command.
     }
   }
 
   async function openPanel(load: () => Promise<Panel>) {
-    setError(undefined);
-    setNotice(undefined);
-    setPending(true);
+    setFeedbackAfter(Date.now());
+    inspectClose.reset();
+    inspectBulk.reset();
     try {
       setPanel(await load());
-    } catch (caught) {
-      setError(errorText(caught, "The preview is unavailable."));
-    } finally {
-      setPending(false);
+    } catch {
+      // The preview observer owns its error.
     }
   }
 
@@ -481,7 +517,7 @@ function SessionReview({
           onClick={() =>
             openPanel(async () => ({
               kind: "close",
-              preview: await actions.previewClose(session.id),
+              preview: await inspectClose.mutateAsync(),
             }))
           }
           type="button"
@@ -583,7 +619,7 @@ function SessionReview({
           openPanel(async () => ({
             ids: selected,
             kind: "bulk",
-            preview: await actions.previewBulk(session.id, selected),
+            preview: await inspectBulk.mutateAsync(selected),
           }))
         }
         type="button"
@@ -704,6 +740,7 @@ export function TestReviewView({
   resultEvents,
   sessions,
   signals,
+  writeForSession,
 }: {
   actions: TestReviewActions;
   events: TestReviewEvent[];
@@ -712,6 +749,7 @@ export function TestReviewView({
   resultEvents: TestResultEvent[];
   sessions: TestReviewSession[];
   signals?: { actions: TestReviewSignalActions; data: TestReviewSignalData };
+  writeForSession?: (sessionId: string) => SessionReviewWriteState | undefined;
 }) {
   return (
     <section
@@ -742,6 +780,7 @@ export function TestReviewView({
                 (entry) => entry.sessionId === session.id,
               )}
               session={session}
+              writeState={writeForSession?.(session.id)}
             />
           ))}
         </ul>

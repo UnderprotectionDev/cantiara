@@ -5,6 +5,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useState } from "react";
 import { writeTextToClipboard } from "@/lib/clipboard";
+import type { ShareRotationFeedback } from "../../hooks/use-share-access";
 import { linkSharingRefusalMessage } from "../../lib/link-sharing-refusal";
 import { shareVisitorUrl } from "../../lib/share-access";
 import { SharePasswordForm } from "../forms/share-password-form";
@@ -20,6 +21,7 @@ export function ShareAccessPanel({
   onRotate,
   onSavePassword,
   passwordProtected,
+  rotation,
   serverUrl,
 }: {
   issuedToken: string | null;
@@ -27,36 +29,40 @@ export function ShareAccessPanel({
   onRotate: () => Promise<unknown>;
   onSavePassword: (password: string) => Promise<unknown>;
   passwordProtected: boolean;
+  rotation: ShareRotationFeedback | null;
   serverUrl: string;
 }) {
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [copyOutcome, setCopyOutcome] = useState<"success" | "error" | null>(
+    null,
+  );
   const link = issuedToken ? shareVisitorUrl(serverUrl, issuedToken) : null;
+  const rotateStatus =
+    !copyOutcome && rotation?.status === "success"
+      ? "New link created. The old link and every open visit ended."
+      : null;
+  const status = copyOutcome === "success" ? "Link copied." : rotateStatus;
+  const rotationError = !copyOutcome && rotation?.status === "error";
+  const error =
+    copyOutcome === "error" || rotationError
+      ? ((rotationError ? linkSharingRefusalMessage(rotation.error) : null) ??
+        "That did not work. Try again.")
+      : null;
 
   async function copy() {
     if (!link) {
       return;
     }
-    setError(null);
+    setCopyOutcome(null);
     try {
       await writeTextToClipboard(link);
-      setStatus("Link copied.");
+      setCopyOutcome("success");
     } catch {
-      setStatus(null);
-      setError("That did not work. Try again.");
+      setCopyOutcome("error");
     }
   }
-  async function rotate() {
-    setStatus(null);
-    setError(null);
-    try {
-      await onRotate();
-      setStatus("New link created. The old link and every open visit ended.");
-    } catch (failure) {
-      setError(
-        linkSharingRefusalMessage(failure) ?? "That did not work. Try again.",
-      );
-    }
+  function rotate() {
+    setCopyOutcome(null);
+    onRotate().catch(() => undefined);
   }
   return (
     <section aria-label="Link access" className="space-y-4">
@@ -90,7 +96,12 @@ export function ShareAccessPanel({
             Copy link
           </Button>
         ) : null}
-        <Button onClick={rotate} type="button" variant="outline">
+        <Button
+          disabled={rotation?.status === "pending"}
+          onClick={rotate}
+          type="button"
+          variant="outline"
+        >
           Rotate link
         </Button>
       </div>

@@ -23,7 +23,7 @@ import {
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import { cn } from "@cantiara/ui/lib/utils";
 import { ChevronDown, ChevronUp, Eye, EyeOff, X } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useMemo } from "react";
 import { AppLink } from "@/components/app-link";
 
 import {
@@ -335,9 +335,7 @@ function LiveBlocks({
     }
     return blocks;
   }, [model.availableLiveBlocks, model.liveBlocks]);
-  const [selectedSources, setSelectedSources] = useState(() =>
-    model.liveBlockSources.map((source) => ({ ...source })),
-  );
+  const selectedSources = model.liveBlockSources;
   const selectedBlocks = selectedSources
     .map((source) => allBlocks.get(liveBlockSourceKey(source)))
     .filter((block): block is WorkspaceOverviewLiveBlock => Boolean(block));
@@ -348,13 +346,6 @@ function LiveBlocks({
           liveBlockSourceKey(source) === liveBlockSourceKey(block.source),
       ),
   );
-
-  function updateSelectedSources(
-    nextSources: readonly WorkspaceOverviewLiveBlockSource[],
-  ) {
-    setSelectedSources(nextSources.map((source) => ({ ...source })));
-    onChange(nextSources);
-  }
 
   return (
     <section
@@ -384,7 +375,7 @@ function LiveBlocks({
           onAdd={(key) => {
             const block = allBlocks.get(key);
             if (block) {
-              updateSelectedSources([...selectedSources, { ...block.source }]);
+              onChange([...selectedSources, { ...block.source }]);
             }
           }}
           selectedCount={selectedSources.length}
@@ -398,7 +389,7 @@ function LiveBlocks({
               block={block}
               key={block.id}
               onRemove={() =>
-                updateSelectedSources(
+                onChange(
                   selectedSources.filter(
                     (source) =>
                       liveBlockSourceKey(source) !==
@@ -475,15 +466,9 @@ export default function WorkspaceOverviewView({
   selectedModule,
   selectedSavedList,
 }: WorkspaceOverviewViewProps) {
-  const [layout, setLayout] = useState<WorkspaceOverviewLayout>(() =>
-    normalizeWorkspaceOverviewLayout(model.layout),
-  );
-  const [liveBlockSources, setLiveBlockSources] = useState(() =>
-    model.liveBlockSources.map((source) => ({ ...source })),
-  );
-  const [savedLists, setSavedLists] = useState(() =>
-    workspaceOverviewSavedListDefinitions(model.savedLists),
-  );
+  const layout = normalizeWorkspaceOverviewLayout(model.layout);
+  const { liveBlockSources } = model;
+  const savedLists = workspaceOverviewSavedListDefinitions(model.savedLists);
   const moduleById = new Map(
     model.modules.map((module) => [module.id, module]),
   );
@@ -496,7 +481,6 @@ export default function WorkspaceOverviewView({
     .filter((module): module is WorkspaceOverviewModule => Boolean(module));
 
   function changeLayout(nextLayout: WorkspaceOverviewLayout) {
-    setLayout(nextLayout);
     settle(
       onPresentationChange?.({
         layout: nextLayout,
@@ -511,7 +495,6 @@ export default function WorkspaceOverviewView({
     nextSources: readonly WorkspaceOverviewLiveBlockSource[],
   ) {
     const normalizedSources = nextSources.map((source) => ({ ...source }));
-    setLiveBlockSources(normalizedSources);
     settle(
       onPresentationChange?.({
         layout,
@@ -528,20 +511,12 @@ export default function WorkspaceOverviewView({
     const normalizedLists = nextLists.map(
       cloneWorkspaceOverviewSavedListDefinition,
     );
-    const previousLists = savedLists;
-    setSavedLists(normalizedLists);
-    try {
-      await onPresentationChange?.({
-        layout,
-        liveBlockSources,
-        savedLists: normalizedLists,
-        version: WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
-      });
-    } catch (failure) {
-      // A later layout save must not resend the list that failed to save.
-      setSavedLists(previousLists);
-      throw failure;
-    }
+    await onPresentationChange?.({
+      layout,
+      liveBlockSources,
+      savedLists: normalizedLists,
+      version: WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
+    });
   }
 
   let selectedContent: ReactNode = null;

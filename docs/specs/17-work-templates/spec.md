@@ -55,6 +55,8 @@ Kurucu Proje bazında yeniden kullanılabilir İş şablonları oluşturur. Şab
 
 ## Testing Decisions
 
+- **Create from template retry (#544).** The Work Template editor test observes failure without losing the title, the same submitted command on Retry, the created Work confirmation, and invalidation for the affected Project.
+
 - **What a good test is.** Tests observe Work Templates through its public interface: define, instantiate, edit template after instantiate, one-off copy, and the negative payload exclusions. They assert independent identity and non-rewrite of history — not storage shape of skeleton JSON.
 - **Seam (one).** Work Templates — the product-facing template and one-off copy interface. Playwright for İş yaşam döngüsü start paths is this seam through the UI.
 - **Modules under test.** Work Templates only. Document templates, Starter Configuration, capture mini-templates, and Project structure copy appear as negatives/counterparts.

@@ -23,6 +23,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
+import { useRef } from "react";
 
 import {
   draftFromTemplate,
@@ -237,6 +238,10 @@ export function WorkTemplateForm({
   previewDate: string;
   projectId: string;
 }) {
+  const checklistDraft = useRef<{
+    text: string;
+    items: { id: string; text: string }[];
+  } | null>(null);
   const form = useForm({
     defaultValues: editing ? draftFromTemplate(editing) : EMPTY_DRAFT,
     onSubmit: async ({ value: draft }) => {
@@ -249,12 +254,18 @@ export function WorkTemplateForm({
         : Object.entries(draft.customFieldDefaults).map(
             ([definitionId, value]) => ({ definitionId, value }),
           );
+      if (checklistDraft.current?.text !== draft.checklistText) {
+        checklistDraft.current = {
+          text: draft.checklistText,
+          items: draft.checklistText
+            .split("\n")
+            .map((text) => text.trim())
+            .filter(Boolean)
+            .map((text) => ({ id: crypto.randomUUID(), text })),
+        };
+      }
       const parsed = createWorkTemplateInputSchema.safeParse({
-        checklist: draft.checklistText
-          .split("\n")
-          .map((text) => text.trim())
-          .filter(Boolean)
-          .map((text) => ({ id: crypto.randomUUID(), text })),
+        checklist: checklistDraft.current.items,
         customFieldDefaults,
         descriptionSkeleton: draft.descriptionSkeleton || null,
         name: draft.name,

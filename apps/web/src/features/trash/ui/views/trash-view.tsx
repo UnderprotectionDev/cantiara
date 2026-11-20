@@ -11,6 +11,7 @@ import {
 } from "@cantiara/api/trash";
 import type { TrashRestorePreview } from "@cantiara/api/trash-configuration";
 import { Button } from "@cantiara/ui/components/button";
+import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
 import { useMoveToTrashFlow } from "../../hooks/use-move-to-trash-flow";
 import {
   type TrashPermanentDelete,
@@ -36,23 +37,29 @@ export function TrashView({
   onRestore,
   permanentDelete,
   onRestorePreview,
+  projectId,
 }: {
   candidates: readonly TrashCandidate[];
+  projectId: string;
   entries: readonly TrashEntry[];
   formatting: AccountPreferences;
   onMove: (
     candidate: TrashCandidate,
     disposition: TrashSurfaceDisposition,
+    clientIdempotencyKey: string,
   ) => Promise<unknown>;
   onPreview: (candidate: TrashCandidate) => Promise<MoveToTrashPreview>;
-  onRestore: (entry: TrashEntry) => Promise<unknown>;
+  onRestore: (
+    entry: TrashEntry,
+    clientIdempotencyKey: string,
+  ) => Promise<unknown>;
   permanentDelete?: TrashPermanentDelete;
   /** Configuration kinds only: reads dependency conflicts before a restore. */
   onRestorePreview?: (entry: TrashEntry) => Promise<TrashRestorePreview>;
 }) {
   const del = usePermanentDeleteFlow(permanentDelete);
   const restoreFlow = useRestoreFlow({ onRestore, onRestorePreview });
-  const move = useMoveToTrashFlow({ onMove, onPreview });
+  const move = useMoveToTrashFlow({ onMove, onPreview, projectId });
   const { deleting } = del;
   const { conflicts, restoredLabel } = restoreFlow;
   const { failed, pending, reviewing } = move;
@@ -87,6 +94,7 @@ export function TrashView({
         />
       ) : null}
       {deleting || !del.error ? null : <p role="alert">{del.error}</p>}
+      {del.support ? <SupportReferenceNotice failure={del.support} /> : null}
       {conflicts ? (
         <TrashRestoreConflicts
           conflicts={conflicts.conflicts}

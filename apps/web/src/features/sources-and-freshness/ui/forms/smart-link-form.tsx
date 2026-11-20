@@ -13,28 +13,49 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type ClipboardEvent, type SubmitEvent, useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import type { ClipboardEvent, SubmitEvent } from "react";
 import { YouTubePreviewPlayer } from "@/components/youtube-preview-player";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 
 export function SmartLinkComposer({
   onPreview,
   onSave,
+  write,
   readOnly = false,
   preferences = DEFAULT_ACCOUNT_PREFERENCES,
   youtubePlayerOrigin,
 }: {
   onPreview: SmartLinkPreviewAccess;
   onSave: (preview: SmartLinkPreview) => Promise<void>;
+  write: {
+    isError: boolean;
+    isPending: boolean;
+    isSuccess: boolean;
+    reset: () => void;
+  };
   readOnly?: boolean;
   preferences?: AccountPreferences;
   youtubePlayerOrigin?: string;
 }) {
-  const [preview, setPreview] = useState<SmartLinkPreview | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-  const requestNumber = useRef(0);
+  const inspect = useMutation({
+    gcTime: 0,
+    meta: { presentsSupportFailure: true },
+    mutationFn: onPreview,
+  });
+  const preview = inspect.data ?? null;
+  const loading = inspect.isPending;
+  const saving = write.isPending;
+  let message = "";
+  if (inspect.isError) {
+    message = "Preview unavailable. Try Preview again.";
+  }
+  if (write.isError) {
+    message = "Source could not be saved. Try Save as Source again.";
+  }
+  if (write.isSuccess) {
+    message = "Source saved.";
+  }
   const form = useForm({
     defaultValues: { url: "" },
     onSubmit: async ({ value }) => {
@@ -46,26 +67,9 @@ export function SmartLinkComposer({
     },
   });
   const url = useSelector(form.store, (state) => state.values.url);
-  async function load(value: string) {
-    requestNumber.current += 1;
-    const request = requestNumber.current;
-    setPreview(null);
-    setMessage("");
-    setLoading(true);
-    try {
-      const result = await onPreview(value);
-      if (request === requestNumber.current) {
-        setPreview(result);
-      }
-    } catch {
-      if (request === requestNumber.current) {
-        setMessage("Preview unavailable. Try Preview again.");
-      }
-    } finally {
-      if (request === requestNumber.current) {
-        setLoading(false);
-      }
-    }
+  function load(value: string) {
+    write.reset();
+    return inspect.mutateAsync(value).catch(() => undefined);
   }
   function paste(event: ClipboardEvent<HTMLInputElement>) {
     event.preventDefault();
@@ -74,11 +78,9 @@ export function SmartLinkComposer({
     load(value).catch(() => undefined);
   }
   function change(event: React.ChangeEvent<HTMLInputElement>) {
-    requestNumber.current += 1;
     form.setFieldValue("url", event.target.value);
-    setPreview(null);
-    setMessage("");
-    setLoading(false);
+    inspect.reset();
+    write.reset();
   }
   function requestPreview(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -89,16 +91,7 @@ export function SmartLinkComposer({
     if (!preview || saving) {
       return;
     }
-    setSaving(true);
-    setMessage("");
-    try {
-      await onSave(preview);
-      setMessage("Source saved.");
-    } catch {
-      setMessage("Source could not be saved. Try Save as Source again.");
-    } finally {
-      setSaving(false);
-    }
+    await onSave(preview).catch(() => undefined);
   }
   const originalLink = safePreviewLink(url);
   const videoId = youtubeVideoId(url);

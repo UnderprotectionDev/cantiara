@@ -42,17 +42,27 @@ export function ResearchSessionEditor({
   timeZone,
   onSave,
   onCancel,
+  saveError,
+  savePending = false,
 }: {
   record?: ResearchSessionRecord;
   timeZone: string;
   onSave: Save;
   onCancel: () => void;
+  saveError?: unknown;
+  savePending?: boolean;
 }) {
   const prefix = useId();
   const [baseRecord] = useState(record);
   const [entryTimeZone] = useState(timeZone);
-  const [error, setError] = useState<string>();
-  const [conflict, setConflict] = useState(false);
+  const [validationError, setValidationError] = useState<string>();
+  const conflict = isResearchSessionConflict(saveError);
+  let error = validationError;
+  if (!error && saveError) {
+    error = conflict
+      ? "Research Session changed. Cancel and reopen before saving. Your text is kept here."
+      : "Research Session could not be saved. Retry or reload to check for changes. Your text is kept here.";
+  }
   const form = useForm({
     defaultValues: {
       title: record?.title ?? "",
@@ -70,7 +80,7 @@ export function ResearchSessionEditor({
       durationMinutes: record?.durationMinutes?.toString() ?? "",
     },
     onSubmit: async ({ value }) => {
-      setError(undefined);
+      setValidationError(undefined);
       let scheduledAt: string | null = null;
       try {
         scheduledAt = researchSessionTimestamp(
@@ -79,7 +89,7 @@ export function ResearchSessionEditor({
           baseRecord?.scheduledAt,
         );
       } catch (cause) {
-        setError(
+        setValidationError(
           cause instanceof Error ? cause.message : "Enter a valid Time.",
         );
         return;
@@ -93,23 +103,13 @@ export function ResearchSessionEditor({
         participantContactId: baseRecord?.participantContactId ?? null,
       });
       if (!parsed.success) {
-        setError(
+        setValidationError(
           parsed.error.issues[0]?.message ??
             "Check the Research Session fields.",
         );
         return;
       }
-      try {
-        await onSave(parsed.data, baseRecord);
-      } catch (cause) {
-        const changed = isResearchSessionConflict(cause);
-        setConflict(changed);
-        setError(
-          changed
-            ? "Research Session changed. Cancel and reopen before saving. Your text is kept here."
-            : "Research Session could not be saved. Retry or reload to check for changes. Your text is kept here.",
-        );
-      }
+      await onSave(parsed.data, baseRecord);
     },
   });
   function submit(event: SubmitEvent<HTMLFormElement>) {
@@ -128,7 +128,7 @@ export function ResearchSessionEditor({
           {error}
         </p>
       ) : null}
-      <form.Subscribe selector={(state) => state.isSubmitting}>
+      <form.Subscribe selector={(state) => state.isSubmitting || savePending}>
         {(pending) => (
           <fieldset className="space-y-4" disabled={pending}>
             {textFields.map(({ name, label, required }) => (

@@ -1,17 +1,15 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form controls close over their current metric draft and mutation state.
-import {
-  createPriorityMetricInputSchema,
-  type PriorityMetric,
-} from "@cantiara/api/priority-metrics";
+import type { PriorityMetric } from "@cantiara/api/priority-metrics";
 import { Button } from "@cantiara/ui/components/button";
 import { useState } from "react";
-import { requestGitHubIdentityGrant } from "@/features/account-access/lib/github-identity-confirmation";
-
 import {
   priorityMetricRevision,
   usePriorityMetrics,
   usePriorityMetricTrashImpactPreview,
 } from "@/features/priority-metrics/hooks/use-priority-metrics";
+import { privateWriteNotice } from "@/features/web-macos-client/lib/support-reference";
+import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
+import { usePriorityMetricDelete } from "../../hooks/use-priority-metric-delete";
 import { errorMessage } from "../../lib/error-message";
 import { draftFromMetric } from "../../lib/priority-metric-draft";
 import { PriorityMetricCreateForm } from "../forms/priority-metric-create-form";
@@ -22,7 +20,7 @@ import { PriorityMetricMoveConfirmation } from "../forms/priority-metric-trash-f
 function PriorityMetricTrash({
   actionDisabled,
   confirmationPending,
-  deleteGrant,
+  identityConfirmed,
   deleteTarget,
   disabled,
   metrics,
@@ -40,7 +38,7 @@ function PriorityMetricTrash({
 }: {
   actionDisabled: boolean;
   confirmationPending: boolean;
-  deleteGrant: string | null;
+  identityConfirmed: boolean;
   deleteTarget: PriorityMetric | null;
   disabled: boolean;
   deleting: boolean;
@@ -120,11 +118,11 @@ function PriorityMetricTrash({
       {deleteTarget ? (
         <PriorityMetricPermanentDeleteConfirmation
           confirmationPending={confirmationPending}
-          deleteGrant={deleteGrant}
           deleting={deleting}
           disabled={disabled}
           effect={impactPreview.data}
           error={impactPreview.isError}
+          identityConfirmed={identityConfirmed}
           key={deleteTarget.id}
           loading={impactPreview.isPending}
           onCancel={onCancelDelete}
@@ -147,15 +145,12 @@ export default function PriorityMetricEditor({
   projectId: string;
   projectName: string;
 }) {
-  const { create, deletePermanently, query, restore, trash, update } =
+  const { create, query, restore, trash, update } =
     usePriorityMetrics(projectId);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const permanentDelete = usePriorityMetricDelete(projectId);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [trashTarget, setTrashTarget] = useState<PriorityMetric | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PriorityMetric | null>(null);
-  const [deleteGrant, setDeleteGrant] = useState<string | null>(null);
-  const [confirmationPending, setConfirmationPending] = useState(false);
   const metrics = query.data ?? [];
   const activeMetrics = metrics.filter((metric) => !metric.trashedAt);
   const trashedMetrics = metrics.filter((metric) => metric.trashedAt);
@@ -164,79 +159,63 @@ export default function PriorityMetricEditor({
     update.isPending ||
     trash.isPending ||
     restore.isPending ||
-    deletePermanently.isPending ||
-    confirmationPending;
+    permanentDelete.isPending ||
+    permanentDelete.confirmationPending;
 
-  async function requestDeleteConfirmation() {
-    setActionError(null);
-    setConfirmationPending(true);
-    try {
-      const grant = await requestGitHubIdentityGrant("early-permanent-delete");
-      setDeleteGrant(grant);
-    } catch (error) {
-      setActionError(
-        errorMessage(error, "Confirm GitHub Identity could not be completed."),
-      );
-    } finally {
-      setConfirmationPending(false);
-    }
-  }
+  const editedMetricError =
+    update.isError && update.variables?.metricId === editingId
+      ? update.error
+      : null;
+  const [latest] = [
+    { fallback: "Priority metric could not be updated.", mutation: update },
+    {
+      fallback: "Priority metric could not be moved to Trash.",
+      mutation: trash,
+    },
+    { fallback: "Priority metric could not be restored.", mutation: restore },
+    { fallback: "Priority metric could not be created.", mutation: create },
+  ].sort(
+    (first, second) => second.mutation.submittedAt - first.mutation.submittedAt,
+  );
+  const actionError =
+    latest?.mutation.isError && latest.mutation.error !== editedMetricError
+      ? errorMessage(latest.mutation.error, latest.fallback)
+      : null;
 
   async function handlePermanentDelete(typedProjectName: string) {
-    if (!(deleteTarget && deleteGrant)) {
+    if (deleteTarget?.projectId !== projectId) {
       return;
     }
-    setActionError(null);
-    try {
-      await deletePermanently.mutateAsync({
-        ...priorityMetricRevision(deleteTarget),
-        grant: deleteGrant,
-        projectId,
-        typedProjectName,
-      });
-      setDeleteTarget(null);
-      setDeleteGrant(null);
-    } catch (error) {
-      setActionError(
-        errorMessage(
-          error,
-          "Priority metric could not be permanently deleted.",
-        ),
-      );
+    const deleted = await permanentDelete.deleteMetric(
+      priorityMetricRevision(deleteTarget),
+      typedProjectName,
+    );
+    if (deleted) {
+      closeDeleteDialog();
     }
   }
 
-  async function handleRestore(metric: PriorityMetric) {
-    setActionError(null);
+  function handleRestore(metric: PriorityMetric) {
     if (deleteTarget?.id === metric.id) {
-      setDeleteTarget(null);
-      setDeleteGrant(null);
+      closeDeleteDialog();
     }
-    try {
-      await restore.mutateAsync(priorityMetricRevision(metric));
-    } catch (error) {
-      setActionError(
-        errorMessage(error, "Priority metric could not be restored."),
-      );
-    }
+    restore.mutate(priorityMetricRevision(metric));
   }
 
   function openDeleteDialog(metric: PriorityMetric) {
-    setActionError(null);
+    permanentDelete.reset();
+    setTrashTarget(null);
     setDeleteTarget(metric);
-    setDeleteGrant(null);
   }
 
   function closeDeleteDialog() {
+    permanentDelete.reset();
     setDeleteTarget(null);
-    setDeleteGrant(null);
-    setActionError(null);
   }
 
   function openTrashPreview(metric: PriorityMetric) {
-    setActionError(null);
     setEditingId(null);
-    setDeleteTarget(null);
+    closeDeleteDialog();
     setTrashTarget(metric);
   }
 
@@ -244,14 +223,11 @@ export default function PriorityMetricEditor({
     if (!trashTarget) {
       return;
     }
-    setActionError(null);
     try {
       await trash.mutateAsync(priorityMetricRevision(trashTarget));
       setTrashTarget(null);
-    } catch (error) {
-      setActionError(
-        errorMessage(error, "Priority metric could not be moved to Trash."),
-      );
+    } catch {
+      // Leave the preview open so the same command can be retried.
     }
   }
 
@@ -265,59 +241,39 @@ export default function PriorityMetricEditor({
           <PriorityMetricRow
             disabled={actionDisabled}
             editing={editingId === metric.id}
-            error={actionError}
+            error={
+              editingId === metric.id && editedMetricError
+                ? errorMessage(
+                    editedMetricError,
+                    "Priority metric could not be saved.",
+                  )
+                : null
+            }
             key={metric.id}
             metric={metric}
             onCancel={() => setEditingId(null)}
-            onEdit={() => {
-              setActionError(null);
-              setEditingId(metric.id);
-            }}
+            onEdit={() => setEditingId(metric.id)}
             onRequestTrash={() => openTrashPreview(metric)}
             onSave={async (values) => {
-              setActionError(null);
               try {
-                const parsed = createPriorityMetricInputSchema.safeParse({
-                  ...values,
-                  projectId,
-                });
-                if (!parsed.success) {
-                  setActionError(
-                    parsed.error.issues[0]?.message ?? "Check the form.",
-                  );
-                  return false;
-                }
                 await update.mutateAsync({
-                  name: parsed.data.name,
-                  rankDescriptions: parsed.data.rankDescriptions,
-                  shortDescription: parsed.data.shortDescription,
+                  ...values,
                   ...priorityMetricRevision(metric),
                   enabled: metric.enabled,
                 });
                 setEditingId(null);
-                setFormError(null);
                 return true;
-              } catch (error) {
-                setActionError(
-                  errorMessage(error, "Priority metric could not be saved."),
-                );
+              } catch {
                 return false;
               }
             }}
-            onToggleEnabled={async () => {
-              setActionError(null);
-              try {
-                await update.mutateAsync({
-                  ...draftFromMetric(metric),
-                  ...priorityMetricRevision(metric),
-                  enabled: !metric.enabled,
-                });
-              } catch (error) {
-                setActionError(
-                  errorMessage(error, "Priority metric could not be updated."),
-                );
-              }
-            }}
+            onToggleEnabled={() =>
+              update.mutate({
+                ...draftFromMetric(metric),
+                ...priorityMetricRevision(metric),
+                enabled: !metric.enabled,
+              })
+            }
           />
         ))}
       </ul>
@@ -348,15 +304,15 @@ export default function PriorityMetricEditor({
 
       <PriorityMetricTrash
         actionDisabled={actionDisabled}
-        confirmationPending={confirmationPending}
-        deleteGrant={deleteGrant}
+        confirmationPending={permanentDelete.confirmationPending}
         deleteTarget={deleteTarget}
-        deleting={deletePermanently.isPending}
+        deleting={permanentDelete.isPending}
         disabled={disabled}
+        identityConfirmed={permanentDelete.identityConfirmed}
         metrics={trashedMetrics}
         onCancelDelete={closeDeleteDialog}
         onCancelTrash={() => setTrashTarget(null)}
-        onRequestConfirmation={requestDeleteConfirmation}
+        onRequestConfirmation={permanentDelete.confirmIdentity}
         onRequestDelete={openDeleteDialog}
         onRestore={handleRestore}
         onSubmitDelete={handlePermanentDelete}
@@ -366,6 +322,16 @@ export default function PriorityMetricEditor({
         trashTarget={trashTarget}
       />
 
+      {permanentDelete.error ? (
+        <>
+          <p className="text-sm text-destructive" role="alert">
+            {permanentDelete.error.message}
+          </p>
+          <SupportReferenceNotice
+            failure={privateWriteNotice(permanentDelete.error)}
+          />
+        </>
+      ) : null}
       {actionError ? (
         <p className="text-sm text-destructive" role="alert">
           {actionError}
@@ -374,11 +340,8 @@ export default function PriorityMetricEditor({
 
       <PriorityMetricCreateForm
         disabled={disabled}
-        formError={formError}
         isPending={create.isPending}
-        onActionError={setActionError}
         onCreate={(input) => create.mutateAsync(input)}
-        onFormError={setFormError}
         projectId={projectId}
       />
     </div>

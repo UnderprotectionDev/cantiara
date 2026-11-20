@@ -84,9 +84,7 @@ const completionEffectsPreferencesQueryPrefix =
 export const projectsQueryPrefix = orpc.projects.queryOptions().queryKey;
 export const workspaceOverviewQueryPrefix =
   orpc.workspaceOverview.queryOptions().queryKey;
-export const projectWorksQueryPrefix = orpc.projectWorks
-  .queryOptions({ input: { projectId: "" } })
-  .queryKey.slice(0, 1);
+export const projectWorksQueryPrefix = orpc.projectWorks.key();
 
 // Smart Collection live membership surfaces and embedded live-collection
 // document blocks resolve from these procedures; membership-affecting writes

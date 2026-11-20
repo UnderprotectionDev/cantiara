@@ -6,6 +6,7 @@ import type {
   GitHubCreateWorkPreview,
   GitHubWorkLinksOverview,
 } from "@cantiara/api/github-work-links";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
@@ -165,14 +166,17 @@ async function mount(actions: GitHubWorkLinkActions = actionsOf()) {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
+  const cache = new QueryClient();
   await act(() => {
     root?.render(
-      <GitHubWorkLinksPanel
-        actions={actions}
-        data={data}
-        records={records}
-        repositories={[{ id: "link-1", label: "acme/web" }]}
-      />,
+      <QueryClientProvider client={cache}>
+        <GitHubWorkLinksPanel
+          actions={actions}
+          data={data}
+          records={records}
+          repositories={[{ id: "link-1", label: "acme/web" }]}
+        />
+      </QueryClientProvider>,
     );
   });
   await act(async () => {

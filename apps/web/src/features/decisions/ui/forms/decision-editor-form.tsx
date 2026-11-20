@@ -3,6 +3,7 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
+import { ORPCError } from "@orpc/client";
 import { useForm } from "@tanstack/react-form";
 import { type SubmitEvent, useState } from "react";
 import {
@@ -30,14 +31,21 @@ export function DecisionEditor({
   withdrawing = false,
   onSave,
   onCancel,
+  writeError,
 }: {
   record?: DecisionRecord;
   withdrawing?: boolean;
   onSave: (draft: DecisionDraft, record?: DecisionRecord) => Promise<unknown>;
   onCancel: () => void;
+  writeError?: unknown;
 }) {
-  const [error, setError] = useState<string>();
-  const [conflict, setConflict] = useState(false);
+  const [validationError, setValidationError] = useState<string>();
+  const conflict =
+    writeError instanceof ORPCError && writeError.code === "CONFLICT";
+  const writeMessage = conflict
+    ? "Decision changed. Cancel and reopen before saving again. Your text is kept here."
+    : "Decision could not be saved. Retry, or reload to check for changes. Your text is kept here.";
+  const error = writeError ? writeMessage : validationError;
   const [baseRecord] = useState(record);
   const form = useForm({
     defaultValues: {
@@ -46,29 +54,15 @@ export function DecisionEditor({
       rationale: withdrawing ? "" : (baseRecord?.rationale ?? ""),
     },
     onSubmit: async ({ value }) => {
-      setError(undefined);
+      setValidationError(undefined);
       const parsed = (
         withdrawing ? decisionWithdrawFormSchema : decisionFormSchema
       ).safeParse(value);
       if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message);
+        setValidationError(parsed.error.issues[0]?.message);
         return;
       }
-      try {
-        await onSave(value, baseRecord);
-      } catch (saveError) {
-        const changed =
-          typeof saveError === "object" &&
-          saveError !== null &&
-          "code" in saveError &&
-          saveError.code === "CONFLICT";
-        setConflict(changed);
-        setError(
-          changed
-            ? "Decision changed. Cancel and reopen before saving again. Your text is kept here."
-            : "Decision could not be saved. Retry, or reload to check for changes. Your text is kept here.",
-        );
-      }
+      await onSave(value, baseRecord);
     },
   });
   function submit(event: SubmitEvent<HTMLFormElement>) {

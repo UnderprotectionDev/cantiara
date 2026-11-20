@@ -153,6 +153,7 @@ function ReviewDiff({
         onConfirmFollowUp={onConfirmFollowUp}
         onMark={onMark}
         onPreviewFollowUp={onPreviewFollowUp}
+        reviewId={review.id}
         status={markStatus}
       />
     </div>

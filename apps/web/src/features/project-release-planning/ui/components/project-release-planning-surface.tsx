@@ -2,10 +2,10 @@
 
 import type { ProjectReleasePlanningDetail as Detail } from "@cantiara/api/project-release-planning";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
-import { useProjectReleaseCommand } from "../../hooks/use-project-release-command";
+import { refreshProjectRelease } from "../../hooks/use-project-release-command";
 import {
   type ProjectReleasePlanningActions,
   ProjectReleasePlanningDetail,
@@ -23,9 +23,103 @@ export function ProjectReleasePlanningSurface({
       input: { projectId, releaseId },
     }),
   );
-  const run = useProjectReleaseCommand();
-  const [savedMessage, setSavedMessage] = useState<string>();
-  const [errorMessage, setErrorMessage] = useState<string>();
+  const queryClient = useQueryClient();
+  const refresh = () =>
+    refreshProjectRelease(queryClient, projectId, releaseId);
+  const scope = usePreparedMutation(
+    orpc.setProjectReleaseScope.mutationOptions({
+      mutationFn: (input) => client.setProjectReleaseScope(input),
+      onSettled: refresh,
+    }),
+    (
+      input: Omit<
+        Parameters<typeof client.setProjectReleaseScope>[0],
+        "clientIdempotencyKey"
+      >,
+    ) => input,
+  );
+  const writeLink = usePreparedMutation(
+    orpc.setProjectReleaseLink.mutationOptions({
+      mutationFn: (input) => client.setProjectReleaseLink(input),
+      onSettled: refresh,
+    }),
+    (
+      input: Omit<
+        Parameters<typeof client.setProjectReleaseLink>[0],
+        "clientIdempotencyKey"
+      >,
+    ) => input,
+  );
+  const audience = usePreparedMutation(
+    orpc.setProjectReleaseAudience.mutationOptions({
+      mutationFn: (input) => client.setProjectReleaseAudience(input),
+      onSettled: refresh,
+    }),
+    (
+      input: Omit<
+        Parameters<typeof client.setProjectReleaseAudience>[0],
+        "clientIdempotencyKey"
+      >,
+    ) => input,
+  );
+  const writeStatus = usePreparedMutation(
+    orpc.transitionProjectSourceRecord.mutationOptions({
+      mutationFn: (input) => client.transitionProjectSourceRecord(input),
+      onSettled: refresh,
+    }),
+    (
+      input: Omit<
+        Parameters<typeof client.transitionProjectSourceRecord>[0],
+        "clientIdempotencyKey"
+      >,
+    ) => input,
+  );
+  const writeHypothesis = usePreparedMutation(
+    orpc.updateProjectSourceRecord.mutationOptions({
+      mutationFn: (input) => client.updateProjectSourceRecord(input),
+      onSettled: refresh,
+    }),
+    (
+      input: Omit<
+        Parameters<typeof client.updateProjectSourceRecord>[0],
+        "clientIdempotencyKey"
+      >,
+    ) => input,
+  );
+  const [feedback] = [
+    {
+      mutation: scope,
+      message: scope.variables?.attached
+        ? "Work added to scope."
+        : "Work removed from scope.",
+    },
+    {
+      mutation: writeLink,
+      message: writeLink.variables?.attached
+        ? "Reference added."
+        : "Reference removed.",
+    },
+    {
+      mutation: audience,
+      message: audience.variables?.attached
+        ? "Audience linked."
+        : "Audience link removed.",
+    },
+    {
+      mutation: writeStatus,
+      message: `Status changed to ${writeStatus.variables?.sourceType === "Project Release" ? writeStatus.variables.status : ""}.`,
+    },
+    { mutation: writeHypothesis, message: "Hypothesis saved." },
+  ].sort(
+    (left, right) => right.mutation.submittedAt - left.mutation.submittedAt,
+  );
+  const savedMessage = feedback?.mutation.isSuccess
+    ? feedback.message
+    : undefined;
+  const errorMessage =
+    feedback?.mutation.isError && feedback.mutation !== writeStatus
+      ? "Change could not be saved. The Project Release was reloaded; check it and try again."
+      : undefined;
 
   if (detail.status === "pending") {
     return <p role="status">Loading source record…</p>;
@@ -53,45 +147,17 @@ export function ProjectReleasePlanningSurface({
       current.scope.find((member) => member.work.id === workId)?.revision ?? 0
     );
   }
-  async function done<T>(message: string, write: Promise<T>) {
-    setSavedMessage(undefined);
-    setErrorMessage(undefined);
-    try {
-      await write;
-    } catch (error) {
-      setErrorMessage(
-        "Change could not be saved. The Project Release was reloaded; check it and try again.",
-      );
-      throw error;
-    }
-    setSavedMessage(message);
-  }
   const actions: ProjectReleasePlanningActions = {
     onAddScope: (workId) => {
       const command = { ...base, attached: true, workId };
-      return done(
-        "Work added to scope.",
-        run(command, (clientIdempotencyKey) =>
-          client.setProjectReleaseScope({
-            ...command,
-            baseRevision: revisionOf(workId),
-            clientIdempotencyKey,
-          }),
-        ),
-      );
+      return scope.mutateAsync({
+        ...command,
+        baseRevision: revisionOf(workId),
+      });
     },
     onRemoveScope: (member) => {
       const command = { ...base, attached: false, workId: member.work.id };
-      return done(
-        "Work removed from scope.",
-        run(command, (clientIdempotencyKey) =>
-          client.setProjectReleaseScope({
-            ...command,
-            baseRevision: member.revision,
-            clientIdempotencyKey,
-          }),
-        ),
-      );
+      return scope.mutateAsync({ ...command, baseRevision: member.revision });
     },
     onAddLink: (values) => {
       const command = { ...base, ...values, attached: true };
@@ -104,18 +170,12 @@ export function ProjectReleasePlanningSurface({
           link.url === values.url,
       );
       if (previous?.attached) {
-        return done("Reference added.", Promise.resolve());
+        return Promise.resolve();
       }
-      return done(
-        "Reference added.",
-        run(command, (clientIdempotencyKey) =>
-          client.setProjectReleaseLink({
-            ...command,
-            baseRevision: previous?.revision ?? 0,
-            clientIdempotencyKey,
-          }),
-        ),
-      );
+      return writeLink.mutateAsync({
+        ...command,
+        baseRevision: previous?.revision ?? 0,
+      });
     },
     onRemoveLink: (link) => {
       const command = {
@@ -126,16 +186,7 @@ export function ProjectReleasePlanningSurface({
         repositoryLinkId: link.repository?.id ?? null,
         url: link.url,
       };
-      return done(
-        "Reference removed.",
-        run(command, (clientIdempotencyKey) =>
-          client.setProjectReleaseLink({
-            ...command,
-            baseRevision: link.revision,
-            clientIdempotencyKey,
-          }),
-        ),
-      );
+      return writeLink.mutateAsync({ ...command, baseRevision: link.revision });
     },
     onAddAudience: (target) => {
       const command = {
@@ -148,16 +199,10 @@ export function ProjectReleasePlanningSurface({
         (link) =>
           link.target.type === target.type && link.target.id === target.id,
       );
-      return done(
-        "Audience linked.",
-        run(command, (clientIdempotencyKey) =>
-          client.setProjectReleaseAudience({
-            ...command,
-            baseRevision: previous?.revision ?? 0,
-            clientIdempotencyKey,
-          }),
-        ),
-      );
+      return audience.mutateAsync({
+        ...command,
+        baseRevision: previous?.revision ?? 0,
+      });
     },
     onRemoveAudience: (link) => {
       const command = {
@@ -166,16 +211,7 @@ export function ProjectReleasePlanningSurface({
         targetId: link.target.id,
         targetType: link.target.type,
       };
-      return done(
-        "Audience link removed.",
-        run(command, (clientIdempotencyKey) =>
-          client.setProjectReleaseAudience({
-            ...command,
-            baseRevision: link.revision,
-            clientIdempotencyKey,
-          }),
-        ),
-      );
+      return audience.mutateAsync({ ...command, baseRevision: link.revision });
     },
     onChangeStatus: (status) => {
       const { release } = current;
@@ -187,16 +223,10 @@ export function ProjectReleasePlanningSurface({
         sourceType: "Project Release" as const,
         status,
       };
-      return done(
-        `Status changed to ${status}.`,
-        run(command, (clientIdempotencyKey) =>
-          client.transitionProjectSourceRecord({
-            ...command,
-            baseRevision: release.revision,
-            clientIdempotencyKey,
-          }),
-        ),
-      );
+      return writeStatus.mutateAsync({
+        ...command,
+        baseRevision: release.revision,
+      });
     },
     onSaveHypothesis: (hypothesis) => {
       const { release } = current;
@@ -210,16 +240,10 @@ export function ProjectReleasePlanningSurface({
         sourceType: "Project Release" as const,
         versionLabel: release.versionLabel,
       };
-      return done(
-        "Hypothesis saved.",
-        run(command, (clientIdempotencyKey) =>
-          client.updateProjectSourceRecord({
-            ...command,
-            baseRevision: release.revision,
-            clientIdempotencyKey,
-          }),
-        ),
-      );
+      return writeHypothesis.mutateAsync({
+        ...command,
+        baseRevision: release.revision,
+      });
     },
   };
   return (
@@ -228,7 +252,10 @@ export function ProjectReleasePlanningSurface({
       detail={current}
       errorMessage={errorMessage}
       projectId={projectId}
+      resetStatus={writeStatus.reset}
       savedMessage={savedMessage}
+      statusError={writeStatus.isError}
+      statusPending={writeStatus.isPending}
     />
   );
 }

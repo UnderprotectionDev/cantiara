@@ -1,20 +1,21 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { ProjectProfile } from "@cantiara/api/project-shell";
-import type {
-  WorkspaceOverviewModuleId,
-  WorkspaceOverviewPresentation,
+import {
+  cloneWorkspaceOverviewSavedListDefinition,
+  type WorkspaceOverviewModel,
+  type WorkspaceOverviewModuleId,
+  type WorkspaceOverviewPresentation,
+  workspaceOverviewSavedListDefinitionSchema,
+  workspaceOverviewSavedListHref,
 } from "@cantiara/api/workspace-overview";
-import { cloneWorkspaceOverviewSavedListDefinition } from "@cantiara/api/workspace-overview";
 import { buttonVariants } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
-import { useCallback, useRef } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import WorkspaceOverviewView from "@/features/workspace-overview/ui/components/workspace-overview";
 import {
   accountPreferencesQueryOptions,
-  client,
+  orpc,
   projectsQueryOptions,
   workspaceOverviewQueryOptions,
 } from "@/utils/orpc";
@@ -81,52 +82,73 @@ export default function ProjectsView({
   selectedSavedList?: string;
 }) {
   const projects = useQuery(projectsQueryOptions());
-  const workspaceOverview = useQuery(workspaceOverviewQueryOptions(accountId));
+  const overviewOptions = workspaceOverviewQueryOptions(accountId);
+  const workspaceOverview = useQuery(overviewOptions);
   const accountPreferences = useQuery(
     accountPreferencesQueryOptions(accountId),
   );
   const queryClient = useQueryClient();
-  // Serialize saves so requests reach the server and responses resolve in
-  // issue order; concurrent saves could otherwise resolve out of order and
-  // overwrite the cached overview with an older layout.
-  const lastOverviewSaveRef = useRef<Promise<unknown>>(Promise.resolve());
-  const saveWorkspaceOverview = useMutation({
-    mutationFn: (presentation: WorkspaceOverviewPresentation) => {
-      const request = lastOverviewSaveRef.current.then(() =>
-        runOnlineOnlyWrite(() =>
-          client.saveWorkspaceOverviewPresentation({
-            layout: {
-              hidden: [...presentation.layout.hidden],
-              order: [...presentation.layout.order],
-            },
-            liveBlockSources: presentation.liveBlockSources.map((source) => ({
-              ...source,
-            })),
-            savedLists: presentation.savedLists?.map(
-              cloneWorkspaceOverviewSavedListDefinition,
-            ),
-            version: presentation.version,
-          }),
-        ),
-      );
-      lastOverviewSaveRef.current = request.catch(() => undefined);
-      return request;
-    },
-    scope: {
-      id: `workspace-overview-presentation:${accountId ?? "anonymous"}`,
-    },
-    onSuccess: (nextOverview) => {
-      queryClient.setQueryData(
-        workspaceOverviewQueryOptions(accountId).queryKey,
-        nextOverview,
-      );
-    },
-  });
-  const handlePresentationChange = useCallback(
-    (presentation: WorkspaceOverviewPresentation) =>
-      saveWorkspaceOverview.mutateAsync(presentation),
-    [saveWorkspaceOverview],
+  const saveWorkspaceOverview = useMutation(
+    orpc.saveWorkspaceOverviewPresentation.mutationOptions({
+      meta: { onlineWrite: true, retryInSurface: true },
+      scope: {
+        id: `workspace-overview-presentation:${accountId ?? "anonymous"}`,
+      },
+      onMutate: async (presentation) => {
+        await queryClient.cancelQueries({
+          exact: true,
+          queryKey: overviewOptions.queryKey,
+        });
+        const previous = queryClient.getQueryData<WorkspaceOverviewModel>(
+          overviewOptions.queryKey,
+        );
+        if (previous) {
+          queryClient.setQueryData(overviewOptions.queryKey, {
+            ...previous,
+            layout: presentation.layout,
+            liveBlockSources: presentation.liveBlockSources,
+            savedLists:
+              presentation.savedLists?.map((definition) => ({
+                ...workspaceOverviewSavedListDefinitionSchema.parse(definition),
+                href: workspaceOverviewSavedListHref(definition.id),
+                projects:
+                  previous.savedLists.find(({ id }) => id === definition.id)
+                    ?.projects ?? [],
+              })) ?? previous.savedLists,
+          } satisfies WorkspaceOverviewModel);
+        }
+        return previous;
+      },
+      onError: (_, __, previous) => {
+        if (previous) {
+          queryClient.setQueryData(overviewOptions.queryKey, previous);
+        }
+      },
+      onSuccess: (overview) => {
+        queryClient.setQueryData(overviewOptions.queryKey, overview);
+      },
+      onSettled: () =>
+        queryClient.invalidateQueries({
+          exact: true,
+          queryKey: overviewOptions.queryKey,
+        }),
+    }),
   );
+  function handlePresentationChange(
+    presentation: WorkspaceOverviewPresentation,
+  ) {
+    return saveWorkspaceOverview.mutateAsync({
+      layout: {
+        hidden: [...presentation.layout.hidden],
+        order: [...presentation.layout.order],
+      },
+      liveBlockSources: [...presentation.liveBlockSources],
+      savedLists: presentation.savedLists?.map(
+        cloneWorkspaceOverviewSavedListDefinition,
+      ),
+      version: presentation.version,
+    });
+  }
 
   return (
     <main className="surface-frame max-w-6xl">
@@ -196,12 +218,13 @@ export default function ProjectsView({
         </div>
       ) : null}
       {workspaceOverview.data ? (
-        <div
+        <fieldset
           className={
             selectedModule || selectedSavedList
               ? "pt-1"
               : "mt-12 border-t border-border/80 pt-9"
           }
+          disabled={saveWorkspaceOverview.isPending}
         >
           <WorkspaceOverviewView
             formattingPreferences={
@@ -212,7 +235,7 @@ export default function ProjectsView({
             selectedModule={selectedModule}
             selectedSavedList={selectedSavedList}
           />
-        </div>
+        </fieldset>
       ) : null}
       {saveWorkspaceOverview.isError ? (
         <p className="pt-3 text-sm text-destructive" role="alert">

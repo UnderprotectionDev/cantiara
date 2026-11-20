@@ -9,15 +9,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
-import { useProductionIncidentCommand } from "../../hooks/use-production-incident-command";
 import {
   type ProductionIncidentFormValues,
   productionIncidentsHref,
 } from "../../lib/production-incident-form";
+import { refreshProductionIncident } from "../../lib/refresh-production-incident";
 import { ProductionIncidentForm } from "../forms/production-incident-form";
 import { ProductionIncidentList } from "./production-incident-list";
 
@@ -31,31 +32,42 @@ export function ProductionIncidentsSurface({
   const overview = useQuery(
     orpc.productionIncidents.queryOptions({ input: { projectId } }),
   );
-  const run = useProductionIncidentCommand();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   // One id per create attempt, so a retried create cannot make a second incident.
   const incidentId = useRef<string | null>(null);
 
-  async function create(values: ProductionIncidentFormValues) {
-    incidentId.current ??= crypto.randomUUID();
-    const id = incidentId.current;
-    await run({ create: id, ...values }, (clientIdempotencyKey) =>
-      client.createProjectSourceRecord({
+  const create = usePreparedMutation(
+    orpc.createProjectSourceRecord.mutationOptions({
+      mutationFn: (input) => client.createProjectSourceRecord(input),
+      onSuccess: async (_, input) => {
+        await refreshProductionIncident(queryClient, input.projectId, input.id);
+        if (incidentId.current === input.id) {
+          incidentId.current = null;
+          setCreating(false);
+          await navigate({
+            href: productionIncidentsHref(input.projectId, input.id),
+          }).catch(() => undefined);
+        }
+      },
+    }),
+    (values: ProductionIncidentFormValues) => {
+      incidentId.current ??= crypto.randomUUID();
+      return {
         ...values,
         baseRevision: 0,
-        clientIdempotencyKey,
-        id,
+        id: incidentId.current,
         projectId,
-        sourceType: "Production Incident",
-      }),
-    );
+        sourceType: "Production Incident" as const,
+      };
+    },
+  );
+
+  function dismissCreate() {
     incidentId.current = null;
+    create.reset();
     setCreating(false);
-    // A failed in-app navigation must not read as a failed create.
-    await navigate({ href: productionIncidentsHref(projectId, id) }).catch(
-      () => undefined,
-    );
   }
 
   if (overview.status === "pending") {
@@ -91,8 +103,8 @@ export function ProductionIncidentsSurface({
       />
       <Dialog
         onOpenChange={(open) => {
-          if (!open) {
-            setCreating(false);
+          if (!(open || create.isPending)) {
+            dismissCreate();
           }
         }}
         open={creating}
@@ -106,8 +118,8 @@ export function ProductionIncidentsSurface({
           </DialogHeader>
           <ProductionIncidentForm
             mode="create"
-            onCancel={() => setCreating(false)}
-            onSubmit={create}
+            onCancel={dismissCreate}
+            onSubmit={create.mutateAsync}
             timeZone={formatting.timeZone}
           />
         </DialogContent>

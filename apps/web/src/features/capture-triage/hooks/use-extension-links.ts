@@ -1,27 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef } from "react";
 import { toast } from "sonner";
 
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 
 export function useExtensionLinks() {
   const queryClient = useQueryClient();
   const links = useQuery(orpc.webCaptureLinks.queryOptions());
-  const [pairingCode, setPairingCode] = useState<{
-    code: string;
-    expiresAt: string;
-  } | null>(null);
+  const pairingCode = useRef<string | null>(null);
   const generatePairingCode = useMutation({
-    mutationFn: () =>
-      runOnlineOnlyWrite(() => client.createWebCapturePairingCode()),
-    onSuccess: (nextPairingCode) => {
-      setPairingCode(nextPairingCode);
+    meta: { onlineWrite: true },
+    mutationKey: orpc.createWebCapturePairingCode.mutationKey(),
+    mutationFn: async () => {
+      pairingCode.current = null;
+      const { code, expiresAt } = await client.createWebCapturePairingCode();
+      pairingCode.current = code;
+      return { expiresAt };
     },
   });
   const revokeLink = useMutation({
-    mutationFn: (linkId: string) =>
-      runOnlineOnlyWrite(() => client.revokeWebCaptureLink({ linkId })),
+    meta: { onlineWrite: true },
+    mutationKey: orpc.revokeWebCaptureLink.mutationKey(),
+    mutationFn: (linkId: string) => client.revokeWebCaptureLink({ linkId }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: orpc.webCaptureLinks.key(),
@@ -33,7 +33,10 @@ export function useExtensionLinks() {
   return {
     generatePairingCode,
     links,
-    pairingCode,
+    pairingCode:
+      generatePairingCode.data && pairingCode.current
+        ? { code: pairingCode.current, ...generatePairingCode.data }
+        : null,
     revokeLink,
   };
 }

@@ -18,6 +18,7 @@ import {
 import { useState } from "react";
 
 import { usePriorityMetricValueMutations } from "@/features/priority-metrics/hooks/use-priority-metrics";
+import { errorMessage } from "../../lib/error-message";
 
 export default function PriorityMetricValuesForm({
   disabled = false,
@@ -33,39 +34,32 @@ export default function PriorityMetricValuesForm({
   workKey: string;
 }) {
   const { clearValue, setValue } = usePriorityMetricValueMutations(projectId);
-  const [error, setError] = useState<string | null>(null);
+  const [dismissedAt, setDismissedAt] = useState(0);
+  const latest =
+    setValue.submittedAt >= clearValue.submittedAt ? setValue : clearValue;
+  const error =
+    latest.isError &&
+    latest.variables?.workId === workId &&
+    latest.submittedAt !== dismissedAt
+      ? latest.error
+      : null;
   if (items.length === 0) {
     return null;
   }
 
-  async function updateValue(
+  function updateValue(
     item: PriorityMetricValueListItem,
     rank: PriorityMetricRank | null,
   ) {
-    setError(null);
-    try {
-      if (rank === null) {
-        if (item.value) {
-          await clearValue.mutateAsync({
-            baseRevision: item.valueRevision,
-            metricId: item.definition.id,
-            workId,
-          });
-        }
-        return;
-      }
-      await setValue.mutateAsync({
-        baseRevision: item.valueRevision,
-        metricId: item.definition.id,
-        rank,
-        workId,
-      });
-    } catch (mutationError) {
-      setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : "Priority metric value could not be saved.",
-      );
+    const input = {
+      baseRevision: item.valueRevision,
+      metricId: item.definition.id,
+      workId,
+    };
+    if (rank !== null) {
+      setValue.mutate({ ...input, rank });
+    } else if (item.value) {
+      clearValue.mutate(input);
     }
   }
 
@@ -117,10 +111,12 @@ export default function PriorityMetricValuesForm({
       })}
       {error ? (
         <div className="flex flex-wrap items-center gap-2" role="alert">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-sm text-destructive">
+            {errorMessage(error, "Priority metric value could not be saved.")}
+          </p>
           <Button
             disabled={setValue.isPending || clearValue.isPending}
-            onClick={() => setError(null)}
+            onClick={() => setDismissedAt(latest.submittedAt)}
             size="xs"
             type="button"
             variant="outline"

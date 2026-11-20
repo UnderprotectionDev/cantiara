@@ -16,6 +16,7 @@ vi.mock("@/features/web-macos-client/store/client-shell", () => ({
 }));
 vi.mock("@/utils/orpc", () => {
   const options = (name: string) => ({
+    queryKey: ({ input }: { input?: unknown } = {}) => [name, input],
     queryOptions: ({ input }: { input?: unknown } = {}) => ({
       queryKey: [name, input],
     }),
@@ -41,13 +42,16 @@ test("archiving a Work refreshes Smart Collection membership", async () => {
   const root = createRoot(container);
   const cache = new QueryClient();
   const invalidate = vi.spyOn(cache, "invalidateQueries");
-  rpc.archiveWork.mockResolvedValue({});
   const work = {
     archivedAt: null,
     id: "w1",
     projectId: "p1",
     revision: 1,
   } as WorkProfile;
+  rpc.archiveWork.mockResolvedValue({
+    ...work,
+    archivedAt: "2026-11-20T00:00:00Z",
+  });
   await act(async () =>
     root.render(
       <QueryClientProvider client={cache}>

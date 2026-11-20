@@ -34,12 +34,11 @@ import type {
   WorkCompletionFeedbackState,
 } from "@/features/completion-effects/hooks/use-user-initiated-work-success";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { commandVariables } from "@/lib/command-variables";
 import {
   client,
   invalidateSmartCollectionMembership,
   orpc,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
 
 function mutationErrorMessage(error: unknown) {
@@ -86,12 +85,8 @@ export default function WorkStatusForm({
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
   const latestWorkRevision = useRef(work.revision);
-  const [selectedStatus, setSelectedStatus] = useState<WorkStatus>(work.status);
-  const [closePreview, setClosePreview] = useState<WorkClosePreview | null>(
-    null,
-  );
   const [reopenTarget, setReopenTarget] = useState<WorkOpenStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const pendingCloseRequest = useRef<{
     fingerprint: string;
     clientIdempotencyKey: string;
@@ -114,16 +109,11 @@ export default function WorkStatusForm({
       return;
     }
     latestWorkRevision.current = work.revision;
-    setSelectedStatus(work.status);
-    setClosePreview(null);
     setReopenTarget(null);
-  }, [work.revision, work.status]);
+  }, [work.revision]);
 
   async function refreshWork() {
     await Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: projectWorksQueryPrefix,
-      }),
       queryClient.invalidateQueries({ queryKey: worksQueryKey }),
       queryClient.invalidateQueries({ queryKey: workQueryKey }),
       queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
@@ -132,36 +122,28 @@ export default function WorkStatusForm({
   }
 
   const updateStatus = useMutation({
+    mutationKey: orpc.updateWorkStatus.mutationKey(),
+    meta: { onlineWrite: true },
     mutationFn: (input: Parameters<typeof client.updateWorkStatus>[0]) =>
-      runOnlineOnlyWrite(() => client.updateWorkStatus(input)),
-    onError: (mutationError) => {
-      setSelectedStatus(work.status);
-      setError(mutationErrorMessage(mutationError));
-    },
+      client.updateWorkStatus(input),
     onSuccess: async (updatedWork) => {
       latestWorkRevision.current = updatedWork.revision;
-      setSelectedStatus(updatedWork.status);
-      setError(null);
       await refreshWork();
     },
   });
 
   const previewClose = useMutation({
-    mutationFn: () => client.workClosePreview({ workId: work.id }),
-    onError: (mutationError) => {
-      setSelectedStatus(work.status);
-      setError(mutationErrorMessage(mutationError));
-    },
-    onSuccess: (preview) => {
-      setError(null);
-      setClosePreview(preview);
-    },
+    mutationKey: orpc.workClosePreview.mutationKey(),
+    mutationFn: (input: { workId: string; revision: number }) =>
+      client.workClosePreview({ workId: input.workId }),
   });
 
   const closeWork = useMutation({
+    mutationKey: orpc.closeWork.mutationKey(),
+    meta: { onlineWrite: true },
     mutationFn: (input: Parameters<typeof client.closeWork>[0]) =>
-      runOnlineOnlyWrite(() => client.closeWork(input)),
-    onError: (mutationError, input) => {
+      client.closeWork(input),
+    onError: (_, input) => {
       if (input.closureResult === "Completed") {
         onCloseOutcome({
           clientIdempotencyKey: input.clientIdempotencyKey,
@@ -170,13 +152,9 @@ export default function WorkStatusForm({
           workId: work.id,
         });
       }
-      setError(mutationErrorMessage(mutationError));
     },
     onSuccess: async (closedWork, input) => {
       latestWorkRevision.current = closedWork.revision;
-      setSelectedStatus(closedWork.status);
-      setClosePreview(null);
-      setError(null);
       if (closedWork.closureResult === "Completed") {
         const visibleAtCloseStart =
           pendingCloseRequest.current?.clientIdempotencyKey ===
@@ -199,20 +177,37 @@ export default function WorkStatusForm({
   });
 
   const reopenWork = useMutation({
+    mutationKey: orpc.reopenWork.mutationKey(),
+    meta: { onlineWrite: true },
     mutationFn: (input: Parameters<typeof client.reopenWork>[0]) =>
-      runOnlineOnlyWrite(() => client.reopenWork(input)),
-    onError: (mutationError) => {
-      setSelectedStatus(work.status);
-      setError(mutationErrorMessage(mutationError));
-    },
+      client.reopenWork(input),
     onSuccess: async (reopenedWork) => {
       latestWorkRevision.current = reopenedWork.revision;
-      setSelectedStatus(reopenedWork.status);
       setReopenTarget(null);
-      setError(null);
       await refreshWork();
     },
   });
+  const [latest] = [work, updateStatus.data, closeWork.data, reopenWork.data]
+    .filter((record) => record !== undefined)
+    .sort((first, second) => second.revision - first.revision);
+  const selectedStatus = latest?.status ?? work.status;
+  const closePreview =
+    previewClose.variables?.revision === latestWorkRevision.current &&
+    !closeWork.isSuccess
+      ? previewClose.data
+      : undefined;
+  const mutationError =
+    closeWork.error ??
+    reopenWork.error ??
+    previewClose.error ??
+    updateStatus.error;
+  const error =
+    validationError ??
+    (mutationError ? mutationErrorMessage(mutationError) : null);
+  const { reset: resetUpdate } = updateStatus;
+  const { reset: resetPreview } = previewClose;
+  const { reset: resetClose } = closeWork;
+  const { reset: resetReopen } = reopenWork;
 
   const closeForm = useForm({
     defaultValues: {
@@ -247,7 +242,7 @@ export default function WorkStatusForm({
         clientIdempotencyKey,
       });
       if (!closeInput.success) {
-        setError(
+        setValidationError(
           closeInput.error.issues[0]?.message ?? mutationErrorMessage(null),
         );
         return;
@@ -269,18 +264,20 @@ export default function WorkStatusForm({
   });
 
   const cancelTransition = useCallback(() => {
-    setClosePreview(null);
+    resetPreview();
+    resetClose();
+    resetReopen();
+    resetUpdate();
     setReopenTarget(null);
-    setSelectedStatus(work.status);
-    setError(null);
+    setValidationError(null);
     pendingCloseRequest.current = null;
     pendingCloseOpenStatus.current = null;
     closeForm.reset();
-  }, [closeForm, work.status]);
+  }, [closeForm, resetClose, resetPreview, resetReopen, resetUpdate]);
 
   const handleStatusChange = useCallback(
     (nextStatus: WorkStatus) => {
-      setError(null);
+      setValidationError(null);
       if (nextStatus === work.status) {
         cancelTransition();
         return;
@@ -290,19 +287,37 @@ export default function WorkStatusForm({
         return;
       }
       if (nextStatus === "Closed") {
-        previewClose.mutate();
+        resetClose();
+        resetUpdate();
+        previewClose.mutate({
+          workId: work.id,
+          revision: latestWorkRevision.current,
+        });
         return;
       }
-      updateStatus.mutate({
-        baseRevision: latestWorkRevision.current,
-        clientIdempotencyKey: crypto.randomUUID(),
-        status: nextStatus,
-        workId: work.id,
-      });
+      updateStatus.mutate(
+        commandVariables<
+          Omit<
+            Parameters<typeof client.updateWorkStatus>[0],
+            "clientIdempotencyKey"
+          >
+        >(
+          {
+            baseRevision: latestWorkRevision.current,
+            status: nextStatus,
+            workId: work.id,
+          },
+          updateStatus.isError ? updateStatus.variables : undefined,
+        ),
+      );
     },
     [
       cancelTransition,
       previewClose.mutate,
+      resetClose,
+      resetUpdate,
+      updateStatus.isError,
+      updateStatus.variables,
       updateStatus.mutate,
       work.id,
       work.status,
@@ -336,13 +351,19 @@ export default function WorkStatusForm({
     if (!reopenTarget) {
       return;
     }
-    reopenWork.mutate({
-      baseRevision: latestWorkRevision.current,
-      clientIdempotencyKey: crypto.randomUUID(),
-      confirmed: true,
-      status: reopenTarget,
-      workId: work.id,
-    });
+    reopenWork.mutate(
+      commandVariables<
+        Omit<Parameters<typeof client.reopenWork>[0], "clientIdempotencyKey">
+      >(
+        {
+          baseRevision: latestWorkRevision.current,
+          confirmed: true,
+          status: reopenTarget,
+          workId: work.id,
+        },
+        reopenWork.isError ? reopenWork.variables : undefined,
+      ),
+    );
   }
 
   const isPending =

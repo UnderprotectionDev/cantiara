@@ -84,6 +84,7 @@ export default function TrashSurface({ projectId }: { projectId: string }) {
       onRestore={restore}
       onRestorePreview={restorePreview}
       permanentDelete={permanentDelete}
+      projectId={projectId}
     />
   );
 }

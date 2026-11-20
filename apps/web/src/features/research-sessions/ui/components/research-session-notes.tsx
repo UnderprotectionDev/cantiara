@@ -1,9 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Note controls bind to the current session draft.
 
-import type {
-  ResearchBindingTargets,
-  ResearchEvidenceBinding,
-} from "@cantiara/api/research-session-bindings";
+import type { ResearchEvidenceBinding } from "@cantiara/api/research-session-bindings";
 import {
   type ResearchSessionNoteInput,
   type ResearchSessionRecord,
@@ -19,14 +16,17 @@ import {
   projectSourceRecordHash,
   workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
+import { orpc } from "@/utils/orpc";
 import {
   type ResearchBindingActions,
+  type ResearchBindingPreviewState,
   ResearchNoteBindingEditor,
 } from "../forms/research-note-binding-form";
 import {
   ResearchSessionNoteEditor,
   type SaveResearchNote,
 } from "../forms/research-session-note-form";
+import type { ResearchWriteState } from "../views/research-sessions-view";
 
 type NoteKind = ResearchSessionNoteInput["kind"];
 const noteStyles: Record<NoteKind, string> = {
@@ -41,48 +41,52 @@ export function ResearchSessionNotes({
   onSave,
   onStartEditing,
   bindingActions,
+  bindingPreview,
+  bindingWrite,
+  noteWrite,
 }: {
   record: ResearchSessionRecord;
   readOnly: boolean;
   onSave: SaveResearchNote;
   onStartEditing: () => void;
   bindingActions?: ResearchBindingActions;
+  bindingPreview?: ResearchBindingPreviewState;
+  bindingWrite?: ResearchWriteState;
+  noteWrite?: ResearchWriteState;
 }) {
-  const [editing, setEditing] = useState<{
+  const [draft, setEditing] = useState<{
     record: ResearchSessionRecord;
     note?: ResearchSessionNoteInput;
   } | null>(null);
-  const [saved, setSaved] = useState(false);
-  const [bindingDraft, setBindingDraft] = useState<
-    | {
-        record: ResearchSessionRecord;
-        note: ResearchSessionNoteInput;
-        mode: "create" | "bind";
-        targets: ResearchBindingTargets;
-      }
-    | undefined
-  >(undefined);
-  const [bindingPending, setBindingPending] = useState(false);
-  const [bindingError, setBindingError] = useState<string>();
-  const [bound, setBound] = useState(false);
-  async function startBinding(
+  const saved = noteWrite?.isSuccess;
+  const editing = saved ? null : draft;
+  const [binding, setBindingDraft] = useState<{
+    record: ResearchSessionRecord;
+    note: ResearchSessionNoteInput;
+    mode: "create" | "bind";
+  }>();
+  const bound = bindingWrite?.isSuccess;
+  const bindingDraft = bound ? undefined : binding;
+  const targetOptions = orpc.researchSessionBindingTargets.queryOptions({
+    input: { id: record.id, projectId: record.projectId },
+  });
+  const targets = useQuery({
+    ...targetOptions,
+    enabled: Boolean(bindingActions && bindingDraft),
+    gcTime: 0,
+    queryFn: () =>
+      bindingActions?.targets(record) ??
+      Promise.reject(new Error("Targets are unavailable.")),
+    staleTime: 0,
+  });
+  const bindingPending = Boolean(bindingDraft && targets.isFetching);
+  function startBinding(
     note: ResearchSessionNoteInput,
     mode: "create" | "bind",
   ) {
-    if (!bindingActions || bindingPending) {
-      return;
-    }
-    setBindingPending(true);
-    setBindingError(undefined);
-    setBound(false);
-    try {
-      const targets = await bindingActions.targets(record);
-      setBindingDraft({ record, note, mode, targets });
-    } catch {
-      setBindingError("Targets are unavailable. Try the action again.");
-    } finally {
-      setBindingPending(false);
-    }
+    bindingWrite?.reset();
+    bindingPreview?.reset();
+    setBindingDraft({ record, note, mode });
   }
   async function confirmBinding(
     preview: Parameters<ResearchBindingActions["confirm"]>[1],
@@ -91,14 +95,13 @@ export function ResearchSessionNotes({
     if (!(bindingActions && bindingDraft)) {
       throw new Error("Preview is unavailable.");
     }
-    const binding = await bindingActions.confirm(
+    const result = await bindingActions.confirm(
       bindingDraft.record,
       preview,
       key,
     );
     setBindingDraft(undefined);
-    setBound(true);
-    return binding;
+    return result;
   }
   const notes = record.content.flatMap(({ content }) => {
     const parsed = researchSessionNoteInputSchema.safeParse(content);
@@ -110,12 +113,10 @@ export function ResearchSessionNotes({
     }
     await onSave(note, editing.record, !editing.note);
     setEditing(null);
-    setSaved(true);
   }
   function start(note?: ResearchSessionNoteInput) {
     onStartEditing();
     setEditing({ record, note });
-    setSaved(false);
   }
   return (
     <section
@@ -203,18 +204,30 @@ export function ResearchSessionNotes({
           ) : null}
         </article>
       ))}
-      {bindingError ? <p role="alert">{bindingError}</p> : null}
+      {bindingDraft && targets.isError ? (
+        <div>
+          <p role="alert">Targets are unavailable. Try the action again.</p>
+          <Button onClick={() => targets.refetch().catch(() => undefined)}>
+            Retry
+          </Button>
+          <Button onClick={() => setBindingDraft(undefined)} variant="outline">
+            Cancel
+          </Button>
+        </div>
+      ) : null}
       {bindingPending ? <p role="status">Loading targets…</p> : null}
       {bound ? <p role="status">Evidence bound.</p> : null}
-      {bindingDraft && bindingActions ? (
+      {bindingDraft && bindingActions && targets.data && !targets.isError ? (
         <ResearchNoteBindingEditor
+          confirmState={bindingWrite}
           mode={bindingDraft.mode}
           note={bindingDraft.note}
           onCancel={() => setBindingDraft(undefined)}
           onConfirm={confirmBinding}
           onPreview={bindingActions.preview}
+          previewState={bindingPreview}
           record={bindingDraft.record}
-          targets={bindingDraft.targets}
+          targets={targets.data}
         />
       ) : null}
       {bindingActions ? (
@@ -227,6 +240,8 @@ export function ResearchSessionNotes({
           note={editing.note}
           onCancel={() => setEditing(null)}
           onSave={save}
+          saveError={noteWrite?.error}
+          savePending={noteWrite?.isPending}
         />
       ) : null}
     </section>

@@ -47,6 +47,7 @@ export function CaseForm({
   loadTargets,
   onCancel,
   onSubmit,
+  projectId,
   showChangeKind,
   submitLabel,
 }: {
@@ -57,6 +58,7 @@ export function CaseForm({
   loadTargets: LoadRelationTargets;
   onCancel?: () => void;
   onSubmit: SubmitCase;
+  projectId: string;
   showChangeKind: boolean;
   submitLabel: string;
 }) {
@@ -183,6 +185,7 @@ export function CaseForm({
                   idPrefix={idPrefix}
                   loadTargets={loadTargets}
                   onChange={field.handleChange}
+                  projectId={projectId}
                   value={field.state.value}
                 />
               )}

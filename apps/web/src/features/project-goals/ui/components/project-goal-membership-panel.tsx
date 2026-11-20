@@ -6,7 +6,6 @@ import type {
 } from "@cantiara/api/project-goals";
 import { Button } from "@cantiara/ui/components/button";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
 import {
   type GoalRelationChange,
   selectionKey,
@@ -40,33 +39,26 @@ export function ProjectGoalMembershipView({
   detail,
   projectId,
   onSetRelation,
+  failed = false,
+  pending = false,
+  saved,
 }: {
   detail: ProjectGoalDetail;
   projectId: string;
+  failed?: boolean;
+  pending?: boolean;
+  saved?: { at: number; attached: boolean };
   onSetRelation: (change: GoalRelationChange) => Promise<unknown>;
 }) {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string>();
-  const [message, setMessage] = useState<string>();
-  const [settledChanges, setSettledChanges] = useState(0);
-  async function change(input: GoalRelationChange) {
-    setPending(true);
-    setError(undefined);
-    setMessage(undefined);
-    try {
-      await onSetRelation(input);
-      setMessage(input.attached ? "Relation added." : "Relation removed.");
-      setSettledChanges((count) => count + 1);
-    } catch {
-      setError(
-        "Relation could not be saved. Reload to check for changes before trying again.",
-      );
-    } finally {
-      setPending(false);
-    }
-  }
+  const savedMessage = saved?.attached
+    ? "Relation added."
+    : "Relation removed.";
+  const message = saved ? savedMessage : undefined;
+  const error = failed
+    ? "Relation could not be saved. Reload to check for changes before trying again."
+    : undefined;
   function remove(relation: ProjectGoalRelation) {
-    change({
+    onSetRelation({
       source: relation.source,
       kind: relation.kind,
       attached: false,
@@ -127,9 +119,9 @@ export function ProjectGoalMembershipView({
         {detail.readOnly ? null : (
           <ProjectGoalRelationForm
             detail={detail}
-            onAdd={change}
+            onAdd={onSetRelation}
             pending={pending}
-            settledChanges={settledChanges}
+            settledChanges={saved?.at ?? 0}
           />
         )}
       </section>

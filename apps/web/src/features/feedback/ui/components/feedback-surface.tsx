@@ -5,18 +5,41 @@ import type {
   FeedbackWorkType,
 } from "@cantiara/api/feedback";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import {
-  client,
-  invalidateSmartCollectionMembership,
-  orpc,
-} from "@/utils/orpc";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { client, orpc } from "@/utils/orpc";
 import type { FeedbackDraft } from "../forms/create-feedback-form";
 import type { SaveEvidence } from "../forms/evidence-quality-form";
 import { FeedbackView } from "../views/feedback-view";
 
 export default function FeedbackSurface({ projectId }: { projectId: string }) {
+  const createFeedbackMutation = useMutation(
+    orpc.createFeedback.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.createFeedback(input),
+      onSuccess: () => refresh(),
+    }),
+  );
+  const setFeedbackIdentityMutation = useMutation(
+    orpc.setFeedbackIdentity.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.setFeedbackIdentity(input),
+      onSettled: () => refresh(),
+    }),
+  );
+  const setFeedbackEvidenceMutation = useMutation(
+    orpc.setFeedbackEvidence.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.setFeedbackEvidence(input),
+      onSettled: () => refresh(),
+    }),
+  );
+  const setFeedbackStatusMutation = useMutation(
+    orpc.setFeedbackStatus.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.setFeedbackStatus(input),
+      onSettled: () => refresh(),
+    }),
+  );
   const queryClient = useQueryClient();
   const options = orpc.projectFeedback.queryOptions({ input: { projectId } });
   const records = useQuery(options);
@@ -34,42 +57,30 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
     });
   }
   async function create(draft: FeedbackDraft) {
-    await runOnlineOnlyWrite(() =>
-      client.createFeedback({ ...draft, projectId }),
-    );
-    await refresh();
+    await createFeedbackMutation.mutateAsync({ ...draft, projectId });
   }
   async function setIdentity(
     record: FeedbackRecord,
     identity: { companyId: string | null; contactId: string | null },
   ) {
-    try {
-      await runOnlineOnlyWrite(() =>
-        client.setFeedbackIdentity({
-          ...identity,
-          expectedRevision: record.revision,
-          feedbackId: record.id,
-          projectId,
-        }),
-      );
-    } finally {
-      await refresh();
+    if (!setFeedbackStatusMutation.isPending) {
+      setFeedbackStatusMutation.reset();
     }
+    await setFeedbackIdentityMutation.mutateAsync({
+      ...identity,
+      expectedRevision: record.revision,
+      feedbackId: record.id,
+      projectId,
+    });
   }
   function saveEvidence(record: FeedbackRecord): SaveEvidence {
     return async (origin, command) => {
-      try {
-        await runOnlineOnlyWrite(() =>
-          client.setFeedbackEvidence({
-            ...command,
-            feedbackId: record.id,
-            projectId,
-            workId: origin.workId,
-          }),
-        );
-      } finally {
-        await refresh();
-      }
+      await setFeedbackEvidenceMutation.mutateAsync({
+        ...command,
+        feedbackId: record.id,
+        projectId,
+        workId: origin.workId,
+      });
     };
   }
   function previewConvert(record: FeedbackRecord) {
@@ -81,44 +92,30 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
       });
   }
   function confirmConvert(record: FeedbackRecord) {
-    return async (
+    return (
       plan: FeedbackWorkPlan,
       identity: { id: string; key: string; workId: string },
-    ) => {
-      try {
-        return await runOnlineOnlyWrite(() =>
-          client.convertFeedbackToWork({
-            baseRevision: 0,
-            clientIdempotencyKey: identity.key,
-            feedbackId: record.id,
-            id: identity.id,
-            plan,
-            projectId,
-            workId: identity.workId,
-          }),
-        );
-      } finally {
-        // A converted Feedback creates a Work, which can join Smart Collections.
-        await Promise.all([
-          refresh(),
-          ...invalidateSmartCollectionMembership(queryClient),
-        ]);
-      }
-    };
+    ) =>
+      client.convertFeedbackToWork({
+        baseRevision: 0,
+        clientIdempotencyKey: identity.key,
+        feedbackId: record.id,
+        id: identity.id,
+        plan,
+        projectId,
+        workId: identity.workId,
+      });
   }
   async function setStatus(record: FeedbackRecord, status: FeedbackStatus) {
-    try {
-      await runOnlineOnlyWrite(() =>
-        client.setFeedbackStatus({
-          expectedRevision: record.revision,
-          feedbackId: record.id,
-          projectId,
-          status,
-        }),
-      );
-    } finally {
-      await refresh();
+    if (!setFeedbackIdentityMutation.isPending) {
+      setFeedbackIdentityMutation.reset();
     }
+    await setFeedbackStatusMutation.mutateAsync({
+      expectedRevision: record.revision,
+      feedbackId: record.id,
+      projectId,
+      status,
+    });
   }
   function retry() {
     records.refetch().catch(() => undefined);
@@ -148,6 +145,7 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
           id,
           name: displayName ?? emails[0] ?? "Unnamed Contact",
         }))}
+      identityWrite={setFeedbackIdentityMutation}
       onConfirmConvert={confirmConvert}
       onCreate={create}
       onPreviewConvert={previewConvert}
@@ -156,6 +154,7 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
       onSetStatus={setStatus}
       readOnly={records.data.readOnly}
       records={records.data.records}
+      statusWrite={setFeedbackStatusMutation}
     />
   );
 }

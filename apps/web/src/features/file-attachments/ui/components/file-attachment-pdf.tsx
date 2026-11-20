@@ -21,11 +21,11 @@ const PDF_PAGE_SCALE = 1.2;
 export interface FileAttachmentPdfPreviewProps {
   assetURL: string;
   attachmentId: string;
+  disabled?: boolean;
   location: FileAttachmentLocation | null;
   locationKind: "point" | "region";
   markings?: readonly FileAttachmentMarking[];
   onCreateMarking?: (input: FileAttachmentMarkingInput) => void | Promise<void>;
-  onMarkingError?: () => void;
   onRetry?: () => void;
   onSelectLocation: (location: FileAttachmentLocation) => void;
   pageCount: number;
@@ -41,7 +41,7 @@ export function FileAttachmentPdfPreview({
   locationKind,
   markings,
   onCreateMarking,
-  onMarkingError,
+  disabled,
   onRetry,
   onSelectLocation,
   pageCount,
@@ -103,12 +103,12 @@ export function FileAttachmentPdfPreview({
             (pageNumber) => (
               <MarkupSurface
                 attachmentId={attachmentId}
+                disabled={disabled}
                 key={pageNumber}
                 location={location}
                 locationKind={locationKind}
                 markings={markings ?? []}
                 onCreateMarking={onCreateMarking}
-                onMarkingError={onMarkingError}
                 onSelectLocation={onSelectLocation}
                 page={pageNumber}
                 selectingLocation={selectingLocation}

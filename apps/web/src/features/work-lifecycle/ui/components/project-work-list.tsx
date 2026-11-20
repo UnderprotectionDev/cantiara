@@ -8,10 +8,8 @@ import type {
 } from "@cantiara/api/project-shell";
 import {
   WORK_TYPE_OPTIONS,
-  type WorkMergeResult,
   type WorkProfile,
   type WorkType,
-  type WorkTypeChangePreview,
 } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import {
@@ -35,6 +33,7 @@ import BulkEditDialog, {
 import useUserInitiatedWorkSuccess, {
   type UserInitiatedWorkCloseOutcome,
 } from "@/features/completion-effects/hooks/use-user-initiated-work-success";
+import { customFieldItemsForRecord } from "@/features/custom-fields/lib/custom-field-record-items";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
 import {
   groupRecordIdsByType,
@@ -58,20 +57,18 @@ import WorkRelations from "@/features/relations/ui/components/work-relations";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
 import TestSummarySurface from "@/features/test-review/ui/components/test-summary-surface";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import WorkChecklistEditor from "@/features/work-checklists/ui/components/work-checklist-editor";
 import WorkContextCard from "@/features/work-context/ui/components/work-context-card";
 import WorkDuplicateAction from "@/features/work-templates/ui/components/work-duplicate-action";
-import { fetchCurrentWork } from "@/lib/fetch-current-work";
+import { commandVariables } from "@/lib/command-variables";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
-import { customFieldItemsForRecord } from "@/lib/use-custom-fields";
 import {
   client,
   completionEffectsPreferencesQueryOptions,
   invalidateSmartCollectionMembership,
   orpc,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
+import { useWorkMergeUndo } from "../../hooks/use-work-merge-undo";
 import WorkMergeForm from "../forms/work-merge-form";
 import WorkRecreateForm from "../forms/work-recreate-form";
 
@@ -97,10 +94,6 @@ export default function ProjectWorkList({
   const [showArchived, setShowArchived] = useState(false);
   const bulkWorkSelection = useBulkWorkSelection();
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
-  const [lastMergeResult, setLastMergeResult] =
-    useState<WorkMergeResult | null>(null);
-  const [mergeUndoError, setMergeUndoError] = useState<string | null>(null);
-  const queryClient = useQueryClient();
   const connection = useClientShellConnection();
   const query = useQuery(
     orpc.projectWorks.queryOptions({
@@ -167,49 +160,8 @@ export default function ProjectWorkList({
     }),
   );
   const priorityMetricValues = usePriorityMetricProjectValues(projectId);
-  const undoMerge = useMutation({
-    mutationFn: async () => {
-      if (!lastMergeResult) {
-        throw new Error("This Work merge is no longer available for Undo.");
-      }
-      const currentWork = await fetchCurrentWork(
-        queryClient,
-        lastMergeResult.work.id,
-      );
-      return runOnlineOnlyWrite(() =>
-        client.undoWorkMerge({
-          baseRevision: currentWork.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          mergeId: lastMergeResult.mergeId,
-          survivingWorkId: lastMergeResult.work.id,
-        }),
-      );
-    },
-    onError: (error) => {
-      setMergeUndoError(
-        mutationErrorMessage(error, "Work merge could not be undone."),
-      );
-    },
-    onSuccess: async () => {
-      setMergeUndoError(null);
-      setLastMergeResult(null);
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: projectWorksQueryPrefix,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.projectWorks.queryOptions({
-            input: { archived: false, projectId },
-          }).queryKey,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.projectWorks.queryOptions({
-            input: { archived: true, projectId },
-          }).queryKey,
-        }),
-      ]);
-    },
-  });
+  const { confirmUndoMerge, lastMergeResult, mergeUndoError, undoPending } =
+    useWorkMergeUndo(projectId);
 
   if (query.status === "pending" || allProjectWorksQuery.isPending) {
     return <p className="mt-2 text-sm text-muted-foreground">Loading Work…</p>;
@@ -265,8 +217,8 @@ export default function ProjectWorkList({
             {lastMergeResult.work.key}
           </p>
           <Button
-            disabled={undoMerge.isPending}
-            onClick={() => undoMerge.mutate()}
+            disabled={undoPending}
+            onClick={confirmUndoMerge}
             size="xs"
             type="button"
             variant="outline"
@@ -275,7 +227,10 @@ export default function ProjectWorkList({
           </Button>
           {mergeUndoError ? (
             <p className="text-xs text-destructive" role="alert">
-              {mergeUndoError}
+              {mutationErrorMessage(
+                mergeUndoError,
+                "Work merge could not be undone.",
+              )}
             </p>
           ) : null}
         </div>
@@ -421,7 +376,6 @@ export default function ProjectWorkList({
                     candidates={query.data.filter(
                       (candidate) => candidate.id !== work.id,
                     )}
-                    onMerged={setLastMergeResult}
                     work={work}
                   />
                   <WorkRecreateForm work={work} />
@@ -555,69 +509,57 @@ function CustomFieldValues({
 export function WorkArchiveAction({ work }: { work: WorkProfile }) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
   const isArchived = work.archivedAt !== null;
   const mutation = useMutation({
-    mutationFn: () =>
-      runOnlineOnlyWrite(() =>
-        isArchived
-          ? client.unarchiveWork({
-              baseRevision: work.revision,
-              clientIdempotencyKey: crypto.randomUUID(),
-              workId: work.id,
-            })
-          : client.archiveWork({
-              baseRevision: work.revision,
-              clientIdempotencyKey: crypto.randomUUID(),
-              workId: work.id,
-            }),
-      ),
-    onError: (mutationError) => {
-      setError(
-        mutationErrorMessage(
-          mutationError,
-          isArchived
-            ? "Work could not be unarchived. Try again."
-            : "Work could not be archived. Try again.",
-        ),
-      );
-    },
-    onSuccess: async () => {
-      setError(null);
+    meta: { onlineWrite: true },
+    mutationFn: ({
+      archived,
+      ...input
+    }: {
+      archived: boolean;
+      baseRevision: number;
+      clientIdempotencyKey: string;
+      workId: string;
+    }) => (archived ? client.unarchiveWork(input) : client.archiveWork(input)),
+    onSuccess: async (savedWork) => {
+      const { id: workId, projectId } = savedWork;
       await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: projectWorksQueryPrefix,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.projectWorks.queryOptions({
-            input: { archived: false, projectId: work.projectId },
-          }).queryKey,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.projectWorks.queryOptions({
-            input: { archived: true, projectId: work.projectId },
-          }).queryKey,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.work.queryOptions({
-            input: { workId: work.id },
-          }).queryKey,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.scopeTree.queryOptions({
-            input: { projectId: work.projectId },
-          }).queryKey,
-        }),
+        ...[
+          orpc.projectWorks.queryKey({ input: { projectId } }),
+          orpc.work.queryKey({ input: { workId } }),
+          orpc.scopeTree.queryKey({ input: { projectId } }),
+        ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
         ...invalidateSmartCollectionMembership(queryClient),
       ]);
     },
   });
 
+  const error =
+    mutation.isError && mutation.variables.workId === work.id
+      ? mutationErrorMessage(
+          mutation.error,
+          mutation.variables.archived
+            ? "Work could not be unarchived. Try again."
+            : "Work could not be archived. Try again.",
+        )
+      : null;
+
   return (
     <div className="flex flex-col items-end gap-1">
       <Button
         disabled={connection === "offline" || mutation.isPending}
-        onClick={() => mutation.mutate()}
+        onClick={() =>
+          mutation.mutate(
+            commandVariables(
+              {
+                archived: isArchived,
+                baseRevision: work.revision,
+                workId: work.id,
+              },
+              mutation.isError ? mutation.variables : undefined,
+            ),
+          )
+        }
         size="xs"
         type="button"
         variant="outline"
@@ -637,103 +579,106 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
   const [selectedType, setSelectedType] = useState<WorkType>(work.type);
-  const [preview, setPreview] = useState<WorkTypeChangePreview | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const worksQueryKey = orpc.projectWorks.queryOptions({
-    input: {
-      archived: work.archivedAt !== null,
-      projectId: work.projectId,
-    },
-  }).queryKey;
-  const workQueryKey = orpc.work.queryOptions({
-    input: { workId: work.id },
-  }).queryKey;
-  const scopeTreeQueryKey = orpc.scopeTree.queryOptions({
-    input: { projectId: work.projectId },
-  }).queryKey;
-
-  useEffect(() => {
-    setSelectedType(work.type);
-    setPreview(null);
-  }, [work.type]);
-
-  const updateType = useMutation({
-    mutationFn: (input: Parameters<typeof client.updateWorkType>[0]) =>
-      runOnlineOnlyWrite(() => client.updateWorkType(input)),
-    onError: (mutationError) => {
-      setSelectedType(work.type);
-      setError(
-        mutationErrorMessage(
-          mutationError,
-          "Work type could not be changed. Try again.",
-        ),
-      );
-    },
-    onSuccess: async () => {
-      setError(null);
-      setPreview(null);
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: projectWorksQueryPrefix,
-        }),
-        queryClient.invalidateQueries({ queryKey: worksQueryKey }),
-        queryClient.invalidateQueries({ queryKey: workQueryKey }),
-        queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
-        ...invalidateSmartCollectionMembership(queryClient),
-      ]);
-    },
-  });
-
+  const selectedTypeRef = useRef(work.type);
+  const updateType = useMutation(
+    orpc.updateWorkType.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.updateWorkType(input),
+      onSuccess: async (updated, { workId }) => {
+        const { projectId } = updated;
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectWorks.queryKey({ input: { projectId } }),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.work.queryKey({ input: { workId } }),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.scopeTree.queryKey({ input: { projectId } }),
+          }),
+          ...invalidateSmartCollectionMembership(queryClient),
+        ]);
+      },
+    }),
+  );
   const previewTypeChange = useMutation({
-    mutationFn: (type: WorkType) =>
-      client.workTypeChangePreview({ workId: work.id, type }),
-    onError: (mutationError) => {
-      setSelectedType(work.type);
-      setError(
-        mutationErrorMessage(
-          mutationError,
-          "Work type could not be changed. Try again.",
-        ),
-      );
-    },
-    onSuccess: (nextPreview) => {
-      setError(null);
-      if (!nextPreview.requiresImpactPreview) {
-        updateType.mutate({
-          baseRevision: work.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          impactPreviewId: nextPreview.previewId,
-          type: nextPreview.nextType,
-          workId: work.id,
-        });
-        return;
+    mutationKey: orpc.workTypeChangePreview.mutationKey(),
+    mutationFn: (input: {
+      baseRevision: number;
+      type: WorkType;
+      workId: string;
+    }) =>
+      client.workTypeChangePreview({ workId: input.workId, type: input.type }),
+    onSuccess: (reviewed, { baseRevision, type, workId }) => {
+      if (type === selectedTypeRef.current && !reviewed.requiresImpactPreview) {
+        updateType.mutate(
+          commandVariables({
+            baseRevision,
+            impactPreviewId: reviewed.previewId,
+            type,
+            workId,
+          }),
+        );
       }
-      setPreview(nextPreview);
     },
   });
+  const prepared = previewTypeChange.data;
+  const preview =
+    !updateType.isSuccess &&
+    prepared?.requiresImpactPreview &&
+    prepared.nextType === selectedType
+      ? prepared
+      : null;
+  const failure = updateType.error ?? previewTypeChange.error;
+  const error = failure
+    ? mutationErrorMessage(
+        failure,
+        "Work type could not be changed. Try again.",
+      )
+    : null;
 
   function handleTypeChange(nextType: WorkType) {
+    selectedTypeRef.current = nextType;
     setSelectedType(nextType);
-    setError(null);
-    if (nextType === work.type) {
-      setPreview(null);
+    const failed = updateType.isError ? updateType.variables : undefined;
+    if (failed?.type === nextType && failed.workId === work.id) {
+      updateType.mutate(failed);
       return;
     }
-    previewTypeChange.mutate(nextType);
+    previewTypeChange.reset();
+    updateType.reset();
+    if (nextType !== work.type) {
+      previewTypeChange.mutate({
+        baseRevision: work.revision,
+        type: nextType,
+        workId: work.id,
+      });
+    }
   }
 
   function confirmTypeChange() {
-    if (!preview) {
+    if (!(preview && previewTypeChange.variables)) {
       return;
     }
-    updateType.mutate({
-      baseRevision: work.revision,
-      clientIdempotencyKey: crypto.randomUUID(),
-      impactPreviewId: preview.previewId,
-      type: preview.nextType,
-      workId: work.id,
-    });
+    const failed = updateType.isError ? updateType.variables : undefined;
+    if (failed?.impactPreviewId === preview.previewId) {
+      updateType.mutate(failed);
+      return;
+    }
+    updateType.mutate(
+      commandVariables({
+        baseRevision: previewTypeChange.variables.baseRevision,
+        impactPreviewId: preview.previewId,
+        type: preview.nextType,
+        workId: preview.workId,
+      }),
+    );
   }
+
+  useEffect(() => {
+    selectedTypeRef.current = work.type;
+    setSelectedType(work.type);
+  }, [work.type]);
 
   const isPending = previewTypeChange.isPending || updateType.isPending;
 
@@ -751,7 +696,7 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
         disabled={connection === "offline" || isPending}
         id={`work-type-${work.id}`}
         onChange={(event) => handleTypeChange(event.target.value as WorkType)}
-        value={selectedType}
+        value={error ? work.type : selectedType}
       >
         {WORK_TYPE_OPTIONS.map((type) => (
           <NativeSelectOption key={type} value={type}>
@@ -789,8 +734,7 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
             <Button
               disabled={updateType.isPending}
               onClick={() => {
-                setSelectedType(work.type);
-                setPreview(null);
+                handleTypeChange(work.type);
               }}
               size="xs"
               type="button"

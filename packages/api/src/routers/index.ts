@@ -3744,6 +3744,14 @@ async function runScreenOperation<T>(operation: () => Promise<T>): Promise<T> {
     if (!isRecord(error) || typeof error.code !== "string") {
       throw error;
     }
+    if (error.code === "SCREEN_COMMAND_CONFLICT") {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "This Screen command was already used for different content.",
+      });
+    }
     if (error.code === "SCREEN_REVISION_CONFLICT") {
       throw new ORPCError("PRECONDITION_FAILED", {
         cause: error,
@@ -4314,10 +4322,15 @@ async function runTestGapOperation<T>(operation: () => Promise<T>): Promise<T> {
 
 interface TestReviewFailure {
   message: string;
-  status: "BAD_REQUEST" | "NOT_FOUND";
+  status: "BAD_REQUEST" | "CONFLICT" | "NOT_FOUND";
 }
 
 const TEST_REVIEW_FAILURES: Record<string, TestReviewFailure> = {
+  TEST_REVIEW_COMMAND_CONFLICT: {
+    message:
+      "This command has already been used for a different review change.",
+    status: "CONFLICT",
+  },
   TEST_REVIEW_ALREADY_REDACTED: {
     message: "This value was already redacted.",
     status: "BAD_REQUEST",
@@ -9962,6 +9975,7 @@ export const appRouter = {
           input.projectId,
           input.screenId,
           input.document,
+          input.clientIdempotencyKey,
         ),
       ),
     ),
@@ -10390,11 +10404,19 @@ export const appRouter = {
     ),
   createTag: protectedProcedure
     .input(createTagInputSchema)
-    .handler(({ context, input }) =>
-      runTagOperation(() =>
-        requireTags(context).create(context.session.user.id, input),
-      ),
-    ),
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireTags(context).create(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (input.clientIdempotencyKey) {
+          rethrowTagMutationError(error, input.clientIdempotencyKey);
+        }
+        rethrowTagError(error);
+      }
+    }),
   applyTag: protectedProcedure
     .input(applyTagInputSchema)
     .handler(({ context, input }) =>

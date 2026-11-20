@@ -1,14 +1,18 @@
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import {
+  hashKey,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { useRef } from "react";
 import PersonalReminderControl from "@/components/personal-reminder-control";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import {
   client,
   invalidateSmartCollectionMembership,
   orpc,
 } from "@/utils/orpc";
-import type { RiskRecord } from "../../lib/risk-form";
+import { isRiskConflict, type RiskRecord } from "../../lib/risk-form";
 import type { RiskDraft } from "../forms/risk-form";
 import { ProjectRisksView } from "./project-risks-view";
 
@@ -22,18 +26,19 @@ export default function ProjectRisksSurface({
   const options = orpc.projectRisks.queryOptions({ input: { projectId } });
   const records = useQuery(options);
   const queryClient = useQueryClient();
-  const [savedMessage, setSavedMessage] = useState<string>();
   const pendingWrite = useRef<{
     fingerprint: string;
     id: string;
     key: string;
   } | null>(null);
   function commandIdentity(payload: unknown, record?: RiskRecord) {
-    const fingerprint = JSON.stringify({
-      payload,
-      id: record?.id,
-      revision: record?.revision,
-    });
+    const fingerprint = hashKey([
+      {
+        payload,
+        id: record?.id,
+        revision: record?.revision,
+      },
+    ]);
     if (pendingWrite.current?.fingerprint !== fingerprint) {
       pendingWrite.current = {
         fingerprint,
@@ -43,32 +48,79 @@ export default function ProjectRisksSurface({
     }
     return pendingWrite.current;
   }
-  async function refresh(message: string) {
-    pendingWrite.current = null;
-    setSavedMessage(message);
+  async function refresh(
+    error: unknown,
+    targetProject: string,
+    sourceId: string,
+    key: string,
+  ) {
+    const risksKey = orpc.projectRisks.key({
+      input: { projectId: targetProject },
+    });
+    if (error) {
+      if (isRiskConflict(error)) {
+        await queryClient.invalidateQueries({ queryKey: risksKey });
+      }
+      return;
+    }
+    if (pendingWrite.current?.key === key) {
+      pendingWrite.current = null;
+    }
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: options.queryKey }),
+      queryClient.invalidateQueries({ queryKey: risksKey }),
       queryClient.invalidateQueries({
-        queryKey: orpc.projectSourceRecord.key(),
+        queryKey: orpc.projectSourceRecord.key({
+          input: { sourceId, sourceType: "Risk" },
+        }),
       }),
-      queryClient.invalidateQueries({ queryKey: orpc.tableRecords.key() }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.tableRecords.key({
+          input: { projectId: targetProject },
+        }),
+      }),
       queryClient.invalidateQueries({ queryKey: orpc.searchRecords.key() }),
       ...invalidateSmartCollectionMembership(queryClient),
     ]);
   }
-  async function write(command: () => Promise<unknown>) {
-    try {
-      await runOnlineOnlyWrite(command);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        "code" in error &&
-        error.code === "CONFLICT"
-      ) {
-        await queryClient.invalidateQueries({ queryKey: options.queryKey });
-      }
-      throw error;
-    }
+  const create = useMutation(
+    orpc.createProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.createProjectSourceRecord(input),
+      onSettled: (_, error, input) =>
+        refresh(error, input.projectId, input.id, input.clientIdempotencyKey),
+    }),
+  );
+  const update = useMutation(
+    orpc.updateProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.updateProjectSourceRecord(input),
+      onSettled: (_, error, input) =>
+        refresh(
+          error,
+          input.projectId,
+          input.sourceId,
+          input.clientIdempotencyKey,
+        ),
+    }),
+  );
+  const changeStatus = useMutation(
+    orpc.transitionProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.transitionProjectSourceRecord(input),
+      onSettled: (_, error, input) =>
+        refresh(
+          error,
+          input.projectId,
+          input.sourceId,
+          input.clientIdempotencyKey,
+        ),
+    }),
+  );
+  let savedMessage: string | undefined;
+  if (changeStatus.isSuccess) {
+    savedMessage = "Risk status saved.";
+  } else if (create.isSuccess || update.isSuccess) {
+    savedMessage = "Risk saved.";
   }
   async function save(draft: RiskDraft, record?: RiskRecord) {
     const fields = {
@@ -84,23 +136,22 @@ export default function ProjectRisksSurface({
       { operation: "save", ...fields, rationale: draft.rationale },
       record,
     );
-    await write(() =>
-      record
-        ? client.updateProjectSourceRecord({
-            ...fields,
-            rationale: draft.rationale.trim() || null,
-            sourceId: id,
-            baseRevision: record.revision,
-            clientIdempotencyKey: key,
-          })
-        : client.createProjectSourceRecord({
-            ...fields,
-            id,
-            baseRevision: 0,
-            clientIdempotencyKey: key,
-          }),
-    );
-    await refresh("Risk saved.");
+    if (record) {
+      await update.mutateAsync({
+        ...fields,
+        rationale: draft.rationale.trim() || null,
+        sourceId: id,
+        baseRevision: record.revision,
+        clientIdempotencyKey: key,
+      });
+    } else {
+      await create.mutateAsync({
+        ...fields,
+        id,
+        baseRevision: 0,
+        clientIdempotencyKey: key,
+      });
+    }
   }
   async function transition(draft: RiskDraft, record?: RiskRecord) {
     if (!record) {
@@ -117,18 +168,17 @@ export default function ProjectRisksSurface({
       { operation: "transition", ...fields },
       record,
     );
-    await write(() =>
-      client.transitionProjectSourceRecord({
-        ...fields,
-        baseRevision: record.revision,
-        clientIdempotencyKey: key,
-      }),
-    );
-    await refresh("Risk status saved.");
+    await changeStatus.mutateAsync({
+      ...fields,
+      baseRevision: record.revision,
+      clientIdempotencyKey: key,
+    });
   }
   function startEditing() {
     pendingWrite.current = null;
-    setSavedMessage(undefined);
+    create.reset();
+    update.reset();
+    changeStatus.reset();
   }
   function retry() {
     records.refetch().catch(() => undefined);
@@ -157,6 +207,10 @@ export default function ProjectRisksSurface({
         readOnly={records.data.readOnly}
         records={records.data.records}
         savedMessage={savedMessage}
+        saveError={create.error ?? update.error ?? changeStatus.error}
+        savePending={
+          create.isPending || update.isPending || changeStatus.isPending
+        }
         selectedId={selectedId}
       />
       {selected && !records.data.readOnly ? (

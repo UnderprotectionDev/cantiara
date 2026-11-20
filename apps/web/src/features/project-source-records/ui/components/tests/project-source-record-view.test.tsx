@@ -20,6 +20,12 @@ vi.mock("@/utils/orpc", () => ({
     accountPreferences: {
       queryOptions: () => ({ queryKey: ["accountPreferences"] }),
     },
+    cancelPersonalReminder: {
+      mutationKey: () => ["cancelPersonalReminder"],
+    },
+    createPersonalReminder: {
+      mutationOptions: (options: object) => options,
+    },
     personalReminders: {
       queryOptions: ({ input }: { input: unknown }) => {
         mocks.reminderInput(input);

@@ -46,6 +46,8 @@ Varsayım ve Açık Soru ayrı Proje ana kayıtlarıdır. Varsayım `Open`, `Con
 
 ## Testing Decisions
 
+- **Write completion (#544).** The Open Question and Assumption surfaces read completion from their mutations. The Open Questions browser journey verifies create, answer and close persistence.
+
 - **What a good test is.** Tests observe Uncertainty Records through create, distinct types, transitions, optional evidence visibility, and counterparts: no auto Work/Risk/Decision, no Based on, no review queue route.
 - **Seam (one).** Uncertainty Records — both types behind one product interface used by the Project `Discovery` area (`#project-area-discovery`).
 - **Prior art.** Bind to [Karar ve belirsizlik](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari). 19-class: Refuted Assumption Review absent.

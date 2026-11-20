@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, test, vi } from "vitest";
@@ -15,12 +16,14 @@ test("Preview submits the chosen record type through the form", async () => {
   const root = createRoot(host);
   await act(async () =>
     root.render(
-      <ConvertAndBindDialog
-        node={{ id: "n1", kind: "Step" } as never}
-        onClose={vi.fn()}
-        onConfirm={vi.fn()}
-        onPreview={onPreview}
-      />,
+      <QueryClientProvider client={new QueryClient()}>
+        <ConvertAndBindDialog
+          node={{ id: "n1", kind: "Step" } as never}
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          onPreview={onPreview}
+        />
+      </QueryClientProvider>,
     ),
   );
   const select = document.querySelector(
@@ -42,9 +45,12 @@ test("Preview submits the chosen record type through the form", async () => {
   });
 
   expect(onPreview).toHaveBeenCalledWith("Decision", "Task");
-  expect(document.body.textContent).toContain(
-    "The preview could not be loaded.",
-  );
+  await vi.waitFor(async () => {
+    await act(async () => undefined);
+    expect(document.body.textContent).toContain(
+      "The preview could not be loaded.",
+    );
+  });
   await act(async () => root.unmount());
   host.remove();
 });

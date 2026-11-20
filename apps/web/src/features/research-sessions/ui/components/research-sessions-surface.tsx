@@ -4,9 +4,8 @@ import type {
   ResearchSessionRecord,
 } from "@cantiara/api/research-sessions";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import { isResearchSessionConflict } from "../../lib/research-session-conflict";
 import type { ResearchBindingActions } from "../forms/research-note-binding-form";
@@ -24,6 +23,42 @@ export default function ResearchSessionsSurface({
     input: { projectId },
   });
   const query = useQuery(options);
+  const confirmBinding = useMutation(
+    orpc.confirmResearchSessionBinding.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.confirmResearchSessionBinding(input),
+      onSuccess: async (_, { id, projectId: targetProjectId }) => {
+        await Promise.all(
+          [
+            orpc.projectResearchSessionBindings.queryKey({
+              input: { id, projectId: targetProjectId },
+            }),
+            orpc.researchSessionBindingTargets.queryKey({
+              input: { id, projectId: targetProjectId },
+            }),
+            orpc.researchSessionBindingFeedback.key(),
+            orpc.evidenceFlow.key(),
+            orpc.projectResearchSessions.queryKey({
+              input: { projectId: targetProjectId },
+            }),
+          ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+        );
+      },
+      onError: () =>
+        queryClient.invalidateQueries({ queryKey: options.queryKey }),
+    }),
+  );
+  const previewBinding = useMutation(
+    orpc.previewResearchSessionBinding.mutationOptions({
+      gcTime: 0,
+      meta: { onlineWrite: true, retryInSurface: true },
+      mutationFn: (input) => client.previewResearchSessionBinding(input),
+      onError: () =>
+        queryClient.invalidateQueries({ queryKey: options.queryKey }),
+    }),
+  );
+  const previewBindingAsync = previewBinding.mutateAsync;
+  const confirmBindingAsync = confirmBinding.mutateAsync;
   const bindingActions = useMemo<ResearchBindingActions>(
     () => ({
       feedback: (record, bindingId) =>
@@ -35,13 +70,7 @@ export default function ResearchSessionsSurface({
           staleTime: 0,
         }),
       targets: (record) =>
-        queryClient.query({
-          ...orpc.researchSessionBindingTargets.queryOptions({
-            input: { id: record.id, projectId },
-          }),
-          gcTime: 0,
-          staleTime: 0,
-        }),
+        client.researchSessionBindingTargets({ id: record.id, projectId }),
       list: (record) =>
         queryClient.query({
           ...orpc.projectResearchSessionBindings.queryOptions({
@@ -50,36 +79,17 @@ export default function ResearchSessionsSurface({
           gcTime: 0,
           staleTime: 0,
         }),
-      preview: async (input) => {
-        try {
-          return await runOnlineOnlyWrite(() =>
-            client.previewResearchSessionBinding(input),
-          );
-        } catch (error) {
-          await queryClient.invalidateQueries({ queryKey: options.queryKey });
-          throw error;
-        }
-      },
-      confirm: async (record, preview, key) => {
-        try {
-          const result = await runOnlineOnlyWrite(() =>
-            client.confirmResearchSessionBinding({
-              id: record.id,
-              projectId,
-              baseRevision: record.revision,
-              previewId: preview.previewId,
-              clientIdempotencyKey: key,
-            }),
-          );
-          await queryClient.invalidateQueries();
-          return result;
-        } catch (error) {
-          await queryClient.invalidateQueries({ queryKey: options.queryKey });
-          throw error;
-        }
-      },
+      preview: previewBindingAsync,
+      confirm: (record, preview, key) =>
+        confirmBindingAsync({
+          id: record.id,
+          projectId,
+          baseRevision: record.revision,
+          previewId: preview.previewId,
+          clientIdempotencyKey: key,
+        }),
     }),
-    [projectId, queryClient, options.queryKey],
+    [projectId, queryClient, previewBindingAsync, confirmBindingAsync],
   );
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
   const notePending = useRef(
@@ -90,6 +100,42 @@ export default function ResearchSessionsSurface({
     id: string;
     key: string;
   } | null>(null);
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: options.queryKey });
+  const refreshConflict = (error: unknown) => {
+    if (isResearchSessionConflict(error)) {
+      return refresh();
+    }
+  };
+  const saveSession = useMutation(
+    orpc.saveResearchSession.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.saveResearchSession(input),
+      onError: refreshConflict,
+      onSuccess: async (_, input) => {
+        if (pending.current?.key === input.clientIdempotencyKey) {
+          pending.current = null;
+        }
+        await refresh();
+      },
+    }),
+  );
+  const saveSessionNote = useMutation(
+    orpc.saveResearchSessionNote.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.saveResearchSessionNote(input),
+      onError: refreshConflict,
+      onSuccess: async (_, input) => {
+        const draftId = JSON.stringify([input.id, input.note.id]);
+        if (
+          notePending.current.get(draftId)?.key === input.clientIdempotencyKey
+        ) {
+          notePending.current.delete(draftId);
+        }
+        await refresh();
+      },
+    }),
+  );
   async function save(
     fields: ResearchSessionFields,
     record?: ResearchSessionRecord,
@@ -107,16 +153,13 @@ export default function ResearchSessionsSurface({
       };
     }
     const identity = pending.current;
-    await commit(() =>
-      client.saveResearchSession({
-        fields,
-        projectId,
-        id: identity.id,
-        baseRevision: record?.revision ?? 0,
-        clientIdempotencyKey: identity.key,
-      }),
-    );
-    pending.current = null;
+    await saveSession.mutateAsync({
+      fields,
+      projectId,
+      id: identity.id,
+      baseRevision: record?.revision ?? 0,
+      clientIdempotencyKey: identity.key,
+    });
   }
   async function saveNote(
     note: ResearchSessionNoteInput,
@@ -136,30 +179,14 @@ export default function ResearchSessionsSurface({
       notePending.current.set(draftId, identity);
     }
     const { key } = identity;
-    await commit(() =>
-      client.saveResearchSessionNote({
-        id: record.id,
-        projectId,
-        baseRevision: record.revision,
-        clientIdempotencyKey: key,
-        note,
-        create,
-      }),
-    );
-    if (notePending.current.get(draftId) === identity) {
-      notePending.current.delete(draftId);
-    }
-  }
-  async function commit(write: () => Promise<unknown>) {
-    try {
-      await runOnlineOnlyWrite(write);
-    } catch (error) {
-      if (isResearchSessionConflict(error)) {
-        await queryClient.invalidateQueries({ queryKey: options.queryKey });
-      }
-      throw error;
-    }
-    await queryClient.invalidateQueries({ queryKey: options.queryKey });
+    await saveSessionNote.mutateAsync({
+      id: record.id,
+      projectId,
+      baseRevision: record.revision,
+      clientIdempotencyKey: key,
+      note,
+      create,
+    });
   }
   function retry() {
     query.refetch().catch(() => undefined);
@@ -167,6 +194,12 @@ export default function ResearchSessionsSurface({
   }
   function startEditing() {
     pending.current = null;
+    saveSession.reset();
+  }
+  function startNoteEditing() {
+    if (saveSessionNote.isSuccess) {
+      saveSessionNote.reset();
+    }
   }
   if (query.status === "pending" || preferences.isPending) {
     return <p role="status">Loading Research Sessions…</p>;
@@ -182,11 +215,16 @@ export default function ResearchSessionsSurface({
   return (
     <ResearchSessionsView
       bindingActions={bindingActions}
+      bindingPreview={previewBinding}
+      bindingWrite={confirmBinding}
+      noteWrite={saveSessionNote}
       onSave={save}
       onSaveNote={saveNote}
       onStartEditing={startEditing}
+      onStartNoteEditing={startNoteEditing}
       readOnly={query.data.readOnly}
       records={query.data.records}
+      sessionWrite={saveSession}
       timeZone={preferences.data.timeZone}
     />
   );

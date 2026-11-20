@@ -18,7 +18,7 @@ export default function ProjectShortCodeForm({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const { clearError, error, isPending, saveShortCode } =
+  const { clearError, error, isPending, isSuccess, saveShortCode } =
     useProjectShortCode(project);
 
   const form = useForm({
@@ -35,9 +35,7 @@ export default function ProjectShortCodeForm({
         return;
       }
       setValidationError(null);
-      if (await saveShortCode(nextShortCode)) {
-        setIsEditing(false);
-      }
+      await saveShortCode(nextShortCode);
     },
   });
 
@@ -63,7 +61,7 @@ export default function ProjectShortCodeForm({
     setIsEditing(true);
   }, [clearError]);
 
-  if (!isEditing) {
+  if (!isEditing || isSuccess) {
     return (
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">

@@ -1,8 +1,7 @@
 import type { ProjectShellConfigurationChange } from "@cantiara/api/project-shell";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 
 export function useProjectConfiguration(
@@ -10,43 +9,43 @@ export function useProjectConfiguration(
   baseRevision: number,
 ) {
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
-  const projectQueryKey = orpc.project.queryOptions({
-    input: { projectId },
-  }).queryKey;
-  const mutation = useMutation({
-    mutationFn: (change: ProjectShellConfigurationChange) =>
-      runOnlineOnlyWrite(() =>
-        client.updateProjectConfiguration({
-          baseRevision,
-          change,
-          clientIdempotencyKey: crypto.randomUUID(),
-          projectId,
-        }),
-      ),
-    onError: (mutationError) => {
-      setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : "Project configuration could not be changed. Try again.",
-      );
-    },
-    onSuccess: async (nextProject, change) => {
-      setError(null);
-      queryClient.setQueryData(projectQueryKey, nextProject);
-      await queryClient.invalidateQueries({
-        queryKey: projectQueryKey,
-      });
-      if (change.kind === "set-status-age-threshold") {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: orpc.returnToWork.key() }),
-          queryClient.invalidateQueries({
-            queryKey: orpc.smartCollectionViews.key(),
-          }),
-        ]);
-      }
-    },
-  });
+  const mutation = usePreparedMutation(
+    orpc.updateProjectConfiguration.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.updateProjectConfiguration(input),
+      onSuccess: async (
+        nextProject,
+        { change, projectId: targetProjectId },
+      ) => {
+        const projectQueryKey = orpc.project.queryKey({
+          input: { projectId: targetProjectId },
+        });
+        queryClient.setQueryData(projectQueryKey, nextProject);
+        await queryClient.invalidateQueries({
+          queryKey: projectQueryKey,
+        });
+        if (change.kind === "set-status-age-threshold") {
+          await Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: orpc.returnToWork.key(),
+            }),
+            queryClient.invalidateQueries({
+              queryKey: orpc.smartCollectionViews.key(),
+            }),
+          ]);
+        }
+      },
+    }),
+    (change: ProjectShellConfigurationChange) => ({
+      baseRevision,
+      change,
+      projectId,
+    }),
+  );
 
+  const failure =
+    mutation.error?.message ??
+    "Project configuration could not be changed. Try again.";
+  const error = mutation.isError ? failure : null;
   return { error, mutation };
 }

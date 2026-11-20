@@ -31,7 +31,7 @@ export function ProjectReleasesSurface({
   const overview = useQuery(
     orpc.projectReleases.queryOptions({ input: { projectId } }),
   );
-  const run = useProjectReleaseCommand();
+  const run = useProjectReleaseCommand(projectId);
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   // One id per create attempt, so a retried create cannot make a second release.
@@ -40,19 +40,30 @@ export function ProjectReleasesSurface({
   async function create(values: ProjectReleaseCreateValues) {
     releaseId.current ??= crypto.randomUUID();
     const id = releaseId.current;
-    await run({ create: id, ...values }, (clientIdempotencyKey) =>
-      client.createProjectSourceRecord({
-        ...values,
-        baseRevision: 0,
-        clientIdempotencyKey,
-        id,
-        projectId,
-        sourceType: "Project Release",
-      }),
+    await run(
+      { id, ...values },
+      (clientIdempotencyKey) =>
+        client.createProjectSourceRecord({
+          ...values,
+          baseRevision: 0,
+          clientIdempotencyKey,
+          id,
+          projectId,
+          sourceType: "Project Release",
+        }),
+      async () => {
+        if (releaseId.current === id) {
+          releaseId.current = null;
+          setCreating(false);
+          await navigate({ href: projectReleasesHref(projectId, id) });
+        }
+      },
     );
+  }
+
+  function cancelCreate() {
     releaseId.current = null;
     setCreating(false);
-    await navigate({ href: projectReleasesHref(projectId, id) });
   }
 
   if (overview.status === "pending") {
@@ -89,7 +100,7 @@ export function ProjectReleasesSurface({
       <Dialog
         onOpenChange={(open) => {
           if (!open) {
-            setCreating(false);
+            cancelCreate();
           }
         }}
         open={creating}
@@ -101,10 +112,7 @@ export function ProjectReleasesSurface({
               One Project Release belongs to this Project only.
             </DialogDescription>
           </DialogHeader>
-          <ProjectReleaseCreateForm
-            onCancel={() => setCreating(false)}
-            onCreate={create}
-          />
+          <ProjectReleaseCreateForm onCancel={cancelCreate} onCreate={create} />
         </DialogContent>
       </Dialog>
     </>

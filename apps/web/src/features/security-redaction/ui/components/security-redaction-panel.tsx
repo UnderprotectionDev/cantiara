@@ -6,6 +6,7 @@ import {
 } from "@cantiara/api/security-redaction";
 import { Button } from "@cantiara/ui/components/button";
 import { useCallback, useState } from "react";
+import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
 import { useSecurityRedaction } from "../../hooks/use-security-redaction";
 import {
   type SecurityRedactionCalls,
@@ -43,7 +44,7 @@ export function SecurityRedactionPanel({
         <RedactForm
           busy={flow.busy}
           error={flow.error}
-          grant={flow.review?.grant ?? null}
+          grant={flow.review?.grant ?? false}
           identityPending={flow.review?.identityPending ?? false}
           onCancel={close}
           onConfirmIdentity={flow.confirmIdentity}
@@ -56,6 +57,7 @@ export function SecurityRedactionPanel({
           {REDACT_LABEL}
         </Button>
       )}
+      {flow.support ? <SupportReferenceNotice failure={flow.support} /> : null}
       {flow.result ? (
         <p role="status">
           {REDACTED_FOR_SECURITY_LABEL}. {flow.result.reason}{" "}

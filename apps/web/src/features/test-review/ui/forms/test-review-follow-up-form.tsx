@@ -7,7 +7,6 @@ import {
   followUpTargetInputSchema,
   resultLabel,
   TEST_REVIEW_FOLLOW_UP_LABEL,
-  type TestFollowUpPreview,
   WORK_FOLLOW_UP_TYPES,
 } from "@cantiara/api/test-review-signals";
 import { Button } from "@cantiara/ui/components/button";
@@ -22,7 +21,9 @@ import {
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { type SubmitEvent, useEffect } from "react";
+import { orpc } from "@/utils/orpc";
 import { usePanelFocus } from "../../hooks/use-panel-focus";
 import { errorText } from "../../lib/test-review-panel";
 import { allItems } from "../../lib/test-review-signal-lines";
@@ -64,11 +65,27 @@ export default function TestReviewFollowUpForm({
   sessions: TestReviewSession[];
 }) {
   const items = allItems(sessions, preferences);
-  const [preview, setPreview] = useState<TestFollowUpPreview | null>(null);
-  const [error, setError] = useState<string>();
-  const [notice, setNotice] = useState<string>();
-  const [pending, setPending] = useState(false);
-  const headingRef = usePanelFocus(preview !== null);
+  const commit = actions.followUpState;
+  const inspect = useMutation({
+    mutationKey: orpc.previewReviewFollowUp.mutationKey(),
+    mutationFn: ({
+      selected: reviewed,
+      target,
+    }: {
+      selected: string[];
+      target: FollowUpTargetInput;
+    }) => actions.previewFollowUp(reviewed, target),
+    meta: { retryInSurface: true },
+  });
+  const preview = commit?.isSuccess ? undefined : inspect.data;
+  const pending = inspect.isPending || commit?.isPending;
+  const headingRef = usePanelFocus(Boolean(preview));
+
+  function resetReview() {
+    inspect.reset();
+    commit?.reset();
+  }
+
   const form = useForm({
     defaultValues: {
       mode: "new" as FollowUpFormValues["mode"],
@@ -82,14 +99,21 @@ export default function TestReviewFollowUpForm({
       if (!parsed.success || value.selected.length === 0) {
         return;
       }
-      await run(async () => {
-        setPreview(await actions.previewFollowUp(value.selected, parsed.data));
-      }, "The preview is unavailable.");
+      commit?.reset();
+      await inspect.mutateAsync({
+        selected: value.selected,
+        target: parsed.data,
+      });
     },
   });
   const values = useSelector(form.store, (state) => state.values);
   const { mode, selected, workId } = values;
-  const target = () => followUpTarget(values);
+  const saved = commit?.isSuccess;
+  useEffect(() => {
+    if (saved) {
+      form.setFieldValue("selected", []);
+    }
+  }, [form, saved]);
 
   function handlePreviewSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -97,17 +121,13 @@ export default function TestReviewFollowUpForm({
     form.handleSubmit().catch(() => undefined);
   }
 
-  async function run(work: () => Promise<void>, fallback: string) {
-    setError(undefined);
-    setNotice(undefined);
-    setPending(true);
-    try {
-      await work();
-    } catch (caught) {
-      setError(errorText(caught, fallback));
-    } finally {
-      setPending(false);
+  async function confirm() {
+    if (!(preview && inspect.variables)) {
+      return;
     }
+    const { selected: reviewed, target } = inspect.variables;
+    await actions.commitFollowUp(reviewed, target, preview);
+    inspect.reset();
   }
 
   const needsOne = mode === "new" && selected.length !== 1;
@@ -146,7 +166,7 @@ export default function TestReviewFollowUpForm({
                         disabled={disabled || pending}
                         id={`test-review-follow-up-result-${item.id}`}
                         onCheckedChange={() => {
-                          setPreview(null);
+                          resetReview();
                           field.handleChange((current) =>
                             current.includes(item.id)
                               ? current.filter((id) => id !== item.id)
@@ -169,7 +189,7 @@ export default function TestReviewFollowUpForm({
               <RadioGroup
                 name="test-review-follow-up-mode"
                 onValueChange={(value) => {
-                  setPreview(null);
+                  resetReview();
                   field.handleChange(value === "existing" ? "existing" : "new");
                 }}
                 value={field.state.value}
@@ -179,6 +199,7 @@ export default function TestReviewFollowUpForm({
                   htmlFor="test-review-follow-up-mode-new"
                 >
                   <RadioGroupItem
+                    disabled={disabled || pending}
                     id="test-review-follow-up-mode-new"
                     value="new"
                   />
@@ -189,6 +210,7 @@ export default function TestReviewFollowUpForm({
                   htmlFor="test-review-follow-up-mode-existing"
                 >
                   <RadioGroupItem
+                    disabled={disabled || pending}
                     id="test-review-follow-up-mode-existing"
                     value="existing"
                   />
@@ -209,7 +231,7 @@ export default function TestReviewFollowUpForm({
                     id="test-review-follow-up-title"
                     name={field.name}
                     onChange={(event) => {
-                      setPreview(null);
+                      resetReview();
                       field.handleChange(event.target.value);
                     }}
                     value={field.state.value}
@@ -224,7 +246,7 @@ export default function TestReviewFollowUpForm({
                     id="test-review-follow-up-type"
                     name={field.name}
                     onChange={(event) => {
-                      setPreview(null);
+                      resetReview();
                       field.handleChange(
                         event.target
                           .value as (typeof WORK_FOLLOW_UP_TYPES)[number],
@@ -253,7 +275,7 @@ export default function TestReviewFollowUpForm({
                     id="test-review-follow-up-work"
                     name={field.name}
                     onChange={(event) => {
-                      setPreview(null);
+                      resetReview();
                       field.handleChange(event.target.value);
                     }}
                     value={field.state.value}
@@ -319,21 +341,14 @@ export default function TestReviewFollowUpForm({
           <div className="flex gap-2">
             <Button
               disabled={disabled || pending}
-              onClick={() =>
-                run(async () => {
-                  await actions.commitFollowUp(selected, target(), preview);
-                  setPreview(null);
-                  form.setFieldValue("selected", []);
-                  setNotice("Follow-up work saved.");
-                }, "The follow-up work was not saved.")
-              }
+              onClick={() => confirm().catch(() => undefined)}
               type="button"
             >
               {TEST_REVIEW_FOLLOW_UP_LABEL}
             </Button>
             <Button
               disabled={pending}
-              onClick={() => setPreview(null)}
+              onClick={resetReview}
               type="button"
               variant="outline"
             >
@@ -342,8 +357,17 @@ export default function TestReviewFollowUpForm({
           </div>
         </section>
       ) : null}
-      {error ? <p role="alert">{error}</p> : null}
-      {notice ? <p role="status">{notice}</p> : null}
+      {inspect.error ? (
+        <p role="alert">
+          {errorText(inspect.error, "The preview is unavailable.")}
+        </p>
+      ) : null}
+      {commit?.error ? (
+        <p role="alert">
+          {errorText(commit.error, "The follow-up work was not saved.")}
+        </p>
+      ) : null}
+      {commit?.isSuccess ? <p role="status">Follow-up work saved.</p> : null}
       {followUps.length > 0 ? (
         <ul aria-label="Follow-up links" className="text-sm">
           {followUps.map((link) => {

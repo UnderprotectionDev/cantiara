@@ -13,6 +13,7 @@ import {
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { orpc } from "@/utils/orpc";
 import { errorText } from "../../lib/github-error-text";
 import { parseLinkRepository } from "../../lib/github-forms";
 
@@ -34,10 +35,12 @@ export function LinkRepositoryForm({
   installations,
   loadRepositories,
   onLink,
+  projectId,
 }: {
   installations: GitHubInstallationRecord[];
   loadRepositories: LoadRepositories;
   onLink: SubmitLinkRepository;
+  projectId: string;
 }) {
   const [error, setError] = useState<string>();
   const [saved, setSaved] = useState<string>();
@@ -73,7 +76,9 @@ export function LinkRepositoryForm({
     enabled: installationId > 0,
     gcTime: 0,
     queryFn: () => loadRepositories(installationId),
-    queryKey: ["github-app-repositories", installationId],
+    queryKey: orpc.gitHubAppRepositories.queryKey({
+      input: { installationId, projectId },
+    }),
   });
   const choices = (repositories.data ?? []).filter(({ linked }) => !linked);
 

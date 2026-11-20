@@ -195,6 +195,7 @@ function mount(props: Partial<Parameters<typeof TestHandoffsView>[0]> = {}) {
           onProducePackage={vi.fn().mockResolvedValue(producedOf())}
           onTransition={vi.fn().mockResolvedValue(undefined)}
           onUpdate={vi.fn().mockResolvedValue(undefined)}
+          projectId="project-1"
           readOnly={false}
           sessionTests={[arrived, waiting]}
           {...props}

@@ -24,6 +24,7 @@ import {
   accountPreferencesQueryOptions,
   accountPreferencesQueryPrefix,
   client,
+  orpc,
 } from "@/utils/orpc";
 
 export function ModeToggle() {
@@ -39,6 +40,8 @@ export function ModeToggle() {
   } | null>(null);
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
   const saveAppearance = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.saveAccountAppearance.mutationKey(),
     mutationFn: (input: {
       appearance: Appearance;
       baseRevision: number;

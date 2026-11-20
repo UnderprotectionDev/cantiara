@@ -45,8 +45,14 @@ test("recording a Test Assessment refreshes the Test Summary that lists Test Ass
     }).queryKey,
     { assessments: [] },
   );
-  const summaryKey = orpc.projectTestSummary.key();
-  queryClient.setQueryData(summaryKey, {});
+  const summaryKey = orpc.projectTestSummary.queryKey({
+    input: { projectId: "project-1", scope: { kind: "Project" } },
+  });
+  queryClient.setQueryData(summaryKey, {
+    attention: [],
+    sections: [],
+    scope: { kind: "Project", id: "project-1", label: "Project" },
+  });
   const root = createRoot(document.createElement("div"));
   await act(() => {
     root.render(

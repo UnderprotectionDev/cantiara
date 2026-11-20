@@ -1,9 +1,11 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Capture cards own handlers that close over their current layout and item state.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type {
   CaptureAttachPreview,
   CaptureAttachPreviewInput,
   CaptureConversionPreview,
+  CaptureConvertInput,
   CaptureConvertPreviewInput,
   CaptureInboxItem,
   CaptureSuggestion,
@@ -12,25 +14,22 @@ import type {
 } from "@cantiara/api/capture-triage";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
-
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import {
   useClientShell,
   useClientShellConnection,
 } from "@/features/web-macos-client/hooks/use-client-shell";
+import { commandVariables } from "@/lib/command-variables";
 import {
   captureInboxQueryOptions,
   client,
   invalidateSmartCollectionMembership,
+  orpc,
   projectsQueryOptions,
 } from "@/utils/orpc";
-import {
-  itemOriginLabel,
-  triageErrorMessage,
-  type UndoPreviewState,
-} from "../../lib/capture-inbox";
+import { itemOriginLabel, triageErrorMessage } from "../../lib/capture-inbox";
 import {
   CaptureAttachmentSetupForm,
   type CaptureAttachmentSetupValues,
@@ -40,7 +39,6 @@ import {
   type CaptureConversionSetupValues,
 } from "../forms/capture-conversion-setup-form";
 
-type Preview = CaptureAttachPreview | CaptureConversionPreview;
 type ActionMode = "attach" | "convert" | "suggestions" | null;
 
 export function CaptureSourceSummary({
@@ -378,10 +376,6 @@ function captureConversionProjectId(projectId: string | null) {
   return projectId ?? "";
 }
 
-function captureConversionClientIdempotencyKey(current: string | null) {
-  return current ?? crypto.randomUUID();
-}
-
 export function CaptureInboxItemActions({
   accountId,
   formattingPreferences,
@@ -394,7 +388,7 @@ export function CaptureInboxItemActions({
   formattingPreferences: AccountPreferences;
   item: CaptureInboxItem;
   onTriageExit?: () => void;
-  onUndoPreview: (state: UndoPreviewState) => void;
+  onUndoPreview: (mergeId: string) => void;
   triageAvailable: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -402,9 +396,6 @@ export function CaptureInboxItemActions({
   const connection = useClientShellConnection();
   const projects = useQuery(projectsQueryOptions());
   const [mode, setMode] = useState<ActionMode>(null);
-  const [preview, setPreview] = useState<Preview | null>(null);
-  const [suggestionData, setSuggestionData] =
-    useState<CaptureSuggestions | null>(null);
   const [conversionValues, setConversionValues] =
     useState<CaptureConversionSetupValues>({
       projectId: captureConversionProjectId(item.projectId),
@@ -415,26 +406,12 @@ export function CaptureInboxItemActions({
       relation: "Origin",
       targetId: "",
     });
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const conversionClientIdempotencyKey = useRef<string | null>(null);
-
-  useEffect(() => {
-    setConversionValues((current) => ({
-      ...current,
-      projectId: captureConversionProjectId(item.projectId),
-    }));
-    conversionClientIdempotencyKey.current = null;
-  }, [item]);
-
   const refreshInbox = useCallback(
     async (advanceAfterExit = false) => {
       await queryClient.invalidateQueries({
         queryKey: captureInboxQueryOptions(accountId).queryKey,
       });
       setMode(null);
-      setPreview(null);
-      setSuggestionData(null);
-      conversionClientIdempotencyKey.current = null;
       if (advanceAfterExit) {
         onTriageExit?.();
       }
@@ -443,92 +420,49 @@ export function CaptureInboxItemActions({
   );
 
   const previewConversion = useMutation({
+    mutationKey: orpc.previewCaptureConversion.mutationKey(),
     mutationFn: (input: CaptureConvertPreviewInput) =>
       shell.runOnlineOnly(() => client.previewCaptureConversion(input)),
-    onError: () => setActionMessage(triageErrorMessage()),
-    onSuccess: (nextPreview) => {
-      setActionMessage(null);
-      setPreview(nextPreview);
-    },
   });
-  const convert = useMutation({
-    mutationFn: (previewId: string) => {
-      const clientIdempotencyKey = captureConversionClientIdempotencyKey(
-        conversionClientIdempotencyKey.current,
-      );
-      conversionClientIdempotencyKey.current = clientIdempotencyKey;
-      return shell.runWrite(() =>
-        client.convertCapture({
-          clientIdempotencyKey,
-          itemId: item.id,
-          previewId,
-        }),
-      );
-    },
-    onError: () => setActionMessage(triageErrorMessage()),
-    onSuccess: async () => {
-      conversionClientIdempotencyKey.current = null;
-      // The new Work or Document can join live Smart Collections.
-      await Promise.all([
-        ...invalidateSmartCollectionMembership(queryClient),
-        refreshInbox(true),
-      ]);
-    },
-  });
+  const convert = useMutation(
+    orpc.convertCapture.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.convertCapture(input),
+      onSuccess: async () => {
+        await Promise.all([
+          ...invalidateSmartCollectionMembership(queryClient),
+          refreshInbox(true),
+        ]);
+      },
+    }),
+  );
   const previewAttachment = useMutation({
+    mutationKey: orpc.previewCaptureAttachment.mutationKey(),
     mutationFn: (input: CaptureAttachPreviewInput) =>
       shell.runOnlineOnly(() => client.previewCaptureAttachment(input)),
-    onError: () => setActionMessage(triageErrorMessage()),
-    onSuccess: (nextPreview) => {
-      setActionMessage(null);
-      setPreview(nextPreview);
-    },
   });
-  const attach = useMutation({
-    mutationFn: (previewId: string) =>
-      shell.runWrite(() =>
-        client.attachCapture({
-          clientIdempotencyKey: crypto.randomUUID(),
-          itemId: item.id,
-          previewId,
-          relation: attachmentValues.relation,
-          targetId: attachmentValues.targetId.trim(),
-        }),
-      ),
-    onError: () => setActionMessage(triageErrorMessage()),
-    onSuccess: async (receipt) => {
-      try {
-        const undoPreview = await shell.runOnlineOnly(() =>
-          client.previewCaptureMergeUndo({ mergeId: receipt.mergeId }),
-        );
-        onUndoPreview({ mergeId: receipt.mergeId, preview: undoPreview });
+  const attach = useMutation(
+    orpc.attachCapture.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.attachCapture(input),
+      onSuccess: async (receipt) => {
+        onUndoPreview(receipt.mergeId);
         toast.success("Capture attached.");
-      } catch {
-        toast.error(triageErrorMessage());
-      }
-      await refreshInbox(true);
-    },
-  });
-  const deleteCapture = useMutation({
-    mutationFn: () =>
-      shell.runWrite(() =>
-        client.deleteCapture({
-          clientIdempotencyKey: crypto.randomUUID(),
-          itemId: item.id,
-        }),
-      ),
-    onError: () => setActionMessage(triageErrorMessage()),
-    onSuccess: () => refreshInbox(true),
-  });
+        await refreshInbox(true);
+      },
+    }),
+  );
+  const deleteCapture = useMutation(
+    orpc.deleteCapture.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.deleteCapture(input),
+      onSuccess: () => refreshInbox(true),
+    }),
+  );
   const suggestions = useMutation({
-    mutationFn: () =>
-      shell.runOnlineOnly(() => client.captureSuggestions({ itemId: item.id })),
-    onError: () => setActionMessage(triageErrorMessage()),
-    onSuccess: (nextSuggestions) => {
-      setActionMessage(null);
-      setMode("suggestions");
-      setSuggestionData(nextSuggestions);
-    },
+    mutationKey: orpc.captureSuggestions.mutationKey(),
+    mutationFn: (input: { itemId: string }) =>
+      shell.runOnlineOnly(() => client.captureSuggestions(input)),
   });
 
   const isPending = [
@@ -540,36 +474,74 @@ export function CaptureInboxItemActions({
     suggestions,
   ].some((mutation) => mutation.isPending);
   const isOnline = connection !== "offline";
-  const suggestionPreview = mode === "suggestions" ? suggestionData : null;
-  const { conversionPreview, attachPreview } = capturePreviewsForMode(
-    mode,
-    preview,
+  const suggestionPreview =
+    mode === "suggestions" && suggestions.variables?.itemId === item.id
+      ? suggestions.data
+      : null;
+  const conversionPreview =
+    mode === "convert" && previewConversion.variables?.itemId === item.id
+      ? previewConversion.data
+      : null;
+  const attachPreview =
+    mode === "attach" && previewAttachment.variables?.itemId === item.id
+      ? previewAttachment.data
+      : null;
+  const activeMutations = {
+    attach: [previewAttachment, attach],
+    convert: [previewConversion, convert],
+    suggestions: [suggestions],
+  };
+  const activeError = mode
+    ? activeMutations[mode].some((mutation) => mutation.isError)
+    : deleteCapture.isError;
+  const actionMessage = activeError ? triageErrorMessage() : null;
+  const { reset: resetAttach } = attach;
+  const { reset: resetConvert } = convert;
+  const { reset: resetDelete } = deleteCapture;
+  const { reset: resetAttachmentPreview } = previewAttachment;
+  const { reset: resetConversionPreview } = previewConversion;
+  const { reset: resetSuggestions } = suggestions;
+
+  const setActionMode = useCallback(
+    (nextMode: ActionMode) => {
+      resetAttach();
+      resetConvert();
+      resetAttachmentPreview();
+      resetConversionPreview();
+      resetSuggestions();
+      setMode(nextMode);
+    },
+    [
+      resetAttach,
+      resetConvert,
+      resetAttachmentPreview,
+      resetConversionPreview,
+      resetSuggestions,
+    ],
   );
 
-  const startMode = useCallback((nextMode: Exclude<ActionMode, null>) => {
-    setMode(nextMode);
-    setPreview(null);
-    setSuggestionData(null);
-    setActionMessage(null);
-  }, []);
+  const startMode = useCallback(
+    (nextMode: Exclude<ActionMode, null>) => {
+      resetDelete();
+      setActionMode(nextMode);
+    },
+    [resetDelete, setActionMode],
+  );
 
-  const closeMode = useCallback(() => {
-    setMode(null);
-    setPreview(null);
-    setSuggestionData(null);
-    setActionMessage(null);
-    conversionClientIdempotencyKey.current = null;
-  }, []);
+  const closeMode = useCallback(() => setActionMode(null), [setActionMode]);
 
-  const useSuggestion = useCallback((suggestion: CaptureSuggestion) => {
-    conversionClientIdempotencyKey.current = null;
-    setAttachmentValues((current) => ({ ...current, targetId: suggestion.id }));
-    setMode("attach");
-    setPreview(null);
-  }, []);
+  const useSuggestion = useCallback(
+    (suggestion: CaptureSuggestion) => {
+      setAttachmentValues((current) => ({
+        ...current,
+        targetId: suggestion.id,
+      }));
+      startMode("attach");
+    },
+    [startMode],
+  );
 
   const openConvert = useCallback(() => {
-    conversionClientIdempotencyKey.current = null;
     setConversionValues((current) => ({
       ...current,
       projectId: captureConversionProjectId(item.projectId),
@@ -577,17 +549,21 @@ export function CaptureInboxItemActions({
     startMode("convert");
   }, [item.projectId, startMode]);
   const openAttach = useCallback(() => startMode("attach"), [startMode]);
-  const handleDelete = useCallback(
-    () => deleteCapture.mutate(),
-    [deleteCapture],
-  );
-  const showSuggestions = useCallback(
-    () => suggestions.mutate(),
-    [suggestions],
-  );
+  const handleDelete = useCallback(() => {
+    closeMode();
+    deleteCapture.mutate(
+      commandVariables(
+        { itemId: item.id },
+        deleteCapture.isError ? deleteCapture.variables : undefined,
+      ),
+    );
+  }, [closeMode, deleteCapture, item.id]);
+  const showSuggestions = useCallback(() => {
+    startMode("suggestions");
+    suggestions.mutate({ itemId: item.id });
+  }, [item.id, startMode, suggestions]);
   const handlePreviewConversion = useCallback(
     (input: CaptureConvertPreviewInput) => {
-      conversionClientIdempotencyKey.current = null;
       setConversionValues({
         projectId: input.projectId ?? "",
         recordType: input.recordType,
@@ -608,14 +584,40 @@ export function CaptureInboxItemActions({
   );
   const confirmConversion = useCallback(() => {
     if (conversionPreview) {
-      convert.mutate(conversionPreview.previewId);
+      convert.mutate(
+        commandVariables<Omit<CaptureConvertInput, "clientIdempotencyKey">>(
+          { itemId: item.id, previewId: conversionPreview.previewId },
+          convert.isError ? convert.variables : undefined,
+        ),
+      );
     }
-  }, [conversionPreview, convert]);
+  }, [conversionPreview, convert, item.id]);
   const confirmAttachment = useCallback(() => {
     if (attachPreview) {
-      attach.mutate(attachPreview.previewId);
+      attach.mutate(
+        commandVariables<
+          Omit<
+            Parameters<typeof client.attachCapture>[0],
+            "clientIdempotencyKey"
+          >
+        >(
+          {
+            itemId: item.id,
+            previewId: attachPreview.previewId,
+            relation: attachmentValues.relation,
+            targetId: attachmentValues.targetId.trim(),
+          },
+          attach.isError ? attach.variables : undefined,
+        ),
+      );
     }
-  }, [attach, attachPreview]);
+  }, [
+    attach,
+    attachPreview,
+    attachmentValues.relation,
+    attachmentValues.targetId,
+    item.id,
+  ]);
 
   return (
     <div className="space-y-3 border-t pt-3">
@@ -748,17 +750,4 @@ function CaptureTriageActions({
       ) : null}
     </div>
   );
-}
-
-function capturePreviewsForMode(mode: ActionMode, preview: Preview | null) {
-  return {
-    conversionPreview:
-      mode === "convert" && preview && "proposedRecord" in preview
-        ? preview
-        : null,
-    attachPreview:
-      mode === "attach" && preview && "relationPreview" in preview
-        ? preview
-        : null,
-  };
 }

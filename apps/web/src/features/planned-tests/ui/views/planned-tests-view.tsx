@@ -4,7 +4,9 @@ import type {
   PlannedTestCaseVersionRecord,
 } from "@cantiara/api/planned-tests";
 import { Button } from "@cantiara/ui/components/button";
-import { useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { orpc } from "@/utils/orpc";
 import {
   type CaseFormValues,
   EMPTY_CASE_FORM,
@@ -62,25 +64,52 @@ function VersionDetails({
 
 function CaseItem({
   loadTargets,
+  projectId,
   onCreateVersion,
   readOnly,
   record,
 }: {
   loadTargets: LoadRelationTargets;
+  projectId: string;
   onCreateVersion: SubmitCaseVersion;
   readOnly: boolean;
   record: PlannedTestCaseRecord;
 }) {
   const [editing, setEditing] = useState(false);
-  const [saved, setSaved] = useState<number>();
   const heading = useRef<HTMLHeadingElement>(null);
   const formId = `planned-test-${record.id}-version-form`;
-  async function save(values: CaseFormValues) {
-    await onCreateVersion(record, values);
-    setSaved(record.current.version + 1);
-    setEditing(false);
-    heading.current?.focus();
+  const queryClient = useQueryClient();
+  const createVersion = useMutation({
+    mutationKey: orpc.createPlannedTestCaseVersion.mutationKey(),
+    meta: { onlineWrite: true },
+    mutationFn: ({
+      plannedCase,
+      values,
+    }: {
+      plannedCase: PlannedTestCaseRecord;
+      values: CaseFormValues;
+    }) => onCreateVersion(plannedCase, values),
+    onSuccess: async (_, { plannedCase }) => {
+      await queryClient.invalidateQueries({
+        queryKey: orpc.projectPlannedTestCases.queryKey({
+          input: { projectId: plannedCase.projectId },
+        }),
+      });
+    },
+  });
+  const saved = createVersion.isSuccess
+    ? createVersion.variables.plannedCase.current.version + 1
+    : undefined;
+  const editingVersion = editing && !createVersion.isSuccess;
+  useEffect(() => {
+    if (saved) {
+      heading.current?.focus();
+    }
+  }, [saved]);
+  function save(values: CaseFormValues) {
+    return createVersion.mutateAsync({ plannedCase: record, values });
   }
+
   return (
     <li
       className="space-y-3 rounded-lg border border-border/70 p-4"
@@ -103,17 +132,20 @@ function CaseItem({
       {readOnly ? null : (
         <Button
           aria-controls={formId}
-          aria-expanded={editing}
-          onClick={() => setEditing((open) => !open)}
+          aria-expanded={editingVersion}
+          onClick={() => {
+            createVersion.reset();
+            setEditing(!editingVersion);
+          }}
           size="sm"
           type="button"
           variant="outline"
         >
-          {editing ? "Cancel new version" : "New version"}
+          {editingVersion ? "Cancel new version" : "New version"}
         </Button>
       )}
       <div id={formId}>
-        {editing && !readOnly ? (
+        {editingVersion && !readOnly ? (
           <CaseForm
             focusOnMount
             heading={`New version of ${record.current.title}`}
@@ -122,6 +154,7 @@ function CaseItem({
             loadTargets={loadTargets}
             onCancel={() => setEditing(false)}
             onSubmit={save}
+            projectId={projectId}
             showChangeKind
             submitLabel="Save new version"
           />
@@ -158,12 +191,14 @@ function CaseItem({
 export function PlannedTestsView({
   cases,
   loadTargets,
+  projectId,
   onCreate,
   onCreateVersion,
   readOnly,
 }: {
   cases: PlannedTestCaseRecord[];
   loadTargets: LoadRelationTargets;
+  projectId: string;
   onCreate: SubmitCase;
   onCreateVersion: SubmitCaseVersion;
   readOnly: boolean;
@@ -187,6 +222,7 @@ export function PlannedTestsView({
           initial={EMPTY_CASE_FORM}
           loadTargets={loadTargets}
           onSubmit={onCreate}
+          projectId={projectId}
           showChangeKind={false}
           submitLabel="Create Planned Test Case"
         />
@@ -202,6 +238,7 @@ export function PlannedTestsView({
               key={record.id}
               loadTargets={loadTargets}
               onCreateVersion={onCreateVersion}
+              projectId={projectId}
               readOnly={readOnly}
               record={record}
             />

@@ -51,6 +51,8 @@ Kurucunun başlattığı her durum değiştiren komutun kaybolmadan, sessizce ez
 
 ## Testing Decisions
 
+- **Client retry identity (#544).** Create from template and Tag rename Undo assert through their owning surfaces that a Support reference Retry sends the original command, preserves the failure state until success, and refreshes the affected reads. The database seam continues to assert the receipt and revision contract.
+
 - **What a good test is.** Tests observe Mutation Contract through its public interface: human retry, payload mismatch, stale base, non-human redelivery, multi-step commit vs rollback, post-barrier cancel refused, safe undo, unrelated later edit preserved, same-field conflict on undo, forbidden undo classes rejected. They do not assert transaction isolation levels or Drizzle internals. Expected values are product rules (same key same result, no silent overwrite, no wrapping later edits).
 - **Seam (one).** Mutation Contract — the product-facing write/undo interface every later feature must call. GitHub, import, and automation adapters sit behind it (real vs test double). Playwright for the closed accessibility journey “kayıt oluşturma, düzenleme, çatışma, geri alma” is the same seam through the UI, not a second module. A later feature’s own record type may supply a reconciliation flow; this suite tests the default reject-and-show-current path plus one representative atomic transform.
 - **Modules under test.** Mutation Contract only. Trash, redaction, account close, GitHub App, and capture are counterparts except where this suite must show they cannot bypass the barrier.

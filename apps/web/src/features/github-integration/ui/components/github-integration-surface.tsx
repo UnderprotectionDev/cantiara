@@ -3,14 +3,13 @@ import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouteContext } from "@tanstack/react-router";
-import { useMemo } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { useCallback, useMemo } from "react";
+import { executeWrite } from "@/utils/execute-write";
 import {
   accountPreferencesQueryOptions,
   client,
   invalidateSmartCollectionMembership,
   orpc,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
 import { linkWorkTargetOf } from "../../lib/github-forms";
 import {
@@ -58,35 +57,58 @@ export default function GitHubIntegrationSurface({
     input: { projectId, query: "" },
   });
   const records = useQuery({ ...recordsOptions, enabled: overview.isSuccess });
-  const linkActions = useMemo<GitHubWorkLinkActions>(() => {
-    const write = async <T,>(action: () => Promise<T>) => {
-      const result = await runOnlineOnlyWrite(action);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: options.queryKey }),
-        queryClient.invalidateQueries({ queryKey: checksOptions.queryKey }),
-        queryClient.invalidateQueries({ queryKey: linksOptions.queryKey }),
-        queryClient.invalidateQueries({ queryKey: prContextOptions.queryKey }),
-        queryClient.invalidateQueries({ queryKey: recordsOptions.queryKey }),
-      ]);
-      return result;
-    };
-    return {
-      onCreateWork: async (values) => {
-        const created = await write(() =>
-          client.createGitHubWorkAndLink({ ...values, projectId }),
-        );
-        // The write created a Work, so Work lists and Smart Collection
-        // membership read it again.
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
-          ...invalidateSmartCollectionMembership(queryClient),
-        ]);
-        return created;
-      },
-      onDismissSignal: (signalId) =>
-        write(() =>
-          client.dismissGitHubAttentionSignal({ projectId, signalId }),
+  const refreshGitHub = useCallback(
+    () =>
+      Promise.all(
+        [
+          options.queryKey,
+          checksOptions.queryKey,
+          linksOptions.queryKey,
+          prContextOptions.queryKey,
+          recordsOptions.queryKey,
+        ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+      ),
+    [
+      checksOptions.queryKey,
+      linksOptions.queryKey,
+      options.queryKey,
+      prContextOptions.queryKey,
+      queryClient,
+      recordsOptions.queryKey,
+    ],
+  );
+  const write = useCallback(
+    <T,>(action: () => Promise<T>) =>
+      executeWrite(queryClient, projectId, action, async (_, error) => {
+        if (!error) {
+          await refreshGitHub();
+        }
+      }),
+    [projectId, queryClient, refreshGitHub],
+  );
+  const linkActions = useMemo<GitHubWorkLinkActions>(
+    () => ({
+      onCreateWork: (values) =>
+        executeWrite(
+          queryClient,
+          { ...values, projectId },
+          (input) => client.createGitHubWorkAndLink(input),
+          async (_, error) => {
+            if (!error) {
+              await Promise.all([
+                refreshGitHub(),
+                queryClient.invalidateQueries({
+                  queryKey: orpc.projectWorks.queryKey({
+                    input: { projectId },
+                  }),
+                }),
+                ...invalidateSmartCollectionMembership(queryClient),
+              ]);
+            }
+          },
         ),
+      onDismissSignal: (signalId) =>
+        client.dismissGitHubAttentionSignal({ projectId, signalId }),
       onLinkWork: (values) =>
         write(() =>
           client.linkGitHubWork({
@@ -104,31 +126,12 @@ export default function GitHubIntegrationSurface({
           gcTime: 0,
           staleTime: 0,
         }),
-      onUnlink: (linkId) =>
-        write(() => client.unlinkGitHubWork({ linkId, projectId })),
-    };
-  }, [
-    checksOptions.queryKey,
-    linksOptions.queryKey,
-    options.queryKey,
-    prContextOptions.queryKey,
-    projectId,
-    queryClient,
-    recordsOptions.queryKey,
-  ]);
-  const actions = useMemo<GitHubIntegrationActions>(() => {
-    const write = async <T,>(action: () => Promise<T>) => {
-      const result = await runOnlineOnlyWrite(action);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: options.queryKey }),
-        queryClient.invalidateQueries({ queryKey: checksOptions.queryKey }),
-        queryClient.invalidateQueries({ queryKey: linksOptions.queryKey }),
-        queryClient.invalidateQueries({ queryKey: prContextOptions.queryKey }),
-        queryClient.invalidateQueries({ queryKey: recordsOptions.queryKey }),
-      ]);
-      return result;
-    };
-    return {
+      onUnlink: (linkId) => client.unlinkGitHubWork({ linkId, projectId }),
+    }),
+    [projectId, queryClient, refreshGitHub, write],
+  );
+  const actions = useMemo<GitHubIntegrationActions>(
+    () => ({
       loadRepositories: async (installationId) =>
         (await client.gitHubAppRepositories({ installationId, projectId }))
           .repositories,
@@ -138,33 +141,24 @@ export default function GitHubIntegrationSurface({
           : client.previewGitHubReconnect({ linkId, projectId }),
       loadTriage: (linkId) => client.gitHubTriagePreview({ linkId, projectId }),
       onDisconnect: (linkId) =>
-        write(() => client.disconnectGitHubRepository({ linkId, projectId })),
+        client.disconnectGitHubRepository({ linkId, projectId }),
       onLink: (values) =>
         write(() => client.linkGitHubRepository({ ...values, projectId })),
       onReconnect: (linkId) =>
-        write(() => client.reconnectGitHubRepository({ linkId, projectId })),
+        client.reconnectGitHubRepository({ linkId, projectId }),
       onSearch: async (query) =>
         (await client.searchGitHubRecords({ projectId, query })).records,
-      onSkipTriage: (linkId) =>
-        write(() => client.skipGitHubTriage({ linkId, projectId })),
-      onSyncNow: (linkId) =>
-        write(() => client.syncGitHubNow({ linkId, projectId })),
+      onSkipTriage: (linkId) => client.skipGitHubTriage({ linkId, projectId }),
+      onSyncNow: (linkId) => client.syncGitHubNow({ linkId, projectId }),
       onStartInstall: async () => {
-        const { installUrl } = await runOnlineOnlyWrite(() =>
-          client.startGitHubAppInstall({ projectId }),
-        );
+        const { installUrl } = await client.startGitHubAppInstall({
+          projectId,
+        });
         window.location.assign(installUrl);
       },
-    };
-  }, [
-    checksOptions.queryKey,
-    linksOptions.queryKey,
-    options.queryKey,
-    prContextOptions.queryKey,
-    projectId,
-    queryClient,
-    recordsOptions.queryKey,
-  ]);
+    }),
+    [projectId, write],
+  );
 
   if (overview.status === "pending") {
     return <p role="status">Loading GitHub…</p>;
@@ -184,7 +178,9 @@ export default function GitHubIntegrationSurface({
       <GitHubIntegrationView
         actions={actions}
         formattingPreferences={formattingPreferences}
+        onCommandSuccess={refreshGitHub}
         overview={overview.data}
+        projectId={projectId}
       />
       {prContext.data && overview.data.links.length > 0 ? (
         <GitHubPrContextCards data={prContext.data} projectId={projectId} />
@@ -196,6 +192,7 @@ export default function GitHubIntegrationSurface({
         <GitHubWorkLinksPanel
           actions={linkActions}
           data={workLinks.data}
+          onCommandSuccess={refreshGitHub}
           records={records.data?.records ?? []}
           repositories={overview.data.links.map((link) => ({
             id: link.id,

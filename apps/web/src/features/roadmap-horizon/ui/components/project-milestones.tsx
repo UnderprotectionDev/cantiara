@@ -8,7 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -48,105 +48,89 @@ function MilestoneCard({
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
-  const [preview, setPreview] = useState<RelationPreview | null>(null);
-  const [relationIdempotencyKey, setRelationIdempotencyKey] = useState<
-    string | null
-  >(null);
   const relationsQuery = useQuery(
     orpc.relations.queryOptions({
       input: { recordId: milestone.id, recordType: "Milestone" },
     }),
   );
-  const updateMutation = useMutation({
-    mutationFn: (draft: MilestoneDraft) =>
-      runOnlineOnlyWrite(() =>
-        client.updateMilestone({
-          baseRevision: milestone.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          description: draft.description || null,
-          milestoneId: milestone.id,
-          projectId,
-          targetDate: draft.targetDate || null,
-          title: draft.title,
-        }),
-      ),
-    onSuccess: async () => {
-      setEditing(false);
-      await invalidateMilestones(queryClient, projectId);
-    },
-  });
-  const statusMutation = useMutation({
-    mutationFn: (status: "Reached" | "Abandoned") =>
-      runOnlineOnlyWrite(() =>
-        client.updateMilestoneStatus({
-          baseRevision: milestone.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          milestoneId: milestone.id,
-          projectId,
-          status,
-        }),
-      ),
-    onSuccess: async () => {
-      await Promise.all([
-        invalidateMilestones(queryClient, projectId),
-        ...invalidateSmartCollectionMembership(queryClient),
-      ]);
-    },
-  });
+  const updateMutation = usePreparedMutation(
+    orpc.updateMilestone.mutationOptions({
+      mutationFn: (input) => client.updateMilestone(input),
+      onSuccess: async () => {
+        setEditing(false);
+        await invalidateMilestones(queryClient, projectId);
+      },
+    }),
+    (draft: MilestoneDraft) => ({
+      baseRevision: milestone.revision,
+      description: draft.description || null,
+      milestoneId: milestone.id,
+      projectId,
+      targetDate: draft.targetDate || null,
+      title: draft.title,
+    }),
+  );
+  const statusMutation = usePreparedMutation(
+    orpc.updateMilestoneStatus.mutationOptions({
+      mutationFn: (input) => client.updateMilestoneStatus(input),
+      onSuccess: async () => {
+        await Promise.all([
+          invalidateMilestones(queryClient, projectId),
+          ...invalidateSmartCollectionMembership(queryClient),
+        ]);
+      },
+    }),
+    (status: "Reached" | "Abandoned") => ({
+      baseRevision: milestone.revision,
+      milestoneId: milestone.id,
+      projectId,
+      status,
+    }),
+  );
   const relationPreviewMutation = useMutation({
+    mutationKey: orpc.relationPreview.mutationKey(),
     mutationFn: (workId: string) =>
       client.relationPreview({
         kind: "Contributes to Milestone",
         source: { recordId: workId, recordType: "Work" },
         target: { recordId: milestone.id, recordType: "Milestone" },
       }),
-    onSuccess: (nextPreview) => {
-      setPreview(nextPreview);
-      setRelationIdempotencyKey(crypto.randomUUID());
-    },
   });
-  const relationCreateMutation = useMutation({
-    mutationFn: () => {
-      if (!(preview && relationIdempotencyKey)) {
-        throw new Error("Review the relation before confirming.");
-      }
-      return runOnlineOnlyWrite(() =>
-        client.createRelation({
-          baseRevision: preview.baseRevision,
-          clientIdempotencyKey: relationIdempotencyKey,
-          kind: preview.kind,
-          previewId: preview.previewId,
-          source: {
-            recordId: preview.source.recordId,
-            recordType: preview.source.recordType,
-          },
-          target: {
-            recordId: preview.target.recordId,
-            recordType: preview.target.recordType,
-          },
-        }),
-      );
-    },
-    onSuccess: async () => {
-      setPreview(null);
-      setRelationIdempotencyKey(null);
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: orpc.relations.queryOptions({
-            input: { recordId: milestone.id, recordType: "Milestone" },
-          }).queryKey,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.relations.queryOptions({
-            input: {
-              recordId: preview?.source.recordId ?? "",
-              recordType: "Work",
-            },
-          }).queryKey,
-        }),
-      ]);
-    },
-  });
+  const relationCreateMutation = usePreparedMutation(
+    orpc.createRelation.mutationOptions({
+      mutationFn: (input) => client.createRelation(input),
+      onSuccess: async (_, { source, target }) => {
+        await Promise.all(
+          [source, target].map((input) =>
+            queryClient.invalidateQueries({
+              queryKey: orpc.relations.queryKey({ input }),
+            }),
+          ),
+        );
+      },
+    }),
+    (reviewed: RelationPreview) => ({
+      baseRevision: reviewed.baseRevision,
+      kind: reviewed.kind,
+      previewId: reviewed.previewId,
+      source: {
+        recordId: reviewed.source.recordId,
+        recordType: reviewed.source.recordType,
+      },
+      target: {
+        recordId: reviewed.target.recordId,
+        recordType: reviewed.target.recordType,
+      },
+    }),
+  );
+  const preview = relationCreateMutation.isSuccess
+    ? null
+    : (relationPreviewMutation.data ?? null);
+
+  function resetRelationPreview() {
+    relationPreviewMutation.reset();
+    relationCreateMutation.reset();
+  }
 
   const linkedWorks = (relationsQuery.data ?? []).filter(
     (relation: RelationView) => relation.kind === "Contributes to Milestone",
@@ -232,8 +216,7 @@ function MilestoneCard({
         relationCreateMutation={relationCreateMutation}
         relationPreviewMutation={relationPreviewMutation}
         relationsQuery={relationsQuery}
-        setPreview={setPreview}
-        setRelationIdempotencyKey={setRelationIdempotencyKey}
+        resetRelationPreview={resetRelationPreview}
         works={works}
       />
     </article>
@@ -251,23 +234,22 @@ export default function ProjectMilestones({
   const query = useQuery(
     orpc.projectMilestones.queryOptions({ input: { projectId } }),
   );
-  const createMutation = useMutation({
-    mutationFn: (draft: MilestoneDraft) =>
-      runOnlineOnlyWrite(() =>
-        client.createMilestone({
-          baseRevision: 0,
-          clientIdempotencyKey: crypto.randomUUID(),
-          description: draft.description || null,
-          id: crypto.randomUUID(),
-          projectId,
-          targetDate: draft.targetDate || null,
-          title: draft.title,
-        }),
-      ),
-    onSuccess: async () => {
-      await invalidateMilestones(queryClient, projectId);
-    },
-  });
+  const createMutation = usePreparedMutation(
+    orpc.createMilestone.mutationOptions({
+      mutationFn: (input) => client.createMilestone(input),
+      onSuccess: async () => {
+        await invalidateMilestones(queryClient, projectId);
+      },
+    }),
+    (draft: MilestoneDraft) => ({
+      baseRevision: 0,
+      description: draft.description || null,
+      id: crypto.randomUUID(),
+      projectId,
+      targetDate: draft.targetDate || null,
+      title: draft.title,
+    }),
+  );
 
   if (query.status === "pending") {
     return <p role="status">Loading…</p>;
@@ -319,8 +301,7 @@ function MilestoneWorkRelations({
   works,
   relationPreviewMutation,
   relationCreateMutation,
-  setPreview,
-  setRelationIdempotencyKey,
+  resetRelationPreview,
   preview,
 }: {
   projectId: string;
@@ -337,18 +318,12 @@ function MilestoneWorkRelations({
     string,
     unknown
   >;
-  relationCreateMutation: import("@tanstack/react-query").UseMutationResult<
-    import("@cantiara/api/relations").RelationMutationResult,
-    Error,
-    void,
-    unknown
-  >;
-  setPreview: import("react").Dispatch<
-    import("react").SetStateAction<RelationPreview | null>
-  >;
-  setRelationIdempotencyKey: import("react").Dispatch<
-    import("react").SetStateAction<string | null>
-  >;
+  relationCreateMutation: {
+    isError: boolean;
+    isPending: boolean;
+    mutate: (preview: RelationPreview) => void;
+  };
+  resetRelationPreview: () => void;
   preview: RelationPreview | null;
 }) {
   return (
@@ -387,11 +362,11 @@ function MilestoneWorkRelations({
             relationCreateMutation.isPending
           }
           milestoneId={milestone.id}
-          onPreview={(workId) => relationPreviewMutation.mutate(workId)}
-          onSelect={() => {
-            setPreview(null);
-            setRelationIdempotencyKey(null);
+          onPreview={(workId) => {
+            resetRelationPreview();
+            relationPreviewMutation.mutate(workId);
           }}
+          onSelect={resetRelationPreview}
           works={works}
         />
       ) : (
@@ -404,17 +379,14 @@ function MilestoneWorkRelations({
           </p>
           <Button
             disabled={relationCreateMutation.isPending}
-            onClick={() => relationCreateMutation.mutate()}
+            onClick={() => relationCreateMutation.mutate(preview)}
             size="sm"
             type="button"
           >
             Confirm relation
           </Button>
           <Button
-            onClick={() => {
-              setPreview(null);
-              setRelationIdempotencyKey(null);
-            }}
+            onClick={resetRelationPreview}
             size="sm"
             type="button"
             variant="outline"

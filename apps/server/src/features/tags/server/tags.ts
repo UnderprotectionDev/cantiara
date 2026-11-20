@@ -89,7 +89,7 @@ export function createTags({
     async create(accountId, input) {
       const parsed = createTagInputSchema.parse(input);
       const workspaceId = await workspaceIdFor(store, accountId);
-      return store.create(workspaceId, parsed);
+      return store.create(workspaceId, parsed, accountId);
     },
 
     async list(accountId, projectId) {

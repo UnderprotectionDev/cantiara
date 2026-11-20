@@ -26,6 +26,12 @@ export interface BulkEditResult {
   receiptId?: string;
   status: "Canceled" | "Failed" | "Succeeded" | "Undone";
   undoAttempts?: number;
+  undoCommand?: {
+    baseRevision: number;
+    clientIdempotencyKey: string;
+    receiptId: string;
+    workId: string;
+  };
   undoError?: SupportReferenceFailure;
   undoing?: boolean;
   workId: string;

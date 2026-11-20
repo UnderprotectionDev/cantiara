@@ -7,13 +7,14 @@ import {
 import type { ProductGapLinkTargetType } from "@cantiara/api/product-gaps";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  hashKey,
   keepPreviousData,
+  useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
 import {
   client,
@@ -54,6 +55,51 @@ export function gapDateTimeFormatter(
  * and converts nothing by itself: every write is the founder's explicit action.
  */
 function ProductGapsContent() {
+  const followUpIdentity = useRef<{
+    fingerprint: string;
+    id: string;
+    key: string;
+    workId: string;
+  } | null>(null);
+  const closeToolEscapeMutation = useMutation(
+    orpc.closeToolEscape.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.closeToolEscape(input),
+      onSettled: () => refresh(),
+    }),
+  );
+  const confirmProductGapFollowUpMutation = useMutation(
+    orpc.confirmProductGapFollowUp.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.confirmProductGapFollowUp(input),
+      onSuccess: async (_, input) => {
+        if (followUpIdentity.current?.key === input.clientIdempotencyKey) {
+          followUpIdentity.current = null;
+        }
+        await Promise.all([
+          refresh(),
+          ...(input.plan.kind === "Work"
+            ? invalidateSmartCollectionMembership(queryClient)
+            : []),
+        ]);
+      },
+      onError: () => refresh(),
+    }),
+  );
+  const recordToolEscapeMutation = useMutation(
+    orpc.recordToolEscape.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.recordToolEscape(input),
+      onSuccess: () => refresh(),
+    }),
+  );
+  const setProductGapStatusMutation = useMutation(
+    orpc.setProductGapStatus.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.setProductGapStatus(input),
+      onSettled: () => refresh(),
+    }),
+  );
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<GapFilterValues>(EMPTY_GAP_FILTER);
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
@@ -95,68 +141,63 @@ function ProductGapsContent() {
   return (
     <ProductGapsBoard
       filter={filter}
+      followUpWrite={confirmProductGapFollowUpMutation}
       formatDateTime={gapDateTimeFormatter(preferences.data)}
       gaps={gaps.data.gaps}
       loadEscapes={loadEscapes}
       loadTargets={loadTargets}
-      onCloseEscape={async (event, values, impact) => {
-        try {
-          await runOnlineOnlyWrite(() =>
-            client.closeToolEscape(
-              toCloseToolEscapeInput(event.id, values, impact),
-            ),
-          );
-        } finally {
-          await refresh();
+      onCloseEscape={(event, values, impact) =>
+        closeToolEscapeMutation.mutateAsync(
+          toCloseToolEscapeInput(event.id, values, impact),
+        )
+      }
+      onConfirmFollowUp={(gap, plan) => {
+        const fingerprint = hashKey([gap.id, plan]);
+        if (followUpIdentity.current?.fingerprint !== fingerprint) {
+          followUpIdentity.current = {
+            fingerprint,
+            id: crypto.randomUUID(),
+            key: crypto.randomUUID(),
+            workId: crypto.randomUUID(),
+          };
         }
-      }}
-      onConfirmFollowUp={async (gap, plan) => {
-        try {
-          await runOnlineOnlyWrite(() =>
-            client.confirmProductGapFollowUp({
-              baseRevision: 0,
-              clientIdempotencyKey: crypto.randomUUID(),
-              gapId: gap.id,
-              id: crypto.randomUUID(),
-              plan,
-              ...(plan.kind === "Work" ? { workId: crypto.randomUUID() } : {}),
-            }),
-          );
-        } finally {
-          // A Work follow-up creates a Work, which can join Smart Collections.
-          await Promise.all([
-            refresh(),
-            ...invalidateSmartCollectionMembership(queryClient),
-          ]);
-        }
+        const identity = followUpIdentity.current;
+        return confirmProductGapFollowUpMutation.mutateAsync({
+          baseRevision: 0,
+          clientIdempotencyKey: identity.key,
+          gapId: gap.id,
+          id: identity.id,
+          plan,
+          ...(plan.kind === "Work" ? { workId: identity.workId } : {}),
+        });
       }}
       onFilterChange={setFilter}
       onPreviewFollowUp={(gap, request) =>
-        client.previewProductGapFollowUp({ ...request, gapId: gap.id })
+        queryClient.query({
+          ...orpc.previewProductGapFollowUp.queryOptions({
+            input: { ...request, gapId: gap.id },
+          }),
+          gcTime: 0,
+          staleTime: 0,
+        })
       }
       onRecord={async (values) => {
         const { source } = values.escape;
         if (!source) {
           throw new Error("Choose the source Project or record.");
         }
-        await runOnlineOnlyWrite(() =>
-          client.recordToolEscape(toRecordToolEscapeInput(values, source)),
+        await recordToolEscapeMutation.mutateAsync(
+          toRecordToolEscapeInput(values, source),
         );
-        await refresh();
       }}
-      onSetStatus={async (gap, status) => {
-        try {
-          await runOnlineOnlyWrite(() =>
-            client.setProductGapStatus({
-              expectedStatus: gap.status,
-              gapId: gap.id,
-              status,
-            }),
-          );
-        } finally {
-          await refresh();
-        }
-      }}
+      onSetStatus={(gap, status) =>
+        setProductGapStatusMutation.mutateAsync({
+          expectedStatus: gap.status,
+          gapId: gap.id,
+          status,
+        })
+      }
+      statusWrite={setProductGapStatusMutation}
       tools={gaps.data.tools}
     />
   );

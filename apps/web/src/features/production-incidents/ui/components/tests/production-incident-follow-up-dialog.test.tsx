@@ -1,9 +1,13 @@
 // @vitest-environment happy-dom
+
 import type { ProductionIncidentFollowUpPreview } from "@cantiara/api/production-incidents";
+import { ORPCError } from "@orpc/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
+import { orpc } from "@/utils/orpc";
 import {
   type ProductionIncidentFollowUpActions,
   ProductionIncidentFollowUpDialog,
@@ -54,16 +58,22 @@ afterEach(() => {
   host = null;
 });
 
-function mount(actions: ProductionIncidentFollowUpActions) {
+function mount(
+  actions: ProductionIncidentFollowUpActions,
+  queryClient = new QueryClient(),
+) {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
   act(() => {
     root?.render(
-      <ProductionIncidentFollowUpDialog
-        actions={actions}
-        incident={{ title: "Checkout outage" }}
-      />,
+      <QueryClientProvider client={queryClient}>
+        <ProductionIncidentFollowUpDialog
+          actions={actions}
+          incident={{ title: "Checkout outage" }}
+          projectId="p1"
+        />
+      </QueryClientProvider>,
     );
   });
 }
@@ -117,7 +127,15 @@ describe("Create follow-up work dialog", () => {
     const onPreview = vi.fn<ProductionIncidentFollowUpActions["onPreview"]>(
       async () => preview,
     );
-    mount({ onCreate, onPreview });
+    const queryClient = new QueryClient();
+    const keys = [
+      orpc.projectWorks.key({ input: { projectId: "p1" } }),
+      orpc.smartCollectionViews.key(),
+    ];
+    for (const key of keys) {
+      queryClient.setQueryData(key, []);
+    }
+    mount({ onCreate, onPreview }, queryClient);
     await open();
     await submitPreview();
     expect(onPreview).toHaveBeenCalledTimes(1);
@@ -128,18 +146,52 @@ describe("Create follow-up work dialog", () => {
     await settle(() => confirm?.click());
     expect(onCreate).toHaveBeenCalledTimes(1);
     expect(onCreate.mock.calls[0]?.[1]).toBe(preview);
+    for (const key of keys) {
+      expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+    }
+  });
+
+  test("a failed confirmation can retry the same command and Work identity", async () => {
+    const onCreate = vi
+      .fn<ProductionIncidentFollowUpActions["onCreate"]>()
+      .mockRejectedValueOnce(new Error("Connection interrupted"))
+      .mockResolvedValueOnce(undefined);
+    const onPreview = vi
+      .fn<ProductionIncidentFollowUpActions["onPreview"]>()
+      .mockResolvedValue(preview);
+    mount({ onCreate, onPreview });
+    await open();
+    await submitPreview();
+    const confirm = () =>
+      buttons(CREATE_LABEL)
+        .find((button) => button.closest("section"))
+        ?.click();
+    await settle(confirm);
+    expect(document.body.textContent).toContain(
+      "The Work could not be created",
+    );
+    await settle(confirm);
+    expect(onCreate).toHaveBeenCalledTimes(2);
+    expect(onCreate.mock.calls[1]).toEqual(onCreate.mock.calls[0]);
   });
 
   test("a stale commit shows Preview changed and returns to a fresh preview", async () => {
     const onCreate = vi.fn<ProductionIncidentFollowUpActions["onCreate"]>(() =>
-      Promise.reject(new Error("PREVIEW_STALE")),
+      Promise.reject(
+        new ORPCError("CONFLICT", { data: { code: "PREVIEW_STALE" } }),
+      ),
     );
     const fresh = { ...preview, fingerprint: "fp-2" };
     const onPreview = vi
       .fn<ProductionIncidentFollowUpActions["onPreview"]>()
       .mockResolvedValueOnce(preview)
       .mockResolvedValueOnce(fresh);
-    mount({ onCreate, onPreview });
+    const queryClient = new QueryClient();
+    const incidentKey = orpc.productionIncidentDetail.queryKey({
+      input: { projectId: "p1", incidentId: preview.plan.incident.id },
+    });
+    queryClient.getQueryCache().build(queryClient, { queryKey: incidentKey });
+    mount({ onCreate, onPreview }, queryClient);
     await open();
     await submitPreview();
     await settle(() =>
@@ -147,12 +199,19 @@ describe("Create follow-up work dialog", () => {
         .find((button) => button.closest("section"))
         ?.click(),
     );
-    expect(document.body.textContent).toContain("Preview changed");
+    await vi.waitFor(async () => {
+      await settle();
+      expect(document.body.textContent).toContain("Preview changed");
+    });
+    expect(queryClient.getQueryState(incidentKey)?.isInvalidated).toBe(true);
     // The old preview cannot be committed again; the founder previews anew.
     expect(document.body.querySelector("section")).toBeNull();
     await submitPreview();
     expect(onPreview).toHaveBeenCalledTimes(2);
-    expect(document.body.querySelector("section")).not.toBeNull();
+    await vi.waitFor(async () => {
+      await settle();
+      expect(document.body.querySelector("section")).not.toBeNull();
+    });
     expect(onCreate).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,7 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the Project.
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { client, orpc } from "@/utils/orpc";
 import { maskedReviewMessage, toManualInput } from "../../lib/test-report-form";
 import { TestSessionsView } from "../views/test-sessions-view";
@@ -12,6 +11,12 @@ export default function TestSessionsSurface({
 }: {
   projectId: string;
 }) {
+  const acceptTestReportMutation = useMutation(
+    orpc.acceptTestReport.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.acceptTestReport(input),
+    }),
+  );
   const queryClient = useQueryClient();
   const options = orpc.projectTestSessions.queryOptions({
     input: { projectId },
@@ -42,14 +47,12 @@ export default function TestSessionsSurface({
   return (
     <TestSessionsView
       onImport={async (file) => {
-        const result = await runOnlineOnlyWrite(() =>
-          client.acceptTestReport({
-            content: file.content,
-            format: file.format,
-            ingress: "File import",
-            projectId,
-          }),
-        );
+        const result = await acceptTestReportMutation.mutateAsync({
+          content: file.content,
+          format: file.format,
+          ingress: "File import",
+          projectId,
+        });
         const review = maskedReviewMessage(result);
         if (review) {
           throw new Error(review);
@@ -57,8 +60,8 @@ export default function TestSessionsSurface({
         await refresh();
       }}
       onRecord={async (values) => {
-        const result = await runOnlineOnlyWrite(() =>
-          client.acceptTestReport(toManualInput(projectId, values)),
+        const result = await acceptTestReportMutation.mutateAsync(
+          toManualInput(projectId, values),
         );
         const review = maskedReviewMessage(result);
         if (review) {

@@ -2,7 +2,6 @@
 
 import {
   type WorkChecklistConversionPreview,
-  type WorkChecklistConversionResult,
   type WorkChecklistItem,
   workChecklistSchema,
 } from "@cantiara/api/work-lifecycle";
@@ -10,7 +9,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
 import { AppLink } from "@/components/app-link";
 import { resolveChecklistDrafts } from "../../lib/work-checklist-items";
 import { ChecklistConversionPreview } from "../components/checklist-conversion-preview";
@@ -19,6 +18,10 @@ import { AddChecklistItemForm } from "../forms/add-checklist-item-form";
 export default function WorkChecklist({
   checklist,
   disabled,
+  conversionItemId = null,
+  conversionPending = false,
+  conversionPreview,
+  onCancelConvert,
   onConfirmConvert,
   onPreviewConvert,
   onSave,
@@ -26,12 +29,14 @@ export default function WorkChecklist({
 }: {
   checklist: WorkChecklistItem[];
   disabled: boolean;
+  conversionItemId?: string | null;
+  conversionPending?: boolean;
+  conversionPreview?: WorkChecklistConversionPreview | null;
+  onCancelConvert?: () => void;
   onConfirmConvert: (
     preview: WorkChecklistConversionPreview,
-  ) => Promise<WorkChecklistConversionResult>;
-  onPreviewConvert: (
-    itemId: string,
-  ) => Promise<WorkChecklistConversionPreview | null>;
+  ) => Promise<unknown>;
+  onPreviewConvert: (itemId: string) => void;
   onSave: (checklist: WorkChecklistItem[]) => Promise<unknown>;
   workKey: string;
 }) {
@@ -50,10 +55,6 @@ export default function WorkChecklist({
     },
   });
   const drafts = useSelector(draftsForm.store, (state) => state.values.drafts);
-  const [conversionItemId, setConversionItemId] = useState<string | null>(null);
-  const [conversionPending, setConversionPending] = useState(false);
-  const [conversionPreview, setConversionPreview] =
-    useState<WorkChecklistConversionPreview | null>(null);
   const resolvedChecklist = resolveChecklistDrafts(checklist, drafts);
   const completedCount = resolvedChecklist.filter(
     (item) => item.completed,
@@ -98,40 +99,10 @@ export default function WorkChecklist({
     await saveChecklist(resolvedChecklist.filter((item) => item.id !== itemId));
   }
 
-  async function previewConversion(itemId: string) {
-    setConversionItemId(itemId);
-    setConversionPreview(null);
-    setConversionPending(true);
-    try {
-      setConversionPreview(await onPreviewConvert(itemId));
-    } catch {
-      // The parent owns the mutation error display; release the item so its
-      // controls unlock and the preview request can be retried.
-      setConversionItemId(null);
-    } finally {
-      setConversionPending(false);
-    }
-  }
-
   async function confirmConversion() {
-    if (!conversionPreview) {
-      return;
+    if (conversionPreview) {
+      await onConfirmConvert(conversionPreview).catch(() => undefined);
     }
-    setConversionPending(true);
-    try {
-      await onConfirmConvert(conversionPreview);
-      setConversionItemId(null);
-      setConversionPreview(null);
-    } catch {
-      // Keep the current preview so the user can retry the same command.
-    } finally {
-      setConversionPending(false);
-    }
-  }
-
-  function cancelConversion() {
-    setConversionItemId(null);
-    setConversionPreview(null);
   }
 
   function handleDraftsSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -260,7 +231,7 @@ export default function WorkChecklist({
                           conversionOpen ||
                           draft.trim() !== checklist[index]?.text
                         }
-                        onClick={() => previewConversion(item.id)}
+                        onClick={() => onPreviewConvert(item.id)}
                         size="xs"
                         type="button"
                         variant="outline"
@@ -270,7 +241,7 @@ export default function WorkChecklist({
                       {conversionItemId === item.id && conversionPreview ? (
                         <ChecklistConversionPreview
                           disabled={disabled}
-                          onCancel={cancelConversion}
+                          onCancel={onCancelConvert ?? (() => undefined)}
                           onConfirm={confirmConversion}
                           pending={conversionPending}
                           preview={conversionPreview}

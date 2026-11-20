@@ -5,6 +5,7 @@ import {
 } from "@cantiara/api/wireframe-document";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { mutationReceipt } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
 import {
   screen,
@@ -28,6 +29,7 @@ import {
   ScreenProjectReadOnlyError,
   ScreenRevisionConflictError,
 } from "../screens";
+import { ScreenCommandConflictError } from "../screens-command-receipt";
 import { createDatabaseScreens } from "../screens-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
@@ -95,6 +97,9 @@ describeDatabase("Screens PostgreSQL integration", () => {
 
   afterEach(async () => {
     const db = requireDatabase();
+    await db
+      .delete(mutationReceipt)
+      .where(eq(mutationReceipt.actorId, accountId));
     await db.delete(user).where(eq(user.id, accountId));
     await db.delete(user).where(eq(user.id, otherAccountId));
   });
@@ -127,6 +132,68 @@ describeDatabase("Screens PostgreSQL integration", () => {
     await expect(
       access.create(accountId, { projectId: archivedProjectId, title: "X" }),
     ).rejects.toBeInstanceOf(ScreenProjectReadOnlyError);
+  });
+
+  test("replays Screen creation, template stamping, and template instantiation without duplicating rows", async () => {
+    const access = createDatabaseScreens(requireDatabase());
+    const create = {
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId,
+      title: "Checkout",
+    };
+    const [created, replay] = await Promise.all([
+      access.create(accountId, create),
+      access.create(accountId, create),
+    ]);
+    expect(replay).toEqual(created);
+    await expect(
+      access.create(accountId, { ...create, title: "Changed" }),
+    ).rejects.toBeInstanceOf(ScreenCommandConflictError);
+    await expect(access.create(otherAccountId, create)).rejects.toBeInstanceOf(
+      ScreenProjectNotFoundError,
+    );
+
+    await access.saveWireframe(accountId, {
+      document: createEmptyWireframeDocument(),
+      projectId,
+      screenId: created.id,
+    });
+    const stamp = {
+      clientIdempotencyKey: crypto.randomUUID(),
+      name: "Checkout template",
+      projectId,
+      screenId: created.id,
+      wireframeVersion: 1,
+    };
+    const [template, stampedReplay] = await Promise.all([
+      access.saveTemplate(accountId, stamp),
+      access.saveTemplate(accountId, stamp),
+    ]);
+    expect(stampedReplay).toEqual(template);
+    await expect(
+      access.saveTemplate(accountId, { ...stamp, name: "Changed" }),
+    ).rejects.toBeInstanceOf(ScreenCommandConflictError);
+    expect(await access.templates(accountId, projectId)).toEqual([template]);
+
+    const instantiate = {
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId,
+      templateId: template.id,
+      title: "Pricing",
+    };
+    const [copy, copyReplay] = await Promise.all([
+      access.createScreenFromTemplate(accountId, instantiate),
+      access.createScreenFromTemplate(accountId, instantiate),
+    ]);
+    expect(copyReplay).toEqual(copy);
+    expect(copy.wireframeVersions).toHaveLength(1);
+    await expect(
+      access.createScreenFromTemplate(accountId, {
+        ...instantiate,
+        title: "Changed",
+      }),
+    ).rejects.toBeInstanceOf(ScreenCommandConflictError);
+    expect((await access.list(accountId, projectId)).screens).toHaveLength(2);
   });
 
   test("keeps exact Wireframe versions on the Screen across archive, trash and restore", async () => {
@@ -329,11 +396,18 @@ describeDatabase("Screens PostgreSQL integration", () => {
       props: { items: ["Home"] },
       width: 560,
     };
-    const definition = await access.createLinkedBlock(accountId, {
+    const create = {
+      clientIdempotencyKey: crypto.randomUUID(),
       content,
       name: "Header",
       projectId,
-    });
+    };
+    const [definition, replayedDefinition] = await Promise.all([
+      access.createLinkedBlock(accountId, create),
+      access.createLinkedBlock(accountId, create),
+    ]);
+    expect(replayedDefinition).toEqual(definition);
+    expect(await access.linkedBlocks(accountId, projectId)).toHaveLength(1);
     const home = await access.create(accountId, { projectId, title: "Home" });
     const linked = applyWireframeTransaction(
       {
@@ -372,7 +446,21 @@ describeDatabase("Screens PostgreSQL integration", () => {
       (await access.list(accountId, projectId)).screens[0]?.wireframeVersions,
     ).toHaveLength(1);
 
-    await access.applyLinkedBlockChange(accountId, change);
+    const command = {
+      ...change,
+      clientIdempotencyKey: crypto.randomUUID(),
+      expectedRevision: definition.revision,
+    };
+    const [applied, replayedChange] = await Promise.all([
+      access.applyLinkedBlockChange(accountId, command),
+      access.applyLinkedBlockChange(accountId, command),
+    ]);
+    expect(replayedChange).toEqual(applied);
+    expect(applied.definition.revision).toBe(2);
+    expect(applied.affectedScreens).toEqual(preview.affectedScreens);
+    await expect(
+      access.applyLinkedBlockChange(accountId, { ...command, content }),
+    ).rejects.toBeInstanceOf(ScreenCommandConflictError);
     const [record] = (await access.list(accountId, projectId)).screens;
     expect(record?.wireframeVersions.map(({ version }) => version)).toEqual([
       1, 2,
@@ -383,6 +471,37 @@ describeDatabase("Screens PostgreSQL integration", () => {
         expectedRevision: 1,
       }),
     ).rejects.toBeInstanceOf(ScreenRevisionConflictError);
+
+    const versionKey = crypto.randomUUID();
+    const [savedVersion, replayedVersion] = await Promise.all([
+      access.attachWireframeVersion(
+        accountId,
+        projectId,
+        home.id,
+        linked,
+        versionKey,
+      ),
+      access.attachWireframeVersion(
+        accountId,
+        projectId,
+        home.id,
+        linked,
+        versionKey,
+      ),
+    ]);
+    expect(replayedVersion).toEqual(savedVersion);
+    expect(savedVersion.wireframeVersions.map((item) => item.version)).toEqual([
+      1, 2, 3,
+    ]);
+    await expect(
+      access.attachWireframeVersion(
+        accountId,
+        projectId,
+        home.id,
+        createEmptyWireframeDocument(),
+        versionKey,
+      ),
+    ).rejects.toBeInstanceOf(ScreenCommandConflictError);
   });
 
   test("keeps a personal viewport per account and Screen without touching Wireframe versions", async () => {

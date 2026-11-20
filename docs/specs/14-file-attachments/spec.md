@@ -67,6 +67,10 @@ Dosya tam olarak bir Proje veya Kişisel Wiki kapsamında ana kayıt olarak yaş
 
 ## Testing Decisions
 
+- The protected asset and Binder seams verify retry from Query, discard a previous selection’s preview and keep an identical planned bind on retry.
+
+- **Query write lifecycle (#544).** Marking, Undo marking and the location bind use the Client Shell write gate. Retrying a failed marking resubmits its original geometry, identity and attachment version. Undo targets the same account-owned marking on the same version. The upload form verifies a retry keeps the command identity and the selected file, shows staging while pending, and hides Cancel when Finalizing begins. The location-bind web test verifies refresh of the committed Work and its Project alongside Smart Collection membership while leaving unrelated Work and Projects fresh.
+
 - **What a good test is.** Tests observe File Attachments through its public interface: accept/reject, quota, finalize, version, capture promotion, preview/playback, marking, and location bind. They assert product rules (atomic visible-or-not, matrix limits, ZIP fail-closed to external surfaces, marking ≠ source version) rather than R2 keys or Sharp internals.
 - **Seam (one).** File Attachments — the product-facing attachment, finalize, preview, and marking interface. R2, Uppy, `file-type`, Sharp, PDF.js, and Video.js are adapters (real versus test double) behind that seam. Playwright for “Belge sürümü ve Dosya Eki” is the same seam through the UI.
 - **Modules under test.** File Attachments only. Capture Inbox appears as a promotion counterpart; sharing appears as “ZIP cannot be selected / visitor asset gate is not this preview”; Documents and Wireframe origin are absent except as negatives.

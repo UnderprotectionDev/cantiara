@@ -1662,7 +1662,7 @@ describe("Test Handoff package is a snapshot with an incrementing version", () =
     expect(harness.handoffs.get(handoff.id)?.packageVersion).toBe(0);
   });
 
-  test("a repeated confirm cannot claim the same version twice", async () => {
+  test("an exact confirmation retry returns its stored package without claiming a new version", async () => {
     const harness = await setupTestHandoffPackage();
     const handoff = await reach(harness, "Ready to share");
     const preview = await harness.plannedTests.previewPackage(accountId, {
@@ -1676,9 +1676,15 @@ describe("Test Handoff package is a snapshot with an incrementing version", () =
       projectId,
     };
 
-    await harness.plannedTests.producePackage(accountId, confirm);
+    const first = await harness.plannedTests.producePackage(accountId, confirm);
     await expect(
       harness.plannedTests.producePackage(accountId, confirm),
+    ).resolves.toEqual(first);
+    await expect(
+      harness.plannedTests.producePackage(accountId, {
+        ...confirm,
+        previewFingerprint: "0".repeat(64),
+      }),
     ).rejects.toBeInstanceOf(TestHandoffPackageStaleError);
     expect(harness.packages.get(handoff.id)).toHaveLength(1);
   });

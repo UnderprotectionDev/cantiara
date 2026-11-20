@@ -41,11 +41,13 @@ function CandidateRow({
   onConfirmFollowUp,
   onMark,
   onPreviewFollowUp,
+  reviewId,
 }: {
   candidate: SpecChangeReviewCandidate;
   onConfirmFollowUp?: ConfirmFollowUp;
   onMark?: MarkCandidate;
   onPreviewFollowUp?: PreviewFollowUp;
+  reviewId: string;
 }) {
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const name = candidateName(candidate);
@@ -92,6 +94,7 @@ function CandidateRow({
           onClose={() => setFollowUpOpen(false)}
           onConfirm={onConfirmFollowUp}
           onPreview={onPreviewFollowUp}
+          reviewId={reviewId}
         />
       ) : null}
     </li>
@@ -108,12 +111,14 @@ export function SpecChangeReviewCandidates({
   onConfirmFollowUp,
   onMark,
   onPreviewFollowUp,
+  reviewId,
   status,
 }: {
   candidates: SpecChangeReviewCandidate[];
   onConfirmFollowUp?: ConfirmFollowUp;
   onMark?: MarkCandidate;
   onPreviewFollowUp?: PreviewFollowUp;
+  reviewId: string;
   status?: string;
 }) {
   return (
@@ -134,6 +139,7 @@ export function SpecChangeReviewCandidates({
               onConfirmFollowUp={onConfirmFollowUp}
               onMark={onMark}
               onPreviewFollowUp={onPreviewFollowUp}
+              reviewId={reviewId}
             />
           ))}
         </ul>

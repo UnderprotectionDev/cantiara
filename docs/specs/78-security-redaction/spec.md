@@ -51,6 +51,8 @@ Kurucu etkiyi önizler, Hesap Erişimi feature'ının `Confirm GitHub Identity` 
 
 ## Testing Decisions
 
+- **Write lifecycle evidence (#544).** The web Redact seam observes typed-name, grant and incomplete-spread refusals. It verifies that the supplied raw value and grant stay outside MutationCache.
+
 - **RPC refusal evidence (#543).** `security-redaction-rpc.test.ts` verifies the grant and typed-name outcomes. `apps/server/src/app.test.ts` verifies both name mismatch and incomplete spread through HTTP, including rejection of an invalid locator kind and omission of private fields. `security-redaction-panel.test.tsx` exercises the display of each typed apply refusal and the fresh `Confirm GitHub Identity` step.
 
 - **What a good test is.** Tests observe Security Redaction through its public interface: preview locator set, grant consume, typed-name gate, apply, then whether current/history/snapshot/search/export-staging/cache still yield the value. They assert restore-without-replay still cannot serve the value on the product read path after apply, and that replaying the event after a restored still-present row keeps the value gone. They do not assert Drizzle shapes or re-test OAuth.

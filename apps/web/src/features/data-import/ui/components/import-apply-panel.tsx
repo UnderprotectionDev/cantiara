@@ -6,22 +6,20 @@ import {
   type ImportApplyResult,
   type ImportPreview,
   type ImportReceipt,
+  type ImportScope,
 } from "@cantiara/api/data-import";
 import { Button } from "@cantiara/ui/components/button";
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { buildSupportReferenceFailure } from "@/features/web-macos-client/lib/support-reference";
+import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
+import { orpc } from "@/utils/orpc";
 import {
   applyBlockedReason,
   newApplyKey,
   rememberLastApplyKey,
 } from "../../lib/import-form";
 import { ImportReceiptPanel } from "./import-receipt";
-
-type ApplyState =
-  | { kind: "idle" }
-  | { kind: "applying" }
-  | { kind: "finalizing" }
-  | { error: string; kind: "failed" }
-  | { kind: "done"; receipt: ImportReceipt };
 
 /**
  * The separate `Apply Import` confirmation after the exact diff. Once it is
@@ -30,49 +28,58 @@ type ApplyState =
  * retry reuses the same key, so it can only return the same result.
  */
 export function ImportApplyPanel({
+  busy,
   onApply,
+  onAttempt,
   onCancel,
+  onCommitted,
   preview,
+  scope,
 }: {
+  busy: boolean;
   onApply: (input: ApplyImportInput) => Promise<ImportApplyResult>;
+  onAttempt: (key: string) => void;
   onCancel: () => void;
+  onCommitted?: (receipt: ImportReceipt, scope: ImportScope) => Promise<void>;
   preview: ImportPreview;
+  scope: ImportScope;
 }) {
-  const [state, setState] = useState<ApplyState>({ kind: "idle" });
   const [key] = useState(newApplyKey);
   const blocked = applyBlockedReason(preview);
+  const commit = useMutation(
+    orpc.applyImport.mutationOptions({
+      meta: { onlineWrite: true, presentsSupportFailure: true },
+      mutationFn: (input) => onApply(input),
+      onSuccess: async (completed) => {
+        if (completed.status === "committed") {
+          await onCommitted?.(completed.receipt, scope);
+        }
+      },
+    }),
+  );
 
-  async function apply() {
-    setState({ kind: "applying" });
-    // A receipt a dropped connection never showed stays reopenable by this key.
+  function apply() {
+    // A dropped connection can still leave a receipt reopenable by this key.
     rememberLastApplyKey(key);
-    try {
-      const result = await onApply({
-        finalSetFingerprint: preview.finalSetFingerprint,
-        idempotencyKey: key,
-        stagingId: preview.stagingId,
-      });
-      setState(
-        result.status === "finalizing"
-          ? { kind: "finalizing" }
-          : { kind: "done", receipt: result.receipt },
-      );
-    } catch (caught) {
-      setState({
-        error:
-          caught instanceof Error && caught.message
-            ? caught.message
-            : "The import could not be applied. Retry with the same key.",
-        kind: "failed",
-      });
-    }
+    onAttempt(key);
+    commit.mutate({
+      finalSetFingerprint: preview.finalSetFingerprint,
+      idempotencyKey: key,
+      stagingId: preview.stagingId,
+    });
   }
 
-  if (state.kind === "done") {
-    return <ImportReceiptPanel receipt={state.receipt} />;
+  const result = commit.data;
+  if (result && result.status !== "finalizing") {
+    return <ImportReceiptPanel receipt={result.receipt} />;
   }
-  const past = state.kind === "applying" || state.kind === "finalizing";
-  const buttonLabel = state.kind === "failed" ? "Retry" : IMPORT_APPLY_LABEL;
+  const finalizing = result?.status === "finalizing";
+  const past = commit.isPending || finalizing;
+  const buttonLabel = commit.isError ? "Retry" : IMPORT_APPLY_LABEL;
+  const failure = commit.isError
+    ? buildSupportReferenceFailure(commit.error, { kind: "mutation" })
+    : null;
+  const updateRequired = failure?.reasonCode === "update-required";
 
   return (
     <section
@@ -80,10 +87,20 @@ export function ImportApplyPanel({
       className="space-y-3 rounded-lg border border-border/70 p-5"
     >
       {blocked ? <p className="text-sm">{blocked}</p> : null}
-      {state.kind === "failed" ? (
+      {commit.isError ? (
         <p className="text-sm text-destructive" role="alert">
-          {state.error}
+          {commit.error.message ||
+            "The import could not be applied. Retry with the same key."}
         </p>
+      ) : null}
+      {failure ? (
+        <SupportReferenceNotice
+          failure={
+            updateRequired
+              ? failure
+              : { ...failure, retryBound: "Retry with the same key." }
+          }
+        />
       ) : null}
       {past ? (
         <p aria-live="polite" className="text-sm" role="status">
@@ -91,13 +108,18 @@ export function ImportApplyPanel({
         </p>
       ) : null}
       <div className="flex gap-2">
-        {state.kind === "finalizing" ? (
-          <Button onClick={apply} type="button" variant="outline">
+        {finalizing ? (
+          <Button
+            disabled={busy}
+            onClick={apply}
+            type="button"
+            variant="outline"
+          >
             Check result
           </Button>
         ) : (
           <Button
-            disabled={blocked !== null || past}
+            disabled={blocked !== null || past || updateRequired || busy}
             onClick={apply}
             type="button"
           >
@@ -105,7 +127,12 @@ export function ImportApplyPanel({
           </Button>
         )}
         {past ? null : (
-          <Button onClick={onCancel} type="button" variant="outline">
+          <Button
+            disabled={busy}
+            onClick={onCancel}
+            type="button"
+            variant="outline"
+          >
             Cancel
           </Button>
         )}

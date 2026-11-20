@@ -24,11 +24,25 @@ const rpc = vi.hoisted(() => ({
 vi.mock("@/utils/orpc", () => ({
   client: { updateProjectSourceRecord: rpc.update },
   orpc: {
+    createProjectSourceRecord: {
+      mutationOptions: (options: object) => options,
+    },
+    updateProjectSourceRecord: {
+      mutationOptions: (options: object) => ({
+        mutationKey: ["updateProjectSourceRecord"],
+        mutationFn: (input: unknown) => rpc.update(input),
+        ...options,
+      }),
+    },
+    transitionProjectSourceRecord: {
+      mutationOptions: (options: object) => options,
+    },
     projectValidationRecords: {
       queryOptions: () => ({
         queryKey: ["validation-records"],
         queryFn: rpc.list,
       }),
+      key: () => ["validation-records"],
     },
     projectSourceRecords: {
       queryOptions: () => ({

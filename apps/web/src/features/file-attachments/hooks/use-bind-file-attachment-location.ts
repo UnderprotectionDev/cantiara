@@ -4,7 +4,6 @@ import {
   client,
   invalidateSmartCollectionMembership,
   orpc,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
 
 /**
@@ -15,13 +14,20 @@ import {
 export function useBindFileAttachmentLocation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: FileAttachmentLocationBindInput) => {
-      await client.bindFileAttachmentLocation(input);
-    },
-    onSuccess: () =>
+    meta: { onlineWrite: true },
+    mutationKey: orpc.bindFileAttachmentLocation.mutationKey(),
+    mutationFn: (input: FileAttachmentLocationBindInput) =>
+      client.bindFileAttachmentLocation(input),
+    onSuccess: ({ work }) =>
       Promise.all([
-        queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
-        queryClient.invalidateQueries({ queryKey: orpc.work.key() }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectWorks.key({
+            input: { projectId: work.projectId },
+          }),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.work.key({ input: { workId: work.id } }),
+        }),
         ...invalidateSmartCollectionMembership(queryClient),
       ]),
   });

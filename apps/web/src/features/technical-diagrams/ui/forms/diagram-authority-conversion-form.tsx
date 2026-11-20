@@ -1,6 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each form binds its own field state.
 import type {
-  AuthorityConversionPreview,
   CreatableAuthorityMode,
   ExternalSourceLink,
 } from "@cantiara/api/technical-diagram-authority";
@@ -14,11 +13,10 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
 import type { z } from "zod";
 
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client } from "@/utils/orpc";
+import { commandVariables } from "@/lib/command-variables";
+import { client, orpc } from "@/utils/orpc";
 import { conversionSchema } from "../../lib/technical-diagram-form-schemas";
 
 const TARGET_MODES: CreatableAuthorityMode[] = [
@@ -43,18 +41,11 @@ export function DiagramAuthorityConversion({
         diagram.authorityMode === "External Source Link"
       ),
   );
-  const [preview, setPreview] = useState<AuthorityConversionPreview | null>(
-    null,
-  );
-  const [error, setError] = useState<string | null>(null);
-  const pendingKey = useRef<string | null>(null);
-  const checkedAt = useRef(new Date().toISOString());
-
   const request = (values: ConversionValues) => {
     const externalSource: ExternalSourceLink | undefined =
       values.targetMode === "External Source Link"
         ? {
-            lastCheckedAt: checkedAt.current,
+            lastCheckedAt: new Date().toISOString(),
             revision: values.revision.trim() || null,
             tool: values.tool,
             url: values.url,
@@ -67,10 +58,32 @@ export function DiagramAuthorityConversion({
       title: values.title,
     };
   };
-  const reset = () => {
-    pendingKey.current = null;
-    setPreview(null);
-  };
+  const previewMutation = useMutation({
+    meta: { retryInSurface: true },
+    mutationKey: orpc.previewDiagramAuthorityConversion.mutationKey(),
+    mutationFn: (input: ReturnType<typeof request>) =>
+      queryClient.query({
+        ...orpc.previewDiagramAuthorityConversion.queryOptions({ input }),
+        gcTime: 0,
+        staleTime: 0,
+      }),
+  });
+  const confirmMutation = useMutation(
+    orpc.convertDiagramAuthority.mutationOptions({
+      meta: { onlineWrite: true, retryInSurface: true },
+      mutationFn: (input) => client.convertDiagramAuthority(input),
+      onSuccess: () =>
+        queryClient.invalidateQueries({
+          queryKey: orpc.technicalDiagrams.key({
+            input: { projectId: diagram.projectId },
+          }),
+        }),
+    }),
+  );
+  function reset() {
+    previewMutation.reset();
+    confirmMutation.reset();
+  }
   const form = useForm({
     defaultValues: {
       revision: "",
@@ -79,60 +92,21 @@ export function DiagramAuthorityConversion({
       tool: "",
       url: "",
     } as ConversionValues,
-    // Any edit invalidates the previewed conversion and its idempotency key.
     listeners: { onChange: reset },
     onSubmit: ({ value }) => {
-      if (!conversionSchema.safeParse(value).success) {
-        return;
+      const values = conversionSchema.safeParse(value);
+      if (values.success) {
+        confirmMutation.reset();
+        previewMutation.mutate(request(values.data));
       }
-      previewMutation.mutate(value);
     },
   });
-  const previewMutation = useMutation({
-    mutationFn: (values: ConversionValues) => {
-      checkedAt.current = new Date().toISOString();
-      return client.previewDiagramAuthorityConversion(request(values));
-    },
-    onError: (failure) =>
-      setError(failure instanceof Error ? failure.message : "Preview failed."),
-    onSuccess: (result, values) => {
-      // An edit resets the preview; an in-flight response for the superseded
-      // values must not repopulate it.
-      const current = form.state.values;
-      if (
-        current.targetMode !== values.targetMode ||
-        current.title !== values.title ||
-        current.tool !== values.tool ||
-        current.url !== values.url ||
-        current.revision !== values.revision
-      ) {
-        return;
-      }
-      setError(null);
-      setPreview(result);
-    },
-  });
-  const confirmMutation = useMutation({
-    mutationFn: () => {
-      pendingKey.current ??= crypto.randomUUID();
-      return runOnlineOnlyWrite(() =>
-        client.convertDiagramAuthority({
-          ...request(form.state.values),
-          clientIdempotencyKey: pendingKey.current as string,
-          previewToken: (preview as AuthorityConversionPreview).previewToken,
-        }),
-      );
-    },
-    onError: (failure) =>
-      setError(
-        failure instanceof Error ? failure.message : "Conversion failed.",
-      ),
-    onSuccess: async () => {
-      reset();
-      setError(null);
-      await queryClient.invalidateQueries();
-    },
-  });
+  const preview = previewMutation.data;
+  const failure = confirmMutation.error ?? previewMutation.error;
+  const fallback = confirmMutation.isError
+    ? "Conversion failed."
+    : "Preview failed.";
+  const error = failure instanceof Error ? failure.message : fallback;
 
   if (targets.length === 0) {
     return null;
@@ -152,105 +126,107 @@ export function DiagramAuthorityConversion({
           form.handleSubmit().catch(() => undefined);
         }}
       >
-        <form.Field name="targetMode">
-          {(field) => (
-            <>
-              <Label htmlFor={`authority-target-${diagram.id}`}>
-                Diagram Authority Mode
-              </Label>
-              <NativeSelect
-                id={`authority-target-${diagram.id}`}
-                onChange={(event) =>
-                  field.handleChange(
-                    event.target.value as CreatableAuthorityMode,
-                  )
-                }
-                value={field.state.value}
-              >
-                {targets.map((mode) => (
-                  <NativeSelectOption key={mode} value={mode}>
-                    {mode}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </>
-          )}
-        </form.Field>
-        <form.Field name="title">
-          {(field) => (
-            <>
-              <Label htmlFor={`authority-title-${diagram.id}`}>Title</Label>
-              <Input
-                id={`authority-title-${diagram.id}`}
-                onChange={(event) => field.handleChange(event.target.value)}
-                required
-                value={field.state.value}
-              />
-            </>
-          )}
-        </form.Field>
-        <form.Subscribe selector={(state) => state.values.targetMode}>
-          {(targetMode) =>
-            targetMode === "External Source Link" ? (
+        <fieldset className="space-y-2" disabled={confirmMutation.isPending}>
+          <form.Field name="targetMode">
+            {(field) => (
               <>
-                <form.Field name="url">
-                  {(field) => (
-                    <>
-                      <Label htmlFor={`authority-url-${diagram.id}`}>
-                        HTTPS URL
-                      </Label>
-                      <Input
-                        id={`authority-url-${diagram.id}`}
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        required
-                        type="url"
-                        value={field.state.value}
-                      />
-                    </>
-                  )}
-                </form.Field>
-                <form.Field name="tool">
-                  {(field) => (
-                    <>
-                      <Label htmlFor={`authority-tool-${diagram.id}`}>
-                        Source tool
-                      </Label>
-                      <Input
-                        id={`authority-tool-${diagram.id}`}
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        required
-                        value={field.state.value}
-                      />
-                    </>
-                  )}
-                </form.Field>
-                <form.Field name="revision">
-                  {(field) => (
-                    <>
-                      <Label htmlFor={`authority-revision-${diagram.id}`}>
-                        Known revision (optional)
-                      </Label>
-                      <Input
-                        id={`authority-revision-${diagram.id}`}
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        value={field.state.value}
-                      />
-                    </>
-                  )}
-                </form.Field>
+                <Label htmlFor={`authority-target-${diagram.id}`}>
+                  Diagram Authority Mode
+                </Label>
+                <NativeSelect
+                  id={`authority-target-${diagram.id}`}
+                  onChange={(event) =>
+                    field.handleChange(
+                      event.target.value as CreatableAuthorityMode,
+                    )
+                  }
+                  value={field.state.value}
+                >
+                  {targets.map((mode) => (
+                    <NativeSelectOption key={mode} value={mode}>
+                      {mode}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
               </>
-            ) : null
-          }
-        </form.Subscribe>
-        <Button disabled={previewMutation.isPending} type="submit">
-          Preview conversion
-        </Button>
+            )}
+          </form.Field>
+          <form.Field name="title">
+            {(field) => (
+              <>
+                <Label htmlFor={`authority-title-${diagram.id}`}>Title</Label>
+                <Input
+                  id={`authority-title-${diagram.id}`}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  required
+                  value={field.state.value}
+                />
+              </>
+            )}
+          </form.Field>
+          <form.Subscribe selector={(state) => state.values.targetMode}>
+            {(targetMode) =>
+              targetMode === "External Source Link" ? (
+                <>
+                  <form.Field name="url">
+                    {(field) => (
+                      <>
+                        <Label htmlFor={`authority-url-${diagram.id}`}>
+                          HTTPS URL
+                        </Label>
+                        <Input
+                          id={`authority-url-${diagram.id}`}
+                          onChange={(event) =>
+                            field.handleChange(event.target.value)
+                          }
+                          required
+                          type="url"
+                          value={field.state.value}
+                        />
+                      </>
+                    )}
+                  </form.Field>
+                  <form.Field name="tool">
+                    {(field) => (
+                      <>
+                        <Label htmlFor={`authority-tool-${diagram.id}`}>
+                          Source tool
+                        </Label>
+                        <Input
+                          id={`authority-tool-${diagram.id}`}
+                          onChange={(event) =>
+                            field.handleChange(event.target.value)
+                          }
+                          required
+                          value={field.state.value}
+                        />
+                      </>
+                    )}
+                  </form.Field>
+                  <form.Field name="revision">
+                    {(field) => (
+                      <>
+                        <Label htmlFor={`authority-revision-${diagram.id}`}>
+                          Known revision (optional)
+                        </Label>
+                        <Input
+                          id={`authority-revision-${diagram.id}`}
+                          onChange={(event) =>
+                            field.handleChange(event.target.value)
+                          }
+                          value={field.state.value}
+                        />
+                      </>
+                    )}
+                  </form.Field>
+                </>
+              ) : null
+            }
+          </form.Subscribe>
+          <Button disabled={previewMutation.isPending} type="submit">
+            Preview conversion
+          </Button>
+        </fieldset>
       </form>
       {preview ? (
         <div className="space-y-2" role="status">
@@ -266,14 +242,27 @@ export function DiagramAuthorityConversion({
           <p>{preview.history}</p>
           <Button
             disabled={!preview.canConvert || confirmMutation.isPending}
-            onClick={() => confirmMutation.mutate()}
+            onClick={() => {
+              const reviewed = previewMutation.variables;
+              if (reviewed) {
+                confirmMutation.mutate(
+                  commandVariables(
+                    { ...reviewed, previewToken: preview.previewToken },
+                    confirmMutation.isError
+                      ? confirmMutation.variables
+                      : undefined,
+                  ),
+                  { onSuccess: reset },
+                );
+              }
+            }}
             type="button"
           >
             Confirm conversion
           </Button>
         </div>
       ) : null}
-      {error ? <p role="alert">{error}</p> : null}
+      {failure ? <p role="alert">{error}</p> : null}
     </section>
   );
 }

@@ -4,7 +4,6 @@ import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
 import { useExternalSurfaces } from "../../hooks/use-external-surfaces";
-import { useRemoveExternalSurface } from "../../hooks/use-remove-external-surface";
 import { SharesAndPublicationsView } from "../views/shares-and-publications-view";
 import { RemoveSurfaceControl } from "./remove-surface-control";
 
@@ -15,7 +14,6 @@ export default function SharesAndPublicationsSurface({
   projectId?: string;
 }) {
   const directory = useExternalSurfaces(projectId);
-  const remove = useRemoveExternalSurface();
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
   return (
     <SharesAndPublicationsView
@@ -24,8 +22,8 @@ export default function SharesAndPublicationsSurface({
       loading={directory.isPending}
       renderRemove={(row) => (
         <RemoveSurfaceControl
-          onRemove={() => remove(row.surfaceId)}
           sourceTitle={row.source.title || row.source.kind}
+          surfaceId={row.surfaceId}
         />
       )}
       rows={directory.data?.rows ?? []}

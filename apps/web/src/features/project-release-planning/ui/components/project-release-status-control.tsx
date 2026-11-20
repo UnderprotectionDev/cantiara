@@ -36,31 +36,35 @@ export function ProjectReleaseStatusControl({
   readOnly,
   release,
   suggestion,
+  failed = false,
+  saving = false,
+  resetStatus,
 }: {
   onChangeStatus: (status: ProjectReleaseStatus) => Promise<unknown>;
   openScope: number;
   readOnly: boolean;
   release: Pick<ProjectReleaseRecord, "status">;
   suggestion: ProjectReleaseStatusSuggestion | null;
+  failed?: boolean;
+  saving?: boolean;
+  resetStatus?: () => void;
 }) {
   const [confirming, setConfirming] = useState<TerminalStatus | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const error = failed
+    ? "Status could not be changed. Reload and try again."
+    : null;
   const { status } = release;
   const targets = projectReleaseStatusTargets(status);
   const editable = !readOnly && targets.length > 0;
 
   async function change(next: ProjectReleaseStatus) {
-    setError(null);
-    setSaving(true);
-    try {
-      await onChangeStatus(next);
-      setConfirming(null);
-    } catch {
-      setError("Status could not be changed. Reload and try again.");
-    } finally {
-      setSaving(false);
-    }
+    await onChangeStatus(next);
+    setConfirming(null);
+  }
+
+  function review(next: TerminalStatus) {
+    resetStatus?.();
+    setConfirming(next);
   }
 
   const copy = confirming
@@ -96,7 +100,7 @@ export function ProjectReleaseStatusControl({
               <Button
                 disabled={saving}
                 key={terminal}
-                onClick={() => setConfirming(terminal)}
+                onClick={() => review(terminal)}
                 size="sm"
                 type="button"
                 variant="outline"
@@ -114,7 +118,7 @@ export function ProjectReleaseStatusControl({
               <p>{`Mark this Project Release ${suggestion.status}?`}</p>
               <Button
                 disabled={saving}
-                onClick={() => setConfirming(suggestion.status)}
+                onClick={() => review(suggestion.status)}
                 size="sm"
                 type="button"
                 variant="outline"
@@ -145,7 +149,7 @@ export function ProjectReleaseStatusControl({
             setConfirming(null);
           }
         }}
-        open={confirming !== null}
+        open={confirming !== null && confirming !== status}
       >
         {copy && confirming ? (
           <AlertDialogContent>

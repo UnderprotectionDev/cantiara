@@ -11,6 +11,7 @@ import {
   type PersonalDataFormat,
   type PersonalDataPreview,
 } from "@cantiara/api/personal-data-rights";
+import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
 import { usePersonalDataEraseFlow } from "../../hooks/use-personal-data-erase-flow";
 import { usePersonalDataFlow } from "../../hooks/use-personal-data-flow";
 import { PersonalDataContactForm } from "../forms/personal-data-contact-form";
@@ -88,6 +89,9 @@ export function PersonalDataView({
         <p className="text-sm" role="alert">
           {erase.refusal}
         </p>
+      ) : null}
+      {erase.support ? (
+        <SupportReferenceNotice failure={erase.support} />
       ) : null}
       {flow.preview ? (
         <PersonalDataPreviewPanel

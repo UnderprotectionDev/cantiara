@@ -6,7 +6,10 @@ import { expect, test, vi } from "vitest";
 
 const hoisted = vi.hoisted(() => ({
   captured: {} as {
-    actions?: { onCreateFollowUp: (signal: { id: string }) => void };
+    actions?: {
+      onCreateFollowUp: (signal: { id: string }) => void;
+      onPreviewFollowUp: (signal: { id: string }) => void;
+    };
   },
   createNotificationFollowUp: vi.fn(),
 }));
@@ -20,6 +23,8 @@ vi.mock("@/utils/orpc", async (importActual) => {
     ...actual,
     client: {
       createNotificationFollowUp: hoisted.createNotificationFollowUp,
+      previewNotificationFollowUp: () =>
+        Promise.resolve({ fingerprint: "preview" }),
       refreshPublicRoadmapReviewSignals: () => Promise.resolve({ emitted: 0 }),
     },
   };
@@ -36,7 +41,10 @@ import NotificationCenterSurface from "../notification-center-surface";
 
 async function createFollowUp(created: boolean) {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  hoisted.createNotificationFollowUp.mockResolvedValue({ created });
+  hoisted.createNotificationFollowUp.mockResolvedValue({
+    created,
+    signal: { projectId: "project-1" },
+  });
   // Refetches of the mounted queries fail fast: there is no server here.
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -57,6 +65,10 @@ async function createFollowUp(created: boolean) {
         <NotificationCenterSurface />
       </QueryClientProvider>,
     );
+  });
+  await act(async () => {
+    hoisted.captured.actions?.onPreviewFollowUp({ id: "signal-1" });
+    await Promise.resolve();
   });
   await act(async () => {
     hoisted.captured.actions?.onCreateFollowUp({ id: "signal-1" });

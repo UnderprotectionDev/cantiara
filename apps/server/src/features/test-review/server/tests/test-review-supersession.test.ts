@@ -19,6 +19,36 @@ import {
 const SCENARIO: [string, number] = ["case-1", 2];
 const FORBIDDEN_MEMBER = /gap|handoff|assessment|delete|trash|archive/i;
 
+test("binding and Supersedes commands replay their existing records", async () => {
+  const { testReview } = setup();
+  const bind = {
+    clientIdempotencyKey: "result-binding",
+    projectId,
+    scenarioId: SCENARIO[0],
+    scenarioVersion: SCENARIO[1],
+    sessionTestId: "pass",
+  };
+  const binding = await testReview.bindValidResult(accountId, bind);
+  expect(await testReview.bindValidResult(accountId, bind)).toEqual(binding);
+  await expect(
+    testReview.bindValidResult(accountId, { ...bind, sessionTestId: "fail" }),
+  ).rejects.toMatchObject({ code: "TEST_REVIEW_COMMAND_CONFLICT" });
+  const relation = {
+    clientIdempotencyKey: "supersede-link",
+    projectId,
+    newerSessionTestId: "again",
+    olderSessionTestId: "fail",
+  };
+  const linked = await testReview.supersede(accountId, relation);
+  expect(await testReview.supersede(accountId, relation)).toEqual(linked);
+  await expect(
+    testReview.supersede(accountId, {
+      ...relation,
+      olderSessionTestId: "pass",
+    }),
+  ).rejects.toMatchObject({ code: "TEST_REVIEW_COMMAND_CONFLICT" });
+});
+
 function setup() {
   return createMemoryHarness(
     [

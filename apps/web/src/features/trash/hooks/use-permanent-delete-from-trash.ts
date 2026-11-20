@@ -2,7 +2,6 @@ import type { TrashEntry } from "@cantiara/api/trash";
 import { useQueryClient } from "@tanstack/react-query";
 import { requestGitHubIdentityGrant } from "@/features/account-access/lib/github-identity-confirmation";
 import { client, orpc } from "@/utils/orpc";
-import { useIdempotentTrashWrite } from "./use-idempotent-trash-write";
 
 /**
  * Early `Permanently Delete` for one Trash entry (or its whole Project delete
@@ -11,7 +10,6 @@ import { useIdempotentTrashWrite } from "./use-idempotent-trash-write";
  * The key belongs to one attempt at one entry revision, so a retry replays.
  */
 export function usePermanentDeleteFromTrash(projectId: string) {
-  const write = useIdempotentTrashWrite();
   const queryClient = useQueryClient();
   return {
     async confirmIdentity() {
@@ -23,18 +21,18 @@ export function usePermanentDeleteFromTrash(projectId: string) {
     },
     permanentlyDelete(
       entry: TrashEntry,
-      confirmation: { grant: string; typedName: string },
+      confirmation: {
+        grant: string;
+        typedName: string;
+        clientIdempotencyKey: string;
+      },
     ) {
-      return write(`${entry.id}:${entry.revision}`, (clientIdempotencyKey) =>
-        client.permanentlyDeleteFromTrash({
-          baseRevision: entry.revision,
-          clientIdempotencyKey,
-          entryId: entry.id,
-          grant: confirmation.grant,
-          projectId,
-          typedName: confirmation.typedName,
-        }),
-      );
+      return client.permanentlyDeleteFromTrash({
+        ...confirmation,
+        baseRevision: entry.revision,
+        entryId: entry.id,
+        projectId,
+      });
     },
     preview: (entry: TrashEntry) =>
       queryClient.query({

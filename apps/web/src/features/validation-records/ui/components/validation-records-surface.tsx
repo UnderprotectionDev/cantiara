@@ -1,9 +1,9 @@
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import { orpc } from "@/utils/orpc";
 import {
+  isConflictError,
   isValidationContextRecord,
   type ValidationDraft,
   type ValidationRecord,
@@ -48,32 +48,56 @@ export default function ValidationRecordsSurface({
     }
     return pending.current;
   }
-  async function refresh() {
-    pending.current = null;
+  async function refresh(
+    error: unknown,
+    {
+      clientIdempotencyKey,
+      projectId: targetProject,
+    }: { clientIdempotencyKey: string; projectId: string },
+    sourceId: string,
+  ) {
+    if (error && !isConflictError(error)) {
+      return;
+    }
+    if (!error && pending.current?.key === clientIdempotencyKey) {
+      pending.current = null;
+    }
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: options.queryKey }),
       queryClient.invalidateQueries({
-        queryKey: orpc.projectSourceRecords.key(),
+        queryKey: orpc.projectValidationRecords.key({
+          input: { projectId: targetProject },
+        }),
       }),
       queryClient.invalidateQueries({
-        queryKey: orpc.projectSourceRecord.key(),
+        queryKey: orpc.projectSourceRecords.key({
+          input: { projectId: targetProject },
+        }),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.projectSourceRecord.key({
+          input: { sourceId, sourceType: "Validation Record" },
+        }),
       }),
     ]);
   }
-  async function write(command: () => Promise<unknown>) {
-    try {
-      await runOnlineOnlyWrite(command);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        "code" in error &&
-        error.code === "CONFLICT"
-      ) {
-        await refresh();
-      }
-      throw error;
-    }
-  }
+  const create = useMutation(
+    orpc.createProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
+      onSettled: (_, error, input) => refresh(error, input, input.id),
+    }),
+  );
+  const update = useMutation(
+    orpc.updateProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
+      onSettled: (_, error, input) => refresh(error, input, input.sourceId),
+    }),
+  );
+  const changeStatus = useMutation(
+    orpc.transitionProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
+      onSettled: (_, error, input) => refresh(error, input, input.sourceId),
+    }),
+  );
   async function save(draft: ValidationDraft, record?: ValidationRecord) {
     const fields = {
       ...draft,
@@ -81,42 +105,41 @@ export default function ValidationRecordsSurface({
       sourceType: "Validation Record" as const,
     };
     const { id, key } = validationCommandIdentity(fields, record);
-    await write(() =>
-      record
-        ? client.updateProjectSourceRecord({
-            ...fields,
-            sourceId: id,
-            baseRevision: record.revision,
-            clientIdempotencyKey: key,
-          })
-        : client.createProjectSourceRecord({
-            ...fields,
-            id,
-            baseRevision: 0,
-            clientIdempotencyKey: key,
-          }),
-    );
-    await refresh();
+    if (record) {
+      await update.mutateAsync({
+        ...fields,
+        sourceId: id,
+        baseRevision: record.revision,
+        clientIdempotencyKey: key,
+      });
+    } else {
+      await create.mutateAsync({
+        ...fields,
+        id,
+        baseRevision: 0,
+        clientIdempotencyKey: key,
+      });
+    }
   }
   async function transition(
     record: ValidationRecord,
     status: ValidationRecord["status"],
   ) {
     const { key } = validationCommandIdentity({ status }, record);
-    await write(() =>
-      client.transitionProjectSourceRecord({
-        projectId,
-        sourceType: "Validation Record",
-        sourceId: record.id,
-        status,
-        baseRevision: record.revision,
-        clientIdempotencyKey: key,
-      }),
-    );
-    await refresh();
+    await changeStatus.mutateAsync({
+      projectId,
+      sourceType: "Validation Record",
+      sourceId: record.id,
+      status,
+      baseRevision: record.revision,
+      clientIdempotencyKey: key,
+    });
   }
   function startEditing() {
     pending.current = null;
+    create.reset();
+    update.reset();
+    changeStatus.reset();
   }
   function retry() {
     sources.refetch().catch(() => undefined);
@@ -141,7 +164,12 @@ export default function ValidationRecordsSurface({
       onTransition={transition}
       readOnly={records.data.readOnly}
       records={records.data.records}
+      saved={create.isSuccess || update.isSuccess || changeStatus.isSuccess}
+      saveError={create.error ?? update.error}
+      savePending={create.isPending || update.isPending}
       selectedId={selectedId}
+      transitionFailed={changeStatus.isError}
+      transitionPending={changeStatus.isPending}
     />
   );
 }

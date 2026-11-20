@@ -25,7 +25,11 @@ import {
 } from "react";
 
 import { STALE_BASE_REVISION_MESSAGE } from "@/lib/mutation-messages";
-import { client, completionEffectsPreferencesQueryOptions } from "@/utils/orpc";
+import {
+  client,
+  completionEffectsPreferencesQueryOptions,
+  orpc,
+} from "@/utils/orpc";
 import {
   COMPLETION_EFFECT_MOTION_DESCRIPTIONS,
   COMPLETION_EFFECT_PALETTE_COLORS,
@@ -88,26 +92,21 @@ export default function CompletionEffectsForm({
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [previewStatus, setPreviewStatus] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [hasSaved, setHasSaved] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const savePreferences = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.saveCompletionEffectsPreferences.mutationKey(),
     mutationFn: (input: {
       baseRevision: number;
       clientIdempotencyKey: string;
       preferences: CompletionEffectsPreferences;
     }) => client.saveCompletionEffectsPreferences(input),
-    onError(error) {
-      setHasSaved(false);
-      setSaveError(getSaveErrorMessage(error));
-    },
     onSuccess(savedSnapshot) {
       formBaseRevision.current = savedSnapshot.revision;
       latestSavedAt.current = savedSnapshot.savedAt;
       pendingSave.current = null;
-      setHasSaved(true);
-      setSaveError(null);
       queryClient.setQueryData(
         completionEffectsPreferencesQueryOptions(accountId).queryKey,
         savedSnapshot,
@@ -115,13 +114,20 @@ export default function CompletionEffectsForm({
     },
   });
 
+  const saveError =
+    validationError ??
+    (savePreferences.isError
+      ? getSaveErrorMessage(savePreferences.error)
+      : null);
+  const hasSaved = savePreferences.isSuccess;
   const form = useForm({
     defaultValues: valuesFromSnapshot(snapshot),
     onSubmit: async ({ value }) => {
+      setValidationError(null);
       const parsed = completionEffectsPreferencesSchema.safeParse(value);
       if (!parsed.success) {
-        setHasSaved(false);
-        setSaveError(getSaveErrorMessage(parsed.error));
+        savePreferences.reset();
+        setValidationError(getSaveErrorMessage(parsed.error));
         return;
       }
       const preferences = parsed.data;
@@ -197,8 +203,7 @@ export default function CompletionEffectsForm({
     }
     form.setFieldValue("theme", theme);
     savePreferences.reset();
-    setHasSaved(false);
-    setSaveError(null);
+    setValidationError(null);
   }
 
   function selectPalette(event: MouseEvent<HTMLButtonElement>) {
@@ -207,15 +212,13 @@ export default function CompletionEffectsForm({
     stopPreview();
     form.setFieldValue("palette", palette);
     savePreferences.reset();
-    setHasSaved(false);
-    setSaveError(null);
+    setValidationError(null);
   }
 
   function setEnabled(enabled: boolean) {
     form.setFieldValue("enabled", enabled);
     savePreferences.reset();
-    setHasSaved(false);
-    setSaveError(null);
+    setValidationError(null);
   }
 
   function preview() {

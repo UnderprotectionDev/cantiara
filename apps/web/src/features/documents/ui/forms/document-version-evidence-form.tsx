@@ -38,11 +38,14 @@ export default function DocumentEvidenceDialog({
   };
   pinEvidenceKey: import("react").RefObject<string | null>;
   recordReferenceOptions: { id: string; label: string; recordType: string }[];
-  pinEvidence: import("@tanstack/react-query").UseMutationResult<
-    Awaited<ReturnType<typeof client.pinDocumentEvidence>>,
-    Error,
-    { targetRecordId: string; targetRecordType: DocumentEvidenceTargetType },
-    unknown
+  pinEvidence: Pick<
+    import("@tanstack/react-query").UseMutationResult<
+      Awaited<ReturnType<typeof client.pinDocumentEvidence>>,
+      Error,
+      { targetRecordId: string; targetRecordType: DocumentEvidenceTargetType },
+      unknown
+    >,
+    "mutate" | "isPending" | "isError" | "error"
   >;
 }) {
   return (
@@ -81,11 +84,14 @@ function DocumentEvidenceForm({
   recordReferenceOptions,
 }: {
   onCancel: () => void;
-  pinEvidence: import("@tanstack/react-query").UseMutationResult<
-    Awaited<ReturnType<typeof client.pinDocumentEvidence>>,
-    Error,
-    { targetRecordId: string; targetRecordType: DocumentEvidenceTargetType },
-    unknown
+  pinEvidence: Pick<
+    import("@tanstack/react-query").UseMutationResult<
+      Awaited<ReturnType<typeof client.pinDocumentEvidence>>,
+      Error,
+      { targetRecordId: string; targetRecordType: DocumentEvidenceTargetType },
+      unknown
+    >,
+    "mutate" | "isPending" | "isError" | "error"
   >;
   pinEvidenceKey: import("react").RefObject<string | null>;
   recordReferenceOptions: { id: string; label: string; recordType: string }[];
@@ -189,7 +195,7 @@ function DocumentEvidenceForm({
           )}
         </evidenceForm.Subscribe>
         {pinEvidence.isError ? (
-          <p role="alert">{pinEvidence.error.message}</p>
+          <p role="alert">{pinEvidence.error?.message}</p>
         ) : null}
       </div>
       <DialogFooter>

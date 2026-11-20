@@ -13,6 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, test, vi } from "vitest";
 import { createWireframeEditor } from "../../../engine/editor";
 import { stageSizeFor, WireframePane } from "../wireframe-pane";
+import WireframeSurface from "../wireframe-surface";
 
 const FULL_WIDTH_SECTION = /<section[^>]*class="[^"]*\bw-full\b/;
 const STAGE_PANE = /<div[^>]*aria-roledescription="canvas"[^>]*>/;
@@ -26,7 +27,7 @@ const wireframeFetch = vi.fn();
 vi.mock("@/env", () => ({
   env: { VITE_SERVER_URL: "https://api.example.org" },
 }));
-const markUnsavedChanges = vi.fn();
+const markUnsavedChanges = vi.hoisted(() => vi.fn());
 const presentFailure = vi.fn();
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({
   defaultClientShell: { markUnsavedChanges },
@@ -36,12 +37,17 @@ vi.mock("@/features/web-macos-client/ui/components/support-reference", () => ({
   presentSupportReferenceFailure: (...args: unknown[]) =>
     presentFailure(...args),
 }));
-vi.mock("@/utils/orpc", () => ({
-  client: {
-    saveScreenViewport: (input: unknown) => saveViewport(input),
-    saveScreenWireframe: (input: unknown) => save(input),
-  },
-  orpc: {
+vi.mock("@/utils/orpc", async (importActual) => {
+  const actual = await importActual<typeof import("@/utils/orpc")>();
+  const orpc = new Proxy(actual.orpc, {
+    get(target, property, receiver) {
+      return (
+        Reflect.get(overrides, property) ??
+        Reflect.get(target, property, receiver)
+      );
+    },
+  });
+  const overrides = {
     projectScreens: {
       queryOptions: () => ({
         queryFn: () => listFetch(),
@@ -61,8 +67,16 @@ vi.mock("@/utils/orpc", () => ({
         staleTime: Number.POSITIVE_INFINITY,
       }),
     },
-  },
-}));
+  };
+  return {
+    ...actual,
+    orpc,
+    client: {
+      saveScreenViewport: (input: unknown) => saveViewport(input),
+      saveScreenWireframe: (input: unknown) => save(input),
+    },
+  };
+});
 vi.mock("../wireframe-stage", () => ({
   default: ({ height, width }: { height: number; width: number }) => (
     <div data-height={height} data-testid="stage" data-width={width} />
@@ -157,7 +171,6 @@ test("a selected linked block offers Detach Link and no other label edit", () =>
 
 test("a completed gesture saves the Wireframe without refetching the Screen list", async () => {
   vi.useFakeTimers();
-  const { default: WireframeSurface } = await import("../wireframe-surface");
   const wireframe: ScreenWireframe = {
     createdAt: "2026-10-01T09:00:00.000Z",
     document: createEmptyWireframeDocument(),
@@ -384,7 +397,9 @@ test("the outline creates, selects, reorders, groups, inspects and removes witho
 test("Convert and Bind mounts on the selected outline row only", async () => {
   const editor = createWireframeEditor(threeBlocks());
   const view = mount(
-    <WireframePane convert={convertActions} editor={editor} liveText={{}} />,
+    <QueryClientProvider client={new QueryClient()}>
+      <WireframePane convert={convertActions} editor={editor} liveText={{}} />
+    </QueryClientProvider>,
   );
   await view.render();
   const converters = () =>
@@ -479,7 +494,6 @@ test("a restored viewport brings back no selection, inspector or edit state", as
 
 test("a viewport change saves only the viewport, never the Wireframe, list or document", async () => {
   vi.useFakeTimers();
-  const { default: WireframeSurface } = await import("../wireframe-surface");
   const wireframe: ScreenWireframe = {
     createdAt: "2026-10-01T09:00:00.000Z",
     document: createEmptyWireframeDocument(),
@@ -528,7 +542,6 @@ test("a viewport change saves only the viewport, never the Wireframe, list or do
 
 test("a failed autosave presents one Client Shell failure per streak and flags unsaved risk", async () => {
   vi.useFakeTimers();
-  const { default: WireframeSurface } = await import("../wireframe-surface");
   const wireframe: ScreenWireframe = {
     createdAt: "2026-10-01T09:00:00.000Z",
     document: createEmptyWireframeDocument(),
@@ -571,7 +584,7 @@ test("a failed autosave presents one Client Shell failure per streak and flags u
   expect(presentFailure).toHaveBeenCalledTimes(1);
   expect(presentFailure.mock.calls[0]?.[1]).toMatchObject({
     kind: "mutation",
-    writeOutcome: "not-written",
+    retryCount: 0,
   });
   expect(markUnsavedChanges).toHaveBeenLastCalledWith(true);
 
@@ -579,6 +592,10 @@ test("a failed autosave presents one Client Shell failure per streak and flags u
   await gesture();
   expect(save).toHaveBeenCalledTimes(2);
   expect(presentFailure).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    await presentFailure.mock.calls[0]?.[1]?.retry?.();
+  });
+  expect(save).toHaveBeenCalledTimes(2);
 
   // A write that lands clears the risk; a later failure presents again.
   await gesture();

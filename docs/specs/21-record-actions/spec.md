@@ -55,6 +55,9 @@ Kurucu kapalı adım kataloğundan tek hedef kayıt üzerinde çalışan adland�
 
 ## Testing Decisions
 
+- The Record Action seam verifies that Undo prepares the current Work revision, keeps the same prepared command on write retry and displays a preparation failure through its observer.
+
+- **Retry evidence (#544).** The web runner test exercises a failed apply and confirms that Retry submits the same command and refreshes the affected Work, Focus, fields, and relations after it commits.
 - **What a good test is.** Tests observe Record Actions through its public interface: define from catalog, preview diff, selected runtime values and Relation target, atomic apply, status-change timestamp update at commit, idempotent retry, and negatives (missing or invalid runtime input, no script, no multi-record, preview=apply). They do not inspect job payloads.
 - **Seam (one).** Record Actions — the product-facing named-action preview/apply interface. Bulk Editing and import are counterparts. Playwright for Mutasyon sözleşmesi human-command class is this seam through the UI.
 - **Modules under test.** Record Actions only.

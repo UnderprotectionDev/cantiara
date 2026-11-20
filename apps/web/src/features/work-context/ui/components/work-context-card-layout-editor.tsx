@@ -3,7 +3,6 @@ import type { ProjectShellConfiguration } from "@cantiara/api/project-shell";
 import {
   cloneWorkContextLayout,
   getWorkContextLayout,
-  type previewWorkContextLayout,
   WORK_CONTEXT_INITIAL_FIELDS,
   type WorkContextCustomSection,
   type WorkContextCustomSectionCondition,
@@ -18,7 +17,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 import { WorkContextCustomSectionForm } from "../forms/work-context-custom-section-form";
 
@@ -40,12 +39,7 @@ export default function WorkContextCardLayoutEditor({
   const [draft, setDraft] = useState<WorkContextLayout>(() =>
     getWorkContextLayout("Feature", configuration.workContextLayouts),
   );
-  const [currentRevision, setCurrentRevision] = useState(baseRevision);
-  const [receiptId, setReceiptId] = useState<string | null>(null);
-  const [preview, setPreview] = useState<ReturnType<
-    typeof previewWorkContextLayout
-  > | null>(null);
-  const [localError, setLocalError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const committedLayout = useMemo(
     () => getWorkContextLayout(workType, configuration.workContextLayouts),
@@ -58,105 +52,95 @@ export default function WorkContextCardLayoutEditor({
 
   useEffect(() => {
     setDraft(cloneWorkContextLayout(committedLayout));
-    setCurrentRevision(baseRevision);
-    setPreview(null);
-  }, [baseRevision, committedLayout]);
-
-  useEffect(() => {
-    if (workType) {
-      setReceiptId(null);
-    }
-  }, [workType]);
+  }, [committedLayout]);
 
   const previewMutation = useMutation({
-    mutationFn: async () =>
-      runOnlineOnlyWrite(() =>
-        client.previewWorkContextLayout({
-          baseRevision: currentRevision,
-          change: {
-            kind: "set-work-context-layout",
-            layout: draft,
-            workType,
-          },
-          projectId,
-        }),
-      ),
-    onError: (mutationError) => {
-      setLocalError(
-        errorMessage(mutationError, "Preview could not be loaded."),
-      );
-    },
-    onSuccess: (nextPreview) => {
-      setLocalError(null);
-      setPreview(nextPreview.preview);
-    },
+    mutationKey: orpc.previewWorkContextLayout.mutationKey(),
+    mutationFn: (
+      input: Parameters<typeof client.previewWorkContextLayout>[0],
+    ) =>
+      queryClient.query({
+        ...orpc.previewWorkContextLayout.queryOptions({ input }),
+        staleTime: 0,
+        gcTime: 0,
+      }),
+    meta: { presentsSupportFailure: true },
   });
 
-  const applyMutation = useMutation({
-    mutationFn: async () =>
-      runOnlineOnlyWrite(() =>
-        client.updateProjectConfiguration({
-          baseRevision: currentRevision,
-          change: {
-            kind: "set-work-context-layout",
-            layout: draft,
-            workType,
-          },
-          clientIdempotencyKey: crypto.randomUUID(),
-          projectId,
-        }),
-      ),
-    onError: (mutationError) => {
-      setLocalError(
-        errorMessage(
-          mutationError,
-          "Work Context Card layout could not be changed.",
-        ),
-      );
-    },
-    onSuccess: async (nextProject) => {
-      setLocalError(null);
-      setPreview(null);
-      setReceiptId("receiptId" in nextProject ? nextProject.receiptId : null);
-      setCurrentRevision(nextProject.revision);
-      queryClient.setQueryData(projectQueryKey, nextProject);
-      await queryClient.invalidateQueries({ queryKey: projectQueryKey });
-    },
-  });
+  const applyMutation = usePreparedMutation(
+    orpc.updateProjectConfiguration.mutationOptions({
+      mutationFn: (input) => client.updateProjectConfiguration(input),
+      onSuccess: async (nextProject) => {
+        previewMutation.reset();
+        queryClient.setQueryData(projectQueryKey, nextProject);
+        await queryClient.invalidateQueries({ queryKey: projectQueryKey });
+      },
+    }),
+    (_: undefined) => ({
+      baseRevision: currentRevision,
+      change: {
+        kind: "set-work-context-layout" as const,
+        layout: draft,
+        workType,
+      },
+      projectId,
+    }),
+  );
 
-  const undoMutation = useMutation({
-    mutationFn: () => {
-      if (!receiptId) {
-        throw new Error(
-          "This Work Context Card layout is no longer available for Undo.",
-        );
-      }
-      return runOnlineOnlyWrite(() =>
-        client.undoWorkContextLayout({
-          baseRevision: currentRevision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          projectId,
-          receiptId,
-        }),
-      );
-    },
-    onError: (mutationError) => {
-      setLocalError(
-        errorMessage(
-          mutationError,
-          "Work Context Card layout could not be undone.",
-        ),
-      );
-    },
-    onSuccess: async (nextProject) => {
-      setLocalError(null);
-      setReceiptId(null);
-      setCurrentRevision(nextProject.revision);
-      queryClient.setQueryData(projectQueryKey, nextProject);
-      await queryClient.invalidateQueries({ queryKey: projectQueryKey });
-    },
-  });
+  const undoMutation = usePreparedMutation(
+    orpc.undoWorkContextLayout.mutationOptions({
+      mutationFn: (input) => client.undoWorkContextLayout(input),
+      onSuccess: async (nextProject) => {
+        applyMutation.reset();
+        queryClient.setQueryData(projectQueryKey, nextProject);
+        await queryClient.invalidateQueries({ queryKey: projectQueryKey });
+      },
+    }),
+    (receipt: string) => ({
+      baseRevision: currentRevision,
+      projectId,
+      receiptId: receipt,
+    }),
+  );
 
+  const currentRevision = Math.max(
+    baseRevision,
+    applyMutation.data?.revision ?? 0,
+    undoMutation.data?.revision ?? 0,
+  );
+  const applied = applyMutation.data;
+  const receiptId =
+    applied && "receiptId" in applied ? applied.receiptId : null;
+  const preview =
+    previewMutation.variables?.baseRevision === currentRevision
+      ? previewMutation.data?.preview
+      : undefined;
+  let localError = validationError;
+  if (previewMutation.isError) {
+    localError = errorMessage(
+      previewMutation.error,
+      "Preview could not be loaded.",
+    );
+  }
+  if (applyMutation.isError) {
+    localError = errorMessage(
+      applyMutation.error,
+      "Work Context Card layout could not be changed.",
+    );
+  }
+  if (undoMutation.isError) {
+    localError = errorMessage(
+      undoMutation.error,
+      "Work Context Card layout could not be undone.",
+    );
+  }
+
+  function resetLayoutActions() {
+    previewMutation.reset();
+    applyMutation.reset();
+    undoMutation.reset();
+    setValidationError(null);
+  }
   const busy =
     disabled ||
     previewMutation.isPending ||
@@ -167,8 +151,7 @@ export default function WorkContextCardLayoutEditor({
     updater: (current: WorkContextLayout) => WorkContextLayout,
   ) {
     setDraft((current) => updater(cloneWorkContextLayout(current)));
-    setPreview(null);
-    setReceiptId(null);
+    resetLayoutActions();
   }
 
   function toggleSection(sectionKey: string) {
@@ -234,7 +217,10 @@ export default function WorkContextCardLayoutEditor({
         <NativeSelect
           disabled={busy}
           id="work-context-layout-type"
-          onChange={(event) => setWorkType(event.target.value as WorkType)}
+          onChange={(event) => {
+            resetLayoutActions();
+            setWorkType(event.target.value as WorkType);
+          }}
           value={workType}
         >
           {WORK_TYPE_OPTIONS.map((option) => (
@@ -321,13 +307,26 @@ export default function WorkContextCardLayoutEditor({
       <WorkContextCustomSectionForm
         busy={busy}
         onAdd={addCustomSection}
-        onError={setLocalError}
+        onError={setValidationError}
       />
 
       <div className="flex flex-wrap gap-2">
         <Button
           disabled={busy || !isDirty}
-          onClick={() => previewMutation.mutate()}
+          onClick={() => {
+            applyMutation.reset();
+            undoMutation.reset();
+            setValidationError(null);
+            previewMutation.mutate({
+              baseRevision: currentRevision,
+              change: {
+                kind: "set-work-context-layout",
+                layout: draft,
+                workType,
+              },
+              projectId,
+            });
+          }}
           type="button"
           variant="outline"
         >
@@ -335,7 +334,7 @@ export default function WorkContextCardLayoutEditor({
         </Button>
         <Button
           disabled={busy || !isDirty || !preview}
-          onClick={() => applyMutation.mutate()}
+          onClick={() => applyMutation.mutate(undefined)}
           type="button"
         >
           Confirm
@@ -343,7 +342,7 @@ export default function WorkContextCardLayoutEditor({
         {receiptId ? (
           <Button
             disabled={busy}
-            onClick={() => undoMutation.mutate()}
+            onClick={() => undoMutation.mutate(receiptId)}
             type="button"
             variant="outline"
           >

@@ -6,9 +6,8 @@ import type {
   PriorityMetricValueListItem,
   UpdatePriorityMetricInput,
 } from "@cantiara/api/priority-metrics";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { type QueryKey, useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 
 export interface UpdatePriorityMetricArgs extends UpdatePriorityMetricInput {
@@ -19,12 +18,6 @@ export interface UpdatePriorityMetricArgs extends UpdatePriorityMetricInput {
 export interface PriorityMetricRevisionArgs {
   baseRevision: number;
   metricId: string;
-}
-
-export interface DeletePriorityMetricArgs extends PriorityMetricRevisionArgs {
-  grant: string;
-  projectId: string;
-  typedProjectName: string;
 }
 
 export interface SetPriorityMetricValueArgs {
@@ -40,31 +33,40 @@ export interface ClearPriorityMetricValueArgs {
   workId: string;
 }
 
-function usePriorityMetricInvalidation(projectId: string) {
+export function usePriorityMetricInvalidation(projectId: string) {
   const queryClient = useQueryClient();
-  return async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: orpc.priorityMetrics.key(),
+  return async ({
+    metricId,
+    projectId: affectedProjectId = projectId,
+    workId,
+  }: {
+    metricId: string;
+    projectId?: string;
+    workId?: string;
+  }) => {
+    const keys: QueryKey[] = [
+      orpc.priorityMetricProjectValues.queryKey({
+        input: { projectId: affectedProjectId },
       }),
-      queryClient.invalidateQueries({
-        queryKey: orpc.priorityMetricProjectValues.key(),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: orpc.priorityMetricValues.key(),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: orpc.priorityMetricTrashImpactPreview.key(),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: orpc.workContext.key(),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: orpc.priorityMetrics.queryOptions({
-          input: { projectId },
-        }).queryKey,
-      }),
-    ]);
+      orpc.priorityMetricTrashImpactPreview.queryKey({ input: { metricId } }),
+    ];
+    if (workId) {
+      keys.push(
+        orpc.priorityMetricValues.queryKey({ input: { workId } }),
+        orpc.workContext.queryKey({ input: { workId } }),
+      );
+    } else {
+      keys.push(
+        orpc.priorityMetrics.queryKey({
+          input: { projectId: affectedProjectId },
+        }),
+        orpc.priorityMetricValues.key(),
+        orpc.workContext.key(),
+      );
+    }
+    await Promise.all(
+      keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    );
   };
 }
 
@@ -74,63 +76,48 @@ export function usePriorityMetrics(projectId: string) {
     orpc.priorityMetrics.queryOptions({ input: { projectId } }),
   );
 
-  const create = useMutation({
-    mutationFn: (input: CreatePriorityMetricInput) =>
-      runOnlineOnlyWrite(() =>
-        client.createPriorityMetric({
-          ...input,
-          baseRevision: 0,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const create = usePreparedMutation(
+    orpc.createPriorityMetric.mutationOptions({
+      mutationFn: (input) => client.createPriorityMetric(input),
+      onSuccess: (metric) => invalidate({ metricId: metric.id }),
+    }),
+    (input: CreatePriorityMetricInput) => ({
+      ...input,
+      baseRevision: 0,
+    }),
+  );
 
-  const update = useMutation({
-    mutationFn: (input: UpdatePriorityMetricArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.updatePriorityMetric({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const update = usePreparedMutation(
+    orpc.updatePriorityMetric.mutationOptions({
+      mutationFn: (input) => client.updatePriorityMetric(input),
+      onSuccess: (_, input) => invalidate(input),
+    }),
+    (input: UpdatePriorityMetricArgs) => ({
+      ...input,
+    }),
+  );
 
-  const trash = useMutation({
-    mutationFn: (input: PriorityMetricRevisionArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.trashPriorityMetric({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const trash = usePreparedMutation(
+    orpc.trashPriorityMetric.mutationOptions({
+      mutationFn: (input) => client.trashPriorityMetric(input),
+      onSuccess: (_, input) => invalidate(input),
+    }),
+    (input: PriorityMetricRevisionArgs) => ({
+      ...input,
+    }),
+  );
 
-  const restore = useMutation({
-    mutationFn: (input: PriorityMetricRevisionArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.restorePriorityMetric({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const restore = usePreparedMutation(
+    orpc.restorePriorityMetric.mutationOptions({
+      mutationFn: (input) => client.restorePriorityMetric(input),
+      onSuccess: (_, input) => invalidate(input),
+    }),
+    (input: PriorityMetricRevisionArgs) => ({
+      ...input,
+    }),
+  );
 
-  const deletePermanently = useMutation({
-    mutationFn: (input: DeletePriorityMetricArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.deletePriorityMetric({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
-
-  return { create, deletePermanently, query, restore, trash, update };
+  return { create, query, restore, trash, update };
 }
 
 export function usePriorityMetricTrashImpactPreview(metricId: string | null) {
@@ -153,29 +140,27 @@ export function usePriorityMetricProjectValues(projectId: string) {
 export function usePriorityMetricValueMutations(projectId: string) {
   const invalidate = usePriorityMetricInvalidation(projectId);
 
-  const setValue = useMutation({
-    mutationFn: (input: SetPriorityMetricValueArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.setPriorityMetricValue({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-          projectId,
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const setValue = usePreparedMutation(
+    orpc.setPriorityMetricValue.mutationOptions({
+      mutationFn: (input) => client.setPriorityMetricValue(input),
+      onSuccess: (_, input) => invalidate(input),
+    }),
+    (input: SetPriorityMetricValueArgs) => ({
+      ...input,
+      projectId,
+    }),
+  );
 
-  const clearValue = useMutation({
-    mutationFn: (input: ClearPriorityMetricValueArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.clearPriorityMetricValue({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-          projectId,
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const clearValue = usePreparedMutation(
+    orpc.clearPriorityMetricValue.mutationOptions({
+      mutationFn: (input) => client.clearPriorityMetricValue(input),
+      onSuccess: (_, input) => invalidate(input),
+    }),
+    (input: ClearPriorityMetricValueArgs) => ({
+      ...input,
+      projectId,
+    }),
+  );
 
   return { clearValue, setValue };
 }

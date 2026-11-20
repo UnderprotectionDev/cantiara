@@ -41,16 +41,26 @@ export function ResearchSessionNoteEditor({
   consent,
   onSave,
   onCancel,
+  saveError,
+  savePending = false,
 }: {
   note?: ResearchSessionNoteInput;
   consent: ResearchSessionConsent;
   onSave: (note: ResearchSessionNoteInput) => Promise<unknown>;
   onCancel: () => void;
+  saveError?: unknown;
+  savePending?: boolean;
 }) {
   const prefix = useId();
   const [noteId] = useState(() => note?.id ?? crypto.randomUUID());
-  const [error, setError] = useState<string>();
-  const [conflict, setConflict] = useState(false);
+  const [validationError, setValidationError] = useState<string>();
+  const conflict = isResearchSessionConflict(saveError);
+  let error = validationError;
+  if (!error && saveError) {
+    error = conflict
+      ? "Research Session changed. Cancel and reopen before saving. Your text is kept here."
+      : "Note could not be saved. Retry or reload to check for changes. Your text is kept here.";
+  }
   const submitLabel = error && !conflict ? "Retry" : "Save";
   const form = useForm({
     defaultValues: {
@@ -64,7 +74,7 @@ export function ResearchSessionNoteEditor({
           : true,
     },
     onSubmit: async ({ value }) => {
-      setError(undefined);
+      setValidationError(undefined);
       const parsed = researchSessionNoteInputSchema.safeParse({
         id: noteId,
         kind: value.kind,
@@ -75,20 +85,10 @@ export function ResearchSessionNoteEditor({
           : { containsPersonalInformation: value.containsPersonalInformation }),
       });
       if (!parsed.success) {
-        setError("Choose note type and enter its text.");
+        setValidationError("Choose note type and enter its text.");
         return;
       }
-      try {
-        await onSave(parsed.data);
-      } catch (cause) {
-        const changed = isResearchSessionConflict(cause);
-        setConflict(changed);
-        setError(
-          changed
-            ? "Research Session changed. Cancel and reopen before saving. Your text is kept here."
-            : "Note could not be saved. Retry or reload to check for changes. Your text is kept here.",
-        );
-      }
+      await onSave(parsed.data);
     },
   });
   function submit(event: SubmitEvent<HTMLFormElement>) {
@@ -113,7 +113,7 @@ export function ResearchSessionNoteEditor({
       ) : null}
       <form.Subscribe
         selector={(state) => ({
-          pending: state.isSubmitting,
+          pending: state.isSubmitting || savePending,
           values: state.values,
         })}
       >

@@ -59,6 +59,12 @@ Kurucu tek Çalışma Alanı etiket ad alanında düz etiket oluşturur, kayıtl
 
 ## Testing Decisions
 
+- The Project Tags seam verifies that a confirmed rename exposes its receipt for Undo until the matching Undo succeeds, including when Undo is retried.
+
+- **Tag creation retry (#544).** The Project Tags browser test loses the first successful response, resubmits the same form, and sees one Tag. The PostgreSQL seam checks receipt replay, changed input conflict and independent duplicate-name rejection.
+
+- **Tag rename Undo retry (#544).** The Project Tags surface test checks that a failed Undo remains available, Retry repeats the receipt, base revision and client key, and success refreshes Tags and their dependent views.
+
 - **What a good test is.** Tests observe Tags through its public interface: create, apply, detach, picker suggestion order, atomic rename, identity filter after rename, and import preview mapping. They assert product rules (one Workspace identity per visible name, `/` is not hierarchy, rename is all-or-nothing, Document tokens are not a second dictionary, saved/import consumers match identity not a frozen display name) rather than row shapes or Markdown parser internals.
 - **Seam (one).** Tags — the product-facing Workspace tag-namespace interface used by record pickers and by later search, Smart Collection, Document-token, and portability consumers. Playwright for “Proje gezinme ve arama” is the same seam observed through the UI, not a second module.
 - **Modules under test.** Tags only. Universal Search, Smart Collections, Documents tokenization, import/export, and custom fields are present only as “this identity is what they would consume / this command is not a second dictionary” counterparts.

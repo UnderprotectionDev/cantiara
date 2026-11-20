@@ -32,6 +32,7 @@ export function ProjectDecisionsView({
   onWithdraw,
   onStartEditing,
   savedMessage,
+  writeError,
   accountFormattingPreferences = DEFAULT_ACCOUNT_PREFERENCES,
   renderEvidenceFlow,
 }: {
@@ -49,10 +50,12 @@ export function ProjectDecisionsView({
   ) => Promise<unknown>;
   onStartEditing?: () => void;
   savedMessage?: string;
+  writeError?: unknown;
 }) {
-  const [editing, setEditing] = useState<
+  const [editingMode, setEditing] = useState<
     "create" | "edit" | "withdraw" | undefined
   >(undefined);
+  const editing = savedMessage ? undefined : editingMode;
   const selected = decisions.find((record) => record.id === selectedId);
   function start(mode: "create" | "edit" | "withdraw") {
     onStartEditing?.();
@@ -80,10 +83,14 @@ export function ProjectDecisionsView({
       {editing && !readOnly ? (
         <DecisionEditor
           key={editing}
-          onCancel={() => setEditing(undefined)}
+          onCancel={() => {
+            onStartEditing?.();
+            setEditing(undefined);
+          }}
           onSave={editing === "withdraw" ? withdraw : save}
           record={editing === "create" ? undefined : selected}
           withdrawing={editing === "withdraw"}
+          writeError={writeError}
         />
       ) : null}
       {decisions.length === 0 ? (

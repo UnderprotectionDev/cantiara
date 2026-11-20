@@ -2,7 +2,6 @@
 import {
   type Document,
   type DocumentHierarchyPreview,
-  type DocumentOrganizationInput,
   documentOrganizationInputSchema,
 } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
@@ -24,8 +23,8 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client } from "@/utils/orpc";
+import { commandVariables } from "@/lib/command-variables";
+import { client, orpc } from "@/utils/orpc";
 
 function DocumentOrganizationPreview({
   preview,
@@ -70,48 +69,38 @@ export default function DocumentOrganizationForm({
   onCommitted: (document: Document) => Promise<void>;
   record: Document;
 }) {
-  const [preview, setPreview] = useState<DocumentHierarchyPreview | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const idempotencyKey = useRef<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const submitAction = useRef<"preview" | "apply">("preview");
   const archived = Boolean(record.archivedAt);
   const archiveLabel = archived ? "Unarchive" : "Archive";
   const label = action === "hierarchy" ? "Organize Document" : archiveLabel;
   const otherDocuments = documents.filter(({ id }) => id !== record.id);
-  const inspect = useMutation({
-    mutationFn: (command: DocumentOrganizationInput) =>
-      client.previewDocumentOrganization(command),
-    onSuccess: (result) => {
-      setPreview(result);
-      setError(null);
-    },
-    onError: (failure) => setError(failure.message),
-  });
-  const apply = useMutation({
-    mutationFn: (command: DocumentOrganizationInput) => {
-      idempotencyKey.current ??= crypto.randomUUID();
-      return runOnlineOnlyWrite(() =>
-        client.organizeDocument({
-          ...command,
-          baseRevision: record.revision,
-          clientIdempotencyKey: idempotencyKey.current ?? "",
-        }),
-      );
-    },
-    onSuccess: async (saved) => {
-      await onCommitted(saved);
-      onClose();
-      setPreview(null);
-      idempotencyKey.current = null;
-    },
-    onError: (failure) => setError(failure.message),
-  });
+  const inspect = useMutation(
+    orpc.previewDocumentOrganization.mutationOptions({
+      mutationFn: (input) => client.previewDocumentOrganization(input),
+    }),
+  );
+  const apply = useMutation(
+    orpc.organizeDocument.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.organizeDocument(input),
+      onSuccess: async (saved) => {
+        await onCommitted(saved);
+        inspect.reset();
+        onClose();
+      },
+    }),
+  );
+  const preview = inspect.data;
+  const previewRevision = useRef(record.revision);
+  const error = validationError ?? (apply.error ?? inspect.error)?.message;
   const form = useForm({
     defaultValues: {
       folder: record.folder ?? "",
       parentDocumentId: record.parentDocumentId ?? "",
     },
     onSubmit: ({ value }) => {
+      setValidationError(null);
       const parsed = documentOrganizationInputSchema.safeParse(
         action === "hierarchy"
           ? {
@@ -123,13 +112,26 @@ export default function DocumentOrganizationForm({
           : { action: "archive", documentId: record.id, archived: !archived },
       );
       if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? "Check the form.");
+        setValidationError(
+          parsed.error.issues[0]?.message ?? "Check the form.",
+        );
         return;
       }
       if (submitAction.current === "apply") {
-        apply.mutate(parsed.data);
+        const reviewed = inspect.variables;
+        if (inspect.isSuccess && reviewed) {
+          apply.mutate(
+            (apply.isError && apply.variables) ||
+              commandVariables({
+                ...reviewed,
+                baseRevision: previewRevision.current,
+              }),
+          );
+        }
         return;
       }
+      apply.reset();
+      previewRevision.current = record.revision;
       inspect.mutate(parsed.data);
     },
   });
@@ -140,8 +142,9 @@ export default function DocumentOrganizationForm({
     }
   }
   function invalidatePreview() {
-    setPreview(null);
-    idempotencyKey.current = null;
+    inspect.reset();
+    apply.reset();
+    setValidationError(null);
   }
   return (
     <Dialog onOpenChange={changeOpen} open={action !== null}>

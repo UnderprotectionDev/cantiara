@@ -57,11 +57,14 @@ export default function DocumentRecordConversionDialog({
     getFieldValue: (name: "body") => string;
     state: { isDirty: boolean };
   };
-  convertSelectedText: import("@tanstack/react-query").UseMutationResult<
-    WorkProfile | ProjectSourceRecord | null,
-    Error,
-    { recordType: DocumentConversionRecordType; title: string },
-    unknown
+  convertSelectedText: Pick<
+    import("@tanstack/react-query").UseMutationResult<
+      WorkProfile | ProjectSourceRecord | null,
+      Error,
+      { recordType: DocumentConversionRecordType; title: string },
+      unknown
+    >,
+    "mutate" | "isPending" | "isError" | "error"
   >;
 }) {
   const selectedText = selectedTextRange
@@ -113,11 +116,14 @@ function DocumentRecordConversionForm({
   revision,
   selectedText,
 }: {
-  convertSelectedText: import("@tanstack/react-query").UseMutationResult<
-    WorkProfile | ProjectSourceRecord | null,
-    Error,
-    { recordType: DocumentConversionRecordType; title: string },
-    unknown
+  convertSelectedText: Pick<
+    import("@tanstack/react-query").UseMutationResult<
+      WorkProfile | ProjectSourceRecord | null,
+      Error,
+      { recordType: DocumentConversionRecordType; title: string },
+      unknown
+    >,
+    "mutate" | "isPending" | "isError" | "error"
   >;
   initialTitle: string;
   onCancel: () => void;
@@ -211,7 +217,7 @@ function DocumentRecordConversionForm({
           </p>
         </div>
         {convertSelectedText.isError ? (
-          <p role="alert">{convertSelectedText.error.message}</p>
+          <p role="alert">{convertSelectedText.error?.message}</p>
         ) : null}
       </div>
       <DialogFooter>

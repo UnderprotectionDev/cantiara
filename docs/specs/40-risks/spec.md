@@ -52,6 +52,8 @@ Risk Proje ana kaydıdır; başlık, açıklama, etki, olasılık, yanıt/azaltm
 
 ## Testing Decisions
 
+- **Risk write retry (#544).** The Project Risks surface test observes an interrupted save through the editor, verifies that the draft and command stay intact, and checks refreshed membership on success.
+
 - **What a good test is.** Tests observe Risks through create, status transitions, and counterparts: related Work still open, Release not failed, `open-risk` only on the two events.
 - **Seam (one).** Risks — record and signal-production interface. Center UI is out.
 - **Prior art.** Bind to [Karar ve belirsizlik](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari): related records’ status does not change implicitly.

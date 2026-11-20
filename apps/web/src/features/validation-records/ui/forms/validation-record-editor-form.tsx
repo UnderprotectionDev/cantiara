@@ -4,7 +4,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { type SubmitEvent, useState } from "react";
 
 import {
@@ -26,15 +26,18 @@ export function ValidationRecordEditor({
   counterparts,
   onSave,
   onCancel,
+  saveError,
+  savePending = false,
 }: {
   record?: ValidationRecord;
   counterparts: ProjectSourceRecord[];
   onSave: Save;
   onCancel: () => void;
+  saveError?: unknown;
+  savePending?: boolean;
 }) {
   const [baseRecord] = useState(record);
-  const [error, setError] = useState<string>();
-  const [conflict, setConflict] = useState(false);
+  const conflict = isConflictError(saveError);
   const form = useForm({
     defaultValues: {
       title: record?.title ?? "",
@@ -42,28 +45,26 @@ export function ValidationRecordEditor({
       result: record?.result ?? "",
       context: record?.context ?? [],
     },
+    validators: {
+      onSubmit: ({ value }) =>
+        validationRecordFormSchema.safeParse(value).success
+          ? undefined
+          : "Enter a Title and Method before saving.",
+    },
     onSubmit: async ({ value }) => {
-      setError(undefined);
-      if (!validationRecordFormSchema.safeParse(value).success) {
-        setError("Enter a Title and Method before saving.");
-        return;
-      }
-      try {
-        await onSave(
-          { ...value, result: value.result.trim() || null },
-          baseRecord,
-        );
-      } catch (cause) {
-        const changed = isConflictError(cause);
-        setConflict(changed);
-        setError(
-          changed
-            ? "Validation Record or Related context changed. Cancel and reopen before saving. Your text is kept here."
-            : "Validation Record could not be saved. Retry or reload to check for changes. Your text is kept here.",
-        );
-      }
+      await onSave(
+        { ...value, result: value.result.trim() || null },
+        baseRecord,
+      );
     },
   });
+  const formError = useSelector(form.store, (state) => state.errorMap.onSubmit);
+  let error = formError;
+  if (!error && saveError) {
+    error = conflict
+      ? "Validation Record or Related context changed. Cancel and reopen before saving. Your text is kept here."
+      : "Validation Record could not be saved. Retry or reload to check for changes. Your text is kept here.";
+  }
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     form.handleSubmit().catch(() => undefined);
@@ -80,7 +81,7 @@ export function ValidationRecordEditor({
           {error}
         </p>
       ) : null}
-      <form.Subscribe selector={(state) => state.isSubmitting}>
+      <form.Subscribe selector={(state) => state.isSubmitting || savePending}>
         {(pending) => (
           <>
             {fields.map(({ name, label, maxLength }) => (

@@ -3,7 +3,7 @@ import type { WireframeViewport } from "@cantiara/api/screen-viewport";
 import type { ScreenWireframe } from "@cantiara/api/screens";
 import { Button } from "@cantiara/ui/components/button";
 import { LiteDebouncer } from "@tanstack/pacer-lite";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -11,12 +11,14 @@ import {
   projectSourceRecordHash,
   workRecordHref,
 } from "@/features/project-shell/lib/project-shell-navigation";
-import {
-  defaultClientShell,
-  runOnlineOnlyWrite,
-} from "@/features/web-macos-client/store/client-shell";
+import { defaultClientShell } from "@/features/web-macos-client/store/client-shell";
 import { presentSupportReferenceFailure } from "@/features/web-macos-client/ui/components/support-reference";
-import { client, orpc } from "@/utils/orpc";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
 import { createWireframeEditor } from "../../engine/editor";
 import type { OutlineSourceRecord } from "../../engine/outline";
 import type { ConvertAndBindActions } from "../forms/convert-and-bind-form";
@@ -55,11 +57,48 @@ function LoadedWireframe({
   savedViewport: WireframeViewport | null;
   wireframe: ScreenWireframe;
 }) {
+  const viewportWrite = useMutation(
+    orpc.saveScreenViewport.mutationOptions({
+      meta: { onlineWrite: true, retryInSurface: true },
+      mutationFn: (input) => client.saveScreenViewport(input),
+    }),
+  );
+  const saveViewport = viewportWrite.mutate;
+  const saveScreenWireframeMutation = useMutation(
+    orpc.saveScreenWireframe.mutationOptions({
+      meta: { onlineWrite: true, presentsSupportFailure: true },
+      mutationFn: (input) => client.saveScreenWireframe(input),
+    }),
+  );
+  const saveScreenWireframeVersionMutation = usePreparedMutation(
+    {
+      mutationKey: orpc.saveScreenWireframeVersion.mutationKey(),
+      mutationFn: (input: {
+        clientIdempotencyKey: string;
+        document: ScreenWireframe["document"];
+        projectId: string;
+        screenId: string;
+      }) => client.saveScreenWireframeVersion(input),
+      onSuccess: (_, { projectId: affectedProject }) =>
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectScreens.key({
+            input: { projectId: affectedProject },
+          }),
+        }),
+    },
+    (document: ScreenWireframe["document"]) => ({
+      document,
+      projectId,
+      screenId,
+    }),
+  );
+  const saveWireframe = saveScreenWireframeMutation.mutateAsync;
   const queryClient = useQueryClient();
   const { screenId } = wireframe;
-  const options = orpc.screenWireframe.queryOptions({
-    input: { projectId, screenId },
-  });
+  const options = useMemo(
+    () => orpc.screenWireframe.queryOptions({ input: { projectId, screenId } }),
+    [projectId, screenId],
+  );
   // One session per Screen (the caller keys by Screen id); saves never rebuild it.
   const [editor] = useState(() => createWireframeEditor(wireframe.document));
   const router = useRouter();
@@ -72,14 +111,17 @@ function LoadedWireframe({
     // with reason, retry bound, write outcome and Support reference) and flags
     // the unsaved risk; a write that lands ends the streak and clears the flag.
     let failing = false;
+    let active = true;
     async function write(
       document: ScreenWireframe["document"],
       retryCount: number,
     ) {
       try {
-        const next = await runOnlineOnlyWrite(() =>
-          client.saveScreenWireframe({ document, projectId, screenId }),
-        );
+        const next = await saveWireframe({
+          document,
+          projectId,
+          screenId,
+        });
         saved.current = document;
         queryClient.setQueryData(options.queryKey, next);
         if (failing) {
@@ -92,9 +134,16 @@ function LoadedWireframe({
           failing = true;
           presentSupportReferenceFailure(error, {
             kind: "mutation",
-            retry: () => write(editor.getState().document, retryCount + 1),
+            retry: () => {
+              if (
+                active &&
+                editor.getState().document === document &&
+                saved.current !== document
+              ) {
+                return write(document, retryCount + 1);
+              }
+            },
             retryCount,
-            writeOutcome: "not-written",
           });
         }
         // The next completed gesture schedules another write.
@@ -112,10 +161,18 @@ function LoadedWireframe({
       debouncer.maybeExecute(document);
     });
     return () => {
+      active = false;
       debouncer.cancel();
       unsubscribe();
     };
-  }, [editor, options.queryKey, projectId, queryClient, screenId]);
+  }, [
+    editor,
+    options.queryKey,
+    projectId,
+    queryClient,
+    saveWireframe,
+    screenId,
+  ]);
 
   // The personal viewport has its own query key and write: a geometry write
   // never refetches it and a viewport write never touches the Wireframe cache
@@ -126,16 +183,12 @@ function LoadedWireframe({
   const viewportDebouncer = useMemo(
     () =>
       new LiteDebouncer(
-        async (viewport: WireframeViewport) => {
-          try {
-            await client.saveScreenViewport({ projectId, screenId, viewport });
-          } catch {
-            // Navigation is best effort; the next move schedules another write.
-          }
+        (viewport: WireframeViewport) => {
+          saveViewport({ projectId, screenId, viewport });
         },
         { wait: VIEWPORT_SAVE_DELAY_MS },
       ),
-    [projectId, screenId],
+    [projectId, screenId, saveViewport],
   );
 
   useEffect(() => () => viewportDebouncer.flush(), [viewportDebouncer]);
@@ -146,14 +199,37 @@ function LoadedWireframe({
   }
 
   const linked: LinkedBlockActions = {
-    apply: (definitionId, content) =>
-      runOnlineOnlyWrite(() =>
-        client.applyLinkedBlockChange({ content, definitionId, projectId }),
-      ),
-    create: async (name, content) => {
-      const record = await runOnlineOnlyWrite(() =>
-        client.createLinkedBlock({ content, name, projectId }),
+    apply: async (
+      definitionId,
+      content,
+      expectedRevision,
+      clientIdempotencyKey,
+    ) => {
+      const applied = await client.applyLinkedBlockChange({
+        clientIdempotencyKey,
+        content,
+        definitionId,
+        expectedRevision,
+        projectId,
+      });
+      await Promise.all(
+        applied.affectedScreens.map(({ screenId: affectedScreenId }) =>
+          queryClient.invalidateQueries({
+            queryKey: orpc.screenWireframe.key({
+              input: { projectId, screenId: affectedScreenId },
+            }),
+          }),
+        ),
       );
+      return applied;
+    },
+    create: async (name, content, clientIdempotencyKey) => {
+      const record = await client.createLinkedBlock({
+        clientIdempotencyKey,
+        content,
+        name,
+        projectId,
+      });
       return {
         content: record.content,
         id: record.id,
@@ -162,53 +238,64 @@ function LoadedWireframe({
       };
     },
     preview: (definitionId, content) =>
-      client.previewLinkedBlockChange({ content, definitionId, projectId }),
+      queryClient.query({
+        ...orpc.previewLinkedBlockChange.queryOptions({
+          input: { content, definitionId, projectId },
+        }),
+        gcTime: 0,
+        staleTime: 0,
+      }),
   };
 
   // Convert and Bind names an exact stored version, so the current document is
   // flushed first and the preview and confirm address the version that returns.
   const convert: ConvertAndBindActions = {
-    confirm: (plan) =>
-      runOnlineOnlyWrite(() =>
-        client.confirmConvertAndBind({
-          originId: crypto.randomUUID(),
-          plan,
-          projectId,
-          recordId: crypto.randomUUID(),
-          screenId,
+    confirm: async (input) => {
+      const created = await client.confirmConvertAndBind(input);
+      const target = { input: { projectId: created.target.projectId } };
+      const targetQueries = {
+        Decision: orpc.projectDecisions.key,
+        "Open Question": orpc.openQuestions.key,
+        Risk: orpc.projectRisks.key,
+        Work: orpc.projectWorks.key,
+      };
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: orpc.screenOrigins.key({
+            input: { projectId: input.projectId, screenId: input.screenId },
+          }),
         }),
-      ),
+        queryClient.invalidateQueries({
+          queryKey: targetQueries[created.target.type](target),
+        }),
+        ...invalidateSmartCollectionMembership(queryClient),
+      ]);
+      return created;
+    },
     preview: async (request) => {
-      const flushed = await runOnlineOnlyWrite(() =>
-        client.saveScreenWireframe({
-          document: editor.getState().document,
-          projectId,
-          screenId,
-        }),
-      );
-      saved.current = editor.getState().document;
+      const { document } = editor.getState();
+      const flushed = await saveWireframe({ document, projectId, screenId });
+      saved.current = document;
       queryClient.setQueryData(options.queryKey, flushed);
-      return client.previewConvertAndBind({
-        ...request,
-        projectId,
-        screenId,
-        wireframeVersion: flushed.version,
+      return queryClient.query({
+        ...orpc.previewConvertAndBind.queryOptions({
+          input: {
+            ...request,
+            projectId,
+            screenId,
+            wireframeVersion: flushed.version,
+          },
+        }),
+        gcTime: 0,
+        staleTime: 0,
       });
     },
   };
 
   async function saveVersion() {
-    await runOnlineOnlyWrite(() =>
-      client.saveScreenWireframeVersion({
-        document: editor.getState().document,
-        projectId,
-        screenId,
-      }),
+    await saveScreenWireframeVersionMutation.mutateAsync(
+      editor.getState().document,
     );
-    await queryClient.invalidateQueries({
-      queryKey: orpc.projectScreens.queryOptions({ input: { projectId } })
-        .queryKey,
-    });
   }
 
   return (

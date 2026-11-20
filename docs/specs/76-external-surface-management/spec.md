@@ -41,6 +41,8 @@ Kurucu Çalışma Alanı ve Proje düzeyinde hangi Dış yüzeylerin ayakta, sü
 
 ## Testing Decisions
 
+- The Revoke / Unpublish control seam verifies that confirming a removal exposes its pending and failure state and that canceling does not invoke the mutation.
+
 - **What a good test is.** Tests observe External Surface Management through its public interface: list all kinds, filter by Proje, row fields without secrets, state-appropriate row actions as separate labels (`Change expiry`, `Reactivate`, `Revoke`, `Unpublish`), redaction status without content, frozen single-source-kept row, revoke from row → 410 and no body, unpublished flag, no counters. Expected values are directory completeness and leak-nothing on remove.
 - **Seam (one).** External Surface Management — the product-facing index of Dış yüzey. Lifecycle mutations invoke the shared surface adapter; create commands are out of this suite.
 - **Modules under test.** External Surface Management only. Create UIs of 73/74/75 are not required except as “not hosted here.”

@@ -15,7 +15,7 @@ export function DecisionSupersessionPreviewView({
   preview: DecisionSupersessionPreview;
   pending: boolean;
   conflict?: boolean;
-  onConfirm: () => Promise<void>;
+  onConfirm: () => void;
   onCancel: () => void;
 }) {
   const confirmLabel =

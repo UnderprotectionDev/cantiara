@@ -24,7 +24,13 @@ export function tagNameKey(name: string) {
   return name.trim().toLocaleLowerCase("en-US");
 }
 
-export const createTagInputSchema = z.object({ name: tagNameSchema }).strict();
+export const createTagInputSchema = z
+  .object({
+    clientIdempotencyKey:
+      humanMutationEnvelopeSchema.shape.clientIdempotencyKey.optional(),
+    name: tagNameSchema,
+  })
+  .strict();
 
 export type CreateTagInput = z.input<typeof createTagInputSchema>;
 export type ParsedCreateTagInput = z.output<typeof createTagInputSchema>;
@@ -339,7 +345,11 @@ export interface TagStore {
     workspaceId: string,
     input: ApplyTagInput,
   ) => Promise<TagAssignment | null>;
-  create: (workspaceId: string, input: ParsedCreateTagInput) => Promise<Tag>;
+  create: (
+    workspaceId: string,
+    input: ParsedCreateTagInput,
+    accountId: string,
+  ) => Promise<Tag>;
   findWorkspaceId: (accountId: string) => Promise<string | null>;
   list: (
     workspaceId: string,

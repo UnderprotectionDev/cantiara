@@ -14,6 +14,7 @@ export interface ScreenTemplateActions {
     screen: ScreenRecord,
     wireframeVersion: number,
     name: string,
+    clientIdempotencyKey: string,
   ) => Promise<unknown>;
   templates: ScreenTemplateSummary[];
 }

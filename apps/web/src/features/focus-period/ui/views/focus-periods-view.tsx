@@ -7,7 +7,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import type {
   FocusPeriodAction,
@@ -26,7 +25,7 @@ import { FocusPeriodMembershipControl } from "../forms/focus-period-membership-f
 export default function FocusPeriodsView() {
   const queryClient = useQueryClient();
   const periods = useQuery(orpc.focusPeriods.queryOptions());
-  const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected =
     periods.data?.find((period) => period.id === selectedId) ??
@@ -36,85 +35,103 @@ export default function FocusPeriodsView() {
       queryKey: orpc.focusPeriods.queryOptions().queryKey,
     });
   const create = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.createFocusPeriod.mutationKey(),
     mutationFn: (input: {
       purpose: string;
       startDate: string;
       endDate: string;
-    }) => runOnlineOnlyWrite(() => client.createFocusPeriod(input)),
+    }) => client.createFocusPeriod(input),
     onSuccess: async (period) => {
       setSelectedId(period.id);
       await refresh();
     },
   });
   const add = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.addToFocusPeriod.mutationKey(),
     mutationFn: (input: { periodId: string; workId: string }) =>
-      runOnlineOnlyWrite(() => client.addToFocusPeriod(input)),
+      client.addToFocusPeriod(input),
     onSuccess: refresh,
   });
   const move = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.moveToFocusPeriod.mutationKey(),
     mutationFn: (input: { periodId: string; workId: string }) =>
-      runOnlineOnlyWrite(() => client.moveToFocusPeriod(input)),
+      client.moveToFocusPeriod(input),
     onSuccess: refresh,
   });
   const remove = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.removeFromFocusPeriod.mutationKey(),
     mutationFn: (input: { periodId: string; workId: string }) =>
-      runOnlineOnlyWrite(() => client.removeFromFocusPeriod(input)),
+      client.removeFromFocusPeriod(input),
     onSuccess: refresh,
   });
   const cancel = useMutation({
-    mutationFn: (periodId: string) =>
-      runOnlineOnlyWrite(() => client.cancelFocusPeriod({ periodId })),
+    meta: { onlineWrite: true },
+    mutationKey: orpc.cancelFocusPeriod.mutationKey(),
+    mutationFn: (periodId: string) => client.cancelFocusPeriod({ periodId }),
     onSuccess: refresh,
   });
   const close = useMutation({
-    mutationFn: (periodId: string) =>
-      runOnlineOnlyWrite(() => client.closeFocusPeriod({ periodId })),
+    meta: { onlineWrite: true },
+    mutationKey: orpc.closeFocusPeriod.mutationKey(),
+    mutationFn: (periodId: string) => client.closeFocusPeriod({ periodId }),
     onSuccess: refresh,
   });
   const decide = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.decideFocusPeriodLeftovers.mutationKey(),
     mutationFn: (
       input: Parameters<typeof client.decideFocusPeriodLeftovers>[0],
-    ) => runOnlineOnlyWrite(() => client.decideFocusPeriodLeftovers(input)),
+    ) => client.decideFocusPeriodLeftovers(input),
     onSuccess: refresh,
   });
   const saveEvaluation = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.saveFocusPeriodEvaluation.mutationKey(),
     mutationFn: (
       input: Parameters<typeof client.saveFocusPeriodEvaluation>[0],
-    ) => runOnlineOnlyWrite(() => client.saveFocusPeriodEvaluation(input)),
+    ) => client.saveFocusPeriodEvaluation(input),
     onSuccess: refresh,
   });
   const createFollowUp = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.createFocusPeriodFollowUpWork.mutationKey(),
     mutationFn: (
       input: Parameters<typeof client.createFocusPeriodFollowUpWork>[0],
-    ) => runOnlineOnlyWrite(() => client.createFocusPeriodFollowUpWork(input)),
+    ) => client.createFocusPeriodFollowUpWork(input),
     onSuccess: refresh,
   });
+  const [latest] = [
+    create,
+    add,
+    move,
+    remove,
+    cancel,
+    close,
+    decide,
+    saveEvaluation,
+    createFollowUp,
+  ].sort((left, right) => right.submittedAt - left.submittedAt);
+  const error =
+    validationError ?? focusPeriodWriteError(latest?.error, latest === create);
   async function act(action: () => Promise<unknown>) {
-    setError(null);
+    setValidationError(null);
     try {
       await action();
-    } catch (mutationError) {
-      const localMessage =
-        mutationError instanceof Error &&
+    } catch (failure) {
+      if (
+        failure instanceof Error &&
         [
           "Confirm Abandon first.",
           "Review closure checks or select Close anyway.",
           "Work was already completed.",
-        ].includes(mutationError.message)
-          ? mutationError.message
-          : null;
-      const membershipConflictMessage =
-        mutationError instanceof ORPCError &&
-        isDefinedError(mutationError) &&
-        (mutationError.code === "FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT" ||
-          mutationError.code === "FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT")
-          ? mutationError.message
-          : null;
-      setError(
-        localMessage ??
-          membershipConflictMessage ??
-          "Focus Period could not be updated.",
-      );
+        ].includes(failure.message)
+      ) {
+        setValidationError(failure.message);
+      }
     }
   }
 
@@ -130,7 +147,7 @@ export default function FocusPeriodsView() {
         error={error}
         isPending={create.isPending}
         onCreate={(input) => create.mutateAsync(input)}
-        onError={setError}
+        onError={setValidationError}
       />
       {error &&
       error !== "Purpose is required." &&
@@ -184,6 +201,23 @@ export default function FocusPeriodsView() {
       ) : null}
     </main>
   );
+}
+
+function focusPeriodWriteError(error: unknown, creating: boolean) {
+  if (!error) {
+    return null;
+  }
+  if (
+    error instanceof ORPCError &&
+    isDefinedError(error) &&
+    (error.code === "FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT" ||
+      error.code === "FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT")
+  ) {
+    return error.message;
+  }
+  return creating
+    ? "Focus Period could not be created."
+    : "Focus Period could not be updated.";
 }
 
 function isOpenPeriod(period: FocusPeriodRecord) {

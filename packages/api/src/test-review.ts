@@ -91,6 +91,7 @@ export const testReviewProjectInputSchema = z
 
 export const setSessionReviewStateInputSchema = z
   .object({
+    clientIdempotencyKey: identifierSchema.optional(),
     projectId: identifierSchema,
     /** Kept with a close; an optional founder note, not a gate. */
     reason: reasonSchema,
@@ -104,6 +105,7 @@ export type SetSessionReviewStateInput = z.input<
 
 export const setItemReviewStateInputSchema = z
   .object({
+    clientIdempotencyKey: identifierSchema.optional(),
     projectId: identifierSchema,
     reason: reasonSchema,
     sessionId: identifierSchema,
@@ -157,6 +159,7 @@ export type TestReviewChange = z.infer<typeof testReviewChangeSchema>;
 
 export const commitBulkReviewInputSchema = z
   .object({
+    clientIdempotencyKey: identifierSchema.optional(),
     /** Server fingerprint of the changes the founder saw in the preview. */
     previewFingerprint: z.string().trim().length(64),
     projectId: identifierSchema,
@@ -205,6 +208,7 @@ const optionalIdSchema = identifierSchema
 const correctedResultSchema = z.enum(TEST_REPORT_RESULTS);
 
 const eventTargetFields = {
+  clientIdempotencyKey: identifierSchema.optional(),
   projectId: identifierSchema,
   /** Required reason: a result is never changed without a stated cause. */
   reason: requiredReasonSchema,
@@ -439,6 +443,7 @@ export type TestResultEventReceipt = z.infer<
  */
 export const supersedeInputSchema = z
   .object({
+    clientIdempotencyKey: identifierSchema.optional(),
     newerRecordType: supersedeRecordTypeSchema.default("Session Test"),
     newerSessionTestId: identifierSchema,
     olderRecordType: supersedeRecordTypeSchema.default("Session Test"),
@@ -460,6 +465,7 @@ export type SupersedeReceipt = z.infer<typeof supersedeReceiptSchema>;
 /** Binds the valid result of one exact scenario version; closes the conflict. */
 export const bindValidResultInputSchema = z
   .object({
+    clientIdempotencyKey: identifierSchema.optional(),
     projectId: identifierSchema,
     reason: reasonSchema,
     scenarioId: identifierSchema,

@@ -261,6 +261,7 @@ export function HandoffForm({
   label,
   onCancel,
   onSubmit,
+  projectId,
   submitLabel,
 }: {
   cases: PlannedTestCaseRecord[];
@@ -270,6 +271,7 @@ export function HandoffForm({
   loadContextTargets: LoadTestHandoffContextTargets;
   onCancel?: () => void;
   onSubmit: SubmitTestHandoff;
+  projectId: string;
   submitLabel: string;
 }) {
   const [error, setError] = useState<string>();
@@ -434,6 +436,7 @@ export function HandoffForm({
                   idPrefix={idPrefix}
                   loadTargets={loadContextTargets}
                   onChange={field.handleChange}
+                  projectId={projectId}
                   value={field.state.value}
                 />
               )}

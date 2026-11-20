@@ -28,6 +28,7 @@ export async function fetchFileAttachmentAsset(
   const response = await defaultClientShell.request(
     fileAttachmentAssetURL(path),
     {
+      cache: "no-store",
       credentials: "include",
       headers,
       signal,

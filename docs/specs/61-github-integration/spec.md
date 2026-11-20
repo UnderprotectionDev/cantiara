@@ -43,6 +43,8 @@ Kurucu GitHub App installation'ı ile (Better Auth login OAuth'undan ayrı) kara
 
 ## Testing Decisions
 
+- The GitHub Integration seam verifies that Repository, triage, lifecycle preview, and record search reads are scoped to the full Project input.
+
 - **What a good test is.** GitHub Integration with App/webhook/API test doubles: signature, <10s ACK, duplicate delivery, out-of-order events, reconcile, permission allow-list, login-revoke vs App-uninstall, archive/trash/tombstone, head SHA checks, role mapping, unlinked open-PR signal, card has no review/merge/write command, Work status unchanged.
 - **Seam (one).** GitHub Integration. Playwright: **GitHub bağlantı ve durum**. Real-project journey **GitHub**.
 - **Required counterparts.** Login OAuth ≠ App (identity/session owned by 01; this seam only asserts uninstall does not kill sessions and login revoke does not uninstall); check ≠ Test Oturumu; no GitHub write; no Work complete; card ≠ Work Context Card; review and merge stay on GitHub (card is not a write surface); unlinked PR is a signal on GitHub dış kaydı, not a new identity.

@@ -14,7 +14,6 @@ import {
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { addDays, addMonths, addWeeks, format, parseISO } from "date-fns";
-import { useState } from "react";
 import { DatePicker } from "@/components/date-picker";
 import { currentDateInTimeZone } from "@/features/account-preferences/lib/account-preferences-format";
 import UnifiedCalendar, {
@@ -24,16 +23,16 @@ import UnifiedCalendar, {
   type CalendarView,
   calendarDateKindsForSelection,
 } from "@/features/unified-calendar/ui/components/unified-calendar";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
+import { commandVariables } from "@/lib/command-variables";
 import { fetchCurrentWork } from "@/lib/fetch-current-work";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import {
   accountPreferencesQueryOptions,
   client,
   orpc,
   projectsQueryOptions,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
 
 export const CALENDAR_VIEWS = ["Day", "Week", "Month", "Agenda"] as const;
@@ -110,11 +109,6 @@ export default function UnifiedCalendarView({
   const navigate = useNavigate();
   const projects = useQuery(projectsQueryOptions());
   const queryClient = useQueryClient();
-  const [dateChangeUndo, setDateChangeUndo] = useState<{
-    receiptId: string;
-    workId: string;
-  } | null>(null);
-  const [dateChangeError, setDateChangeError] = useState<string | null>(null);
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
   const formatting = preferences.data ?? DEFAULT_ACCOUNT_PREFERENCES;
   const selectedDate =
@@ -142,76 +136,95 @@ export default function UnifiedCalendarView({
   const preferencesUnavailable =
     preferences.status === "pending" || preferences.isError;
   const works = workQueries.flatMap((query) => query.data ?? []);
-  async function handleCalendarDateError(error: unknown, fallback: string) {
-    setDateChangeUndo(null);
-    setDateChangeError(mutationErrorMessage(error, fallback));
-    await queryClient.invalidateQueries({
-      queryKey: projectWorksQueryPrefix,
+  function refreshWorkDates(projectId: string) {
+    return queryClient.invalidateQueries({
+      queryKey: orpc.projectWorks.key({ input: { projectId } }),
     });
   }
-
-  const updateCalendarDate = useMutation({
-    mutationFn: (change: CalendarDateChange) =>
-      runOnlineOnlyWrite(() =>
-        client.updateWorkDate({
-          baseRevision: change.baseRevision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          date: change.date,
-          dateField: change.dateField,
-          workId: change.workId,
-        }),
-      ),
-    onError: (error) =>
-      handleCalendarDateError(
-        error,
-        "Calendar date could not be saved. Try again.",
-      ),
-    onSuccess: async (work) => {
-      setDateChangeError(null);
-      setDateChangeUndo({
-        receiptId: work.receiptId,
-        workId: work.id,
-      });
-      await queryClient.invalidateQueries({
-        queryKey: projectWorksQueryPrefix,
-      });
-    },
-  });
-  const undoCalendarDate = useMutation({
-    mutationFn: () => {
-      const undo = dateChangeUndo;
-      if (!undo) {
-        throw new Error(
-          "This Work date change is no longer available for Undo.",
-        );
-      }
-      return runOnlineOnlyWrite(async () => {
-        const work = await fetchCurrentWork(queryClient, undo.workId);
-        return client.undoWorkDate({
-          baseRevision: work.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          receiptId: undo.receiptId,
-          workId: undo.workId,
-        });
-      });
-    },
-    onError: (error) =>
-      handleCalendarDateError(
-        error,
-        "This Work date change is no longer available for Undo.",
-      ),
-    onSuccess: async () => {
-      setDateChangeError(null);
-      setDateChangeUndo(null);
-      await queryClient.invalidateQueries({
-        queryKey: projectWorksQueryPrefix,
-      });
-    },
-  });
-
-  const saving = [updateCalendarDate, undoCalendarDate].some(
-    (mutation) => mutation.isPending,
+  const updateCalendarDate = usePreparedMutation(
+    orpc.updateWorkDate.mutationOptions({
+      mutationFn: (input) => client.updateWorkDate(input),
+      onError: (_, { workId }) => {
+        const work = works.find(({ id }) => id === workId);
+        if (work) {
+          return refreshWorkDates(work.projectId);
+        }
+      },
+      onSuccess: (work) => refreshWorkDates(work.projectId),
+    }),
+    ({ baseRevision, date, dateField, workId }: CalendarDateChange) => ({
+      baseRevision,
+      date,
+      dateField,
+      workId,
+    }),
   );
+  const undoCalendarDate = useMutation(
+    orpc.undoWorkDate.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.undoWorkDate(input),
+      onError: (_, { workId }) => {
+        const work = works.find(({ id }) => id === workId);
+        if (work) {
+          return refreshWorkDates(work.projectId);
+        }
+      },
+      onSuccess: (work) => refreshWorkDates(work.projectId),
+    }),
+  );
+  const readUndoWork = useMutation({
+    meta: { presentsSupportFailure: true },
+    mutationFn: (workId: string) => fetchCurrentWork(queryClient, workId),
+  });
+  const dateChange = updateCalendarDate.data;
+  const canUndo = Boolean(
+    dateChange &&
+      !(
+        undoCalendarDate.isSuccess &&
+        undoCalendarDate.variables.receiptId === dateChange.receiptId
+      ),
+  );
+  const saving =
+    updateCalendarDate.isPending ||
+    undoCalendarDate.isPending ||
+    readUndoWork.isPending;
+  const undoError = undoCalendarDate.error ?? readUndoWork.error;
+  let dateChangeError: string | null = null;
+  if (updateCalendarDate.error) {
+    dateChangeError = mutationErrorMessage(
+      updateCalendarDate.error,
+      "Calendar date could not be saved. Try again.",
+    );
+  } else if (undoError) {
+    dateChangeError = mutationErrorMessage(
+      undoError,
+      "This Work date change is no longer available for Undo.",
+    );
+  }
+  async function confirmUndoCalendarDate() {
+    if (!(dateChange && canUndo) || saving) {
+      return;
+    }
+    const failedUndo = undoCalendarDate.isError
+      ? undoCalendarDate.variables
+      : undefined;
+    if (failedUndo?.receiptId === dateChange.receiptId) {
+      undoCalendarDate.mutate(failedUndo);
+      return;
+    }
+    const currentWork = await readUndoWork
+      .mutateAsync(dateChange.id)
+      .catch(() => undefined);
+    if (currentWork) {
+      undoCalendarDate.mutate(
+        commandVariables({
+          baseRevision: currentWork.revision,
+          receiptId: dateChange.receiptId,
+          workId: currentWork.id,
+        }),
+      );
+    }
+  }
 
   function updateSearch(next: Partial<CalendarSearch>) {
     navigate({
@@ -285,7 +298,8 @@ export default function UnifiedCalendarView({
             <UnifiedCalendar
               disabled={saving}
               onDateChange={(change) => {
-                setDateChangeError(null);
+                undoCalendarDate.reset();
+                readUndoWork.reset();
                 updateCalendarDate.mutate(change);
               }}
               preferences={formatting}
@@ -299,8 +313,8 @@ export default function UnifiedCalendarView({
             <CalendarMutationFeedback
               dateChangeError={dateChangeError}
               disabled={saving}
-              onUndo={() => undoCalendarDate.mutate()}
-              showUndo={dateChangeUndo !== null}
+              onUndo={confirmUndoCalendarDate}
+              showUndo={canUndo}
             />
           </>
         )}

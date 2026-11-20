@@ -1,11 +1,10 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import FavoriteControl from "@/components/favorite-control";
 import PersonalReminderControl from "@/components/personal-reminder-control";
 import EvidenceFlowPanel from "@/features/evidence/ui/components/evidence-flow-panel";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -29,6 +28,30 @@ export default function ProjectDecisionsSurface({
   readOnly?: boolean;
   accountFormattingPreferences?: AccountPreferences;
 }) {
+  const updateProjectSourceRecordMutation = useMutation(
+    orpc.updateProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (request) => client.updateProjectSourceRecord(request),
+      onSuccess: (_, input) =>
+        refresh(input.projectId, input.clientIdempotencyKey),
+    }),
+  );
+  const createProjectSourceRecordMutation = useMutation(
+    orpc.createProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (request) => client.createProjectSourceRecord(request),
+      onSuccess: (_, input) =>
+        refresh(input.projectId, input.clientIdempotencyKey),
+    }),
+  );
+  const transitionProjectSourceRecordMutation = useMutation(
+    orpc.transitionProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.transitionProjectSourceRecord(input),
+      onSuccess: (_, input) =>
+        refresh(input.projectId, input.clientIdempotencyKey),
+    }),
+  );
   const queryClient = useQueryClient();
   const options = orpc.projectDecisions.queryOptions({ input: { projectId } });
   const records = useQuery(options);
@@ -36,7 +59,6 @@ export default function ProjectDecisionsSurface({
     ...orpc.decisionSupersessionGraph.queryOptions({ input: { projectId } }),
     enabled: Boolean(selectedId),
   });
-  const [savedMessage, setSavedMessage] = useState<string>();
   const pendingWrite = useRef<{
     fingerprint: string;
     id: string;
@@ -57,14 +79,19 @@ export default function ProjectDecisionsSurface({
     }
     return pendingWrite.current;
   }
-  async function refresh(message: string) {
-    pendingWrite.current = null;
-    setSavedMessage(message);
+  async function refresh(committedProjectId: string, commandKey: string) {
+    if (pendingWrite.current?.key === commandKey) {
+      pendingWrite.current = null;
+    }
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: options.queryKey }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.projectDecisions.queryKey({
+          input: { projectId: committedProjectId },
+        }),
+      }),
       queryClient.invalidateQueries({
         queryKey: orpc.decisionSupersessionGraph.queryOptions({
-          input: { projectId },
+          input: { projectId: committedProjectId },
         }).queryKey,
       }),
       ...invalidateSmartCollectionMembership(queryClient),
@@ -82,22 +109,19 @@ export default function ProjectDecisionsSurface({
       { operation: "save", ...fields },
       record,
     );
-    await runOnlineOnlyWrite(() =>
-      record
-        ? client.updateProjectSourceRecord({
-            ...fields,
-            sourceId: id,
-            baseRevision: record.revision,
-            clientIdempotencyKey: key,
-          })
-        : client.createProjectSourceRecord({
-            ...fields,
-            id,
-            baseRevision: 0,
-            clientIdempotencyKey: key,
-          }),
-    );
-    await refresh("Decision saved.");
+    await (record
+      ? updateProjectSourceRecordMutation.mutateAsync({
+          ...fields,
+          sourceId: id,
+          baseRevision: record.revision,
+          clientIdempotencyKey: key,
+        })
+      : createProjectSourceRecordMutation.mutateAsync({
+          ...fields,
+          id,
+          baseRevision: 0,
+          clientIdempotencyKey: key,
+        }));
   }
   async function withdraw(draft: DecisionDraft, record?: DecisionRecord) {
     if (!record) {
@@ -114,18 +138,17 @@ export default function ProjectDecisionsSurface({
       { operation: "withdraw", ...fields },
       record,
     );
-    await runOnlineOnlyWrite(() =>
-      client.transitionProjectSourceRecord({
-        ...fields,
-        baseRevision: record.revision,
-        clientIdempotencyKey: key,
-      }),
-    );
-    await refresh("Decision withdrawn.");
+    await transitionProjectSourceRecordMutation.mutateAsync({
+      ...fields,
+      baseRevision: record.revision,
+      clientIdempotencyKey: key,
+    });
   }
   function startEditing() {
     pendingWrite.current = null;
-    setSavedMessage(undefined);
+    createProjectSourceRecordMutation.reset();
+    updateProjectSourceRecordMutation.reset();
+    transitionProjectSourceRecordMutation.reset();
   }
   function retry() {
     records.refetch().catch(() => undefined);
@@ -141,6 +164,13 @@ export default function ProjectDecisionsSurface({
       </div>
     );
   }
+  const saved =
+    createProjectSourceRecordMutation.isSuccess ||
+    updateProjectSourceRecordMutation.isSuccess;
+  const saveMessage = saved ? "Decision saved." : undefined;
+  const savedMessage = transitionProjectSourceRecordMutation.isSuccess
+    ? "Decision withdrawn."
+    : saveMessage;
   const decisions = records.data.records.filter(
     (record): record is DecisionRecord => record.sourceType === "Decision",
   );
@@ -168,6 +198,11 @@ export default function ProjectDecisionsSurface({
         renderEvidenceFlow={renderEvidenceFlow}
         savedMessage={savedMessage}
         selectedId={selectedId}
+        writeError={
+          transitionProjectSourceRecordMutation.error ??
+          updateProjectSourceRecordMutation.error ??
+          createProjectSourceRecordMutation.error
+        }
       />
       <SelectedDecisionActions
         graph={graph}
