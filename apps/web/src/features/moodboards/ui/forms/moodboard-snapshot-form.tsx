@@ -1,14 +1,12 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: The Snapshot form binds its own Moodboard and item scope.
 import {
   MOODBOARD_SNAPSHOT_LABELS,
-  type MoodboardSnapshotPreview,
   type SnapshotFormat,
 } from "@cantiara/api/moodboard-snapshot";
 import { MOODBOARD_UI_LABELS, type Moodboard } from "@cantiara/api/moodboards";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useForm } from "@tanstack/react-form";
-import { useState } from "react";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
 import { snapshotItemsFormSchema } from "../../lib/moodboard-form";
@@ -39,20 +37,24 @@ export function SnapshotPanel({
   api: MoodboardsApi;
   moodboard: Moodboard;
 }) {
-  const [preview, setPreview] = useState<MoodboardSnapshotPreview | null>(null);
+  const snapshot = api.snapshotPreview;
+  const preview =
+    snapshot.variables?.moodboardId === moodboard.id
+      ? snapshot.data
+      : undefined;
   const form = useForm({
     defaultValues: { itemIds: [] as string[] },
     // Any scope change invalidates the shown preview.
-    listeners: { onChange: () => setPreview(null) },
+    listeners: { onChange: snapshot.reset },
     onSubmit: ({ value }) => {
       const parsed = snapshotItemsFormSchema.safeParse(value);
       if (!parsed.success) {
         return;
       }
-      api.snapshotPreview.mutate(
-        { itemIds: parsed.data.itemIds, moodboardId: moodboard.id },
-        { onSuccess: setPreview },
-      );
+      snapshot.mutate({
+        itemIds: parsed.data.itemIds,
+        moodboardId: moodboard.id,
+      });
     },
   });
 

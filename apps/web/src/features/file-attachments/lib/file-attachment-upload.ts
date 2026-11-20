@@ -125,10 +125,11 @@ export async function uploadFileAttachment(
     options.signal?.removeEventListener("abort", cancel);
     uppy.destroy();
   }
-  if (!staged.session) {
+  if (options.signal?.aborted || !staged.session) {
     throw new DOMException("The staging upload was cancelled.", "AbortError");
   }
 
+  options.signal?.throwIfAborted();
   options.onFinalizeStart?.();
   return dependencies.finalize({
     clientIdempotencyKey,

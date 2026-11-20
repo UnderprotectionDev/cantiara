@@ -5,7 +5,7 @@ import type {
   CustomFieldValueRecord,
   ParsedCustomFieldValuePayload,
 } from "@cantiara/api/custom-fields";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
@@ -120,11 +120,7 @@ export function useCustomFieldValues(
 ) {
   const queryClient = useQueryClient();
   const valuesQueryOptions = orpc.customFieldValues.queryOptions({
-    input: {
-      projectId,
-      recordId: recordId ?? "new-record",
-      recordType,
-    },
+    input: recordId ? { projectId, recordId, recordType } : skipToken,
   });
   const query = useQuery({
     ...valuesQueryOptions,
@@ -135,7 +131,7 @@ export function useCustomFieldValues(
   // invalidating both keeps either source fresh after a value write.
   const invalidate = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey }),
+      ...(recordId ? [queryClient.invalidateQueries({ queryKey })] : []),
       queryClient.invalidateQueries({
         queryKey: orpc.customFieldProjectValues.queryOptions({
           input: { projectId, recordType },

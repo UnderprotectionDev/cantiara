@@ -9,47 +9,41 @@ import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import type { SubmitEvent } from "react";
-import { errorMessage } from "../../lib/error-message";
 import { EMPTY_DRAFT } from "../../lib/priority-metric-draft";
 import { RankDescriptionsFields } from "../components/rank-descriptions-fields";
 
 export function PriorityMetricCreateForm({
   disabled,
-  formError,
   isPending,
-  onActionError,
   onCreate,
-  onFormError,
   projectId,
 }: {
   disabled: boolean;
-  formError: string | null;
   isPending: boolean;
-  onActionError: (message: string | null) => void;
   onCreate: (input: CreatePriorityMetricInput) => Promise<unknown>;
-  onFormError: (message: string | null) => void;
   projectId: string;
 }) {
   const createForm = useForm({
     defaultValues: EMPTY_DRAFT,
+    validators: {
+      onSubmit: ({ value }) => {
+        const parsed = createPriorityMetricInputSchema.safeParse({
+          ...value,
+          projectId,
+        });
+        return parsed.success
+          ? undefined
+          : (parsed.error.issues[0]?.message ?? "Check the form.");
+      },
+    },
     onSubmit: async ({ value }) => {
-      const parsed = createPriorityMetricInputSchema.safeParse({
-        ...value,
-        projectId,
-      });
-      if (!parsed.success) {
-        onFormError(parsed.error.issues[0]?.message ?? "Check the form.");
-        return;
-      }
-      onFormError(null);
-      onActionError(null);
       try {
-        await onCreate(parsed.data);
-        createForm.reset();
-      } catch (error) {
-        onActionError(
-          errorMessage(error, "Priority metric could not be created."),
+        await onCreate(
+          createPriorityMetricInputSchema.parse({ ...value, projectId }),
         );
+        createForm.reset();
+      } catch {
+        // The editor reports the mutation's failure while the form keeps the draft.
       }
     },
   });
@@ -117,11 +111,15 @@ export function PriorityMetricCreateForm({
           )}
         </createForm.Subscribe>
       </FieldGroup>
-      {formError ? (
-        <p className="text-sm text-destructive" role="alert">
-          {formError}
-        </p>
-      ) : null}
+      <createForm.Subscribe selector={(state) => state.errorMap.onSubmit}>
+        {(formError) =>
+          typeof formError === "string" ? (
+            <p className="text-sm text-destructive" role="alert">
+              {formError}
+            </p>
+          ) : null
+        }
+      </createForm.Subscribe>
       <createForm.Subscribe selector={(state) => state.isSubmitting}>
         {(isSubmitting) => (
           <Button

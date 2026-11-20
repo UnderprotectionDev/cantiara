@@ -6,13 +6,14 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { client, orpc } from "@/utils/orpc";
 
 const SAVE_DELAY_MS = 600;
 
 interface Pending {
+  projectId: string;
   view: ProjectWallViewport;
   wallId: string;
 }
@@ -34,24 +35,15 @@ export function usePersonalProjectWallView(
     }),
   );
   const save = useMutation({
+    meta: { onlineWrite: true, retryInSurface: true },
     mutationKey: orpc.saveProjectWallViewport.mutationKey(),
-    mutationFn: ({ view, wallId: target }: Pending) =>
+    mutationFn: ({ projectId: owner, view, wallId: target }: Pending) =>
       client.saveProjectWallViewport({
-        projectId,
+        projectId: owner,
         viewport: view,
         wallId: target,
       }),
-    onMutate: () => setSaveError(null),
-    onError: () => setSaveError("Your personal view could not be saved."),
-    onSuccess: (saved, { wallId: target }) =>
-      queryClient.setQueryData(
-        orpc.projectWallViewport.queryOptions({
-          input: { projectId, wallId: target },
-        }).queryKey,
-        saved,
-      ),
   });
-  const [saveError, setSaveError] = useState<string | null>(null);
   const { mutate } = save;
   const mutateRef = useRef(mutate);
   mutateRef.current = mutate;
@@ -63,30 +55,48 @@ export function usePersonalProjectWallView(
     [],
   );
   // The wall of the last scheduled view; a different wall flushes it first.
-  const scheduledWall = useRef<string | null>(null);
+  const scheduledWall = useRef<{ projectId: string; wallId: string } | null>(
+    null,
+  );
 
   const schedule = useCallback(
     (view: ProjectWallViewport) => {
       if (!wallId) {
         return;
       }
-      if (scheduledWall.current && scheduledWall.current !== wallId) {
+      if (
+        scheduledWall.current &&
+        (scheduledWall.current.wallId !== wallId ||
+          scheduledWall.current.projectId !== projectId)
+      ) {
         debouncer.flush();
       }
-      scheduledWall.current = wallId;
-      debouncer.maybeExecute({ view, wallId });
+      scheduledWall.current = { projectId, wallId };
+      const { queryKey } = orpc.projectWallViewport.queryOptions({
+        input: { projectId, wallId },
+      });
+      queryClient
+        .cancelQueries({ exact: true, queryKey })
+        .catch(() => undefined);
+      queryClient.setQueryData(queryKey, view);
+      debouncer.maybeExecute({ projectId, view, wallId });
     },
-    [debouncer, wallId],
+    [debouncer, projectId, queryClient, wallId],
   );
 
   // Switching or leaving a wall keeps the last position.
   // biome-ignore lint/correctness/useExhaustiveDependencies: A new wall id is the trigger to flush the old wall's pending save.
-  useEffect(() => () => debouncer.flush(), [debouncer, wallId]);
+  useEffect(() => () => debouncer.flush(), [debouncer, projectId, wallId]);
 
   return {
     isReady: wallId === null || query.isSuccess || query.isError,
     /** The last personal-view save failure, cleared by the next save attempt. */
-    saveError,
+    saveError:
+      save.isError &&
+      save.variables?.projectId === projectId &&
+      save.variables.wallId === wallId
+        ? "Your personal view could not be saved."
+        : null,
     saved: query.data ?? null,
     schedule,
   };

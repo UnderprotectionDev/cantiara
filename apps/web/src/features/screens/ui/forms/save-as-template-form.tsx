@@ -7,7 +7,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
+import { orpc } from "@/utils/orpc";
 import { saveAsTemplateFormSchema } from "../../lib/screen-forms";
 import type { ScreenTemplateActions } from "../../lib/screen-template-actions";
 
@@ -20,32 +22,49 @@ export function SaveAsTemplate({
   screen: ScreenRecord;
 }) {
   const versions = screen.wireframeVersions;
-  const [message, setMessage] = useState<string>();
-  const [error, setError] = useState<string>();
   const latestVersion = versions.at(-1)?.version;
+  const save = usePreparedMutation(
+    {
+      mutationKey: orpc.saveScreenTemplate.mutationKey(),
+      mutationFn: async ({
+        clientIdempotencyKey,
+        name,
+        version,
+      }: {
+        clientIdempotencyKey: string;
+        name: string;
+        screenId: string;
+        version: number;
+      }) => {
+        await actions.save(screen, version, name, clientIdempotencyKey);
+        return { name, version };
+      },
+    },
+    (command: { name: string; version: number }) => ({
+      ...command,
+      screenId: screen.id,
+    }),
+  );
   const form = useForm({
     defaultValues: { name: "", version: null as number | null },
+    validators: {
+      onSubmit: ({ value }) => {
+        const parsed = saveAsTemplateFormSchema.safeParse({
+          name: value.name,
+          version: value.version ?? latestVersion,
+        });
+        return parsed.success
+          ? undefined
+          : (parsed.error.issues[0]?.message ?? "Check the form.");
+      },
+    },
     onSubmit: async ({ formApi, value }) => {
-      setError(undefined);
-      setMessage(undefined);
-      const chosen = value.version ?? latestVersion;
-      const parsed = saveAsTemplateFormSchema.safeParse({
+      const command = saveAsTemplateFormSchema.parse({
         name: value.name,
-        version: chosen,
+        version: value.version ?? latestVersion,
       });
-      if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? "Check the form.");
-        return;
-      }
-      try {
-        await actions.save(screen, parsed.data.version, parsed.data.name);
-        setMessage(
-          `Saved template ${parsed.data.name} from v${parsed.data.version}.`,
-        );
-        formApi.setFieldValue("name", "");
-      } catch {
-        setError("Template could not be saved.");
-      }
+      await save.mutateAsync(command);
+      formApi.setFieldValue("name", "");
     },
   });
   if (versions.length === 0 || latestVersion === undefined) {
@@ -92,13 +111,29 @@ export function SaveAsTemplate({
           />
         )}
       </form.Field>
-      <Button size="sm" type="submit" variant="outline">
+      <Button
+        disabled={save.isPending}
+        size="sm"
+        type="submit"
+        variant="outline"
+      >
         Save as Template
       </Button>
-      {message ? <span role="status">{message}</span> : null}
-      {error ? (
-        <span className="text-destructive" role="alert">
-          {error}
+      <form.Subscribe selector={(state) => state.errorMap.onSubmit}>
+        {(validationError) => {
+          const error =
+            validationError ??
+            (save.isError ? "Template could not be saved." : undefined);
+          return error ? (
+            <span className="text-destructive" role="alert">
+              {error}
+            </span>
+          ) : null;
+        }}
+      </form.Subscribe>
+      {save.data ? (
+        <span role="status">
+          Saved template {save.data.name} from v{save.data.version}.
         </span>
       ) : null}
     </form>

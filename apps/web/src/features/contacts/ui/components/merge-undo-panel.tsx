@@ -12,7 +12,10 @@ import { MergeUndoForm } from "../forms/merge-undo-form";
  * Says what an Undo Merge could not give back. Content can disappear between
  * the preview and the confirmation, so the result is reported, not dropped.
  */
-export function undoResultNotice(result: UndoMergeResult) {
+export function undoResultNotice(result?: UndoMergeResult) {
+  if (!result) {
+    return null;
+  }
   if (result.unrestorable.length === 0) {
     return null;
   }

@@ -19,7 +19,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useId, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useEffect, useId } from "react";
+import { orpc } from "@/utils/orpc";
 import { useProductGapLinkTargets } from "../../hooks/use-product-gap-link-targets";
 import { errorText } from "../../lib/product-gap-form";
 import type { LoadProductGapTargets } from "../components/product-gap-links-field";
@@ -65,57 +67,93 @@ export function FollowUpPanel({
   onConfirm,
   onPreview,
   record,
+  write,
 }: {
   loadTargets: LoadProductGapTargets;
   onConfirm: ConfirmFollowUp;
   onPreview: PreviewFollowUp;
   record: ProductGapRecord;
+  write?: {
+    error: unknown;
+    isPending: boolean;
+    isSuccess: boolean;
+    reset: () => void;
+    variables?: { plan: ProductGapFollowUpPlan };
+  };
 }) {
   const id = useId();
-  const [plan, setPlan] = useState<ProductGapFollowUpPlan | null>(null);
-  const [error, setError] = useState<string>();
-  const [message, setMessage] = useState("");
+  const inspect = useMutation({
+    mutationKey: orpc.previewProductGapFollowUp.mutationKey(),
+    mutationFn: (request: FollowUpRequest) => onPreview(record, request),
+    meta: { presentsSupportFailure: true },
+  });
+  const saved = write?.isSuccess;
+  const plan = saved ? undefined : inspect.data;
+  const busy = Boolean(write?.isPending || inspect.isPending);
+  let message = "";
+  if (saved && write.variables) {
+    message =
+      write.variables.plan.kind === "Work"
+        ? "Follow-up Work created."
+        : "Follow-up Feature related.";
+  }
+  function resetPreview() {
+    inspect.reset();
+    write?.reset();
+  }
   const form = useForm({
     defaultValues: {
       kind: "Work" as FollowUpKind,
       targetId: "",
       workType: "Task" as ProductGapFollowUpWorkType,
     },
+    listeners: { onChange: resetPreview },
     onSubmit: async ({ value }) => {
-      setError(undefined);
-      setMessage("");
-      const parsed = previewProductGapFollowUpInputSchema.safeParse(
+      write?.reset();
+      const request: FollowUpRequest =
         value.kind === "Work"
           ? {
-              gapId: record.id,
               kind: value.kind,
               projectId: value.targetId,
               workType: value.workType,
             }
-          : { featureId: value.targetId, gapId: record.id, kind: value.kind },
-      );
-      if (!parsed.success) {
-        setError("The follow-up preview is unavailable.");
-        return;
-      }
-      try {
-        setPlan(
-          await onPreview(
-            record,
-            value.kind === "Work"
-              ? {
-                  kind: value.kind,
-                  projectId: value.targetId,
-                  workType: value.workType,
-                }
-              : { featureId: value.targetId, kind: value.kind },
-          ),
-        );
-      } catch (caught) {
-        setError(errorText(caught, "The follow-up preview is unavailable."));
-      }
+          : { featureId: value.targetId, kind: value.kind };
+      await inspect.mutateAsync(request).catch(() => undefined);
+    },
+    validators: {
+      onSubmit: ({ value }) => {
+        const target =
+          value.kind === "Work"
+            ? {
+                kind: value.kind,
+                projectId: value.targetId,
+                workType: value.workType,
+              }
+            : { featureId: value.targetId, kind: value.kind };
+        return previewProductGapFollowUpInputSchema.safeParse({
+          ...target,
+          gapId: record.id,
+        }).success
+          ? undefined
+          : "The follow-up preview is unavailable.";
+      },
     },
   });
+  const validation = useSelector(
+    form.store,
+    (state) => state.errorMap.onSubmit,
+  );
+  let error: string | undefined = validation;
+  if (inspect.isError) {
+    error = errorText(inspect.error, "The follow-up preview is unavailable.");
+  } else if (write?.error) {
+    error = errorText(write.error, "The follow-up was not created.");
+  }
+  useEffect(() => {
+    if (saved) {
+      form.resetField("targetId");
+    }
+  }, [form, saved]);
   const kind = useSelector(form.store, (state) => state.values.kind);
 
   const { data: targets = [], isError: targetsFailed } =
@@ -124,23 +162,9 @@ export function FollowUpPanel({
       kind === "Work" ? "Project" : "Feature",
     );
 
-  async function confirm() {
-    if (!plan) {
-      return;
-    }
-    setError(undefined);
-    try {
-      await onConfirm(record, plan);
-      setPlan(null);
-      form.setFieldValue("targetId", "");
-      setMessage(
-        plan.kind === "Work"
-          ? "Follow-up Work created."
-          : "Follow-up Feature related.",
-      );
-    } catch (caught) {
-      setPlan(null);
-      setError(errorText(caught, "The follow-up was not created."));
+  function confirm() {
+    if (plan && !busy) {
+      onConfirm(record, plan).catch(() => undefined);
     }
   }
 
@@ -168,7 +192,6 @@ export function FollowUpPanel({
                   onChange={(event) => {
                     field.handleChange(event.target.value as FollowUpKind);
                     form.setFieldValue("targetId", "");
-                    setPlan(null);
                   }}
                   value={field.state.value}
                 >
@@ -194,7 +217,6 @@ export function FollowUpPanel({
                       field.handleChange(
                         event.target.value as ProductGapFollowUpWorkType,
                       );
-                      setPlan(null);
                     }}
                     value={field.state.value}
                   >
@@ -219,7 +241,6 @@ export function FollowUpPanel({
                   onBlur={field.handleBlur}
                   onChange={(event) => {
                     field.handleChange(event.target.value);
-                    setPlan(null);
                   }}
                   value={field.state.value}
                 >
@@ -244,7 +265,7 @@ export function FollowUpPanel({
         >
           {([targetId, pending]) => (
             <Button
-              disabled={!targetId || pending === true}
+              disabled={!targetId || busy || pending === true}
               size="sm"
               type="submit"
               variant="outline"
@@ -260,17 +281,12 @@ export function FollowUpPanel({
           >
             <PlanSummary plan={plan} />
             <div className="flex gap-2">
-              <Button
-                onClick={() => {
-                  confirm().catch(() => undefined);
-                }}
-                size="sm"
-                type="button"
-              >
+              <Button disabled={busy} onClick={confirm} size="sm" type="button">
                 Confirm follow-up
               </Button>
               <Button
-                onClick={() => setPlan(null)}
+                disabled={busy}
+                onClick={resetPreview}
                 size="sm"
                 type="button"
                 variant="outline"

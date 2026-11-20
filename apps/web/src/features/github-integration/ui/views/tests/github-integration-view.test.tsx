@@ -187,7 +187,11 @@ async function mount(
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <GitHubIntegrationView actions={actions} overview={overview} />
+        <GitHubIntegrationView
+          actions={actions}
+          overview={overview}
+          projectId="project-1"
+        />
       </QueryClientProvider>,
     );
   });

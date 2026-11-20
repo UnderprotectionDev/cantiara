@@ -8,7 +8,7 @@ import { Field, FieldGroup, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
 import {
   draftFromMetric,
   type PriorityMetricDraft,
@@ -34,28 +34,37 @@ export function PriorityMetricRow({
   onEdit: () => void;
   onRequestTrash: (metric: PriorityMetric) => void;
   onSave: (draft: PriorityMetricDraft) => Promise<boolean>;
-  onToggleEnabled: () => Promise<void>;
+  onToggleEnabled: () => void;
 }) {
-  const [validationError, setValidationError] = useState<string | null>(null);
   const editForm = useForm({
     defaultValues: draftFromMetric(metric),
+    validators: {
+      onSubmit: ({ value }) => {
+        const parsed = createPriorityMetricInputSchema.safeParse({
+          ...value,
+          projectId: metric.projectId,
+        });
+        return parsed.success
+          ? undefined
+          : (parsed.error.issues[0]?.message ?? "Check the form.");
+      },
+    },
     onSubmit: async ({ value }) => {
-      const parsed = createPriorityMetricInputSchema.safeParse({
+      const parsed = createPriorityMetricInputSchema.parse({
         ...value,
         projectId: metric.projectId,
       });
-      if (!parsed.success) {
-        setValidationError(
-          parsed.error.issues[0]?.message ?? "Check the form.",
-        );
-        return;
-      }
-      setValidationError(null);
-      if (await onSave(parsed.data)) {
+      if (
+        await onSave({
+          name: parsed.name,
+          rankDescriptions: parsed.rankDescriptions,
+          shortDescription: parsed.shortDescription,
+        })
+      ) {
         editForm.reset({
-          name: parsed.data.name,
-          rankDescriptions: parsed.data.rankDescriptions,
-          shortDescription: parsed.data.shortDescription,
+          name: parsed.name,
+          rankDescriptions: parsed.rankDescriptions,
+          shortDescription: parsed.shortDescription,
         });
       }
     },
@@ -93,7 +102,6 @@ export function PriorityMetricRow({
             disabled={disabled}
             onClick={() => {
               editForm.reset(draftFromMetric(metric));
-              setValidationError(null);
               onEdit();
             }}
             size="xs"
@@ -173,11 +181,15 @@ export function PriorityMetricRow({
               )}
             </editForm.Subscribe>
           </FieldGroup>
-          {validationError ? (
-            <p className="text-sm text-destructive" role="alert">
-              {validationError}
-            </p>
-          ) : null}
+          <editForm.Subscribe selector={(state) => state.errorMap.onSubmit}>
+            {(validationError) =>
+              typeof validationError === "string" ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {validationError}
+                </p>
+              ) : null
+            }
+          </editForm.Subscribe>
           {error ? (
             <p className="text-sm text-destructive" role="alert">
               {error}

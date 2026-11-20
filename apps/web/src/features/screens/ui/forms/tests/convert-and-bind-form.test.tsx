@@ -4,6 +4,7 @@ import type {
   ConvertAndBindPlan,
   ScreenBlockOriginView,
 } from "@cantiara/api/screen-origins";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
@@ -71,7 +72,11 @@ function mount(actions: Parameters<typeof ConvertAndBindPanel>[0]["actions"]) {
   document.body.append(host);
   root = createRoot(host);
   act(() => {
-    root?.render(<ConvertAndBindPanel actions={actions} blockId="b-cta" />);
+    root?.render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ConvertAndBindPanel actions={actions} blockId="b-cta" />
+      </QueryClientProvider>,
+    );
   });
 }
 
@@ -82,9 +87,9 @@ function click(label: string) {
   if (!button) {
     throw new Error(`No ${label} button`);
   }
-  return act(() => {
+  return act(async () => {
     button.click();
-    return Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 20));
   });
 }
 
@@ -123,7 +128,13 @@ test("Confirm creates exactly one record from the previewed plan", async () => {
   await click("Confirm");
 
   expect(confirm).toHaveBeenCalledTimes(1);
-  expect(confirm).toHaveBeenCalledWith(plan);
+  expect(confirm).toHaveBeenCalledWith(
+    expect.objectContaining({
+      plan,
+      projectId: plan.projectId,
+      screenId: plan.screenId,
+    }),
+  );
   expect(document.body.textContent).toContain("Created Decision: Start trial");
 });
 
@@ -159,4 +170,22 @@ test("an over-long title is rejected by the form schema and nothing is previewed
 
   expect(preview).not.toHaveBeenCalled();
   expect(document.body.textContent).toContain("Preview is unavailable.");
+});
+
+test("retrying Confirm reuses both IDs for the same previewed plan", async () => {
+  const preview = vi.fn().mockResolvedValue(plan);
+  const confirm = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("network"))
+    .mockResolvedValueOnce(created);
+  mount({ confirm, preview });
+
+  await click("Convert and Bind");
+  await click("Preview");
+  await click("Confirm");
+  await click("Confirm");
+
+  expect(confirm).toHaveBeenCalledTimes(2);
+  expect(confirm.mock.calls[0]?.[0]).toEqual(confirm.mock.calls[1]?.[0]);
+  expect(document.body.textContent).toContain("Created Decision: Start trial");
 });

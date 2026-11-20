@@ -10,6 +10,11 @@ import { client, orpc } from "@/utils/orpc";
 
 const SAVE_DELAY_MS = 600;
 
+interface Pending {
+  moodboardId: string;
+  view: PersonalMoodboardView;
+}
+
 /**
  * The signed-in user's personal viewport and view-local collapse for one
  * Moodboard. Saving never invalidates the Moodboard query: it is not content,
@@ -22,10 +27,16 @@ export function usePersonalMoodboardView(moodboardId: string) {
   });
   const query = useQuery(options);
   const save = useMutation({
+    meta: { onlineWrite: true, retryInSurface: true },
     mutationKey: orpc.saveMoodboardPersonalView.mutationKey(),
-    mutationFn: (view: PersonalMoodboardView) =>
-      client.saveMoodboardPersonalView({ moodboardId, view }),
-    onSuccess: (saved) => queryClient.setQueryData(options.queryKey, saved),
+    mutationFn: (pending: Pending) => client.saveMoodboardPersonalView(pending),
+    onSuccess: (saved, { moodboardId: target }) =>
+      queryClient.setQueryData(
+        orpc.moodboardPersonalView.queryOptions({
+          input: { moodboardId: target },
+        }).queryKey,
+        saved,
+      ),
   });
   const { mutate } = save;
   const mutateRef = useRef(mutate);
@@ -33,19 +44,20 @@ export function usePersonalMoodboardView(moodboardId: string) {
   // The last view wins; leaving the canvas flushes it instead of dropping it.
   const debouncer = useMemo(
     () =>
-      new LiteDebouncer(
-        (view: PersonalMoodboardView) => mutateRef.current(view),
-        { wait: SAVE_DELAY_MS },
-      ),
+      new LiteDebouncer((pending: Pending) => mutateRef.current(pending), {
+        wait: SAVE_DELAY_MS,
+      }),
     [],
   );
   const schedule = useCallback(
-    (view: PersonalMoodboardView) => debouncer.maybeExecute(view),
-    [debouncer],
+    (view: PersonalMoodboardView) =>
+      debouncer.maybeExecute({ moodboardId, view }),
+    [debouncer, moodboardId],
   );
 
   // Leaving the canvas keeps the last position.
-  useEffect(() => () => debouncer.flush(), [debouncer]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: A new Moodboard also flushes the old view.
+  useEffect(() => () => debouncer.flush(), [debouncer, moodboardId]);
 
   return {
     isReady: query.isSuccess || query.isError,

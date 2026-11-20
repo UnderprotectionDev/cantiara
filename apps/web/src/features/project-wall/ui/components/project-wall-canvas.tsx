@@ -171,8 +171,8 @@ function Canvas({
   });
   const selected = useMemo(() => new Set(selection), [selection]);
   const [preview, setPreview] = useState<AutoLayoutPreview | null>(null);
-  // Positions the founder just committed; shown until the wall reloads.
-  const [optimistic, setOptimistic] = useState<
+  // Transient keyboard/pointer geometry while React renders the cache update.
+  const [draftPositions, setDraftPositions] = useState<
     ReadonlyMap<string, ProjectWallPosition>
   >(new Map());
   const [applied, setApplied] = useState<AutoLayoutPreview | null>(null);
@@ -262,18 +262,16 @@ function Canvas({
   }, [collapsedIds.length, fitNow, onExpandAll]);
 
   // --- Nodes and edges -----------------------------------------------------------
-  // Layout reads what the founder currently sees: the optimistic positions of
-  // moves that have not been reloaded yet come before the saved wall ones, so
-  // nudging, aligning and layout never resurrect a pre-drag position.
+  // Layout uses the current gesture positions until Query publishes the write.
   const layoutCards = useMemo<LayoutCard[]>(
     () =>
       cards.map(({ groupId, id, locked, position }) => ({
         groupId,
         id,
         locked,
-        position: optimistic.get(id) ?? position,
+        position: draftPositions.get(id) ?? position,
       })),
-    [cards, optimistic],
+    [cards, draftPositions],
   );
   const previewPositions = useMemo(
     () =>
@@ -285,27 +283,6 @@ function Canvas({
       ),
     [preview],
   );
-  // The reloaded wall carries committed positions itself: each card's overlay
-  // drops as soon as its saved position equals it. A failed save is reverted
-  // by the move commit instead of waiting for a refetch that never changes.
-  useEffect(() => {
-    setOptimistic((current) => {
-      if (current.size === 0) {
-        return current;
-      }
-      const savedPositions = new Map(
-        cards.map((card) => [card.id, card.position]),
-      );
-      const next = new Map(current);
-      for (const [id, position] of current) {
-        const known = savedPositions.get(id);
-        if (!known || (known.x === position.x && known.y === position.y)) {
-          next.delete(id);
-        }
-      }
-      return next.size === current.size ? current : next;
-    });
-  }, [cards]);
   const modelNodes = useMemo<WallNode[]>(
     () =>
       cards.map((card, index) => ({
@@ -323,7 +300,7 @@ function Canvas({
         id: card.id,
         position:
           previewPositions.get(card.id) ??
-          optimistic.get(card.id) ??
+          draftPositions.get(card.id) ??
           card.position,
         selected: selected.has(card.id),
         type: "card",
@@ -334,7 +311,7 @@ function Canvas({
       cards,
       groups,
       hiddenCards,
-      optimistic,
+      draftPositions,
       previewPositions,
       scene.reducedDetail,
       selected,
@@ -405,28 +382,30 @@ function Canvas({
       if (moves.length === 0) {
         return;
       }
-      // Any write supersedes the coalesced keyboard nudges.
+      // Preserve queued keyboard moves for cards outside this gesture.
+      const pending = new Map(queued.current);
+      for (const { cardId, position } of moves) {
+        pending.set(cardId, position);
+      }
       queued.current.clear();
       queueDebouncer.cancel();
-      const attempt = Promise.resolve(onMoveRef.current(moves));
-      attempt
-        .then((succeeded) => {
-          if (succeeded !== false) {
-            // Success is confirmed by the reloaded wall carrying the committed
-            // positions; the overlay drop matches it position by position.
-            return;
-          }
-          // A failed save keeps the saved positions: drop this move's overlay.
-          const reverted = new Set(moves.map(({ cardId }) => cardId));
-          setOptimistic((current) => {
+      const committed = [...pending].map(([cardId, position]) => ({
+        cardId,
+        position,
+      }));
+      Promise.resolve(onMoveRef.current(committed))
+        .catch(() => undefined)
+        .finally(() =>
+          setDraftPositions((current) => {
             const next = new Map(current);
-            for (const id of reverted) {
-              next.delete(id);
+            for (const [cardId, position] of pending) {
+              if (next.get(cardId) === position) {
+                next.delete(cardId);
+              }
             }
-            return next;
-          });
-        })
-        .catch(() => undefined);
+            return next.size === current.size ? current : next;
+          }),
+        );
     },
     [queueDebouncer],
   );
@@ -445,7 +424,7 @@ function Canvas({
       if (moves.length === 0) {
         return;
       }
-      setOptimistic((current) => {
+      setDraftPositions((current) => {
         const next = new Map(current);
         for (const move of moves) {
           next.set(move.cardId, move.position);
@@ -464,7 +443,7 @@ function Canvas({
       if (moves.length === 0) {
         return;
       }
-      setOptimistic((current) => {
+      setDraftPositions((current) => {
         const next = new Map(current);
         for (const move of moves) {
           next.set(move.cardId, move.position);

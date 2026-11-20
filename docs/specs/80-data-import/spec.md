@@ -49,6 +49,7 @@ Kurucu tekil Markdown'ı Proje veya Wiki Belgesi; Cantiara sürümlü Belge JSON
 ## Testing Decisions
 
 - **Apply retry and refresh evidence (#544).** The Import view test replays the same key after a dropped connection, shows the returned receipt, and verifies that a Risk import refreshes the affected Project list.
+- **Current preview and receipt evidence (#544).** The Import view test changes two row exclusions while the earlier preview is outstanding. Only the latest exact preview enables Apply Import, even when an earlier response arrives later. The view tests also observe pre-barrier Cancel and reopen a durable receipt by its stored key.
 - **What a good test is.** Tests observe Standard Import through preview (no rows in primary stores) then Apply (all-or-nothing, same idempotency key returns receipt, different payload conflicts, deleted id gets a new id, unknown schema writes nothing). They do not assert staging blob internals except "primary unchanged during preview".
 - **Seam (one).** Standard Import. Test-report validator is a counterpart adapter: a `test-report/1` payload is rejected here or handed to 54 without Work writes. Backup restore is not callable. Playwright for **import önizleme ve commit** is this seam through the UI.
 - **Modules under test.** Standard Import only. Selected Export (79) is the happy-path producer, not this suite except as fixture bytes. Workspace Exit Package restore is absent.

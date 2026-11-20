@@ -69,8 +69,6 @@ export function useRecordActionRunner(projectId: string) {
     ...runtimeWorksQueryOptions,
     enabled: needsRuntimeRelationInput,
   });
-  const [isPreparingUndo, setIsPreparingUndo] = useState(false);
-  const [undoPreparationError, setUndoPreparationError] = useState<unknown>();
 
   // A committed run or its undo can change Work status, Daily Focus
   // membership, custom field values and related Works in one write; refresh
@@ -162,24 +160,34 @@ export function useRecordActionRunner(projectId: string) {
       await refreshWork(command.workId, run);
     },
   });
+  const prepareUndo = useMutation({
+    meta: { presentsSupportFailure: true },
+    mutationFn: (workId: string) => fetchCurrentWork(queryClient, workId),
+  });
+  const isPreparingUndo = prepareUndo.isPending;
   const preview = previewMutation.data ?? null;
   const applyResult = applyMutation.data ?? null;
   const undoReceipt = undoMutation.data ?? null;
   const failure =
-    undoPreparationError ??
+    prepareUndo.error ??
     undoMutation.error ??
     applyMutation.error ??
     previewMutation.error;
   const error = failure ? mutationErrorMessage(failure) : null;
 
   function resetRun() {
-    setUndoPreparationError(undefined);
+    prepareUndo.reset();
     previewMutation.reset();
     applyMutation.reset();
     undoMutation.reset();
   }
   function start(action: RecordAction, work: WorkProfile) {
-    if (connection === "offline" || work.archivedAt !== null) {
+    if (
+      connection === "offline" ||
+      work.archivedAt !== null ||
+      isPreparingUndo ||
+      undoMutation.isPending
+    ) {
       return;
     }
     setActive({ action, work });
@@ -195,7 +203,13 @@ export function useRecordActionRunner(projectId: string) {
   }
 
   function previewWithInputs(runtimeInputs: RecordActionRuntimeInputs) {
-    if (!active || connection === "offline" || previewMutation.isPending) {
+    if (
+      !active ||
+      connection === "offline" ||
+      previewMutation.isPending ||
+      isPreparingUndo ||
+      undoMutation.isPending
+    ) {
       return;
     }
     resetRun();
@@ -207,7 +221,12 @@ export function useRecordActionRunner(projectId: string) {
   }
 
   function changeInputs() {
-    if (previewMutation.isPending || applyMutation.isPending) {
+    if (
+      previewMutation.isPending ||
+      applyMutation.isPending ||
+      isPreparingUndo ||
+      undoMutation.isPending
+    ) {
       return;
     }
     resetRun();
@@ -253,37 +272,35 @@ export function useRecordActionRunner(projectId: string) {
     ) {
       return;
     }
-    setUndoPreparationError(undefined);
+    prepareUndo.reset();
     if (undoMutation.isError) {
       undoMutation.mutate(undoMutation.variables);
       return;
     }
 
-    setIsPreparingUndo(true);
-    try {
-      const currentWork = await fetchCurrentWork(queryClient, active.work.id);
-      const command: UndoRecordActionInput = {
-        baseRevision: currentWork.revision,
-        clientIdempotencyKey: crypto.randomUUID(),
-        receiptId: applyResult.receipt.id,
-        workId: active.work.id,
-      };
-      undoMutation.mutate({
-        command,
-        run: preview && {
-          focusDate: preview.focusDate,
-          runtimeInputs: preview.runtimeInputs,
-        },
-      });
-    } catch (mutationError) {
-      setUndoPreparationError(mutationError);
-    } finally {
-      setIsPreparingUndo(false);
+    const currentWork = await prepareUndo
+      .mutateAsync(active.work.id)
+      .catch(() => undefined);
+    if (!currentWork) {
+      return;
     }
+    const command: UndoRecordActionInput = {
+      baseRevision: currentWork.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      receiptId: applyResult.receipt.id,
+      workId: active.work.id,
+    };
+    undoMutation.mutate({
+      command,
+      run: preview && {
+        focusDate: preview.focusDate,
+        runtimeInputs: preview.runtimeInputs,
+      },
+    });
   }
 
   function close() {
-    if (applyMutation.isPending || undoMutation.isPending) {
+    if (applyMutation.isPending || undoMutation.isPending || isPreparingUndo) {
       return;
     }
     setActive(null);

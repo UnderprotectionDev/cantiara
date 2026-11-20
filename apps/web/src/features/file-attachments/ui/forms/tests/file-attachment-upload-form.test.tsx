@@ -9,19 +9,6 @@ const hoisted = vi.hoisted(() => ({ upload: vi.fn() }));
 vi.mock("../../../lib/file-attachment-upload", () => ({
   uploadFileAttachment: hoisted.upload,
 }));
-vi.mock(
-  "@/features/web-macos-client/store/client-shell",
-  async (importActual) => {
-    const actual =
-      await importActual<
-        typeof import("@/features/web-macos-client/store/client-shell")
-      >();
-    return {
-      ...actual,
-      runOnlineOnlyWrite: (write: () => Promise<unknown>) => write(),
-    };
-  },
-);
 
 import { FileAttachmentUploadControl } from "../file-attachment-upload-form";
 
@@ -91,7 +78,9 @@ test("Upload submits the chosen file through the form", async () => {
 
 test("a failed upload shows the error and keeps the chosen file", async () => {
   hoisted.upload.mockReset();
-  hoisted.upload.mockRejectedValue(new Error("Storage is full."));
+  hoisted.upload
+    .mockRejectedValueOnce(new Error("Storage is full."))
+    .mockResolvedValueOnce({});
   const { host, root } = await mountUpload();
   const file = new File(["png"], "photo.png", { type: "image/png" });
   const input = host.querySelector<HTMLInputElement>('input[type="file"]');
@@ -110,5 +99,47 @@ test("a failed upload shows the error and keeps the chosen file", async () => {
     "Storage is full.",
   );
   expect(host.textContent).toContain("photo.png");
+  await submit(host);
+  expect(hoisted.upload).toHaveBeenCalledTimes(2);
+  expect(hoisted.upload.mock.calls[1]?.[2].createIdempotencyKey()).toBe(
+    hoisted.upload.mock.calls[0]?.[2].createIdempotencyKey(),
+  );
+  expect(host.querySelector('[role="alert"]')).toBeNull();
   await act(async () => root.unmount());
+});
+
+test("the upload is cancellable while staging and disables Cancel at Finalizing", async () => {
+  hoisted.upload.mockReset();
+  const result = Promise.withResolvers();
+  hoisted.upload.mockReturnValue(result.promise);
+  const { host, root } = await mountUpload();
+  const file = new File(["png"], "photo.png", { type: "image/png" });
+  const input = host.querySelector<HTMLInputElement>('input[type="file"]');
+  await act(async () => {
+    Object.defineProperty(input, "files", {
+      configurable: true,
+      value: [file],
+    });
+    input?.dispatchEvent(new Event("change", { bubbles: true }));
+    await settle();
+  });
+  await submit(host);
+  const button = (label: string) =>
+    [...host.querySelectorAll("button")].find(
+      (candidate) => candidate.textContent === label,
+    );
+  expect(button("Uploading")).toBeDefined();
+  expect(button("Cancel")).toBeDefined();
+
+  await act(async () => {
+    await hoisted.upload.mock.calls[0]?.[3].onFinalizeStart();
+  });
+  expect(button("Finalizing")).toBeDefined();
+  expect(button("Cancel")).toBeUndefined();
+  await act(async () => {
+    result.resolve({});
+    await settle();
+  });
+  await act(async () => root.unmount());
+  host.remove();
 });

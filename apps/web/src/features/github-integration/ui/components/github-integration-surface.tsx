@@ -1,7 +1,7 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the Project.
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouteContext } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 import { executeWrite } from "@/utils/execute-write";
@@ -57,16 +57,6 @@ export default function GitHubIntegrationSurface({
     input: { projectId, query: "" },
   });
   const records = useQuery({ ...recordsOptions, enabled: overview.isSuccess });
-  const { mutateAsync: startInstall } = useMutation({
-    mutationKey: orpc.startGitHubAppInstall.mutationKey(),
-    meta: { onlineWrite: true, privateInput: true },
-    mutationFn: async (targetProjectId: string) => {
-      const { installUrl } = await client.startGitHubAppInstall({
-        projectId: targetProjectId,
-      });
-      window.location.assign(installUrl);
-    },
-  });
   const refreshGitHub = useCallback(
     () =>
       Promise.all(
@@ -118,9 +108,7 @@ export default function GitHubIntegrationSurface({
           },
         ),
       onDismissSignal: (signalId) =>
-        write(() =>
-          client.dismissGitHubAttentionSignal({ projectId, signalId }),
-        ),
+        client.dismissGitHubAttentionSignal({ projectId, signalId }),
       onLinkWork: (values) =>
         write(() =>
           client.linkGitHubWork({
@@ -138,8 +126,7 @@ export default function GitHubIntegrationSurface({
           gcTime: 0,
           staleTime: 0,
         }),
-      onUnlink: (linkId) =>
-        write(() => client.unlinkGitHubWork({ linkId, projectId })),
+      onUnlink: (linkId) => client.unlinkGitHubWork({ linkId, projectId }),
     }),
     [projectId, queryClient, refreshGitHub, write],
   );
@@ -154,20 +141,23 @@ export default function GitHubIntegrationSurface({
           : client.previewGitHubReconnect({ linkId, projectId }),
       loadTriage: (linkId) => client.gitHubTriagePreview({ linkId, projectId }),
       onDisconnect: (linkId) =>
-        write(() => client.disconnectGitHubRepository({ linkId, projectId })),
+        client.disconnectGitHubRepository({ linkId, projectId }),
       onLink: (values) =>
         write(() => client.linkGitHubRepository({ ...values, projectId })),
       onReconnect: (linkId) =>
-        write(() => client.reconnectGitHubRepository({ linkId, projectId })),
+        client.reconnectGitHubRepository({ linkId, projectId }),
       onSearch: async (query) =>
         (await client.searchGitHubRecords({ projectId, query })).records,
-      onSkipTriage: (linkId) =>
-        write(() => client.skipGitHubTriage({ linkId, projectId })),
-      onSyncNow: (linkId) =>
-        write(() => client.syncGitHubNow({ linkId, projectId })),
-      onStartInstall: () => startInstall(projectId),
+      onSkipTriage: (linkId) => client.skipGitHubTriage({ linkId, projectId }),
+      onSyncNow: (linkId) => client.syncGitHubNow({ linkId, projectId }),
+      onStartInstall: async () => {
+        const { installUrl } = await client.startGitHubAppInstall({
+          projectId,
+        });
+        window.location.assign(installUrl);
+      },
     }),
-    [projectId, startInstall, write],
+    [projectId, write],
   );
 
   if (overview.status === "pending") {
@@ -188,7 +178,9 @@ export default function GitHubIntegrationSurface({
       <GitHubIntegrationView
         actions={actions}
         formattingPreferences={formattingPreferences}
+        onCommandSuccess={refreshGitHub}
         overview={overview.data}
+        projectId={projectId}
       />
       {prContext.data && overview.data.links.length > 0 ? (
         <GitHubPrContextCards data={prContext.data} projectId={projectId} />
@@ -200,6 +192,7 @@ export default function GitHubIntegrationSurface({
         <GitHubWorkLinksPanel
           actions={linkActions}
           data={workLinks.data}
+          onCommandSuccess={refreshGitHub}
           records={records.data?.records ?? []}
           repositories={overview.data.links.map((link) => ({
             id: link.id,

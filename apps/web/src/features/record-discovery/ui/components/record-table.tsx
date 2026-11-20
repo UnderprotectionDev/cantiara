@@ -36,8 +36,10 @@ import {
 } from "@tanstack/react-table";
 import {
   type ChangeEvent,
+  createContext,
   type ReactNode,
   useCallback,
+  useContext,
   useMemo,
   useRef,
   useState,
@@ -49,6 +51,11 @@ import {
   groupRecordIdsByType,
   scopeForProjects,
 } from "@/features/data-export/lib/export-handoff";
+import { commandVariables } from "@/lib/command-variables";
+import type {
+  RecordTableCellTarget,
+  RecordTableCellWrite,
+} from "../../hooks/use-record-table-writes";
 import RecordTablePasteCorrectionForm, {
   recordTablePasteCorrectionFormId,
 } from "../forms/record-table-paste-correction-form";
@@ -116,17 +123,29 @@ interface PasteRowReview {
 }
 
 export interface RecordTableViewProps {
+  cellWrite?: (
+    target: RecordTableCellTarget,
+  ) => RecordTableCellWrite | undefined;
   failed?: boolean;
-  onApplyPaste: (input: RecordTablePasteInput) => Promise<void>;
+  onApplyPaste: (input: RecordTablePasteInput) => Promise<unknown>;
   onProjectChange: (projectId: string) => void;
   onRecordTypeChange: (recordType: RecordTableType) => void;
-  onSaveCell: (input: RecordTableCellUpdateInput) => Promise<void>;
+  onSaveCell: (input: RecordTableCellUpdateInput) => Promise<unknown>;
+  pasteWrite?: {
+    error: Error | null;
+    isPending: boolean;
+    isSuccess: boolean;
+    reset: () => void;
+  };
   pending?: boolean;
   projectId: string;
   projects: RecordTableProject[];
   records: RecordTableRecord[];
   recordType: RecordTableType;
 }
+
+const CellWriteContext =
+  createContext<RecordTableViewProps["cellWrite"]>(undefined);
 
 function recordField(record: RecordTableRecord, field: string): unknown {
   return (record as unknown as Record<string, unknown>)[field];
@@ -505,9 +524,23 @@ function EditableCell({
   record: RecordTableRecord;
   recordType: RecordTableType;
 }) {
+  const cellWrite = useContext(CellWriteContext);
   const currentValue = recordField(record, field);
   const [value, setValue] = useState(displayValue(currentValue));
-  const [error, setError] = useState("");
+  const [validationError, setValidationError] = useState("");
+  const applying = useRef(false);
+  const target = useMemo<RecordTableCellTarget>(
+    () => ({
+      baseRevision: record.revision,
+      field,
+      projectId: record.projectId,
+      recordId: record.id,
+      recordType,
+    }),
+    [field, record.id, record.projectId, record.revision, recordType],
+  );
+  const write = cellWrite?.(target);
+  const error = validationError || write?.error?.message;
   const choices = editableChoices(recordType, field, currentValue);
   const currentChoice = displayValue(currentValue);
   const hasCurrentChoice = choices?.includes(currentChoice) ?? true;
@@ -522,34 +555,39 @@ function EditableCell({
   );
   const save = useCallback(
     async (nextValue = value) => {
-      if (!editable || nextValue === displayValue(currentValue)) {
+      if (
+        !editable ||
+        applying.current ||
+        write?.isPending ||
+        nextValue === displayValue(currentValue)
+      ) {
         return;
       }
+      let parsedValue: RecordTableCellUpdateInput["value"];
       try {
-        const parsedValue = parseRecordTableFieldValue(
-          recordType,
-          field,
-          nextValue,
+        parsedValue = parseRecordTableFieldValue(recordType, field, nextValue);
+      } catch (invalid) {
+        setValidationError(
+          invalid instanceof Error
+            ? invalid.message
+            : "Review this cell's value.",
         );
-        await onSave({
-          baseRevision: record.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          field,
-          projectId: record.projectId,
-          recordId: record.id,
-          recordType,
-          value: parsedValue,
-        });
-        setError("");
-      } catch (saveError) {
-        setError(
-          saveError instanceof Error
-            ? saveError.message
-            : "Could not save this cell.",
-        );
+        return;
+      }
+      setValidationError("");
+      applying.current = true;
+      try {
+        await onSave(
+          commandVariables(
+            { ...target, value: parsedValue },
+            write?.error ? write.variables : undefined,
+          ),
+        ).catch(() => undefined);
+      } finally {
+        applying.current = false;
       }
     },
-    [currentValue, editable, field, onSave, record, recordType, value],
+    [currentValue, editable, field, onSave, recordType, target, value, write],
   );
   const handleBlur = useCallback(() => save(), [save]);
   const handleValueChange = useCallback(
@@ -569,7 +607,7 @@ function EditableCell({
   const commonProps = {
     "aria-label": label,
     className: "min-w-32",
-    disabled: !editable,
+    disabled: !editable || write?.isPending,
     onBlur: handleBlur,
     onChange: handleValueChange,
     value,
@@ -580,7 +618,7 @@ function EditableCell({
       <NativeSelect
         aria-label={label}
         className={commonProps.className}
-        disabled={!(editable && hasCurrentChoice)}
+        disabled={!(editable && hasCurrentChoice) || write?.isPending}
         onChange={handleChoiceChange}
         value={choices.includes(value) ? value : currentChoice}
       >
@@ -774,11 +812,13 @@ function RecordTableGrid({
 }
 
 export function RecordTableView({
+  cellWrite,
   failed = false,
   onApplyPaste,
   onProjectChange,
   onRecordTypeChange,
   onSaveCell,
+  pasteWrite,
   pending = false,
   projectId,
   projects,
@@ -795,9 +835,10 @@ export function RecordTableView({
   const [createRecordIds, setCreateRecordIds] = useState<string[]>([]);
   const [corrections, setCorrections] = useState<Record<string, string>>({});
   const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
-  const [pasteError, setPasteError] = useState("");
-  const [pasteMessage, setPasteMessage] = useState("");
-  const [pastePending, setPastePending] = useState(false);
+  const [pasteValidation, setPasteValidation] = useState("");
+  const pasteError = pasteValidation || pasteWrite?.error?.message;
+  const pastePending = pasteWrite?.isPending ?? false;
+  const resetPasteWrite = pasteWrite?.reset;
   const rows = useMemo(
     () =>
       createPasteReviewRows({
@@ -846,14 +887,14 @@ export function RecordTableView({
       );
       setCorrections({});
       setExcludedRows(new Set());
-      setPasteError(
+      setPasteValidation(
         parsed.headers.length && parsed.rows.length
           ? ""
           : "Paste a header row and at least one data row.",
       );
-      setPasteMessage("");
+      resetPasteWrite?.();
     },
-    [recordType],
+    [recordType, resetPasteWrite],
   );
 
   const correctRow = useCallback(
@@ -902,7 +943,7 @@ export function RecordTableView({
       rows: validRows,
     });
     if (!parsed.success) {
-      setPasteError(
+      setPasteValidation(
         parsed.error.issues[0]?.message ?? "Review the selected rows.",
       );
       return;
@@ -914,8 +955,7 @@ export function RecordTableView({
     const clientIdempotencyKey =
       pasteIdempotencyKeys.current.get(fingerprint) ?? crypto.randomUUID();
     pasteIdempotencyKeys.current.set(fingerprint, clientIdempotencyKey);
-    setPastePending(true);
-    setPasteError("");
+    setPasteValidation("");
     try {
       await onApplyPaste({ ...parsed.data, clientIdempotencyKey });
       pasteIdempotencyKeys.current.delete(fingerprint);
@@ -925,15 +965,8 @@ export function RecordTableView({
       setRawRows([]);
       setRowIds([]);
       setMappings([]);
-      setPasteMessage("Changes applied.");
-    } catch (error) {
-      setPasteError(
-        error instanceof Error
-          ? error.message
-          : "Could not apply these changes.",
-      );
-    } finally {
-      setPastePending(false);
+    } catch {
+      // Query owns the server error; keep the reviewed rows and command.
     }
   }, [onApplyPaste, recordType, rows]);
 
@@ -987,14 +1020,16 @@ export function RecordTableView({
       {failed ? <p role="alert">Table is unavailable.</p> : null}
       {pending ? <p role="status">Loading…</p> : null}
       {failed || pending ? null : (
-        <RecordTableGrid
-          exportProjectIds={
-            projectId ? [projectId] : projects.map((project) => project.id)
-          }
-          onSaveCell={onSaveCell}
-          records={records}
-          recordType={recordType}
-        />
+        <CellWriteContext.Provider value={cellWrite}>
+          <RecordTableGrid
+            exportProjectIds={
+              projectId ? [projectId] : projects.map((project) => project.id)
+            }
+            onSaveCell={onSaveCell}
+            records={records}
+            recordType={recordType}
+          />
+        </CellWriteContext.Provider>
       )}
       <details className="rounded border p-3">
         <summary className="cursor-pointer font-medium">Paste rows</summary>
@@ -1045,7 +1080,7 @@ export function RecordTableView({
             </div>
           ) : null}
           {pasteError ? <p role="alert">{pasteError}</p> : null}
-          {pasteMessage ? <p role="status">{pasteMessage}</p> : null}
+          {pasteWrite?.isSuccess ? <p role="status">Changes applied.</p> : null}
           {pastePending ? <p role="status">Applying changes…</p> : null}
         </div>
       </details>

@@ -1,5 +1,11 @@
 // @vitest-environment happy-dom
+// biome-ignore-all lint/performance/noJsxPropsBind: These test handlers bind mock calls to the mutation.
 import { ORPCError } from "@orpc/client";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useMutation,
+} from "@tanstack/react-query";
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -24,6 +30,7 @@ type Props = ComponentProps<typeof ShareLifecyclePanel>;
 
 function mount(overrides: Partial<Props> = {}) {
   const props: Props = {
+    feedback: null,
     onReopen: vi.fn(async () => undefined),
     onReshare: vi.fn(async () => undefined),
     onRevoke: vi.fn(async () => undefined),
@@ -35,10 +42,58 @@ function mount(overrides: Partial<Props> = {}) {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
+  const client = new QueryClient();
   act(() => {
-    root?.render(<ShareLifecyclePanel {...props} />);
+    root?.render(
+      <QueryClientProvider client={client}>
+        <PanelWithMutation {...props} />
+      </QueryClientProvider>,
+    );
   });
   return props;
+}
+
+function PanelWithMutation(props: Props) {
+  const mutation = useMutation({
+    mutationFn: ({
+      run,
+    }: {
+      action: NonNullable<Props["feedback"]>["action"];
+      expiresAt?: string | null;
+      run: () => Promise<unknown>;
+    }) => run(),
+  });
+  const feedback = mutation.variables
+    ? { ...mutation.variables, status: mutation.status, error: mutation.error }
+    : null;
+  return (
+    <ShareLifecyclePanel
+      {...props}
+      feedback={feedback}
+      onReopen={(expiresAt) =>
+        mutation.mutateAsync({
+          action: "reopen",
+          run: () => props.onReopen(expiresAt),
+        })
+      }
+      onReshare={(expiresAt) =>
+        mutation.mutateAsync({
+          action: "reshare",
+          run: () => props.onReshare(expiresAt),
+        })
+      }
+      onRevoke={() =>
+        mutation.mutateAsync({ action: "revoke", run: props.onRevoke })
+      }
+      onSetExpiry={(expiresAt) =>
+        mutation.mutateAsync({
+          action: "expiry",
+          expiresAt,
+          run: () => props.onSetExpiry(expiresAt),
+        })
+      }
+    />
+  );
 }
 
 const button = (name: string) =>

@@ -178,6 +178,7 @@ function mount(props: Partial<Parameters<typeof TestGapsView>[0]> = {}) {
           onPlanHandoff={vi.fn().mockResolvedValue(undefined)}
           onUnplanCase={vi.fn().mockResolvedValue(undefined)}
           onUnplanHandoff={vi.fn().mockResolvedValue(undefined)}
+          projectId="project-1"
           readOnly={false}
           sessionTests={sessionTestRecords}
           {...props}

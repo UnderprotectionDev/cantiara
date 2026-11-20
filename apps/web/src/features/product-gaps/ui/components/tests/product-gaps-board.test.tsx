@@ -1,3 +1,5 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: The fixture binds actions to its mutation observers.
+
 // @vitest-environment happy-dom
 
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
@@ -5,7 +7,11 @@ import type {
   ProductGapFollowUpPlan,
   ProductGapRecord,
 } from "@cantiara/api/product-gaps";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useMutation,
+} from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
@@ -103,25 +109,64 @@ function mount(props: Partial<Parameters<typeof ProductGapsBoard>[0]> = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  act(() => {
+  type Props = React.ComponentProps<typeof ProductGapsBoard>;
+  function BoardProbe() {
+    const status = useMutation({
+      mutationFn: ({
+        gap,
+        next,
+      }: {
+        gap: ProductGapRecord;
+        next: Parameters<Props["onSetStatus"]>[1];
+      }) => props.onSetStatus?.(gap, next) ?? Promise.resolve(),
+    });
+    const followUp = useMutation({
+      mutationFn: ({
+        gap,
+        plan,
+      }: {
+        gap: ProductGapRecord;
+        plan: Parameters<Props["onConfirmFollowUp"]>[1];
+      }) => props.onConfirmFollowUp?.(gap, plan) ?? Promise.resolve(),
+    });
+    return (
+      <ProductGapsBoard
+        formatDateTime={computeTestDateTime}
+        gaps={[]}
+        loadEscapes={vi.fn().mockResolvedValue([])}
+        loadTargets={loadTargets}
+        onFilterChange={vi.fn()}
+        onPreviewFollowUp={vi.fn().mockResolvedValue(workPlan)}
+        onRecord={vi.fn().mockResolvedValue(undefined)}
+        tools={["Spreadsheet"]}
+        {...props}
+        followUpWrite={{
+          ...followUp,
+          variables: followUp.variables
+            ? {
+                gapId: followUp.variables.gap.id,
+                plan: followUp.variables.plan,
+              }
+            : undefined,
+        }}
+        onConfirmFollowUp={(gap, plan) => followUp.mutateAsync({ gap, plan })}
+        onSetStatus={(gap, next) => status.mutateAsync({ gap, next })}
+        statusWrite={{
+          ...status,
+          variables: status.variables
+            ? { gapId: status.variables.gap.id, status: status.variables.next }
+            : undefined,
+        }}
+      />
+    );
+  }
+  act(() =>
     root?.render(
       <QueryClientProvider client={queryClient}>
-        <ProductGapsBoard
-          formatDateTime={computeTestDateTime}
-          gaps={[]}
-          loadEscapes={vi.fn().mockResolvedValue([])}
-          loadTargets={loadTargets}
-          onConfirmFollowUp={vi.fn().mockResolvedValue(undefined)}
-          onFilterChange={vi.fn()}
-          onPreviewFollowUp={vi.fn().mockResolvedValue(workPlan)}
-          onRecord={vi.fn().mockResolvedValue(undefined)}
-          onSetStatus={vi.fn().mockResolvedValue(undefined)}
-          tools={["Spreadsheet"]}
-          {...props}
-        />
+        <BoardProbe />
       </QueryClientProvider>,
-    );
-  });
+    ),
+  );
 }
 
 function setValue(id: string, value: string) {

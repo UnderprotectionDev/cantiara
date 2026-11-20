@@ -75,6 +75,7 @@ Kurucu kapalı dünya önizlemesini onayladıktan sonra bir Dış yüzey ve Onay
 ## Testing Decisions
 
 - **Issued token boundary (#544).** The Link Sharing surface test uses a real QueryClient to observe Approve scope, Rotate link and Reshare with a new link. A synthetic token reaches the private link display and never reaches mutation variables, results or global cache callbacks. Each operation refreshes its scope preview.
+- **Share write feedback (#544).** The Link Sharing surface test replays a failed Rotate link through the observed Query mutation and verifies that success replaces the refusal while the issued token stays private. The lifecycle panel tests observe the saved expiry, the confirmation before Revoke, and the typed refusal that keeps that confirmation open.
 
 - **RPC refusal evidence (#543).** `link-sharing-rpc.test.ts` covers typed scope, placeholder, state and mutation conflict responses. `apps/server/src/app.test.ts` verifies the safe placeholder count, target identity, expiry refusal and retry delay through HTTP. `share-lifecycle-panel.test.tsx` verifies that a rate-limited `Revoke` shows the refusal and keeps confirmation open. `share-scope-form.test.tsx` and `share-access-panel.test.tsx` verify the visible refusal on approval, rotation, and password removal.
 

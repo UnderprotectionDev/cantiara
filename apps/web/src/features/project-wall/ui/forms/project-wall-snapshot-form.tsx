@@ -3,7 +3,6 @@ import type { ProjectWallView } from "@cantiara/api/project-wall";
 import {
   PROJECT_WALL_SNAPSHOT_LABELS,
   type ProjectWallSnapshotFile,
-  type ProjectWallSnapshotPreview,
 } from "@cantiara/api/project-wall-presentation";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
@@ -12,7 +11,8 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { orpc } from "@/utils/orpc";
 import { snapshotScopeFormSchema } from "../../lib/project-wall-forms";
 import { cardLabel } from "../../lib/project-wall-presentation";
 import type { ProjectWallPresentationActions } from "../components/project-wall-presentation";
@@ -44,29 +44,60 @@ export function ProjectWallSnapshotPanel({
   >;
   wall: ProjectWallView;
 }) {
-  const [preview, setPreview] = useState<ProjectWallSnapshotPreview | null>(
-    null,
-  );
+  const readPreview = useMutation({
+    meta: { retryInSurface: true },
+    mutationFn: (scope: Parameters<typeof actions.onPreviewSnapshot>[0]) =>
+      actions.onPreviewSnapshot(scope),
+    mutationKey: orpc.previewProjectWallSnapshot.mutationKey(),
+  });
+  const exportSnapshot = useMutation({
+    meta: { retryInSurface: true },
+    mutationKey: orpc.exportProjectWallSnapshot.mutationKey(),
+    mutationFn: ({
+      scope,
+      format,
+    }: {
+      scope: Parameters<typeof actions.onExportSnapshot>[0];
+      format: "PDF" | "PNG";
+    }) => actions.onExportSnapshot(scope, format),
+  });
+  const failure = readPreview.error ?? exportSnapshot.error;
+  const preview = readPreview.data;
+  const error =
+    failure instanceof Error
+      ? failure.message
+      : "Snapshot could not be created.";
   const form = useForm({
     defaultValues: { cardIds: [] as string[], groupId: "" },
     // Any scope change invalidates the shown preview.
-    listeners: { onChange: () => setPreview(null) },
-    onSubmit: async ({ value }) => {
+    listeners: {
+      onChange: () => {
+        readPreview.reset();
+        exportSnapshot.reset();
+      },
+    },
+    onSubmit: ({ value }) => {
       const scope = snapshotScopeFormSchema.safeParse(value);
       if (scope.success) {
-        setPreview((await actions.onPreviewSnapshot(scope.data)) ?? null);
+        readPreview.mutate(scope.data);
       }
     },
   });
 
-  async function exportAs(format: "PDF" | "PNG") {
+  function exportAs(format: "PDF" | "PNG") {
     const scope = snapshotScopeFormSchema.safeParse(form.state.values);
-    if (!scope.success) {
-      return;
-    }
-    const files = (await actions.onExportSnapshot(scope.data, format)) ?? [];
-    for (const file of files) {
-      downloadBase64(file);
+    if (scope.success) {
+      readPreview.reset();
+      exportSnapshot.mutate(
+        { scope: scope.data, format },
+        {
+          onSuccess: (files) => {
+            for (const file of files ?? []) {
+              downloadBase64(file);
+            }
+          },
+        },
+      );
     }
   }
 
@@ -147,18 +178,22 @@ export function ProjectWallSnapshotPanel({
       >
         {(hasScope) => (
           <div className="flex gap-2">
-            <Button disabled={!hasScope} type="submit" variant="outline">
+            <Button
+              disabled={!hasScope || readPreview.isPending}
+              type="submit"
+              variant="outline"
+            >
               {PROJECT_WALL_SNAPSHOT_LABELS.preview}
             </Button>
             <Button
-              disabled={!hasScope}
+              disabled={!hasScope || exportSnapshot.isPending}
               onClick={() => exportAs("PNG")}
               type="button"
             >
               {PROJECT_WALL_SNAPSHOT_LABELS.png}
             </Button>
             <Button
-              disabled={!hasScope}
+              disabled={!hasScope || exportSnapshot.isPending}
               onClick={() => exportAs("PDF")}
               type="button"
             >
@@ -167,6 +202,7 @@ export function ProjectWallSnapshotPanel({
           </div>
         )}
       </form.Subscribe>
+      {failure ? <p role="alert">{error}</p> : null}
       {preview ? (
         <section aria-label="Snapshot preview" className="space-y-1">
           <p className="font-medium">{preview.moment}</p>

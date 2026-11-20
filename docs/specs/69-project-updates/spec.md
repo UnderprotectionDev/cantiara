@@ -44,6 +44,8 @@ Kurucu istediği zaman `On Track`, `At Risk` veya `Off Track` işareti, kısa an
 
 ## Testing Decisions
 
+- The Project Updates seam verifies that reminder writes expose their own pending and failure state and refresh the affected Project.
+
 - **What a good test is.** Tests observe Manual Project Updates through its public interface: create with mark/narrative/links, snapshot freeze at save, append-only chronology, in-place rewrite rejected, skip-reminder-creates-nothing, and “product did not emit a live health judgment.” They do not assert snapshot blob internals or Drizzle shapes. Expected values are product rules (three marks, snapshot is historical and immutable, skip ≠ save).
 - **Seam (one).** Manual Project Updates — the product-facing update interface used by the Proje shell and, when a reminder fires, the form opened from the notification. Notification Center is a collaborator, not this module.
 - **Modules under test.** Manual Project Updates only. Overview, closure summary, production incident, and notification registry are counterparts (“not replaced / not minted”).

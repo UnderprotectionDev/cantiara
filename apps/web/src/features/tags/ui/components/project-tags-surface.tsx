@@ -31,12 +31,6 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-interface TagRenameUndo {
-  baseRevision: number;
-  receiptId: string;
-  tagId: string;
-}
-
 function invalidateTagQueries(queryClient: ReturnType<typeof useQueryClient>) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: orpc.tags.key() }),
@@ -114,13 +108,11 @@ export default function ProjectTagsSurface({
     }),
   );
 
-  const [renameUndo, setRenameUndo] = useState<TagRenameUndo>();
   const rename = useMutation(
     orpc.renameTag.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.renameTag(input),
-      onSuccess: async ({ receiptId, tag }) => {
-        setRenameUndo({ baseRevision: tag.revision, receiptId, tagId: tag.id });
+      onSuccess: async () => {
         undoRename.reset();
         await invalidateTagRenameQueries(queryClient);
       },
@@ -132,14 +124,19 @@ export default function ProjectTagsSurface({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.undoTagRename(input),
       onSuccess: async (_result, { receiptId }) => {
-        setRenameUndo((current) =>
-          current?.receiptId === receiptId ? undefined : current,
-        );
+        if (rename.data?.receiptId === receiptId) {
+          rename.reset();
+        }
         await invalidateTagRenameQueries(queryClient);
       },
     }),
   );
 
+  const renameUndo = rename.data && {
+    baseRevision: rename.data.tag.revision,
+    receiptId: rename.data.receiptId,
+    tagId: rename.data.tag.id,
+  };
   const applyError = apply.isError
     ? errorMessage(apply.error, "Tag could not be applied.")
     : null;

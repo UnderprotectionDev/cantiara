@@ -24,41 +24,6 @@ export default function TestGapsSurface({ projectId }: { projectId: string }) {
       onSettled: () => refresh(),
     }),
   );
-  const createTestGapMutation = useMutation(
-    orpc.createTestGap.mutationOptions({
-      meta: { onlineWrite: true },
-      mutationFn: (input) => client.createTestGap(input),
-      onSuccess: () => refresh(),
-    }),
-  );
-  const bindTestGapCaseMutation = useMutation(
-    orpc.bindTestGapCase.mutationOptions({
-      meta: { onlineWrite: true },
-      mutationFn: (input) => client.bindTestGapCase(input),
-      onSettled: () => refresh(),
-    }),
-  );
-  const bindTestGapHandoffMutation = useMutation(
-    orpc.bindTestGapHandoff.mutationOptions({
-      meta: { onlineWrite: true },
-      mutationFn: (input) => client.bindTestGapHandoff(input),
-      onSettled: () => refresh(),
-    }),
-  );
-  const unbindTestGapCaseMutation = useMutation(
-    orpc.unbindTestGapCase.mutationOptions({
-      meta: { onlineWrite: true },
-      mutationFn: (input) => client.unbindTestGapCase(input),
-      onSettled: () => refresh(),
-    }),
-  );
-  const unbindTestGapHandoffMutation = useMutation(
-    orpc.unbindTestGapHandoff.mutationOptions({
-      meta: { onlineWrite: true },
-      mutationFn: (input) => client.unbindTestGapHandoff(input),
-      onSettled: () => refresh(),
-    }),
-  );
   const queryClient = useQueryClient();
   const options = orpc.projectTestGaps.queryOptions({ input: { projectId } });
   const gaps = useQuery(options);
@@ -144,41 +109,44 @@ export default function TestGapsSurface({ projectId }: { projectId: string }) {
         );
       }}
       onCreate={async (values) => {
-        await createTestGapMutation.mutateAsync({
+        await client.createTestGap({
           projectId,
           rationale: values.rationale,
           relations: toRelationInputs(values.relations),
           title: values.title,
         });
       }}
+      onCreateSuccess={refresh}
       onPlanCase={async (gap, ref) => {
-        await bindTestGapCaseMutation.mutateAsync({
+        await client.bindTestGapCase({
           ...ref,
           gapId: gap.id,
           projectId,
         });
       }}
       onPlanHandoff={async (gap, handoffId) => {
-        await bindTestGapHandoffMutation.mutateAsync({
+        await client.bindTestGapHandoff({
           gapId: gap.id,
           handoffId,
           projectId,
         });
       }}
+      onPlanningSuccess={refresh}
       onUnplanCase={async (gap, ref) => {
-        await unbindTestGapCaseMutation.mutateAsync({
+        await client.unbindTestGapCase({
           ...ref,
           gapId: gap.id,
           projectId,
         });
       }}
       onUnplanHandoff={async (gap, handoffId) => {
-        await unbindTestGapHandoffMutation.mutateAsync({
+        await client.unbindTestGapHandoff({
           gapId: gap.id,
           handoffId,
           projectId,
         });
       }}
+      projectId={projectId}
       readOnly={gaps.data.readOnly}
       sessionTests={sessionTests.data.sessionTests}
     />

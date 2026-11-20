@@ -51,6 +51,8 @@ Kurucu Planlı Test Senaryosunu başlık, amaç, kapsam, önkoşul, beklenen dav
 
 ## Testing Decisions
 
+- The Planned Test and Test Handoff seams scope relation and Context target reads to the selected Project and target kind.
+
 - **Write lifecycle evidence (#544).** The web package and transition seams observe the confirmation result, errors and retry state through Query, using the reviewed package version and fingerprint. Repeating an exact confirmation returns the existing package without creating another version. The Planned Tests and Handoff seam checks both exact replay and refusal for a changed fingerprint.
 
 - **What a good test is.** Tests observe Planned Tests and Handoff through the public interface: case versioning, session bind pinned to selected version (historical bind not moved), Handoff states, Markdown/JSON equality for one package version, explicit root package `schema_version`, closed package membership, no runner API, package vs Work external-handoff contract difference. Expected values are the PRD table, not regenerated fixtures from code.

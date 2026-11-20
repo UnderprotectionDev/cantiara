@@ -27,6 +27,7 @@ import {
   clampCoordinate,
   objectContainBox,
 } from "../../lib/file-attachment-markup-geometry";
+import type { LocationBindStatus } from "../forms/file-attachment-location-form";
 import FileAttachmentLocationBinder, {
   type LocationKind,
 } from "../forms/file-attachment-location-form";
@@ -39,10 +40,10 @@ interface Point {
 type SurfaceKind = "image" | "pdf";
 
 interface MarkupLocationProps {
+  disabled?: boolean;
   location: FileAttachmentLocation | null;
   locationKind: LocationKind;
-  onCreateMarking: (input: FileAttachmentMarkingInput) => void | Promise<void>;
-  onMarkingError: () => void;
+  onCreateMarking?: (input: FileAttachmentMarkingInput) => void | Promise<void>;
   onSelectLocation: (location: FileAttachmentLocation) => void;
   selectingLocation: boolean;
 }
@@ -283,7 +284,6 @@ function MarkupSurface({
   locationKind = "point",
   markings,
   onCreateMarking,
-  onMarkingError,
   onSelectLocation,
   page,
   selectingLocation = false,
@@ -297,7 +297,6 @@ function MarkupSurface({
   locationKind?: LocationKind;
   markings: readonly FileAttachmentMarking[];
   onCreateMarking?: (input: FileAttachmentMarkingInput) => void | Promise<void>;
-  onMarkingError?: () => void;
   onSelectLocation?: (location: FileAttachmentLocation) => void;
   page?: number;
   selectingLocation?: boolean;
@@ -456,7 +455,7 @@ function MarkupSurface({
     if (input) {
       Promise.resolve()
         .then(() => onCreateMarking?.(input))
-        .catch(() => onMarkingError?.());
+        .catch(() => undefined);
     }
   }, [
     attachmentId,
@@ -464,7 +463,6 @@ function MarkupSurface({
     draft,
     locationKind,
     onCreateMarking,
-    onMarkingError,
     onSelectLocation,
     page,
     selectingLocation,
@@ -535,13 +533,21 @@ function MarkupSurface({
   );
 }
 
+export interface MarkingFeedback {
+  error?: string;
+  pending: boolean;
+  retry?: () => void;
+}
+
 export function FileAttachmentMarkup({
   alt = "",
   assetURL,
   attachmentId,
+  bindStatus,
   children,
   kind,
   markings = [],
+  markingFeedback,
   onBindLocation,
   onCreateMarking,
   onUndoMarking,
@@ -554,6 +560,7 @@ export function FileAttachmentMarkup({
   alt?: string;
   assetURL: string;
   attachmentId: string;
+  bindStatus?: LocationBindStatus;
   children?:
     | React.ReactNode
     | ((
@@ -561,6 +568,7 @@ export function FileAttachmentMarkup({
         locationProps: MarkupLocationProps,
       ) => React.ReactNode);
   kind: SurfaceKind;
+  markingFeedback?: MarkingFeedback;
   markings?: readonly FileAttachmentMarking[];
   onBindLocation?: (
     input: FileAttachmentLocationBindInput,
@@ -576,7 +584,6 @@ export function FileAttachmentMarkup({
   versionId: string;
 }) {
   const [tool, setTool] = useState<FileAttachmentMarkingTool>("pen");
-  const [markingError, setMarkingError] = useState<string | null>(null);
   const [locationOpen, setLocationOpen] = useState(false);
   const [locationKind, setLocationKind] = useState<LocationKind>("point");
   const initialPage = page ?? (pageCount ? 1 : undefined);
@@ -586,16 +593,6 @@ export function FileAttachmentMarkup({
     x: 0.5,
     y: 0.5,
   }));
-  const handleCreateMarking = useCallback(
-    async (input: FileAttachmentMarkingInput) => {
-      setMarkingError(null);
-      await onCreateMarking?.(input);
-    },
-    [onCreateMarking],
-  );
-  const handleMarkingError = useCallback(() => {
-    setMarkingError(FILE_ATTACHMENT_UI_LABELS.markingSaveFailed);
-  }, []);
   const pageMarkings =
     page === undefined
       ? markings
@@ -614,13 +611,7 @@ export function FileAttachmentMarkup({
     if (!(undoTarget && onUndoMarking)) {
       return;
     }
-    Promise.resolve(onUndoMarking(undoTarget))
-      .then(() => {
-        setMarkingError(null);
-      })
-      .catch(() => {
-        setMarkingError(FILE_ATTACHMENT_UI_LABELS.markingUndoFailed);
-      });
+    Promise.resolve(onUndoMarking(undoTarget)).catch(() => undefined);
   }, [onUndoMarking, undoTarget]);
   const toggleLocation = useCallback(() => {
     setLocationOpen((current) => !current);
@@ -665,8 +656,8 @@ export function FileAttachmentMarkup({
   const markupLocationProps = {
     location: locationOpen ? location : null,
     locationKind,
-    onCreateMarking: handleCreateMarking,
-    onMarkingError: handleMarkingError,
+    disabled: markingFeedback?.pending && !locationOpen,
+    onCreateMarking,
     onSelectLocation: handleLocationSelect,
     selectingLocation: locationOpen,
   } satisfies MarkupLocationProps;
@@ -675,11 +666,11 @@ export function FileAttachmentMarkup({
     surface = (
       <MarkupSurface
         attachmentId={attachmentId}
+        disabled={markupLocationProps.disabled}
         location={locationOpen ? location : null}
         locationKind={locationKind}
         markings={markings}
-        onCreateMarking={handleCreateMarking}
-        onMarkingError={handleMarkingError}
+        onCreateMarking={onCreateMarking}
         onSelectLocation={handleLocationSelect}
         selectingLocation={locationOpen}
         tool={tool}
@@ -722,7 +713,7 @@ export function FileAttachmentMarkup({
           ),
         )}
         <Button
-          disabled={!(undoTarget && onUndoMarking)}
+          disabled={markingFeedback?.pending || !(undoTarget && onUndoMarking)}
           onClick={handleUndo}
           size="xs"
           type="button"
@@ -739,14 +730,27 @@ export function FileAttachmentMarkup({
           {FILE_ATTACHMENT_UI_LABELS.bindAsOrigin}
         </Button>
       </div>
-      {markingError ? (
-        <p className="text-xs text-destructive" role="alert">
-          {markingError}
-        </p>
+      {markingFeedback?.error ? (
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-destructive" role="alert">
+            {markingFeedback.error}
+          </p>
+          {markingFeedback.retry ? (
+            <Button
+              onClick={markingFeedback.retry}
+              size="xs"
+              type="button"
+              variant="outline"
+            >
+              Retry
+            </Button>
+          ) : null}
+        </div>
       ) : null}
       {locationOpen ? (
         <FileAttachmentLocationBinder
           attachmentId={attachmentId}
+          bindStatus={bindStatus}
           location={location}
           locationKind={locationKind}
           onBind={onBindLocation}

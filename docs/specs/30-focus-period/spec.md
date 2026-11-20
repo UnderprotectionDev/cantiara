@@ -50,6 +50,8 @@ Odak Dönemi farklı Projelerden İşleri isteğe bağlı 1–8 haftalık ortak 
 
 ## Testing Decisions
 
+- The Focus Period seam verifies that the current mutation reports server failures and preserves the defined membership conflict message.
+
 - **RPC refusal evidence (#543).** `focus-period-rpc.test.ts` covers both codes and Account scope. `apps/server/src/app.test.ts` covers both typed membership refusals and the generic fallback through the HTTP Support Reference envelope. `focus-period.e2e.ts` verifies that `Add Work` on overlapping `Planned` periods shows the membership refusal and leaves the second period without that Work.
 
 - **What a good test is.** Tests observe Focus Period through its public interface: 1–8 week create, membership without status write, one-active-period rule, explicit `Move` with the source period's removed Work visible in close comparison, membership added at the start instant and removed before close remaining in `addedLater` and `removed`, closed membership followed by new active membership, close snapshots vs live Work, leftover bulk decision, rollover counterpart, read-only Dependencies, and empty membership copy `No Work in this Focus Period.`. They do not assert snapshot-table internals. Expected values are product rules (one active period; historical memberships and snapshots remain; no auto rollover).

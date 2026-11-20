@@ -6,10 +6,12 @@ import { linkedSourceLabelFormSchema } from "../../lib/screen-forms";
 
 /** `Source label` of a linked block; submitting previews the change to every Screen that uses it. */
 export function LinkedSourceLabelForm({
+  disabled,
   initialLabel,
   onEdit,
   onPreview,
 }: {
+  disabled?: boolean;
   initialLabel: string;
   /** Any edit makes a shown preview stale. */
   onEdit: () => void;
@@ -41,13 +43,14 @@ export function LinkedSourceLabelForm({
         {(field) => (
           <Input
             className="w-48"
+            disabled={disabled}
             id="linked-source-label"
             onChange={(event) => field.handleChange(event.target.value)}
             value={field.state.value}
           />
         )}
       </form.Field>
-      <Button size="sm" type="submit" variant="outline">
+      <Button disabled={disabled} size="sm" type="submit" variant="outline">
         Preview Change
       </Button>
     </form>

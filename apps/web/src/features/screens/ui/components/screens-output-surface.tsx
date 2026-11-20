@@ -2,7 +2,11 @@
 
 import type { ScreenRecord } from "@cantiara/api/screens";
 import fontDataUri from "@fontsource/shantell-sans/files/shantell-sans-latin-400-normal.woff2?inline";
-import { type QueryClient, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useState } from "react";
 import { orpc } from "@/utils/orpc";
 import type { ChosenVersion, ExportFormat } from "../../lib/screens-output";
@@ -67,29 +71,28 @@ export default function ScreensOutputSurface({
   screens: ScreenRecord[];
 }) {
   const queryClient = useQueryClient();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
-  const [presenting, setPresenting] = useState<{
-    snapshots: WireframeSnapshot[];
-    startScreenId: string;
-  } | null>(null);
-
-  async function run(
-    chosen: ChosenVersion[],
-    action: (s: WireframeSnapshot[]) => Promise<void> | void,
-  ) {
-    setBusy(true);
-    setError(undefined);
-    try {
-      await action(
-        await loadSnapshots(queryClient, projectId, screens, chosen),
+  const [presenting, setPresenting] = useState(false);
+  const output = useMutation({
+    meta: { retryInSurface: true },
+    mutationFn: async (
+      request: { chosen: ChosenVersion[] } & (
+        | { format: ExportFormat }
+        | { startScreenId: string }
+      ),
+    ) => {
+      const snapshots = await loadSnapshots(
+        queryClient,
+        projectId,
+        screens,
+        request.chosen,
       );
-    } catch {
-      setError("Wireframe versions could not be read. Try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
+      if ("format" in request) {
+        await exportAs(request.format, snapshots);
+        return null;
+      }
+      return { snapshots, startScreenId: request.startScreenId };
+    },
+  });
 
   async function exportAs(
     format: ExportFormat,
@@ -132,24 +135,27 @@ export default function ScreensOutputSurface({
   return (
     <>
       <ScreensOutputPanel
-        busy={busy}
-        error={error}
-        onExport={(format, chosen) =>
-          run(chosen, (snapshots) => exportAs(format, snapshots))
+        busy={output.isPending}
+        error={
+          output.isError
+            ? "Wireframe versions could not be read. Try again."
+            : undefined
         }
+        onExport={(format, chosen) => output.mutate({ chosen, format })}
         onPresent={(chosen, startScreenId) =>
-          run(chosen, (snapshots) =>
-            setPresenting({ snapshots, startScreenId }),
+          output.mutate(
+            { chosen, startScreenId },
+            { onSuccess: () => setPresenting(true) },
           )
         }
         screens={screens}
       />
-      {presenting ? (
+      {presenting && output.data ? (
         <PresentationMode
           fontDataUri={fontDataUri}
-          onExit={() => setPresenting(null)}
-          snapshots={presenting.snapshots}
-          startScreenId={presenting.startScreenId}
+          onExit={() => setPresenting(false)}
+          snapshots={output.data.snapshots}
+          startScreenId={output.data.startScreenId}
         />
       ) : null}
     </>

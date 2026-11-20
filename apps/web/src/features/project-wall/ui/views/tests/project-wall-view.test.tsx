@@ -5,17 +5,40 @@ import type {
   ProjectWallSourceOption,
   ProjectWallSummary,
 } from "@cantiara/api/project-wall";
-import { act } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { ProjectWallCard } from "../../components/project-wall-card";
-import { ProjectWallNarrativePanel } from "../../components/project-wall-narrative";
+import { ProjectWallNarrativePanel as ProjectWallNarrativePanelUnderTest } from "../../components/project-wall-narrative";
 import type { ProjectWallSceneWall } from "../../components/project-wall-scene";
 import {
   type ProjectWallActions,
-  ProjectWallLayout,
+  ProjectWallLayout as ProjectWallLayoutUnderTest,
 } from "../project-wall-view";
+
+const cache = new QueryClient();
+
+function ProjectWallLayout(
+  props: ComponentProps<typeof ProjectWallLayoutUnderTest>,
+) {
+  return (
+    <QueryClientProvider client={cache}>
+      <ProjectWallLayoutUnderTest {...props} />
+    </QueryClientProvider>
+  );
+}
+
+function ProjectWallNarrativePanel(
+  props: ComponentProps<typeof ProjectWallNarrativePanelUnderTest>,
+) {
+  return (
+    <QueryClientProvider client={cache}>
+      <ProjectWallNarrativePanelUnderTest {...props} />
+    </QueryClientProvider>
+  );
+}
 
 vi.mock("@/components/app-link", () => ({
   AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
@@ -412,9 +435,10 @@ describe("Project Wall: Visual links, groups and Lock Position", () => {
       <ProjectWallNarrativePanel actions={handlers} wall={linkedWall()} />,
     );
 
-    await act(async () =>
-      buttonNamed(container, "Create Persistent Relation")?.click(),
-    );
+    await act(async () => {
+      buttonNamed(container, "Create Persistent Relation")?.click();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
     expect(handlers.onPreviewRelation).toHaveBeenCalledWith({
       kind: "Related",
       linkId: "link-1",
@@ -424,9 +448,10 @@ describe("Project Wall: Visual links, groups and Lock Position", () => {
       container.querySelector('[aria-label="Persistent relation preview"]'),
     ).not.toBeNull();
 
-    await act(async () =>
-      buttonNamed(container, "Confirm Create Persistent Relation")?.click(),
-    );
+    await act(async () => {
+      buttonNamed(container, "Confirm Create Persistent Relation")?.click();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
     expect(handlers.onCreateRelation).toHaveBeenCalledWith({
       baseRevision: 0,
       kind: "Related",
@@ -435,16 +460,55 @@ describe("Project Wall: Visual links, groups and Lock Position", () => {
     });
   });
 
+  test("a failed confirmation keeps the reviewed relation available for another attempt", async () => {
+    const handlers = actions();
+    handlers.onPreviewRelation = vi.fn(async () => PREVIEW);
+    const confirm = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    handlers.onCreateRelation = confirm;
+    const container = mount(
+      <ProjectWallNarrativePanel actions={handlers} wall={linkedWall()} />,
+    );
+
+    await act(async () => {
+      buttonNamed(container, "Create Persistent Relation")?.click();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    await act(async () => {
+      buttonNamed(container, "Confirm Create Persistent Relation")?.click();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(
+      container.querySelector('[aria-label="Persistent relation preview"]'),
+    ).not.toBeNull();
+
+    await act(async () => {
+      buttonNamed(container, "Confirm Create Persistent Relation")?.click();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(confirm.mock.calls[0]).toEqual(confirm.mock.calls[1]);
+    expect(
+      container.querySelector('[aria-label="Persistent relation preview"]'),
+    ).toBeNull();
+  });
+
   test("cancelling the preview writes nothing", async () => {
     const handlers = actions();
     handlers.onPreviewRelation = vi.fn(async () => PREVIEW);
     const container = mount(
       <ProjectWallNarrativePanel actions={handlers} wall={linkedWall()} />,
     );
-    await act(async () =>
-      buttonNamed(container, "Create Persistent Relation")?.click(),
-    );
-    act(() => buttonNamed(container, "Cancel")?.click());
+    await act(async () => {
+      buttonNamed(container, "Create Persistent Relation")?.click();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    await act(async () => {
+      buttonNamed(container, "Cancel")?.click();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
     expect(handlers.onCreateRelation).not.toHaveBeenCalled();
     expect(
       container.querySelector('[aria-label="Persistent relation preview"]'),
@@ -786,9 +850,9 @@ describe("Project Wall Snapshot panel", () => {
         candidate.textContent === "Preview" &&
         !candidate.hasAttribute("aria-pressed"),
     );
-    await act(() => {
+    await act(async () => {
       preview?.click();
-      return Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 20));
     });
     expect(handlers.onPreviewSnapshot).toHaveBeenCalledWith({
       cardIds: ["card-1"],

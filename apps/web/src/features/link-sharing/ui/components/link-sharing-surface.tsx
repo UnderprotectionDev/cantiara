@@ -33,7 +33,6 @@ export default function LinkSharingSurface({
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
   const [issued, setIssued] = useState<IssuedShareLink | null>(null);
   const approve = useApproveShareScope(setIssued);
-  const [notice, setNotice] = useState<string | null>(null);
   const root = rootOf(selectedKey, roots.data ?? []);
   const preview = useQuery({
     ...orpc.previewShareScope.queryOptions({
@@ -42,12 +41,12 @@ export default function LinkSharingSurface({
     enabled: root !== null,
   });
   const surfaceId = preview.data?.surface?.surfaceId;
-  const access = useShareAccess(root, surfaceId, setIssued, () => {
-    setIssued(null);
-    setNotice(
-      "Link revoked. It can never be used again; approving the scope again makes a new link.",
-    );
-  });
+  const access = useShareAccess(root, surfaceId, setIssued, () =>
+    setIssued(null),
+  );
+  const revoked =
+    access.lifecycleFeedback?.action === "revoke" &&
+    access.lifecycleFeedback.status === "success";
 
   if (roots.status === "pending") {
     return <p role="status">Loading Share…</p>;
@@ -76,16 +75,22 @@ export default function LinkSharingSurface({
         onRemovePassword: () => access.setPassword(null),
         onRotate: access.rotateToken,
         onSavePassword: (password) => access.setPassword(password),
+        rotation: access.rotationFeedback,
         serverUrl: env.VITE_SERVER_URL,
       }}
       formatting={preferences.data ?? DEFAULT_ACCOUNT_PREFERENCES}
       lifecycle={{
+        feedback: access.lifecycleFeedback,
         onReopen: (expiresAt) => access.reopen(expiresAt),
         onReshare: access.reshare,
         onRevoke: access.revoke,
         onSetExpiry: (expiresAt) => access.setExpiry(expiresAt),
       }}
-      notice={notice}
+      notice={
+        revoked
+          ? "Link revoked. It can never be used again; approving the scope again makes a new link."
+          : null
+      }
       onApprove={async (values) => {
         if (!(root && preview.data)) {
           throw new Error("No scope to approve");
@@ -99,7 +104,7 @@ export default function LinkSharingSurface({
         });
       }}
       onSelectRoot={(key) => {
-        setNotice(null);
+        access.resetFeedback();
         setSelectedKey(key);
       }}
       preview={preview.data}

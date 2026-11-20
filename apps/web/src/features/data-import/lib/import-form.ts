@@ -103,13 +103,3 @@ export function applyBlockedReason(preview: ImportPreview) {
   }
   return null;
 }
-
-/** The excluded row numbers after one row is dropped or taken back. */
-export function toggleExcludedRow(
-  excluded: readonly number[],
-  rowNumber: number,
-) {
-  return excluded.includes(rowNumber)
-    ? excluded.filter((row) => row !== rowNumber)
-    : [...excluded, rowNumber].sort((a, b) => a - b);
-}

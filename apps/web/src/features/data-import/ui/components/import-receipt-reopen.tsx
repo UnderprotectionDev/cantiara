@@ -4,8 +4,8 @@ import {
   type ImportReceipt,
 } from "@cantiara/api/data-import";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
-import { importErrorText, lastApplyKey } from "../../lib/import-form";
+import { useReopenImportReceipt } from "../../hooks/use-reopen-import-receipt";
+import { importErrorText } from "../../lib/import-form";
 import { ImportReceiptPanel } from "./import-receipt";
 
 /**
@@ -14,55 +14,36 @@ import { ImportReceiptPanel } from "./import-receipt";
  */
 export function ImportReceiptReopen({
   onReopen,
+  receiptKey,
 }: {
   onReopen: (idempotencyKey: string) => Promise<ImportReceipt>;
+  receiptKey: string | null;
 }) {
-  const [key] = useState(() => lastApplyKey() ?? undefined);
-  const [state, setState] = useState<
-    | { kind: "idle" }
-    | { kind: "reopening" }
-    | { kind: "done"; receipt: ImportReceipt }
-    | { error: string; kind: "failed" }
-  >({ kind: "idle" });
+  const receipt = useReopenImportReceipt(receiptKey, onReopen);
 
-  if (key === undefined) {
+  if (receiptKey === null) {
     return null;
   }
-
-  const reopen = async () => {
-    setState({ kind: "reopening" });
-    try {
-      const receipt = await onReopen(key);
-      setState({ kind: "done", receipt });
-    } catch (caught) {
-      setState({
-        error: importErrorText(caught),
-        kind: "failed",
-      });
-    }
-  };
 
   return (
     <section
       aria-label={`${IMPORT_RECEIPT_LABEL} reopen`}
       className="space-y-3 rounded-lg border border-border/70 p-5"
     >
-      {state.kind === "failed" ? (
+      {receipt.isError ? (
         <p className="text-sm text-destructive" role="alert">
-          {state.error}
+          {importErrorText(receipt.error)}
         </p>
       ) : null}
-      {state.kind === "done" ? (
-        <ImportReceiptPanel receipt={state.receipt} reopened />
+      {receipt.data ? (
+        <ImportReceiptPanel receipt={receipt.data} reopened />
       ) : (
         <Button
-          disabled={state.kind === "reopening"}
-          onClick={reopen}
+          disabled={receipt.isFetching}
+          onClick={() => receipt.refetch().catch(() => undefined)}
           type="button"
         >
-          {state.kind === "reopening"
-            ? "Reading the receipt…"
-            : "Reopen receipt"}
+          {receipt.isFetching ? "Reading the receipt…" : "Reopen receipt"}
         </Button>
       )}
     </section>

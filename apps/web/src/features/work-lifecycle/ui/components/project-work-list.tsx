@@ -8,7 +8,6 @@ import type {
 } from "@cantiara/api/project-shell";
 import {
   WORK_TYPE_OPTIONS,
-  type WorkMergeResult,
   type WorkProfile,
   type WorkType,
 } from "@cantiara/api/work-lifecycle";
@@ -62,15 +61,14 @@ import WorkChecklistEditor from "@/features/work-checklists/ui/components/work-c
 import WorkContextCard from "@/features/work-context/ui/components/work-context-card";
 import WorkDuplicateAction from "@/features/work-templates/ui/components/work-duplicate-action";
 import { commandVariables } from "@/lib/command-variables";
-import { fetchCurrentWork } from "@/lib/fetch-current-work";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
 import {
   client,
   completionEffectsPreferencesQueryOptions,
   invalidateSmartCollectionMembership,
   orpc,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
+import { useWorkMergeUndo } from "../../hooks/use-work-merge-undo";
 import WorkMergeForm from "../forms/work-merge-form";
 import WorkRecreateForm from "../forms/work-recreate-form";
 
@@ -96,10 +94,6 @@ export default function ProjectWorkList({
   const [showArchived, setShowArchived] = useState(false);
   const bulkWorkSelection = useBulkWorkSelection();
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
-  const [lastMergeResult, setLastMergeResult] =
-    useState<WorkMergeResult | null>(null);
-  const [mergeUndoError, setMergeUndoError] = useState<string | null>(null);
-  const queryClient = useQueryClient();
   const connection = useClientShellConnection();
   const query = useQuery(
     orpc.projectWorks.queryOptions({
@@ -166,67 +160,8 @@ export default function ProjectWorkList({
     }),
   );
   const priorityMetricValues = usePriorityMetricProjectValues(projectId);
-  const undoMerge = useMutation(
-    orpc.undoWorkMerge.mutationOptions({
-      meta: { onlineWrite: true },
-      mutationFn: (input) => client.undoWorkMerge(input),
-      onError: (error) => {
-        setMergeUndoError(
-          mutationErrorMessage(error, "Work merge could not be undone."),
-        );
-      },
-      onSuccess: async () => {
-        setMergeUndoError(null);
-        setLastMergeResult(null);
-        await Promise.all([
-          queryClient.invalidateQueries({
-            queryKey: projectWorksQueryPrefix,
-          }),
-          queryClient.invalidateQueries({
-            queryKey: orpc.projectWorks.queryOptions({
-              input: { archived: false, projectId },
-            }).queryKey,
-          }),
-          queryClient.invalidateQueries({
-            queryKey: orpc.projectWorks.queryOptions({
-              input: { archived: true, projectId },
-            }).queryKey,
-          }),
-        ]);
-      },
-    }),
-  );
-  const preparingUndo = useRef(false);
-  async function confirmUndoMerge() {
-    if (!lastMergeResult || undoMerge.isPending || preparingUndo.current) {
-      return;
-    }
-    preparingUndo.current = true;
-    try {
-      const failed = undoMerge.isError ? undoMerge.variables : undefined;
-      if (failed?.mergeId === lastMergeResult.mergeId) {
-        await undoMerge.mutateAsync(failed);
-      } else {
-        const work = await fetchCurrentWork(
-          queryClient,
-          lastMergeResult.work.id,
-        );
-        await undoMerge.mutateAsync(
-          commandVariables({
-            baseRevision: work.revision,
-            mergeId: lastMergeResult.mergeId,
-            survivingWorkId: work.id,
-          }),
-        );
-      }
-    } catch (error) {
-      setMergeUndoError(
-        mutationErrorMessage(error, "Work merge could not be undone."),
-      );
-    } finally {
-      preparingUndo.current = false;
-    }
-  }
+  const { confirmUndoMerge, lastMergeResult, mergeUndoError, undoPending } =
+    useWorkMergeUndo(projectId);
 
   if (query.status === "pending" || allProjectWorksQuery.isPending) {
     return <p className="mt-2 text-sm text-muted-foreground">Loading Work…</p>;
@@ -282,7 +217,7 @@ export default function ProjectWorkList({
             {lastMergeResult.work.key}
           </p>
           <Button
-            disabled={undoMerge.isPending}
+            disabled={undoPending}
             onClick={confirmUndoMerge}
             size="xs"
             type="button"
@@ -292,7 +227,10 @@ export default function ProjectWorkList({
           </Button>
           {mergeUndoError ? (
             <p className="text-xs text-destructive" role="alert">
-              {mergeUndoError}
+              {mutationErrorMessage(
+                mergeUndoError,
+                "Work merge could not be undone.",
+              )}
             </p>
           ) : null}
         </div>
@@ -438,7 +376,6 @@ export default function ProjectWorkList({
                     candidates={query.data.filter(
                       (candidate) => candidate.id !== work.id,
                     )}
-                    onMerged={setLastMergeResult}
                     work={work}
                   />
                   <WorkRecreateForm work={work} />

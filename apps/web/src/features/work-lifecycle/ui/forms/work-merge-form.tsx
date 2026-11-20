@@ -5,7 +5,6 @@ import {
   type WorkMergeField,
   type WorkMergePreviewInput,
   type WorkMergeResolution,
-  type WorkMergeResult,
   type WorkProfile,
   workMergePreviewInputSchema,
 } from "@cantiara/api/work-lifecycle";
@@ -50,11 +49,9 @@ function isMergeFieldResolution(value: string): value is WorkMergeResolution {
 
 export default function WorkMergeForm({
   candidates,
-  onMerged,
   work,
 }: {
   candidates: WorkProfile[];
-  onMerged?: (result: WorkMergeResult) => void;
   work: WorkProfile;
 }) {
   const activeConfirmation = useRef<string | undefined>(undefined);
@@ -79,7 +76,6 @@ export default function WorkMergeForm({
           ),
           ...invalidateSmartCollectionMembership(queryClient),
         ]);
-        onMerged?.(result);
         if (activeConfirmation.current === clientIdempotencyKey) {
           reset();
         }

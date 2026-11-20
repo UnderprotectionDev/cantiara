@@ -12,7 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { orpc } from "@/utils/orpc";
 
 /** Read-only account of the move a rebind would make; the Origin Location never changes. */
 export function RebindPreview({ plan }: { plan: UserFlowRebindPlan }) {
@@ -51,41 +53,43 @@ export function RebindDialog({
   onClose,
   onConfirm,
   onPreview,
+  projectId,
+  flowId,
+  write,
 }: {
   bind: UserFlowBindView;
   onClose: () => void;
   onConfirm: (plan: UserFlowRebindPlan) => Promise<unknown>;
   onPreview: () => Promise<UserFlowRebindPlan>;
+  projectId: string;
+  flowId: string;
+  write?: { error: unknown; isPending: boolean; isSuccess: boolean };
 }) {
-  const [plan, setPlan] = useState<UserFlowRebindPlan | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-
+  const preview = useQuery({
+    ...orpc.previewUserFlowRebind.queryOptions({
+      input: { bindId: bind.id, userFlowId: flowId, projectId },
+    }),
+    gcTime: 0,
+    queryFn: onPreview,
+    staleTime: 0,
+  });
+  const plan = preview.data;
+  const pending = Boolean(write?.isPending);
+  let error: string | undefined;
+  if (preview.isError) {
+    error = "The preview could not be loaded. Reload.";
+  } else if (write?.error) {
+    error = "The bind could not be moved. If it changed, preview again.";
+  }
+  const completed = write?.isSuccess;
   useEffect(() => {
-    let active = true;
-    onPreview()
-      .then((next) => active && setPlan(next))
-      .catch(
-        () => active && setError("The preview could not be loaded. Reload."),
-      );
-    return () => {
-      active = false;
-    };
-  }, [onPreview]);
-
-  async function confirm() {
-    if (!plan || pending) {
-      return;
-    }
-    setPending(true);
-    setError(null);
-    try {
-      await onConfirm(plan);
+    if (completed) {
       onClose();
-    } catch {
-      setError("The bind could not be moved. If it changed, preview again.");
-    } finally {
-      setPending(false);
+    }
+  }, [completed, onClose]);
+  function confirm() {
+    if (plan && !pending) {
+      onConfirm(plan).catch(() => undefined);
     }
   }
   return (

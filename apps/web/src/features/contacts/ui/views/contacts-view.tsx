@@ -39,6 +39,45 @@ export function undoFailureMessage(previewUnavailable: boolean) {
     : "Merge could not be undone. The Undo Merge Preview was refreshed; review it and confirm again.";
 }
 
+function latestContactError(
+  writes: { isError: boolean; message: string | null; submittedAt: number }[],
+) {
+  const [latest] = writes.toSorted(
+    (left, right) => right.submittedAt - left.submittedAt,
+  );
+  return latest?.isError ? latest.message : null;
+}
+
+async function contactWriteSucceeded<T>(write: Promise<T>) {
+  try {
+    await write;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function writeWithPreviewRefresh<T, R>(
+  result: Promise<T>,
+  refreshPreview: () => Promise<R>,
+) {
+  try {
+    await result;
+  } catch {
+    await refreshPreview();
+  }
+}
+
+function selectedContact(
+  contacts: Contact[] | undefined,
+  selectedId: string | null,
+  openedId?: string,
+) {
+  return (
+    contacts?.find(({ id }) => id === (selectedId ?? openedId)) ?? contacts?.[0]
+  );
+}
+
 export default function ContactsView({ contactId }: { contactId?: string }) {
   const queryClient = useQueryClient();
   const contacts = useQuery(orpc.contacts.queryOptions());
@@ -51,11 +90,12 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     enabled: contactId !== undefined,
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const selected =
-    contacts.data?.find(
-      (contact) => contact.id === (selectedId ?? opened.data?.contact.id),
-    ) ?? contacts.data?.[0];
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const selected = selectedContact(
+    contacts.data,
+    selectedId,
+    opened.data?.contact.id,
+  );
 
   const refresh = () =>
     Promise.all([
@@ -115,7 +155,6 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     },
   });
   const [undoRetiredId, setUndoRetiredId] = useState<string | null>(null);
-  const [undoNotice, setUndoNotice] = useState<string | null>(null);
   const undoPreview = useQuery({
     ...orpc.contactMergeUndoPreview.queryOptions({
       input: { retiredId: undoRetiredId ?? "" },
@@ -130,7 +169,6 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
       client.undoMerge(input),
     onSuccess: async (result) => {
       setUndoRetiredId(null);
-      setUndoNotice(undoResultNotice(result));
       setSelectedId(result.restored.id);
       await Promise.all([
         refresh(),
@@ -150,48 +188,70 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     onSuccess: refresh,
   });
 
+  const undoNotice = undoResultNotice(undoMerge.data);
+  const error =
+    validationError ??
+    latestContactError([
+      { ...updateContact, message: "Contact could not be saved." },
+      { ...createContact, message: "Contact could not be created." },
+      { ...createCompany, message: "Company could not be created." },
+      { ...setCompany, message: "Belongs to Company could not be updated." },
+      {
+        ...mergeContacts,
+        message:
+          "Contacts could not be merged. The Merge Preview was refreshed; review it and confirm again.",
+      },
+      { ...undoMerge, message: undoFailureMessage(undoPreview.isError) },
+    ]);
+
   async function submitContactUpdate(input: ParsedUpdateContactInput) {
-    setError(null);
-    try {
-      await updateContact.mutateAsync(input);
-    } catch {
-      setError("Contact could not be saved.");
-    }
+    setValidationError(null);
+    await updateContact.mutateAsync(input).catch(() => undefined);
   }
 
-  async function submitContactCreate(input: ParsedCreateContactInput) {
-    setError(null);
-    try {
-      await createContact.mutateAsync(input);
-      return true;
-    } catch {
-      setError("Contact could not be created.");
-      return false;
-    }
+  function submitContactCreate(input: ParsedCreateContactInput) {
+    setValidationError(null);
+    return contactWriteSucceeded(createContact.mutateAsync(input));
   }
 
-  async function submitCompanyCreate(input: ParsedCreateCompanyInput) {
-    setError(null);
-    try {
-      await createCompany.mutateAsync(input);
-      return true;
-    } catch {
-      setError("Company could not be created.");
-      return false;
-    }
+  function submitCompanyCreate(input: ParsedCreateCompanyInput) {
+    setValidationError(null);
+    return contactWriteSucceeded(createCompany.mutateAsync(input));
   }
 
   async function changeCompany(contact: Contact, companyId: string) {
-    setError(null);
-    try {
-      await setCompany.mutateAsync({
+    setValidationError(null);
+    await setCompany
+      .mutateAsync({
         companyId: companyId === NO_COMPANY ? null : companyId,
         contactId: contact.id,
         expectedRevision: contact.revision,
-      });
-    } catch {
-      setError("Belongs to Company could not be updated.");
+      })
+      .catch(() => undefined);
+  }
+
+  function confirmMerge() {
+    if (!(mergePair && mergePreview.data)) {
+      return Promise.resolve();
     }
+    setValidationError(null);
+    return writeWithPreviewRefresh(
+      mergeContacts.mutateAsync(
+        mergeContactsRequest(mergePair, mergePreview.data),
+      ),
+      mergePreview.refetch,
+    );
+  }
+
+  function confirmUndo(resolution: Parameters<typeof undoMergeRequest>[1]) {
+    if (!undoPreview.data) {
+      return Promise.resolve();
+    }
+    setValidationError(null);
+    return writeWithPreviewRefresh(
+      undoMerge.mutateAsync(undoMergeRequest(undoPreview.data, resolution)),
+      undoPreview.refetch,
+    );
   }
 
   return (
@@ -216,14 +276,14 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
           <CreateContactForm
             companies={companies.data}
             onCreate={submitContactCreate}
-            onInvalid={setError}
+            onInvalid={setValidationError}
           />
         </section>
         <section aria-label="Create Company" className="space-y-4">
           <h2 className="text-xl font-semibold">Create Company</h2>
           <CreateCompanyForm
             onCreate={submitCompanyCreate}
-            onInvalid={setError}
+            onInvalid={setValidationError}
           />
         </section>
       </div>
@@ -267,19 +327,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
       {mergePair && mergePreview.data ? (
         <MergePreviewPanel
           onCancel={() => setMergePair(null)}
-          onConfirm={async () => {
-            setError(null);
-            try {
-              await mergeContacts.mutateAsync(
-                mergeContactsRequest(mergePair, mergePreview.data),
-              );
-            } catch {
-              setError(
-                "Contacts could not be merged. The Merge Preview was refreshed; review it and confirm again.",
-              );
-              await mergePreview.refetch();
-            }
-          }}
+          onConfirm={confirmMerge}
           pending={mergeContacts.isPending}
           preview={mergePreview.data}
         />
@@ -288,17 +336,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
         <MergeUndoPanel
           key={undoPreview.data.mergeId}
           onCancel={() => setUndoRetiredId(null)}
-          onConfirm={async (resolution) => {
-            setError(null);
-            try {
-              await undoMerge.mutateAsync(
-                undoMergeRequest(undoPreview.data, resolution),
-              );
-            } catch {
-              const refreshed = await undoPreview.refetch();
-              setError(undoFailureMessage(refreshed.isError));
-            }
-          }}
+          onConfirm={confirmUndo}
           pending={undoMerge.isPending}
           preview={undoPreview.data}
         />
@@ -320,7 +358,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
           <button
             className="rounded-md border px-2 py-1"
             onClick={() => {
-              setUndoNotice(null);
+              undoMerge.reset();
               setUndoRetiredId(opened.data.redirectedFrom);
             }}
             type="button"
@@ -334,7 +372,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
           companies={companies.data ?? []}
           contact={selected}
           onCompanyChange={changeCompany}
-          onInvalid={setError}
+          onInvalid={setValidationError}
           onUpdate={submitContactUpdate}
         />
       ) : null}

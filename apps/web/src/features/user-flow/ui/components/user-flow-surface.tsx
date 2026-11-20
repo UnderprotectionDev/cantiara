@@ -43,6 +43,12 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
       },
     }),
   );
+  const saveViewportMutation = useMutation(
+    orpc.saveUserFlowViewport.mutationOptions({
+      meta: { onlineWrite: true, retryInSurface: true },
+      mutationFn: (input) => client.saveUserFlowViewport(input),
+    }),
+  );
   const saveUserFlowVersionMutation = useMutation(
     orpc.saveUserFlowVersion.mutationOptions({
       meta: { onlineWrite: true },
@@ -192,13 +198,11 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
       return;
     }
     queryClient.setQueryData(viewportOptions.queryKey, next);
-    client
-      .saveUserFlowViewport({
-        projectId,
-        userFlowId: flow.data.id,
-        viewport: next,
-      })
-      .catch(() => undefined);
+    saveViewportMutation.mutate({
+      projectId,
+      userFlowId: flow.data.id,
+      viewport: next,
+    });
   }
   async function placeNode(draft: PlaceNodeDraft) {
     if (!flow.data) {
@@ -218,6 +222,24 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
     ? {
         binds: binds.data ?? [],
         cardRecords: cardRecords.data ?? [],
+        convertWrite: convertUserFlowNodeMutation.variables
+          ? {
+              nodeId: convertUserFlowNodeMutation.variables.nodeId,
+              error: convertUserFlowNodeMutation.error,
+              isPending: convertUserFlowNodeMutation.isPending,
+              isSuccess: convertUserFlowNodeMutation.isSuccess,
+            }
+          : undefined,
+        rebindWrite: rebindUserFlowBindMutation.variables
+          ? {
+              bindId: rebindUserFlowBindMutation.variables.bindId,
+              error: rebindUserFlowBindMutation.error,
+              isPending: rebindUserFlowBindMutation.isPending,
+              isSuccess: rebindUserFlowBindMutation.isSuccess,
+            }
+          : undefined,
+        resetConvert: convertUserFlowNodeMutation.reset,
+        resetRebind: rebindUserFlowBindMutation.reset,
         onConvertConfirm: async (nodeId, plan, identity) =>
           await convertUserFlowNodeMutation.mutateAsync({
             baseRevision: 0,
@@ -230,12 +252,18 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
             userFlowId: flow.data.id,
           }),
         onConvertPreview: (nodeId, target, workType) =>
-          client.previewUserFlowConvert({
-            nodeId,
-            projectId,
-            target,
-            userFlowId: flow.data.id,
-            workType,
+          queryClient.query({
+            ...orpc.previewUserFlowConvert.queryOptions({
+              input: {
+                nodeId,
+                projectId,
+                target,
+                userFlowId: flow.data.id,
+                workType,
+              },
+            }),
+            gcTime: 0,
+            staleTime: 0,
           }),
         onPlaceCard: async (kind, recordId) => {
           await placeUserFlowCardMutation.mutateAsync({
@@ -334,6 +362,14 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
                 onDirtyChange={setDirty}
                 onSave={saveDocument}
                 onViewportChange={saveViewport}
+                resetSave={saveUserFlowVersionMutation.reset}
+                saveError={
+                  saveUserFlowVersionMutation.variables?.userFlowId ===
+                  flow.data.id
+                    ? saveUserFlowVersionMutation.error
+                    : undefined
+                }
+                saving={saveUserFlowVersionMutation.isPending}
                 screenOptions={screens.data ?? []}
               />
             </Suspense>

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import type { ScreenRecord } from "@cantiara/api/screens";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
@@ -52,7 +53,7 @@ async function submit(form: Element) {
     form.dispatchEvent(
       new Event("submit", { bubbles: true, cancelable: true }),
     );
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 20));
   });
 }
 
@@ -64,18 +65,21 @@ function mount(
   const host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
+  const cache = new QueryClient();
   return {
     host,
     render: (next: typeof props) =>
       act(() => {
         root?.render(
-          <ScreensView
-            onCreate={noop}
-            onSetLifecycle={noop}
-            readOnly={false}
-            screens={[screen]}
-            {...next}
-          />,
+          <QueryClientProvider client={cache}>
+            <ScreensView
+              onCreate={noop}
+              onSetLifecycle={noop}
+              readOnly={false}
+              screens={[screen]}
+              {...next}
+            />
+          </QueryClientProvider>,
         );
       }),
     props,
@@ -105,7 +109,8 @@ test("Save as Template stamps the chosen saved version and Create Screen from Te
     setValue(saveForm?.querySelector("input") as HTMLInputElement, "Hero"),
   );
   await submit(saveForm as Element);
-  expect(save).toHaveBeenCalledWith(screen, 1, "Hero");
+  expect(save).toHaveBeenCalledWith(screen, 1, "Hero", expect.any(String));
+  expect(saveForm?.textContent).toContain("Saved template Hero from v1.");
 
   const createForm = view.host.querySelector(
     'form[aria-label="Create Screen from Template"]',
@@ -132,4 +137,26 @@ test("read-only Projects and Screens without a saved version offer no template c
     templates,
   });
   expect(view.host.textContent).not.toContain("Save as Template");
+});
+
+test("Save as Template retries the same stamp identity after a failure", async () => {
+  const save = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("Connection lost"))
+    .mockResolvedValueOnce(undefined);
+  const view = mount({ templates: { create: noop, save, templates: [] } });
+  await view.render(view.props);
+
+  const form = view.host.querySelector(
+    'form[aria-label="Save as Template"]',
+  ) as HTMLFormElement;
+  await act(async () =>
+    setValue(form.querySelector("input") as HTMLInputElement, "Hero"),
+  );
+  await submit(form);
+  expect(form.textContent).toContain("Template could not be saved.");
+  await submit(form);
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(save.mock.calls[1]).toEqual(save.mock.calls[0]);
+  expect(form.textContent).toContain("Saved template Hero from v2.");
 });

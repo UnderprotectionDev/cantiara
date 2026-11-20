@@ -341,6 +341,7 @@ export const templateNameSchema = z.string().trim().min(1).max(120);
 
 export const saveScreenTemplateInputSchema = z
   .object({
+    clientIdempotencyKey: identifierSchema.optional(),
     name: templateNameSchema,
     projectId: identifierSchema,
     screenId: identifierSchema,
@@ -350,6 +351,7 @@ export const saveScreenTemplateInputSchema = z
 
 export const createScreenFromTemplateInputSchema = z
   .object({
+    clientIdempotencyKey: identifierSchema.optional(),
     projectId: identifierSchema,
     templateId: identifierSchema,
     title: z.string().trim().min(1).max(255),

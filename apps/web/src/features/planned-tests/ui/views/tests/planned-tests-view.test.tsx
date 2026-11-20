@@ -97,6 +97,7 @@ function mount(props: Partial<Parameters<typeof PlannedTestsView>[0]> = {}) {
           loadTargets={loadTargets}
           onCreate={vi.fn().mockResolvedValue(undefined)}
           onCreateVersion={vi.fn().mockResolvedValue(undefined)}
+          projectId="project-1"
           readOnly={false}
           {...props}
         />

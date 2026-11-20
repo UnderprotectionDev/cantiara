@@ -23,6 +23,7 @@ export interface ShareExpiryAction {
 export function ShareExpiryForm({
   actions,
   defaultActionId,
+  disabled = false,
   initial,
   legend,
   onSubmit,
@@ -31,6 +32,7 @@ export function ShareExpiryForm({
   actions: readonly ShareExpiryAction[];
   /** The neutral action Enter submits (`set` expiry); without it Enter is inert. */
   defaultActionId?: string | null;
+  disabled?: boolean;
   initial: string;
   legend: string;
   onSubmit: (actionId: string, expiresAt: string | null) => Promise<unknown>;
@@ -71,7 +73,7 @@ export function ShareExpiryForm({
     // Enter in the date picker is only ever the neutral expiry save. The
     // lateral actions (Reshare with a new link, Reopen the same link) run
     // only from their own buttons, never as a default submit.
-    if (!defaultActionId) {
+    if (disabled || !defaultActionId) {
       return;
     }
     form.handleSubmit({ action: defaultActionId }).catch(() => undefined);
@@ -105,7 +107,7 @@ export function ShareExpiryForm({
           <div className="flex flex-wrap gap-2">
             {actions.map((action) => (
               <Button
-                disabled={isSubmitting}
+                disabled={disabled || isSubmitting}
                 key={action.id}
                 onClick={() => {
                   form

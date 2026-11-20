@@ -39,6 +39,12 @@ import { SaveTemplateForm } from "../forms/save-template-form";
 export interface UserFlowDetailTools {
   binds: UserFlowBindView[];
   cardRecords: CardRecordOption[];
+  convertWrite?: {
+    nodeId: string;
+    error: unknown;
+    isPending: boolean;
+    isSuccess: boolean;
+  };
   onConvertConfirm: (
     nodeId: string,
     plan: UserFlowConvertPlan,
@@ -55,6 +61,14 @@ export interface UserFlowDetailTools {
   onRebind: (bindId: string, plan: UserFlowRebindPlan) => Promise<unknown>;
   onRemoveCard: (cardId: string) => Promise<unknown>;
   onSaveTemplate: (name: string, nodeIds: string[]) => Promise<unknown>;
+  rebindWrite?: {
+    bindId: string;
+    error: unknown;
+    isPending: boolean;
+    isSuccess: boolean;
+  };
+  resetConvert?: () => void;
+  resetRebind?: () => void;
 }
 
 export type { PlaceNodeDraft } from "../../lib/place-node-draft";
@@ -165,7 +179,10 @@ export function UserFlowDetail({
                   <div className="space-y-2 pt-1">
                     <Button
                       disabled={readOnly}
-                      onClick={() => setConverting(node)}
+                      onClick={() => {
+                        tools.resetConvert?.();
+                        setConverting(node);
+                      }}
                       size="sm"
                       type="button"
                       variant="outline"
@@ -193,7 +210,10 @@ export function UserFlowDetail({
         <>
           <BindList
             binds={tools.binds}
-            onRebind={setRebinding}
+            onRebind={(bind) => {
+              tools.resetRebind?.();
+              setRebinding(bind);
+            }}
             readOnly={readOnly}
           />
           <LiveCardList
@@ -230,14 +250,27 @@ export function UserFlowDetail({
           onPreview={(target, workType) =>
             tools.onConvertPreview(converting.id, target, workType)
           }
+          resetWrite={tools.resetConvert}
+          write={
+            tools.convertWrite?.nodeId === converting.id
+              ? tools.convertWrite
+              : undefined
+          }
         />
       ) : null}
       {tools && rebinding ? (
         <RebindDialog
           bind={rebinding}
+          flowId={flow.id}
           onClose={() => setRebinding(null)}
           onConfirm={(plan) => tools.onRebind(rebinding.id, plan)}
           onPreview={previewRebind}
+          projectId={flow.projectId}
+          write={
+            tools.rebindWrite?.bindId === rebinding.id
+              ? tools.rebindWrite
+              : undefined
+          }
         />
       ) : null}
     </section>

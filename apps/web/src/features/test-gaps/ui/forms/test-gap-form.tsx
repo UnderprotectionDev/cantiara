@@ -23,8 +23,9 @@ import {
 } from "@cantiara/ui/components/radio-group";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { type SubmitEvent, useId, useState } from "react";
+import { orpc } from "@/utils/orpc";
 import {
   type CloseFormValues,
   EMPTY_CLOSE_FORM,
@@ -79,26 +80,39 @@ function parseVersion(value: string): CaseVersionRef | null {
  */
 export function GapForm({
   loadTargets,
+  onCreateSuccess,
   onSubmit,
+  projectId,
 }: {
   loadTargets: LoadGapRelationTargets;
+  onCreateSuccess?: () => Promise<unknown>;
   onSubmit: SubmitGap;
+  projectId: string;
 }) {
-  const [error, setError] = useState<string>();
+  const [validationError, setValidationError] = useState<string>();
+  let error = validationError;
+  const create = useMutation({
+    meta: { onlineWrite: true },
+    mutationFn: (value: Parameters<SubmitGap>[0]) => onSubmit(value),
+    onSuccess: onCreateSuccess,
+  });
+  if (!error && create.error) {
+    error = errorText(create.error, `${TEST_GAP_LABEL} was not saved.`);
+  }
   const form = useForm({
     defaultValues: EMPTY_GAP_FORM,
     onSubmit: async ({ value, formApi }) => {
-      setError(undefined);
+      setValidationError(undefined);
       const parsed = parseGapForm(value);
       if (!parsed.ok) {
-        setError(parsed.message);
+        setValidationError(parsed.message);
         return;
       }
       try {
-        await onSubmit(value);
+        await create.mutateAsync(value);
         formApi.reset(EMPTY_GAP_FORM);
-      } catch (caught) {
-        setError(errorText(caught, `${TEST_GAP_LABEL} was not saved.`));
+      } catch {
+        // The create observer presents write failures.
       }
     },
   });
@@ -160,6 +174,7 @@ export function GapForm({
                   idPrefix="test-gap-new"
                   loadTargets={loadTargets}
                   onChange={field.handleChange}
+                  projectId={projectId}
                   value={field.state.value}
                 />
               )}
@@ -179,10 +194,19 @@ export function GapForm({
  * plans the Gap, which lifts `Open` to at most `Planned`; closing a Gap is a
  * separate, explicit founder decision and nothing here offers it.
  */
+type PlanCommand =
+  | { kind: "plan-case" | "unplan-case"; ref: CaseVersionRef; title?: string }
+  | {
+      kind: "plan-handoff" | "unplan-handoff";
+      handoffId: string;
+      title?: string;
+    };
+
 export function PlanningControls({
   cases,
   handoffs,
   onPlanCase,
+  onPlanningSuccess,
   onPlanHandoff,
   onUnplanCase,
   onUnplanHandoff,
@@ -192,6 +216,7 @@ export function PlanningControls({
   cases: PlannedTestCaseRecord[];
   handoffs: TestHandoffRecord[];
   onPlanCase: PlanWithCase;
+  onPlanningSuccess?: () => Promise<unknown>;
   onPlanHandoff: PlanWithHandoff;
   onUnplanCase: PlanWithCase;
   onUnplanHandoff: PlanWithHandoff;
@@ -199,18 +224,31 @@ export function PlanningControls({
   record: TestGapRecord;
 }) {
   const id = useId();
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState<string>();
-  async function run(action: () => Promise<unknown>, done: string) {
-    setError(undefined);
-    setMessage("");
-    try {
-      await action();
-      setMessage(done);
-    } catch (caught) {
-      setError(errorText(caught, `${TEST_GAP_LABEL} was not updated.`));
-    }
-  }
+  const write = useMutation({
+    meta: { onlineWrite: true },
+    mutationFn: async (command: PlanCommand) => {
+      switch (command.kind) {
+        case "plan-case":
+          await onPlanCase(record, command.ref);
+          return "Linked to the Planned Test Case version.";
+        case "plan-handoff":
+          await onPlanHandoff(record, command.handoffId);
+          return "Linked to the Test Handoff.";
+        case "unplan-case":
+          await onUnplanCase(record, command.ref);
+          return `Link to ${command.title} removed.`;
+        case "unplan-handoff":
+          await onUnplanHandoff(record, command.handoffId);
+          return `Link to ${command.title} removed.`;
+        default:
+          throw new Error("Unknown Test Gap planning command.");
+      }
+    },
+    onSettled: onPlanningSuccess,
+  });
+  const error = write.isError
+    ? errorText(write.error, `${TEST_GAP_LABEL} was not updated.`)
+    : undefined;
   const versionForm = useForm({
     defaultValues: { version: "" },
     onSubmit: async ({ value }) => {
@@ -219,10 +257,9 @@ export function PlanningControls({
       if (!(parsed.ok && ref)) {
         return;
       }
-      await run(
-        () => onPlanCase(record, ref),
-        "Linked to the Planned Test Case version.",
-      );
+      await write
+        .mutateAsync({ kind: "plan-case", ref })
+        .catch(() => undefined);
     },
   });
   const handoffForm = useForm({
@@ -232,10 +269,9 @@ export function PlanningControls({
       if (!parsed.ok) {
         return;
       }
-      await run(
-        () => onPlanHandoff(record, value.handoffId),
-        "Linked to the Test Handoff.",
-      );
+      await write
+        .mutateAsync({ kind: "plan-handoff", handoffId: value.handoffId })
+        .catch(() => undefined);
     },
   });
   function submitForm(form: { handleSubmit: () => Promise<void> }) {
@@ -260,15 +296,13 @@ export function PlanningControls({
               {readOnly ? null : (
                 <Button
                   aria-label={`Remove link to Planned Test Case ${bind.title}, version ${bind.version}`}
+                  disabled={write.isPending}
                   onClick={() =>
-                    run(
-                      () =>
-                        onUnplanCase(record, {
-                          caseId: bind.caseId,
-                          version: bind.version,
-                        }),
-                      `Link to ${bind.title} removed.`,
-                    )
+                    write.mutate({
+                      kind: "unplan-case",
+                      ref: { caseId: bind.caseId, version: bind.version },
+                      title: bind.title,
+                    })
                   }
                   size="sm"
                   type="button"
@@ -288,11 +322,13 @@ export function PlanningControls({
               {readOnly ? null : (
                 <Button
                   aria-label={`Remove link to Test Handoff ${bind.title}`}
+                  disabled={write.isPending}
                   onClick={() =>
-                    run(
-                      () => onUnplanHandoff(record, bind.handoffId),
-                      `Link to ${bind.title} removed.`,
-                    )
+                    write.mutate({
+                      kind: "unplan-handoff",
+                      handoffId: bind.handoffId,
+                      title: bind.title,
+                    })
                   }
                   size="sm"
                   type="button"
@@ -386,7 +422,7 @@ export function PlanningControls({
             <handoffForm.Subscribe selector={(state) => state.values.handoffId}>
               {(handoffId) => (
                 <Button
-                  disabled={!handoffId}
+                  disabled={!handoffId || write.isPending}
                   size="sm"
                   type="submit"
                   variant="outline"
@@ -404,7 +440,7 @@ export function PlanningControls({
         </p>
       ) : null}
       <p aria-live="polite" className="text-muted-foreground" role="status">
-        {message}
+        {write.data}
       </p>
     </div>
   );
@@ -450,7 +486,9 @@ export function CloseForm({
   const { data: decisions = [] } = useQuery({
     enabled: open,
     queryFn: loadDecisions,
-    queryKey: ["test-gap-decision-targets", record.id],
+    queryKey: orpc.testGapDecisionTargets.queryKey({
+      input: { projectId: record.projectId },
+    }),
   });
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();

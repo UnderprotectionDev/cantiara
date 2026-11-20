@@ -1,12 +1,25 @@
 // @vitest-environment happy-dom
-import { act } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, type ComponentProps } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, test, vi } from "vitest";
-import { ProjectWallNarrativePanel } from "../project-wall-narrative";
+import { ProjectWallNarrativePanel as ProjectWallNarrativePanelUnderTest } from "../project-wall-narrative";
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
+
+const cache = new QueryClient();
+
+function ProjectWallNarrativePanel(
+  props: ComponentProps<typeof ProjectWallNarrativePanelUnderTest>,
+) {
+  return (
+    <QueryClientProvider client={cache}>
+      <ProjectWallNarrativePanelUnderTest {...props} />
+    </QueryClientProvider>
+  );
+}
 
 test("Create Persistent Relation previews the chosen kind through the form submit", async () => {
   const onPreviewRelation = vi.fn().mockResolvedValue(undefined);

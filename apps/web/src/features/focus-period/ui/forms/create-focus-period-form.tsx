@@ -38,7 +38,7 @@ export function CreateFocusPeriodForm({
         await onCreate(parsed.data);
         form.reset();
       } catch {
-        onError("Focus Period could not be created.");
+        // The create mutation owns the server error.
       }
     },
   });

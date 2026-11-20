@@ -154,9 +154,14 @@ export function useMoodboards(projectId: string) {
 
   // Snapshot reads never change the Moodboard, so they do not invalidate it.
   const snapshotPreview = useMutation({
+    meta: { retryInSurface: true },
     mutationKey: orpc.moodboardSnapshotPreview.mutationKey(),
     mutationFn: (input: { itemIds: string[]; moodboardId: string }) =>
-      client.moodboardSnapshotPreview(input),
+      queryClient.query({
+        ...orpc.moodboardSnapshotPreview.queryOptions({ input }),
+        gcTime: 0,
+        staleTime: 0,
+      }),
   });
 
   const exportSnapshot = useMutation({

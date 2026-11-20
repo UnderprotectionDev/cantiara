@@ -116,7 +116,13 @@ export function ProductionIncidentSurface({
   const base = { incidentId, projectId };
   const actions: ProductionIncidentActions = {
     onPreview: (values) =>
-      client.previewProductionIncidentFollowUp({ ...base, ...values }),
+      queryClient.query({
+        ...orpc.previewProductionIncidentFollowUp.queryOptions({
+          input: { ...base, ...values },
+        }),
+        gcTime: 0,
+        staleTime: 0,
+      }),
     onCreate: (values, preview, identity) =>
       client.createProductionIncidentFollowUp({
         ...base,

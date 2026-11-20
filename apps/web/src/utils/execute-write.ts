@@ -1,4 +1,4 @@
-import type { QueryClient } from "@tanstack/react-query";
+import type { MutationKey, QueryClient } from "@tanstack/react-query";
 
 /** Runs an imperative write under the same Query policy as a form mutation. */
 export function executeWrite<T, Variables>(
@@ -10,10 +10,16 @@ export function executeWrite<T, Variables>(
     error: unknown,
     variables: Variables,
   ) => Promise<unknown>,
-  meta?: { presentsSupportFailure?: boolean; retryInSurface?: boolean },
+  meta?: {
+    presentsSupportFailure?: boolean;
+    retryInSurface?: boolean;
+    mutationKey?: MutationKey;
+  },
 ) {
+  const { mutationKey, ...writeMeta } = meta ?? {};
   const options = queryClient.defaultMutationOptions({
-    meta: { ...meta, onlineWrite: true },
+    meta: { ...writeMeta, onlineWrite: true },
+    mutationKey,
     mutationFn: write,
     onSettled,
     networkMode: "always",

@@ -90,7 +90,14 @@ export function useExternalExecutionHandoffs(
   const previewReconcile = useMutation({
     mutationKey: orpc.previewExternalExecutionHandoffReconcile.mutationKey(),
     mutationFn: (input: PreviewExternalExecutionHandoffReconcileInput) =>
-      client.previewExternalExecutionHandoffReconcile(input),
+      queryClient.query({
+        ...orpc.previewExternalExecutionHandoffReconcile.queryOptions({
+          input,
+        }),
+        gcTime: 0,
+        staleTime: 0,
+      }),
+    meta: { presentsSupportFailure: true },
   });
 
   const confirmReconcile = useMutation({

@@ -12,7 +12,12 @@ test("Preview submits the chosen items through the Snapshot form", async () => {
   const preview = vi.fn();
   const api = {
     exportSnapshot: { isError: false, isPending: false, mutate: vi.fn() },
-    snapshotPreview: { isError: false, isPending: false, mutate: preview },
+    snapshotPreview: {
+      isError: false,
+      isPending: false,
+      mutate: preview,
+      reset: vi.fn(),
+    },
   };
   const moodboard = {
     id: "m1",
@@ -44,10 +49,7 @@ test("Preview submits the chosen items through the Snapshot form", async () => {
     return Promise.resolve();
   });
 
-  expect(preview).toHaveBeenCalledWith(
-    { itemIds: ["i2"], moodboardId: "m1" },
-    expect.any(Object),
-  );
+  expect(preview).toHaveBeenCalledWith({ itemIds: ["i2"], moodboardId: "m1" });
   await act(() => root.unmount());
   host.remove();
 });

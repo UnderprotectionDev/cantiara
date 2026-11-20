@@ -3744,6 +3744,14 @@ async function runScreenOperation<T>(operation: () => Promise<T>): Promise<T> {
     if (!isRecord(error) || typeof error.code !== "string") {
       throw error;
     }
+    if (error.code === "SCREEN_COMMAND_CONFLICT") {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "This Screen command was already used for different content.",
+      });
+    }
     if (error.code === "SCREEN_REVISION_CONFLICT") {
       throw new ORPCError("PRECONDITION_FAILED", {
         cause: error,
@@ -9967,6 +9975,7 @@ export const appRouter = {
           input.projectId,
           input.screenId,
           input.document,
+          input.clientIdempotencyKey,
         ),
       ),
     ),

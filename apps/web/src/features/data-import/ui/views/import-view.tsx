@@ -7,8 +7,11 @@ import {
   type ImportScope,
   type PreviewImportInput,
 } from "@cantiara/api/data-import";
+import { useMutation } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import { importErrorText, toggleExcludedRow } from "../../lib/import-form";
+import { orpc } from "@/utils/orpc";
+import { usePreviewImport } from "../../hooks/use-preview-import";
+import { importErrorText, lastApplyKey } from "../../lib/import-form";
 import { ImportApplyPanel } from "../components/import-apply-panel";
 import { ImportPreviewPanel } from "../components/import-preview-panel";
 import { ImportReceiptReopen } from "../components/import-receipt-reopen";
@@ -32,68 +35,41 @@ export function ImportView({
   onApply: (input: ApplyImportInput) => Promise<ImportApplyResult>;
   onCancel: (stagingId: string) => Promise<unknown>;
   onCommitted?: (receipt: ImportReceipt, scope: ImportScope) => Promise<void>;
-  onPreview: (input: PreviewImportInput) => Promise<ImportPreview>;
+  onPreview: (
+    input: PreviewImportInput,
+    signal: AbortSignal,
+  ) => Promise<ImportPreview>;
   onReopenReceipt?: (idempotencyKey: string) => Promise<ImportReceipt>;
   projects: readonly ImportProjectChoice[];
 }) {
-  const [shown, setShown] = useState<{
-    input: PreviewImportInput;
-    preview: ImportPreview;
-  } | null>(null);
-
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [appliedCount, setAppliedCount] = useState(0);
-
-  // Apply Import stores its key before it runs, so remounting afterwards lets
-  // the reopen section pick up the key of the apply that just ran.
-  const apply = useCallback(
-    async (input: ApplyImportInput) => {
-      try {
-        return await onApply(input);
-      } finally {
-        setAppliedCount((count) => count + 1);
-      }
-    },
-    [onApply],
-  );
-
-  const previewFile = useCallback(
-    async (input: PreviewImportInput) => {
-      const result = await onPreview(input);
-      setActionError(null);
-      setShown({ input, preview: result });
-      return result;
-    },
-    [onPreview],
-  );
-
-  const toggleRow = useCallback(
-    (rowNumber: number) => {
-      if (!shown) {
-        return;
-      }
-      previewFile({
-        ...shown.input,
-        excludedRows: toggleExcludedRow(
-          shown.input.excludedRows ?? [],
-          rowNumber,
-        ),
-      }).catch((caught) => setActionError(importErrorText(caught)));
-    },
-    [previewFile, shown],
-  );
-
+  const [receiptKey, setReceiptKey] = useState(lastApplyKey);
+  const { choose, clear, excludedRows, preview, selection, toggleRow } =
+    usePreviewImport(onPreview);
+  const cancelPreview = useMutation({
+    mutationKey: orpc.cancelImport.mutationKey(),
+    meta: { onlineWrite: true },
+    mutationFn: ({ stagingId }: { revision: number; stagingId: string }) =>
+      onCancel(stagingId),
+    onSuccess: (_, { revision }) => clear(revision),
+  });
+  const shown = preview.data;
+  const isCancelling =
+    cancelPreview.isPending &&
+    cancelPreview.variables.revision === selection?.revision;
+  const cancelError =
+    cancelPreview.isError &&
+    cancelPreview.variables?.revision === selection?.revision
+      ? cancelPreview.error
+      : null;
+  const actionError = preview.error ?? cancelError;
   const cancel = useCallback(() => {
-    if (!shown) {
-      return;
+    if (shown && selection && !preview.isFetching && !isCancelling) {
+      cancelPreview.mutate({
+        revision: selection.revision,
+        stagingId: shown.preview.stagingId,
+      });
     }
-    onCancel(shown.preview.stagingId)
-      .then(() => {
-        setActionError(null);
-        setShown(null);
-      })
-      .catch((caught) => setActionError(importErrorText(caught)));
-  }, [onCancel, shown]);
+  }, [cancelPreview, isCancelling, preview.isFetching, selection, shown]);
 
   return (
     <section aria-label={IMPORT_LABEL} className="space-y-6">
@@ -106,29 +82,38 @@ export function ImportView({
           link to the file.
         </p>
       </header>
-      <ImportFileForm onPreview={previewFile} projects={projects} />
+      <ImportFileForm
+        onPreview={choose}
+        previewing={preview.isFetching && !shown}
+        projects={projects}
+      />
       {onReopenReceipt ? (
-        <ImportReceiptReopen key={appliedCount} onReopen={onReopenReceipt} />
+        <ImportReceiptReopen
+          onReopen={onReopenReceipt}
+          receiptKey={receiptKey}
+        />
       ) : null}
       {actionError ? (
         <p className="text-sm text-destructive" role="alert">
-          {actionError}
+          {importErrorText(actionError)}
         </p>
       ) : null}
       {shown ? (
         <>
           <ImportPreviewPanel
-            excludedRows={shown.input.excludedRows}
+            excludedRows={excludedRows}
             onToggleRow={toggleRow}
             preview={shown.preview}
           />
           <ImportApplyPanel
+            busy={preview.isPlaceholderData || isCancelling}
             key={`${shown.preview.stagingId}:${shown.preview.finalSetFingerprint}`}
-            onApply={apply}
+            onApply={onApply}
+            onAttempt={setReceiptKey}
             onCancel={cancel}
             onCommitted={onCommitted}
             preview={shown.preview}
-            scope={shown.input.scope}
+            scope={shown.scope}
           />
         </>
       ) : null}

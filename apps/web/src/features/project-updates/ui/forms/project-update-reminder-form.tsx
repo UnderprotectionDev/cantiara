@@ -19,11 +19,13 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
 import { projectUpdateReminderFormSchema } from "../../lib/project-update-form";
 
 export interface ProjectUpdateReminderControls {
+  configureError?: boolean;
+  configurePending?: boolean;
   onConfigure: (values: {
     intervalDays: number;
     question: string;
@@ -31,6 +33,8 @@ export interface ProjectUpdateReminderControls {
   }) => Promise<unknown>;
   onSkip: () => Promise<unknown>;
   reminder: ProjectUpdateReminder;
+  skipError?: boolean;
+  skipPending?: boolean;
 }
 
 /**
@@ -43,50 +47,49 @@ export function ProjectUpdateReminderForm({
   onConfigure,
   onSkip,
   reminder,
+  configureError,
+  configurePending,
+  skipError,
+  skipPending,
 }: ProjectUpdateReminderControls) {
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const form = useForm({
     defaultValues: {
       intervalDays: String(reminder.intervalDays),
       question: reminder.question,
       state: reminder.state,
     },
+    validators: {
+      onSubmit: ({ value }) =>
+        projectUpdateReminderFormSchema.safeParse({
+          ...value,
+          intervalDays: Number(value.intervalDays),
+        }).success
+          ? undefined
+          : `Write a question and an interval of ${PROJECT_UPDATE_REMINDER_INTERVAL_MIN_DAYS} to ${PROJECT_UPDATE_REMINDER_INTERVAL_MAX_DAYS} days.`,
+    },
     onSubmit: async ({ value }) => {
-      setError(null);
-      const parsed = projectUpdateReminderFormSchema.safeParse({
-        intervalDays: Number(value.intervalDays),
-        question: value.question,
-        state: value.state,
-      });
-      if (!parsed.success) {
-        setError(
-          `Write a question and an interval of ${PROJECT_UPDATE_REMINDER_INTERVAL_MIN_DAYS} to ${PROJECT_UPDATE_REMINDER_INTERVAL_MAX_DAYS} days.`,
-        );
-        return;
-      }
-      try {
-        setBusy(true);
-        await onConfigure(parsed.data);
-      } catch {
-        setError("The reminder could not be saved. Retry.");
-      } finally {
-        setBusy(false);
-      }
+      await onConfigure(
+        projectUpdateReminderFormSchema.parse({
+          ...value,
+          intervalDays: Number(value.intervalDays),
+        }),
+      );
     },
   });
-
-  async function skip() {
-    setError(null);
-    try {
-      setBusy(true);
-      await onSkip();
-    } catch {
-      setError("The reminder could not be skipped. Retry.");
-    } finally {
-      setBusy(false);
-    }
+  const submitting = useSelector(form.store, (state) => state.isSubmitting);
+  const validationError = useSelector(
+    form.store,
+    (state) => state.errorMap.onSubmit,
+  );
+  const busy = submitting || configurePending || skipPending;
+  let error = validationError;
+  if (skipError) {
+    error = "The reminder could not be skipped. Retry.";
   }
+  if (configureError) {
+    error = "The reminder could not be saved. Retry.";
+  }
+
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
@@ -106,7 +109,7 @@ export function ProjectUpdateReminderForm({
           <Button
             disabled={busy}
             onClick={() => {
-              skip().catch(() => undefined);
+              onSkip().catch(() => undefined);
             }}
             type="button"
             variant="outline"

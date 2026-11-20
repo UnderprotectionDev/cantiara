@@ -50,8 +50,7 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
       mutationFn: (input) => client.recreateWork(input),
       onSuccess: async (recreatedWork) => {
         pendingRecreate.current = null;
-        setRecreatedKey(recreatedWork.key);
-        setPreview(null);
+        inspect.reset();
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: orpc.projectWorks.queryOptions({
@@ -83,9 +82,21 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
     [projectsQuery.data, work.projectId],
   );
   const [open, setOpen] = useState(false);
-  const [preview, setPreview] = useState<WorkRecreatePreview | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [recreatedKey, setRecreatedKey] = useState<string | null>(null);
+  const inspect = useMutation({
+    meta: { presentsSupportFailure: true },
+    mutationFn: (input: Parameters<typeof client.workRecreatePreview>[0]) =>
+      queryClient.query({
+        ...orpc.workRecreatePreview.queryOptions({ input }),
+        gcTime: 0,
+        staleTime: 0,
+      }),
+  });
+  const { data: preview } = inspect;
+  const recreatedKey = recreateWorkMutation.data?.key;
+  const [invalidRequest, setInvalidRequest] = useState(false);
+  const failure = inspect.error ?? recreateWorkMutation.error;
+  const error =
+    invalidRequest || failure ? recreateErrorMessage(failure) : null;
   const pendingRecreate = useRef<{
     clientIdempotencyKey: string;
     selection: string;
@@ -99,20 +110,17 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
     },
     onSubmit: async ({ value }) => {
       try {
-        setError(null);
+        setInvalidRequest(false);
         if (!preview) {
           const previewInput = workRecreatePreviewInputSchema.safeParse({
             sourceWorkId: work.id,
             targetProjectId: value.targetProjectId,
           });
           if (!previewInput.success) {
-            setError(recreateErrorMessage(null));
+            setInvalidRequest(true);
             return;
           }
-          const nextPreview = await client.workRecreatePreview(
-            previewInput.data,
-          );
-          setPreview(nextPreview);
+          const nextPreview = await inspect.mutateAsync(previewInput.data);
           pendingRecreate.current = null;
           form.setFieldValue(
             "selectedFields",
@@ -145,12 +153,12 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
           targetProjectId: preview.targetProject.id,
         });
         if (!recreateInput.success) {
-          setError(recreateErrorMessage(null));
+          setInvalidRequest(true);
           return;
         }
         await recreateWorkMutation.mutateAsync(recreateInput.data);
-      } catch (submitError) {
-        setError(recreateErrorMessage(submitError));
+      } catch {
+        // The preview and creation observers report request failures.
       }
     },
   });
@@ -214,8 +222,8 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
                 name={field.name}
                 onChange={(event) => {
                   field.handleChange(event.target.value);
-                  setPreview(null);
-                  setRecreatedKey(null);
+                  inspect.reset();
+                  recreateWorkMutation.reset();
                   pendingRecreate.current = null;
                 }}
                 value={field.state.value}
@@ -328,7 +336,7 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
                       Confirm
                     </Button>
                     <Button
-                      onClick={() => setPreview(null)}
+                      onClick={() => inspect.reset()}
                       size="xs"
                       type="button"
                       variant="outline"
@@ -359,8 +367,8 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
                 <Button
                   onClick={() => {
                     setOpen(false);
-                    setError(null);
-                    setRecreatedKey(null);
+                    setInvalidRequest(false);
+                    recreateWorkMutation.reset();
                   }}
                   size="xs"
                   type="button"

@@ -14,9 +14,9 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type SubmitEvent, useId, useState } from "react";
-import { client, orpc } from "@/utils/orpc";
+import { type client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 
 interface EvidenceProps {
@@ -48,10 +48,30 @@ export default function EvidenceSelection({
         ) ?? { start: 0, end: 0 })
       : { start: 0, end: 0 },
   );
-  const [plan, setPlan] = useState<SourceEvidencePlan | null>(null);
-  const [previewing, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const pending = saving || previewing;
+  const cache = useQueryClient();
+  const inspect = useMutation({
+    meta: { presentsSupportFailure: true },
+    mutationFn: async (
+      input: Parameters<typeof client.previewSourceEvidence>[0],
+    ) => {
+      const plan = await cache.query({
+        ...orpc.previewSourceEvidence.queryOptions({ input }),
+        gcTime: 0,
+        staleTime: 0,
+      });
+      if (!plan) {
+        throw new Error("Evidence unavailable");
+      }
+      return plan;
+    },
+  });
+  const [invalidSelection, setInvalidSelection] = useState(false);
+  const plan = inspect.data ?? null;
+  const error =
+    inspect.isError || invalidSelection
+      ? "Evidence preview is unavailable. Reload if the Source or target changed."
+      : null;
+  const pending = saving || inspect.isPending;
   const selection = { sourceId: source.id, projectId: source.projectId };
   const targets = useQuery({
     ...orpc.sourceEvidenceTargets.queryOptions({ input: selection }),
@@ -72,40 +92,26 @@ export default function EvidenceSelection({
       if (!(use || target)) {
         return;
       }
-      setPending(true);
-      setError(null);
-      try {
-        const parsed = sourceEvidencePreviewInputSchema.safeParse({
-          ...selection,
-          expectedSourceRevision: source.revision,
-          versionRevision: source.revision,
-          ...range,
-          ...(use
-            ? { bindingId: use.id }
-            : {
-                target: target
-                  ? {
-                      type: target.type,
-                      projectId: target.projectId,
-                      recordId: target.recordId,
-                    }
-                  : undefined,
-              }),
-        });
-        if (!parsed.success) {
-          throw new Error("Evidence unavailable");
-        }
-        const result = await client.previewSourceEvidence(parsed.data);
-        if (!result) {
-          throw new Error("Evidence unavailable");
-        }
-        setPlan(result);
-      } catch {
-        setError(
-          "Evidence preview is unavailable. Reload if the Source or target changed.",
-        );
-      } finally {
-        setPending(false);
+      const parsed = sourceEvidencePreviewInputSchema.safeParse({
+        ...selection,
+        expectedSourceRevision: source.revision,
+        versionRevision: source.revision,
+        ...range,
+        ...(use
+          ? { bindingId: use.id }
+          : {
+              target: target
+                ? {
+                    type: target.type,
+                    projectId: target.projectId,
+                    recordId: target.recordId,
+                  }
+                : undefined,
+            }),
+      });
+      setInvalidSelection(!parsed.success);
+      if (parsed.success) {
+        await inspect.mutateAsync(parsed.data).catch(() => undefined);
       }
     },
   });
@@ -128,7 +134,7 @@ export default function EvidenceSelection({
               fieldId={fieldId}
               pending={pending}
               preferences={preferences}
-              setPlan={setPlan}
+              resetPreview={inspect.reset}
               setTargetId={field.handleChange}
               source={source}
               targetId={field.state.value}
@@ -153,7 +159,7 @@ export default function EvidenceSelection({
               start: event.currentTarget.selectionStart,
               end: event.currentTarget.selectionEnd,
             });
-            setPlan(null);
+            inspect.reset();
           }}
           readOnly
           value={source.version.capturedContent}
@@ -188,7 +194,7 @@ export default function EvidenceSelection({
           disabled={pending}
           onClick={() => {
             onCancel();
-            setPlan(null);
+            inspect.reset();
           }}
           type="button"
           variant="outline"
@@ -240,7 +246,7 @@ function EvidenceTargetSelection({
   fieldId,
   pending,
   setTargetId,
-  setPlan,
+  resetPreview,
   targetId,
   targets,
 }: {
@@ -250,9 +256,7 @@ function EvidenceTargetSelection({
   fieldId: string;
   pending: boolean;
   setTargetId: (value: string) => void;
-  setPlan: import("react").Dispatch<
-    import("react").SetStateAction<SourceEvidencePlan | null>
-  >;
+  resetPreview: () => void;
   targetId: string;
   targets: import("@tanstack/react-query").UseQueryResult<
     | ({
@@ -299,7 +303,7 @@ function EvidenceTargetSelection({
         id={`${fieldId}-target`}
         onChange={(event) => {
           setTargetId(event.target.value);
-          setPlan(null);
+          resetPreview();
         }}
         value={targetId}
       >

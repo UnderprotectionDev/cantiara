@@ -10,6 +10,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
+import { orpc } from "@/utils/orpc";
 import type { RelationDraft } from "../../lib/test-gap-form";
 
 export type LoadGapRelationTargets = (
@@ -33,10 +34,12 @@ export function TestGapRelationsField({
   idPrefix,
   loadTargets,
   onChange,
+  projectId,
   value,
 }: {
   idPrefix: string;
   loadTargets: LoadGapRelationTargets;
+  projectId: string;
   onChange: (relations: RelationDraft[]) => void;
   value: RelationDraft[];
 }) {
@@ -46,7 +49,9 @@ export function TestGapRelationsField({
   const targetsQuery = useQuery({
     gcTime: 0,
     queryFn: () => loadTargets(targetType),
-    queryKey: ["test-gap-relation-targets", targetType],
+    queryKey: orpc.testGapRelationTargets.queryKey({
+      input: { projectId, targetType },
+    }),
   });
   const targets = targetsQuery.data;
   const [targetId, setTargetId] = useState("");

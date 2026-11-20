@@ -298,12 +298,16 @@ export function createMemoryStore() {
       records.set(screenId, next);
       return withLifecycle(next);
     },
-    applyLinkedBlockChange: async (account, input, updates) => {
+    applyLinkedBlockChange: async (account, input, plan) => {
       await Promise.resolve();
       const current = linkedBlocks.get(input.definitionId);
       if (!(current && owns(account, input.projectId))) {
         return null;
       }
+      const { result, updates } = plan(
+        current,
+        (await store.headDocuments(account, input.projectId)) ?? [],
+      );
       const next = {
         ...current,
         content: input.content,
@@ -322,7 +326,7 @@ export function createMemoryStore() {
           },
         ]);
       }
-      return next;
+      return result;
     },
     createLinkedBlock: async (account, input) => {
       await Promise.resolve();

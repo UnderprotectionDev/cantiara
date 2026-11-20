@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { useClientShell } from "@/features/web-macos-client/hooks/use-client-shell";
 import { commandVariables } from "@/lib/command-variables";
@@ -10,10 +10,7 @@ import {
   orpc,
 } from "@/utils/orpc";
 
-import {
-  triageErrorMessage,
-  type UndoPreviewState,
-} from "../lib/capture-inbox";
+import { triageErrorMessage } from "../lib/capture-inbox";
 
 export function useCaptureInboxData(accountId: string) {
   const inbox = useQuery(captureInboxQueryOptions(accountId));
@@ -30,9 +27,32 @@ export function useCaptureInboxUndo(
 ) {
   const queryClient = useQueryClient();
   const shell = useClientShell();
-  const [undoPreview, setUndoPreview] = useState<UndoPreviewState | null>(null);
+  const selectedMergeId = useRef<string | null>(null);
+  const previewUndo = useMutation({
+    mutationKey: orpc.previewCaptureMergeUndo.mutationKey(),
+    mutationFn: (mergeId: string) =>
+      shell.runOnlineOnly(() => client.previewCaptureMergeUndo({ mergeId })),
+    onError: (_, mergeId) => {
+      if (selectedMergeId.current === mergeId) {
+        toast.error(triageErrorMessage());
+      }
+    },
+  });
+  const { mutate: loadUndoPreview, reset: resetUndoPreview } = previewUndo;
+  const cancelUndo = useCallback(() => {
+    selectedMergeId.current = null;
+    resetUndoPreview();
+  }, [resetUndoPreview]);
+  const showUndoPreview = useCallback(
+    (mergeId: string) => {
+      selectedMergeId.current = mergeId;
+      loadUndoPreview(mergeId);
+    },
+    [loadUndoPreview],
+  );
   const undoMerge = useMutation({
     mutationKey: orpc.undoCaptureMerge.mutationKey(),
+    meta: { onlineWrite: true },
     mutationFn: ({
       itemId: _,
       ...input
@@ -41,41 +61,44 @@ export function useCaptureInboxUndo(
       itemId: string;
       mergeId: string;
       previewId: string;
-    }) => shell.runWrite(() => client.undoCaptureMerge(input)),
+    }) => client.undoCaptureMerge(input),
     onError: () => toast.error(triageErrorMessage()),
     onSuccess: async (_, input) => {
       await queryClient.invalidateQueries({
         queryKey: captureInboxQueryOptions(accountId).queryKey,
       });
       onRestored(input.itemId);
-      setUndoPreview(null);
+      if (selectedMergeId.current === input.mergeId) {
+        cancelUndo();
+      }
       toast.success("Capture restored.");
     },
   });
 
-  const cancelUndo = useCallback(() => setUndoPreview(null), []);
+  const undoPreview = previewUndo.data;
+  const previewMergeId = previewUndo.variables;
   const confirmUndo = useCallback(() => {
-    if (!undoPreview) {
+    if (!(undoPreview && previewMergeId)) {
       return;
     }
 
     undoMerge.mutate(
       commandVariables(
         {
-          itemId: undoPreview.preview.itemId,
-          mergeId: undoPreview.mergeId,
-          previewId: undoPreview.preview.previewId,
+          itemId: undoPreview.itemId,
+          mergeId: previewMergeId,
+          previewId: undoPreview.previewId,
         },
         undoMerge.isError ? undoMerge.variables : undefined,
       ),
     );
-  }, [undoMerge, undoPreview]);
+  }, [previewMergeId, undoMerge, undoPreview]);
 
   return {
     cancelUndo,
     confirmUndo,
     isPending: undoMerge.isPending,
-    setUndoPreview,
+    showUndoPreview,
     undoPreview,
   };
 }

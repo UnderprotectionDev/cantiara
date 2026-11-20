@@ -22,6 +22,7 @@ test.each([
   ["Rotate link", "rotateShareToken", "Active"],
   ["Approve scope", "approveShareScope", null],
   ["Reshare with a new link", "reshareShareLink", "Expired"],
+  ["Rotate link after a retry", "rotateShareToken", "Active"],
 ] as const)(
   "%s displays the link without exposing its token to the mutation cache or global callbacks",
   async (label, procedure, initialState) => {
@@ -82,6 +83,10 @@ test.each([
         ? { token }
         : { accessToken: token }),
     });
+    const retry = label === "Rotate link after a retry";
+    if (retry) {
+      request.mockRejectedValueOnce(new Error("The link was not rotated."));
+    }
     const cache = queryClient.getMutationCache();
     const observed: boolean[] = [];
     const recordResult = (data: unknown) => {
@@ -100,7 +105,12 @@ test.each([
       .spyOn(queryClient, "invalidateQueries")
       .mockImplementation(async () => {
         await Promise.resolve();
-        queryClient.setQueryData(key, { ...preview, surface: updatedSurface });
+        if (!retry || request.mock.calls.length > 1) {
+          queryClient.setQueryData(key, {
+            ...preview,
+            surface: updatedSurface,
+          });
+        }
       });
     const host = document.createElement("div");
     document.body.append(host);
@@ -126,18 +136,41 @@ test.each([
       await act(async () => {
         await Promise.resolve();
         [...host.querySelectorAll("button")]
-          .find((button) => button.textContent === label)
+          .find(
+            (button) => button.textContent === (retry ? "Rotate link" : label),
+          )
           ?.click();
       });
+      if (retry) {
+        await vi.waitFor(() =>
+          expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+            "That did not work. Try again.",
+          ),
+        );
+        const mutation = cache.getAll().at(-1);
+        if (!mutation) {
+          throw new Error("Rotate link did not register its mutation");
+        }
+        await act(async () => {
+          await mutation.execute(mutation.state.variables);
+        });
+        await vi.waitFor(() =>
+          expect(host.textContent).toContain(
+            "New link created. The old link and every open visit ended.",
+          ),
+        );
+        expect(host.querySelector('[role="alert"]')).toBeNull();
+      }
       expect(
         host
           .querySelector<HTMLInputElement>("#share-visitor-link")
           ?.value.endsWith(token),
       ).toBe(true);
-      expect(request).toHaveBeenCalledOnce();
+      const attempts = retry ? 2 : 1;
+      expect(request).toHaveBeenCalledTimes(attempts);
       expect(observed.length).toBeGreaterThan(2);
       expect(observed.includes(true)).toBe(false);
-      expect(invalidate).toHaveBeenCalledTimes(1);
+      expect(invalidate).toHaveBeenCalledTimes(attempts);
       expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
     } finally {
       act(() => root.unmount());

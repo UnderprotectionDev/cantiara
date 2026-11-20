@@ -63,6 +63,9 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
     record: FeedbackRecord,
     identity: { companyId: string | null; contactId: string | null },
   ) {
+    if (!setFeedbackStatusMutation.isPending) {
+      setFeedbackStatusMutation.reset();
+    }
     await setFeedbackIdentityMutation.mutateAsync({
       ...identity,
       expectedRevision: record.revision,
@@ -104,6 +107,9 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
       });
   }
   async function setStatus(record: FeedbackRecord, status: FeedbackStatus) {
+    if (!setFeedbackIdentityMutation.isPending) {
+      setFeedbackIdentityMutation.reset();
+    }
     await setFeedbackStatusMutation.mutateAsync({
       expectedRevision: record.revision,
       feedbackId: record.id,
@@ -139,6 +145,7 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
           id,
           name: displayName ?? emails[0] ?? "Unnamed Contact",
         }))}
+      identityWrite={setFeedbackIdentityMutation}
       onConfirmConvert={confirmConvert}
       onCreate={create}
       onPreviewConvert={previewConvert}
@@ -147,6 +154,7 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
       onSetStatus={setStatus}
       readOnly={records.data.readOnly}
       records={records.data.records}
+      statusWrite={setFeedbackStatusMutation}
     />
   );
 }

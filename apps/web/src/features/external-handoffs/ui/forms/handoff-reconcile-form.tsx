@@ -11,7 +11,8 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { hashKey } from "@tanstack/react-query";
+import { type SubmitEvent, useRef, useState } from "react";
 import { errorMessage } from "../../lib/error-message";
 import { HandoffFollowUpFields } from "../components/handoff-follow-up-fields";
 import { HandoffRelationFields } from "../components/handoff-relation-fields";
@@ -20,6 +21,12 @@ type RelationDraft =
   PreviewExternalExecutionHandoffReconcileInput["proposedRelations"][number];
 type FollowUpWorkDraft =
   PreviewExternalExecutionHandoffReconcileInput["followUpWorks"][number];
+
+export interface ReconcileReadState {
+  data?: ExternalExecutionHandoffReconcilePreview;
+  error: unknown;
+  reset: () => void;
+}
 
 const DEFAULT_VALUES = {
   followUpWorks: [] as FollowUpWorkDraft[],
@@ -37,6 +44,8 @@ export function HandoffReconcileForm({
   handoffId,
   onConfirm,
   onPreview,
+  previewState,
+  confirmError,
   relatedWorks,
   workKey,
 }: {
@@ -48,17 +57,24 @@ export function HandoffReconcileForm({
   onPreview: (
     input: PreviewExternalExecutionHandoffReconcileInput,
   ) => Promise<ExternalExecutionHandoffReconcilePreview>;
+  previewState?: ReconcileReadState;
+  confirmError?: unknown;
   relatedWorks: readonly ExternalExecutionHandoffRelatedWork[];
   workKey: string;
 }) {
-  const [preview, setPreview] =
-    useState<ExternalExecutionHandoffReconcilePreview | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const preview = previewState?.data;
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const failure = confirmError ?? previewState?.error;
+  const error = validationError ?? (failure ? errorMessage(failure) : null);
+  const confirmation = useRef<{
+    fingerprint: string;
+    clientEventId: string;
+  } | null>(null);
 
   const form = useForm({
     defaultValues: DEFAULT_VALUES,
     onSubmit: async ({ value }) => {
-      setError(null);
+      setValidationError(null);
       const plan = {
         followUpWorks: value.followUpWorks.map((item) => ({
           ...item,
@@ -77,12 +93,11 @@ export function HandoffReconcileForm({
           const issue = parsed.error.issues.find(
             ({ code }) => code === "custom",
           );
-          setError(issue?.message ?? null);
+          setValidationError(issue?.message ?? null);
           return;
         }
         try {
           const nextPreview = await onPreview(parsed.data);
-          setPreview(nextPreview);
           form.setFieldValue(
             "selectedRelationIds",
             nextPreview.proposedRelations.map(({ id }) => id),
@@ -91,18 +106,28 @@ export function HandoffReconcileForm({
             "selectedFollowUpWorkIds",
             nextPreview.followUpWorks.map(({ id }) => id),
           );
-        } catch (previewError) {
-          setError(errorMessage(previewError));
+        } catch {
+          // The preview observer exposes its error.
         }
         return;
       }
+      const input = {
+        ...plan,
+        previewId: preview.previewId,
+        selectedFollowUpWorkIds: value.selectedFollowUpWorkIds,
+        selectedRelationIds: value.selectedRelationIds,
+      };
+      const fingerprint = hashKey([input]);
+      if (confirmation.current?.fingerprint !== fingerprint) {
+        confirmation.current = {
+          fingerprint,
+          clientEventId: crypto.randomUUID(),
+        };
+      }
       const parsed =
         confirmExternalExecutionHandoffReconcileInputSchema.safeParse({
-          ...plan,
-          clientEventId: crypto.randomUUID(),
-          previewId: preview.previewId,
-          selectedFollowUpWorkIds: value.selectedFollowUpWorkIds,
-          selectedRelationIds: value.selectedRelationIds,
+          ...input,
+          clientEventId: confirmation.current.clientEventId,
         });
       // The checkboxes only offer items shown in the preview.
       if (!parsed.success) {
@@ -110,9 +135,10 @@ export function HandoffReconcileForm({
       }
       try {
         await onConfirm(parsed.data);
-        setPreview(null);
-      } catch (confirmError) {
-        setError(errorMessage(confirmError));
+        previewState?.reset();
+        confirmation.current = null;
+      } catch {
+        // Keep the preview and command key for a retry.
       }
     },
   });
@@ -209,8 +235,9 @@ export function HandoffReconcileForm({
               <Button
                 disabled={disabled}
                 onClick={() => {
-                  setError(null);
-                  setPreview(null);
+                  setValidationError(null);
+                  previewState?.reset();
+                  confirmation.current = null;
                 }}
                 size="sm"
                 type="button"

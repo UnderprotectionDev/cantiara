@@ -305,6 +305,8 @@ export default function DocumentEditor({
   });
   const allowRichUpdates = useRef(false);
   const save = useMutation({
+    // Retry from the current editor so an old Support notice cannot save newer text.
+    meta: { retryInSurface: true },
     mutationFn: () => editSession.save(),
     onSuccess: async () => {
       await Promise.all(invalidateSmartCollectionMembership(queryClient));

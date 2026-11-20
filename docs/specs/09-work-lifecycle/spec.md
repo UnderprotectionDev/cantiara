@@ -65,6 +65,8 @@ Kurucu Özellik, Bug, Görev, Araştırma ve İyileştirmeyi değişmez Proje an
 
 ## Testing Decisions
 
+- The Work Recreate seam verifies that changing the destination clears the old preview and receipt, and retrying a failed confirmation keeps the same identity for the same selection.
+
 - **What a good test is.** Tests observe Work Lifecycle through its public interface: create+key, no reuse, type matrix, status/result matrix over the five protected statuses (free transitions among `Not Started`, `In Progress`, `In Review`, `Blocked`; `Closed` only through the close step), close cancel, Kanban cannot skip close step, reopen to any of `Not Started`/`In Progress`/`In Review`/`Blocked` with the previous result retained in history, archive filter, merge preview, recreate new identity, capture conversion provenance, inclusion cardinality, Feature exit blocked while included Work/health/Primary spec remain, tree drag refused. They do not assert Kanban CSS or Drizzle schema mappings. Expected values are product rules (status ≠ result, no move, one primary Feature, and capture origin survives conversion).
 - **History persistence counterpart.** The public Work profile exposes only the active closure result, so its retention after reopening is additionally verified in this seam's PostgreSQL integration test by reading the semantic Work snapshots in Mutation History (`previousValue` / `nextValue`). Keep this check scoped to closure and reopen semantics; do not assert Drizzle column mappings or unrelated storage structure.
 - **Seam (one).** Work Lifecycle — the product-facing Work interface. Draft finalize, capture convert, Relations, Decision/Wiki creates are adapters. Playwright for İş yaşam döngüsü is this seam through the UI.

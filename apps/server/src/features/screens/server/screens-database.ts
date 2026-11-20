@@ -38,6 +38,7 @@ import {
   ScreenProjectReadOnlyError,
   ScreenRevisionConflictError,
 } from "./screens";
+import { commitScreenCommand } from "./screens-command-receipt";
 import { createDatabaseOriginStore } from "./screens-origins-database";
 
 type ScreenExecutor = FeedbackExecutor;
@@ -87,6 +88,38 @@ async function toRecords(
         version,
       })),
   }));
+}
+
+async function readHeadDocuments(executor: ScreenExecutor, projectId: string) {
+  const rows = await executor
+    .select()
+    .from(screen)
+    .where(eq(screen.projectId, projectId));
+  const versions = rows.length
+    ? await executor
+        .select()
+        .from(screenWireframeVersion)
+        .where(
+          inArray(
+            screenWireframeVersion.screenId,
+            rows.map(({ id }) => id),
+          ),
+        )
+        .orderBy(desc(screenWireframeVersion.version))
+    : [];
+  return rows.flatMap((row) => {
+    const head = versions.find(({ screenId }) => screenId === row.id);
+    return head
+      ? [
+          {
+            document: head.document,
+            lifecycle: screenLifecycleOf(row),
+            screenId: row.id,
+            title: row.title,
+          },
+        ]
+      : [];
+  });
 }
 
 async function lockScreen(
@@ -346,49 +379,61 @@ export function createDatabaseScreenStore(database: Database): ScreenStore {
       });
     },
 
-    applyLinkedBlockChange(accountId, input, updates) {
+    applyLinkedBlockChange(accountId, input, plan) {
       return database.transaction(async (executor) => {
         const owned = await openProject(executor, accountId, input.projectId);
         if (!owned) {
           return null;
         }
-        const [current] = await executor
-          .select()
-          .from(screenLinkedBlock)
-          .where(
-            and(
-              eq(screenLinkedBlock.id, input.definitionId),
-              eq(screenLinkedBlock.projectId, owned.id),
-            ),
-          )
-          .for("update");
-        if (!current) {
-          return null;
-        }
-        if (
-          input.expectedRevision !== undefined &&
-          input.expectedRevision !== current.revision
-        ) {
-          throw new ScreenRevisionConflictError(current.id);
-        }
-        const now = new Date();
-        const [saved] = await executor
-          .update(screenLinkedBlock)
-          .set({
-            content: input.content,
-            revision: current.revision + 1,
-            updatedAt: now,
-          })
-          .where(eq(screenLinkedBlock.id, current.id))
-          .returning();
-        // Each affected Screen gains a new exact version; older versions keep
-        // the source content they were saved with.
-        await Promise.all(
-          updates.map((update) =>
-            appendAffectedVersion(executor, owned.id, update, now),
-          ),
+        const { clientIdempotencyKey, ...payload } = input;
+        return commitScreenCommand(
+          executor,
+          {
+            accountId,
+            clientIdempotencyKey,
+            expectedRevision: input.expectedRevision,
+            operation: "apply-linked-block-change",
+            revision: ({ definition }) => definition.revision,
+            payload: { value: payload },
+          },
+          async () => {
+            const [current] = await executor
+              .select()
+              .from(screenLinkedBlock)
+              .where(
+                and(
+                  eq(screenLinkedBlock.id, input.definitionId),
+                  eq(screenLinkedBlock.projectId, owned.id),
+                ),
+              )
+              .for("update");
+            if (!current) {
+              return null;
+            }
+            const { result, updates } = plan(
+              toLinkedBlock(current),
+              await readHeadDocuments(executor, owned.id),
+            );
+            const now = new Date();
+            const [saved] = await executor
+              .update(screenLinkedBlock)
+              .set({
+                content: input.content,
+                revision: current.revision + 1,
+                updatedAt: now,
+              })
+              .where(eq(screenLinkedBlock.id, current.id))
+              .returning();
+            // Each affected Screen gains a new exact version; older versions keep
+            // the source content they were saved with.
+            await Promise.all(
+              updates.map((update) =>
+                appendAffectedVersion(executor, owned.id, update, now),
+              ),
+            );
+            return saved ? result : null;
+          },
         );
-        return saved ? toLinkedBlock(saved) : null;
       });
     },
 
@@ -398,20 +443,32 @@ export function createDatabaseScreenStore(database: Database): ScreenStore {
         if (!owned) {
           return null;
         }
-        const now = new Date();
-        const [created] = await executor
-          .insert(screenLinkedBlock)
-          .values({
-            content: input.content,
-            createdAt: now,
-            id: crypto.randomUUID(),
-            name: input.name,
-            projectId: owned.id,
-            revision: 1,
-            updatedAt: now,
-          })
-          .returning();
-        return created ? toLinkedBlock(created) : null;
+        const { clientIdempotencyKey, ...payload } = input;
+        return commitScreenCommand(
+          executor,
+          {
+            accountId,
+            clientIdempotencyKey,
+            operation: "create-linked-block",
+            payload: { value: payload },
+          },
+          async () => {
+            const now = new Date();
+            const [created] = await executor
+              .insert(screenLinkedBlock)
+              .values({
+                content: input.content,
+                createdAt: now,
+                id: crypto.randomUUID(),
+                name: input.name,
+                projectId: owned.id,
+                revision: 1,
+                updatedAt: now,
+              })
+              .returning();
+            return created ? toLinkedBlock(created) : null;
+          },
+        );
       });
     },
 
@@ -498,35 +555,7 @@ export function createDatabaseScreenStore(database: Database): ScreenStore {
           if (!owned) {
             return null;
           }
-          const rows = await executor
-            .select()
-            .from(screen)
-            .where(eq(screen.projectId, owned.id));
-          const versions = rows.length
-            ? await executor
-                .select()
-                .from(screenWireframeVersion)
-                .where(
-                  inArray(
-                    screenWireframeVersion.screenId,
-                    rows.map(({ id }) => id),
-                  ),
-                )
-                .orderBy(desc(screenWireframeVersion.version))
-            : [];
-          return rows.flatMap((row) => {
-            const head = versions.find(({ screenId }) => screenId === row.id);
-            return head
-              ? [
-                  {
-                    document: head.document,
-                    lifecycle: screenLifecycleOf(row),
-                    screenId: row.id,
-                    title: row.title,
-                  },
-                ]
-              : [];
-          });
+          return readHeadDocuments(executor, owned.id);
         },
         { accessMode: "read only", isolationLevel: "repeatable read" },
       );
@@ -603,7 +632,7 @@ export function createDatabaseScreenStore(database: Database): ScreenStore {
       });
     },
 
-    attachWireframeVersion(accountId, projectId, screenId, document) {
+    attachWireframeVersion(accountId, projectId, screenId, document, command) {
       return database.transaction(async (executor) => {
         const owned = await openProject(executor, accountId, projectId);
         if (!owned) {
@@ -614,19 +643,35 @@ export function createDatabaseScreenStore(database: Database): ScreenStore {
         if (!current || current.trashedAt !== null) {
           return null;
         }
-        const [latest] = await executor
-          .select({ version: max(screenWireframeVersion.version) })
-          .from(screenWireframeVersion)
-          .where(eq(screenWireframeVersion.screenId, current.id));
-        await executor.insert(screenWireframeVersion).values({
-          createdAt: new Date(),
-          ...(document ? { document } : {}),
-          id: crypto.randomUUID(),
-          screenId: current.id,
-          version: (latest?.version ?? 0) + 1,
-        });
-        const [record] = await toRecords(executor, [current]);
-        return record ?? null;
+        const append = async () => {
+          const [latest] = await executor
+            .select({ version: max(screenWireframeVersion.version) })
+            .from(screenWireframeVersion)
+            .where(eq(screenWireframeVersion.screenId, current.id));
+          await executor.insert(screenWireframeVersion).values({
+            createdAt: new Date(),
+            ...(document ? { document } : {}),
+            id: crypto.randomUUID(),
+            screenId: current.id,
+            version: (latest?.version ?? 0) + 1,
+          });
+          const [record] = await toRecords(executor, [current]);
+          return record ?? null;
+        };
+        return command
+          ? commitScreenCommand(
+              executor,
+              {
+                accountId,
+                clientIdempotencyKey: command.clientIdempotencyKey,
+                operation: "save-version",
+                revision: (record) =>
+                  record.wireframeVersions.at(-1)?.version ?? 1,
+                payload: { fingerprint: command.payloadFingerprint },
+              },
+              append,
+            )
+          : append();
       });
     },
 
@@ -636,23 +681,35 @@ export function createDatabaseScreenStore(database: Database): ScreenStore {
         if (!owned) {
           return null;
         }
-        const now = new Date();
-        const [created] = await executor
-          .insert(screen)
-          .values({
-            createdAt: now,
-            id: crypto.randomUUID(),
-            projectId: owned.id,
-            revision: 1,
-            title: input.title,
-            updatedAt: now,
-          })
-          .returning();
-        if (!created) {
-          throw new Error("Screen was not created.");
-        }
-        const [record] = await toRecords(executor, [created]);
-        return record ?? null;
+        const { clientIdempotencyKey, ...payload } = input;
+        return commitScreenCommand(
+          executor,
+          {
+            accountId,
+            clientIdempotencyKey,
+            operation: "create",
+            payload: { value: payload },
+          },
+          async () => {
+            const now = new Date();
+            const [created] = await executor
+              .insert(screen)
+              .values({
+                createdAt: now,
+                id: crypto.randomUUID(),
+                projectId: owned.id,
+                revision: 1,
+                title: input.title,
+                updatedAt: now,
+              })
+              .returning();
+            if (!created) {
+              throw new Error("Screen was not created.");
+            }
+            const [record] = await toRecords(executor, [created]);
+            return record ?? null;
+          },
+        );
       });
     },
 

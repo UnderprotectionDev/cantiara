@@ -41,6 +41,8 @@ import {
   ScreenProjectReadOnlyError,
 } from "./screens";
 
+import { commitScreenCommand } from "./screens-command-receipt";
+
 type Executor = FeedbackExecutor;
 
 async function openProject(
@@ -290,82 +292,103 @@ export function createDatabaseOriginStore(
         if (!owned) {
           return null;
         }
-        const definitions = Object.values(
-          (
-            input.template.document as {
-              linkedDefinitions: Record<
-                string,
-                { content: WireframeLinkedContent; id: string; name: string }
-              >;
-            }
-          ).linkedDefinitions,
-        );
-        const now = new Date();
-        // Fresh Project-scoped definitions: the new Screen shares none with the source.
-        const idMap = new Map<string, string>();
-        for (const definition of definitions) {
-          idMap.set(definition.id, crypto.randomUUID());
-        }
-        await Promise.all(
-          definitions.map((definition) =>
-            executor.insert(screenLinkedBlock).values({
-              content: definition.content,
-              createdAt: now,
-              id: idMap.get(definition.id) ?? crypto.randomUUID(),
-              name: definition.name,
-              projectId: owned.id,
-              revision: 1,
-              updatedAt: now,
-            }),
-          ),
-        );
-        const [created] = await executor
-          .insert(screen)
-          .values({
-            createdAt: now,
-            id: crypto.randomUUID(),
-            projectId: owned.id,
-            revision: 1,
-            title: input.title,
-            updatedAt: now,
-          })
-          .returning();
-        if (!created) {
-          throw new Error("Screen was not created.");
-        }
-        const [first] = await executor
-          .insert(screenWireframeVersion)
-          .values({
-            createdAt: now,
-            document: instantiateTemplateDocument(
-              input.template.document,
-              idMap,
-            ) as unknown as Record<string, unknown>,
-            id: crypto.randomUUID(),
-            screenId: created.id,
-            version: 1,
-          })
-          .returning();
-        if (!first) {
-          throw new Error("Wireframe version was not created.");
-        }
-        const record: ScreenRecord = {
-          createdAt: created.createdAt.toISOString(),
-          id: created.id,
-          lifecycle: screenLifecycleOf(created),
-          projectId: created.projectId,
-          revision: created.revision,
-          title: created.title,
-          updatedAt: created.updatedAt.toISOString(),
-          wireframeVersions: [
-            {
-              createdAt: first.createdAt.toISOString(),
-              id: first.id,
-              version: first.version,
+        return commitScreenCommand(
+          executor,
+          {
+            accountId,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            operation: "create-from-template",
+            payload: {
+              value: {
+                projectId: owned.id,
+                templateId: input.template.id,
+                title: input.title,
+              },
             },
-          ],
-        };
-        return record;
+          },
+          async () => {
+            const definitions = Object.values(
+              (
+                input.template.document as {
+                  linkedDefinitions: Record<
+                    string,
+                    {
+                      content: WireframeLinkedContent;
+                      id: string;
+                      name: string;
+                    }
+                  >;
+                }
+              ).linkedDefinitions,
+            );
+            const now = new Date();
+            // Fresh Project-scoped definitions: the new Screen shares none with the source.
+            const idMap = new Map<string, string>();
+            for (const definition of definitions) {
+              idMap.set(definition.id, crypto.randomUUID());
+            }
+            await Promise.all(
+              definitions.map((definition) =>
+                executor.insert(screenLinkedBlock).values({
+                  content: definition.content,
+                  createdAt: now,
+                  id: idMap.get(definition.id) ?? crypto.randomUUID(),
+                  name: definition.name,
+                  projectId: owned.id,
+                  revision: 1,
+                  updatedAt: now,
+                }),
+              ),
+            );
+            const [created] = await executor
+              .insert(screen)
+              .values({
+                createdAt: now,
+                id: crypto.randomUUID(),
+                projectId: owned.id,
+                revision: 1,
+                title: input.title,
+                updatedAt: now,
+              })
+              .returning();
+            if (!created) {
+              throw new Error("Screen was not created.");
+            }
+            const [first] = await executor
+              .insert(screenWireframeVersion)
+              .values({
+                createdAt: now,
+                document: instantiateTemplateDocument(
+                  input.template.document,
+                  idMap,
+                ) as unknown as Record<string, unknown>,
+                id: crypto.randomUUID(),
+                screenId: created.id,
+                version: 1,
+              })
+              .returning();
+            if (!first) {
+              throw new Error("Wireframe version was not created.");
+            }
+            const record: ScreenRecord = {
+              createdAt: created.createdAt.toISOString(),
+              id: created.id,
+              lifecycle: screenLifecycleOf(created),
+              projectId: created.projectId,
+              revision: created.revision,
+              title: created.title,
+              updatedAt: created.updatedAt.toISOString(),
+              wireframeVersions: [
+                {
+                  createdAt: first.createdAt.toISOString(),
+                  id: first.id,
+                  version: first.version,
+                },
+              ],
+            };
+            return record;
+          },
+        );
       });
     },
 
@@ -587,17 +610,35 @@ export function createDatabaseOriginStore(
         if (!owned) {
           return null;
         }
-        const [created] = await executor
-          .insert(screenWireframeTemplate)
-          .values({
-            createdAt: new Date(),
-            document: input.document as Record<string, unknown>,
-            id: crypto.randomUUID(),
-            name: input.name,
-            workspaceId: owned.workspaceId,
-          })
-          .returning();
-        return created ? toTemplate(created) : null;
+        const { clientIdempotencyKey, document: _document, ...payload } = input;
+        return commitScreenCommand(
+          executor,
+          {
+            accountId,
+            clientIdempotencyKey,
+            operation: "save-template",
+            payload: { value: payload },
+          },
+          async () => {
+            const [created] = await executor
+              .insert(screenWireframeTemplate)
+              .values({
+                createdAt: new Date(),
+                document: input.document as Record<string, unknown>,
+                id: crypto.randomUUID(),
+                name: input.name,
+                workspaceId: owned.workspaceId,
+              })
+              .returning();
+            return created
+              ? {
+                  createdAt: created.createdAt.toISOString(),
+                  id: created.id,
+                  name: created.name,
+                }
+              : null;
+          },
+        );
       });
     },
   };

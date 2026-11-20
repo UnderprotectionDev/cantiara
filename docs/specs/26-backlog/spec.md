@@ -47,6 +47,8 @@ Backlog hazır, dinamik bir Akıllı Koleksiyondur. Üyelik, ele alma veya başk
 
 ## Testing Decisions
 
+- The Backlog row seam verifies that an in-flight Reappear date displays the requested date and a rejected request leaves the server date visible.
+
 - **What a good test is.** Tests observe Backlog through its public interface: prepared membership, status-unchanged on view/pick-up, persist/restore of manual order across explicitly chosen priority criterion, date, and field sorts, save and reselect the one Project presentation after returning to Backlog, keyboard reorder announcements, failed reorder feedback, `Deferred` split, date arrival restoring rank with an Account time zone clock double, date edits preserving Work status and project membership, failed date edit feedback, the default-off, prior Project opt-in, and late opt-in matrix producing exactly one source-linked `reappear-date` only for timely opt-in without changing Work status, priority, or Backlog order, and the exact accessible loading, unavailable, and empty copy for the prepared collection query. They do not assert sort-index internals. Expected values are product rules (membership does not write status; one persistent order; future date is Deferred, not a status; query state copy remains secret-free and does not imply a write).
 - **Seam (one).** Backlog — the prepared considering collection and its single persistent manual order. Kanban, Daily Focus, Prioritization sessions, and the notification center are counterparts, not this module.
 - **Modules under test.** Backlog only. Kanban rank, Daily Focus membership, priority criteria, and reminder UI are out except as “status/rank/membership did not write” counterparts.

@@ -28,14 +28,16 @@ export default function ProjectUpdatesSurface({
     orpc.configureProjectUpdateReminder.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (command) => client.configureProjectUpdateReminder(command),
-      onSuccess: () => refreshReminder(),
+      onSuccess: (_, { projectId: affectedProject }) =>
+        refreshReminder(affectedProject),
     }),
   );
   const skipProjectUpdateReminderMutation = useMutation(
     orpc.skipProjectUpdateReminder.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (command) => client.skipProjectUpdateReminder(command),
-      onSuccess: () => refreshReminder(),
+      onSuccess: (_, { projectId: affectedProject }) =>
+        refreshReminder(affectedProject),
     }),
   );
   const input = { projectId };
@@ -49,9 +51,9 @@ export default function ProjectUpdatesSurface({
   const reminder = useQuery(orpc.projectUpdateReminder.queryOptions({ input }));
   const queryClient = useQueryClient();
   const create = useCreateProjectUpdate();
-  const refreshReminder = () =>
+  const refreshReminder = (id: string) =>
     queryClient.invalidateQueries({
-      queryKey: orpc.projectUpdateReminder.key(),
+      queryKey: orpc.projectUpdateReminder.key({ input: { projectId: id } }),
     });
 
   const sources = useMemo<ProjectOverviewSources>(
@@ -135,13 +137,20 @@ export default function ProjectUpdatesSurface({
       reminder={
         reminder.data
           ? {
+              configureError: configureProjectUpdateReminderMutation.isError,
+              configurePending:
+                configureProjectUpdateReminderMutation.isPending,
+              skipError: skipProjectUpdateReminderMutation.isError,
+              skipPending: skipProjectUpdateReminderMutation.isPending,
               onConfigure: async (values) => {
+                skipProjectUpdateReminderMutation.reset();
                 await configureProjectUpdateReminderMutation.mutateAsync({
                   ...values,
                   projectId,
                 });
               },
               onSkip: async () => {
+                configureProjectUpdateReminderMutation.reset();
                 await skipProjectUpdateReminderMutation.mutateAsync({
                   projectId,
                 });

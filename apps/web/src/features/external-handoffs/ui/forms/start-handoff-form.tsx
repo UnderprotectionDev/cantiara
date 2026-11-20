@@ -14,7 +14,6 @@ import {
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { errorMessage } from "../../lib/error-message";
 
 interface HandoffDraft {
   constraints: string;
@@ -46,7 +45,6 @@ export function StartHandoffForm({
   onClearErrors,
   onFormError,
   onStart,
-  onWriteError,
   pending,
   work,
   writeError,
@@ -57,7 +55,6 @@ export function StartHandoffForm({
   onStart: (
     input: Omit<ExternalExecutionHandoffInput, "workId">,
   ) => Promise<unknown>;
-  onWriteError: (message: string) => void;
   pending: boolean;
   work: WorkProfile;
   writeError: string | null;
@@ -85,8 +82,8 @@ export function StartHandoffForm({
         const { workId: _workId, ...input } = parsed.data;
         await onStart(input);
         form.reset();
-      } catch (error) {
-        onWriteError(errorMessage(error));
+      } catch {
+        // The owning mutation renders the write error.
       }
     },
   });

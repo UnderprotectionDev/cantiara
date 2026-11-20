@@ -10,6 +10,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
+import { orpc } from "@/utils/orpc";
 import {
   type ContextRefDraft,
   describeContextRef,
@@ -31,10 +32,12 @@ export function TestHandoffContextField({
   idPrefix,
   loadTargets,
   onChange,
+  projectId,
   value,
 }: {
   idPrefix: string;
   loadTargets: LoadTestHandoffContextTargets;
+  projectId: string;
   onChange: (refs: ContextRefDraft[]) => void;
   value: ContextRefDraft[];
 }) {
@@ -43,7 +46,9 @@ export function TestHandoffContextField({
   const targetsQuery = useQuery({
     gcTime: 0,
     queryFn: () => loadTargets(kind),
-    queryKey: ["test-handoff-context-targets", kind],
+    queryKey: orpc.testHandoffContextTargets.queryKey({
+      input: { projectId, kind },
+    }),
   });
   const targets = targetsQuery.data;
   const [targetId, setTargetId] = useState("");

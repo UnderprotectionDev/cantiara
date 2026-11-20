@@ -56,11 +56,11 @@ test("Presentation Mode reads the chosen Wireframe version through the query cli
   await act(async () =>
     host.querySelector<HTMLElement>("#screens-output-s1")?.click(),
   );
-  await act(() => {
+  await act(async () => {
     [...host.querySelectorAll("button")]
       .find((item) => item.textContent === "Presentation Mode")
       ?.click();
-    return Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 20));
   });
   expect(read).toHaveBeenCalledWith({
     projectId: "p1",

@@ -7,7 +7,7 @@ import {
   type GitHubWorkLinksOverview,
 } from "@cantiara/api/github-work-links";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { errorText } from "../../lib/github-error-text";
 import {
   CreateWorkForm,
@@ -86,26 +86,34 @@ function LinkRow({
 export function GitHubWorkLinksPanel({
   actions,
   data,
+  onCommandSuccess,
   records,
   repositories,
 }: {
   actions: GitHubWorkLinkActions;
   data: GitHubWorkLinksOverview;
+  onCommandSuccess?: () => Promise<unknown>;
   records: GitHubExternalRecord[];
   repositories: RepositoryChoice[];
 }) {
-  const [notice, setNotice] = useState<GitHubNoticeState>();
-  const run = (done: string, action: () => Promise<unknown>) => {
-    setNotice(undefined);
-    action().then(
-      () => setNotice({ kind: "status", text: done }),
-      (caught: unknown) =>
-        setNotice({
-          kind: "alert",
-          text: errorText(caught, "The GitHub action did not finish."),
-        }),
-    );
-  };
+  const write = useMutation({
+    meta: { onlineWrite: true },
+    mutationFn: ({ kind, id }: { kind: "dismiss" | "unlink"; id: string }) =>
+      kind === "dismiss" ? actions.onDismissSignal(id) : actions.onUnlink(id),
+    onSuccess: onCommandSuccess,
+  });
+  let notice: GitHubNoticeState | undefined;
+  if (write.isError) {
+    notice = {
+      kind: "alert",
+      text: errorText(write.error, "The GitHub action did not finish."),
+    };
+  } else if (write.isSuccess) {
+    notice = {
+      kind: "status",
+      text: write.variables.kind === "dismiss" ? "Dismissed." : "Unlinked.",
+    };
+  }
   const recordsById = new Map(records.map((record) => [record.id, record]));
   return (
     <section
@@ -144,9 +152,7 @@ export function GitHubWorkLinksPanel({
                   <Button
                     aria-describedby={`github-signal-${signal.signalId}`}
                     onClick={() =>
-                      run("Dismissed.", () =>
-                        actions.onDismissSignal(signal.signalId),
-                      )
+                      write.mutate({ kind: "dismiss", id: signal.signalId })
                     }
                     type="button"
                     variant="outline"
@@ -167,7 +173,7 @@ export function GitHubWorkLinksPanel({
             <LinkRow
               key={link.id}
               link={link}
-              onUnlink={() => run("Unlinked.", () => actions.onUnlink(link.id))}
+              onUnlink={() => write.mutate({ kind: "unlink", id: link.id })}
             />
           ))}
         </ul>

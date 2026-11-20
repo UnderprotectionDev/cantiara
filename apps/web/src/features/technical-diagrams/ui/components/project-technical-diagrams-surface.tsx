@@ -11,9 +11,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useState } from "react";
 import { AppLink } from "@/components/app-link";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 import { usePersonalTechnicalDiagramView } from "../../hooks/use-personal-technical-diagram-view";
@@ -43,7 +41,6 @@ function DiagramCard({
 }) {
   const graph = diagramGraph(diagram.model);
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
   const options = orpc.technicalDiagramViews.queryOptions({
     input: { diagramId: diagram.id },
   });
@@ -55,7 +52,6 @@ function DiagramCard({
     ...versionOptions,
     enabled: diagram.authorityMode !== "External Source Link",
   });
-  const [versionError, setVersionError] = useState<string | null>(null);
   const invalidate = () =>
     Promise.all(
       [
@@ -73,41 +69,17 @@ function DiagramCard({
   const createVersion = usePreparedMutation(
     orpc.createDiagramVersion.mutationOptions({
       mutationFn: (input) => client.createDiagramVersion(input),
-      onError: (failure) =>
-        setVersionError(
-          failure instanceof Error
-            ? failure.message
-            : "Diagram Version could not be created.",
-        ),
-      onSuccess: async () => {
-        setVersionError(null);
-        await invalidate();
-      },
+      onSuccess: invalidate,
     }),
     (name: string) => ({ diagramId: diagram.id, name }),
   );
-  const restoreVersion = useMutation({
-    mutationFn: (versionId: string) =>
-      runOnlineOnlyWrite(() =>
-        client.restoreDiagramVersion({
-          diagramId: diagram.id,
-          expectedRevision: diagram.revision,
-          versionId,
-        }),
-      ),
-    onError: (failure) =>
-      setVersionError(
-        failure instanceof Error
-          ? failure.message
-          : "Diagram Version could not be restored.",
-      ),
-    onSuccess: async () => {
-      setVersionError(null);
-      await invalidate();
-    },
-  });
-  const [plan, setPlan] = useState<ConvertToRecordPlan | null>(null);
-  const [compositionError, setCompositionError] = useState<string | null>(null);
+  const restoreVersion = useMutation(
+    orpc.restoreDiagramVersion.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.restoreDiagramVersion(input),
+      onSuccess: invalidate,
+    }),
+  );
   const personalView = usePersonalTechnicalDiagramView(
     diagram.id,
     diagram.view?.id,
@@ -117,16 +89,10 @@ function DiagramCard({
       input: { diagramId: diagram.id },
     }),
   );
-  const compositionFailure = (fallback: string) => (failure: unknown) =>
-    setCompositionError(failure instanceof Error ? failure.message : fallback);
   const placeCard = usePreparedMutation(
     orpc.placeDiagramRecordCard.mutationOptions({
       mutationFn: (input) => client.placeDiagramRecordCard(input),
-      onError: compositionFailure("The record card could not be placed."),
-      onSuccess: async () => {
-        setCompositionError(null);
-        await invalidate();
-      },
+      onSuccess: invalidate,
     }),
     (option: RecordCardOption) => ({
       diagramId: diagram.id,
@@ -136,81 +102,73 @@ function DiagramCard({
       y: 40,
     }),
   );
-  const moveCard = useMutation({
-    mutationFn: (input: { cardId: string; x: number; y: number }) =>
-      runOnlineOnlyWrite(() =>
-        client.moveDiagramRecordCard({ diagramId: diagram.id, ...input }),
-      ),
-    onError: compositionFailure("The record card could not be moved."),
-    onSuccess: invalidate,
-  });
-  const removeCard = useMutation({
-    mutationFn: (cardId: string) =>
-      runOnlineOnlyWrite(() =>
-        client.removeDiagramRecordCard({ cardId, diagramId: diagram.id }),
-      ),
-    onError: compositionFailure("The record card could not be removed."),
-    onSuccess: invalidate,
-  });
+  const moveCard = useMutation(
+    orpc.moveDiagramRecordCard.mutationOptions({
+      meta: { onlineWrite: true, retryInSurface: true },
+      mutationFn: (input) => client.moveDiagramRecordCard(input),
+      onSuccess: invalidate,
+    }),
+  );
+  const removeCard = useMutation(
+    orpc.removeDiagramRecordCard.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.removeDiagramRecordCard(input),
+      onSuccess: invalidate,
+    }),
+  );
   const previewConvert = useMutation({
+    meta: { retryInSurface: true },
+    mutationKey: orpc.previewDiagramNodeConversion.mutationKey(),
     mutationFn: (input: Omit<PreviewConvertToRecordInput, "diagramId">) =>
-      runOnlineOnlyWrite(() =>
-        client.previewDiagramNodeConversion({
-          diagramId: diagram.id,
-          ...input,
+      queryClient.query({
+        ...orpc.previewDiagramNodeConversion.queryOptions({
+          input: { ...input, diagramId: diagram.id },
         }),
-      ),
-    onError: compositionFailure("The conversion could not be previewed."),
-    onSuccess: (preview) => {
-      setCompositionError(null);
-      setPlan(preview);
-    },
+        gcTime: 0,
+        staleTime: 0,
+      }),
   });
   const confirmConvert = usePreparedMutation(
     orpc.convertDiagramNodeToRecord.mutationOptions({
+      meta: { retryInSurface: true },
       mutationFn: (input) => client.convertDiagramNodeToRecord(input),
-      onError: compositionFailure("The conversion could not be confirmed."),
-      onSuccess: async () => {
-        setPlan(null);
-        setCompositionError(null);
-        await invalidate();
-      },
+      onSuccess: invalidate,
     }),
     (confirmed: ConvertToRecordPlan) => ({ plan: confirmed }),
   );
-  const saveStructure = useMutation({
-    mutationFn: (model: TechnicalDiagramSource["model"]) =>
-      runOnlineOnlyWrite(() =>
-        client.saveTechnicalDiagramStructure({ diagramId: diagram.id, model }),
-      ),
-    onError: (failure) =>
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Structural model could not be saved.",
-      ),
-    onSuccess: async () => {
-      setError(null);
-      await invalidate();
-    },
-  });
-  const saveLayout = useMutation({
-    mutationFn: (input: { id: string; x: number; y: number }) =>
-      runOnlineOnlyWrite(() =>
-        client.saveDiagramLayout({
-          diagramId: diagram.id,
-          positions: { [input.id]: { x: input.x, y: input.y } },
-          viewId: diagram.view?.id,
-        }),
-      ),
-    onError: (failure) =>
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Element position could not be saved.",
-      ),
-    onSuccess: invalidate,
-  });
+  const saveStructure = useMutation(
+    orpc.saveTechnicalDiagramStructure.mutationOptions({
+      meta: { onlineWrite: true, retryInSurface: true },
+      mutationFn: (input) => client.saveTechnicalDiagramStructure(input),
+      onSuccess: invalidate,
+    }),
+  );
+  const saveLayout = useMutation(
+    orpc.saveDiagramLayout.mutationOptions({
+      meta: { onlineWrite: true, retryInSurface: true },
+      mutationFn: (input) => client.saveDiagramLayout(input),
+      onSuccess: invalidate,
+    }),
+  );
+  function writeError(
+    ...attempts: [
+      mutation: { error: unknown; submittedAt: number },
+      fallback: string,
+    ][]
+  ) {
+    const latest = attempts.reduce((previous, attempt) =>
+      attempt[0].submittedAt >= previous[0].submittedAt ? attempt : previous,
+    );
+    const [mutation, fallback] = latest;
+    if (!mutation.error) {
+      return null;
+    }
+    return mutation.error instanceof Error ? mutation.error.message : fallback;
+  }
+  function resetConversion() {
+    previewConvert.reset();
+    confirmConvert.reset();
+  }
   const versionNames = Object.fromEntries(
     (versions.data ?? []).map((version) => [version.id, version.name]),
   );
@@ -238,9 +196,15 @@ function DiagramCard({
         <TechnicalDiagramCanvas
           diagram={diagram}
           key={`${diagram.id}:${diagram.view?.id ?? ""}`}
-          onMove={(id, position) => saveLayout.mutate({ id, ...position })}
+          onMove={(id, position) =>
+            saveLayout.mutate({
+              diagramId: diagram.id,
+              positions: { [id]: position },
+              viewId: diagram.view?.id,
+            })
+          }
           onMoveRecordCard={(cardId, position) =>
-            moveCard.mutate({ cardId, ...position })
+            moveCard.mutate({ cardId, diagramId: diagram.id, ...position })
           }
           onViewChange={personalView.schedule}
           recordCards={recordCards.data ?? []}
@@ -256,14 +220,25 @@ function DiagramCard({
         bindOptions={bindOptions}
         diagram={diagram}
         disabled={saveStructure.isPending}
-        onSave={(model) => saveStructure.mutateAsync(model)}
+        onSave={(model) =>
+          saveStructure.mutateAsync({ diagramId: diagram.id, model })
+        }
       />
       <DiagramVersionPanel
         diagram={diagram}
         disabled={createVersion.isPending || restoreVersion.isPending}
-        error={versionError}
+        error={writeError(
+          [createVersion, "Diagram Version could not be created."],
+          [restoreVersion, "Diagram Version could not be restored."],
+        )}
         onCreate={(versionName) => createVersion.mutateAsync(versionName)}
-        onRestore={(version) => restoreVersion.mutate(version.id)}
+        onRestore={(version) =>
+          restoreVersion.mutate({
+            diagramId: diagram.id,
+            expectedRevision: diagram.revision,
+            versionId: version.id,
+          })
+        }
         versions={versions.data ?? []}
       />
       <DiagramCompositionPanel
@@ -275,24 +250,38 @@ function DiagramCard({
           previewConvert.isPending ||
           confirmConvert.isPending
         }
-        error={compositionError}
-        onCancelConvert={() => {
-          setPlan(null);
-        }}
-        onConfirmConvert={(confirmed) => confirmConvert.mutate(confirmed)}
+        error={writeError(
+          [placeCard, "The record card could not be placed."],
+          [moveCard, "The record card could not be moved."],
+          [removeCard, "The record card could not be removed."],
+          [previewConvert, "The conversion could not be previewed."],
+          [confirmConvert, "The conversion could not be confirmed."],
+        )}
+        onCancelConvert={resetConversion}
+        onConfirmConvert={(confirmed) =>
+          confirmConvert.mutate(confirmed, { onSuccess: resetConversion })
+        }
         onPlace={(option) => placeCard.mutateAsync(option)}
-        onPreviewConvert={(input) => previewConvert.mutate(input)}
-        onRemove={(cardId) => removeCard.mutate(cardId)}
+        onPreviewConvert={(input) => {
+          confirmConvert.reset();
+          previewConvert.mutate(input);
+        }}
+        onRemove={(cardId) =>
+          removeCard.mutate({ cardId, diagramId: diagram.id })
+        }
         options={recordOptions}
-        plan={plan}
+        plan={previewConvert.data ?? null}
         versions={versions.data ?? []}
       />
       <DiagramAuthorityConversion diagram={diagram} />
       <DiagramViewForm
         diagramId={diagram.id}
-        error={error}
+        error={writeError(
+          [saveStructure, "Structural model could not be saved."],
+          [saveLayout, "Element position could not be saved."],
+        )}
         nodes={graph.nodes}
-        onError={setError}
+        projectId={diagram.projectId}
         views={views.data ?? []}
       />
     </article>

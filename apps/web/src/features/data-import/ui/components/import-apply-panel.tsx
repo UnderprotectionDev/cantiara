@@ -28,13 +28,17 @@ import { ImportReceiptPanel } from "./import-receipt";
  * retry reuses the same key, so it can only return the same result.
  */
 export function ImportApplyPanel({
+  busy,
   onApply,
+  onAttempt,
   onCancel,
   onCommitted,
   preview,
   scope,
 }: {
+  busy: boolean;
   onApply: (input: ApplyImportInput) => Promise<ImportApplyResult>;
+  onAttempt: (key: string) => void;
   onCancel: () => void;
   onCommitted?: (receipt: ImportReceipt, scope: ImportScope) => Promise<void>;
   preview: ImportPreview;
@@ -45,7 +49,7 @@ export function ImportApplyPanel({
   const commit = useMutation(
     orpc.applyImport.mutationOptions({
       meta: { onlineWrite: true, presentsSupportFailure: true },
-      mutationFn: onApply,
+      mutationFn: (input) => onApply(input),
       onSuccess: async (completed) => {
         if (completed.status === "committed") {
           await onCommitted?.(completed.receipt, scope);
@@ -57,6 +61,7 @@ export function ImportApplyPanel({
   function apply() {
     // A dropped connection can still leave a receipt reopenable by this key.
     rememberLastApplyKey(key);
+    onAttempt(key);
     commit.mutate({
       finalSetFingerprint: preview.finalSetFingerprint,
       idempotencyKey: key,
@@ -104,12 +109,17 @@ export function ImportApplyPanel({
       ) : null}
       <div className="flex gap-2">
         {finalizing ? (
-          <Button onClick={apply} type="button" variant="outline">
+          <Button
+            disabled={busy}
+            onClick={apply}
+            type="button"
+            variant="outline"
+          >
             Check result
           </Button>
         ) : (
           <Button
-            disabled={blocked !== null || past || updateRequired}
+            disabled={blocked !== null || past || updateRequired || busy}
             onClick={apply}
             type="button"
           >
@@ -117,7 +127,12 @@ export function ImportApplyPanel({
           </Button>
         )}
         {past ? null : (
-          <Button onClick={onCancel} type="button" variant="outline">
+          <Button
+            disabled={busy}
+            onClick={onCancel}
+            type="button"
+            variant="outline"
+          >
             Cancel
           </Button>
         )}

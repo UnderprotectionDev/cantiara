@@ -54,6 +54,8 @@ Kaynak Proje ana kaydıdır; URL/başlık, erişim zamanı, yakalanan içerik ve
 
 ## Testing Decisions
 
+- The Smart Link composer reads the latest preview and save outcome from their observers. The Evidence seam keeps the plan aligned with the selected range and target, and a confirmed Source refreshes its Project list.
+
 - **What a good test is.** Tests observe Sources and Freshness through Source CRUD, isolated preview, recheck/compare, and per-use keep/rebind. They go red on silent rebind, private-IP preview success, or treating preview HTML as a Source version. Expected values come from the freshness journey (one Source, three targets, two versions, partial review), not from fetch implementation.
 - **Seam (one).** Sources and Freshness — Source CRUD, preview, recheck/compare, per-use decision, signal production. Egress is an adapter (real vs double that still enforces deny-private).
 - **Modules under test.** Sources and Freshness only. Evidence rebind and Notification Center are consumers/counterparts.

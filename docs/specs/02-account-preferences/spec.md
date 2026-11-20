@@ -52,6 +52,8 @@ Hesap profil tercihleri locale, saat dilimi, tarih biçimi, haftanın ilk günü
 
 ## Testing Decisions
 
+- **Query write lifecycle (#544).** The header Appearance control and the Account Preferences form both submit through the Client Shell Query write policy. The shared Client Shell test verifies that a required desktop update blocks a Query write before RPC.
+
 - **What a good test is.** Tests observe Account Preferences through its public interface: read defaults, show first-login suggestion without applying it, save locale/time zone/date format/first day/appearance, format a known timestamp and number, move a week boundary, refuse to rewrite stored timestamps, keys, statuses, or field values, keep English UI copy under a non-English locale, and apply Light/Dark from the Hesap record rather than a device key. They do not assert Drizzle row shapes, `localStorage` internals, or date-fns locale-pack file names. Expected values are product rules (`en-GB` / `Europe/Istanbul` / `Monday`, suggestion-not-applied, no UI translation).
 - **Seam (one).** Account Preferences — the product-facing Hesap preference interface used by the web app, the Tauri shell, and later surfaces that format dates or choose Light/Dark. Playwright for the English product-language journey is the same seam observed through the UI, not a second module.
 - **Modules under test.** Account Preferences only. Bitiriş efekti, Workspace overview, Project shell, and visitor Dış yüzey are not in this suite except as “this control is absent / this value is not read from Hesap” counterparts.

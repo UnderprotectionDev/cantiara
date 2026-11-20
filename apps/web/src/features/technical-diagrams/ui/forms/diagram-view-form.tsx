@@ -15,20 +15,20 @@ export function DiagramViewForm({
   diagramId,
   error,
   nodes,
-  onError,
+  projectId,
   views,
 }: {
   diagramId: string;
   error: string | null;
   nodes: ReturnType<typeof diagramGraph>["nodes"];
-  onError: (message: string | null) => void;
+  projectId: string;
   views: readonly { id: string; name: string; selectedNodeIds: string[] }[];
 }) {
   const queryClient = useQueryClient();
   const invalidate = () =>
     Promise.all(
       [
-        orpc.technicalDiagrams.key(),
+        orpc.technicalDiagrams.key({ input: { projectId } }),
         orpc.technicalDiagram.queryKey({ input: { diagramId } }),
         orpc.technicalDiagramViews.queryKey({ input: { diagramId } }),
       ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
@@ -36,18 +36,8 @@ export function DiagramViewForm({
   const create = usePreparedMutation(
     orpc.createDiagramView.mutationOptions({
       mutationFn: (input) => client.createDiagramView(input),
-      onSuccess: async () => {
-        onError(null);
-        // A new Diagram View can become the diagram's current view (a view named
-        // "Default"), so the diagram query is invalidated with the views list.
-        await invalidate();
-      },
-      onError: (failure) =>
-        onError(
-          failure instanceof Error
-            ? failure.message
-            : "Diagram View could not be saved.",
-        ),
+      // A view named "Default" can become the current diagram view.
+      onSuccess: invalidate,
     }),
     (input: { name: string; selectedNodeIds: string[] }) => ({
       ...input,
@@ -69,6 +59,9 @@ export function DiagramViewForm({
         .catch(() => undefined);
     },
   });
+  const requestError = create.isError
+    ? create.error.message || "Diagram View could not be saved."
+    : error;
   return (
     <section aria-label="Diagram View" className="space-y-2">
       <h4 className="font-medium">Diagram View</h4>
@@ -138,7 +131,7 @@ export function DiagramViewForm({
           )}
         </form.Subscribe>
       </form>
-      {error ? <p role="alert">{error}</p> : null}
+      {requestError ? <p role="alert">{requestError}</p> : null}
     </section>
   );
 }

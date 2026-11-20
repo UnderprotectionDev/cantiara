@@ -4,6 +4,7 @@ import type {
   CaptureBulkCluster,
   CaptureBulkSenseMaking,
   CaptureInboxItem,
+  CaptureInboxSnapshot,
 } from "@cantiara/api/capture-triage";
 import { Button } from "@cantiara/ui/components/button";
 import {
@@ -11,7 +12,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { toast } from "sonner";
 
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
@@ -22,7 +23,6 @@ import {
   type BulkSenseMakingDraft,
   bulkSenseMakingColumns,
   captureCountLabel,
-  type UndoPreviewState,
 } from "../../lib/capture-inbox";
 import { AddBulkClusterForm } from "../forms/add-bulk-cluster-form";
 import { CaptureInboxItemActions } from "./capture-inbox-item-actions";
@@ -38,39 +38,25 @@ export default function BulkSenseMakingView({
   accountId: string;
   formattingPreferences: AccountPreferences;
   items: CaptureInboxItem[];
-  onUndoPreview: (state: UndoPreviewState) => void;
+  onUndoPreview: (mergeId: string) => void;
   triageAvailable: boolean;
   view: CaptureBulkSenseMaking;
 }) {
   const queryClient = useQueryClient();
   const connection = useClientShellConnection();
-  const [layout, setLayout] = useState(view);
+  const { queryKey } = captureInboxQueryOptions(accountId);
   const pendingAdd = useRef<{
     name: string;
     command: Parameters<typeof client.updateCaptureBulkSenseMaking>[0];
   } | null>(null);
 
-  useEffect(() => setLayout(view), [view]);
-
   const saveLayout = useMutation(
     orpc.updateCaptureBulkSenseMaking.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.updateCaptureBulkSenseMaking(input),
-      onMutate: (next) => {
-        const previousLayout = layout;
-        setLayout({
-          clusters: next.clusters,
-          placements: next.placements,
-          revision: previousLayout.revision,
-        });
-        return { previousLayout };
-      },
-      onError: async (_error, _next, context) => {
-        setLayout(context?.previousLayout ?? view);
+      onError: async () => {
         toast.error("Bulk sense-making could not be saved.");
-        await queryClient.invalidateQueries({
-          queryKey: captureInboxQueryOptions(accountId).queryKey,
-        });
+        await queryClient.invalidateQueries({ queryKey });
       },
       onSuccess: async (next, input) => {
         if (
@@ -79,13 +65,23 @@ export default function BulkSenseMakingView({
         ) {
           pendingAdd.current = null;
         }
-        setLayout(next);
-        await queryClient.invalidateQueries({
-          queryKey: captureInboxQueryOptions(accountId).queryKey,
-        });
+        queryClient.setQueryData<CaptureInboxSnapshot>(queryKey, (inbox) =>
+          inbox && inbox.bulkSenseMaking.revision <= next.revision
+            ? { ...inbox, bulkSenseMaking: next }
+            : inbox,
+        );
+        await queryClient.invalidateQueries({ queryKey });
       },
     }),
   );
+  const pending = saveLayout.isPending ? saveLayout.variables : undefined;
+  const layout = pending
+    ? {
+        clusters: pending.clusters,
+        placements: pending.placements,
+        revision: pending.baseRevision,
+      }
+    : view;
 
   function prepareLayout(next: BulkSenseMakingDraft) {
     return commandVariables<

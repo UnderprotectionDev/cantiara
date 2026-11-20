@@ -26,10 +26,7 @@ import {
 } from "@/features/capture-triage/ui/components/capture-inbox-item-actions";
 import CaptureInboxForm from "@/features/capture-triage/ui/forms/capture-inbox-form";
 
-import {
-  captureCountLabel,
-  type UndoPreviewState,
-} from "../../lib/capture-inbox";
+import { captureCountLabel } from "../../lib/capture-inbox";
 
 import {
   advanceSequentialTriageAfterExit,
@@ -105,7 +102,7 @@ function SequentialTriageView({
   onNext: () => void;
   onPrevious: () => void;
   onTriageExit: () => void;
-  onUndoPreview: (state: UndoPreviewState) => void;
+  onUndoPreview: (mergeId: string) => void;
   triageAvailable: boolean;
 }) {
   return (
@@ -169,6 +166,7 @@ function SequentialTriageView({
             accountId={accountId}
             formattingPreferences={formattingPreferences}
             item={item}
+            key={item.id}
             onTriageExit={onTriageExit}
             onUndoPreview={onUndoPreview}
             triageAvailable={triageAvailable}
@@ -189,7 +187,7 @@ function CaptureInboxGroupView({
   accountId: string;
   formattingPreferences: AccountPreferences;
   group: CaptureInboxGroup;
-  onUndoPreview: (state: UndoPreviewState) => void;
+  onUndoPreview: (mergeId: string) => void;
   triageAvailable: boolean;
 }) {
   const headingId = `capture-group-${group.itemIds[0]}`;
@@ -268,7 +266,7 @@ function SequentialTriageSurface({
   onNext: () => void;
   onPrevious: () => void;
   onTriageExit: () => void;
-  onUndoPreview: (state: UndoPreviewState) => void;
+  onUndoPreview: (mergeId: string) => void;
   triageAvailable: boolean;
 }) {
   if (item) {
@@ -337,7 +335,7 @@ function CaptureInboxListView({
   onOpenCaptureComposer: () => void;
   onStartSequentialTriage: () => void;
   onToggleBulkView: () => void;
-  onUndoPreview: (state: UndoPreviewState) => void;
+  onUndoPreview: (mergeId: string) => void;
   triageAvailable: boolean;
   viewMode: "inbox" | "bulk";
 }) {
@@ -473,7 +471,7 @@ export default function CaptureInboxSurface({
     cancelUndo,
     confirmUndo,
     isPending: undoPending,
-    setUndoPreview,
+    showUndoPreview,
     undoPreview,
   } = useCaptureInboxUndo(accountId, restoreSequentialItem);
 
@@ -527,7 +525,7 @@ export default function CaptureInboxSurface({
           onCancel={cancelUndo}
           onConfirm={confirmUndo}
           pending={undoPending}
-          preview={undoPreview.preview}
+          preview={undoPreview}
         />
       ) : null}
 
@@ -560,7 +558,7 @@ export default function CaptureInboxSurface({
           onNext={nextSequentialTriageItem}
           onPrevious={previousSequentialTriageItem}
           onTriageExit={advanceSequentialTriage}
-          onUndoPreview={setUndoPreview}
+          onUndoPreview={showUndoPreview}
           triageAvailable={triageAvailable}
         />
       ) : (
@@ -575,7 +573,7 @@ export default function CaptureInboxSurface({
           onToggleBulkView={() =>
             setViewMode((current) => (current === "bulk" ? "inbox" : "bulk"))
           }
-          onUndoPreview={setUndoPreview}
+          onUndoPreview={showUndoPreview}
           triageAvailable={triageAvailable}
           viewMode={viewMode}
         />

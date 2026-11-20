@@ -64,11 +64,13 @@ function VersionDetails({
 
 function CaseItem({
   loadTargets,
+  projectId,
   onCreateVersion,
   readOnly,
   record,
 }: {
   loadTargets: LoadRelationTargets;
+  projectId: string;
   onCreateVersion: SubmitCaseVersion;
   readOnly: boolean;
   record: PlannedTestCaseRecord;
@@ -152,6 +154,7 @@ function CaseItem({
             loadTargets={loadTargets}
             onCancel={() => setEditing(false)}
             onSubmit={save}
+            projectId={projectId}
             showChangeKind
             submitLabel="Save new version"
           />
@@ -188,12 +191,14 @@ function CaseItem({
 export function PlannedTestsView({
   cases,
   loadTargets,
+  projectId,
   onCreate,
   onCreateVersion,
   readOnly,
 }: {
   cases: PlannedTestCaseRecord[];
   loadTargets: LoadRelationTargets;
+  projectId: string;
   onCreate: SubmitCase;
   onCreateVersion: SubmitCaseVersion;
   readOnly: boolean;
@@ -217,6 +222,7 @@ export function PlannedTestsView({
           initial={EMPTY_CASE_FORM}
           loadTargets={loadTargets}
           onSubmit={onCreate}
+          projectId={projectId}
           showChangeKind={false}
           submitLabel="Create Planned Test Case"
         />
@@ -232,6 +238,7 @@ export function PlannedTestsView({
               key={record.id}
               loadTargets={loadTargets}
               onCreateVersion={onCreateVersion}
+              projectId={projectId}
               readOnly={readOnly}
               record={record}
             />

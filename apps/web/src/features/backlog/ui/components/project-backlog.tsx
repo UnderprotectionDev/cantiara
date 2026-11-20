@@ -56,7 +56,7 @@ import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hook
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 import {
   type BacklogPresentation,
   type BacklogSortField,
@@ -77,12 +77,7 @@ function BacklogCard({
   work: BacklogWork;
 }) {
   const queryClient = useQueryClient();
-  const [reappearDate, setReappearDate] = useState(work.reappearDate ?? "");
   const [dateOpen, setDateOpen] = useState(false);
-  useEffect(
-    () => setReappearDate(work.reappearDate ?? ""),
-    [work.reappearDate],
-  );
   const saveReappearDate = usePreparedMutation(
     orpc.updateWorkReappearDate.mutationOptions({
       mutationFn: (input) => client.updateWorkReappearDate(input),
@@ -92,10 +87,11 @@ function BacklogCard({
             queryKey: orpc.projectBacklog.queryOptions({ input: { projectId } })
               .queryKey,
           }),
-          queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectWorks.key({ input: { projectId } }),
+          }),
         ]);
       },
-      onError: () => setReappearDate(work.reappearDate ?? ""),
     }),
     (value: string | null) => ({
       baseRevision: work.revision,
@@ -103,6 +99,9 @@ function BacklogCard({
       workId: work.id,
     }),
   );
+  const reappearDate = saveReappearDate.isPending
+    ? saveReappearDate.variables?.reappearDate
+    : work.reappearDate;
   const selectedDate = reappearDate ? parseISO(reappearDate) : undefined;
   const {
     attributes,
@@ -181,7 +180,6 @@ function BacklogCard({
                   return;
                 }
                 const value = format(date, "yyyy-MM-dd");
-                setReappearDate(value);
                 setDateOpen(false);
                 saveReappearDate.mutate(value);
               }}
@@ -194,7 +192,6 @@ function BacklogCard({
             aria-label={`Clear Reappear date for ${work.title}`}
             disabled={saveReappearDate.isPending}
             onClick={() => {
-              setReappearDate("");
               saveReappearDate.mutate(null);
             }}
             size="sm"

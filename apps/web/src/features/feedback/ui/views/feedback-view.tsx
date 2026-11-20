@@ -38,6 +38,12 @@ type SetStatus = (
   status: FeedbackStatus,
 ) => Promise<unknown>;
 
+interface FeedbackWriteState {
+  error: unknown;
+  isPending: boolean;
+  variables?: { feedbackId: string };
+}
+
 function FeedbackRow({
   companyOptions,
   contactOptions,
@@ -48,6 +54,8 @@ function FeedbackRow({
   onSetStatus,
   readOnly,
   record,
+  identityWrite,
+  statusWrite,
 }: {
   companyOptions: IdentityOption[];
   contactOptions: IdentityOption[];
@@ -58,38 +66,35 @@ function FeedbackRow({
   onSetStatus: SetStatus;
   readOnly: boolean;
   record: FeedbackRecord;
+  identityWrite?: FeedbackWriteState;
+  statusWrite?: FeedbackWriteState;
 }) {
-  const [error, setError] = useState<string>();
   const [converting, setConverting] = useState(false);
-  async function changeIdentity(next: {
+  const disableWrite =
+    readOnly || statusWrite?.isPending || identityWrite?.isPending;
+  let error: string | undefined;
+  if (statusWrite?.error) {
+    error = "Status could not be changed. Reload and try again.";
+  } else if (identityWrite?.error) {
+    error = "Contact or Company could not be changed. Reload and try again.";
+  }
+  function changeIdentity(next: {
     companyId?: string | null;
     contactId?: string | null;
   }) {
-    setError(undefined);
-    try {
-      await onSetIdentity(record, {
-        companyId:
-          next.companyId === undefined
-            ? (record.company?.id ?? null)
-            : next.companyId,
-        contactId:
-          next.contactId === undefined
-            ? (record.contact?.id ?? null)
-            : next.contactId,
-      });
-    } catch {
-      setError(
-        "Contact or Company could not be changed. Reload and try again.",
-      );
-    }
+    return onSetIdentity(record, {
+      companyId:
+        next.companyId === undefined
+          ? (record.company?.id ?? null)
+          : next.companyId,
+      contactId:
+        next.contactId === undefined
+          ? (record.contact?.id ?? null)
+          : next.contactId,
+    }).catch(() => undefined);
   }
-  async function change(status: FeedbackStatus) {
-    setError(undefined);
-    try {
-      await onSetStatus(record, status);
-    } catch {
-      setError("Status could not be changed. Reload and try again.");
-    }
+  function change(status: FeedbackStatus) {
+    return onSetStatus(record, status).catch(() => undefined);
   }
   return (
     <li
@@ -102,7 +107,7 @@ function FeedbackRow({
         <div className="flex items-center gap-2 text-sm">
           <label htmlFor={`feedback-status-${record.id}`}>Status</label>
           <NativeSelect
-            disabled={readOnly}
+            disabled={disableWrite}
             id={`feedback-status-${record.id}`}
             onChange={(event) => {
               change(event.target.value as FeedbackStatus).catch(
@@ -127,7 +132,7 @@ function FeedbackRow({
       <p className="text-sm whitespace-pre-wrap">{record.originalMessage}</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <IdentitySelect
-          disabled={readOnly}
+          disabled={disableWrite}
           id={`feedback-contact-${record.id}`}
           label="Contact (optional)"
           onChange={(value) => {
@@ -137,7 +142,7 @@ function FeedbackRow({
           value={record.contact?.id ?? ""}
         />
         <IdentitySelect
-          disabled={readOnly}
+          disabled={disableWrite}
           id={`feedback-company-${record.id}`}
           label="Company (optional)"
           onChange={(value) => {
@@ -232,6 +237,8 @@ export function FeedbackView({
   onSaveEvidence,
   onSetIdentity,
   onSetStatus,
+  identityWrite,
+  statusWrite,
   readOnly,
   records,
 }: {
@@ -244,6 +251,8 @@ export function FeedbackView({
   onSaveEvidence: (record: FeedbackRecord) => SaveEvidence;
   onSetIdentity: SetIdentity;
   onSetStatus: SetStatus;
+  identityWrite?: FeedbackWriteState;
+  statusWrite?: FeedbackWriteState;
   readOnly: boolean;
   records: FeedbackRecord[];
 }) {
@@ -268,6 +277,11 @@ export function FeedbackView({
             <FeedbackRow
               companyOptions={companyOptions}
               contactOptions={contactOptions}
+              identityWrite={
+                identityWrite?.variables?.feedbackId === record.id
+                  ? identityWrite
+                  : undefined
+              }
               key={record.id}
               onConfirmConvert={onConfirmConvert}
               onPreviewConvert={onPreviewConvert}
@@ -276,6 +290,11 @@ export function FeedbackView({
               onSetStatus={onSetStatus}
               readOnly={readOnly}
               record={record}
+              statusWrite={
+                statusWrite?.variables?.feedbackId === record.id
+                  ? statusWrite
+                  : undefined
+              }
             />
           ))}
         </ul>

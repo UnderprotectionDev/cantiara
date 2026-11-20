@@ -4,7 +4,6 @@ import type {
   CaptureBulkSenseMaking,
   CaptureInboxItem,
   CaptureTemplate,
-  CaptureUndoMergePreview,
 } from "@cantiara/api/capture-triage";
 import type { ProjectProfile } from "@cantiara/api/project-shell";
 
@@ -85,11 +84,6 @@ export interface BulkSenseMakingColumn {
 export interface BulkSenseMakingDraft {
   clusters: CaptureBulkCluster[];
   placements: CaptureBulkPlacement[];
-}
-
-export interface UndoPreviewState {
-  mergeId: string;
-  preview: CaptureUndoMergePreview;
 }
 
 export function captureCountLabel(count: number) {

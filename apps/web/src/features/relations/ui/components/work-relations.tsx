@@ -3,7 +3,6 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type {
   RelationCreatePreviewInput,
-  RelationPreview,
   RelationView,
   UsedInSummary,
 } from "@cantiara/api/relations";
@@ -43,13 +42,7 @@ export default function WorkRelations({
 }) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
-  const [preview, setPreview] = useState<RelationPreview | null>(null);
-  const [createIdempotencyKey, setCreateIdempotencyKey] = useState<
-    string | null
-  >(null);
-  const [removedRelation, setRemovedRelation] =
-    useState<RemovedRelation | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [invalidPreview, setInvalidPreview] = useState(false);
   const query = useQuery(
     orpc.relations.queryOptions({
       input: { recordId: work.id, recordType: "Work" },
@@ -93,33 +86,23 @@ export default function WorkRelations({
   const previewMutation = useMutation({
     mutationKey: orpc.relationPreview.mutationKey(),
     mutationFn: (input: RelationCreatePreviewInput) =>
-      client.relationPreview(input),
-    onError: (mutationError) => {
-      setError(mutationErrorMessage(mutationError, "Relation preview failed."));
-    },
-    onSuccess: (nextPreview) => {
-      setError(null);
-      setCreateIdempotencyKey(crypto.randomUUID());
-      setPreview(nextPreview);
-    },
+      queryClient.query({
+        ...orpc.relationPreview.queryOptions({ input }),
+        staleTime: 0,
+        gcTime: 0,
+      }),
+    meta: { presentsSupportFailure: true },
   });
 
   const createMutation = useMutation(
     orpc.createRelation.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.createRelation(input),
-      onError: (mutationError) => {
-        setError(
-          mutationErrorMessage(mutationError, "Relation could not be created."),
-        );
-      },
       onSuccess: async (_, input) => {
-        setError(null);
-        setPreview(null);
-        setCreateIdempotencyKey(null);
+        previewMutation.reset();
         await invalidateRelations(
           [input.source.recordId, input.target.recordId].find(
-            (recordId) => recordId !== work.id,
+            (id) => id !== work.id,
           ),
         );
       },
@@ -141,27 +124,15 @@ export default function WorkRelations({
         clientIdempotencyKey,
         relationId: relation.id,
       }),
-    onError: (mutationError) => {
-      setError(
-        mutationErrorMessage(mutationError, "Relation could not be removed."),
-      );
-    },
-    onSuccess: async (result, { relation }) => {
-      setError(null);
-      const otherRecordId =
+    onSuccess: async (_, { relation }) => {
+      undoMutation.reset();
+      await invalidateRelations(
         relation.source.recordId === work.id
           ? relation.target.recordId
-          : relation.source.recordId;
-      setRemovedRelation({
-        baseRevision: relation.revision + 1,
-        otherRecordId,
-        receiptId: result.receiptId,
-        relationId: relation.id,
-      });
-      await invalidateRelations(otherRecordId);
+          : relation.source.recordId,
+      );
     },
   });
-
   const resolveMutation = useMutation({
     mutationKey: orpc.resolveBlocker.mutationKey(),
     meta: { onlineWrite: true },
@@ -180,13 +151,7 @@ export default function WorkRelations({
         ...(note ? { note } : {}),
         relationId: relation.id,
       }),
-    onError: (mutationError) => {
-      setError(
-        mutationErrorMessage(mutationError, "Blocker could not be resolved."),
-      );
-    },
     onSuccess: async (_result, { relation }) => {
-      setError(null);
       await invalidateRelations(
         relation.source.recordId === work.id
           ? relation.target.recordId
@@ -210,16 +175,7 @@ export default function WorkRelations({
         clientIdempotencyKey,
         relationId: relation.id,
       }),
-    onError: (mutationError) => {
-      setError(
-        mutationErrorMessage(
-          mutationError,
-          "Blocker could not be reactivated.",
-        ),
-      );
-    },
     onSuccess: async (_result, { relation }) => {
-      setError(null);
       await invalidateRelations(
         relation.source.recordId === work.id
           ? relation.target.recordId
@@ -234,21 +190,46 @@ export default function WorkRelations({
     mutationFn: ({
       otherRecordId: _,
       ...input
-    }: NonNullable<typeof removedRelation> & {
+    }: RemovedRelation & {
       clientIdempotencyKey: string;
     }) => client.undoRelation(input),
-    onError: (mutationError) => {
-      setError(
-        mutationErrorMessage(mutationError, "Relation could not be undone."),
-      );
-    },
     onSuccess: async (_, { otherRecordId }) => {
-      setError(null);
-      setRemovedRelation(null);
+      removeMutation.reset();
       await invalidateRelations(otherRecordId);
     },
   });
 
+  const { data: preview } = previewMutation;
+  const removed = removeMutation.variables?.relation;
+  const removedRelation =
+    removeMutation.data && removed
+      ? {
+          baseRevision: removed.revision + 1,
+          otherRecordId:
+            removed.source.recordId === work.id
+              ? removed.target.recordId
+              : removed.source.recordId,
+          receiptId: removeMutation.data.receiptId,
+          relationId: removed.id,
+        }
+      : null;
+  const [latest] = [
+    { ...previewMutation, fallback: "Relation preview failed." },
+    { ...createMutation, fallback: "Relation could not be created." },
+    { ...removeMutation, fallback: "Relation could not be removed." },
+    { ...resolveMutation, fallback: "Blocker could not be resolved." },
+    { ...reactivateMutation, fallback: "Blocker could not be reactivated." },
+    { ...undoMutation, fallback: "Relation could not be undone." },
+  ].sort((left, right) => right.submittedAt - left.submittedAt);
+  const error = invalidPreview
+    ? "Relation preview failed."
+    : latest?.isError && mutationErrorMessage(latest.error, latest.fallback);
+
+  function clearPreview() {
+    setInvalidPreview(false);
+    previewMutation.reset();
+    createMutation.reset();
+  }
   const relationItems = query.data ?? [];
   const outgoing = relationItems.filter(
     (relation) => relation.direction === "outgoing",
@@ -273,18 +254,12 @@ export default function WorkRelations({
               previewMutation.isPending ||
               createMutation.isPending
             }
-            onEdit={() => {
-              setPreview(null);
-              setCreateIdempotencyKey(null);
-              setError(null);
-            }}
+            onEdit={clearPreview}
             onPreview={(input) => {
-              setError(null);
-              setPreview(null);
-              setCreateIdempotencyKey(null);
+              clearPreview();
               previewMutation.mutate(input);
             }}
-            onPreviewInvalid={() => setError("Relation preview failed.")}
+            onPreviewInvalid={() => setInvalidPreview(true)}
             workId={work.id}
           >
             {preview ? (
@@ -302,23 +277,29 @@ export default function WorkRelations({
                   <Button
                     disabled={createMutation.isPending}
                     onClick={() => {
-                      if (!(preview && createIdempotencyKey)) {
+                      if (!preview) {
                         return;
                       }
-                      createMutation.mutate({
-                        baseRevision: preview.baseRevision,
-                        clientIdempotencyKey: createIdempotencyKey,
-                        kind: preview.kind,
-                        previewId: preview.previewId,
-                        source: {
-                          recordId: preview.source.recordId,
-                          recordType: preview.source.recordType,
-                        },
-                        target: {
-                          recordId: preview.target.recordId,
-                          recordType: preview.target.recordType,
-                        },
-                      });
+                      createMutation.mutate(
+                        commandVariables(
+                          {
+                            baseRevision: preview.baseRevision,
+                            kind: preview.kind,
+                            previewId: preview.previewId,
+                            source: {
+                              recordId: preview.source.recordId,
+                              recordType: preview.source.recordType,
+                            },
+                            target: {
+                              recordId: preview.target.recordId,
+                              recordType: preview.target.recordType,
+                            },
+                          },
+                          createMutation.isError
+                            ? createMutation.variables
+                            : undefined,
+                        ),
+                      );
                     }}
                     size="xs"
                     type="button"
@@ -326,10 +307,7 @@ export default function WorkRelations({
                     Confirm relation
                   </Button>
                   <Button
-                    onClick={() => {
-                      setPreview(null);
-                      setCreateIdempotencyKey(null);
-                    }}
+                    onClick={clearPreview}
                     size="xs"
                     type="button"
                     variant="outline"

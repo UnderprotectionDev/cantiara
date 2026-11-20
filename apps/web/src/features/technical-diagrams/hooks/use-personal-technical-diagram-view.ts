@@ -1,7 +1,7 @@
 import type { TechnicalDiagramViewport } from "@cantiara/api/technical-diagram-viewport";
 import { LiteDebouncer } from "@tanstack/pacer-lite";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { client, orpc } from "@/utils/orpc";
 
@@ -28,8 +28,8 @@ export function usePersonalTechnicalDiagramView(
   const queryClient = useQueryClient();
   const input = { diagramId, ...(viewId ? { viewId } : {}) };
   const query = useQuery(orpc.technicalDiagramViewport.queryOptions({ input }));
-  const [saveError, setSaveError] = useState<string | null>(null);
   const save = useMutation({
+    meta: { onlineWrite: true, retryInSurface: true },
     mutationKey: orpc.saveTechnicalDiagramViewport.mutationKey(),
     mutationFn: ({
       diagramId: pendingDiagram,
@@ -41,8 +41,6 @@ export function usePersonalTechnicalDiagramView(
         ...(pendingView ? { viewId: pendingView } : {}),
         viewport,
       }),
-    onError: () => setSaveError("Your personal view could not be saved."),
-    onMutate: () => setSaveError(null),
     onSuccess: (saved, { diagramId: target, viewId: savedFor }) =>
       queryClient.setQueryData(
         orpc.technicalDiagramViewport.queryOptions({
@@ -80,7 +78,12 @@ export function usePersonalTechnicalDiagramView(
 
   return {
     isReady: query.isSuccess || query.isError,
-    saveError,
+    saveError:
+      save.isError &&
+      save.variables?.diagramId === diagramId &&
+      save.variables.viewId === viewId
+        ? "Your personal view could not be saved."
+        : null,
     saved: query.data ?? null,
     schedule,
   };

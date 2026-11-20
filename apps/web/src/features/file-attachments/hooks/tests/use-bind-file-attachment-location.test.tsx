@@ -19,7 +19,9 @@ import { useBindFileAttachmentLocation } from "../use-bind-file-attachment-locat
 
 test("binding a location refreshes Work lists, Work reads and Smart Collection membership", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  rpc.bindFileAttachmentLocation.mockResolvedValue({});
+  rpc.bindFileAttachmentLocation.mockResolvedValue({
+    work: { id: "work-1", projectId: "project-1" },
+  });
   const queryClient = new QueryClient();
   const worksKey = orpc.projectWorks.queryOptions({
     input: { projectId: "project-1" },
@@ -27,8 +29,20 @@ test("binding a location refreshes Work lists, Work reads and Smart Collection m
   const workKey = orpc.work.queryOptions({
     input: { workId: "work-1" },
   }).queryKey;
+  const unrelatedWorksKey = orpc.projectWorks.queryOptions({
+    input: { projectId: "project-2" },
+  }).queryKey;
+  const unrelatedWorkKey = orpc.work.queryOptions({
+    input: { workId: "work-2" },
+  }).queryKey;
   const membershipKey = orpc.smartCollectionViews.key();
-  for (const key of [worksKey, workKey, membershipKey]) {
+  for (const key of [
+    worksKey,
+    workKey,
+    membershipKey,
+    unrelatedWorksKey,
+    unrelatedWorkKey,
+  ]) {
     queryClient.setQueryData(key, []);
   }
   let bind: (() => Promise<unknown>) | undefined;
@@ -53,5 +67,11 @@ test("binding a location refreshes Work lists, Work reads and Smart Collection m
   expect(queryClient.getQueryState(worksKey)?.isInvalidated).toBe(true);
   expect(queryClient.getQueryState(workKey)?.isInvalidated).toBe(true);
   expect(queryClient.getQueryState(membershipKey)?.isInvalidated).toBe(true);
+  expect(queryClient.getQueryState(unrelatedWorksKey)?.isInvalidated).toBe(
+    false,
+  );
+  expect(queryClient.getQueryState(unrelatedWorkKey)?.isInvalidated).toBe(
+    false,
+  );
   await act(async () => root.unmount());
 });

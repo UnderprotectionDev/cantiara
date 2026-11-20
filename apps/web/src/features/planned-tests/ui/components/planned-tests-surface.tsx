@@ -157,6 +157,7 @@ export default function PlannedTestsSurface({
             ...definition(values),
           });
         }}
+        projectId={projectId}
         readOnly={cases.data.readOnly}
       />
       {handoffs.status === "pending" || sessionTests.isPending ? (
@@ -210,6 +211,7 @@ export default function PlannedTestsSurface({
               ...toHandoffInput(values, cases.data.cases),
             });
           }}
+          projectId={projectId}
           readOnly={handoffs.data.readOnly}
           sessionTests={sessionTests.data.sessionTests}
         />

@@ -117,6 +117,7 @@ function HandoffItem({
   cases,
   linkable,
   loadContextTargets,
+  projectId,
   loadPackages,
   onLink,
   onPreviewPackage,
@@ -130,6 +131,7 @@ function HandoffItem({
   handoff: TestHandoffRecord;
   linkable: TestHandoffRecord["sessionTests"];
   loadContextTargets: LoadTestHandoffContextTargets;
+  projectId: string;
   loadPackages: LoadTestHandoffPackages;
   onLink: LinkTestHandoffSessionTest;
   onPreviewPackage: PreviewTestHandoffPackage;
@@ -301,6 +303,7 @@ function HandoffItem({
                 await onUpdate(handoff, values);
                 setEditing(false);
               }}
+              projectId={projectId}
               submitLabel="Save changes"
             />
           ) : null}
@@ -327,6 +330,7 @@ export function TestHandoffsView({
   cases,
   handoffs,
   loadContextTargets,
+  projectId,
   loadPackages,
   onCreate,
   onLink,
@@ -340,6 +344,7 @@ export function TestHandoffsView({
   cases: PlannedTestCaseRecord[];
   handoffs: TestHandoffRecord[];
   loadContextTargets: LoadTestHandoffContextTargets;
+  projectId: string;
   loadPackages: LoadTestHandoffPackages;
   onCreate: SubmitTestHandoff;
   onLink: LinkTestHandoffSessionTest;
@@ -376,6 +381,7 @@ export function TestHandoffsView({
           label={`Create ${TEST_HANDOFF_LABEL}`}
           loadContextTargets={loadContextTargets}
           onSubmit={onCreate}
+          projectId={projectId}
           submitLabel={`Create ${TEST_HANDOFF_LABEL}`}
         />
       )}
@@ -411,6 +417,7 @@ export function TestHandoffsView({
                 onProducePackage={onProducePackage}
                 onTransition={onTransition}
                 onUpdate={onUpdate}
+                projectId={projectId}
                 readOnly={readOnly}
               />
             );

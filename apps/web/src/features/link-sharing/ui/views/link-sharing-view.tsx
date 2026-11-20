@@ -96,11 +96,13 @@ export function LinkSharingView({
                   {preview.surface.state === "Active" ? (
                     <ShareAccessPanel
                       {...access}
+                      key={preview.surface.surfaceId}
                       passwordProtected={preview.surface.passwordProtected}
                     />
                   ) : null}
                   <ShareLifecyclePanel
                     {...lifecycle}
+                    key={preview.surface.surfaceId}
                     surface={preview.surface}
                     timeZone={formatting.timeZone}
                   />

@@ -9,6 +9,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { orpc } from "@/utils/orpc";
 import type { WireframeEditor } from "../../engine/editor";
 import { LinkedSourceLabelForm } from "../forms/linked-source-label-form";
@@ -17,10 +18,13 @@ export interface LinkedBlockActions {
   apply: (
     definitionId: string,
     content: WireframeLinkedContent,
+    expectedRevision: number,
+    clientIdempotencyKey: string,
   ) => Promise<LinkedBlockChangeResult>;
   create: (
     name: string,
     content: WireframeLinkedContent,
+    clientIdempotencyKey: string,
   ) => Promise<WireframeLinkedDefinition>;
   preview: (
     definitionId: string,
@@ -122,17 +126,55 @@ function LinkedBlockWrites({
     }) => actions.preview(sourceId, content),
     meta: { retryInSurface: true },
   });
-  const [error, setError] = useState<string>();
+  const create = usePreparedMutation(
+    {
+      meta: { retryInSurface: true },
+      mutationFn: ({
+        clientIdempotencyKey,
+        name,
+        content,
+      }: {
+        blockId: string;
+        clientIdempotencyKey: string;
+        name: string;
+        content: WireframeLinkedContent;
+      }) => actions.create(name, content, clientIdempotencyKey),
+      mutationKey: orpc.createLinkedBlock.mutationKey(),
+    },
+    (input: { name: string; content: WireframeLinkedContent }) => ({
+      ...input,
+      blockId: block.id,
+    }),
+  );
+  const apply = usePreparedMutation(
+    {
+      meta: { retryInSurface: true },
+      mutationFn: ({
+        clientIdempotencyKey,
+        definitionId: sourceId,
+        content,
+        expectedRevision,
+      }: {
+        clientIdempotencyKey: string;
+        definitionId: string;
+        content: WireframeLinkedContent;
+        expectedRevision: number;
+      }) =>
+        actions.apply(
+          sourceId,
+          content,
+          expectedRevision,
+          clientIdempotencyKey,
+        ),
+      mutationKey: orpc.applyLinkedBlockChange.mutationKey(),
+    },
+    (input: {
+      definitionId: string;
+      content: WireframeLinkedContent;
+      expectedRevision: number;
+    }) => input,
+  );
   const parsed = linkedContentOf(block);
-
-  async function run(action: () => Promise<void>) {
-    setError(undefined);
-    try {
-      await action();
-    } catch {
-      setError("Linked block could not be updated.");
-    }
-  }
 
   function changedContent(label: string) {
     return parsed.success
@@ -145,7 +187,7 @@ function LinkedBlockWrites({
       return;
     }
     const { definitionId } = linkedBlock.link;
-    setError(undefined);
+    apply.reset();
     const content = changedContent(label);
     if (content) {
       await inspect
@@ -162,13 +204,16 @@ function LinkedBlockWrites({
     return (
       <div className="flex flex-wrap items-center gap-2">
         <Button
+          disabled={create.isPending}
           onClick={() =>
-            run(async () => {
-              const definition = await actions.create(block.label, content);
-              editor.dispatch([
-                { blockId: block.id, definition, type: "linkBlock" },
-              ]);
-            })
+            create.mutate(
+              { name: block.label, content },
+              {
+                onSuccess: (definition, { blockId }) => {
+                  editor.dispatch([{ blockId, definition, type: "linkBlock" }]);
+                },
+              },
+            )
           }
           size="sm"
           type="button"
@@ -176,9 +221,9 @@ function LinkedBlockWrites({
         >
           Create Linked Block
         </Button>
-        {error ? (
+        {create.isError ? (
           <p className="text-xs text-destructive" role="alert">
-            {error}
+            Linked block could not be updated.
           </p>
         ) : null}
       </div>
@@ -186,9 +231,12 @@ function LinkedBlockWrites({
   }
 
   const { definitionId } = linkedBlock.link;
+  const applyError = apply.isError
+    ? "Linked block could not be updated."
+    : undefined;
   const shownError = inspect.isError
     ? "Linked block preview is unavailable."
-    : error;
+    : applyError;
   return (
     <div className="space-y-2 rounded-lg border border-border/70 p-3">
       <p className="text-xs text-muted-foreground">
@@ -199,8 +247,12 @@ function LinkedBlockWrites({
         <DetachLinkedBlock block={block} editor={editor} />
         {actions ? (
           <LinkedSourceLabelForm
+            disabled={apply.isPending || inspect.isPending}
             initialLabel={block.label}
-            onEdit={inspect.reset}
+            onEdit={() => {
+              inspect.reset();
+              apply.reset();
+            }}
             onPreview={previewLabel}
           />
         ) : null}
@@ -209,19 +261,27 @@ function LinkedBlockWrites({
         <div className="space-y-2">
           <AffectedScreensPreview result={inspect.data} />
           <Button
-            onClick={() =>
-              run(async () => {
-                const content = inspect.variables?.content;
-                if (!content) {
-                  return;
-                }
-                const applied = await actions.apply(definitionId, content);
-                editor.dispatch([
-                  { definition: applied.definition, type: "applyLinkedSource" },
-                ]);
-                inspect.reset();
-              })
-            }
+            disabled={apply.isPending || inspect.isPending}
+            onClick={() => {
+              const content = inspect.variables?.content;
+              const nextRevision = inspect.data?.definition.revision;
+              if (content && nextRevision !== undefined) {
+                apply.mutate(
+                  { content, definitionId, expectedRevision: nextRevision - 1 },
+                  {
+                    onSuccess: (applied) => {
+                      editor.dispatch([
+                        {
+                          definition: applied.definition,
+                          type: "applyLinkedSource",
+                        },
+                      ]);
+                      inspect.reset();
+                    },
+                  },
+                );
+              }
+            }}
             size="sm"
             type="button"
           >

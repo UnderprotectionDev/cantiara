@@ -45,7 +45,11 @@ export const screenTitleSchema = z
  * document, visual design or file, so create can never require or smuggle one.
  */
 export const createScreenInputSchema = z
-  .object({ projectId: identifierSchema, title: screenTitleSchema })
+  .object({
+    clientIdempotencyKey: identifierSchema.optional(),
+    projectId: identifierSchema,
+    title: screenTitleSchema,
+  })
   .strict();
 
 export type CreateScreenInput = z.input<typeof createScreenInputSchema>;
@@ -212,18 +216,22 @@ export function planScreenLifecycle(
 }
 
 export interface ScreenStore {
-  /** Attaches the next exact Wireframe version to a Screen; used by the Wireframe engine. */
   /** Applies a source change and the affected Screens' new versions in one transaction. */
   applyLinkedBlockChange: (
     accountId: string,
     input: ParsedLinkedBlockChangeInput,
-    updates: { document: WireframeDocument; screenId: string }[],
-  ) => Promise<LinkedBlockRecord | null>;
+    plan: (
+      current: LinkedBlockRecord,
+      heads: StoredHeadDocument[],
+    ) => LinkedBlockChangePlan,
+  ) => Promise<LinkedBlockChangeResult | null>;
+  /** Attaches the next exact Wireframe version to a Screen. */
   attachWireframeVersion: (
     accountId: string,
     projectId: string,
     screenId: string,
     document?: WireframeDocument,
+    command?: { clientIdempotencyKey: string; payloadFingerprint: string },
   ) => Promise<ScreenRecord | null>;
   /**
    * Atomically creates the single record and its origin row, or returns the
@@ -245,7 +253,12 @@ export interface ScreenStore {
   /** Creates a Screen with its first Wireframe and fresh Project-scoped definitions. */
   createScreenFromTemplate: (
     accountId: string,
-    input: { projectId: string; template: ScreenTemplateRecord; title: string },
+    input: {
+      clientIdempotencyKey?: string;
+      projectId: string;
+      template: ScreenTemplateRecord;
+      title: string;
+    },
   ) => Promise<ScreenRecord | null>;
   find: (
     accountId: string,
@@ -323,8 +336,15 @@ export interface ScreenStore {
   ) => Promise<ScreenBlockOriginRecord | null>;
   saveTemplate: (
     accountId: string,
-    input: { document: unknown; name: string; projectId: string },
-  ) => Promise<ScreenTemplateRecord | null>;
+    input: {
+      clientIdempotencyKey?: string;
+      document: unknown;
+      name: string;
+      projectId: string;
+      screenId: string;
+      wireframeVersion: number;
+    },
+  ) => Promise<Omit<ScreenTemplateRecord, "document"> | null>;
   /** Upserts the account's own viewport; never touches a Wireframe version. */
   saveViewport: (
     accountId: string,
@@ -356,6 +376,7 @@ export interface ScreensAccess {
     projectId: string,
     screenId: string,
     document?: unknown,
+    clientIdempotencyKey?: string,
   ) => Promise<ScreenRecord>;
   /** Confirms the exact previewed plan; creates exactly one record. */
   convertAndBind: (
@@ -483,6 +504,7 @@ export type SaveScreenWireframeInput = z.input<
 
 export const saveScreenWireframeVersionInputSchema = z
   .object({
+    clientIdempotencyKey: identifierSchema.optional(),
     document: z.unknown().optional(),
     projectId: identifierSchema,
     screenId: identifierSchema,
@@ -499,6 +521,7 @@ export interface LinkedBlockRecord {
 
 export const createLinkedBlockInputSchema = z
   .object({
+    clientIdempotencyKey: identifierSchema.optional(),
     content: wireframeLinkedContentSchema,
     name: z.string().trim().min(1).max(120),
     projectId: identifierSchema,
@@ -513,6 +536,7 @@ export type ParsedCreateLinkedBlockInput = z.output<
 
 export const linkedBlockChangeInputSchema = z
   .object({
+    clientIdempotencyKey: identifierSchema.optional(),
     content: wireframeLinkedContentSchema,
     definitionId: identifierSchema,
     expectedRevision: revisionSchema.optional(),
@@ -532,4 +556,9 @@ export interface LinkedBlockChangeResult {
   applied: boolean;
   /** The definition as it stands after the change, or would stand for a preview. */
   definition: WireframeLinkedDefinition;
+}
+
+export interface LinkedBlockChangePlan {
+  result: LinkedBlockChangeResult;
+  updates: { document: WireframeDocument; screenId: string }[];
 }

@@ -710,15 +710,17 @@ function RecordTableSurface({
     enabled: Boolean(accountId),
   });
   const tableQueryKey = tableRecordsOptions.queryKey;
-  const { applyTablePaste, saveTableCell } =
+  const { applyTablePaste, cellWrite, pasteWrite, saveTableCell } =
     useRecordTableWrites(tableQueryKey);
   return (
     <RecordTableView
+      cellWrite={cellWrite}
       failed={tableRecords.isError || projectsQuery.isError}
       onApplyPaste={applyTablePaste}
       onProjectChange={onProjectChange}
       onRecordTypeChange={onRecordTypeChange}
       onSaveCell={saveTableCell}
+      pasteWrite={pasteWrite}
       pending={tableRecords.status === "pending" || projectsQuery.isPending}
       projectId={projectId}
       projects={projectsQuery.data ?? []}

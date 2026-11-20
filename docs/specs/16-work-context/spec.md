@@ -63,6 +63,8 @@ Kurucu bir İşin nedenini, beklenen sonucunu, kanıtını ve ilişkili proje ge
 
 ## Testing Decisions
 
+- The layout configuration seam verifies that previews follow the current revision, and that Apply and Undo display their own results and errors.
+
 - **What a good test is.** Tests observe Work Context Card through its public interface: five layouts × four Starter Configurations, progressive sections, live source rendering, configuration preview/apply/undo, Markdown copy, and Priority Foundations counts. They assert no gates, no copies, no scores, no share-scope — not DOM structure of cards.
 - **Seam (one).** Work Context Card — the product-facing Work-detail context interface. Configuration mode is the same seam's admin presentation, not a second module. Playwright a11y is this seam through the UI.
 - **Modules under test.** Work Context Card only. Planning surfaces, sharing, Prioritization, Command Palette host, and Project Overview are counterparts.

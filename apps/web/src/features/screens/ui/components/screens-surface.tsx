@@ -4,6 +4,7 @@ import type {
 } from "@cantiara/api/screens";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 import type { ScreenTemplateActions } from "../../lib/screen-template-actions";
 import { ScreensView } from "../views/screens-view";
@@ -11,30 +12,39 @@ import ScreensOutputSurface from "./screens-output-surface";
 import WireframeSurface from "./wireframe-surface";
 
 export default function ScreensSurface({ projectId }: { projectId: string }) {
-  const createScreenMutation = useMutation(
-    orpc.createScreen.mutationOptions({
-      meta: { onlineWrite: true },
-      mutationFn: (input) => client.createScreen(input),
-      onSuccess: () => refresh(),
-    }),
+  const refresh = (_result: unknown, input: { projectId: string }) =>
+    queryClient.invalidateQueries({
+      queryKey: orpc.projectScreens.key({
+        input: { projectId: input.projectId },
+      }),
+    });
+  const createScreenMutation = usePreparedMutation(
+    {
+      mutationKey: orpc.createScreen.mutationKey(),
+      mutationFn: (input: {
+        clientIdempotencyKey: string;
+        projectId: string;
+        title: string;
+      }) => client.createScreen(input),
+      onSuccess: refresh,
+    },
+    (title: string) => ({ projectId, title }),
   );
-  const createScreenFromTemplateMutation = useMutation(
-    orpc.createScreenFromTemplate.mutationOptions({
-      meta: { onlineWrite: true },
-      mutationFn: (input) => client.createScreenFromTemplate(input),
-      onSuccess: () => refresh(),
-    }),
-  );
-  const saveScreenTemplateMutation = useMutation(
-    orpc.saveScreenTemplate.mutationOptions({
-      meta: { onlineWrite: true },
-      mutationFn: (input) => client.saveScreenTemplate(input),
-      onSuccess: (_, { projectId: affectedProject }) =>
-        queryClient.invalidateQueries({
-          queryKey: orpc.screenTemplates.key({
-            input: { projectId: affectedProject },
-          }),
-        }),
+  const createScreenFromTemplateMutation = usePreparedMutation(
+    {
+      mutationKey: orpc.createScreenFromTemplate.mutationKey(),
+      mutationFn: (input: {
+        clientIdempotencyKey: string;
+        projectId: string;
+        templateId: string;
+        title: string;
+      }) => client.createScreenFromTemplate(input),
+      onSuccess: refresh,
+    },
+    ({ templateId, title }: { templateId: string; title: string }) => ({
+      projectId,
+      templateId,
+      title,
     }),
   );
   const setScreenLifecycleMutation = useMutation(
@@ -52,11 +62,8 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const options = orpc.projectScreens.queryOptions({ input: { projectId } });
   const screens = useQuery(options);
-  async function refresh() {
-    await queryClient.invalidateQueries({ queryKey: options.queryKey });
-  }
   async function create(title: string) {
-    await createScreenMutation.mutateAsync({ projectId, title });
+    await createScreenMutation.mutateAsync(title);
   }
   const templateOptions = orpc.screenTemplates.queryOptions({
     input: { projectId },
@@ -64,18 +71,18 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
   const templateList = useQuery(templateOptions);
   const templates: ScreenTemplateActions = {
     create: async (templateId, title) => {
-      await createScreenFromTemplateMutation.mutateAsync({
-        projectId,
-        templateId,
-        title,
-      });
+      await createScreenFromTemplateMutation.mutateAsync({ templateId, title });
     },
-    save: async (screen, wireframeVersion, name) => {
-      await saveScreenTemplateMutation.mutateAsync({
+    save: async (screen, wireframeVersion, name, clientIdempotencyKey) => {
+      await client.saveScreenTemplate({
+        clientIdempotencyKey,
         name,
         projectId,
         screenId: screen.id,
         wireframeVersion,
+      });
+      await queryClient.invalidateQueries({
+        queryKey: orpc.screenTemplates.key({ input: { projectId } }),
       });
     },
     templates: templateList.data ?? [],

@@ -3,7 +3,6 @@ import {
   IMPORT_CATALOG_TYPES,
   IMPORT_LABEL,
   type ImportCatalogType,
-  type ImportPreview,
   type PreviewImportInput,
 } from "@cantiara/api/data-import";
 import { Button } from "@cantiara/ui/components/button";
@@ -36,9 +35,11 @@ export interface ImportProjectChoice {
  */
 export default function ImportFileForm({
   onPreview,
+  previewing,
   projects,
 }: {
-  onPreview: (input: PreviewImportInput) => Promise<ImportPreview>;
+  onPreview: (input: PreviewImportInput) => void;
+  previewing: boolean;
   projects: readonly ImportProjectChoice[];
 }) {
   const [error, setError] = useState<string>();
@@ -67,7 +68,7 @@ export default function ImportFileForm({
           setError(built.error);
           return;
         }
-        await onPreview(built.input);
+        onPreview(built.input);
       } catch (caught) {
         setError(importErrorText(caught));
       }
@@ -169,8 +170,8 @@ export default function ImportFileForm({
           )}
         </form.Field>
       </div>
-      <Button disabled={pending} type="submit">
-        {pending ? "Reading the file…" : "Preview import"}
+      <Button disabled={pending || previewing} type="submit">
+        {pending || previewing ? "Reading the file…" : "Preview import"}
       </Button>
     </form>
   );

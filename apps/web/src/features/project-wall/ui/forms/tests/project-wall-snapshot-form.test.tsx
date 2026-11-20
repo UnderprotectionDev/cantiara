@@ -1,12 +1,25 @@
 // @vitest-environment happy-dom
-import { act } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, type ComponentProps } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, test, vi } from "vitest";
-import { ProjectWallSnapshotPanel } from "../project-wall-snapshot-form";
+import { ProjectWallSnapshotPanel as ProjectWallSnapshotPanelUnderTest } from "../project-wall-snapshot-form";
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
+
+const cache = new QueryClient();
+
+function ProjectWallSnapshotPanel(
+  props: ComponentProps<typeof ProjectWallSnapshotPanelUnderTest>,
+) {
+  return (
+    <QueryClientProvider client={cache}>
+      <ProjectWallSnapshotPanelUnderTest {...props} />
+    </QueryClientProvider>
+  );
+}
 
 test("Preview submits a chosen group through the Snapshot form", async () => {
   const onPreviewSnapshot = vi.fn().mockResolvedValue(undefined);
