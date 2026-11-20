@@ -2,8 +2,10 @@ import type {
   WebCaptureKind,
   WebCapturePairingInput,
 } from "@cantiara/api/web-capture";
+import { useSelector } from "@tanstack/react-form";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useWebCaptureInboxSearch } from "../../hooks/use-web-capture-inbox-search";
 
 import {
   captureActiveTabScreenshot,
@@ -60,7 +62,11 @@ export function WebCaptureView() {
   const browser = useMemo(() => getWebCaptureBrowser(), []);
   const [link, setLink] = useState<StoredWebCaptureLink | null>(null);
   const [draft, setDraft] = useState<WebCaptureDraft | null>(null);
-  const [targetSearch, setTargetSearch] = useState("");
+  const searchForm = useWebCaptureInboxSearch();
+  const targetSearch = useSelector(
+    searchForm.store,
+    (state) => state.values.targetSearch,
+  );
   const [localError, setLocalError] = useState<string | null>(null);
   const [isReading, setIsReading] = useState(true);
 
@@ -295,8 +301,7 @@ export function WebCaptureView() {
             );
           }}
           onSend={handleSend}
-          onTargetSearchChange={setTargetSearch}
-          targetSearch={targetSearch}
+          searchForm={searchForm}
           targets={targets}
         />
       ) : null}

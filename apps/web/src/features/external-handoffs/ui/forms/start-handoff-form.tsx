@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work-owned handoff controls close over their Work and form state.
+
 import {
   type ExternalExecutionHandoffInput,
   externalExecutionHandoffInputSchema,
@@ -14,6 +15,7 @@ import {
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
+import { submitForm } from "@/lib/submit-form";
 
 interface HandoffDraft {
   constraints: string;
@@ -41,17 +43,11 @@ function githubIdentifiers(value: string) {
 }
 
 export function StartHandoffForm({
-  formError,
-  onClearErrors,
-  onFormError,
   onStart,
   pending,
   work,
   writeError,
 }: {
-  formError: string | null;
-  onClearErrors: () => void;
-  onFormError: (message: string) => void;
   onStart: (
     input: Omit<ExternalExecutionHandoffInput, "workId">,
   ) => Promise<unknown>;
@@ -61,8 +57,7 @@ export function StartHandoffForm({
 }) {
   const form = useForm({
     defaultValues: EMPTY_DRAFT,
-    onSubmit: async ({ value }) => {
-      onClearErrors();
+    onSubmit: async ({ value, formApi }) => {
       const parsed = externalExecutionHandoffInputSchema.safeParse({
         constraints: value.constraints,
         executor: value.executor,
@@ -73,15 +68,19 @@ export function StartHandoffForm({
         workId: work.id,
       });
       if (!parsed.success) {
-        onFormError(
-          parsed.error.issues[0]?.message ?? "Check the handoff details.",
-        );
+        formApi.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ?? "Check the handoff details.",
+            fields: {},
+          },
+        });
         return;
       }
       try {
         const { workId: _workId, ...input } = parsed.data;
         await onStart(input);
-        form.reset();
+        formApi.reset();
       } catch {
         // The owning mutation renders the write error.
       }
@@ -96,7 +95,7 @@ export function StartHandoffForm({
       onSubmit={async (event) => {
         event.preventDefault();
         event.stopPropagation();
-        await form.handleSubmit();
+        await submitForm(form);
       }}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -212,11 +211,15 @@ export function StartHandoffForm({
           )}
         </form.Field>
       </fieldset>
-      {formError ? (
-        <p className="text-xs text-destructive" role="alert">
-          {formError}
-        </p>
-      ) : null}
+      <form.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+        {(formError) =>
+          typeof formError === "string" ? (
+            <p className="text-xs text-destructive" role="alert">
+              {formError}
+            </p>
+          ) : null
+        }
+      </form.Subscribe>
       {writeError ? (
         <p className="text-xs text-destructive" role="alert">
           {writeError}

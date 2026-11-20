@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current Moodboard and field handlers.
+
 import {
   addMoodboardVisualInputSchema,
   MOODBOARD_CAPTION_MAX_LENGTH,
@@ -13,7 +14,7 @@ import {
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
 import { captionOrNull } from "../../lib/moodboard-form";
@@ -34,7 +35,6 @@ export function AddVisualForm({
   api: MoodboardsApi;
   moodboard: Moodboard;
 }) {
-  const [formError, setFormError] = useState<string | null>(null);
   const idPrefix = `moodboard-add-${moodboard.id}`;
   const form = useForm({
     defaultValues: {
@@ -42,7 +42,7 @@ export function AddVisualForm({
       originKind: "External link" as OriginKind,
       reference: "",
     },
-    onSubmit: ({ formApi, value }) => {
+    onSubmit: async ({ formApi, value }) => {
       const reference = value.reference.trim();
       const parsed = addMoodboardVisualInputSchema.safeParse({
         caption: captionOrNull(value.caption),
@@ -56,27 +56,29 @@ export function AddVisualForm({
               },
       });
       if (!parsed.success) {
-        setFormError(
-          parsed.error.issues[0]?.message ?? "Check the Visual details.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ?? "Check the Visual details.",
+            fields: {},
+          },
+        });
         return;
       }
-      setFormError(null);
-      api.addVisual.mutate(
-        {
-          caption: parsed.data.caption,
-          moodboard,
-          origin: parsed.data.origin,
-        },
-        {
-          onSuccess: () => {
-            formApi.setFieldValue("reference", "");
-            formApi.setFieldValue("caption", "");
-          },
-        },
-      );
+      form.setErrorMap({ onSubmit: undefined });
+      await api.addVisual.mutateAsync({
+        caption: parsed.data.caption,
+        moodboard,
+        origin: parsed.data.origin,
+      });
+      formApi.setFieldValue("reference", "");
+      formApi.setFieldValue("caption", "");
     },
   });
+  const formError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const originKind = useSelector(
     form.store,
     (state) => state.values.originKind,
@@ -89,7 +91,7 @@ export function AddVisualForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form).catch(() => undefined);
       }}
     >
       <form.Field name="originKind">

@@ -10,8 +10,9 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 /** Picks the one Contact whose person package is reviewed. */
 export function PersonalDataContactForm({
@@ -25,19 +26,30 @@ export function PersonalDataContactForm({
   onPreview: (contactId: string) => void;
   onPreviewErase: (contactId: string) => void;
 }) {
-  const [refusal, setRefusal] = useState<string | null>(null);
   const form = useForm({
     defaultValues: { contactId: contacts[0]?.id ?? "" },
-    onSubmit: ({ value }) => {
-      const parsed = personalDataPreviewInputSchema.safeParse(value);
+    onSubmitMeta: { preview: "package" } as { preview: "package" | "erase" },
+    onSubmit: async ({ meta, value }) => {
+      const schema =
+        meta.preview === "erase"
+          ? personalDataErasePreviewInputSchema
+          : personalDataPreviewInputSchema;
+      const parsed = schema.safeParse(value);
       if (!parsed.success) {
-        setRefusal("Choose a Contact first.");
+        form.setErrorMap({
+          onSubmit: { form: "Choose a Contact first.", fields: {} },
+        });
         return;
       }
-      setRefusal(null);
-      onPreview(parsed.data.contactId);
+      form.setErrorMap({ onSubmit: undefined });
+      const preview = meta.preview === "erase" ? onPreviewErase : onPreview;
+      await preview(parsed.data.contactId);
     },
   });
+  const refusal = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   return (
     <form
       aria-label={`${EXPORT_PERSONAL_DATA_LABEL} selection`}
@@ -45,7 +57,7 @@ export function PersonalDataContactForm({
       onSubmit={(event: SubmitEvent) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form).catch(() => undefined);
       }}
     >
       <form.Field name="contactId">
@@ -81,17 +93,9 @@ export function PersonalDataContactForm({
         </Button>
         <Button
           disabled={disabled || contacts.length === 0}
-          onClick={() => {
-            const parsed = personalDataErasePreviewInputSchema.safeParse(
-              form.state.values,
-            );
-            if (!parsed.success) {
-              setRefusal("Choose a Contact first.");
-              return;
-            }
-            setRefusal(null);
-            onPreviewErase(parsed.data.contactId);
-          }}
+          onClick={() =>
+            submitForm(form, { preview: "erase" }).catch(() => undefined)
+          }
           type="button"
           variant="outline"
         >

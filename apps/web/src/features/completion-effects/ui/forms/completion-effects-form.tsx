@@ -13,7 +13,7 @@ import {
   FieldSet,
 } from "@cantiara/ui/components/field";
 import { Switch } from "@cantiara/ui/components/switch";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, Sparkles } from "lucide-react";
 import {
@@ -23,8 +23,8 @@ import {
   useRef,
   useState,
 } from "react";
-
 import { STALE_BASE_REVISION_MESSAGE } from "@/lib/mutation-messages";
+import { submitForm } from "@/lib/submit-form";
 import {
   client,
   completionEffectsPreferencesQueryOptions,
@@ -92,7 +92,6 @@ export default function CompletionEffectsForm({
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [previewStatus, setPreviewStatus] = useState<string | null>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const savePreferences = useMutation({
@@ -114,20 +113,17 @@ export default function CompletionEffectsForm({
     },
   });
 
-  const saveError =
-    validationError ??
-    (savePreferences.isError
-      ? getSaveErrorMessage(savePreferences.error)
-      : null);
   const hasSaved = savePreferences.isSuccess;
   const form = useForm({
     defaultValues: valuesFromSnapshot(snapshot),
     onSubmit: async ({ value }) => {
-      setValidationError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = completionEffectsPreferencesSchema.safeParse(value);
       if (!parsed.success) {
         savePreferences.reset();
-        setValidationError(getSaveErrorMessage(parsed.error));
+        form.setErrorMap({
+          onSubmit: { form: getSaveErrorMessage(parsed.error), fields: {} },
+        });
         return;
       }
       const preferences = parsed.data;
@@ -153,6 +149,15 @@ export default function CompletionEffectsForm({
       form.reset(valuesFromSnapshot(savedSnapshot));
     },
   });
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const saveError =
+    validationError ??
+    (savePreferences.isError
+      ? getSaveErrorMessage(savePreferences.error)
+      : null);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -203,7 +208,7 @@ export default function CompletionEffectsForm({
     }
     form.setFieldValue("theme", theme);
     savePreferences.reset();
-    setValidationError(null);
+    form.setErrorMap({ onSubmit: undefined });
   }
 
   function selectPalette(event: MouseEvent<HTMLButtonElement>) {
@@ -212,13 +217,13 @@ export default function CompletionEffectsForm({
     stopPreview();
     form.setFieldValue("palette", palette);
     savePreferences.reset();
-    setValidationError(null);
+    form.setErrorMap({ onSubmit: undefined });
   }
 
   function setEnabled(enabled: boolean) {
     form.setFieldValue("enabled", enabled);
     savePreferences.reset();
-    setValidationError(null);
+    form.setErrorMap({ onSubmit: undefined });
   }
 
   function preview() {
@@ -246,7 +251,7 @@ export default function CompletionEffectsForm({
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    await form.handleSubmit().catch(() => undefined);
+    await submitForm(form).catch(() => undefined);
   }
 
   return (

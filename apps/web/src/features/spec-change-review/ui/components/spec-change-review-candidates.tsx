@@ -10,7 +10,7 @@ import {
   type ConfirmFollowUp,
   type PreviewFollowUp,
   SpecFollowUpDialog,
-} from "./spec-change-review-follow-up-dialog";
+} from "../forms/spec-change-review-follow-up-form";
 
 export type MarkCandidate = (
   candidate: SpecChangeReviewCandidate,

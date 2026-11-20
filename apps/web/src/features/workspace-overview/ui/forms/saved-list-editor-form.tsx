@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Saved list controls close over their form fields.
+
 import {
   PROJECT_AREA_OPTIONS,
   PROJECT_LIFECYCLE_STATUS_OPTIONS,
@@ -24,10 +25,11 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { Plus } from "lucide-react";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
 import { DatePicker } from "@/components/date-picker";
+import { submitForm } from "@/lib/submit-form";
 import { COLUMN_LABELS } from "../../lib/saved-list-columns";
 
 const DEFAULT_COLUMNS: readonly WorkspaceOverviewSavedListColumnId[] = [
@@ -100,7 +102,6 @@ export function SavedListEditor({
   /** Resolves after the list is saved; a rejection keeps the editor open. */
   onSave: (definition: WorkspaceOverviewSavedListDefinition) => unknown;
 }) {
-  const [formError, setFormError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: initialFormValues(definition),
     onSubmit: async ({ value }) => {
@@ -133,18 +134,24 @@ export function SavedListEditor({
         },
       });
       if (!parsed.success) {
-        setFormError(listEditorError(parsed.error));
+        form.setErrorMap({
+          onSubmit: { form: listEditorError(parsed.error), fields: {} },
+        });
         return;
       }
-      setFormError(null);
+      form.setErrorMap({ onSubmit: undefined });
       await onSave(parsed.data);
     },
   });
+  const formError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   return (

@@ -43,6 +43,8 @@ Kurucu seçtiği Karar, Risk, Proje Sürümü, Belge, Üretim Olayı ve tamamlan
 
 ## Testing Decisions
 
+- **#545.** The web closure-summary-view.test.tsx seam checks that a failed Save as Document keeps the draft and replays the same command.
+
 - **Write lifecycle evidence (#544).** The Closure Summary view test retries an interrupted Save as Document with the same payload and command key. The save seam checks that only the affected Project’s Document list is invalidated.
 
 - **What a good test is.** Tests observe Project Closure Summary through its public interface: source selection, preview of heading/link mapping, unsaved draft is not a Belge, save creates type `General` with Kökeni, source ana kayıtlar unchanged, no generated success prose, optional date comparison is neutral. They do not parse private markdown builders or assert Drizzle. Expected values are product rules (headings+links only, persist-on-save-only).

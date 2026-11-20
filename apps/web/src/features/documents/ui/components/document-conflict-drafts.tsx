@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Conflict Draft controls bind to the draft being resolved.
+
 import type { Document, DocumentConflictDraft } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import {
@@ -17,6 +18,7 @@ import {
 import { diffLines } from "diff";
 import { type MouseEvent, useEffect, useMemo, useState } from "react";
 import { commandVariables } from "@/lib/command-variables";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -72,7 +74,8 @@ async function resolveComparedDraft(
       conflictDraftId: draft.id,
     });
   }
-  return queryClient.query(
+  return fetchFresh(
+    queryClient,
     orpc.document.queryOptions({ input: { documentId } }),
   );
 }

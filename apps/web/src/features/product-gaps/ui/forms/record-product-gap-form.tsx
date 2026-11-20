@@ -1,6 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the form fields.
+
 import {
   PRODUCT_GAP_LABEL,
+  type ProductGapLinkTargetType,
   type ProductGapRecord,
   RECORD_PRODUCT_GAP_LABEL,
   TOOL_ESCAPE_LABEL,
@@ -11,19 +13,20 @@ import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   emptyGapForm,
   errorText,
   type GapFormValues,
   gapFormError,
 } from "../../lib/product-gap-form";
+import { ToolEscapeFields } from "../components/tool-escape-fields";
 import {
   type LoadProductGapTargets,
   ProductGapLinksField,
-} from "../components/product-gap-links-field";
-import { ToolEscapeFields } from "../components/tool-escape-fields";
+} from "./product-gap-links-field-form";
 
 export type RecordGap = (values: GapFormValues) => Promise<unknown>;
 
@@ -41,28 +44,49 @@ export function RecordProductGapForm({
   loadTargets: LoadProductGapTargets;
   onSubmit: RecordGap;
 }) {
-  const [error, setError] = useState<string>();
+  function defaults() {
+    return {
+      ...emptyGapForm(),
+      escapeSourceType: "Project" as ProductGapLinkTargetType,
+    };
+  }
   const form = useForm({
-    defaultValues: emptyGapForm(),
-    onSubmit: async ({ value, formApi }) => {
-      setError(undefined);
+    defaultValues: defaults(),
+    onSubmit: async ({
+      value: { escapeSourceType: _sourceType, ...value },
+      formApi,
+    }) => {
+      form.setErrorMap({ onSubmit: undefined });
       const invalid = gapFormError(value);
       if (invalid) {
-        setError(invalid);
+        form.setErrorMap({ onSubmit: { form: invalid, fields: {} } });
         return;
       }
       try {
         await onSubmit(value);
-        formApi.reset(emptyGapForm());
+        formApi.reset(defaults());
       } catch (caught) {
-        setError(errorText(caught, `${TOOL_ESCAPE_LABEL} was not saved.`));
+        form.setErrorMap({
+          onSubmit: {
+            form: errorText(caught, `${TOOL_ESCAPE_LABEL} was not saved.`),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const sourceType = useSelector(
+    form.store,
+    (state) => state.values.escapeSourceType,
+  );
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   return (
@@ -183,6 +207,10 @@ export function RecordProductGapForm({
                   idPrefix="product-gap-escape"
                   loadTargets={loadTargets}
                   onChange={field.handleChange}
+                  onSourceTypeChange={(kind) =>
+                    form.setFieldValue("escapeSourceType", kind)
+                  }
+                  sourceType={sourceType}
                   value={field.state.value}
                 />
               )}

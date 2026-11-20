@@ -6,6 +6,7 @@ import type {
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef } from "react";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import { isResearchSessionConflict } from "../../lib/research-session-conflict";
 import type { ResearchBindingActions } from "../forms/research-note-binding-form";
@@ -62,22 +63,20 @@ export default function ResearchSessionsSurface({
   const bindingActions = useMemo<ResearchBindingActions>(
     () => ({
       feedback: (record, bindingId) =>
-        queryClient.query({
+        fetchFresh(queryClient, {
           ...orpc.researchSessionBindingFeedback.queryOptions({
             input: { id: record.id, projectId, bindingId },
           }),
           gcTime: 0,
-          staleTime: 0,
         }),
       targets: (record) =>
         client.researchSessionBindingTargets({ id: record.id, projectId }),
       list: (record) =>
-        queryClient.query({
+        fetchFresh(queryClient, {
           ...orpc.projectResearchSessionBindings.queryOptions({
             input: { id: record.id, projectId },
           }),
           gcTime: 0,
-          staleTime: 0,
         }),
       preview: previewBindingAsync,
       confirm: (record, preview, key) =>

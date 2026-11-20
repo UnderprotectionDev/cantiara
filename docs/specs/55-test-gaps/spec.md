@@ -48,6 +48,8 @@ Kurucu Test Açığını Özellik/İş/spec bölümü/Risk/Proje Sürümü gibi 
 
 ## Testing Decisions
 
+- **#545.** The web test-gaps-view.test.tsx seam checks the support relation announcement and duplicate validation while preserving the filed title and rationale after a refused write.
+
 - The Test Gaps seam verifies the current planning write’s receipt or refusal, retains the filing fields after a failed create, and scopes target reads to their Project.
 
 - **What a good test is.** Tests observe Test Gaps through the public interface: create with relations, no auto-create from failed Session Test fixture, bind to Handoff sets Planned not Met, incoming report leaves Open, Met by result requires selected Session Tests, Not needed keeps rationale, not a coverage field. Not Drizzle shapes.

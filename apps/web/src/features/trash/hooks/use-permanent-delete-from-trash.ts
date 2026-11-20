@@ -1,6 +1,7 @@
 import type { TrashEntry } from "@cantiara/api/trash";
 import { useQueryClient } from "@tanstack/react-query";
 import { requestGitHubIdentityGrant } from "@/features/account-access/lib/github-identity-confirmation";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { client, orpc } from "@/utils/orpc";
 
 /**
@@ -35,12 +36,11 @@ export function usePermanentDeleteFromTrash(projectId: string) {
       });
     },
     preview: (entry: TrashEntry) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewPermanentDeleteFromTrash.queryOptions({
           input: { entryId: entry.id, projectId },
         }),
         gcTime: 0,
-        staleTime: 0,
       }),
   };
 }

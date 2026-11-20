@@ -1,9 +1,7 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
 import {
   CAPTURE_BIND_RELATIONS,
-  type CaptureAttachPreviewInput,
   type CaptureBindRelation,
-  captureAttachPreviewInputSchema,
 } from "@cantiara/api/capture-triage";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
@@ -11,47 +9,24 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
 import type { SubmitEvent } from "react";
-
-export interface CaptureAttachmentSetupValues {
-  relation: CaptureBindRelation;
-  targetId: string;
-}
+import type { useCaptureAttachmentSetupForm } from "../../hooks/use-capture-setup-forms";
 
 export function CaptureAttachmentSetupForm({
-  initialValues,
+  form,
   isOnline,
-  itemId,
   onCancel,
-  onPreview,
   previewPending,
 }: {
-  initialValues: CaptureAttachmentSetupValues;
+  form: ReturnType<typeof useCaptureAttachmentSetupForm>;
   isOnline: boolean;
-  itemId: string;
   onCancel: () => void;
-  onPreview: (input: CaptureAttachPreviewInput) => void;
   previewPending: boolean;
 }) {
-  const form = useForm({
-    defaultValues: initialValues,
-    onSubmit: ({ value }) => {
-      const parsed = captureAttachPreviewInputSchema.safeParse({
-        itemId,
-        relation: value.relation,
-        targetId: value.targetId.trim(),
-      });
-      if (!parsed.success) {
-        return;
-      }
-      onPreview(parsed.data);
-    },
-  });
-
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
+    form.setErrorMap({ onSubmit: undefined });
     form.handleSubmit().catch(() => undefined);
   }
 
@@ -60,6 +35,11 @@ export function CaptureAttachmentSetupForm({
       className="space-y-3 border border-border/70 bg-muted/15 p-4"
       onSubmit={submit}
     >
+      <form.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+        {(error) =>
+          typeof error === "string" ? <p role="alert">{error}</p> : null
+        }
+      </form.Subscribe>
       <h3 className="text-sm font-semibold">Choose existing record</h3>
       <form.Field name="targetId">
         {(field) => (

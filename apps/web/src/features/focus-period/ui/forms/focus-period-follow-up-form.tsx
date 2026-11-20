@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Focus Period controls act on the selected period and Work.
+
 import {
   type FocusPeriodLearning,
   type FocusPeriodRecord,
@@ -15,8 +16,8 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
+import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import type {
   FocusPeriodAction,
@@ -38,10 +39,6 @@ export function FollowUpWorkSection({
   createFollowUp: FocusPeriodCreateFollowUp;
   act: FocusPeriodAction;
 }) {
-  const [clientIdempotencyKey, setClientIdempotencyKey] = useState(() =>
-    crypto.randomUUID(),
-  );
-  const [showPreview, setShowPreview] = useState(false);
   const projectsQuery = useQuery(orpc.projects.queryOptions());
   const projects = (projectsQuery.data ?? []).filter(
     (item) => item.status === "Active" || item.status === "Pending",
@@ -52,12 +49,55 @@ export function FollowUpWorkSection({
       projectId: "",
       title: "",
       description: "",
+      previewed: false,
+      clientIdempotencyKey: "",
     },
-    onSubmit: () => {
-      setShowPreview(true);
+    onSubmitMeta: { action: "preview" } as { action: "preview" | "confirm" },
+    onSubmit: async ({ formApi, meta, value }) => {
+      const { description, learning, projectId, title } = value;
+      const clientIdempotencyKey =
+        value.clientIdempotencyKey || crypto.randomUUID();
+      const parsed = focusPeriodFollowUpWorkInputSchema.safeParse({
+        periodId: period.id,
+        learning,
+        projectId,
+        title,
+        type: "Task",
+        clientIdempotencyKey,
+        ...(description.trim() ? { description } : {}),
+      });
+      if (!parsed.success) {
+        formApi.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the form.",
+            fields: {},
+          },
+        });
+        return;
+      }
+      if (meta.action === "preview") {
+        formApi.setFieldValue("clientIdempotencyKey", clientIdempotencyKey);
+        formApi.setFieldValue("previewed", true);
+        return;
+      }
+      if (value.previewed) {
+        await act(async () => {
+          await createFollowUp.mutateAsync(parsed.data);
+          formApi.reset(
+            {
+              ...value,
+              title: "",
+              description: "",
+              clientIdempotencyKey: "",
+              previewed: false,
+            },
+            { keepDefaultValues: true },
+          );
+        });
+      }
     },
   });
-  const { description, learning, projectId, title } = useSelector(
+  const { description, learning, previewed, projectId, title } = useSelector(
     form.store,
     (state) => state.values,
   );
@@ -65,28 +105,15 @@ export function FollowUpWorkSection({
     period.evaluation?.[EVALUATION_FIELD_BY_LEARNING[learning]] ?? "";
   function editDraft(update: () => void) {
     update();
-    setClientIdempotencyKey(crypto.randomUUID());
-    setShowPreview(false);
+    form.setFieldValue("clientIdempotencyKey", "");
+    form.setFieldValue("previewed", false);
+    form.setErrorMap({ onSubmit: undefined });
   }
-  async function confirm() {
-    const parsed = focusPeriodFollowUpWorkInputSchema.safeParse({
-      periodId: period.id,
-      learning,
-      projectId,
-      title,
-      type: "Task",
-      clientIdempotencyKey,
-      ...(description.trim() ? { description } : {}),
-    });
-    if (!parsed.success) {
-      throw parsed.error;
-    }
-    await createFollowUp.mutateAsync(parsed.data);
-    form.setFieldValue("title", "");
-    form.setFieldValue("description", "");
-    setShowPreview(false);
-    setClientIdempotencyKey(crypto.randomUUID());
-  }
+  const submitting = useSelector(form.store, (state) => state.isSubmitting);
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   return (
     <>
       <section aria-label="Add follow-up Work" className="space-y-3">
@@ -100,7 +127,7 @@ export function FollowUpWorkSection({
           onSubmit={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            form.handleSubmit().catch(() => undefined);
+            submitForm(form).catch(() => undefined);
           }}
         >
           <form.Field name="learning">
@@ -199,7 +226,9 @@ export function FollowUpWorkSection({
             )}
           </form.Field>
           <Button
-            disabled={!(learningText.trim() && projectId && title.trim())}
+            disabled={
+              submitting || !(learningText.trim() && projectId && title.trim())
+            }
             type="submit"
             variant="outline"
           >
@@ -211,7 +240,8 @@ export function FollowUpWorkSection({
             Save a {learning} learning before creating Follow-up Work.
           </p>
         )}
-        {showPreview ? (
+        {error ? <p role="alert">{error}</p> : null}
+        {previewed ? (
           <section
             aria-label="Follow-up Work preview"
             className="space-y-3 rounded-md border p-4"
@@ -246,11 +276,18 @@ export function FollowUpWorkSection({
               </div>
             </dl>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => act(confirm)} type="button">
+              <Button
+                disabled={submitting}
+                onClick={() =>
+                  submitForm(form, { action: "confirm" }).catch(() => undefined)
+                }
+                type="button"
+              >
                 Confirm
               </Button>
               <Button
-                onClick={() => setShowPreview(false)}
+                disabled={submitting}
+                onClick={() => form.setFieldValue("previewed", false)}
                 type="button"
                 variant="outline"
               >

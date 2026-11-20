@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Field render props close over the current recreate form state.
+
 import {
   recreateWorkInputSchema,
   type WorkProfile,
@@ -16,6 +17,7 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -85,10 +87,9 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
   const inspect = useMutation({
     meta: { presentsSupportFailure: true },
     mutationFn: (input: Parameters<typeof client.workRecreatePreview>[0]) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.workRecreatePreview.queryOptions({ input }),
         gcTime: 0,
-        staleTime: 0,
       }),
   });
   const { data: preview } = inspect;

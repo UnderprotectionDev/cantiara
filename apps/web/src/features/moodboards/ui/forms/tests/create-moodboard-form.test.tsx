@@ -20,9 +20,9 @@ afterEach(() => {
   host = null;
 });
 
-function mountCreate(mutate: ReturnType<typeof vi.fn>) {
+function mountCreate(mutateAsync: ReturnType<typeof vi.fn>) {
   const api = {
-    createMoodboard: { isPending: false, mutate },
+    createMoodboard: { isPending: false, mutateAsync },
   } as unknown as ReturnType<typeof useMoodboards>;
   host = document.createElement("div");
   document.body.append(host);
@@ -54,7 +54,8 @@ async function submit() {
 
 describe("Create Moodboard form", () => {
   test("sends the trimmed title and clears the field once it is saved", async () => {
-    const mutate = vi.fn();
+    const write = Promise.withResolvers<void>();
+    const mutate = vi.fn((_input: { title: string }) => write.promise);
     mountCreate(mutate);
     const input = host?.querySelector("input") as HTMLInputElement;
     type(input, "  Brand  ");
@@ -62,7 +63,7 @@ describe("Create Moodboard form", () => {
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate.mock.calls[0]?.[0]).toEqual({ title: "Brand" });
     expect(input.value).toBe("  Brand  ");
-    act(() => mutate.mock.calls[0]?.[1].onSuccess());
+    await act(async () => write.resolve());
     expect(input.value).toBe("");
   });
 

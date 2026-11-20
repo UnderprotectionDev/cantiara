@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
+import { useLocationFieldsForm } from "../../../hooks/use-location-fields-form";
 import FileAttachmentLocationBinder from "../file-attachment-location-form";
 
 (
@@ -26,6 +27,21 @@ async function settle() {
   }
 }
 
+function Fixture({ onPreview }: { onPreview: () => Promise<never> }) {
+  const geometry = useLocationFieldsForm({ kind: "point", x: 0.2, y: 0.3 });
+  return (
+    <FileAttachmentLocationBinder
+      attachmentId="a1"
+      geometry={geometry}
+      onClose={() => undefined}
+      onLocationKindChange={() => undefined}
+      onPreview={onPreview}
+      projectId="p1"
+      versionId="v1"
+    />
+  );
+}
+
 function mount(onPreview: () => Promise<never>) {
   host = document.createElement("div");
   document.body.append(host);
@@ -34,17 +50,7 @@ function mount(onPreview: () => Promise<never>) {
   act(() => {
     root?.render(
       <QueryClientProvider client={cache}>
-        <FileAttachmentLocationBinder
-          attachmentId="a1"
-          location={{ kind: "point", x: 0.2, y: 0.3 }}
-          locationKind="point"
-          onClose={() => undefined}
-          onLocationChange={() => undefined}
-          onLocationKindChange={() => undefined}
-          onPreview={onPreview}
-          projectId="p1"
-          versionId="v1"
-        />
+        <Fixture onPreview={onPreview} />
       </QueryClientProvider>,
     );
   });

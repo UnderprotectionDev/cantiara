@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the close form fields.
+
 import {
   EXTERNAL_COPY_STATES,
   TOOL_ESCAPE_CLOSE_LABEL,
@@ -12,8 +13,9 @@ import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useId, useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   type CloseFormValues,
   closeImpact,
@@ -23,7 +25,7 @@ import {
 import {
   type LoadProductGapTargets,
   ProductGapLinksField,
-} from "../components/product-gap-links-field";
+} from "./product-gap-links-field-form";
 
 /** Names the unmet conditions the seam reported, else the plain message. */
 function closeErrorText(error: unknown) {
@@ -60,26 +62,36 @@ export function ToolEscapeCloseForm({
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string>();
-  const [message, setMessage] = useState("");
+
   const form = useForm({
     defaultValues: EMPTY_CLOSE_FORM,
     onSubmit: async ({ value }) => {
-      setError(undefined);
-      setMessage("");
+      form.setErrorMap({ onSubmit: undefined });
       const impact = closeImpact(value);
       if (!impact.success) {
-        setError(impact.error.issues[0]?.message);
+        form.setErrorMap({
+          onSubmit: { form: impact.error.issues[0]?.message, fields: {} },
+        });
         return;
       }
       try {
         await onClose(event, value, impact.data);
-        setMessage("Tool Escape closed.");
       } catch (caught) {
-        setError(closeErrorText(caught));
+        form.setErrorMap({
+          onSubmit: { form: closeErrorText(caught), fields: {} },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const succeeded = useSelector(
+    form.store,
+    (state) => state.isSubmitSuccessful,
+  );
+  const message = succeeded && !error ? "Tool Escape closed." : undefined;
 
   if (!open) {
     return (
@@ -101,7 +113,7 @@ export function ToolEscapeCloseForm({
       className="grid gap-3 rounded-md border border-border/70 p-3"
       onSubmit={(submitted) => {
         submitted.preventDefault();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form).catch(() => undefined);
       }}
     >
       <form.Field name="impact">

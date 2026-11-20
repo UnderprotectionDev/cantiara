@@ -5,6 +5,7 @@ import type {
   MoodboardVisualOrigin,
 } from "@cantiara/api/moodboards";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 
@@ -157,10 +158,9 @@ export function useMoodboards(projectId: string) {
     meta: { retryInSurface: true },
     mutationKey: orpc.moodboardSnapshotPreview.mutationKey(),
     mutationFn: (input: { itemIds: string[]; moodboardId: string }) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.moodboardSnapshotPreview.queryOptions({ input }),
         gcTime: 0,
-        staleTime: 0,
       }),
   });
 

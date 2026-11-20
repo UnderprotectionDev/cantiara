@@ -29,15 +29,13 @@ import {
   orpc,
   projectsQueryOptions,
 } from "@/utils/orpc";
+import {
+  useCaptureAttachmentSetupForm,
+  useCaptureConversionSetupForm,
+} from "../../hooks/use-capture-setup-forms";
 import { itemOriginLabel, triageErrorMessage } from "../../lib/capture-inbox";
-import {
-  CaptureAttachmentSetupForm,
-  type CaptureAttachmentSetupValues,
-} from "../forms/capture-attachment-setup-form";
-import {
-  CaptureConversionSetupForm,
-  type CaptureConversionSetupValues,
-} from "../forms/capture-conversion-setup-form";
+import { CaptureAttachmentSetupForm } from "../forms/capture-attachment-setup-form";
+import { CaptureConversionSetupForm } from "../forms/capture-conversion-setup-form";
 
 type ActionMode = "attach" | "convert" | "suggestions" | null;
 
@@ -396,16 +394,16 @@ export function CaptureInboxItemActions({
   const connection = useClientShellConnection();
   const projects = useQuery(projectsQueryOptions());
   const [mode, setMode] = useState<ActionMode>(null);
-  const [conversionValues, setConversionValues] =
-    useState<CaptureConversionSetupValues>({
-      projectId: captureConversionProjectId(item.projectId),
-      recordType: "",
-    });
-  const [attachmentValues, setAttachmentValues] =
-    useState<CaptureAttachmentSetupValues>({
-      relation: "Origin",
-      targetId: "",
-    });
+  const conversionForm = useCaptureConversionSetupForm(
+    { projectId: captureConversionProjectId(item.projectId), recordType: "" },
+    item.id,
+    (input) => previewConversion.mutateAsync(input),
+  );
+  const attachmentForm = useCaptureAttachmentSetupForm(
+    { relation: "Origin", targetId: "" },
+    item.id,
+    (input) => previewAttachment.mutateAsync(input),
+  );
   const refreshInbox = useCallback(
     async (advanceAfterExit = false) => {
       await queryClient.invalidateQueries({
@@ -532,22 +530,19 @@ export function CaptureInboxItemActions({
 
   const useSuggestion = useCallback(
     (suggestion: CaptureSuggestion) => {
-      setAttachmentValues((current) => ({
-        ...current,
-        targetId: suggestion.id,
-      }));
+      attachmentForm.setFieldValue("targetId", suggestion.id);
       startMode("attach");
     },
-    [startMode],
+    [attachmentForm, startMode],
   );
 
   const openConvert = useCallback(() => {
-    setConversionValues((current) => ({
-      ...current,
-      projectId: captureConversionProjectId(item.projectId),
-    }));
+    conversionForm.setFieldValue(
+      "projectId",
+      captureConversionProjectId(item.projectId),
+    );
     startMode("convert");
-  }, [item.projectId, startMode]);
+  }, [conversionForm, item.projectId, startMode]);
   const openAttach = useCallback(() => startMode("attach"), [startMode]);
   const handleDelete = useCallback(() => {
     closeMode();
@@ -562,26 +557,6 @@ export function CaptureInboxItemActions({
     startMode("suggestions");
     suggestions.mutate({ itemId: item.id });
   }, [item.id, startMode, suggestions]);
-  const handlePreviewConversion = useCallback(
-    (input: CaptureConvertPreviewInput) => {
-      setConversionValues({
-        projectId: input.projectId ?? "",
-        recordType: input.recordType,
-      });
-      previewConversion.mutate(input);
-    },
-    [previewConversion],
-  );
-  const handlePreviewAttachment = useCallback(
-    (input: CaptureAttachPreviewInput) => {
-      setAttachmentValues({
-        relation: input.relation,
-        targetId: input.targetId,
-      });
-      previewAttachment.mutate(input);
-    },
-    [previewAttachment],
-  );
   const confirmConversion = useCallback(() => {
     if (conversionPreview) {
       convert.mutate(
@@ -593,7 +568,7 @@ export function CaptureInboxItemActions({
     }
   }, [conversionPreview, convert, item.id]);
   const confirmAttachment = useCallback(() => {
-    if (attachPreview) {
+    if (attachPreview && previewAttachment.variables) {
       attach.mutate(
         commandVariables<
           Omit<
@@ -604,20 +579,14 @@ export function CaptureInboxItemActions({
           {
             itemId: item.id,
             previewId: attachPreview.previewId,
-            relation: attachmentValues.relation,
-            targetId: attachmentValues.targetId.trim(),
+            relation: previewAttachment.variables.relation,
+            targetId: previewAttachment.variables.targetId,
           },
           attach.isError ? attach.variables : undefined,
         ),
       );
     }
-  }, [
-    attach,
-    attachPreview,
-    attachmentValues.relation,
-    attachmentValues.targetId,
-    item.id,
-  ]);
+  }, [attach, attachPreview, previewAttachment.variables, item.id]);
 
   return (
     <div className="space-y-3 border-t pt-3">
@@ -640,12 +609,9 @@ export function CaptureInboxItemActions({
       ) : null}
       {mode === "convert" && !conversionPreview ? (
         <CaptureConversionSetupForm
-          initialValues={conversionValues}
+          form={conversionForm}
           isOnline={isOnline}
-          itemId={item.id}
-          key={`${item.id}:${conversionValues.projectId}:${conversionValues.recordType}`}
           onCancel={closeMode}
-          onPreview={handlePreviewConversion}
           previewPending={previewConversion.isPending}
           projects={projects.data}
           sourceProjectId={item.projectId}
@@ -653,12 +619,9 @@ export function CaptureInboxItemActions({
       ) : null}
       {mode === "attach" && !attachPreview ? (
         <CaptureAttachmentSetupForm
-          initialValues={attachmentValues}
+          form={attachmentForm}
           isOnline={isOnline}
-          itemId={item.id}
-          key={`${item.id}:${attachmentValues.relation}:${attachmentValues.targetId}`}
           onCancel={closeMode}
-          onPreview={handlePreviewAttachment}
           previewPending={previewAttachment.isPending}
         />
       ) : null}

@@ -9,7 +9,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
 import {
   isRiskConflict,
   type RiskRecord,
@@ -50,20 +50,20 @@ export function RiskEditor({
   saveError?: unknown;
   savePending?: boolean;
 }) {
-  const [baseRecord] = useState(record);
   const conflict = isRiskConflict(saveError);
   const form = useForm({
     defaultValues: {
-      title: baseRecord?.title ?? "",
-      description: baseRecord?.description ?? "",
-      impact: baseRecord?.impact ?? "",
-      probability: baseRecord?.probability ?? "",
-      response: baseRecord?.response ?? "",
-      rationale: baseRecord?.rationale ?? "",
-      life: baseRecord?.life ?? "Open",
-    } satisfies RiskDraft,
+      baseRecord: record,
+      title: record?.title ?? "",
+      description: record?.description ?? "",
+      impact: record?.impact ?? "",
+      probability: record?.probability ?? "",
+      response: record?.response ?? "",
+      rationale: record?.rationale ?? "",
+      life: record?.life ?? "Open",
+    } satisfies RiskDraft & { baseRecord?: RiskRecord },
     validators: {
-      onSubmit: ({ value }) => {
+      onSubmit: ({ value: { baseRecord, ...value } }) => {
         const parsed = riskFormSchema({
           baseLife: baseRecord?.life,
           changingStatus,
@@ -73,8 +73,12 @@ export function RiskEditor({
           : (parsed.error.issues[0]?.message ?? "Check the form.");
       },
     },
-    onSubmit: ({ value }) => onSave(value, baseRecord),
+    onSubmit: ({ value: { baseRecord, ...value } }) =>
+      onSave(value, baseRecord),
   });
+  const editing = useSelector(form.store, (state) =>
+    Boolean(state.values.baseRecord),
+  );
   const formError = useSelector(form.store, (state) => state.errorMap.onSubmit);
   let error = formError;
   if (!error && saveError) {
@@ -139,7 +143,7 @@ export function RiskEditor({
                 FIELDS.filter(({ name }) =>
                   changingStatus
                     ? name === "rationale"
-                    : name !== "rationale" || Boolean(baseRecord),
+                    : name !== "rationale" || editing,
                 ).map(({ name, label }) => (
                   <form.Field key={name} name={name}>
                     {(field) => (

@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props require closures over current field handlers.
+
 import { documentTypeSchema } from "@cantiara/api/documents";
 import {
   type CreateSmartCollectionInput,
@@ -18,14 +19,9 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  type ReactNode,
-  type SubmitEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, type SubmitEvent, useEffect, useRef } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { submitForm } from "@/lib/submit-form";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -86,7 +82,7 @@ export default function SmartCollectionCreateForm({
   projectId: string;
 }) {
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
+
   const pendingKey = useRef<string | null>(null);
   const projectsQuery = useQuery(orpc.projects.queryOptions());
   const projects = projectsQuery.data ?? [];
@@ -101,7 +97,7 @@ export default function SmartCollectionCreateForm({
       viewName: "Default",
       workType: "",
     },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value }) => {
       pendingKey.current ??= crypto.randomUUID();
       const parsed = createSmartCollectionInputSchema.safeParse({
         clientIdempotencyKey: pendingKey.current,
@@ -116,12 +112,21 @@ export default function SmartCollectionCreateForm({
         viewName: value.viewName,
       });
       if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? "Check the form.");
+        form.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the form.",
+            fields: {},
+          },
+        });
         return;
       }
-      create.mutate(parsed.data);
+      await create.mutateAsync(parsed.data);
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const sourceType = useSelector(
     form.store,
     (state) => state.values.sourceType,
@@ -133,7 +138,7 @@ export default function SmartCollectionCreateForm({
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   const create = useMutation({
     mutationFn: (input: CreateSmartCollectionInput) =>
@@ -141,15 +146,19 @@ export default function SmartCollectionCreateForm({
     onSuccess: async () => {
       pendingKey.current = null;
       form.setFieldValue("name", "");
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       await Promise.all(invalidateSmartCollectionMembership(queryClient));
     },
     onError: (failure) =>
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Smart Collection could not be saved.",
-      ),
+      form.setErrorMap({
+        onSubmit: {
+          form:
+            failure instanceof Error
+              ? failure.message
+              : "Smart Collection could not be saved.",
+          fields: {},
+        },
+      }),
   });
   const statusOptions = SMART_COLLECTION_STATUS_OPTIONS[sourceType] ?? [];
   const isDocumentSource =

@@ -69,6 +69,7 @@ import {
   orpc,
 } from "@/utils/orpc";
 import { useWorkMergeUndo } from "../../hooks/use-work-merge-undo";
+import { useWorkTypeChangeForm } from "../../hooks/use-work-type-change-form";
 import WorkMergeForm from "../forms/work-merge-form";
 import WorkRecreateForm from "../forms/work-recreate-form";
 
@@ -578,8 +579,8 @@ export function WorkArchiveAction({ work }: { work: WorkProfile }) {
 function WorkTypeEditor({ work }: { work: WorkProfile }) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
-  const [selectedType, setSelectedType] = useState<WorkType>(work.type);
-  const selectedTypeRef = useRef(work.type);
+  const form = useWorkTypeChangeForm(work.type);
+  const selectedType = useSelector(form.store, (state) => state.values.type);
   const updateType = useMutation(
     orpc.updateWorkType.mutationOptions({
       meta: { onlineWrite: true },
@@ -610,7 +611,10 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
     }) =>
       client.workTypeChangePreview({ workId: input.workId, type: input.type }),
     onSuccess: (reviewed, { baseRevision, type, workId }) => {
-      if (type === selectedTypeRef.current && !reviewed.requiresImpactPreview) {
+      if (
+        type === form.getFieldValue("type") &&
+        !reviewed.requiresImpactPreview
+      ) {
         updateType.mutate(
           commandVariables({
             baseRevision,
@@ -638,8 +642,7 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
     : null;
 
   function handleTypeChange(nextType: WorkType) {
-    selectedTypeRef.current = nextType;
-    setSelectedType(nextType);
+    form.setFieldValue("type", nextType);
     const failed = updateType.isError ? updateType.variables : undefined;
     if (failed?.type === nextType && failed.workId === work.id) {
       updateType.mutate(failed);
@@ -676,9 +679,8 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
   }
 
   useEffect(() => {
-    selectedTypeRef.current = work.type;
-    setSelectedType(work.type);
-  }, [work.type]);
+    form.reset({ type: work.type });
+  }, [form, work.type]);
 
   const isPending = previewTypeChange.isPending || updateType.isPending;
 

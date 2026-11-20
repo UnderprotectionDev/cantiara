@@ -225,7 +225,6 @@ export default function ExternalExecutionHandoffPanel({
 }) {
   const connection = useClientShellConnection();
   const [expanded, setExpanded] = useState(defaultExpanded);
-  const [formError, setFormError] = useState<string | null>(null);
   const [copiedHandoffId, setCopiedHandoffId] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const {
@@ -246,6 +245,7 @@ export default function ExternalExecutionHandoffPanel({
     connection === "offline";
 
   async function copyPackage(handoffId: string, markdown: string) {
+    recordPackageExport.reset();
     setCopyError(null);
     setCopiedHandoffId(null);
     try {
@@ -255,16 +255,10 @@ export default function ExternalExecutionHandoffPanel({
       return;
     }
     setCopiedHandoffId(handoffId);
-    try {
-      await recordPackageExport.mutateAsync({
-        clientEventId: crypto.randomUUID(),
-        handoffId,
-      });
-    } catch {
-      setCopyError(
-        "Going package was copied, but its Work history could not be recorded.",
-      );
-    }
+    recordPackageExport.mutate({
+      clientEventId: crypto.randomUUID(),
+      handoffId,
+    });
   }
 
   return (
@@ -292,7 +286,6 @@ export default function ExternalExecutionHandoffPanel({
             if (!start.isPending) {
               start.reset();
             }
-            setFormError(null);
           }}
           size="xs"
           type="button"
@@ -391,6 +384,13 @@ export default function ExternalExecutionHandoffPanel({
                       Going package copied.
                     </p>
                   ) : null}
+                  {handoffObserver(recordPackageExport, handoff.handoffId)
+                    ?.error ? (
+                    <p className="text-xs text-destructive" role="alert">
+                      Going package was copied, but its Work history could not
+                      be recorded.
+                    </p>
+                  ) : null}
                 </div>
               </details>
               <HandoffResult handoff={handoff} />
@@ -430,12 +430,7 @@ export default function ExternalExecutionHandoffPanel({
           ) : null}
 
           <StartHandoffForm
-            formError={formError}
-            onClearErrors={() => {
-              setFormError(null);
-              setCopyError(null);
-            }}
-            onFormError={setFormError}
+            key={work.id}
             onStart={(input) => start.mutateAsync(input)}
             pending={pending}
             work={work}

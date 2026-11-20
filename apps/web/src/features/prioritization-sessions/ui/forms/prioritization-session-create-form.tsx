@@ -1,11 +1,13 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form fields close over the current Project and its active Work.
+
 import { createPrioritizationSessionInputSchema } from "@cantiara/api/prioritization-sessions";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import type { usePrioritizationSessions } from "../../hooks/use-prioritization-sessions";
 
 export type CreateSessionMutation = ReturnType<
@@ -23,7 +25,6 @@ export default function PrioritizationSessionCreateForm({
   createSession: CreateSessionMutation;
   projectId: string;
 }) {
-  const [formError, setFormError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: { name: "", workIds: [] as string[] },
     onSubmit: async ({ value }) => {
@@ -36,10 +37,15 @@ export default function PrioritizationSessionCreateForm({
           .map((work) => work.id),
       });
       if (!parsed.success) {
-        setFormError(parsed.error.issues[0]?.message ?? "Check the form.");
+        form.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the form.",
+            fields: {},
+          },
+        });
         return;
       }
-      setFormError(null);
+      form.setErrorMap({ onSubmit: undefined });
       await createSession.mutateAsync({
         name: parsed.data.name,
         workIds: parsed.data.workIds,
@@ -47,11 +53,15 @@ export default function PrioritizationSessionCreateForm({
       form.reset();
     },
   });
+  const formError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   return (

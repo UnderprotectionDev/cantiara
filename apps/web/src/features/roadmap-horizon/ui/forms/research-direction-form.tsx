@@ -1,18 +1,19 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Research fields bind to their Work form.
+
 import { updateResearchDirectionInputSchema } from "@cantiara/api/roadmap-horizon";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
 import type { z } from "zod";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { submitForm } from "@/lib/submit-form";
 import { client, projectWorksQueryPrefix } from "@/utils/orpc";
 
 export default function ResearchDirection({ work }: { work: WorkProfile }) {
   const queryClient = useQueryClient();
-  const [invalid, setInvalid] = useState(false);
   const mutation = useMutation({
     mutationFn: (input: z.output<typeof updateResearchDirectionInputSchema>) =>
       runOnlineOnlyWrite(() => client.updateResearchDirection(input)),
@@ -32,16 +33,17 @@ export default function ResearchDirection({ work }: { work: WorkProfile }) {
         problemOpportunity: value.problemOpportunity.trim() || null,
         workId: work.id,
       });
-      setInvalid(!parsed.success);
       if (!parsed.success) {
+        form.setErrorMap({ onSubmit: { form: true, fields: {} } });
         return;
       }
       return mutation.mutateAsync(parsed.data);
     },
   });
+  const invalid = useSelector(form.store, (state) => state.errorMap.onSubmit);
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <div className="mt-3 space-y-2 text-sm">

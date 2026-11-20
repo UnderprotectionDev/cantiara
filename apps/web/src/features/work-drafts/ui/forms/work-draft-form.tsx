@@ -55,7 +55,6 @@ import {
   useRef,
   useState,
 } from "react";
-
 import {
   useClientShell,
   useClientShellConnection,
@@ -63,6 +62,7 @@ import {
 import { buildSupportReferenceFailure } from "@/features/web-macos-client/lib/support-reference";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 import { commandVariables } from "@/lib/command-variables";
+import { submitForm } from "@/lib/submit-form";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import {
   client,
@@ -74,19 +74,6 @@ import {
   formatDraftCustomFieldDate,
   parseDraftNumberText,
 } from "../../lib/draft-custom-fields";
-
-function draftNumberTextMatchesValue(
-  parsedText: ReturnType<typeof parseDraftNumberText>,
-  value: ParsedCustomFieldValuePayload | undefined,
-): boolean {
-  if (parsedText === "invalid") {
-    return true;
-  }
-  if (parsedText === "empty") {
-    return value === undefined;
-  }
-  return value?.kind === "number" && value.number === parsedText;
-}
 
 interface WorkDraftFormValues {
   customFieldValues: WorkDraftCustomFieldValue[];
@@ -262,23 +249,17 @@ function CustomFieldNumberInput({
   definition,
   disabled,
   onChange,
+  onTextChange,
+  text,
   value,
 }: {
   definition: CustomFieldDefinition;
   disabled: boolean;
   onChange: (value: ParsedCustomFieldValuePayload | null) => void;
+  onTextChange: (text: string) => void;
+  text?: string;
   value: ParsedCustomFieldValuePayload | undefined;
 }) {
-  const externalText = value?.kind === "number" ? String(value.number) : "";
-  const [text, setText] = useState(externalText);
-  // Keep the raw text as the source of the input: only an incoming value the
-  // text cannot explain (Draft resume, clear) is adopted, so the parse echo
-  // never clobbers in-progress input such as "0." or "-".
-  const parsedText = parseDraftNumberText(text);
-  const matchesExternal = draftNumberTextMatchesValue(parsedText, value);
-  if (!matchesExternal) {
-    setText(externalText);
-  }
   const id = customFieldControlId(definition.id);
 
   return (
@@ -290,7 +271,7 @@ function CustomFieldNumberInput({
         inputMode="decimal"
         onChange={(event) => {
           const next = event.target.value;
-          setText(next);
+          onTextChange(next);
           const parsed = parseDraftNumberText(next);
           if (parsed === "empty") {
             onChange(null);
@@ -301,12 +282,15 @@ function CustomFieldNumberInput({
           }
         }}
         type="number"
-        value={text}
+        value={text ?? (value?.kind === "number" ? String(value.number) : "")}
       />
       {value ? (
         <CustomFieldClearButton
           disabled={disabled}
-          onClear={() => onChange(null)}
+          onClear={() => {
+            onTextChange("");
+            onChange(null);
+          }}
         />
       ) : (
         <CustomFieldUnsetStatus />
@@ -320,12 +304,16 @@ function CustomFieldInput({
   disabled,
   formattingPreferences,
   onChange,
+  onNumberTextChange,
+  numberText,
   value,
 }: {
   definition: CustomFieldDefinition;
   disabled: boolean;
   formattingPreferences: AccountPreferences;
   onChange: (value: ParsedCustomFieldValuePayload | null) => void;
+  onNumberTextChange: (text: string) => void;
+  numberText?: string;
   value: ParsedCustomFieldValuePayload | undefined;
 }) {
   const id = customFieldControlId(definition.id);
@@ -365,6 +353,8 @@ function CustomFieldInput({
           definition={definition}
           disabled={disabled}
           onChange={onChange}
+          onTextChange={onNumberTextChange}
+          text={numberText}
           value={value}
         />
       );
@@ -456,6 +446,8 @@ function WorkCustomFields({
   formattingPreferences,
   isPending,
   onChange,
+  onNumberTextChange,
+  numberText,
   values,
 }: {
   definitions: CustomFieldDefinition[];
@@ -467,6 +459,8 @@ function WorkCustomFields({
     definitionId: string,
     value: ParsedCustomFieldValuePayload | null,
   ) => void;
+  onNumberTextChange: (definitionId: string, text: string) => void;
+  numberText: Record<string, string>;
   values: WorkDraftCustomFieldValue[];
 }) {
   if (isPending) {
@@ -518,7 +512,11 @@ function WorkCustomFields({
               definition={definition}
               disabled={disabled}
               formattingPreferences={formattingPreferences}
+              numberText={numberText[definition.id]}
               onChange={(value) => onChange(definition.id, value)}
+              onNumberTextChange={(text) =>
+                onNumberTextChange(definition.id, text)
+              }
               value={customFieldValueFor(values, definition.id)}
             />
           </Field>
@@ -586,13 +584,11 @@ export default function WorkDraftForm({
   const [resumed, setResumed] = useState(false);
   // The Draft editor's target Project follows the resumed Draft; new Drafts
   // target the Project whose surface opened the form.
-  const [targetProjectId, setTargetProjectId] = useState(projectId);
   const initialValues = useMemo(
     () => workDraftInitialValues(initialType),
     [initialType],
   );
-  const [newDraftId] = useState(() => crypto.randomUUID());
-  const draftIdRef = useRef<string>(newDraftId);
+  const initialDraftId = useMemo(() => crypto.randomUUID(), []);
   const revisionRef = useRef(0);
   const editVersionRef = useRef(0);
   const autosaveEpochRef = useRef(0);
@@ -613,6 +609,38 @@ export default function WorkDraftForm({
   const draftsQueryOptions = orpc.workDrafts.queryOptions({ input: {} });
   const draftsQuery = useQuery(draftsQueryOptions);
   const draftsQueryKey = draftsQueryOptions.queryKey;
+  const form = useForm({
+    defaultValues: {
+      ...initialValues,
+      draftId: initialDraftId as string,
+      targetProjectId: projectId,
+      numberText: {} as Record<string, string>,
+    },
+    validators: {
+      onSubmit: ({ value }) => {
+        if (pendingFinalizationRef.current?.command.draftId === value.draftId) {
+          return;
+        }
+        const parsed = createWorkInputSchema.safeParse({
+          description: value.description.trim() ? value.description : null,
+          projectId: value.targetProjectId,
+          title: value.title,
+          type: value.type,
+        });
+        return parsed.success
+          ? undefined
+          : (parsed.error.issues[0]?.message ?? "Check the form.");
+      },
+    },
+    onSubmit: ({ value }) => createWork(value),
+  });
+  const targetProjectId = useSelector(
+    form.store,
+    (state) => state.values.targetProjectId,
+  );
+  useEffect(() => {
+    form.setFieldValue("targetProjectId", projectId, { dontUpdateMeta: true });
+  }, [form, projectId]);
   const customFieldsQuery = useQuery(
     orpc.customFields.queryOptions({ input: { projectId: targetProjectId } }),
   );
@@ -629,32 +657,6 @@ export default function WorkDraftForm({
   const projectNameById = new Map(
     (projectsQuery.data ?? []).map((project) => [project.id, project.name]),
   );
-  useEffect(() => {
-    setTargetProjectId(projectId);
-  }, [projectId]);
-
-  const form = useForm({
-    defaultValues: initialValues,
-    validators: {
-      onSubmit: ({ value }) => {
-        if (
-          pendingFinalizationRef.current?.command.draftId === draftIdRef.current
-        ) {
-          return;
-        }
-        const parsed = createWorkInputSchema.safeParse({
-          description: value.description.trim() ? value.description : null,
-          projectId: targetProjectId,
-          title: value.title,
-          type: value.type,
-        });
-        return parsed.success
-          ? undefined
-          : (parsed.error.issues[0]?.message ?? "Check the form.");
-      },
-    },
-    onSubmit: ({ value }) => createWork(value),
-  });
   const validationError = useSelector(
     form.store,
     (state) => state.errorMap.onSubmit,
@@ -662,16 +664,19 @@ export default function WorkDraftForm({
   const isCreating = useSelector(form.store, (state) => state.isSubmitting);
 
   function setNewDraft(values?: WorkDraftFormValues) {
-    draftIdRef.current = crypto.randomUUID();
     revisionRef.current = 0;
     editVersionRef.current += 1;
     pendingSaveRef.current = undefined;
     pendingFinalizationRef.current = undefined;
-    setTargetProjectId(values ? targetProjectId : projectId);
-    form.reset(initialValues);
-    if (values) {
-      form.reset(values, { keepDefaultValues: true });
-    }
+    form.reset(
+      {
+        ...(values ?? initialValues),
+        draftId: crypto.randomUUID(),
+        targetProjectId: values ? targetProjectId : projectId,
+        numberText: {},
+      },
+      { keepDefaultValues: true },
+    );
     shell.markUnsavedChanges(Boolean(values));
   }
 
@@ -698,7 +703,7 @@ export default function WorkDraftForm({
         saved,
         ...drafts.filter((draft) => draft.id !== saved.id),
       ]);
-      if (draftIdRef.current === saved.id) {
+      if (form.getFieldValue("draftId") === saved.id) {
         revisionRef.current = saved.revision;
         shell.recordSuccessfulSave(new Date(saved.updatedAt));
         if (editVersionRef.current !== editVersion) {
@@ -723,7 +728,7 @@ export default function WorkDraftForm({
     },
     onSuccess: (work, { command, editVersion }) => {
       removeDraftFromCache(command.draftId);
-      if (draftIdRef.current === command.draftId) {
+      if (form.getFieldValue("draftId") === command.draftId) {
         shell.recordSuccessfulSave();
         setNewDraft(
           editVersionRef.current === editVersion
@@ -764,7 +769,7 @@ export default function WorkDraftForm({
       mutationFn: (input) => client.deleteWorkDraft(input),
       onSuccess: (_, { draftId }) => {
         removeDraftFromCache(draftId);
-        if (draftId === draftIdRef.current) {
+        if (draftId === form.getFieldValue("draftId")) {
           shell.recordSuccessfulSave();
           setNewDraft();
         }
@@ -776,17 +781,23 @@ export default function WorkDraftForm({
   function resumeDraft(draft: WorkDraft) {
     debouncer.cancel();
     if (
-      draftIdRef.current !== draft.id ||
+      form.getFieldValue("draftId") !== draft.id ||
       revisionRef.current !== draft.revision
     ) {
       pendingSaveRef.current = undefined;
       pendingFinalizationRef.current = undefined;
     }
-    draftIdRef.current = draft.id;
     revisionRef.current = draft.revision;
     editVersionRef.current += 1;
-    setTargetProjectId(draft.projectId);
-    form.reset(draftValues(draft), { keepDefaultValues: true });
+    form.reset(
+      {
+        ...draftValues(draft),
+        draftId: draft.id,
+        targetProjectId: draft.projectId,
+        numberText: {},
+      },
+      { keepDefaultValues: true },
+    );
     saveMutation.reset();
     finalizeMutation.reset();
     deleteMutation.reset();
@@ -795,12 +806,12 @@ export default function WorkDraftForm({
   }
 
   const saveDraftNow = (values: WorkDraftFormValues, mode: DraftSaveMode) => {
-    const draftId = draftIdRef.current;
+    const draftId = form.getFieldValue("draftId");
     const editVersion = editVersionRef.current;
     const autosaveEpoch = autosaveEpochRef.current;
     const operation = async () => {
       if (
-        draftId !== draftIdRef.current ||
+        draftId !== form.getFieldValue("draftId") ||
         (mode === "autosave" && autosaveEpoch !== autosaveEpochRef.current)
       ) {
         return;
@@ -925,7 +936,7 @@ export default function WorkDraftForm({
     // The previous request may have consumed the Draft. Replay that exact
     // finalization before issuing any new save against the same Draft.
     const previous = pendingFinalizationRef.current;
-    if (previous?.command.draftId === draftIdRef.current) {
+    if (previous?.command.draftId === form.getFieldValue("draftId")) {
       await finalizeMutation.mutateAsync(previous).catch(() => undefined);
       return;
     }
@@ -953,14 +964,16 @@ export default function WorkDraftForm({
     finalizeMutation.reset();
     await saveSequenceRef.current;
     const baseRevision =
-      draft.id === draftIdRef.current ? revisionRef.current : draft.revision;
+      draft.id === form.getFieldValue("draftId")
+        ? revisionRef.current
+        : draft.revision;
     await deleteMutation.mutateAsync({ baseRevision, draftId: draft.id });
   }
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   const formError = draftFormError(
@@ -1161,15 +1174,22 @@ export default function WorkDraftForm({
           )}
         </form.Field>
 
-        <form.Subscribe selector={(state) => state.values.customFieldValues}>
-          {(customFieldValues) => (
+        <form.Subscribe selector={(state) => state.values}>
+          {({ customFieldValues, numberText }) => (
             <WorkCustomFields
               definitions={workCustomFieldDefinitions}
               disabled={isBusy}
               error={customFieldsQuery.isError}
               formattingPreferences={accountFormattingPreferences}
               isPending={customFieldsQuery.isPending}
+              numberText={numberText}
               onChange={updateCustomFieldValue}
+              onNumberTextChange={(definitionId, text) => {
+                form.setFieldValue("numberText", (values) => ({
+                  ...values,
+                  [definitionId]: text,
+                }));
+              }}
               values={customFieldValues}
             />
           )}

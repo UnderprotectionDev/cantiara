@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form render props and controls close over their current field state and handlers.
+
 import {
   CUSTOM_FIELD_RECORD_TYPE_OPTIONS,
   CUSTOM_FIELD_TYPE_OPTIONS,
@@ -21,13 +22,13 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { type SubmitEvent, useState } from "react";
-
 import {
   type DefinitionRevisionArgs,
   useCustomFields,
 } from "@/features/custom-fields/hooks/use-custom-fields";
+import { submitForm } from "@/lib/submit-form";
 
 interface CustomFieldFormValues {
   name: string;
@@ -118,7 +119,7 @@ export default function CustomFieldEditor({
 }) {
   const { create, deletePermanently, moveToTrash, query, restore, update } =
     useCustomFields(projectId);
-  const [formError, setFormError] = useState<string | null>(null);
+
   const failedAction =
     update.error ??
     moveToTrash.error ??
@@ -144,11 +145,16 @@ export default function CustomFieldEditor({
         type: value.type,
       });
       if (!parsed.success) {
-        setFormError(parsed.error.issues[0]?.message ?? "Check the form.");
+        form.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the form.",
+            fields: {},
+          },
+        });
         return;
       }
 
-      setFormError(null);
+      form.setErrorMap({ onSubmit: undefined });
       try {
         await create.mutateAsync(parsed.data);
         form.reset();
@@ -157,6 +163,10 @@ export default function CustomFieldEditor({
       }
     },
   });
+  const formError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   let definitionContent = (
     <CustomFieldDefinitionList
       definitions={query.data ?? []}
@@ -228,7 +238,7 @@ export default function CustomFieldEditor({
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   return (
@@ -583,7 +593,7 @@ function CustomFieldEditForm({
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   return (

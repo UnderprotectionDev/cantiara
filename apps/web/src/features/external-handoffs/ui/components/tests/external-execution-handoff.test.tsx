@@ -1,13 +1,26 @@
+// @vitest-environment happy-dom
+
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createElement } from "react";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import { createClientShell } from "@/features/web-macos-client/store/client-shell";
 import { ClientShellProvider } from "@/features/web-macos-client/ui/components/client-shell";
 import { orpc } from "@/utils/orpc";
 import ExternalExecutionHandoff from "../external-execution-handoff";
+
+const { writeHistory } = vi.hoisted(() => ({ writeHistory: vi.fn() }));
+
+vi.mock("@/utils/orpc", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/utils/orpc")>();
+  return {
+    ...original,
+    client: { recordExternalExecutionHandoffPackageExport: writeHistory },
+  };
+});
 
 const work: WorkProfile = {
   archivedAt: null,
@@ -37,77 +50,91 @@ const work: WorkProfile = {
   updatedAt: "2026-09-22T09:05:00.000Z",
 };
 
+function fixtureClient() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
+  });
+  queryClient.setQueryData(
+    orpc.externalExecutionHandoffs.queryOptions({
+      input: { workId: work.id },
+    }).queryKey,
+    [
+      {
+        cancellationReason: null,
+        constraints: "Do not change the release scope.",
+        createdAt: "2026-09-22T10:00:00.000Z",
+        executor: "Build agent",
+        expectedOutput: "A reviewed implementation.",
+        githubContext: ["https://github.com/acme/release/issues/12"],
+        handoffId: "handoff-1",
+        includeWork: true,
+        packageMarkdown:
+          "# External Execution Handoff\nWork: CAT-1\nrevision 3\nhttps://github.com/acme/release/issues/12\nSource of truth is in the app\n",
+        packageProducedAt: "2026-09-22T10:00:00.000Z",
+        purpose: "Prepare release changes",
+        reconcileDecision: null,
+        result: null,
+        selectedWorkRevision: 3,
+        status: "Open",
+        workId: work.id,
+      },
+    ],
+  );
+  queryClient.setQueryData(
+    orpc.externalExecutionHandoffHistory.queryOptions({
+      input: { workId: work.id },
+    }).queryKey,
+    [
+      {
+        actorId: "account-1",
+        eventId: "event-started",
+        eventType: "external-execution-handoff-started",
+        handoffId: "handoff-1",
+        occurredAt: "2026-09-22T10:00:00.000Z",
+      },
+      {
+        actorId: "account-1",
+        eventId: "event-produced",
+        eventType: "external-execution-handoff-package-produced",
+        handoffId: "handoff-1",
+        occurredAt: "2026-09-22T10:00:00.000Z",
+      },
+      {
+        actorId: "account-1",
+        eventId: "event-copied",
+        eventType: "external-execution-handoff-package-exported",
+        handoffId: "handoff-1",
+        occurredAt: "2026-09-22T10:01:00.000Z",
+      },
+    ],
+  );
+  queryClient.setQueryData(
+    orpc.externalExecutionHandoffRelatedWorks.queryOptions({
+      input: { workId: work.id },
+    }).queryKey,
+    [],
+  );
+  return queryClient;
+}
+
+function surface(queryClient: QueryClient) {
+  return createElement(
+    QueryClientProvider,
+    { client: queryClient },
+    createElement(
+      ClientShellProvider,
+      { shell: createClientShell() },
+      createElement(ExternalExecutionHandoff, {
+        defaultExpanded: true,
+        work,
+      }),
+    ),
+  );
+}
+
 describe("External Execution Handoff", () => {
   test("shows the selected frozen package and Work revision on its Work", () => {
-    const queryClient = new QueryClient();
-    queryClient.setQueryData(
-      orpc.externalExecutionHandoffs.queryOptions({
-        input: { workId: work.id },
-      }).queryKey,
-      [
-        {
-          cancellationReason: null,
-          constraints: "Do not change the release scope.",
-          createdAt: "2026-09-22T10:00:00.000Z",
-          executor: "Build agent",
-          expectedOutput: "A reviewed implementation.",
-          githubContext: ["https://github.com/acme/release/issues/12"],
-          handoffId: "handoff-1",
-          includeWork: true,
-          packageMarkdown:
-            "# External Execution Handoff\nWork: CAT-1\nrevision 3\nhttps://github.com/acme/release/issues/12\nSource of truth is in the app\n",
-          packageProducedAt: "2026-09-22T10:00:00.000Z",
-          purpose: "Prepare release changes",
-          reconcileDecision: null,
-          result: null,
-          selectedWorkRevision: 3,
-          status: "Open",
-          workId: work.id,
-        },
-      ],
-    );
-    queryClient.setQueryData(
-      orpc.externalExecutionHandoffHistory.queryOptions({
-        input: { workId: work.id },
-      }).queryKey,
-      [
-        {
-          actorId: "account-1",
-          eventId: "event-started",
-          eventType: "external-execution-handoff-started",
-          handoffId: "handoff-1",
-          occurredAt: "2026-09-22T10:00:00.000Z",
-        },
-        {
-          actorId: "account-1",
-          eventId: "event-produced",
-          eventType: "external-execution-handoff-package-produced",
-          handoffId: "handoff-1",
-          occurredAt: "2026-09-22T10:00:00.000Z",
-        },
-        {
-          actorId: "account-1",
-          eventId: "event-copied",
-          eventType: "external-execution-handoff-package-exported",
-          handoffId: "handoff-1",
-          occurredAt: "2026-09-22T10:01:00.000Z",
-        },
-      ],
-    );
-    const html = renderToStaticMarkup(
-      createElement(
-        QueryClientProvider,
-        { client: queryClient },
-        createElement(
-          ClientShellProvider,
-          { shell: createClientShell() },
-          createElement(ExternalExecutionHandoff, {
-            defaultExpanded: true,
-            work,
-          }),
-        ),
-      ),
-    );
+    const html = renderToStaticMarkup(surface(fixtureClient()));
 
     for (const expected of [
       "External Execution Handoff",
@@ -428,5 +455,59 @@ describe("External Execution Handoff", () => {
     expect(html).not.toContain(
       '<a href="https://github.com/acme/release/pull/42"',
     );
+  });
+
+  test("a history write failure preserves the clipboard success", async () => {
+    writeHistory.mockRejectedValueOnce(new Error("History unavailable"));
+    const clipboard = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const clipboardProperty = Object.getOwnPropertyDescriptor(
+      navigator,
+      "clipboard",
+    );
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboard },
+    });
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const queryClient = fixtureClient();
+    try {
+      await act(async () => root.render(surface(queryClient)));
+      await act(async () => {
+        [...host.querySelectorAll("button")]
+          .find((button) => button.textContent === "Copy going package")
+          ?.click();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(clipboard).toHaveBeenCalledWith(
+        expect.stringContaining("revision 3"),
+      );
+      expect(writeHistory).toHaveBeenCalledWith(
+        expect.objectContaining({ handoffId: "handoff-1" }),
+      );
+      await vi.waitFor(() => {
+        expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+          "its Work history could not be recorded",
+        );
+      });
+      expect(
+        [...host.querySelectorAll('[role="status"]')].map(
+          (element) => element.textContent,
+        ),
+      ).toContain("Going package copied.");
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+      writeHistory.mockReset();
+      if (clipboardProperty) {
+        Object.defineProperty(navigator, "clipboard", clipboardProperty);
+      } else {
+        Reflect.deleteProperty(navigator, "clipboard");
+      }
+      vi.unstubAllGlobals();
+      queryClient.clear();
+    }
   });
 });

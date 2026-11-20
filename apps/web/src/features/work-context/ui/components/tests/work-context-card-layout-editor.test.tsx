@@ -2,7 +2,7 @@ import { getProjectShellConfiguration } from "@cantiara/api/project-shell";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
-import WorkContextCardLayoutEditor from "../work-context-card-layout-editor";
+import WorkContextCardLayoutEditor from "../../forms/work-context-card-layout-form";
 
 describe("Work Context Card layout editor", () => {
   test("exposes the closed catalog and preview/confirm seam in Configuration Mode", () => {

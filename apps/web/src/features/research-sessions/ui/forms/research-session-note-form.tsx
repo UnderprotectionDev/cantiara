@@ -17,7 +17,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useId, useState } from "react";
+import { type SubmitEvent, useId, useMemo, useState } from "react";
 import { isResearchSessionConflict } from "../../lib/research-session-conflict";
 
 export type SaveResearchNote = (
@@ -52,7 +52,10 @@ export function ResearchSessionNoteEditor({
   savePending?: boolean;
 }) {
   const prefix = useId();
-  const [noteId] = useState(() => note?.id ?? crypto.randomUUID());
+  const initialNoteId = useMemo(
+    () => note?.id ?? crypto.randomUUID(),
+    [note?.id],
+  );
   const [validationError, setValidationError] = useState<string>();
   const conflict = isResearchSessionConflict(saveError);
   let error = validationError;
@@ -64,6 +67,7 @@ export function ResearchSessionNoteEditor({
   const submitLabel = error && !conflict ? "Retry" : "Save";
   const form = useForm({
     defaultValues: {
+      noteId: initialNoteId,
       kind: note?.kind ?? "",
       text: note?.text ?? "",
       speakerLabel:
@@ -73,7 +77,7 @@ export function ResearchSessionNoteEditor({
           ? note.containsPersonalInformation
           : true,
     },
-    onSubmit: async ({ value }) => {
+    onSubmit: async ({ value: { noteId, ...value } }) => {
       setValidationError(undefined);
       const parsed = researchSessionNoteInputSchema.safeParse({
         id: noteId,

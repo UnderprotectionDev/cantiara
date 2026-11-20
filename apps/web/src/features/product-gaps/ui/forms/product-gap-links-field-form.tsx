@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the picker's local selection.
+
 import {
   PRODUCT_GAP_LABEL,
   PRODUCT_GAP_LINK_MAX,
@@ -14,7 +15,10 @@ import {
   FieldSet,
 } from "@cantiara/ui/components/field";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
+import { useForm } from "@tanstack/react-form";
+import { useSelector } from "@tanstack/react-store";
 import { useId, useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { useProductGapLinkTargets } from "../../hooks/use-product-gap-link-targets";
 import type { LinkDraft } from "../../lib/product-gap-form";
 
@@ -42,18 +46,34 @@ export function ProductGapLinksField({
   value: LinkDraft[];
 }) {
   const statusId = useId();
-  const [targetType, setTargetType] =
-    useState<ProductGapLinkTargetType>("Project");
+  const [message, setMessage] = useState("");
+  const picker = useForm({
+    defaultValues: {
+      targetType: "Project" as ProductGapLinkTargetType,
+      targetId: "",
+    },
+    onSubmit: ({ formApi }) => {
+      setMessage("");
+      const error = add();
+      if (error) {
+        formApi.setErrorMap({ onSubmit: { form: error, fields: {} } });
+      }
+    },
+  });
+  const { targetType, targetId } = useSelector(
+    picker.store,
+    (state) => state.values,
+  );
   const targetsQuery = useProductGapLinkTargets(loadTargets, targetType);
   const targets = targetsQuery.data;
-  const [targetId, setTargetId] = useState("");
-  const [message, setMessage] = useState("");
 
   const selected = targets?.find((target) => target.targetId === targetId);
 
   function chooseType(next: ProductGapLinkTargetType) {
-    setTargetType(next);
-    setTargetId("");
+    picker.reset(
+      { targetType: next, targetId: "" },
+      { keepDefaultValues: true },
+    );
     setMessage("");
   }
 
@@ -64,9 +84,9 @@ export function ProductGapLinksField({
     loadMessage = `This Workspace has no ${targetType} to relate yet.`;
   }
 
-  function add() {
+  function add(): string | undefined {
     if (!selected) {
-      return;
+      return undefined;
     }
     const duplicate = value.some(
       (item) =>
@@ -74,8 +94,7 @@ export function ProductGapLinksField({
         item.targetId === selected.targetId,
     );
     if (duplicate) {
-      setMessage(`${selected.label} is already related.`);
-      return;
+      return `${selected.label} is already related.`;
     }
     onChange([
       ...value,
@@ -85,11 +104,13 @@ export function ProductGapLinksField({
         targetType: selected.targetType,
       },
     ]);
-    setTargetId("");
+    picker.setFieldValue("targetId", "");
     setMessage(`${selected.label} added to related records.`);
+    return undefined;
   }
 
   function remove(index: number) {
+    picker.setErrorMap({ onSubmit: undefined });
     const removed = value[index];
     onChange(value.filter((_, position) => position !== index));
     setMessage(removed ? `${removed.label} removed from related records.` : "");
@@ -155,7 +176,10 @@ export function ProductGapLinksField({
             <NativeSelect
               aria-describedby={statusId}
               id={`${idPrefix}-link-target`}
-              onChange={(event) => setTargetId(event.target.value)}
+              onChange={(event) => {
+                picker.setErrorMap({ onSubmit: undefined });
+                picker.setFieldValue("targetId", event.target.value);
+              }}
               value={targetId}
             >
               <option value="">Choose a {targetType}</option>
@@ -169,7 +193,7 @@ export function ProductGapLinksField({
           <div className="sm:col-span-2">
             <Button
               disabled={!selected}
-              onClick={add}
+              onClick={() => submitForm(picker).catch(() => undefined)}
               size="sm"
               type="button"
               variant="outline"
@@ -179,6 +203,15 @@ export function ProductGapLinksField({
           </div>
         </div>
       )}
+      <picker.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+        {(error) =>
+          typeof error === "string" ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null
+        }
+      </picker.Subscribe>
       <p
         aria-live="polite"
         className="text-sm text-muted-foreground"

@@ -6,7 +6,6 @@ import {
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 import RoadmapPlacementForm from "../forms/roadmap-placement-form";
@@ -21,8 +20,6 @@ export default function RoadmapPlacementEditor({
   work: WorkProfile;
 }) {
   const queryClient = useQueryClient();
-  const [previewChoice, setPreviewChoice] =
-    useState<RoadmapPlacementChoice | null>(null);
   const placementKey = orpc.projectWorks.queryKey({
     input: { projectId: work.projectId },
   });
@@ -60,16 +57,15 @@ export default function RoadmapPlacementEditor({
       workId: work.id,
     }),
   );
-  const preview = previewChoice
-    ? createRoadmapPlacementPreview(
-        {
-          horizon: work.roadmapHorizon ?? null,
-          plannedStartDate: work.plannedStartDate ?? null,
-          targetDate: work.targetDate,
-        },
-        previewChoice,
-      )
-    : null;
+  const previewOf = (previewChoice: RoadmapPlacementChoice) =>
+    createRoadmapPlacementPreview(
+      {
+        horizon: work.roadmapHorizon ?? null,
+        plannedStartDate: work.plannedStartDate ?? null,
+        targetDate: work.targetDate,
+      },
+      previewChoice,
+    );
 
   return (
     <section
@@ -78,41 +74,44 @@ export default function RoadmapPlacementEditor({
     >
       <RoadmapPlacementForm
         onCancel={onCancel}
-        onChange={() => setPreviewChoice(null)}
-        onPreview={setPreviewChoice}
+        onConfirm={mutation.mutateAsync}
         workId={work.id}
-      />
-      {preview ? (
-        <section aria-label="Preview" className="grid gap-3 border-t pt-3">
-          <h4 className="text-sm font-medium">Preview</h4>
-          <dl className="grid gap-1 text-sm">
-            <dt className="text-muted-foreground">{preview.fieldLabel}</dt>
-            <dd>
-              {preview.previousValue} <span aria-hidden="true">→</span>{" "}
-              {preview.nextValue}
-            </dd>
-          </dl>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              disabled={mutation.isPending}
-              onClick={() => previewChoice && mutation.mutate(previewChoice)}
-              size="sm"
-              type="button"
-            >
-              {mutation.isPending ? "Saving…" : "Confirm"}
-            </Button>
-            <Button
-              disabled={mutation.isPending}
-              onClick={() => setPreviewChoice(null)}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Change selection
-            </Button>
-          </div>
-        </section>
-      ) : null}
+      >
+        {(choice, confirm, edit) => {
+          const preview = previewOf(choice);
+          return (
+            <section aria-label="Preview" className="grid gap-3 border-t pt-3">
+              <h4 className="text-sm font-medium">Preview</h4>
+              <dl className="grid gap-1 text-sm">
+                <dt className="text-muted-foreground">{preview.fieldLabel}</dt>
+                <dd>
+                  {preview.previousValue} <span aria-hidden="true">→</span>{" "}
+                  {preview.nextValue}
+                </dd>
+              </dl>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  disabled={mutation.isPending}
+                  onClick={() => confirm().catch(() => undefined)}
+                  size="sm"
+                  type="button"
+                >
+                  {mutation.isPending ? "Saving…" : "Confirm"}
+                </Button>
+                <Button
+                  disabled={mutation.isPending}
+                  onClick={edit}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Change selection
+                </Button>
+              </div>
+            </section>
+          );
+        }}
+      </RoadmapPlacementForm>
       {mutation.isError ? (
         <p className="text-sm text-destructive" role="alert">
           Plan could not be saved. Reload and try again.

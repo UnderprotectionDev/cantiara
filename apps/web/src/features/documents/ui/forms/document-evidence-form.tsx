@@ -23,6 +23,7 @@ import {
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type SubmitEvent, useRef, useState } from "react";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { client, orpc } from "@/utils/orpc";
 import { documentEvidenceFormSchema } from "../../lib/document-evidence-form";
 import { EvidencePreview } from "../components/document-evidence-preview";
@@ -120,10 +121,9 @@ export default function DocumentEvidenceForm({
   const inspect = useMutation({
     mutationKey: orpc.previewDocumentEvidence.mutationKey(),
     mutationFn: (input: Parameters<typeof client.previewDocumentEvidence>[0]) =>
-      cache.query({
+      fetchFresh(cache, {
         ...orpc.previewDocumentEvidence.queryOptions({ input }),
         gcTime: 0,
-        staleTime: 0,
       }),
     meta: { presentsSupportFailure: true },
   });

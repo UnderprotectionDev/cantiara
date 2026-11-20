@@ -1,9 +1,10 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Fields and actions bind to their own form state.
 
 import { Button } from "@cantiara/ui/components/button";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useId, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useId } from "react";
 import { DateTimePicker } from "@/components/date-picker";
+import { submitForm } from "@/lib/submit-form";
 import { linkSharingRefusalMessage } from "../../lib/link-sharing-refusal";
 import { shareExpiryFormSchema } from "../../lib/share-lifecycle";
 
@@ -39,11 +40,11 @@ export function ShareExpiryForm({
   timeZone: string;
 }) {
   const id = useId();
-  const [error, setError] = useState<string | null>(null);
+
   const form = useForm({
     defaultValues: { expiry: initial },
     onSubmit: async ({ meta, value }) => {
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const action = actions.find((entry) => entry.id === meta?.action);
       if (!action) {
         return;
@@ -52,7 +53,12 @@ export function ShareExpiryForm({
       if (!action.clears) {
         const parsed = shareExpiryFormSchema(timeZone).safeParse(value);
         if (!parsed.success) {
-          setError(parsed.error.issues[0]?.message ?? "Enter a valid time.");
+          form.setErrorMap({
+            onSubmit: {
+              form: parsed.error.issues[0]?.message ?? "Enter a valid time.",
+              fields: {},
+            },
+          });
           return;
         }
         instant = parsed.data.expiresAt;
@@ -60,13 +66,22 @@ export function ShareExpiryForm({
       try {
         await onSubmit(action.id, instant);
       } catch (failure) {
-        setError(
-          linkSharingRefusalMessage(failure) ?? "That did not work. Try again.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              linkSharingRefusalMessage(failure) ??
+              "That did not work. Try again.",
+            fields: {},
+          },
+        });
       }
     },
     onSubmitMeta: { action: "" } as { action: string },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
@@ -76,7 +91,7 @@ export function ShareExpiryForm({
     if (disabled || !defaultActionId) {
       return;
     }
-    form.handleSubmit({ action: defaultActionId }).catch(() => undefined);
+    submitForm(form, { action: defaultActionId }).catch(() => undefined);
   }
   return (
     <form aria-label={legend} className="grid gap-2" onSubmit={submit}>
@@ -110,9 +125,9 @@ export function ShareExpiryForm({
                 disabled={disabled || isSubmitting}
                 key={action.id}
                 onClick={() => {
-                  form
-                    .handleSubmit({ action: action.id })
-                    .catch(() => undefined);
+                  submitForm(form, { action: action.id }).catch(
+                    () => undefined,
+                  );
                 }}
                 type="button"
                 variant={action.variant ?? "outline"}

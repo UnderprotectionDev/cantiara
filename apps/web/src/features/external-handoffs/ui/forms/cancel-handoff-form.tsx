@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work-owned handoff controls close over their Work and form state.
+
 import {
   type CancelExternalExecutionHandoffInput,
   cancelExternalExecutionHandoffInputSchema,
@@ -6,8 +7,9 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { useRef, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { useRef } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { errorMessage } from "../../lib/error-message";
 
 export function CancelHandoffForm({
@@ -19,7 +21,6 @@ export function CancelHandoffForm({
   onCancel: (input: CancelExternalExecutionHandoffInput) => Promise<unknown>;
   pending: boolean;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const retryInput = useRef<{
     clientEventId: string;
     reason: string;
@@ -27,7 +28,7 @@ export function CancelHandoffForm({
   const form = useForm({
     defaultValues: { reason: "" },
     onSubmit: async ({ value }) => {
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const reason = value.reason.trim();
       const clientEventId =
         retryInput.current?.reason === reason
@@ -39,9 +40,14 @@ export function CancelHandoffForm({
         reason: value.reason,
       });
       if (!parsed.success) {
-        setError(
-          parsed.error.issues[0]?.message ?? "Check the cancellation reason.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ??
+              "Check the cancellation reason.",
+            fields: {},
+          },
+        });
         return;
       }
       retryInput.current = { clientEventId, reason: parsed.data.reason };
@@ -50,10 +56,16 @@ export function CancelHandoffForm({
         retryInput.current = null;
         form.reset();
       } catch (cancelError) {
-        setError(errorMessage(cancelError));
+        form.setErrorMap({
+          onSubmit: { form: errorMessage(cancelError), fields: {} },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   return (
     <form
@@ -62,7 +74,7 @@ export function CancelHandoffForm({
       onSubmit={async (event) => {
         event.preventDefault();
         event.stopPropagation();
-        await form.handleSubmit();
+        await submitForm(form);
       }}
     >
       <form.Field name="reason">

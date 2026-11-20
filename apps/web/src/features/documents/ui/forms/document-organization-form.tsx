@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form fields and action buttons close over the current TanStack Form field handlers and dialog state.
+
 import {
   type Document,
   type DocumentHierarchyPreview,
@@ -21,9 +22,9 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState } from "react";
-
+import { useRef } from "react";
 import { commandVariables } from "@/lib/command-variables";
+import { submitForm } from "@/lib/submit-form";
 import { client, orpc } from "@/utils/orpc";
 
 function DocumentOrganizationPreview({
@@ -69,8 +70,6 @@ export default function DocumentOrganizationForm({
   onCommitted: (document: Document) => Promise<void>;
   record: Document;
 }) {
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const submitAction = useRef<"preview" | "apply">("preview");
   const archived = Boolean(record.archivedAt);
   const archiveLabel = archived ? "Unarchive" : "Archive";
   const label = action === "hierarchy" ? "Organize Document" : archiveLabel;
@@ -93,14 +92,14 @@ export default function DocumentOrganizationForm({
   );
   const preview = inspect.data;
   const previewRevision = useRef(record.revision);
-  const error = validationError ?? (apply.error ?? inspect.error)?.message;
+  const error = (apply.error ?? inspect.error)?.message;
   const form = useForm({
     defaultValues: {
       folder: record.folder ?? "",
       parentDocumentId: record.parentDocumentId ?? "",
     },
-    onSubmit: ({ value }) => {
-      setValidationError(null);
+    onSubmitMeta: { action: "preview" } as { action: "preview" | "apply" },
+    onSubmit: async ({ value, meta, formApi }) => {
       const parsed = documentOrganizationInputSchema.safeParse(
         action === "hierarchy"
           ? {
@@ -112,15 +111,18 @@ export default function DocumentOrganizationForm({
           : { action: "archive", documentId: record.id, archived: !archived },
       );
       if (!parsed.success) {
-        setValidationError(
-          parsed.error.issues[0]?.message ?? "Check the form.",
-        );
+        formApi.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the form.",
+            fields: {},
+          },
+        });
         return;
       }
-      if (submitAction.current === "apply") {
+      if (meta.action === "apply") {
         const reviewed = inspect.variables;
         if (inspect.isSuccess && reviewed) {
-          apply.mutate(
+          await apply.mutateAsync(
             (apply.isError && apply.variables) ||
               commandVariables({
                 ...reviewed,
@@ -132,7 +134,7 @@ export default function DocumentOrganizationForm({
       }
       apply.reset();
       previewRevision.current = record.revision;
-      inspect.mutate(parsed.data);
+      await inspect.mutateAsync(parsed.data);
     },
   });
   const pending = inspect.isPending || apply.isPending;
@@ -144,7 +146,7 @@ export default function DocumentOrganizationForm({
   function invalidatePreview() {
     inspect.reset();
     apply.reset();
-    setValidationError(null);
+    form.setErrorMap({ onSubmit: undefined });
   }
   return (
     <Dialog onOpenChange={changeOpen} open={action !== null}>
@@ -162,7 +164,7 @@ export default function DocumentOrganizationForm({
           onSubmit={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            form.handleSubmit().catch(() => undefined);
+            submitForm(form).catch(() => undefined);
           }}
         >
           <fieldset className="space-y-3" disabled={pending}>
@@ -230,13 +232,7 @@ export default function DocumentOrganizationForm({
                   : "The Document will leave normal navigation and remain available through Archived."}
               </p>
             )}
-            <Button
-              onClick={() => {
-                submitAction.current = "preview";
-              }}
-              type="submit"
-              variant="outline"
-            >
+            <Button type="submit" variant="outline">
               Preview
             </Button>
           </fieldset>
@@ -246,7 +242,15 @@ export default function DocumentOrganizationForm({
               preview={preview}
             />
           ) : null}
-          {error ? <p role="alert">{error}</p> : null}
+          <form.Subscribe
+            selector={(state): unknown => state.errorMap.onSubmit}
+          >
+            {(validationError) => {
+              const message =
+                typeof validationError === "string" ? validationError : error;
+              return message ? <p role="alert">{message}</p> : null;
+            }}
+          </form.Subscribe>
           <DialogFooter>
             <Button
               disabled={pending}
@@ -259,9 +263,9 @@ export default function DocumentOrganizationForm({
             <Button
               disabled={!preview?.allowed || pending}
               onClick={() => {
-                submitAction.current = "apply";
+                submitForm(form, { action: "apply" }).catch(() => undefined);
               }}
-              type="submit"
+              type="button"
             >
               Apply
             </Button>

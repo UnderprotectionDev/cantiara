@@ -3,6 +3,7 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 import { refreshProductionIncident } from "../../lib/refresh-production-incident";
@@ -116,12 +117,11 @@ export function ProductionIncidentSurface({
   const base = { incidentId, projectId };
   const actions: ProductionIncidentActions = {
     onPreview: (values) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewProductionIncidentFollowUp.queryOptions({
           input: { ...base, ...values },
         }),
         gcTime: 0,
-        staleTime: 0,
       }),
     onCreate: (values, preview, identity) =>
       client.createProductionIncidentFollowUp({

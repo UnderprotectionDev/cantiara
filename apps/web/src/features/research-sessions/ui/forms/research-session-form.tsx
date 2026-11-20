@@ -14,7 +14,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { type SubmitEvent, useId, useState } from "react";
 import { DateTimePicker } from "@/components/date-picker";
 import { isResearchSessionConflict } from "../../lib/research-session-conflict";
@@ -53,8 +53,6 @@ export function ResearchSessionEditor({
   savePending?: boolean;
 }) {
   const prefix = useId();
-  const [baseRecord] = useState(record);
-  const [entryTimeZone] = useState(timeZone);
   const [validationError, setValidationError] = useState<string>();
   const conflict = isResearchSessionConflict(saveError);
   let error = validationError;
@@ -65,6 +63,8 @@ export function ResearchSessionEditor({
   }
   const form = useForm({
     defaultValues: {
+      baseRecord: record,
+      entryTimeZone: timeZone,
       title: record?.title ?? "",
       purpose: record?.purpose ?? "",
       questionGuide: record?.questionGuide ?? "",
@@ -75,17 +75,19 @@ export function ResearchSessionEditor({
       consent: record?.consent ?? "Not asked",
       consentNote: record?.consentNote ?? "",
       scheduledAt: record?.scheduledAt
-        ? researchSessionTimeInput(record.scheduledAt, entryTimeZone)
+        ? researchSessionTimeInput(record.scheduledAt, timeZone)
         : "",
       durationMinutes: record?.durationMinutes?.toString() ?? "",
     },
-    onSubmit: async ({ value }) => {
+    onSubmit: async ({
+      value: { baseRecord, entryTimeZone: submittedTimeZone, ...value },
+    }) => {
       setValidationError(undefined);
       let scheduledAt: string | null = null;
       try {
         scheduledAt = researchSessionTimestamp(
           value.scheduledAt,
-          entryTimeZone,
+          submittedTimeZone,
           baseRecord?.scheduledAt,
         );
       } catch (cause) {
@@ -112,6 +114,10 @@ export function ResearchSessionEditor({
       await onSave(parsed.data, baseRecord);
     },
   });
+  const entryTimeZone = useSelector(
+    form.store,
+    (state) => state.values.entryTimeZone,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     form.handleSubmit().catch(() => undefined);

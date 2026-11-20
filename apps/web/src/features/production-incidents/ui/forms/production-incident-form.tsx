@@ -3,8 +3,9 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   EMPTY_PRODUCTION_INCIDENT_DRAFT,
   PRODUCTION_INCIDENT_TEXT_FIELDS,
@@ -37,31 +38,43 @@ export function ProductionIncidentForm({
   /** Account time zone; the occurrence time is entered and shown in it. */
   timeZone: string;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: draft,
     onSubmit: async ({ value }) => {
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = productionIncidentFormSchema(timeZone).safeParse(value);
       if (!parsed.success) {
-        setError("Enter a title and when the incident began.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Enter a title and when the incident began.",
+            fields: {},
+          },
+        });
         return;
       }
       try {
         await onSubmit(parsed.data);
       } catch {
-        setError(
-          mode === "create"
-            ? "Production Incident could not be created. Retry; your text is kept here."
-            : "Production Incident could not be saved. Reload and try again.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              mode === "create"
+                ? "Production Incident could not be created. Retry; your text is kept here."
+                : "Production Incident could not be saved. Reload and try again.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form

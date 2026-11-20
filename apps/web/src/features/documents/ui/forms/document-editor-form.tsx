@@ -19,7 +19,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@cantiara/ui/components/tabs";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Mathematics } from "@tiptap/extension-mathematics";
@@ -28,11 +28,19 @@ import { Markdown as TiptapMarkdown } from "@tiptap/markdown";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import ActiveWorkingSetControl from "@/components/active-working-set-control";
 import FavoriteControl from "@/components/favorite-control";
 import PersonalReminderControl from "@/components/personal-reminder-control";
 import { defaultClientShell } from "@/features/web-macos-client/store/client-shell";
+import { fetchFresh } from "@/lib/fetch-fresh";
+import { submitForm } from "@/lib/submit-form";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import {
   client,
@@ -106,7 +114,7 @@ export default function DocumentEditor({
   );
   const editing = useSyncExternalStore(editSession.subscribe, editSession.get);
   const [revision, setRevision] = useState(record.revision);
-  const [error, setError] = useState<string | null>(null);
+
   const [view, setView] = useState<DocumentView>(() =>
     targetSectionId ? "preview" : "write",
   );
@@ -130,10 +138,42 @@ export default function DocumentEditor({
     selectedVersion === record.revision ? record : selectedVersionQuery.data;
   const [previewBody, setPreviewBody] = useState(record.body);
   const [savedBody, setSavedBody] = useState(record.body);
-  const [selectedDiagramId, setSelectedDiagramId] = useState("");
-  const [sectionDocumentId, setSectionDocumentId] = useState("");
-  const [sectionId, setSectionId] = useState("");
-  const [recordReferenceChoice, setRecordReferenceChoice] = useState("");
+  const insertForm = useForm({
+    defaultValues: {
+      selectedDiagramId: "",
+      sectionDocumentId: "",
+      sectionId: "",
+      recordReferenceChoice: "",
+      conversionTitle: record.title,
+      originalBlockOutcome: "Keep independent" as
+        | "Keep independent"
+        | "Replace with live reference",
+    },
+  });
+  const {
+    selectedDiagramId,
+    sectionDocumentId,
+    sectionId,
+    recordReferenceChoice,
+    conversionTitle,
+    originalBlockOutcome,
+  } = useSelector(insertForm.store, (state) => state.values);
+  const setSelectedDiagramId = (
+    value: SetStateAction<typeof selectedDiagramId>,
+  ) => insertForm.setFieldValue("selectedDiagramId", value);
+  const setSectionDocumentId = (
+    value: SetStateAction<typeof sectionDocumentId>,
+  ) => insertForm.setFieldValue("sectionDocumentId", value);
+  const setSectionId = (value: SetStateAction<typeof sectionId>) =>
+    insertForm.setFieldValue("sectionId", value);
+  const setRecordReferenceChoice = (
+    value: SetStateAction<typeof recordReferenceChoice>,
+  ) => insertForm.setFieldValue("recordReferenceChoice", value);
+  const setConversionTitle = (value: SetStateAction<typeof conversionTitle>) =>
+    insertForm.setFieldValue("conversionTitle", value);
+  const setOriginalBlockOutcome = (
+    value: SetStateAction<typeof originalBlockOutcome>,
+  ) => insertForm.setFieldValue("originalBlockOutcome", value);
   const [selectedTextRange, setSelectedTextRange] = useState<{
     end: number;
     start: number;
@@ -145,10 +185,6 @@ export default function DocumentEditor({
     start: number;
     end: number;
   } | null>(null);
-  const [conversionTitle, setConversionTitle] = useState(record.title);
-  const [originalBlockOutcome, setOriginalBlockOutcome] = useState<
-    "Keep independent" | "Replace with live reference"
-  >("Keep independent");
   useEffect(() => {
     if (targetSectionId) {
       setView("preview");
@@ -231,11 +267,10 @@ export default function DocumentEditor({
       }
       if (conversionKey.current === input.clientIdempotencyKey) {
         if (input.originalBlock === "Replace with live reference") {
-          const committed = await queryClient.query({
+          const committed = await fetchFresh(queryClient, {
             ...orpc.document.queryOptions({
               input: { documentId: input.documentId },
             }),
-            staleTime: 0,
           });
           if (conversionKey.current === input.clientIdempotencyKey) {
             editSession.accept(committed);
@@ -312,11 +347,15 @@ export default function DocumentEditor({
       await Promise.all(invalidateSmartCollectionMembership(queryClient));
     },
     onError: (failure) =>
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Document could not be saved.",
-      ),
+      form.setErrorMap({
+        onSubmit: {
+          form:
+            failure instanceof Error
+              ? failure.message
+              : "Document could not be saved.",
+          fields: {},
+        },
+      }),
   });
   const restore = usePreparedMutation(
     orpc.restoreDocumentVersion.mutationOptions({
@@ -324,16 +363,20 @@ export default function DocumentEditor({
       onSuccess: async (restored) => {
         editSession.accept(restored);
         setSelectedVersion(null);
-        setError(null);
+        form.setErrorMap({ onSubmit: undefined });
         await Promise.all(invalidateSmartCollectionMembership(queryClient));
         await onSaved();
       },
       onError: (failure) =>
-        setError(
-          failure instanceof Error
-            ? failure.message
-            : "Document could not be restored.",
-        ),
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              failure instanceof Error
+                ? failure.message
+                : "Document could not be restored.",
+            fields: {},
+          },
+        }),
     }),
     (sourceRevision: number) => ({
       documentId: record.id,
@@ -351,14 +394,22 @@ export default function DocumentEditor({
       editSession.edit(value);
       const parsed = documentEditFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError(
-          parsed.error.issues[0]?.message ?? "Document could not be saved.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ?? "Document could not be saved.",
+            fields: {},
+          },
+        });
         return;
       }
       await save.mutateAsync();
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   useEffect(() => editSession.connect(), [editSession]);
   useEffect(() => {
     const subscription = form.store.subscribe(() =>
@@ -390,7 +441,7 @@ export default function DocumentEditor({
     pinEvidenceKey.current = null;
     recordConversionKey.current = null;
     recordConversionId.current = null;
-    setError(null);
+    form.setErrorMap({ onSubmit: undefined });
     queryClient
       .invalidateQueries({ queryKey: liveWorkOptions.queryKey })
       .catch(() => undefined);
@@ -413,7 +464,7 @@ export default function DocumentEditor({
       return;
     }
     editSession.accept(record);
-    setError(null);
+    form.setErrorMap({ onSubmit: undefined });
     setRevision(record.revision);
     setPreviewBody(record.body);
     setSavedBody(record.body);
@@ -801,7 +852,11 @@ export default function DocumentEditor({
         accountFormattingPreferences={accountFormattingPreferences}
         editing={editing}
         recoveryPayload={recoveryPayload}
-        setError={setError}
+        setError={(message) =>
+          form.setErrorMap({
+            onSubmit: message ? { form: message, fields: {} } : undefined,
+          })
+        }
       />
       <DocumentConflictDrafts
         disabled={editing.offline || defaultClientShell.get().updateRequired}
@@ -811,7 +866,7 @@ export default function DocumentEditor({
           form.setFieldValue("title", current.title);
           form.setFieldValue("type", current.type);
           form.setFieldValue("body", current.body);
-          setError(null);
+          form.setErrorMap({ onSubmit: undefined });
           onSaved().catch(() => undefined);
         }}
         rejected={editing.conflictDraft}
@@ -848,7 +903,7 @@ export default function DocumentEditor({
         onSubmit={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          form.handleSubmit().catch(() => undefined);
+          submitForm(form).catch(() => undefined);
         }}
       >
         {hasNewerVersion ? (

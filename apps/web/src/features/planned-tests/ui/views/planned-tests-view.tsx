@@ -13,8 +13,8 @@ import {
   formFromVersion,
   relationLabel,
 } from "../../lib/planned-test-form";
-import type { LoadRelationTargets } from "../components/planned-test-relations-field";
 import { CaseForm, type SubmitCase } from "../forms/case-form";
+import type { LoadRelationTargets } from "../forms/planned-test-relations-field-form";
 
 export type SubmitCaseVersion = (
   record: PlannedTestCaseRecord,

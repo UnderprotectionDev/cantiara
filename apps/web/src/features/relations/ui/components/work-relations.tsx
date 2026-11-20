@@ -14,6 +14,7 @@ import { useState } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { commandVariables } from "@/lib/command-variables";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { client, orpc } from "@/utils/orpc";
 import { CreateRelationForm } from "../forms/create-relation-form";
@@ -86,9 +87,8 @@ export default function WorkRelations({
   const previewMutation = useMutation({
     mutationKey: orpc.relationPreview.mutationKey(),
     mutationFn: (input: RelationCreatePreviewInput) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.relationPreview.queryOptions({ input }),
-        staleTime: 0,
         gcTime: 0,
       }),
     meta: { presentsSupportFailure: true },

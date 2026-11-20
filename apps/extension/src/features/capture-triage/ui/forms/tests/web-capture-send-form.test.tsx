@@ -2,6 +2,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, test, vi } from "vitest";
+import { useWebCaptureInboxSearch } from "../../../hooks/use-web-capture-inbox-search";
 import { WebCaptureSendForm } from "../web-capture-send-form";
 
 (
@@ -25,19 +26,22 @@ async function submit(draft: Record<string, unknown>, targetId = "p1") {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
-  await act(() => {
-    root.render(
+  function Fixture() {
+    const searchForm = useWebCaptureInboxSearch();
+    return (
       <WebCaptureSendForm
         draft={draft as never}
         isSending={false}
         link={link}
         onInvalid={onInvalid}
         onSend={onSend}
-        onTargetSearchChange={vi.fn()}
-        targetSearch=""
+        searchForm={searchForm}
         targets={targets}
-      />,
+      />
     );
+  }
+  await act(() => {
+    root.render(<Fixture />);
     return Promise.resolve();
   });
   const select = host.querySelector("select") as HTMLSelectElement;

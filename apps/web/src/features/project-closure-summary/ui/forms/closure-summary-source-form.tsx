@@ -29,17 +29,17 @@ export function ClosureSummarySourceForm({
   onSubmitSources: (
     selected: string[],
     action: ClosureSummarySourceAction,
-  ) => void;
+  ) => Promise<void>;
   pending: boolean;
   selected: string[];
 }) {
   const idPrefix = useId();
   const form = useForm({
     defaultValues: { selected } as ClosureSummarySelectionForm,
-    onSubmit: ({ meta, value }) => {
+    onSubmit: async ({ meta, value }) => {
       const parsed = closureSummarySelectionFormSchema.safeParse(value);
       if (parsed.success) {
-        onSubmitSources(parsed.data.selected, meta?.action ?? "preview");
+        await onSubmitSources(parsed.data.selected, meta?.action ?? "preview");
       }
     },
     onSubmitMeta: { action: "preview" } as {

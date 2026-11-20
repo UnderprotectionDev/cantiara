@@ -1,12 +1,14 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the chosen version and form fields.
+
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { createScreenFromTemplateFormSchema } from "../../lib/screen-forms";
 import type { ScreenTemplateActions } from "../../lib/screen-template-actions";
 
@@ -16,35 +18,48 @@ export function CreateScreenFromTemplate({
 }: {
   actions: Pick<ScreenTemplateActions, "create" | "templates">;
 }) {
-  const [error, setError] = useState<string>();
   const firstTemplateId = actions.templates[0]?.id;
   const form = useForm({
     defaultValues: { templateId: "", title: "" },
     onSubmit: async ({ formApi, value }) => {
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = createScreenFromTemplateFormSchema.safeParse({
         templateId: value.templateId || firstTemplateId,
         title: value.title,
       });
       if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? "Check the form.");
+        form.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the form.",
+            fields: {},
+          },
+        });
         return;
       }
       try {
         await actions.create(parsed.data.templateId, parsed.data.title);
         formApi.setFieldValue("title", "");
       } catch {
-        setError("Screen could not be created from the template.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Screen could not be created from the template.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   if (!firstTemplateId) {
     return null;
   }
   function submit(event: SubmitEvent) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form

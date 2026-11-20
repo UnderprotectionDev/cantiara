@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props and local picker state require closures over current field handlers.
+
 import {
   type CreateProjectMutationInput,
   createProjectInputSchema,
@@ -18,19 +19,20 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, FolderPlus } from "lucide-react";
-import { type ChangeEvent, type SubmitEvent, useRef, useState } from "react";
+import { type SubmitEvent, useRef } from "react";
 import { toast } from "sonner";
-
 import { DatePicker } from "@/components/date-picker";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { submitForm } from "@/lib/submit-form";
 import { client, projectsQueryPrefix } from "@/utils/orpc";
 
 const INITIAL_VALUES = {
   logo: "",
+  logoFile: null as File | null,
   name: "",
   problem: "",
   purpose: "",
@@ -85,8 +87,7 @@ function readProjectLogo(file: File) {
 export default function ProjectCreateForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [formError, setFormError] = useState<string | null>(null);
-  const [isLogoReading, setIsLogoReading] = useState(false);
+
   const pendingCreate = useRef<{
     clientIdempotencyKey: string;
     values: string;
@@ -95,9 +96,6 @@ export default function ProjectCreateForm() {
   const createProject = useMutation({
     mutationFn: (input: CreateProjectMutationInput) =>
       runOnlineOnlyWrite(() => client.createProject(input)),
-    onError: (error) => {
-      setFormError(errorMessage(error));
-    },
     onSuccess: async () => {
       pendingCreate.current = null;
       await queryClient.invalidateQueries({ queryKey: projectsQueryPrefix });
@@ -119,11 +117,16 @@ export default function ProjectCreateForm() {
         targetDate: optionalValue(value.targetDate),
       });
       if (!parsed.success) {
-        setFormError(parsed.error.issues[0]?.message ?? "Check the form.");
+        form.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the form.",
+            fields: {},
+          },
+        });
         return;
       }
 
-      setFormError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const serialized = JSON.stringify(parsed.data);
       const pending = pendingCreate.current;
       const clientIdempotencyKey =
@@ -138,45 +141,18 @@ export default function ProjectCreateForm() {
       });
     },
   });
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const formError =
+    validationError ??
+    (createProject.isError ? errorMessage(createProject.error) : undefined);
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
-  }
-
-  function handleLogoChange(
-    event: ChangeEvent<HTMLInputElement>,
-    onChange: (value: string) => void,
-  ) {
-    const file = event.target.files?.[0];
-    if (!file) {
-      onChange("");
-      return;
-    }
-    if (!PROJECT_LOGO_ACCEPTED_TYPES.has(file.type)) {
-      event.target.value = "";
-      setFormError("Logo must be a PNG, JPEG, WebP, or GIF image.");
-      return;
-    }
-    if (file.size > PROJECT_LOGO_MAX_BYTES) {
-      event.target.value = "";
-      setFormError("Logo must be 750 KB or smaller.");
-      return;
-    }
-
-    setFormError(null);
-    setIsLogoReading(true);
-    readProjectLogo(file)
-      .then((logo) => onChange(logo))
-      .catch((error) => {
-        onChange("");
-        setFormError(
-          error instanceof Error ? error.message : "Logo could not be read.",
-        );
-        event.target.value = "";
-      })
-      .finally(() => setIsLogoReading(false));
+    submitForm(form).catch(() => undefined);
   }
 
   return (
@@ -328,7 +304,32 @@ export default function ProjectCreateForm() {
               </Field>
             )}
           </form.Field>
-          <form.Field name="logo">
+          <form.Field
+            name="logoFile"
+            validators={{
+              onChangeAsync: async ({ value: file, signal }) => {
+                if (!file) {
+                  return;
+                }
+                if (!PROJECT_LOGO_ACCEPTED_TYPES.has(file.type)) {
+                  return "Logo must be a PNG, JPEG, WebP, or GIF image.";
+                }
+                if (file.size > PROJECT_LOGO_MAX_BYTES) {
+                  return "Logo must be 750 KB or smaller.";
+                }
+                try {
+                  const logo = await readProjectLogo(file);
+                  if (!signal.aborted) {
+                    form.setFieldValue("logo", logo);
+                  }
+                } catch (error) {
+                  return error instanceof Error
+                    ? error.message
+                    : "Logo could not be read.";
+                }
+              },
+            }}
+          >
             {(field) => (
               <Field className="sm:col-span-2">
                 <FieldLabel htmlFor="project-logo">Logo</FieldLabel>
@@ -337,7 +338,8 @@ export default function ProjectCreateForm() {
                   id="project-logo"
                   name={field.name}
                   onChange={(event) => {
-                    handleLogoChange(event, field.handleChange);
+                    form.setFieldValue("logo", "");
+                    field.handleChange(event.target.files?.[0] ?? null);
                   }}
                   type="file"
                 />
@@ -345,6 +347,11 @@ export default function ProjectCreateForm() {
                   Optional. Choose a PNG, JPEG, WebP, or GIF image up to 750 KB.
                   Project color, CSS, and fonts are not part of the profile.
                 </FieldDescription>
+                {field.state.meta.errors.map((error) => (
+                  <p key={error} role="alert">
+                    {error}
+                  </p>
+                ))}
               </Field>
             )}
           </form.Field>
@@ -359,13 +366,16 @@ export default function ProjectCreateForm() {
           <ArrowLeft aria-hidden="true" />
           Cancel
         </Link>
-        <form.Subscribe selector={(state) => state.isSubmitting}>
-          {(isSubmitting) => (
+        <form.Subscribe
+          selector={(state) => ({
+            isSubmitting: state.isSubmitting,
+            isValidating: state.isValidating,
+          })}
+        >
+          {({ isSubmitting, isValidating }) => (
             <Button
               className="min-h-11"
-              disabled={
-                isLogoReading || isSubmitting || createProject.isPending
-              }
+              disabled={isValidating || isSubmitting || createProject.isPending}
               type="submit"
             >
               <FolderPlus aria-hidden="true" />

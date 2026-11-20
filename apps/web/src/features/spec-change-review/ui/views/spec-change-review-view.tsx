@@ -21,7 +21,7 @@ import {
 import type {
   ConfirmFollowUp,
   PreviewFollowUp,
-} from "../components/spec-change-review-follow-up-dialog";
+} from "../forms/spec-change-review-follow-up-form";
 
 function sectionHeading(section: SpecSectionChange) {
   if (section.sectionId === null) {

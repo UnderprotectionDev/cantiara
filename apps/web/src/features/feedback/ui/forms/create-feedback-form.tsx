@@ -1,13 +1,15 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the form fields.
+
 import type { FeedbackAttachment } from "@cantiara/api/feedback";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { format } from "date-fns";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
 import { DateTimePicker } from "@/components/date-picker";
+import { submitForm } from "@/lib/submit-form";
 import { createFeedbackFormSchema } from "../../lib/feedback-form";
 import {
   type IdentityOption,
@@ -43,7 +45,6 @@ export function CreateFeedbackForm({
   contactOptions: IdentityOption[];
   onCreate: Create;
 }) {
-  const [error, setError] = useState<string>();
   const form = useForm({
     defaultValues: {
       attachmentIds: [] as string[],
@@ -56,13 +57,17 @@ export function CreateFeedbackForm({
       title: "",
     },
     onSubmit: async ({ value, formApi }) => {
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = createFeedbackFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError(
-          parsed.error.issues[0]?.message ??
-            "Enter a Title, an Original message and Occurred at.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ??
+              "Enter a Title, an Original message and Occurred at.",
+            fields: {},
+          },
+        });
         return;
       }
       try {
@@ -79,16 +84,23 @@ export function CreateFeedbackForm({
           occurredAt: localNow(),
         });
       } catch {
-        setError(
-          "Feedback could not be saved. Check the Link and Attachments, then retry. Your text is kept here.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form: "Feedback could not be saved. Check the Link and Attachments, then retry. Your text is kept here.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form

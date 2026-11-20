@@ -19,7 +19,6 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@cantiara/ui/components/field";
-import { Input } from "@cantiara/ui/components/input";
 import {
   NativeSelect,
   NativeSelectOption,
@@ -32,7 +31,7 @@ import {
 } from "@cantiara/ui/components/popover";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import {
@@ -40,6 +39,7 @@ import {
   useCustomFields,
   useCustomFieldValues,
 } from "@/features/custom-fields/hooks/use-custom-fields";
+import { CustomFieldScalarForm } from "../forms/custom-field-scalar-form";
 
 function valueInputId(
   definition: CustomFieldDefinition,
@@ -91,79 +91,6 @@ function isAvailableOnRecord(
 ) {
   return (
     definition.trashedAt === null && definition.recordTypes.includes(recordType)
-  );
-}
-
-function TextValueInput({
-  current,
-  disabled,
-  id,
-  onCommit,
-}: {
-  current: ParsedCustomFieldValuePayload | null;
-  disabled: boolean;
-  id: string;
-  onCommit: (value: ParsedCustomFieldValuePayload | null) => void;
-}) {
-  const [value, setValue] = useState(
-    current?.kind === "text" ? current.text : "",
-  );
-
-  useEffect(() => {
-    setValue(current?.kind === "text" ? current.text : "");
-  }, [current]);
-
-  return (
-    <Input
-      disabled={disabled}
-      id={id}
-      onBlur={() =>
-        onCommit(value.trim() ? { kind: "text", text: value } : null)
-      }
-      onChange={(event) => setValue(event.target.value)}
-      placeholder="Not evaluated"
-      value={value}
-    />
-  );
-}
-
-function NumberValueInput({
-  current,
-  disabled,
-  id,
-  onCommit,
-}: {
-  current: ParsedCustomFieldValuePayload | null;
-  disabled: boolean;
-  id: string;
-  onCommit: (value: ParsedCustomFieldValuePayload | null) => void;
-}) {
-  const [value, setValue] = useState(
-    current?.kind === "number" ? String(current.number) : "",
-  );
-
-  useEffect(() => {
-    setValue(current?.kind === "number" ? String(current.number) : "");
-  }, [current]);
-
-  return (
-    <Input
-      disabled={disabled}
-      id={id}
-      onBlur={() => {
-        const parsed = Number(value);
-        onCommit(
-          value.trim() && Number.isFinite(parsed)
-            ? { kind: "number", number: parsed }
-            : null,
-        );
-      }}
-      onChange={(event) => setValue(event.target.value)}
-      placeholder="Not evaluated"
-      step="any"
-      type="number"
-      value={value}
-    />
   );
 }
 
@@ -309,7 +236,9 @@ export default function CustomFieldValuesForm({
   const values = useCustomFieldValues(projectId, recordType, recordId, {
     enabled: recordItems === undefined,
   });
-  const writeError = values.setValue.error ?? values.clearValue.error;
+  const failedWrite = values.setValue.isError
+    ? values.setValue
+    : values.clearValue;
 
   if (
     definitionsQuery.status === "pending" ||
@@ -339,6 +268,11 @@ export default function CustomFieldValuesForm({
     definitionsQuery.data,
     recordType,
   );
+  const failedType = items.find(
+    (item) => item.definition.id === failedWrite.variables?.definitionId,
+  )?.definition.type;
+  const writeError =
+    failedType === "Text" || failedType === "Number" ? null : failedWrite.error;
   if (items.length === 0) {
     return null;
   }
@@ -360,21 +294,17 @@ export default function CustomFieldValuesForm({
 
     if (nextValue === null) {
       values.setValue.reset();
-      await values.clearValue
-        .mutateAsync({
-          baseRevision: valueRevision(item),
-          definitionId: item.definition.id,
-        })
-        .catch(() => undefined);
+      await values.clearValue.mutateAsync({
+        baseRevision: valueRevision(item),
+        definitionId: item.definition.id,
+      });
     } else {
       values.clearValue.reset();
-      await values.setValue
-        .mutateAsync({
-          baseRevision: valueRevision(item),
-          definitionId: item.definition.id,
-          payload: nextValue,
-        })
-        .catch(() => undefined);
+      await values.setValue.mutateAsync({
+        baseRevision: valueRevision(item),
+        definitionId: item.definition.id,
+        payload: nextValue,
+      });
     }
   }
 
@@ -422,26 +352,16 @@ function CustomFieldValueInputs({
         const current = customFieldValue(item, draftValues, recordId);
         const id = valueInputId(item.definition, recordId);
         return (
-          <Field key={item.definition.id}>
+          <Field key={id}>
             <FieldLabel htmlFor={id}>{item.definition.name}</FieldLabel>
-            {item.definition.type === "Text" ? (
-              <TextValueInput
+            {item.definition.type === "Text" ||
+            item.definition.type === "Number" ? (
+              <CustomFieldScalarForm
                 current={current}
                 disabled={busy}
                 id={id}
-                onCommit={(nextValue) =>
-                  commit(item, nextValue).catch(() => undefined)
-                }
-              />
-            ) : null}
-            {item.definition.type === "Number" ? (
-              <NumberValueInput
-                current={current}
-                disabled={busy}
-                id={id}
-                onCommit={(nextValue) =>
-                  commit(item, nextValue).catch(() => undefined)
-                }
+                kind={item.definition.type === "Text" ? "text" : "number"}
+                onCommit={(nextValue) => commit(item, nextValue)}
               />
             ) : null}
             {item.definition.type === "Boolean" ? (

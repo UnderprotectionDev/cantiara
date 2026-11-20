@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected Test Handoff and form fields.
+
 import {
   type PlannedTestCaseRecord,
   SESSION_TEST_LABEL,
@@ -14,9 +15,10 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
 import { DatePicker } from "@/components/date-picker";
+import { submitForm } from "@/lib/submit-form";
 import { errorText } from "../../lib/error-text";
 import {
   EMPTY_TEST_HANDOFF_FORM,
@@ -27,7 +29,7 @@ import {
 import {
   type LoadTestHandoffContextTargets,
   TestHandoffContextField,
-} from "../components/test-handoff-context-field";
+} from "./test-handoff-context-field-form";
 
 export type SubmitTestHandoff = (
   values: TestHandoffFormValues,
@@ -274,14 +276,13 @@ export function HandoffForm({
   projectId: string;
   submitLabel: string;
 }) {
-  const [error, setError] = useState<string>();
   const form = useForm({
     defaultValues: initial,
     onSubmit: async ({ value, formApi }) => {
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = parseHandoffForm(value, cases);
       if (!parsed.ok) {
-        setError(parsed.message);
+        form.setErrorMap({ onSubmit: { form: parsed.message, fields: {} } });
         return;
       }
       try {
@@ -290,14 +291,23 @@ export function HandoffForm({
           formApi.reset(EMPTY_TEST_HANDOFF_FORM);
         }
       } catch (caught) {
-        setError(errorText(caught, `${TEST_HANDOFF_LABEL} was not saved.`));
+        form.setErrorMap({
+          onSubmit: {
+            form: errorText(caught, `${TEST_HANDOFF_LABEL} was not saved.`),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   const fieldId = (name: string) => `${idPrefix}-${name}`;
   const textField = (
@@ -494,12 +504,11 @@ export function LinkArrivingSessionTestForm({
   handoff: TestHandoffRecord;
   onLink: LinkTestHandoffSessionTest;
 }) {
-  const [error, setError] = useState<string>();
   const selectId = `test-handoff-${handoff.id}-link`;
   const form = useForm({
     defaultValues: { choice: "" },
     onSubmit: async ({ value, formApi }) => {
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = parseLinkArrivingSessionTest(value.choice);
       if (!parsed.ok) {
         return;
@@ -508,14 +517,23 @@ export function LinkArrivingSessionTestForm({
         await onLink(handoff, value.choice);
         formApi.reset();
       } catch (caught) {
-        setError(errorText(caught, `${SESSION_TEST_LABEL} was not linked.`));
+        form.setErrorMap({
+          onSubmit: {
+            form: errorText(caught, `${SESSION_TEST_LABEL} was not linked.`),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   if (candidates.length === 0) {
     return null;

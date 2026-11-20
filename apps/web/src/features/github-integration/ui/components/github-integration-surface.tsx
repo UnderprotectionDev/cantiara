@@ -1,9 +1,11 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the Project.
+
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouteContext } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { executeWrite } from "@/utils/execute-write";
 import {
   accountPreferencesQueryOptions,
@@ -119,12 +121,11 @@ export default function GitHubIntegrationSurface({
           }),
         ),
       onPreviewCreateWork: (recordId) =>
-        queryClient.query({
+        fetchFresh(queryClient, {
           ...orpc.previewGitHubCreateWork.queryOptions({
             input: { projectId, recordId },
           }),
           gcTime: 0,
-          staleTime: 0,
         }),
       onUnlink: (linkId) => client.unlinkGitHubWork({ linkId, projectId }),
     }),

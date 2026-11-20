@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work-owned handoff controls close over their Work and form state.
+
 import {
   externalExecutionHandoffResultInputSchema,
   type RecordExternalExecutionHandoffReturnInput,
@@ -6,8 +7,8 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { submitForm } from "@/lib/submit-form";
 import { errorMessage } from "../../lib/error-message";
 
 function lines(value: string) {
@@ -28,7 +29,6 @@ export function HandoffReturnForm({
     input: RecordExternalExecutionHandoffReturnInput,
   ) => Promise<unknown>;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const id = `handoff-return-${handoffId}`;
   const form = useForm({
     defaultValues: {
@@ -39,7 +39,7 @@ export function HandoffReturnForm({
       producedEvidence: "",
     },
     onSubmit: async ({ value }) => {
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = externalExecutionHandoffResultInputSchema.safeParse({
         changedAssumptions: lines(value.changedAssumptions),
         executorSummary: value.executorSummary,
@@ -48,9 +48,13 @@ export function HandoffReturnForm({
         producedEvidence: lines(value.producedEvidence),
       });
       if (!parsed.success) {
-        setError(
-          parsed.error.issues[0]?.message ?? "Check the return details.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ?? "Check the return details.",
+            fields: {},
+          },
+        });
         return;
       }
       try {
@@ -60,10 +64,16 @@ export function HandoffReturnForm({
           handoffId,
         });
       } catch (submitError) {
-        setError(errorMessage(submitError));
+        form.setErrorMap({
+          onSubmit: { form: errorMessage(submitError), fields: {} },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   return (
     <form
@@ -72,7 +82,7 @@ export function HandoffReturnForm({
       onSubmit={async (event) => {
         event.preventDefault();
         event.stopPropagation();
-        await form.handleSubmit();
+        await submitForm(form);
       }}
     >
       <div className="grid gap-3 sm:grid-cols-2">

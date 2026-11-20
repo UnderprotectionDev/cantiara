@@ -9,8 +9,9 @@ import {
 } from "@cantiara/api/trash-early-delete";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useEffect, useRef, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useEffect, useRef } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 /**
  * The early `Permanently Delete` review: what will be removed (a Project
@@ -49,16 +50,23 @@ export function PermanentlyDeleteForm({
           value.typedName,
         );
       if (!(typed.success && grant)) {
-        setInvalid(
-          "Check the Project name and Confirm GitHub Identity, then try again.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form: "Check the Project name and Confirm GitHub Identity, then try again.",
+            fields: {},
+          },
+        });
         return;
       }
-      setInvalid(null);
+      form.setErrorMap({ onSubmit: undefined });
       onSubmit(typed.data);
     },
   });
-  const [invalid, setInvalid] = useState<string | null>(null);
+  const invalid = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+
   const blocked = preview.blockers.length > 0;
   const { name } = preview.typedNameTarget;
 
@@ -69,7 +77,7 @@ export function PermanentlyDeleteForm({
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   return (

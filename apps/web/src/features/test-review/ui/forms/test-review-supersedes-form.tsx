@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props require closures over current field handlers.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { TestReviewSession } from "@cantiara/api/test-review";
 import { supersedeInputSchema } from "@cantiara/api/test-review";
@@ -9,7 +10,8 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { errorText } from "../../lib/test-review-panel";
 import { allItems, endLine } from "../../lib/test-review-signal-lines";
 import type { TestReviewSignalData } from "../../lib/test-review-signal-types";
@@ -28,8 +30,7 @@ export default function TestReviewSupersedesForm({
   supersessions: TestReviewSignalData["supersessions"];
 }) {
   const items = allItems(sessions, preferences);
-  const [error, setError] = useState<string>();
-  const [notice, setNotice] = useState<string>();
+
   const form = useForm({
     defaultValues: { newer: "", older: "" },
     onSubmit: async ({ value }) => {
@@ -45,20 +46,35 @@ export default function TestReviewSupersedesForm({
       ) {
         return;
       }
-      setError(undefined);
-      setNotice(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       try {
         await onSupersede(
           parsed.data.newerSessionTestId,
           parsed.data.olderSessionTestId,
         );
-        setNotice("Supersedes saved. Both historical results are kept.");
         form.reset();
       } catch (caught) {
-        setError(errorText(caught, "Supersedes was not saved."));
+        form.setErrorMap({
+          onSubmit: {
+            form: errorText(caught, "Supersedes was not saved."),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const succeeded = useSelector(
+    form.store,
+    (state) => state.isSubmitSuccessful,
+  );
+  const notice =
+    succeeded && !error
+      ? "Supersedes saved. Both historical results are kept."
+      : undefined;
   const { newer, older } = useSelector(form.store, (state) => state.values);
   const byId = new Map(
     sessions.flatMap((session) =>
@@ -71,7 +87,7 @@ export default function TestReviewSupersedesForm({
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   const pending = useSelector(form.store, (state) => state.isSubmitting);
 

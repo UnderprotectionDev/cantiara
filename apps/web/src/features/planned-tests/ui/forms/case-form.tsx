@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the Planned Test Case form fields.
+
 import {
   PLANNED_TEST_CASE_LABEL,
   PLANNED_TEST_CHANGE_KINDS,
@@ -11,8 +12,9 @@ import {
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useEffect, useRef, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useEffect, useRef } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { errorText } from "../../lib/error-text";
 import {
   type CaseFormValues,
@@ -21,7 +23,7 @@ import {
 import {
   type LoadRelationTargets,
   PlannedTestRelationsField,
-} from "../components/planned-test-relations-field";
+} from "./planned-test-relations-field-form";
 
 export type SubmitCase = (values: CaseFormValues) => Promise<unknown>;
 
@@ -62,7 +64,6 @@ export function CaseForm({
   showChangeKind: boolean;
   submitLabel: string;
 }) {
-  const [error, setError] = useState<string>();
   const firstField = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   useEffect(() => {
     if (focusOnMount) {
@@ -72,25 +73,35 @@ export function CaseForm({
   const form = useForm({
     defaultValues: initial,
     onSubmit: async ({ value, formApi }) => {
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = parseCaseForm(value, showChangeKind);
       if (!parsed.ok) {
-        setError(parsed.message);
+        form.setErrorMap({ onSubmit: { form: parsed.message, fields: {} } });
         return;
       }
       try {
         await onSubmit(value);
         formApi.reset();
       } catch (caught) {
-        setError(
-          errorText(caught, `${PLANNED_TEST_CASE_LABEL} was not saved.`),
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form: errorText(
+              caught,
+              `${PLANNED_TEST_CASE_LABEL} was not saved.`,
+            ),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form

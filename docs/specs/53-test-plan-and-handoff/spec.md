@@ -51,6 +51,8 @@ Kurucu Planlı Test Senaryosunu başlık, amaç, kapsam, önkoşul, beklenen dav
 
 ## Testing Decisions
 
+- **#545.** The web planned-tests-view.test.tsx and test-handoffs-view.test.tsx seams check retained case text after a refused save, exact Document and Wireframe pins, and picker validation for a missing version or duplicate context.
+
 - The Planned Test and Test Handoff seams scope relation and Context target reads to the selected Project and target kind.
 
 - **Write lifecycle evidence (#544).** The web package and transition seams observe the confirmation result, errors and retry state through Query, using the reviewed package version and fingerprint. Repeating an exact confirmation returns the existing package without creating another version. The Planned Tests and Handoff seam checks both exact replay and refusal for a changed fingerprint.

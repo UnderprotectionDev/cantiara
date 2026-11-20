@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
+
 import {
   CLOSURE_SUMMARY_DATE_HISTORY_LABEL,
   CLOSURE_SUMMARY_DISCARD_LABEL,
@@ -11,6 +12,7 @@ import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useId } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { closureSummarySaveFormSchema } from "../../lib/closure-summary-draft";
 
 /**
@@ -29,7 +31,7 @@ export function ClosureSummaryEditorForm({
   markdown: string;
   onDateHistory: () => void;
   onDiscard: () => void;
-  onSave: (value: { markdown: string; title: string }) => void;
+  onSave: (value: { markdown: string; title: string }) => Promise<void>;
   pending: boolean;
 }) {
   const id = useId();
@@ -38,11 +40,18 @@ export function ClosureSummaryEditorForm({
       markdown,
       title: PROJECT_CLOSURE_SUMMARY_LABEL as string,
     },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value, formApi }) => {
       const parsed = closureSummarySaveFormSchema.safeParse(value);
-      if (parsed.success) {
-        onSave(parsed.data);
+      if (!parsed.success) {
+        formApi.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the draft.",
+            fields: {},
+          },
+        });
+        return;
       }
+      await onSave(parsed.data);
     },
   });
   return (
@@ -52,7 +61,7 @@ export function ClosureSummaryEditorForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit();
+        submitForm(form).catch(() => undefined);
       }}
     >
       <form.Field name="title">
@@ -86,10 +95,19 @@ export function ClosureSummaryEditorForm({
           </div>
         )}
       </form.Field>
+      <form.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+        {(error) =>
+          typeof error === "string" ? <p role="alert">{error}</p> : null
+        }
+      </form.Subscribe>
       <div className="flex flex-wrap gap-2">
-        <Button disabled={pending} type="submit">
-          {CLOSURE_SUMMARY_SAVE_LABEL}
-        </Button>
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(submitting) => (
+            <Button disabled={pending || submitting} type="submit">
+              {CLOSURE_SUMMARY_SAVE_LABEL}
+            </Button>
+          )}
+        </form.Subscribe>
         {hasDateSources ? (
           <Button onClick={onDateHistory} type="button" variant="outline">
             {CLOSURE_SUMMARY_DATE_HISTORY_LABEL}

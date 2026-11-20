@@ -14,9 +14,10 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
 import { YouTubePreviewPlayer } from "@/components/youtube-preview-player";
+import { submitForm } from "@/lib/submit-form";
 import { linkSharingRefusalMessage } from "../../lib/link-sharing-refusal";
 import {
   defaultShareScopeDraft,
@@ -56,20 +57,26 @@ export function ShareScopeForm({
   onSubmit: (values: ShareScopeFormSubmit) => Promise<unknown>;
   preview: ShareScopePreview;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const sections = shareItemSections(preview);
   const form = useForm({
     defaultValues: defaultShareScopeDraft(preview),
     onSubmit: async ({ value }) => {
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = shareScopeFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError("Choose what to share.");
+        form.setErrorMap({
+          onSubmit: { form: "Choose what to share.", fields: {} },
+        });
         return;
       }
       const missing = groupsNeedingChoice(preview, parsed.data.approved);
       if (missing.length > 0) {
-        setError(`Choose exactly one: ${missing.join(", ")}.`);
+        form.setErrorMap({
+          onSubmit: {
+            form: `Choose exactly one: ${missing.join(", ")}.`,
+            fields: {},
+          },
+        });
         return;
       }
       const approved = new Set(parsed.data.approved);
@@ -80,17 +87,25 @@ export function ShareScopeForm({
           publishAnyway: parsed.data.publishAnyway,
         });
       } catch (failure) {
-        setError(
-          linkSharingRefusalMessage(failure) ??
-            "The scope could not be approved. Review the preview and try again.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              linkSharingRefusalMessage(failure) ??
+              "The scope could not be approved. Review the preview and try again.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form

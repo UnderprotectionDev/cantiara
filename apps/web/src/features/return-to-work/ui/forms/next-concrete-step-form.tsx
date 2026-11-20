@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Forms close over their source record and field state.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import {
   nextConcreteStepSchema,
@@ -8,11 +9,11 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { toast } from "sonner";
 import { commandVariables } from "@/lib/command-variables";
+import { submitForm } from "@/lib/submit-form";
 import { client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 import { ReturnSourceLink } from "../components/return-cards";
@@ -29,8 +30,7 @@ export function NextConcreteStepForm({
   source: ReturnSource;
 }) {
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+
   const save = useMutation(
     orpc.saveNextConcreteStep.mutationOptions({
       meta: { onlineWrite: true },
@@ -44,8 +44,7 @@ export function NextConcreteStepForm({
               : orpc.project.queryKey({ input: { projectId } }),
           ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
         );
-        setError(null);
-        setSaved(true);
+        form.setErrorMap({ onSubmit: undefined });
         toast.success("Next concrete step saved.");
       },
     }),
@@ -53,12 +52,11 @@ export function NextConcreteStepForm({
   const form = useForm({
     defaultValues: { nextConcreteStep: source.nextConcreteStep ?? "" },
     onSubmit: async ({ value }) => {
-      setError(null);
-      setSaved(false);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = nextConcreteStepSchema.safeParse(value.nextConcreteStep);
       if (!parsed.success) {
         const message = "Next concrete step must be 4000 characters or fewer.";
-        setError(message);
+        form.setErrorMap({ onSubmit: { form: message, fields: {} } });
         toast.error(message);
         return;
       }
@@ -77,11 +75,16 @@ export function NextConcreteStepForm({
           failure instanceof Error
             ? failure.message
             : "Next concrete step could not be saved. Try again.";
-        setError(message);
+        form.setErrorMap({ onSubmit: { form: message, fields: {} } });
         toast.error(message);
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const edited = useSelector(form.store, (state) => state.isDirty);
   const fieldId = `next-concrete-step-${source.id}`;
   return (
     <form
@@ -89,7 +92,7 @@ export function NextConcreteStepForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit();
+        submitForm(form);
       }}
     >
       <form.Subscribe selector={(state) => state.isSubmitting}>
@@ -106,7 +109,6 @@ export function NextConcreteStepForm({
                   onBlur={field.handleBlur}
                   onChange={(event) => {
                     field.handleChange(event.target.value);
-                    setSaved(false);
                   }}
                   value={field.state.value}
                 />
@@ -144,7 +146,9 @@ export function NextConcreteStepForm({
           {error}
         </p>
       )}
-      {saved === true && <p role="status">Next concrete step saved.</p>}
+      {save.isSuccess && !edited && (
+        <p role="status">Next concrete step saved.</p>
+      )}
     </form>
   );
 }

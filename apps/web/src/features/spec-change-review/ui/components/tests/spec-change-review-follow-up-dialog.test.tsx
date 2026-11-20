@@ -4,9 +4,8 @@
 import type { SpecChangeReviewCandidate } from "@cantiara/api/spec-change-review-candidates";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
-
+import { SpecFollowUpPreview } from "../../forms/spec-change-review-follow-up-form";
 import { SpecChangeReviewCandidates } from "../spec-change-review-candidates";
-import { SpecFollowUpPreview } from "../spec-change-review-follow-up-dialog";
 
 const candidate = (
   overrides: Partial<SpecChangeReviewCandidate>,

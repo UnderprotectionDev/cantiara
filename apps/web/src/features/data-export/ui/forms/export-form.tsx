@@ -22,8 +22,9 @@ import {
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   type ExportHandoff,
   handoffRecordIds,
@@ -122,21 +123,26 @@ export function ExportForm({
         recordType: value.recordType,
       });
       if (parsed.success) {
-        setRefusal(null);
+        form.setErrorMap({ onSubmit: undefined });
         onPreview(parsed.data);
       } else {
         // A locally refused selection never calls the preview: it answers
         // visibly instead of leaving the Preview button dead.
-        setRefusal(exportSelectionRefusal(parsed.error));
+        form.setErrorMap({
+          onSubmit: { form: exportSelectionRefusal(parsed.error), fields: {} },
+        });
       }
     },
   });
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const refusal = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   return (

@@ -13,6 +13,7 @@ import {
   FILE_ATTACHMENT_UI_LABELS,
 } from "@cantiara/api/file-attachments";
 import { Button } from "@cantiara/ui/components/button";
+import { useSelector } from "@tanstack/react-store";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -23,6 +24,11 @@ import {
   Rect,
   Stage,
 } from "react-konva";
+import {
+  locationFields,
+  locationFromFields,
+  useLocationFieldsForm,
+} from "../../hooks/use-location-fields-form";
 import {
   clampCoordinate,
   objectContainBox,
@@ -585,14 +591,16 @@ export function FileAttachmentMarkup({
 }) {
   const [tool, setTool] = useState<FileAttachmentMarkingTool>("pen");
   const [locationOpen, setLocationOpen] = useState(false);
-  const [locationKind, setLocationKind] = useState<LocationKind>("point");
   const initialPage = page ?? (pageCount ? 1 : undefined);
-  const [location, setLocation] = useState<FileAttachmentLocation>(() => ({
+  const geometry = useLocationFieldsForm({
     kind: "point",
     ...(initialPage === undefined ? {} : { page: initialPage }),
     x: 0.5,
     y: 0.5,
-  }));
+  });
+  const geometryValues = useSelector(geometry.store, (state) => state.values);
+  const { kind: locationKind } = geometryValues;
+  const location = locationFromFields(geometryValues, pageCount);
   const pageMarkings =
     page === undefined
       ? markings
@@ -621,14 +629,13 @@ export function FileAttachmentMarkup({
   }, []);
   const handleLocationSelect = useCallback(
     (nextLocation: FileAttachmentLocation) => {
-      setLocationKind(nextLocation.kind);
-      setLocation(nextLocation);
+      geometry.reset(locationFields(nextLocation), { keepDefaultValues: true });
     },
-    [],
+    [geometry],
   );
-  const handleLocationKindChange = useCallback((nextKind: LocationKind) => {
-    setLocationKind(nextKind);
-    setLocation((current) => {
+  const handleLocationKindChange = useCallback(
+    (nextKind: LocationKind) => {
+      const current = locationFromFields(geometry.state.values, pageCount);
       const pageField =
         current.page === undefined ? {} : { page: current.page };
       const x =
@@ -639,20 +646,23 @@ export function FileAttachmentMarkup({
         current.kind === "point"
           ? current.y
           : current.region.y + current.region.height / 2;
-      return nextKind === "point"
-        ? { kind: nextKind, ...pageField, x, y }
-        : {
-            kind: nextKind,
-            ...pageField,
-            region: {
-              height: 0.2,
-              width: 0.2,
-              x: clampCoordinate(x),
-              y: clampCoordinate(y),
-            },
-          };
-    });
-  }, []);
+      const nextLocation: FileAttachmentLocation =
+        nextKind === "point"
+          ? { kind: nextKind, ...pageField, x, y }
+          : {
+              kind: nextKind,
+              ...pageField,
+              region: {
+                height: 0.2,
+                width: 0.2,
+                x: clampCoordinate(x),
+                y: clampCoordinate(y),
+              },
+            };
+      geometry.reset(locationFields(nextLocation), { keepDefaultValues: true });
+    },
+    [geometry, pageCount],
+  );
   const markupLocationProps = {
     location: locationOpen ? location : null,
     locationKind,
@@ -751,11 +761,9 @@ export function FileAttachmentMarkup({
         <FileAttachmentLocationBinder
           attachmentId={attachmentId}
           bindStatus={bindStatus}
-          location={location}
-          locationKind={locationKind}
+          geometry={geometry}
           onBind={onBindLocation}
           onClose={closeLocation}
-          onLocationChange={handleLocationSelect}
           onLocationKindChange={handleLocationKindChange}
           onPreview={onPreviewLocation}
           pageCount={pageCount}

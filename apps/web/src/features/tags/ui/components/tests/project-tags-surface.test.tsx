@@ -214,12 +214,13 @@ test("retries Undo with its original Tag command and refreshes the affected quer
         new Event("submit", { bubbles: true, cancelable: true }),
       );
     });
+    await vi.waitFor(() => expect(undoButton()).toBeDefined());
     invalidate.mockClear();
     await act(async () => {
       undoButton()?.click();
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    expect(host.textContent).toContain("Undo failed.");
+    await vi.waitFor(() => expect(host.textContent).toContain("Undo failed."));
     expect(undoButton()).toBeDefined();
     expect(invalidate).not.toHaveBeenCalled();
 

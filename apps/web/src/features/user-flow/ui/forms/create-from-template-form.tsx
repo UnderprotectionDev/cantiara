@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Forms close over their own draft fields.
+
 import type { UserFlowTemplateView } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
@@ -7,8 +8,9 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 import { createUserFlowFromTemplateFormSchema } from "../../lib/user-flow-forms";
 
@@ -22,7 +24,6 @@ export function CreateFromTemplateForm({
   readOnly: boolean;
   templates: UserFlowTemplateView[];
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: { templateId: "", title: "" },
     onSubmit: async ({ formApi, value }) => {
@@ -33,16 +34,24 @@ export function CreateFromTemplateForm({
       try {
         await onCreate(parsed.data.templateId, parsed.data.title);
         formApi.reset();
-        setError(null);
+        form.setErrorMap({ onSubmit: undefined });
       } catch (failure) {
-        setError(
-          failure instanceof Error
-            ? failure.message
-            : "The User Flow could not be created.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              failure instanceof Error
+                ? failure.message
+                : "The User Flow could not be created.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   if (templates.length === 0) {
     return null;
@@ -50,7 +59,7 @@ export function CreateFromTemplateForm({
   function submit(event: SubmitEvent) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form className="space-y-2" onSubmit={submit}>

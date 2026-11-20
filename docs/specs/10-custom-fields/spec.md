@@ -42,6 +42,8 @@ Proje bazlı özel alan tanımları yalnız kendi Projesinde yaşar. Desteklenen
 
 ## Testing Decisions
 
+- **#545.** The web custom-field-scalar-form.test.tsx seam checks that a failed blur write keeps the edited value and that the same input can be submitted again.
+
 - A new record has no Custom field values query. Writes to an existing record refresh its values and the owning Project values.
 
 - **What a good test is.** Tests observe Project Custom Fields through its public interface: create each type; bind to Work (and a second supported type); value round-trip; empty distinct from Boolean false; field absent on unbound type; Lookup/Formula rejected; Session Test rejects definition; two Projects same name stay independent; Markdown body not converted; tag rename/merge absent. They do not assert column names. Expected values are the closed type catalog and bindings.

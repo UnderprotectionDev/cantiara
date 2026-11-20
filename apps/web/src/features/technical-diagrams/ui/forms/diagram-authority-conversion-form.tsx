@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each form binds its own field state.
+
 import type {
   CreatableAuthorityMode,
   ExternalSourceLink,
@@ -14,8 +15,8 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { z } from "zod";
-
 import { commandVariables } from "@/lib/command-variables";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { client, orpc } from "@/utils/orpc";
 import { conversionSchema } from "../../lib/technical-diagram-form-schemas";
 
@@ -62,10 +63,9 @@ export function DiagramAuthorityConversion({
     meta: { retryInSurface: true },
     mutationKey: orpc.previewDiagramAuthorityConversion.mutationKey(),
     mutationFn: (input: ReturnType<typeof request>) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewDiagramAuthorityConversion.queryOptions({ input }),
         gcTime: 0,
-        staleTime: 0,
       }),
   });
   const confirmMutation = useMutation(

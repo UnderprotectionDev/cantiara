@@ -16,6 +16,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
+import { useSelector } from "@tanstack/react-store";
 import {
   type ColumnDef,
   columnFilteringFeature,
@@ -44,7 +45,6 @@ import {
   useRef,
   useState,
 } from "react";
-
 import { ExportListAction } from "@/components/export-list-action";
 import {
   type ExportHandoff,
@@ -52,6 +52,11 @@ import {
   scopeForProjects,
 } from "@/features/data-export/lib/export-handoff";
 import { commandVariables } from "@/lib/command-variables";
+import { submitForm } from "@/lib/submit-form";
+import {
+  useRecordTableCellForm,
+  useRecordTablePasteReviewForm,
+} from "../../hooks/use-record-table-forms";
 import type {
   RecordTableCellTarget,
   RecordTableCellWrite,
@@ -526,9 +531,13 @@ function EditableCell({
 }) {
   const cellWrite = useContext(CellWriteContext);
   const currentValue = recordField(record, field);
-  const [value, setValue] = useState(displayValue(currentValue));
-  const [validationError, setValidationError] = useState("");
-  const applying = useRef(false);
+  const form = useRecordTableCellForm(displayValue(currentValue), save);
+  const value = useSelector(form.store, (state) => state.values.value);
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const submitting = useSelector(form.store, (state) => state.isSubmitting);
   const target = useMemo<RecordTableCellTarget>(
     () => ({
       baseRevision: record.revision,
@@ -553,61 +562,61 @@ function EditableCell({
       record.sourceType === "Decision" &&
       record.life === "Superseded")
   );
-  const save = useCallback(
-    async (nextValue = value) => {
-      if (
-        !editable ||
-        applying.current ||
-        write?.isPending ||
-        nextValue === displayValue(currentValue)
-      ) {
-        return;
-      }
-      let parsedValue: RecordTableCellUpdateInput["value"];
-      try {
-        parsedValue = parseRecordTableFieldValue(recordType, field, nextValue);
-      } catch (invalid) {
-        setValidationError(
-          invalid instanceof Error
-            ? invalid.message
-            : "Review this cell's value.",
-        );
-        return;
-      }
-      setValidationError("");
-      applying.current = true;
-      try {
-        await onSave(
-          commandVariables(
-            { ...target, value: parsedValue },
-            write?.error ? write.variables : undefined,
-          ),
-        ).catch(() => undefined);
-      } finally {
-        applying.current = false;
-      }
-    },
-    [currentValue, editable, field, onSave, recordType, target, value, write],
+  async function save(nextValue: string) {
+    if (
+      !editable ||
+      write?.isPending ||
+      nextValue === displayValue(currentValue)
+    ) {
+      return;
+    }
+    let parsedValue: RecordTableCellUpdateInput["value"];
+    try {
+      parsedValue = parseRecordTableFieldValue(recordType, field, nextValue);
+    } catch (invalid) {
+      form.setErrorMap({
+        onSubmit: {
+          form:
+            invalid instanceof Error
+              ? invalid.message
+              : "Review this cell's value.",
+          fields: {},
+        },
+      });
+      return;
+    }
+    await onSave(
+      commandVariables(
+        { ...target, value: parsedValue },
+        write?.error ? write.variables : undefined,
+      ),
+    );
+    form.reset({ value: nextValue }, { keepDefaultValues: true });
+  }
+  const handleBlur = useCallback(
+    () => submitForm(form).catch(() => undefined),
+    [form],
   );
-  const handleBlur = useCallback(() => save(), [save]);
   const handleValueChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setValue(event.target.value),
-    [],
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      form.setErrorMap({ onSubmit: undefined });
+      form.setFieldValue("value", event.target.value);
+    },
+    [form],
   );
   const handleChoiceChange = useCallback(
-    async (event: ChangeEvent<HTMLSelectElement>) => {
-      const nextValue = event.target.value;
-      setValue(nextValue);
-      await save(nextValue);
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      form.setErrorMap({ onSubmit: undefined });
+      form.setFieldValue("value", event.target.value);
+      submitForm(form).catch(() => undefined);
     },
-    [save],
+    [form],
   );
   const label = `Edit ${fieldLabels[field]} for ${title}`;
   const commonProps = {
     "aria-label": label,
     className: "min-w-32",
-    disabled: !editable || write?.isPending,
+    disabled: !editable || submitting || write?.isPending,
     onBlur: handleBlur,
     onChange: handleValueChange,
     value,
@@ -618,7 +627,9 @@ function EditableCell({
       <NativeSelect
         aria-label={label}
         className={commonProps.className}
-        disabled={!(editable && hasCurrentChoice) || write?.isPending}
+        disabled={
+          !(editable && hasCurrentChoice) || submitting || write?.isPending
+        }
         onChange={handleChoiceChange}
         value={choices.includes(value) ? value : currentChoice}
       >
@@ -826,16 +837,26 @@ export function RecordTableView({
   records,
 }: RecordTableViewProps) {
   const pasteIdempotencyKeys = useRef(new Map<string, string>());
-  const [pasteFormKey, setPasteFormKey] = useState(0);
-  const [headers, setHeaders] = useState<string[]>([]);
-  const [columnIds, setColumnIds] = useState<string[]>([]);
-  const [rawRows, setRawRows] = useState<string[][]>([]);
-  const [rowIds, setRowIds] = useState<string[]>([]);
-  const [mappings, setMappings] = useState<string[]>([]);
-  const [createRecordIds, setCreateRecordIds] = useState<string[]>([]);
-  const [corrections, setCorrections] = useState<Record<string, string>>({});
-  const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
-  const [pasteValidation, setPasteValidation] = useState("");
+  const review = useRecordTablePasteReviewForm();
+  const {
+    columnIds,
+    corrections,
+    createRecordIds,
+    excludedRows: excludedIndexes,
+    headers,
+    mappings,
+    rawRows,
+    rowIds,
+  } = useSelector(review.store, (state) => state.values);
+  const excludedRows = useMemo(
+    () => new Set(excludedIndexes),
+    [excludedIndexes],
+  );
+  const pasteValidation = useSelector(
+    review.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const pasteTextReset = useRef<(() => void) | null>(null);
   const pasteError = pasteValidation || pasteWrite?.error?.message;
   const pastePending = pasteWrite?.isPending ?? false;
   const resetPasteWrite = pasteWrite?.reset;
@@ -873,33 +894,39 @@ export function RecordTableView({
   const reviewPaste = useCallback(
     (pasteText: string) => {
       const parsed = parseTsv(pasteText);
-      setHeaders(parsed.headers);
-      setRawRows(parsed.rows);
-      setColumnIds(parsed.headers.map(() => crypto.randomUUID()));
-      setRowIds(parsed.rows.map(() => crypto.randomUUID()));
-      setMappings(
-        parsed.headers.map((header) => suggestedMapping(header, recordType)),
+      review.reset(
+        {
+          headers: parsed.headers,
+          rawRows: parsed.rows,
+          columnIds: parsed.headers.map(() => crypto.randomUUID()),
+          rowIds: parsed.rows.map(() => crypto.randomUUID()),
+          mappings: parsed.headers.map((header) =>
+            suggestedMapping(header, recordType),
+          ),
+          createRecordIds: parsed.rows.map(() =>
+            recordType === "Work" ? "" : crypto.randomUUID(),
+          ),
+          corrections: {},
+          excludedRows: [],
+        },
+        { keepDefaultValues: true },
       );
-      setCreateRecordIds(
-        parsed.rows.map(() =>
-          recordType === "Work" ? "" : crypto.randomUUID(),
-        ),
-      );
-      setCorrections({});
-      setExcludedRows(new Set());
-      setPasteValidation(
-        parsed.headers.length && parsed.rows.length
-          ? ""
-          : "Paste a header row and at least one data row.",
-      );
+      if (!(parsed.headers.length && parsed.rows.length)) {
+        review.setErrorMap({
+          onSubmit: {
+            form: "Paste a header row and at least one data row.",
+            fields: {},
+          },
+        });
+      }
       resetPasteWrite?.();
     },
-    [recordType, resetPasteWrite],
+    [recordType, resetPasteWrite, review],
   );
 
   const correctRow = useCallback(
     (index: number, values: Record<string, string>) => {
-      setCorrections((previous) => {
+      review.setFieldValue("corrections", (previous) => {
         const next = { ...previous };
         for (const [field, value] of Object.entries(values)) {
           next[`${index}:${field}`] = value;
@@ -907,31 +934,29 @@ export function RecordTableView({
         return next;
       });
     },
-    [],
+    [review],
   );
 
   const handleMappingChange = useCallback(
     (columnIndex: number, value: string) => {
-      setMappings((previous) =>
-        previous.map((mapping, index) =>
-          index === columnIndex ? value : mapping,
-        ),
-      );
+      review.replaceFieldValue("mappings", columnIndex, value);
     },
-    [],
+    [review],
   );
 
-  const toggleRow = useCallback((rowIndex: number, included: boolean) => {
-    setExcludedRows((previous) => {
-      const next = new Set(previous);
+  const toggleRow = useCallback(
+    (rowIndex: number, included: boolean) => {
       if (included) {
-        next.add(rowIndex);
+        review.pushFieldValue("excludedRows", rowIndex);
       } else {
-        next.delete(rowIndex);
+        const index = review.getFieldValue("excludedRows").indexOf(rowIndex);
+        if (index >= 0) {
+          review.removeFieldValue("excludedRows", index);
+        }
       }
-      return next;
-    });
-  }, []);
+    },
+    [review],
+  );
 
   const applyPaste = useCallback(async () => {
     const validRows = rows.flatMap((row) =>
@@ -943,9 +968,12 @@ export function RecordTableView({
       rows: validRows,
     });
     if (!parsed.success) {
-      setPasteValidation(
-        parsed.error.issues[0]?.message ?? "Review the selected rows.",
-      );
+      review.setErrorMap({
+        onSubmit: {
+          form: parsed.error.issues[0]?.message ?? "Review the selected rows.",
+          fields: {},
+        },
+      });
       return;
     }
     const fingerprint = JSON.stringify({
@@ -955,20 +983,16 @@ export function RecordTableView({
     const clientIdempotencyKey =
       pasteIdempotencyKeys.current.get(fingerprint) ?? crypto.randomUUID();
     pasteIdempotencyKeys.current.set(fingerprint, clientIdempotencyKey);
-    setPasteValidation("");
+    review.setErrorMap({ onSubmit: undefined });
     try {
       await onApplyPaste({ ...parsed.data, clientIdempotencyKey });
       pasteIdempotencyKeys.current.delete(fingerprint);
-      setPasteFormKey((key) => key + 1);
-      setHeaders([]);
-      setColumnIds([]);
-      setRawRows([]);
-      setRowIds([]);
-      setMappings([]);
+      review.reset();
+      pasteTextReset.current?.();
     } catch {
       // Query owns the server error; keep the reviewed rows and command.
     }
-  }, [onApplyPaste, recordType, rows]);
+  }, [onApplyPaste, recordType, review, rows]);
 
   const handleTypeChange = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => {
@@ -1034,7 +1058,10 @@ export function RecordTableView({
       <details className="rounded border p-3">
         <summary className="cursor-pointer font-medium">Paste rows</summary>
         <div className="mt-3 space-y-3">
-          <RecordTablePasteForm key={pasteFormKey} onReview={reviewPaste} />
+          <RecordTablePasteForm
+            onReview={reviewPaste}
+            resetRef={pasteTextReset}
+          />
           {headers.length ? (
             <div className="space-y-2">
               <h4 className="font-medium">Column mapping</h4>

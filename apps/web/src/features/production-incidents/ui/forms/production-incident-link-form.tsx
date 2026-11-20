@@ -6,8 +6,9 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   PRODUCTION_INCIDENT_LINK_GROUPS,
   productionIncidentLinkFormSchema,
@@ -29,31 +30,41 @@ export function ProductionIncidentLinkForm({
   candidates: readonly ProductionIncidentLinkTarget[];
   onAdd: (target: ProductionIncidentLinkTarget) => Promise<unknown>;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: { target: "" },
     onSubmit: async ({ value, formApi }) => {
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = productionIncidentLinkFormSchema.safeParse(value);
       const target = candidates.find(
         (candidate) => linkTargetKey(candidate) === parsed.data?.target,
       );
       if (!target) {
-        setError("Choose a record to link.");
+        form.setErrorMap({
+          onSubmit: { form: "Choose a record to link.", fields: {} },
+        });
         return;
       }
       try {
         await onAdd(target);
         formApi.reset();
       } catch {
-        setError("Record could not be linked. Reload and try again.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Record could not be linked. Reload and try again.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   if (!candidates.length) {
     return (

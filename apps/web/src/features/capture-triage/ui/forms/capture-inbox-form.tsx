@@ -15,14 +15,14 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ChangeEvent, type SubmitEvent, useRef, useState } from "react";
-
+import { type ChangeEvent, type SubmitEvent, useRef } from "react";
 import {
   useClientShell,
   useClientShellConnection,
 } from "@/features/web-macos-client/hooks/use-client-shell";
+import { submitForm } from "@/lib/submit-form";
 import {
   captureInboxQueryOptions,
   client,
@@ -79,22 +79,14 @@ export default function CaptureInboxForm({
   const projects = useQuery(projectsQueryOptions());
   const shell = useClientShell();
   const connection = useClientShellConnection();
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const pendingCaptureKey = useRef<string | null>(null);
   const pendingBugKey = useRef<string | null>(null);
 
   const createCapture = useMutation({
     mutationFn: (input: ReturnType<typeof captureInput>) =>
       shell.runWrite(() => client.createCapture(input)),
-    onError: () => setActionMessage("Capture could not be saved."),
-    onSuccess: async (_data, variables) => {
+    onSuccess: async () => {
       pendingCaptureKey.current = null;
-      setActionMessage(
-        `Capture saved. ${
-          captureDestination(variables.projectId ?? "", projects.data ?? [])
-            .detail
-        }`,
-      );
       await queryClient.invalidateQueries({
         queryKey: captureInboxQueryOptions(accountId).queryKey,
       });
@@ -104,18 +96,8 @@ export default function CaptureInboxForm({
   const createBug = useMutation({
     mutationFn: (input: ReturnType<typeof captureInput>) =>
       shell.runWrite(() => client.createBug(input)),
-    onError: (error) => {
-      setActionMessage(
-        error instanceof Error
-          ? error.message
-          : "Work could not be created from this Capture.",
-      );
-    },
-    onSuccess: async (receipt) => {
+    onSuccess: async () => {
       pendingBugKey.current = null;
-      setActionMessage(
-        `Work created (${receipt.workId}). It does not stay in the Capture Inbox.`,
-      );
       await queryClient.invalidateQueries({
         queryKey: captureInboxQueryOptions(accountId).queryKey,
       });
@@ -124,68 +106,83 @@ export default function CaptureInboxForm({
 
   const form = useForm({
     defaultValues: EMPTY_FORM_VALUES,
-    onSubmit: async ({ value }) => {
-      const key = pendingCaptureKey.current ?? crypto.randomUUID();
-      pendingCaptureKey.current = key;
+    onSubmitMeta: { action: "save" } as { action: "save" | "create-bug" },
+    onSubmit: async ({ meta, formApi, value }) => {
+      const bug = meta.action === "create-bug";
+      const pendingKey = bug ? pendingBugKey : pendingCaptureKey;
+      const writer = bug ? createBug : createCapture;
+      const other = bug ? createCapture : createBug;
+      other.reset();
+      const key = pendingKey.current ?? crypto.randomUUID();
+      pendingKey.current = key;
       const input = captureInput(value, key);
       const parsed = captureInputSchema.safeParse(input);
       if (!parsed.success) {
-        setActionMessage(
-          parsed.error.issues[0]?.message ?? "Capture could not be saved.",
-        );
+        writer.reset();
+        formApi.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ??
+              (bug
+                ? "Work could not be created from this Capture."
+                : "Capture could not be saved."),
+            fields: {},
+          },
+        });
         return;
       }
-      await createCapture.mutateAsync(input);
-      if (captureFormValuesEqual(value, form.state.values)) {
-        form.reset();
+      await writer.mutateAsync(input);
+      if (captureFormValuesEqual(value, formApi.state.values)) {
+        formApi.reset();
         onSaved?.();
       } else {
         shell.markUnsavedChanges();
       }
     },
   });
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  let actionMessage = validationError;
+  if (createCapture.isSuccess) {
+    const destination = captureDestination(
+      createCapture.variables?.projectId ?? "",
+      projects.data ?? [],
+    );
+    actionMessage = `Capture saved. ${destination.detail}`;
+  } else if (createCapture.isError) {
+    actionMessage = "Capture could not be saved.";
+  } else if (createBug.isSuccess) {
+    actionMessage = `Work created (${createBug.data.workId}). It does not stay in the Capture Inbox.`;
+  } else if (createBug.isError) {
+    actionMessage =
+      createBug.error instanceof Error
+        ? createBug.error.message
+        : "Work could not be created from this Capture.";
+  }
 
   function markDirty() {
     if (!createCapture.isPending) {
       pendingCaptureKey.current = null;
+      createCapture.reset();
     }
     if (!createBug.isPending) {
       pendingBugKey.current = null;
+      createBug.reset();
     }
     shell.markUnsavedChanges();
-    setActionMessage(null);
+    form.setErrorMap({ onSubmit: undefined });
   }
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   function handleCreateBug() {
-    const { values } = form.state;
-    const key = pendingBugKey.current ?? crypto.randomUUID();
-    pendingBugKey.current = key;
-    const input = captureInput(values, key);
-    const parsed = captureInputSchema.safeParse(input);
-    if (!parsed.success) {
-      setActionMessage(
-        parsed.error.issues[0]?.message ??
-          "Work could not be created from this Capture.",
-      );
-      return;
-    }
-    createBug
-      .mutateAsync(input)
-      .then(() => {
-        if (captureFormValuesEqual(values, form.state.values)) {
-          form.reset();
-          onSaved?.();
-        } else {
-          shell.markUnsavedChanges();
-        }
-      })
-      .catch(() => undefined);
+    submitForm(form, { action: "create-bug" }).catch(() => undefined);
   }
 
   return (

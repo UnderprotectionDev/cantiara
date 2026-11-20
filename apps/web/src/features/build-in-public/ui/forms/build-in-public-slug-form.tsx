@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Slug controls bind to their form values.
+
 import type {
   BuildInPublicPublication,
   BuildInPublicSlugPreview,
@@ -7,7 +8,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   parseSetSlug,
   parseSlugForPreview,
@@ -19,7 +20,7 @@ export function BuildInPublicSlugForm({
   publication,
   slugPreview,
 }: {
-  onPreviewSlug: (slug: string) => void;
+  onPreviewSlug: (slug: string) => unknown;
   onSetSlug: (input: {
     confirmRedirect: boolean;
     slug: string;
@@ -27,14 +28,27 @@ export function BuildInPublicSlugForm({
   publication: BuildInPublicPublication;
   slugPreview: BuildInPublicSlugPreview | null;
 }) {
-  const [slugError, setSlugError] = useState<string>();
   const slugForm = useForm({
     defaultValues: { confirmRedirect: false, slug: publication.slug ?? "" },
-    onSubmit: async ({ value }) => {
-      setSlugError(undefined);
+    onSubmitMeta: { action: "apply" } as { action: "apply" | "preview" },
+    onSubmit: async ({ meta, value }) => {
+      if (meta.action === "preview") {
+        const parsed = parseSlugForPreview(value.slug);
+        if (!parsed.ok) {
+          slugForm.setErrorMap({
+            onSubmit: { form: parsed.message, fields: {} },
+          });
+          return;
+        }
+        await onPreviewSlug(parsed.data);
+        return;
+      }
+      slugForm.setErrorMap({ onSubmit: undefined });
       const parsed = parseSetSlug(value);
       if (!parsed.ok) {
-        setSlugError(parsed.message);
+        slugForm.setErrorMap({
+          onSubmit: { form: parsed.message, fields: {} },
+        });
         return;
       }
       try {
@@ -45,6 +59,10 @@ export function BuildInPublicSlugForm({
       }
     },
   });
+  const slugError = useSelector(
+    slugForm.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const slugValues = useSelector(slugForm.store, (state) => state.values);
   const { confirmRedirect, slug } = slugValues;
   return (
@@ -54,7 +72,7 @@ export function BuildInPublicSlugForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        slugForm.handleSubmit().catch(() => undefined);
+        submitForm(slugForm).catch(() => undefined);
       }}
     >
       <label htmlFor="bip-slug">Slug</label>
@@ -74,15 +92,9 @@ export function BuildInPublicSlugForm({
       </slugForm.Field>
       <Button
         disabled={slug.trim() === ""}
-        onClick={() => {
-          const parsed = parseSlugForPreview(slug);
-          if (!parsed.ok) {
-            setSlugError(parsed.message);
-            return;
-          }
-          setSlugError(undefined);
-          onPreviewSlug(parsed.data);
-        }}
+        onClick={() =>
+          submitForm(slugForm, { action: "preview" }).catch(() => undefined)
+        }
         type="button"
         variant="outline"
       >

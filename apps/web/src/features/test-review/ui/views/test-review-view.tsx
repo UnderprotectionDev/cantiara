@@ -21,9 +21,11 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useMutation } from "@tanstack/react-query";
+import { useSelector } from "@tanstack/react-store";
 import { useState } from "react";
 import { accountDateTimeFormatter } from "@/features/account-preferences/lib/account-preferences-format";
 import { orpc } from "@/utils/orpc";
+import { useBulkReviewForm } from "../../hooks/use-bulk-review-form";
 import { usePanelFocus } from "../../hooks/use-panel-focus";
 import type { TestResultEventDraft } from "../../lib/test-review-forms";
 import { errorText } from "../../lib/test-review-panel";
@@ -397,7 +399,14 @@ function SessionReview({
   session: TestReviewSession;
   writeState?: SessionReviewWriteState;
 }) {
-  const [selected, setSelected] = useState<string[]>([]);
+  const bulk = useBulkReviewForm((ids) =>
+    openPanel(async () => ({
+      ids,
+      kind: "bulk",
+      preview: await inspectBulk.mutateAsync(ids),
+    })),
+  );
+  const selected = useSelector(bulk.store, (state) => state.values.selected);
   const [panel, setPanel] = useState<Panel | null>(null);
   const [noticeLabel, setNoticeLabel] = useState("Review saved.");
   const [feedbackAfter, setFeedbackAfter] = useState(0);
@@ -546,7 +555,7 @@ function SessionReview({
                 })
               }
               onToggle={() =>
-                setSelected((current) =>
+                bulk.setFieldValue("selected", (current) =>
                   current.includes(item.id)
                     ? current.filter((id) => id !== item.id)
                     : [...current, item.id],
@@ -615,13 +624,7 @@ function SessionReview({
       />
       <Button
         disabled={disabled}
-        onClick={() =>
-          openPanel(async () => ({
-            ids: selected,
-            kind: "bulk",
-            preview: await inspectBulk.mutateAsync(selected),
-          }))
-        }
+        onClick={() => bulk.handleSubmit().catch(() => undefined)}
         type="button"
         variant="outline"
       >

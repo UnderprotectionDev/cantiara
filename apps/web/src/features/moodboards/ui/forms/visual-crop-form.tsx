@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Crop fields bind to the form and the displayed visual view.
+
 import {
   cropToInsets,
   insetsToCrop,
@@ -9,8 +10,9 @@ import { MOODBOARD_UI_LABELS } from "@cantiara/api/moodboards";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 const BASIS_POINTS_PER_PERCENT = 100;
 const INSET_EDGES = ["top", "right", "bottom", "left"] as const;
@@ -27,7 +29,6 @@ export default function VisualCropForm({
   open: boolean;
   view: VisualView;
 }) {
-  const [invalid, setInvalid] = useState(false);
   const form = useForm({
     defaultValues: cropToInsets(view.crop),
     onSubmit: ({ value }) => {
@@ -37,18 +38,18 @@ export default function VisualCropForm({
           ? null
           : visualViewSchema.safeParse({ crop, rotation: view.rotation });
       if (!parsed?.success) {
-        setInvalid(true);
+        form.setErrorMap({ onSubmit: { form: true, fields: {} } });
         return;
       }
-      setInvalid(false);
       onApply(parsed.data);
     },
   });
+  const invalid = useSelector(form.store, (state) => state.errorMap.onSubmit);
 
   function applyCrop(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   if (!open) {

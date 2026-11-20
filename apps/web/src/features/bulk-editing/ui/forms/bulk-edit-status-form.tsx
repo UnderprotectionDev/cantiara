@@ -12,25 +12,11 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
 import type { SubmitEvent } from "react";
 import { getWorkStatusLabel } from "@/components/work-status-form";
-import {
-  type BulkEditStatusFormInput,
-  bulkEditStatusFormSchema,
-} from "../../lib/bulk-edit-form";
+import type { useBulkEditStatusForm } from "../../hooks/use-bulk-edit-status-form";
 
 export const BULK_EDIT_STATUS_FORM_ID = "bulk-edit-status-form";
-
-export const BULK_EDIT_STATUS_FORM_DEFAULTS: {
-  closureReason: string;
-  closureResult: WorkClosureResult;
-  targetStatus: WorkStatus | "";
-} = {
-  closureReason: "",
-  closureResult: "Completed",
-  targetStatus: "",
-};
 
 /**
  * The `Bulk Edit` Status fields. The dialog's `Preview` button submits this
@@ -39,9 +25,9 @@ export const BULK_EDIT_STATUS_FORM_DEFAULTS: {
 export default function BulkEditStatusForm({
   disabled,
   displayed,
+  form,
   onClosureReasonChange,
   onClosureResultChange,
-  onPreview,
   onStatusChange,
   workStatusLabels,
 }: {
@@ -53,27 +39,24 @@ export default function BulkEditStatusForm({
   } | null;
   onClosureReasonChange: (reason: string) => void;
   onClosureResultChange: (result: WorkClosureResult) => void;
-  onPreview: (input: BulkEditStatusFormInput) => void;
+  form: ReturnType<typeof useBulkEditStatusForm>;
   onStatusChange: (status: WorkStatus | "") => void;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
-  const form = useForm({
-    defaultValues: BULK_EDIT_STATUS_FORM_DEFAULTS,
-    onSubmit: ({ value }) => {
-      const parsed = bulkEditStatusFormSchema.safeParse(value);
-      if (parsed.success) {
-        onPreview(parsed.data);
-      }
-    },
-  });
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
+    form.setErrorMap({ onSubmit: undefined });
     form.handleSubmit().catch(() => undefined);
   }
 
   return (
     <form className="contents" id={BULK_EDIT_STATUS_FORM_ID} onSubmit={submit}>
+      <form.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+        {(error) =>
+          typeof error === "string" ? <p role="alert">{error}</p> : null
+        }
+      </form.Subscribe>
       <form.Field
         listeners={{ onChange: ({ value }) => onStatusChange(value) }}
         name="targetStatus"

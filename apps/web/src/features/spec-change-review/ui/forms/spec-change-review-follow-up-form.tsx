@@ -19,8 +19,9 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { orpc } from "@/utils/orpc";
 
 /** Identity of one confirmation attempt; reused on retry so the Work is created once. */
@@ -117,7 +118,20 @@ export function SpecFollowUpDialog({
   onPreview: PreviewFollowUp;
   reviewId: string;
 }) {
-  const [workType, setWorkType] = useState<SpecFollowUpWorkType>("Task");
+  const form = useForm({
+    defaultValues: { workType: "Task" as SpecFollowUpWorkType },
+    onSubmit: async () => {
+      if (!preview || pending) {
+        return;
+      }
+      identity.current ??= {
+        key: crypto.randomUUID(),
+        workId: crypto.randomUUID(),
+      };
+      await commit.mutateAsync([candidate, preview, identity.current]);
+    },
+  });
+  const workType = useSelector(form.store, (state) => state.values.workType);
   const identity = useRef<FollowUpCommandIdentity | null>(null);
   const mounted = useRef<boolean>(false);
   useEffect(() => {
@@ -157,17 +171,6 @@ export function SpecFollowUpDialog({
       "The Work could not be created. If the review changed, preview again.";
   }
 
-  function confirm() {
-    if (!preview || pending) {
-      return;
-    }
-    identity.current ??= {
-      key: crypto.randomUUID(),
-      workId: crypto.randomUUID(),
-    };
-    commit.mutate([candidate, preview, identity.current]);
-  }
-
   return (
     <Dialog onOpenChange={(open) => !open && onClose()} open>
       <DialogContent>
@@ -186,7 +189,10 @@ export function SpecFollowUpDialog({
             onChange={(event) => {
               identity.current = null;
               commit.reset();
-              setWorkType(event.target.value as SpecFollowUpWorkType);
+              form.setFieldValue(
+                "workType",
+                event.target.value as SpecFollowUpWorkType,
+              );
             }}
             value={workType}
           >
@@ -208,7 +214,7 @@ export function SpecFollowUpDialog({
           </Button>
           <Button
             disabled={!preview || pending}
-            onClick={confirm}
+            onClick={() => form.handleSubmit().catch(() => undefined)}
             type="button"
           >
             Confirm

@@ -1,9 +1,12 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: The draft binds its own edit and reset handlers.
+
 import type { SchemaChangePreview } from "@cantiara/api/schema-artifacts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSelector } from "@tanstack/react-store";
 import { useState } from "react";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
+import { useUpEditForm } from "../../hooks/use-up-edit-form";
 
 import { ConfirmArtifactForm } from "../forms/confirm-artifact-form";
 import { UpEditForm } from "../forms/up-edit-form";
@@ -128,7 +131,8 @@ export function ChangeDraft({
       targetVersionId,
     }),
   );
-  const [edited, setEdited] = useState<string | null>(null);
+  const editForm = useUpEditForm();
+  const edited = useSelector(editForm.store, (state) => state.values.submitted);
   const preview = useQuery({
     ...orpc.schemaChangePreview.queryOptions({
       input: { editedUpSql: edited, sourceVersionId, targetVersionId },
@@ -189,10 +193,7 @@ export function ChangeDraft({
         <>
           <SqlOutput exported={null} label="Up SQL" sql={data.upSql} />
           <UpEditForm
-            generated={data.generatedUpSql}
-            key={data.generatedUpSql}
-            onEdit={setEdited}
-            onReset={() => setEdited(null)}
+            form={editForm}
             pending={preview.isFetching}
             upSql={data.upSql}
           />

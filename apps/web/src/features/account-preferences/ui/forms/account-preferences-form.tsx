@@ -18,7 +18,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, CircleExclamationPoint, Globe2, WifiOff } from "lucide-react";
 import {
@@ -29,8 +29,8 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-
 import { STALE_BASE_REVISION_MESSAGE } from "@/lib/mutation-messages";
+import { submitForm } from "@/lib/submit-form";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import {
   formatAccountDateTime,
@@ -254,8 +254,6 @@ export default function AccountPreferencesForm({
     clientIdempotencyKey: string;
     values: string;
   } | null>(null);
-  const [saveError, setSaveError] =
-    useState<AccountPreferencesMutationError | null>(null);
   const [suggestion, setSuggestion] = useState(() =>
     getBrowserPreferenceSuggestion({
       locale: DEFAULT_ACCOUNT_PREFERENCES.locale,
@@ -272,11 +270,9 @@ export default function AccountPreferencesForm({
     }) => client.saveAccountPreferences(input),
     onError: (error) => {
       const parsedError = parseAccountPreferencesMutationError(error);
-      setSaveError(parsedError);
       toast.error(accountPreferencesMutationErrorMessage(parsedError));
     },
     onSuccess: (saved) => {
-      setSaveError(null);
       formBaseRevision.current = saved.revision;
       pendingSave.current = null;
       latestSavedAt.current = saved.savedAt;
@@ -289,10 +285,15 @@ export default function AccountPreferencesForm({
   });
   const form = useForm({
     defaultValues: formValues(snapshot),
-    onSubmit: async ({ value }) => {
+    onSubmit: async ({ value, formApi }) => {
       const parsedPreferences = accountPreferencesSchema.safeParse(value);
       if (!parsedPreferences.success) {
-        setSaveError({ code: "UNKNOWN" });
+        formApi.setErrorMap({
+          onSubmit: {
+            form: accountPreferencesMutationErrorMessage({ code: "UNKNOWN" }),
+            fields: {},
+          },
+        });
         toast.error(
           accountPreferencesMutationErrorMessage({ code: "UNKNOWN" }),
         );
@@ -322,6 +323,10 @@ export default function AccountPreferencesForm({
       });
     },
   });
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   useEffect(() => {
     setSuggestion(getBrowserPreferenceSuggestion());
@@ -352,7 +357,7 @@ export default function AccountPreferencesForm({
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    await form.handleSubmit().catch(() => undefined);
+    await submitForm(form).catch(() => undefined);
   }
 
   return (
@@ -385,12 +390,17 @@ export default function AccountPreferencesForm({
         </div>
       )}
 
+      {validationError ? <p role="alert">{validationError}</p> : null}
       <form.Subscribe selector={selectIsDirty}>
         {(isDirty) => (
           <AccountPreferencesSaveStatus
             isDirty={isDirty}
             isOnline={isOnline}
-            saveError={saveError}
+            saveError={
+              savePreferences.isError
+                ? parseAccountPreferencesMutationError(savePreferences.error)
+                : null
+            }
             snapshot={snapshot}
           />
         )}

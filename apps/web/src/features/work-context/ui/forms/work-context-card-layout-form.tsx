@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Layout controls close over their current section and draft state.
+
 import type { ProjectShellConfiguration } from "@cantiara/api/project-shell";
 import {
   cloneWorkContextLayout,
@@ -14,8 +15,11 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { fetchFresh } from "@/lib/fetch-fresh";
+import { submitForm } from "@/lib/submit-form";
 
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
@@ -35,11 +39,48 @@ export default function WorkContextCardLayoutEditor({
   projectId: string;
 }) {
   const queryClient = useQueryClient();
-  const [workType, setWorkType] = useState<WorkType>("Feature");
-  const [draft, setDraft] = useState<WorkContextLayout>(() =>
-    getWorkContextLayout("Feature", configuration.workContextLayouts),
+  const form = useForm({
+    defaultValues: {
+      workType: "Feature" as WorkType,
+      layout: getWorkContextLayout("Feature", configuration.workContextLayouts),
+    },
+    onSubmitMeta: { action: "preview" } as { action: "preview" | "confirm" },
+    onSubmit: async ({ value, meta }) => {
+      if (meta.action === "confirm") {
+        if (preview) {
+          await applyMutation.mutateAsync(undefined);
+        }
+        return;
+      }
+      applyMutation.reset();
+      undoMutation.reset();
+      setValidationError(null);
+      await previewMutation.mutateAsync({
+        baseRevision: currentRevision,
+        change: {
+          kind: "set-work-context-layout",
+          layout: value.layout,
+          workType: value.workType,
+        },
+        projectId,
+      });
+    },
+  });
+  const { workType, layout: draft } = useSelector(
+    form.store,
+    (state) => state.values,
   );
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const submitting = useSelector(form.store, (state) => state.isSubmitting);
+
+  function setValidationError(message: string | null) {
+    form.setErrorMap({
+      onSubmit: message ? { form: message, fields: {} } : undefined,
+    });
+  }
 
   const committedLayout = useMemo(
     () => getWorkContextLayout(workType, configuration.workContextLayouts),
@@ -51,17 +92,18 @@ export default function WorkContextCardLayoutEditor({
   }).queryKey;
 
   useEffect(() => {
-    setDraft(cloneWorkContextLayout(committedLayout));
-  }, [committedLayout]);
+    form.setFieldValue("layout", cloneWorkContextLayout(committedLayout), {
+      dontUpdateMeta: true,
+    });
+  }, [committedLayout, form]);
 
   const previewMutation = useMutation({
     mutationKey: orpc.previewWorkContextLayout.mutationKey(),
     mutationFn: (
       input: Parameters<typeof client.previewWorkContextLayout>[0],
     ) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewWorkContextLayout.queryOptions({ input }),
-        staleTime: 0,
         gcTime: 0,
       }),
     meta: { presentsSupportFailure: true },
@@ -143,6 +185,7 @@ export default function WorkContextCardLayoutEditor({
   }
   const busy =
     disabled ||
+    submitting ||
     previewMutation.isPending ||
     applyMutation.isPending ||
     undoMutation.isPending;
@@ -150,7 +193,9 @@ export default function WorkContextCardLayoutEditor({
   function updateDraft(
     updater: (current: WorkContextLayout) => WorkContextLayout,
   ) {
-    setDraft((current) => updater(cloneWorkContextLayout(current)));
+    form.setFieldValue("layout", (current) =>
+      updater(cloneWorkContextLayout(current)),
+    );
     resetLayoutActions();
   }
 
@@ -164,24 +209,12 @@ export default function WorkContextCardLayoutEditor({
   }
 
   function moveSection(sectionKey: string, direction: -1 | 1) {
-    updateDraft((current) => {
-      const index = current.sectionOrder.indexOf(sectionKey);
-      const nextIndex = index + direction;
-      if (
-        index < 0 ||
-        nextIndex < 0 ||
-        nextIndex >= current.sectionOrder.length
-      ) {
-        return current;
-      }
-      const sectionOrder = [...current.sectionOrder];
-      const [moved] = sectionOrder.splice(index, 1);
-      if (!moved) {
-        return current;
-      }
-      sectionOrder.splice(nextIndex, 0, moved);
-      return { ...current, sectionOrder };
-    });
+    const index = draft.sectionOrder.indexOf(sectionKey);
+    const nextIndex = index + direction;
+    if (index >= 0 && nextIndex >= 0 && nextIndex < draft.sectionOrder.length) {
+      form.moveFieldValues("layout.sectionOrder", index, nextIndex);
+      resetLayoutActions();
+    }
   }
 
   function addCustomSection(section: WorkContextCustomSection) {
@@ -219,7 +252,7 @@ export default function WorkContextCardLayoutEditor({
           id="work-context-layout-type"
           onChange={(event) => {
             resetLayoutActions();
-            setWorkType(event.target.value as WorkType);
+            form.setFieldValue("workType", event.target.value as WorkType);
           }}
           value={workType}
         >
@@ -313,20 +346,9 @@ export default function WorkContextCardLayoutEditor({
       <div className="flex flex-wrap gap-2">
         <Button
           disabled={busy || !isDirty}
-          onClick={() => {
-            applyMutation.reset();
-            undoMutation.reset();
-            setValidationError(null);
-            previewMutation.mutate({
-              baseRevision: currentRevision,
-              change: {
-                kind: "set-work-context-layout",
-                layout: draft,
-                workType,
-              },
-              projectId,
-            });
-          }}
+          onClick={() =>
+            submitForm(form, { action: "preview" }).catch(() => undefined)
+          }
           type="button"
           variant="outline"
         >
@@ -334,7 +356,9 @@ export default function WorkContextCardLayoutEditor({
         </Button>
         <Button
           disabled={busy || !isDirty || !preview}
-          onClick={() => applyMutation.mutate(undefined)}
+          onClick={() =>
+            submitForm(form, { action: "confirm" }).catch(() => undefined)
+          }
           type="button"
         >
           Confirm
@@ -378,7 +402,7 @@ export default function WorkContextCardLayoutEditor({
       <p className="text-xs text-muted-foreground">
         Initial Work fields: {WORK_CONTEXT_INITIAL_FIELDS.join(", ")}
       </p>
-      <ConfigurationMutationError error={error ?? localError} />
+      <ConfigurationMutationError error={error ?? localError ?? null} />
     </div>
   );
 }

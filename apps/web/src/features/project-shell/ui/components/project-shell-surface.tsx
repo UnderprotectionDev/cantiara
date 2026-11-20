@@ -105,6 +105,7 @@ import OpenQuestionsSurface from "@/features/uncertainty-records/ui/components/o
 import ProjectAssumptionsSurface from "@/features/uncertainty-records/ui/components/project-assumptions-surface";
 import ValidationRecordsSurface from "@/features/validation-records/ui/components/validation-records-surface";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
+import WorkContextLayoutForm from "@/features/work-context/ui/forms/work-context-card-layout-form";
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
 import ScopeTreeView from "@/features/work-lifecycle/ui/components/scope-tree";
@@ -891,6 +892,7 @@ function ProjectShellContent({
             projectId={projectId}
             projectName={name}
             starterConfiguration={starterConfiguration}
+            WorkContextLayoutForm={WorkContextLayoutForm}
           />
         </div>
       ) : (

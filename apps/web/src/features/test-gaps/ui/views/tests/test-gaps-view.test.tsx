@@ -263,6 +263,23 @@ test("files a Gap with the typed text and the chosen support relation", async ()
       ?.click();
     await settle();
   });
+  const relationPicker = target.closest("fieldset");
+  expect(
+    relationPicker?.querySelector('[role="status"]')?.textContent,
+  ).toContain("added to support relations");
+  act(() => {
+    target.value = "f1";
+    target.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await act(async () => {
+    [...(relationPicker?.querySelectorAll("button") ?? [])]
+      .find((item) => item.textContent === "Add support relation")
+      ?.click();
+    await settle();
+  });
+  expect(
+    relationPicker?.querySelector('[role="alert"]')?.textContent,
+  ).toContain("is already related.");
   await submit("File Test Gap");
 
   expect(onCreate).toHaveBeenCalledWith({

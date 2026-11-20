@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, test, vi } from "vitest";
 
+import { useBulkEditStatusForm } from "../../../hooks/use-bulk-edit-status-form";
 import BulkEditStatusForm, {
   BULK_EDIT_STATUS_FORM_ID,
 } from "../bulk-edit-status-form";
@@ -21,6 +22,34 @@ function setValue(element: HTMLElement, value: string, prototype: object) {
   );
 }
 
+function ignoreChange() {
+  // This test observes only the Status selection.
+}
+
+function Fixture({
+  onPreview,
+  onStatusChange,
+}: {
+  onPreview: (values: unknown) => void;
+  onStatusChange: (status: string) => void;
+}) {
+  const form = useBulkEditStatusForm((values) => {
+    onPreview(values);
+    return Promise.resolve();
+  });
+  return (
+    <BulkEditStatusForm
+      disabled={false}
+      displayed={null}
+      form={form}
+      onClosureReasonChange={ignoreChange}
+      onClosureResultChange={ignoreChange}
+      onStatusChange={onStatusChange}
+      workStatusLabels={[]}
+    />
+  );
+}
+
 test("Preview submits the Status, Closure result and Reason", async () => {
   const onPreview = vi.fn();
   const onStatusChange = vi.fn();
@@ -30,15 +59,7 @@ test("Preview submits the Status, Closure result and Reason", async () => {
   try {
     await act(async () =>
       root.render(
-        <BulkEditStatusForm
-          disabled={false}
-          displayed={null}
-          onClosureReasonChange={vi.fn()}
-          onClosureResultChange={vi.fn()}
-          onPreview={onPreview}
-          onStatusChange={onStatusChange}
-          workStatusLabels={[]}
-        />,
+        <Fixture onPreview={onPreview} onStatusChange={onStatusChange} />,
       ),
     );
     const form = host.querySelector(`#${BULK_EDIT_STATUS_FORM_ID}`);

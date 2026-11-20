@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work Template controls close over the selected definition and draft field.
+
 import type { CustomFieldDefinition } from "@cantiara/api/custom-fields";
 import { WORK_TYPE_OPTIONS, type WorkType } from "@cantiara/api/work-lifecycle";
 import {
@@ -23,7 +24,8 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 import {
   draftFromTemplate,
@@ -222,7 +224,6 @@ export function WorkTemplateForm({
   error,
   onCancel,
   onSave,
-  onValidationError,
   pending,
   previewDate,
   projectId,
@@ -233,7 +234,6 @@ export function WorkTemplateForm({
   error: string | null;
   onCancel: () => void;
   onSave: (input: ParsedCreateWorkTemplateInput) => Promise<void>;
-  onValidationError: (message: string) => void;
   pending: boolean;
   previewDate: string;
   projectId: string;
@@ -244,7 +244,7 @@ export function WorkTemplateForm({
   } | null>(null);
   const form = useForm({
     defaultValues: editing ? draftFromTemplate(editing) : EMPTY_DRAFT,
-    onSubmit: async ({ value: draft }) => {
+    onSubmit: async ({ value: draft, formApi }) => {
       // Defaults for definitions that are no longer live (trashed, unbound from
       // Work, or Date typed) cannot be removed from the form, so drop them here
       // instead of making every save fail server-side. While the Custom field
@@ -274,14 +274,22 @@ export function WorkTemplateForm({
         type: draft.type,
       });
       if (!parsed.success) {
-        onValidationError(
-          parsed.error.issues[0]?.message ?? "Check the Work Template.",
-        );
+        formApi.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the Work Template.",
+            fields: {},
+          },
+        });
         return;
       }
       await onSave(parsed.data);
+      formApi.reset(EMPTY_DRAFT);
     },
   });
+  useEffect(() => {
+    checklistDraft.current = null;
+    form.reset(editing ? draftFromTemplate(editing) : EMPTY_DRAFT);
+  }, [editing, form]);
   return (
     <form
       aria-label={editing ? "Edit Work Template" : "Add Work Template"}
@@ -290,9 +298,14 @@ export function WorkTemplateForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form).catch(() => undefined);
       }}
     >
+      <form.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+        {(message) =>
+          typeof message === "string" ? <p role="alert">{message}</p> : null
+        }
+      </form.Subscribe>
       <div className="flex items-center justify-between gap-4">
         <h5 className="text-sm font-medium">
           {editing ? "Edit Work Template" : "Add Work Template"}

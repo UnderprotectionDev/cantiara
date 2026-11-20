@@ -75,39 +75,33 @@ export default function WorkTemplateEditor({
     templates.instantiate.isPending ||
     templates.update.isPending ||
     templates.moveToTrash.isPending;
-  const [formVersion, setFormVersion] = useState(0);
 
   function resetDraft() {
-    setFormVersion((version) => version + 1);
     setEditing(null);
     setValidationError(null);
   }
 
   async function saveTemplate(input: ParsedCreateWorkTemplateInput) {
     setValidationError(null);
-    try {
-      if (editing) {
-        const { projectId: _projectId, ...rest } = input;
-        await templates.update.mutateAsync(
-          commandVariables(
-            {
-              ...rest,
-              baseRevision: editing.revision,
-              templateId: editing.id,
-            },
-            templates.update.isError ? templates.update.variables : undefined,
-          ),
-        );
-      } else {
-        await templates.create.mutateAsync(
-          commandVariables(
-            { ...input, baseRevision: 0 },
-            templates.create.isError ? templates.create.variables : undefined,
-          ),
-        );
-      }
-    } catch {
-      // Query exposes the failure and retains the submitted variables for retry.
+    if (editing) {
+      const { projectId: _projectId, ...rest } = input;
+      await templates.update.mutateAsync(
+        commandVariables(
+          {
+            ...rest,
+            baseRevision: editing.revision,
+            templateId: editing.id,
+          },
+          templates.update.isError ? templates.update.variables : undefined,
+        ),
+      );
+    } else {
+      await templates.create.mutateAsync(
+        commandVariables(
+          { ...input, baseRevision: 0 },
+          templates.create.isError ? templates.create.variables : undefined,
+        ),
+      );
     }
   }
 
@@ -207,7 +201,6 @@ export default function WorkTemplateEditor({
                         templates.update.reset();
                         templates.moveToTrash.reset();
                         setEditing(template);
-                        setFormVersion((version) => version + 1);
                         setValidationError(null);
                       }}
                       size="xs"
@@ -293,14 +286,13 @@ export default function WorkTemplateEditor({
         definitions={definitions}
         editing={editing}
         error={error}
-        key={`${editing?.id ?? "new"}:${formVersion}`}
+        key={projectId}
         onCancel={() => {
           templates.create.reset();
           templates.update.reset();
           resetDraft();
         }}
         onSave={saveTemplate}
-        onValidationError={setValidationError}
         pending={pending}
         previewDate={previewDate}
         projectId={projectId}

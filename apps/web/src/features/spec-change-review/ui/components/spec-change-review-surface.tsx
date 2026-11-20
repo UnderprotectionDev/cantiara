@@ -9,12 +9,12 @@ import {
   invalidateSmartCollectionMembership,
   orpc,
 } from "@/utils/orpc";
-import { SpecChangeReviewView } from "../views/spec-change-review-view";
-import type { MarkCandidate } from "./spec-change-review-candidates";
 import type {
   ConfirmFollowUp,
   PreviewFollowUp,
-} from "./spec-change-review-follow-up-dialog";
+} from "../forms/spec-change-review-follow-up-form";
+import { SpecChangeReviewView } from "../views/spec-change-review-view";
+import type { MarkCandidate } from "./spec-change-review-candidates";
 
 export default function SpecChangeReviewSurface({
   projectId,

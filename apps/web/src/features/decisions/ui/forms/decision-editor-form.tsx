@@ -4,8 +4,9 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { ORPCError } from "@orpc/client";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   decisionFormSchema,
   decisionWithdrawFormSchema,
@@ -39,36 +40,41 @@ export function DecisionEditor({
   onCancel: () => void;
   writeError?: unknown;
 }) {
-  const [validationError, setValidationError] = useState<string>();
   const conflict =
     writeError instanceof ORPCError && writeError.code === "CONFLICT";
   const writeMessage = conflict
     ? "Decision changed. Cancel and reopen before saving again. Your text is kept here."
     : "Decision could not be saved. Retry, or reload to check for changes. Your text is kept here.";
-  const error = writeError ? writeMessage : validationError;
-  const [baseRecord] = useState(record);
   const form = useForm({
     defaultValues: {
-      title: baseRecord?.title ?? "",
-      decision: baseRecord?.decision ?? "",
-      rationale: withdrawing ? "" : (baseRecord?.rationale ?? ""),
+      baseRecord: record,
+      title: record?.title ?? "",
+      decision: record?.decision ?? "",
+      rationale: withdrawing ? "" : (record?.rationale ?? ""),
     },
-    onSubmit: async ({ value }) => {
-      setValidationError(undefined);
+    onSubmit: async ({ value: { baseRecord, ...value } }) => {
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = (
         withdrawing ? decisionWithdrawFormSchema : decisionFormSchema
       ).safeParse(value);
       if (!parsed.success) {
-        setValidationError(parsed.error.issues[0]?.message);
+        form.setErrorMap({
+          onSubmit: { form: parsed.error.issues[0]?.message, fields: {} },
+        });
         return;
       }
       await onSave(value, baseRecord);
     },
   });
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const error = writeError ? writeMessage : validationError;
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form

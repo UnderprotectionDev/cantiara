@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected Session Test and form fields.
+
 import {
   type PlannedTestCaseRecord,
   type PlannedTestCaseVersionRef,
@@ -13,8 +14,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { errorText } from "../../lib/error-text";
 import {
   parseRecordSessionTest,
@@ -72,7 +74,6 @@ export function RecordForm({
   cases: PlannedTestCaseRecord[];
   onRecord: SubmitSessionTest;
 }) {
-  const [error, setError] = useState<string>();
   const form = useForm({
     defaultValues: {
       bound: AD_HOC,
@@ -81,7 +82,7 @@ export function RecordForm({
       title: "",
     },
     onSubmit: async ({ value, formApi }) => {
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const input = {
         binding: value.bound === AD_HOC ? null : parseOption(value.bound),
         expectedBehavior: value.expectedBehavior,
@@ -90,21 +91,30 @@ export function RecordForm({
       };
       const parsed = parseRecordSessionTest(input);
       if (!parsed.ok) {
-        setError(parsed.message);
+        form.setErrorMap({ onSubmit: { form: parsed.message, fields: {} } });
         return;
       }
       try {
         await onRecord(input);
         formApi.reset();
       } catch (caught) {
-        setError(errorText(caught, `${SESSION_TEST_LABEL} was not saved.`));
+        form.setErrorMap({
+          onSubmit: {
+            form: errorText(caught, `${SESSION_TEST_LABEL} was not saved.`),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form
@@ -225,13 +235,12 @@ export function LinkScenarioVersionForm({
   onLink: LinkSessionTest;
   sessionTest: SessionTestRecord;
 }) {
-  const [error, setError] = useState<string>();
   const selectId = `session-test-${sessionTest.id}-link`;
   const form = useForm({
     defaultValues: { choice: AD_HOC },
     onSubmit: async ({ value }) => {
       const ref = parseOption(value.choice);
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = parseVersionRef(ref);
       if (!(parsed.ok && ref)) {
         return;
@@ -239,14 +248,23 @@ export function LinkScenarioVersionForm({
       try {
         await onLink(sessionTest.id, ref);
       } catch (caught) {
-        setError(errorText(caught, `${SESSION_TEST_LABEL} was not linked.`));
+        form.setErrorMap({
+          onSubmit: {
+            form: errorText(caught, `${SESSION_TEST_LABEL} was not linked.`),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   if (cases.length === 0) {
     return null;
