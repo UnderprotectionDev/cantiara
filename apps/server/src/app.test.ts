@@ -5,6 +5,21 @@ import {
 } from "@cantiara/api/desktop-api-window";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import { FILE_ATTACHMENT_UPLOAD_BODY_LIMIT } from "@cantiara/api/file-attachments";
+import { FocusPeriodMembershipConflictError } from "@cantiara/api/focus-period";
+import {
+  LinkSharingExpiryError,
+  LinkSharingRateLimitError,
+} from "@cantiara/api/link-sharing";
+import { MutationConflictError } from "@cantiara/api/mutation-contract";
+import { PersonalDataError } from "@cantiara/api/personal-data-rights";
+import {
+  ResearchSessionBindingConsentError,
+  ResearchSessionConsentError,
+} from "@cantiara/api/research-sessions";
+import {
+  SecurityRedactionSpreadIncompleteError,
+  SecurityRedactionTypedNameMismatchError,
+} from "@cantiara/api/security-redaction";
 import {
   SUPPORT_REFERENCE_HEADER,
   SUPPORT_REFERENCE_PATTERN,
@@ -12,6 +27,7 @@ import {
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import { createAuthOptions } from "@cantiara/auth";
+import { ORPCError } from "@orpc/server";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { describe, expect, test, vi } from "vitest";
@@ -57,8 +73,13 @@ function createTestApp(
     desktopOrigins?: readonly string[];
     documents?: AppDependencies["documents"];
     fileAttachments?: FileAttachmentAccess;
+    focusPeriod?: AppDependencies["focusPeriod"];
     githubAvailability?: AppDependencies["githubAvailability"];
     githubIdentityConfirmation?: GitHubIdentityConfirmation;
+    linkSharing?: AppDependencies["linkSharing"];
+    personalDataRights?: AppDependencies["personalDataRights"];
+    researchSessions?: AppDependencies["researchSessions"];
+    securityRedaction?: AppDependencies["securityRedaction"];
     linkSharingVisitor?: AppDependencies["linkSharingVisitor"];
     onGitHubLoginOAuthRevoked?: () => void;
     onRevokeSession?: (sessionId: string) => void;
@@ -124,8 +145,13 @@ function createTestApp(
     desktopOrigins: options.desktopOrigins ?? [],
     documents: options.documents,
     fileAttachments: options.fileAttachments,
+    focusPeriod: options.focusPeriod,
     githubAvailability: options.githubAvailability ?? availableGitHub,
     githubIdentityConfirmation: options.githubIdentityConfirmation,
+    linkSharing: options.linkSharing,
+    personalDataRights: options.personalDataRights,
+    researchSessions: options.researchSessions,
+    securityRedaction: options.securityRedaction,
     linkSharingVisitor: options.linkSharingVisitor,
     nodeEnv: "test",
     redactSecrets: (value) => value,
@@ -144,6 +170,407 @@ function createTestApp(
       dependencies.accountSessionAccess.revokeGitHubLoginOAuth("account-1"),
   };
 }
+
+function postRpc(
+  app: ReturnType<typeof createApp>,
+  procedure: string,
+  input: unknown,
+) {
+  return app.request(`/rpc/${procedure}`, {
+    body: JSON.stringify({ json: input }),
+    headers: {
+      "content-type": "application/json",
+      cookie: "__Secure-better-auth.session_token=valid-token",
+      origin: "https://cantiara.example",
+    },
+    method: "POST",
+  });
+}
+
+describe("RPC Support Reference", () => {
+  test.each([
+    {
+      error: new FocusPeriodMembershipConflictError("active", {
+        cause: new Error("private cause"),
+      }),
+      code: "FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT",
+      message: "Work is already in an active Focus Period. Use Move.",
+      defined: true,
+      status: 409,
+    },
+    {
+      error: new FocusPeriodMembershipConflictError("overlapping"),
+      code: "FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT",
+      message: "Work is already in another Focus Period.",
+      defined: true,
+      status: 409,
+    },
+    {
+      procedure: "removeFromFocusPeriod",
+      error: new ORPCError("FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT", {
+        defined: true,
+        status: 409,
+        message: "private detail",
+      }),
+      code: "INTERNAL_SERVER_ERROR",
+      defined: false,
+      status: 409,
+    },
+    {
+      error: new ORPCError("FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT", {
+        defined: true,
+        status: 400,
+        message: "private detail",
+      }),
+      code: "INTERNAL_SERVER_ERROR",
+      defined: false,
+      status: 400,
+    },
+    {
+      error: Object.assign(new Error("private message"), {
+        code: "FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT",
+        defined: true,
+        data: { token: "private token" },
+        status: 409,
+      }),
+      code: "INTERNAL_SERVER_ERROR",
+      defined: false,
+      status: 409,
+    },
+  ])(
+    "returns $code for the Focus Period failure ($status)",
+    async ({
+      error,
+      code,
+      defined,
+      status,
+      procedure = "addToFocusPeriod",
+      message = "This action could not be completed.",
+    }) => {
+      const rejectMembership = vi.fn().mockRejectedValue(error);
+      const unused = vi.fn();
+      const { app } = createTestApp({
+        authorized: true,
+        focusPeriod: {
+          add: rejectMembership,
+          cancel: unused,
+          close: unused,
+          create: unused,
+          decide: unused,
+          find: unused,
+          linkFollowUpWork: unused,
+          list: unused,
+          move: unused,
+          remove: rejectMembership,
+          saveEvaluation: unused,
+        },
+      });
+      const response = await postRpc(app, procedure, {
+        periodId: "period-1",
+        workId: "work-1",
+      });
+      const body = await response.json();
+      const reference = response.headers.get(SUPPORT_REFERENCE_HEADER);
+      expect(rejectMembership).toHaveBeenCalledWith(
+        "account-1",
+        "period-1",
+        "work-1",
+      );
+      expect(response.status).toBe(status);
+      expect(reference).toMatch(SUPPORT_REFERENCE_PATTERN);
+      expect(body).toEqual({
+        json: {
+          code,
+          data: {
+            reasonCode: "unexpected",
+            retryPolicy: "never",
+            supportReference: reference,
+            writeOutcome: defined ? "not-written" : "unknown",
+          },
+          defined,
+          message,
+          status,
+        },
+      });
+    },
+  );
+
+  test.each([
+    {
+      procedure: "saveResearchSession",
+      input: {
+        id: "session-1",
+        projectId: "project-1",
+        baseRevision: 1,
+        clientIdempotencyKey: "research-save-1",
+        fields: { title: "Private interview", purpose: "Research" },
+      },
+      code: "RESEARCH_SESSION_CHANGED",
+      writeOutcome: "not-written",
+      status: 409,
+      message: "Research Session changed. Reload before saving.",
+      data: {},
+    },
+    {
+      procedure: "captureResearchSessionContent",
+      input: {
+        id: "session-1",
+        projectId: "project-1",
+        baseRevision: 1,
+        clientIdempotencyKey: "capture-1",
+        content: {
+          id: "quote",
+          kind: "Participant quote",
+          text: "Private words",
+        },
+      },
+      code: "RESEARCH_SESSION_CONSENT_REQUIRED",
+      writeOutcome: "not-written",
+      status: 403,
+      message: "Consent does not allow this Research Session operation.",
+      data: {},
+    },
+    {
+      procedure: "confirmResearchSessionBinding",
+      input: {
+        id: "session-1",
+        projectId: "project-1",
+        baseRevision: 1,
+        clientIdempotencyKey: "binding-1",
+        previewId: "preview-1",
+      },
+      code: "RESEARCH_SESSION_BINDING_CONSENT_REQUIRED",
+      status: 403,
+      message: "Consent does not allow this Research Session operation.",
+      data: {},
+    },
+    {
+      procedure: "setShareExpiry",
+      input: { surfaceId: "share-1", expiresAt: "2000-01-01T00:00:00Z" },
+      code: "LINK_SHARING_EXPIRY_NOT_IN_FUTURE",
+      writeOutcome: "not-written",
+      status: 409,
+      message: "Choose an expiry in the future.",
+      data: { targetId: "share-1" },
+    },
+    {
+      procedure: "revokeShareLink",
+      input: { surfaceId: "share-1" },
+      code: "LINK_SHARING_RATE_LIMITED",
+      writeOutcome: "not-written",
+      status: 429,
+      message: "Too many share changes. Try again later.",
+      data: { retryAfterSeconds: 60, targetId: "share-1" },
+    },
+    {
+      procedure: "approveShareScope",
+      input: {
+        approvalId: "approval-1",
+        approvedItemIds: [
+          "record:Document:document-1",
+          "field:Document:document-1:body",
+        ],
+        liveItemIds: [],
+        publishAnyway: false,
+        root: { id: "document-1", kind: "Document" },
+      },
+      code: "LINK_SHARING_PLACEHOLDERS_UNRESOLVED",
+      writeOutcome: "not-written",
+      status: 409,
+      message:
+        "Unresolved placeholders need a fix or a separate Publish/share anyway confirmation.",
+      data: { count: 1, targetId: "approval-1" },
+    },
+    {
+      procedure: "applySecurityRedaction",
+      input: {
+        grant: "private grant",
+        reason: "private reason",
+        scope: { kind: "Account" },
+        sensitiveValue: "private value",
+        typedName: "Wrong name",
+      },
+      code: "SECURITY_REDACTION_TYPED_NAME_MISMATCH",
+      writeOutcome: "not-written",
+      status: 400,
+      message: "The Account or Project name does not match.",
+      data: {},
+    },
+    {
+      procedure: "applySecurityRedaction",
+      input: {
+        grant: "private grant",
+        reason: "private reason",
+        scope: { kind: "Account" },
+        sensitiveValue: "private value",
+        typedName: "Account",
+      },
+      code: "SECURITY_REDACTION_SPREAD_INCOMPLETE",
+      status: 500,
+      message: "Redaction did not reach every copy.",
+      data: { failed: ["search-index"] },
+    },
+    {
+      procedure: "previewPersonalDataErase",
+      input: { contactId: "private contact" },
+      code: "PERSONAL_DATA_CONTACT_NOT_FOUND",
+      writeOutcome: "not-written",
+      status: 404,
+      message: "This Contact was not found.",
+      data: {},
+    },
+    {
+      procedure: "applySecurityRedaction",
+      input: {
+        grant: "private grant",
+        reason: "private reason",
+        scope: { kind: "Account" },
+        sensitiveValue: "private value",
+        typedName: "Invalid RPC data",
+      },
+      code: "INTERNAL_SERVER_ERROR",
+      status: 500,
+      message: "This action could not be completed.",
+      data: {},
+      defined: false,
+    },
+    {
+      procedure: "applySecurityRedaction",
+      input: {
+        grant: "private grant",
+        reason: "private reason",
+        scope: { kind: "Account" },
+        sensitiveValue: "private value",
+        typedName: "Extra RPC data",
+      },
+      code: "SECURITY_REDACTION_SPREAD_INCOMPLETE",
+      status: 500,
+      message: "Redaction did not reach every copy.",
+      data: { failed: ["search-index"] },
+    },
+  ])(
+    "preserves only safe fields for $code via $procedure",
+    async ({
+      procedure,
+      input,
+      code,
+      status,
+      message,
+      data,
+      defined = true,
+      writeOutcome = "unknown",
+    }) => {
+      const unused = vi.fn();
+      const shareRoot = { id: "document-1", kind: "Document" } as const;
+      const sharing = createMemoryLinkSharing({
+        accountId: "account-1",
+        sources: [
+          {
+            root: shareRoot,
+            source: {
+              blockers: [],
+              members: [],
+              projectId: "project-1",
+              record: {
+                ...shareRoot,
+                parts: [],
+                title: "Private Document",
+                fields: [
+                  {
+                    key: "body",
+                    kind: "markdown",
+                    label: "Body",
+                    value: "Private {{placeholder}}",
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      });
+      const { app } = createTestApp({
+        authorized: true,
+        githubIdentityConfirmation: {
+          consume: unused,
+          start: unused,
+          complete: unused,
+          exchange: unused,
+          recordFailure: unused,
+        },
+        linkSharing: {
+          ...createLinkSharing(sharing.store),
+          revoke: vi.fn().mockRejectedValue(new LinkSharingRateLimitError(60)),
+          setExpiry: vi.fn().mockRejectedValue(new LinkSharingExpiryError()),
+        },
+        personalDataRights: {
+          erase: unused,
+          preview: unused,
+          previewErase: vi.fn().mockRejectedValue(
+            new PersonalDataError("contact_not_found", {
+              cause: new Error("private cause"),
+            }),
+          ),
+          produce: unused,
+        },
+        researchSessions: {
+          capture: vi.fn().mockRejectedValue(new ResearchSessionConsentError()),
+          confirmBinding: vi
+            .fn()
+            .mockRejectedValue(new ResearchSessionBindingConsentError()),
+          list: unused,
+          read: unused,
+          save: vi
+            .fn()
+            .mockRejectedValue(new MutationConflictError("private target")),
+          saveNote: unused,
+        },
+        securityRedaction: {
+          apply: (_actor, request) => {
+            if (request.typedName === "Wrong name") {
+              throw new SecurityRedactionTypedNameMismatchError();
+            }
+            if (request.typedName.endsWith("RPC data")) {
+              throw new ORPCError("SECURITY_REDACTION_SPREAD_INCOMPLETE", {
+                defined: true,
+                status: 500,
+                message: "private detail",
+                data: {
+                  failed: [
+                    request.typedName === "Invalid RPC data"
+                      ? "private locator"
+                      : "search-index",
+                  ],
+                  sensitiveValue: "private detail",
+                },
+              });
+            }
+            throw new SecurityRedactionSpreadIncompleteError(["search-index"]);
+          },
+          preview: unused,
+        },
+      });
+      const response = await postRpc(app, procedure, input);
+      const reference = response.headers.get(SUPPORT_REFERENCE_HEADER);
+      expect(response.status).toBe(status);
+      expect(reference).toMatch(SUPPORT_REFERENCE_PATTERN);
+      expect(await response.json()).toEqual({
+        json: {
+          code,
+          data: {
+            ...data,
+            reasonCode: "unexpected",
+            retryPolicy: "never",
+            supportReference: reference,
+            writeOutcome,
+          },
+          defined,
+          message,
+          status,
+        },
+      });
+    },
+  );
+});
 
 describe("server app Account Access boundary", () => {
   test("Personal Wiki unauthenticated GET leaks neither live Document names nor bodies", async () => {

@@ -2,13 +2,12 @@ import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { accountLocalDate } from "@cantiara/api/backlog";
 import {
   type CreateFocusPeriodInput,
-  FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE,
-  FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE,
   type FocusPeriodAccess,
   FocusPeriodConflictError,
   type FocusPeriodDecisionInput,
   type FocusPeriodEvaluationInput,
   type FocusPeriodFollowUpLinkInput,
+  FocusPeriodMembershipConflictError,
   type FocusPeriodRecord,
   type FocusPeriodSnapshotWork,
   FocusPeriodUnavailableError,
@@ -164,9 +163,7 @@ export function createDatabaseFocusPeriod(
       )
       .limit(1);
     if (activeMembership) {
-      throw new FocusPeriodConflictError(
-        FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE,
-      );
+      throw new FocusPeriodMembershipConflictError("active");
     }
   }
 
@@ -318,9 +315,7 @@ export function createDatabaseFocusPeriod(
       )
       .limit(1);
     if (overlapping) {
-      throw new FocusPeriodConflictError(
-        FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE,
-      );
+      throw new FocusPeriodMembershipConflictError("overlapping");
     }
   }
 
@@ -335,9 +330,7 @@ export function createDatabaseFocusPeriod(
       .onConflictDoNothing()
       .returning({ workId: focusPeriodActiveWork.workId });
     if (!claimed.length) {
-      throw new FocusPeriodConflictError(
-        FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE,
-      );
+      throw new FocusPeriodMembershipConflictError("active");
     }
   }
 

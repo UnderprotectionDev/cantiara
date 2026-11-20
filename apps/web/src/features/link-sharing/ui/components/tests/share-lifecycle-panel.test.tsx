@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { ORPCError } from "@orpc/client";
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -136,6 +137,24 @@ describe("Share lifecycle panel", () => {
     await click("Reopen the same link");
     expect(props.onReopen).toHaveBeenCalledTimes(1);
     expect(props.onReshare).not.toHaveBeenCalled();
+  });
+
+  test("a rate-limited Revoke shows the typed refusal and keeps confirmation open", async () => {
+    mount({
+      onRevoke: vi.fn().mockRejectedValue(
+        new ORPCError("LINK_SHARING_RATE_LIMITED", {
+          defined: true,
+          status: 429,
+          message: "Too many share changes. Try again later.",
+        }),
+      ),
+    });
+    await click("Revoke");
+    await click("Revoke");
+    expect(host?.querySelector('[role="alert"]')?.textContent).toBe(
+      "Too many share changes. Try again later.",
+    );
+    expect(host?.querySelector("fieldset")).not.toBeNull();
   });
 
   test("a failed action says so and keeps the confirmation open", async () => {

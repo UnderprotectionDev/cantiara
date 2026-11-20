@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { addDays, format } from "date-fns";
 import { pickDate } from "./date-picker-helpers";
 
 const FOCUS_PERIOD_WORK_NAME = /Prepare Focus Period release/;
@@ -74,15 +75,16 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
 
   await page.goto("/focus-periods");
   await expect(page.getByText("No Focus Period yet.")).toBeVisible();
+  const today = new Date();
+  const start = format(addDays(today, -1), "yyyy-MM-dd");
+  const end = format(addDays(today, 5), "yyyy-MM-dd");
+  const shortEnd = format(addDays(today, 4), "yyyy-MM-dd");
   await page.getByLabel("Purpose").fill("Ship the release");
-  await pickDate(page, page.getByLabel("Start date"), "2099-01-01");
-  await pickDate(page, page.getByLabel("End date"), "2099-01-06");
+  await pickDate(page, page.getByLabel("Start date"), start);
+  await pickDate(page, page.getByLabel("End date"), shortEnd);
   await page.getByRole("button", { name: "Create Focus Period" }).click();
   await expect(page.getByText("Focus Period must be 1–8 weeks.")).toBeVisible();
 
-  const start = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-  const end = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
-  await pickDate(page, page.getByLabel("Start date"), start);
   await pickDate(page, page.getByLabel("End date"), end);
   await page.getByRole("button", { name: "Create Focus Period" }).click();
   const detail = page.getByRole("region", { name: "Ship the release" });
@@ -291,4 +293,41 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
       .getByRole("heading", { name: "Still-open Work", exact: true })
       .locator(".."),
   ).toContainText("Work is unavailable.");
+
+  const plannedStart = format(addDays(today, 7), "yyyy-MM-dd");
+  const plannedEnd = format(addDays(today, 14), "yyyy-MM-dd");
+  async function createPlannedPeriod(purpose: string) {
+    await page.getByLabel("Purpose").fill(purpose);
+    await pickDate(page, page.getByLabel("Start date"), plannedStart);
+    await pickDate(page, page.getByLabel("End date"), plannedEnd);
+    await page.getByRole("button", { name: "Create Focus Period" }).click();
+    const planned = page.getByRole("region", { name: purpose, exact: true });
+    await expect(planned).toContainText("Planned");
+    return planned;
+  }
+  const firstPlan = await createPlannedPeriod("First planned window");
+  const work = {
+    label: "Focus Period Project · FOC-3 · Review Focus Period release",
+  };
+  await firstPlan.getByLabel("Select Work", { exact: true }).selectOption(work);
+  await firstPlan
+    .getByRole("button", { name: "Add Work", exact: true })
+    .click();
+  await expect(
+    firstPlan.getByRole("link", { name: REVIEW_WORK_NAME }),
+  ).toBeVisible();
+
+  const secondPlan = await createPlannedPeriod("Second planned window");
+  await secondPlan
+    .getByLabel("Select Work", { exact: true })
+    .selectOption(work);
+  await secondPlan
+    .getByRole("button", { name: "Add Work", exact: true })
+    .click();
+  await expect(
+    page.getByText("Work is already in another Focus Period.", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    secondPlan.getByRole("link", { name: REVIEW_WORK_NAME }),
+  ).toHaveCount(0);
 });

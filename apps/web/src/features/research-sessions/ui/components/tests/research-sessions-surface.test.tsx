@@ -5,6 +5,7 @@ import {
   type SaveResearchSessionInput,
   type SaveResearchSessionNoteInput,
 } from "@cantiara/api/research-sessions";
+import { ORPCError } from "@orpc/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -120,7 +121,10 @@ test("Research Session edited retry after a lost create response does not fork t
   rpc.save.mockImplementation((input: SaveResearchSessionInput) => {
     if (records.has(input.id)) {
       return Promise.reject(
-        Object.assign(new Error("Record changed"), { code: "CONFLICT" }),
+        new ORPCError("RESEARCH_SESSION_CHANGED", {
+          status: 409,
+          defined: true,
+        }),
       );
     }
     const record = researchSessionRecordSchema.parse({
@@ -194,7 +198,10 @@ test("Research Session conflict retains the draft and reopens the current revisi
     .mockImplementationOnce(() => {
       rpc.list.mockResolvedValue({ records: [latest], readOnly: false });
       return Promise.reject(
-        Object.assign(new Error("Record changed"), { code: "CONFLICT" }),
+        new ORPCError("RESEARCH_SESSION_CHANGED", {
+          status: 409,
+          defined: true,
+        }),
       );
     })
     .mockResolvedValue({ ...latest, revision: 3 });
@@ -262,7 +269,10 @@ test("a lost note response retries the same identity, while an edited retry reta
     }
     if (input.baseRevision !== record.revision) {
       return Promise.reject(
-        Object.assign(new Error("Changed"), { code: "CONFLICT" }),
+        new ORPCError("RESEARCH_SESSION_CHANGED", {
+          status: 409,
+          defined: true,
+        }),
       );
     }
     record = researchSessionRecordSchema.parse({

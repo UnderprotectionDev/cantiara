@@ -21,6 +21,7 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { type SyntheticEvent, useId, useState } from "react";
+import { isResearchSessionConflict } from "../../lib/research-session-conflict";
 
 const fieldLabels: Record<string, string> = {
   title: "Title",
@@ -126,8 +127,7 @@ export function ResearchNoteBindingEditor({
     try {
       await onConfirm(preview, confirmationKey);
     } catch (cause) {
-      const changed =
-        cause instanceof Error && "code" in cause && cause.code === "CONFLICT";
+      const changed = isResearchSessionConflict(cause);
       setConflict(changed);
       setError(
         changed

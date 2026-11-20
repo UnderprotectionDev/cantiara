@@ -21,6 +21,8 @@ import {
   type SupportWriteOutcome,
   supportFailureMessage,
 } from "@cantiara/api/support-reference";
+import { supportReferenceRpcErrors } from "@cantiara/api/support-reference-rpc-errors";
+import { ORPCError } from "@orpc/server";
 
 const SCHEMA_DRIFT_PATTERN =
   /\b(?:42p01|42703)\b|(?:relation|column)\b[\s\S]{0,160}\bdoes not exist\b/i;
@@ -288,9 +290,15 @@ export function createSupportReferenceFailure({
   writeOutcome,
 }: CreateSupportReferenceFailureOptions = {}): SupportReferenceFailure {
   const preservedMutationResponse = preservedMutationResponseFrom(error);
-  const inheritedSupportData = supportDataFrom(error);
+  // Procedure refusals contribute only their public contract fields. The
+  // envelope metadata is generated here, independently of their raw data.
+  const definedRefusal = preservedDefinedRpcError(error);
+  const supportError = definedRefusal ? undefined : error;
+  const inheritedSupportData = supportDataFrom(supportError);
   let resolvedWriteOutcome: SupportWriteOutcome = "unknown";
-  if (preservedMutationResponse) {
+  if (definedRefusal) {
+    resolvedWriteOutcome = definedRefusal.writeOutcome;
+  } else if (preservedMutationResponse) {
     resolvedWriteOutcome = "not-written";
   } else if (isSupportWriteOutcome(writeOutcome)) {
     resolvedWriteOutcome = writeOutcome;
@@ -299,9 +307,9 @@ export function createSupportReferenceFailure({
   }
   const resolvedReasonCode = isSupportFailureReasonCode(reasonCode)
     ? reasonCode
-    : (inheritedSupportData?.reasonCode ?? classifySupportReason(error));
+    : (inheritedSupportData?.reasonCode ?? classifySupportReason(supportError));
   let requestedRetryPolicy: SupportRetryPolicy | undefined;
-  if (preservedMutationResponse) {
+  if (definedRefusal || preservedMutationResponse) {
     requestedRetryPolicy = "never";
   } else if (isSupportRetryPolicy(retryPolicy)) {
     requestedRetryPolicy = retryPolicy;
@@ -328,6 +336,37 @@ export function createSupportReferenceFailure({
   };
 }
 
+// The RPC handler rethrows after oRPC checks the procedure's error map.
+// The public error contract also fixes the message and projects the safe data.
+function preservedDefinedRpcError(error: unknown) {
+  if (!(error instanceof ORPCError && error.defined)) {
+    return;
+  }
+  const { code } = error;
+  if (!Object.hasOwn(supportReferenceRpcErrors, code)) {
+    return;
+  }
+  const contract =
+    supportReferenceRpcErrors[code as keyof typeof supportReferenceRpcErrors];
+  if (error.status !== contract.status) {
+    return;
+  }
+  const parsed =
+    "data" in contract ? contract.data.safeParse(error.data) : null;
+  if (parsed && !parsed.success) {
+    return;
+  }
+  const writeOutcome: SupportWriteOutcome =
+    "writeOutcome" in contract ? contract.writeOutcome : "unknown";
+  return {
+    code,
+    defined: true,
+    message: contract.message,
+    data: parsed?.data,
+    writeOutcome,
+  };
+}
+
 export function createSupportFailureResponse(
   options: CreateSupportReferenceFailureOptions & {
     code?: string;
@@ -338,28 +377,22 @@ export function createSupportFailureResponse(
   } = {},
 ) {
   const failure = createSupportReferenceFailure(options);
-  const preservedMutationResponse = preservedMutationResponseFrom(
-    options.error,
-  );
+  const preservedResponse =
+    preservedDefinedRpcError(options.error) ??
+    preservedMutationResponseFrom(options.error);
   const status = options.status ?? 500;
   return Response.json(
     {
-      code:
-        options.code ??
-        preservedMutationResponse?.code ??
-        "INTERNAL_SERVER_ERROR",
+      code: options.code ?? preservedResponse?.code ?? "INTERNAL_SERVER_ERROR",
       data: {
-        ...(options.data ?? preservedMutationResponse?.data),
+        ...(options.data ?? preservedResponse?.data),
         reasonCode: failure.reasonCode,
         retryPolicy: failure.retryPolicy,
         supportReference: failure.supportReference,
         writeOutcome: failure.writeOutcome,
       },
-      defined: options.defined ?? preservedMutationResponse?.defined ?? false,
-      message:
-        options.message ??
-        preservedMutationResponse?.message ??
-        failure.message,
+      defined: options.defined ?? preservedResponse?.defined ?? false,
+      message: options.message ?? preservedResponse?.message ?? failure.message,
       status,
     },
     {

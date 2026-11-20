@@ -158,6 +158,20 @@ export const FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE =
 export const FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE =
   "Work is already in another Focus Period.";
 
+export class FocusPeriodMembershipConflictError extends FocusPeriodConflictError {
+  readonly membership: "active" | "overlapping";
+
+  constructor(membership: "active" | "overlapping", options?: ErrorOptions) {
+    super(
+      membership === "active"
+        ? FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE
+        : FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE,
+      options,
+    );
+    this.membership = membership;
+  }
+}
+
 export interface FocusPeriodAccess {
   add: (accountId: string, periodId: string, workId: string) => Promise<void>;
   cancel: (accountId: string, periodId: string) => Promise<void>;

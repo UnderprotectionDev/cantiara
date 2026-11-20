@@ -93,8 +93,11 @@ describe("Link Sharing RPC seam", () => {
     await expect(
       client.setShareExpiry({ expiresAt: "2000-01-01T00:00:00Z", surfaceId }),
     ).rejects.toMatchObject({
-      code: "CONFLICT",
-      data: { code: "LINK_STATE_INVALID" },
+      code: "LINK_SHARING_EXPIRY_NOT_IN_FUTURE",
+      message: "Choose an expiry in the future.",
+      defined: true,
+      status: 409,
+      data: { targetId: surfaceId },
     });
     await expect(
       client.reopenShareLink({
@@ -109,7 +112,10 @@ describe("Link Sharing RPC seam", () => {
         expiresAt: null,
         surfaceId,
       }),
-    ).rejects.toMatchObject({ code: "CONFLICT" });
+    ).rejects.toMatchObject({
+      code: "LINK_SHARING_STATE_INVALID",
+      defined: true,
+    });
     await expect(
       setup(false).client.revokeShareLink({ surfaceId }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
@@ -145,8 +151,10 @@ describe("Link Sharing RPC seam", () => {
     await expect(
       client.approveShareScope({ ...base, publishAnyway: false }),
     ).rejects.toMatchObject({
-      code: "CONFLICT",
-      data: { code: "PLACEHOLDERS_UNRESOLVED", count: 1 },
+      code: "LINK_SHARING_PLACEHOLDERS_UNRESOLVED",
+      defined: true,
+      status: 409,
+      data: { count: 1, targetId: "a1" },
     });
     expect(harness.surfaces).toHaveLength(0);
     const approved = await client.approveShareScope({
@@ -174,7 +182,11 @@ describe("Link Sharing RPC seam", () => {
         publishAnyway: true,
         root,
       }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    ).rejects.toMatchObject({
+      code: "LINK_SHARING_SCOPE_INVALID",
+      defined: true,
+      status: 400,
+    });
     const ok = {
       approvalId: "a2",
       approvedItemIds: selection,

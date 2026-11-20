@@ -5,6 +5,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useState } from "react";
 import { writeTextToClipboard } from "@/lib/clipboard";
+import { linkSharingRefusalMessage } from "../../lib/link-sharing-refusal";
 import { shareVisitorUrl } from "../../lib/share-access";
 import { SharePasswordForm } from "../forms/share-password-form";
 
@@ -29,30 +30,32 @@ export function ShareAccessPanel({
   serverUrl: string;
 }) {
   const [status, setStatus] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const link = issuedToken ? shareVisitorUrl(serverUrl, issuedToken) : null;
 
   async function copy() {
     if (!link) {
       return;
     }
-    setFailed(false);
+    setError(null);
     try {
       await writeTextToClipboard(link);
       setStatus("Link copied.");
     } catch {
       setStatus(null);
-      setFailed(true);
+      setError("That did not work. Try again.");
     }
   }
   async function rotate() {
     setStatus(null);
-    setFailed(false);
+    setError(null);
     try {
       await onRotate();
       setStatus("New link created. The old link and every open visit ended.");
-    } catch {
-      setFailed(true);
+    } catch (failure) {
+      setError(
+        linkSharingRefusalMessage(failure) ?? "That did not work. Try again.",
+      );
     }
   }
   return (
@@ -92,9 +95,9 @@ export function ShareAccessPanel({
         </Button>
       </div>
       {status ? <p role="status">{status}</p> : null}
-      {failed ? (
+      {error ? (
         <p className="text-sm text-destructive" role="alert">
-          That did not work. Try again.
+          {error}
         </p>
       ) : null}
       <SharePasswordForm

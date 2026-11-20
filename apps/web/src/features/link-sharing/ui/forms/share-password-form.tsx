@@ -5,6 +5,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
 import { type SubmitEvent, useState } from "react";
+import { linkSharingRefusalMessage } from "../../lib/link-sharing-refusal";
 import { sharePasswordFormSchema } from "../../lib/share-access";
 
 /**
@@ -36,8 +37,11 @@ export function SharePasswordForm({
         await onSave(parsed.data.password);
         formApi.reset();
         setSaved("Password saved. Every open visit ended.");
-      } catch {
-        setError("The password could not be saved. Try again.");
+      } catch (failure) {
+        setError(
+          linkSharingRefusalMessage(failure) ??
+            "The password could not be saved. Try again.",
+        );
       }
     },
   });
@@ -52,8 +56,11 @@ export function SharePasswordForm({
     try {
       await onRemove();
       setSaved("Password removed. Every open visit ended.");
-    } catch {
-      setError("The password could not be removed. Try again.");
+    } catch (failure) {
+      setError(
+        linkSharingRefusalMessage(failure) ??
+          "The password could not be removed. Try again.",
+      );
     }
   }
   return (

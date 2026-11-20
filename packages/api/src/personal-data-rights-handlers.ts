@@ -1,16 +1,21 @@
-import { ORPCError } from "@orpc/server";
+import { ORPCError, type ORPCErrorConstructorMap } from "@orpc/server";
 
 import type { Context } from "./context";
 import {
   type ErasePersonalDataInput,
   PERSONAL_DATA_ERASE_OPERATION_ID,
-  PERSONAL_DATA_ERROR_MESSAGES,
   type PersonalDataErasePreviewInput,
   PersonalDataError,
-  type PersonalDataErrorCode,
   type PersonalDataPreviewInput,
   type PersonalDataProduceInput,
 } from "./personal-data-rights";
+
+import {
+  type personalDataErrors,
+  personalDataRpcCode,
+} from "./personal-data-rights-rpc-errors";
+
+type PersonalDataRpcErrors = ORPCErrorConstructorMap<typeof personalDataErrors>;
 
 /**
  * oRPC handler bodies of Personal Data Rights (spec 81). The router only names
@@ -32,29 +37,15 @@ function requirePersonalDataRights(context: Context) {
   return context.personalDataRights;
 }
 
-const REFUSAL_STATUS: Record<
-  PersonalDataErrorCode,
-  "BAD_REQUEST" | "FORBIDDEN" | "INTERNAL_SERVER_ERROR" | "NOT_FOUND"
-> = {
-  contact_not_found: "NOT_FOUND",
-  grant_rejected: "FORBIDDEN",
-  name_mismatch: "BAD_REQUEST",
-  preview_required: "BAD_REQUEST",
-  spread_incomplete: "BAD_REQUEST",
-  tombstone_incomplete: "INTERNAL_SERVER_ERROR",
-};
-
-async function personalDataRefusal<T>(run: () => Promise<T>): Promise<T> {
+async function personalDataRefusal<T>(
+  errors: PersonalDataRpcErrors,
+  run: () => Promise<T>,
+): Promise<T> {
   try {
     return await run();
   } catch (error) {
     if (error instanceof PersonalDataError) {
-      throw new ORPCError(REFUSAL_STATUS[error.code], {
-        cause: error,
-        data: { code: error.code },
-        defined: true,
-        message: PERSONAL_DATA_ERROR_MESSAGES[error.code],
-      });
+      throw errors[personalDataRpcCode[error.code]]({ cause: error });
     }
     throw error;
   }
@@ -63,8 +54,9 @@ async function personalDataRefusal<T>(run: () => Promise<T>): Promise<T> {
 export function personalDataPreviewHandler(
   context: PersonalDataHandlerContext,
   input: PersonalDataPreviewInput,
+  errors: PersonalDataRpcErrors,
 ) {
-  return personalDataRefusal(() =>
+  return personalDataRefusal(errors, () =>
     requirePersonalDataRights(context).preview(context.session.user.id, input),
   );
 }
@@ -72,8 +64,9 @@ export function personalDataPreviewHandler(
 export function personalDataProduceHandler(
   context: PersonalDataHandlerContext,
   input: PersonalDataProduceInput,
+  errors: PersonalDataRpcErrors,
 ) {
-  return personalDataRefusal(() =>
+  return personalDataRefusal(errors, () =>
     requirePersonalDataRights(context).produce(context.session.user.id, input),
   );
 }
@@ -88,8 +81,9 @@ function eraseActor(context: PersonalDataEraseHandlerContext) {
 export function personalDataErasePreviewHandler(
   context: PersonalDataEraseHandlerContext,
   input: PersonalDataErasePreviewInput,
+  errors: PersonalDataRpcErrors,
 ) {
-  return personalDataRefusal(() =>
+  return personalDataRefusal(errors, () =>
     requirePersonalDataRights(context).previewErase(eraseActor(context), input),
   );
 }
@@ -98,12 +92,13 @@ export function personalDataErasePreviewHandler(
 export function personalDataEraseHandler(
   context: PersonalDataEraseHandlerContext,
   input: ErasePersonalDataInput,
+  errors: PersonalDataRpcErrors,
 ) {
   const confirmation = context.githubIdentityConfirmation;
   if (!confirmation) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
-  return personalDataRefusal(() =>
+  return personalDataRefusal(errors, () =>
     requirePersonalDataRights(context).erase(
       eraseActor(context),
       input,

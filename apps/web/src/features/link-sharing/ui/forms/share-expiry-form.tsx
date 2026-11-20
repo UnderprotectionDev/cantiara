@@ -4,6 +4,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useForm } from "@tanstack/react-form";
 import { type SubmitEvent, useId, useState } from "react";
 import { DateTimePicker } from "@/components/date-picker";
+import { linkSharingRefusalMessage } from "../../lib/link-sharing-refusal";
 import { shareExpiryFormSchema } from "../../lib/share-lifecycle";
 
 export interface ShareExpiryAction {
@@ -56,8 +57,10 @@ export function ShareExpiryForm({
       }
       try {
         await onSubmit(action.id, instant);
-      } catch {
-        setError("That did not work. Try again.");
+      } catch (failure) {
+        setError(
+          linkSharingRefusalMessage(failure) ?? "That did not work. Try again.",
+        );
       }
     },
     onSubmitMeta: { action: "" } as { action: string },

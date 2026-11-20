@@ -6,6 +6,7 @@ import type {
   ResearchBindingTargets,
   ResearchEvidenceBinding,
 } from "@cantiara/api/research-session-bindings";
+import { ResearchSessionAccessError } from "@cantiara/api/research-sessions";
 import { assumption } from "@cantiara/db/schema/assumption";
 import { workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
@@ -13,7 +14,6 @@ import { feedback } from "@cantiara/db/schema/feedback";
 import { openQuestion } from "@cantiara/db/schema/open-question";
 import { project } from "@cantiara/db/schema/project";
 import { work, workKeyAllocation } from "@cantiara/db/schema/work";
-import { ORPCError } from "@orpc/server";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { createFeedbackFromResearch } from "../../feedback/server/feedback-database";
 
@@ -37,9 +37,10 @@ export async function researchBindingTarget(
     ? await query.for("update", { of: project })
     : await query;
   if (!owner || owner.project.archivedAt) {
-    throw new ORPCError("NOT_FOUND", {
-      message: "Target Project is unavailable.",
-    });
+    throw new ResearchSessionAccessError(
+      "unavailable",
+      "Target Project is unavailable.",
+    );
   }
   if (target.mode === "create") {
     return { project: owner.project, label: target.title };
@@ -68,9 +69,10 @@ export async function researchBindingTarget(
     (target.type === "Work" && "type" in record && record.type === "Feature") ||
     ("status" in record && record.status === "Archived")
   ) {
-    throw new ORPCError("NOT_FOUND", {
-      message: "Target record is unavailable.",
-    });
+    throw new ResearchSessionAccessError(
+      "unavailable",
+      "Target record is unavailable.",
+    );
   }
   return { project: owner.project, label: record.title };
 }
@@ -150,7 +152,7 @@ export async function createResearchBindingTarget(
       const workType =
         plan.target.type === "Feature" ? "Feature" : plan.target.workType;
       if (!workType) {
-        throw new ORPCError("BAD_REQUEST");
+        throw new ResearchSessionAccessError("invalid-binding");
       }
       await executor.insert(work).values({
         ...base,

@@ -1,4 +1,3 @@
-import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 /**
@@ -419,6 +418,12 @@ export class LinkSharingStateError extends Error {
   }
 }
 
+export class LinkSharingExpiryError extends LinkSharingStateError {
+  constructor() {
+    super("Choose an expiry in the future.");
+  }
+}
+
 /** Starting or revoking shares too often; try again after `retryAfterSeconds`. */
 export class LinkSharingRateLimitError extends Error {
   readonly code = "LINK_SHARING_RATE_LIMITED" as const;
@@ -496,66 +501,5 @@ export class LinkSharingEventLogError extends Error {
   constructor(message: string, options: ErrorOptions) {
     super(message, options);
     this.name = "LinkSharingEventLogError";
-  }
-}
-
-/**
- * Runs one Link Sharing call for the router: `null` is `NOT_FOUND`, and each
- * domain error maps to its `ORPCError`. The router only forwards.
- */
-export async function linkSharingWrite<T>(
-  targetId: string,
-  write: () => Promise<T | null>,
-): Promise<T> {
-  try {
-    const result = await write();
-    if (!result) {
-      throw new ORPCError("NOT_FOUND");
-    }
-    return result;
-  } catch (error) {
-    if (error instanceof LinkSharingConflictError) {
-      throw new ORPCError("CONFLICT", {
-        cause: error,
-        data: { code: "CONFLICT", targetId },
-        defined: true,
-        message: "Conflict",
-      });
-    }
-    if (error instanceof LinkSharingPlaceholdersError) {
-      throw new ORPCError("CONFLICT", {
-        cause: error,
-        data: {
-          code: "PLACEHOLDERS_UNRESOLVED",
-          count: error.findings.length,
-          targetId,
-        },
-        defined: true,
-        message: error.message,
-      });
-    }
-    if (error instanceof LinkSharingScopeError) {
-      throw new ORPCError("BAD_REQUEST", {
-        cause: error,
-        message: error.message,
-      });
-    }
-    if (error instanceof LinkSharingStateError) {
-      throw new ORPCError("CONFLICT", {
-        cause: error,
-        data: { code: "LINK_STATE_INVALID", targetId },
-        defined: true,
-        message: error.message,
-      });
-    }
-    if (error instanceof LinkSharingRateLimitError) {
-      throw new ORPCError("TOO_MANY_REQUESTS", {
-        cause: error,
-        data: { retryAfterSeconds: error.retryAfterSeconds, targetId },
-        defined: true,
-        message: error.message,
-      });
-    }
-    throw error;
   }
 }

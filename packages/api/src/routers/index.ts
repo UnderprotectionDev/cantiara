@@ -1,4 +1,8 @@
-import { ORPCError, type RouterClient } from "@orpc/server";
+import {
+  ORPCError,
+  type ORPCErrorConstructorMap,
+  type RouterClient,
+} from "@orpc/server";
 import { z } from "zod";
 import {
   type AccountPreferences,
@@ -230,9 +234,8 @@ import {
 } from "../file-attachments";
 import {
   createFocusPeriodInputSchema,
-  FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE,
-  FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE,
   FocusPeriodConflictError,
+  FocusPeriodMembershipConflictError,
   FocusPeriodUnavailableError,
   focusPeriodDecisionInputSchema,
   focusPeriodEvaluationInputSchema,
@@ -240,6 +243,7 @@ import {
   focusPeriodIdInputSchema,
   focusPeriodMembershipInputSchema,
 } from "../focus-period";
+import { focusPeriodMembershipErrors } from "../focus-period-rpc-errors";
 import {
   gitHubChecksInputSchema,
   gitHubChecksOutputSchema,
@@ -283,7 +287,7 @@ import {
 import { protectedProcedure, publicProcedure } from "../index";
 import {
   approveShareScopeInputSchema,
-  linkSharingWrite,
+  LinkSharingRateLimitError,
   previewShareScopeInputSchema,
   reopenExpiredLinkInputSchema,
   reshareExpiredLinkInputSchema,
@@ -293,6 +297,8 @@ import {
   setShareExpiryInputSchema,
   shareRootsInputSchema,
 } from "../link-sharing";
+import { linkSharingWrite } from "../link-sharing-handlers";
+import { linkSharingErrors } from "../link-sharing-rpc-errors";
 import {
   MoodboardSnapshotError,
   moodboardSnapshotExportInputSchema,
@@ -341,6 +347,11 @@ import {
   type MutationReceipt,
 } from "../mutation-and-undo";
 import {
+  MutationConflictError,
+  MutationStaleBaseRevisionError,
+  MutationTargetNotFoundError,
+} from "../mutation-contract";
+import {
   erasePersonalDataInputSchema,
   personalDataErasePreviewInputSchema,
   personalDataPreviewInputSchema,
@@ -352,6 +363,7 @@ import {
   personalDataPreviewHandler,
   personalDataProduceHandler,
 } from "../personal-data-rights-handlers";
+import { personalDataErrors } from "../personal-data-rights-rpc-errors";
 import {
   cancelPersonalReminderInputSchema,
   cancelWorkReviewLaterInputSchema,
@@ -626,6 +638,8 @@ import {
 } from "../research-session-bindings";
 import {
   captureResearchSessionInputSchema,
+  ResearchSessionAccessError,
+  ResearchSessionBindingConsentError,
   ResearchSessionConsentError,
   researchSessionConvertPreview,
   researchSessionConvertPreviewInputSchema,
@@ -635,6 +649,7 @@ import {
   saveResearchSessionInputSchema,
   saveResearchSessionNoteInputSchema,
 } from "../research-sessions";
+import { researchSessionErrors } from "../research-sessions-rpc-errors";
 import {
   returnContextInputSchema,
   saveNextConcreteStepInputSchema,
@@ -691,6 +706,7 @@ import {
   SecurityRedactionTypedNameMismatchError,
   securityRedactionPreviewInputSchema,
 } from "../security-redaction";
+import { securityRedactionErrors } from "../security-redaction-rpc-errors";
 import {
   createSmartCollectionInputSchema,
   SmartCollectionConflictError,
@@ -959,41 +975,43 @@ import {
   workspaceOverviewPresentationSchema,
 } from "../workspace-overview";
 
-async function readOwnedResearchSession(
-  context: Context,
-  input: { id: string; projectId: string },
-) {
-  if (!context.session) {
-    throw new ORPCError("UNAUTHORIZED");
-  }
+function requireResearchSessions(context: Context) {
   if (!context.researchSessions) {
     throw new ORPCError("NOT_IMPLEMENTED");
   }
-  const sessions = await context.researchSessions.list(
-    context.session.user.id,
-    input.projectId,
-  );
-  const session = sessions?.records.find((record) => record.id === input.id);
-  if (!session) {
-    throw new ORPCError("NOT_FOUND");
-  }
-  return session;
+  return context.researchSessions;
 }
 
-function rethrowResearchSessionError(error: unknown): never {
-  if (error instanceof ResearchSessionConsentError) {
-    throw new ORPCError("FORBIDDEN", { message: error.message, cause: error });
+const researchSessionAccessStatus = {
+  unavailable: "NOT_FOUND",
+  "project-archived": "FORBIDDEN",
+  "invalid-binding": "BAD_REQUEST",
+} as const;
+
+function rethrowResearchSessionError(
+  error: unknown,
+  errors: ORPCErrorConstructorMap<typeof researchSessionErrors>,
+): never {
+  if (error instanceof ResearchSessionBindingConsentError) {
+    throw errors.RESEARCH_SESSION_BINDING_CONSENT_REQUIRED({ cause: error });
   }
-  if (error instanceof Error && "code" in error) {
-    if (error.code === "CONFLICT" || error.code === "STALE_BASE_REVISION") {
-      throw new ORPCError("CONFLICT", {
-        message: "Research Session changed. Reload before saving.",
-        cause: error,
-      });
-    }
-    if (error.code === "TARGET_NOT_FOUND") {
-      throw new ORPCError("NOT_FOUND", { cause: error });
-    }
+  if (error instanceof ResearchSessionConsentError) {
+    throw errors.RESEARCH_SESSION_CONSENT_REQUIRED({ cause: error });
+  }
+  if (
+    error instanceof MutationConflictError ||
+    error instanceof MutationStaleBaseRevisionError
+  ) {
+    throw errors.RESEARCH_SESSION_CHANGED({ cause: error });
+  }
+  if (error instanceof MutationTargetNotFoundError) {
+    throw new ORPCError("NOT_FOUND", { cause: error });
+  }
+  if (error instanceof ResearchSessionAccessError) {
+    throw new ORPCError(researchSessionAccessStatus[error.reason], {
+      cause: error,
+      message: error.message,
+    });
   }
   throw error;
 }
@@ -1162,18 +1180,21 @@ function rethrowFocusPeriodError(error: unknown): never {
     throw new ORPCError("NOT_FOUND", { cause: error });
   }
   if (error instanceof FocusPeriodConflictError) {
-    if (
-      error.message === FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE ||
-      error.message === FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE
-    ) {
-      throw new ORPCError("CONFLICT", {
-        cause: error,
-        message: error.message,
-      });
-    }
     throw new ORPCError("CONFLICT", { cause: error });
   }
   throw error;
+}
+
+function rethrowFocusPeriodMembershipError(
+  error: unknown,
+  errors: ORPCErrorConstructorMap<typeof focusPeriodMembershipErrors>,
+): never {
+  if (error instanceof FocusPeriodMembershipConflictError) {
+    throw error.membership === "active"
+      ? errors.FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT({ cause: error })
+      : errors.FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT({ cause: error });
+  }
+  rethrowFocusPeriodError(error);
 }
 
 function requireProjectSourceRecords(context: Context) {
@@ -4923,6 +4944,7 @@ function requireSecurityRedaction(context: Context) {
   return context.securityRedaction;
 }
 async function securityRedactionWrite<T>(
+  errors: ORPCErrorConstructorMap<typeof securityRedactionErrors>,
   write: () => Promise<T | null>,
 ): Promise<T> {
   try {
@@ -4933,28 +4955,16 @@ async function securityRedactionWrite<T>(
     return result;
   } catch (error) {
     if (error instanceof SecurityRedactionTypedNameMismatchError) {
-      throw new ORPCError("BAD_REQUEST", {
-        cause: error,
-        data: { code: error.code },
-        defined: true,
-        message: "The Account or Project name does not match.",
-      });
+      throw errors.SECURITY_REDACTION_TYPED_NAME_MISMATCH({ cause: error });
     }
     if (error instanceof SecurityRedactionSpreadIncompleteError) {
-      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+      throw errors.SECURITY_REDACTION_SPREAD_INCOMPLETE({
         cause: error,
-        data: { code: error.code, failed: error.failed },
-        defined: true,
-        message: error.message,
+        data: { failed: error.failed },
       });
     }
     if (error instanceof SecurityRedactionGrantRejectedError) {
-      throw new ORPCError("FORBIDDEN", {
-        cause: error,
-        data: { code: error.code },
-        defined: true,
-        message: error.message,
-      });
+      throw errors.SECURITY_REDACTION_GRANT_REJECTED({ cause: error });
     }
     throw error;
   }
@@ -5030,23 +5040,29 @@ export const appRouter = {
     .input(listArchivedProjectsInputSchema)
     .handler(({ context }) => listArchivedProjectsHandler(context)),
   previewPersonalDataExport: protectedProcedure
+    .errors(personalDataErrors)
     .input(personalDataPreviewInputSchema)
-    .handler(({ context, input }) =>
-      personalDataPreviewHandler(context, input),
+    .handler(({ context, errors, input }) =>
+      personalDataPreviewHandler(context, input, errors),
     ),
   exportPersonalData: protectedProcedure
+    .errors(personalDataErrors)
     .input(personalDataProduceInputSchema)
-    .handler(({ context, input }) =>
-      personalDataProduceHandler(context, input),
+    .handler(({ context, errors, input }) =>
+      personalDataProduceHandler(context, input, errors),
     ),
   previewPersonalDataErase: protectedProcedure
+    .errors(personalDataErrors)
     .input(personalDataErasePreviewInputSchema)
-    .handler(({ context, input }) =>
-      personalDataErasePreviewHandler(context, input),
+    .handler(({ context, errors, input }) =>
+      personalDataErasePreviewHandler(context, input, errors),
     ),
   erasePersonalData: protectedProcedure
+    .errors(personalDataErrors)
     .input(erasePersonalDataInputSchema)
-    .handler(({ context, input }) => personalDataEraseHandler(context, input)),
+    .handler(({ context, errors, input }) =>
+      personalDataEraseHandler(context, input, errors),
+    ),
   exportCatalog: protectedProcedure
     .input(exportCatalogInputSchema)
     .handler(({ context }) => exportCatalogHandler(context)),
@@ -5153,9 +5169,10 @@ export const appRouter = {
       );
     }),
   previewSecurityRedaction: protectedProcedure
+    .errors(securityRedactionErrors)
     .input(securityRedactionPreviewInputSchema)
-    .handler(({ context, input }) =>
-      securityRedactionWrite(() =>
+    .handler(({ context, errors, input }) =>
+      securityRedactionWrite(errors, () =>
         requireSecurityRedaction(context).preview(
           {
             accountId: context.session.user.id,
@@ -5166,13 +5183,14 @@ export const appRouter = {
       ),
     ),
   applySecurityRedaction: protectedProcedure
+    .errors(securityRedactionErrors)
     .input(applySecurityRedactionInputSchema)
-    .handler(({ context, input }) => {
+    .handler(({ context, errors, input }) => {
       const confirmation = context.githubIdentityConfirmation;
       if (!confirmation) {
         throw new ORPCError("INTERNAL_SERVER_ERROR");
       }
-      return securityRedactionWrite(() =>
+      return securityRedactionWrite(errors, () =>
         requireSecurityRedaction(context).apply(
           {
             accountId: context.session.user.id,
@@ -5207,28 +5225,32 @@ export const appRouter = {
     .input(removeExternalSurfaceInputSchema)
     .handler(async ({ context, input }) => {
       try {
-        // Link errors map through the Link Sharing write; Wiki errors through its own.
-        return await linkSharingWrite(input.surfaceId, async () => {
-          try {
-            return await requireExternalSurfaceManagement(context).remove(
-              context.session.user.id,
-              input,
-            );
-          } catch (error) {
-            if (error instanceof ExternalSurfaceManagementStateError) {
-              throw new ORPCError("CONFLICT", {
-                cause: error,
-                data: { code: error.code, targetId: input.surfaceId },
-                defined: true,
-                message: error.message,
-              });
-            }
-            return rethrowWikiPublishingError(error);
-          }
-        });
+        const removed = await requireExternalSurfaceManagement(context).remove(
+          context.session.user.id,
+          input,
+        );
+        if (removed === null) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return removed;
       } catch (error) {
-        if (error instanceof ORPCError) {
-          throw error;
+        if (error instanceof ExternalSurfaceManagementStateError) {
+          throw new ORPCError("CONFLICT", {
+            cause: error,
+            data: { code: error.code, targetId: input.surfaceId },
+            defined: true,
+            message: error.message,
+          });
+        }
+        if (error instanceof LinkSharingRateLimitError) {
+          throw new ORPCError("TOO_MANY_REQUESTS", {
+            cause: error,
+            data: {
+              retryAfterSeconds: error.retryAfterSeconds,
+              targetId: input.surfaceId,
+            },
+            message: error.message,
+          });
         }
         return rethrowWikiPublishingError(error);
       }
@@ -5243,9 +5265,10 @@ export const appRouter = {
       return directory ?? externalSurfaceManagementUnavailable();
     }),
   shareRoots: protectedProcedure
+    .errors(linkSharingErrors)
     .input(shareRootsInputSchema)
-    .handler(({ context, input }) =>
-      linkSharingWrite(input.projectId, () =>
+    .handler(({ context, errors, input }) =>
+      linkSharingWrite(errors, input.projectId, () =>
         requireLinkSharing(context).roots(
           context.session.user.id,
           input.projectId,
@@ -5253,58 +5276,66 @@ export const appRouter = {
       ),
     ),
   previewShareScope: protectedProcedure
+    .errors(linkSharingErrors)
     .input(previewShareScopeInputSchema)
-    .handler(({ context, input }) =>
-      linkSharingWrite(input.root.id, () =>
+    .handler(({ context, errors, input }) =>
+      linkSharingWrite(errors, input.root.id, () =>
         requireLinkSharing(context).preview(context.session.user.id, input),
       ),
     ),
   approveShareScope: protectedProcedure
+    .errors(linkSharingErrors)
     .input(approveShareScopeInputSchema)
-    .handler(({ context, input }) =>
-      linkSharingWrite(input.approvalId, () =>
+    .handler(({ context, errors, input }) =>
+      linkSharingWrite(errors, input.approvalId, () =>
         requireLinkSharing(context).approve(context.session.user.id, input),
       ),
     ),
   setShareExpiry: protectedProcedure
+    .errors(linkSharingErrors)
     .input(setShareExpiryInputSchema)
-    .handler(({ context, input }) =>
-      linkSharingWrite(input.surfaceId, () =>
+    .handler(({ context, errors, input }) =>
+      linkSharingWrite(errors, input.surfaceId, () =>
         requireLinkSharing(context).setExpiry(context.session.user.id, input),
       ),
     ),
   reopenShareLink: protectedProcedure
+    .errors(linkSharingErrors)
     .input(reopenExpiredLinkInputSchema)
-    .handler(({ context, input }) =>
-      linkSharingWrite(input.surfaceId, () =>
+    .handler(({ context, errors, input }) =>
+      linkSharingWrite(errors, input.surfaceId, () =>
         requireLinkSharing(context).reopen(context.session.user.id, input),
       ),
     ),
   reshareShareLink: protectedProcedure
+    .errors(linkSharingErrors)
     .input(reshareExpiredLinkInputSchema)
-    .handler(({ context, input }) =>
-      linkSharingWrite(input.surfaceId, () =>
+    .handler(({ context, errors, input }) =>
+      linkSharingWrite(errors, input.surfaceId, () =>
         requireLinkSharing(context).reshare(context.session.user.id, input),
       ),
     ),
   revokeShareLink: protectedProcedure
+    .errors(linkSharingErrors)
     .input(revokeShareInputSchema)
-    .handler(({ context, input }) =>
-      linkSharingWrite(input.surfaceId, () =>
+    .handler(({ context, errors, input }) =>
+      linkSharingWrite(errors, input.surfaceId, () =>
         requireLinkSharing(context).revoke(context.session.user.id, input),
       ),
     ),
   setLinkPassword: protectedProcedure
+    .errors(linkSharingErrors)
     .input(setLinkPasswordInputSchema)
-    .handler(({ context, input }) =>
-      linkSharingWrite(input.surfaceId, () =>
+    .handler(({ context, errors, input }) =>
+      linkSharingWrite(errors, input.surfaceId, () =>
         requireLinkSharing(context).setPassword(context.session.user.id, input),
       ),
     ),
   rotateShareToken: protectedProcedure
+    .errors(linkSharingErrors)
     .input(rotateShareTokenInputSchema)
-    .handler(({ context, input }) =>
-      linkSharingWrite(input.surfaceId, () =>
+    .handler(({ context, errors, input }) =>
+      linkSharingWrite(errors, input.surfaceId, () =>
         requireLinkSharing(context).rotateToken(context.session.user.id, input),
       ),
     ),
@@ -11016,8 +11047,9 @@ export const appRouter = {
       }
     }),
   addToFocusPeriod: protectedProcedure
+    .errors(focusPeriodMembershipErrors)
     .input(focusPeriodMembershipInputSchema)
-    .handler(async ({ context, input }) => {
+    .handler(async ({ context, errors, input }) => {
       try {
         await requireFocusPeriod(context).add(
           context.session.user.id,
@@ -11026,7 +11058,7 @@ export const appRouter = {
         );
         return { status: true };
       } catch (error) {
-        rethrowFocusPeriodError(error);
+        rethrowFocusPeriodMembershipError(error, errors);
       }
     }),
   moveToFocusPeriod: protectedProcedure
@@ -11260,8 +11292,9 @@ export const appRouter = {
       );
     }),
   saveResearchSession: protectedProcedure
+    .errors(researchSessionErrors)
     .input(saveResearchSessionInputSchema)
-    .handler(async ({ context, input }) => {
+    .handler(async ({ context, errors, input }) => {
       if (!context.researchSessions) {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
@@ -11271,12 +11304,13 @@ export const appRouter = {
           input,
         );
       } catch (error) {
-        rethrowResearchSessionError(error);
+        rethrowResearchSessionError(error, errors);
       }
     }),
   saveResearchSessionNote: protectedProcedure
+    .errors(researchSessionErrors)
     .input(saveResearchSessionNoteInputSchema)
-    .handler(async ({ context, input }) => {
+    .handler(async ({ context, errors, input }) => {
       if (!context.researchSessions) {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
@@ -11286,12 +11320,13 @@ export const appRouter = {
           input,
         );
       } catch (error) {
-        rethrowResearchSessionError(error);
+        rethrowResearchSessionError(error, errors);
       }
     }),
   captureResearchSessionContent: protectedProcedure
+    .errors(researchSessionErrors)
     .input(captureResearchSessionInputSchema)
-    .handler(async ({ context, input }) => {
+    .handler(async ({ context, errors, input }) => {
       if (!context.researchSessions) {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
@@ -11301,25 +11336,31 @@ export const appRouter = {
           input,
         );
       } catch (error) {
-        rethrowResearchSessionError(error);
+        rethrowResearchSessionError(error, errors);
       }
     }),
   researchSessionBindingTargets: protectedProcedure
+    .errors(researchSessionErrors)
     .input(
       z
         .object({ id: z.string().min(1), projectId: z.string().min(1) })
         .strict(),
     )
-    .handler(({ context, input }) => {
+    .handler(async ({ context, errors, input }) => {
       if (!context.researchSessions?.bindingTargets) {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
-      return context.researchSessions.bindingTargets(
-        context.session.user.id,
-        input,
-      );
+      try {
+        return await context.researchSessions.bindingTargets(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error, errors);
+      }
     }),
   researchSessionBindingFeedback: protectedProcedure
+    .errors(researchSessionErrors)
     .input(
       z
         .object({
@@ -11329,7 +11370,7 @@ export const appRouter = {
         })
         .strict(),
     )
-    .handler(async ({ context, input }) => {
+    .handler(async ({ context, errors, input }) => {
       if (!context.researchSessions?.readBindingFeedback) {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
@@ -11339,16 +11380,17 @@ export const appRouter = {
           input,
         );
       } catch (error) {
-        rethrowResearchSessionError(error);
+        rethrowResearchSessionError(error, errors);
       }
     }),
   projectResearchSessionBindings: protectedProcedure
+    .errors(researchSessionErrors)
     .input(
       z
         .object({ id: z.string().min(1), projectId: z.string().min(1) })
         .strict(),
     )
-    .handler(async ({ context, input }) => {
+    .handler(async ({ context, errors, input }) => {
       if (!context.researchSessions?.listBindings) {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
@@ -11358,12 +11400,13 @@ export const appRouter = {
           input,
         );
       } catch (error) {
-        rethrowResearchSessionError(error);
+        rethrowResearchSessionError(error, errors);
       }
     }),
   previewResearchSessionBinding: protectedProcedure
+    .errors(researchSessionErrors)
     .input(previewResearchSessionBindingInputSchema)
-    .handler(async ({ context, input }) => {
+    .handler(async ({ context, errors, input }) => {
       if (!context.researchSessions?.previewBinding) {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
@@ -11373,12 +11416,13 @@ export const appRouter = {
           input,
         );
       } catch (error) {
-        rethrowResearchSessionError(error);
+        rethrowResearchSessionError(error, errors);
       }
     }),
   confirmResearchSessionBinding: protectedProcedure
+    .errors(researchSessionErrors)
     .input(confirmResearchSessionBindingInputSchema)
-    .handler(async ({ context, input }) => {
+    .handler(async ({ context, errors, input }) => {
       if (!context.researchSessions?.confirmBinding) {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
@@ -11388,28 +11432,40 @@ export const appRouter = {
           input,
         );
       } catch (error) {
-        rethrowResearchSessionError(error);
+        rethrowResearchSessionError(error, errors);
       }
     }),
   previewResearchSessionSnapshot: protectedProcedure
+    .errors(researchSessionErrors)
     .input(researchSessionSnapshotPreviewInputSchema)
-    .handler(async ({ context, input }) => {
-      const session = await readOwnedResearchSession(context, input);
-      return researchSessionSnapshotPreview(session, input.selection);
+    .handler(async ({ context, errors, input }) => {
+      try {
+        const session = await requireResearchSessions(context).read(
+          context.session.user.id,
+          input,
+        );
+        return researchSessionSnapshotPreview(session, input.selection);
+      } catch (error) {
+        rethrowResearchSessionError(error, errors);
+      }
     }),
   previewResearchSessionConvert: protectedProcedure
+    .errors(researchSessionErrors)
     .input(researchSessionConvertPreviewInputSchema)
-    .handler(async ({ context, input }) => {
-      const session = await readOwnedResearchSession(context, input);
-      if (
-        !session.content.some((item) => item.content.id === input.contentId)
-      ) {
-        throw new ORPCError("NOT_FOUND");
-      }
+    .handler(async ({ context, errors, input }) => {
       try {
+        const session = await requireResearchSessions(context).read(
+          context.session.user.id,
+          input,
+        );
+        if (
+          !session.content.some((item) => item.content.id === input.contentId)
+        ) {
+          throw new ORPCError("NOT_FOUND");
+        }
         return researchSessionConvertPreview(session, input.contentId);
       } catch (error) {
-        rethrowResearchSessionError(error);
+        rethrowResearchSessionError(error, errors);
       }
     }),
   projectValidationRecords: protectedProcedure

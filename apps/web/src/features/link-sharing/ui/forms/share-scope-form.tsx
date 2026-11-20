@@ -17,6 +17,7 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { type SubmitEvent, useState } from "react";
 import { YouTubePreviewPlayer } from "@/components/youtube-preview-player";
+import { linkSharingRefusalMessage } from "../../lib/link-sharing-refusal";
 import {
   defaultShareScopeDraft,
   groupsNeedingChoice,
@@ -78,9 +79,10 @@ export function ShareScopeForm({
           live: parsed.data.live.filter((id) => approved.has(id)),
           publishAnyway: parsed.data.publishAnyway,
         });
-      } catch {
+      } catch (failure) {
         setError(
-          "The scope could not be approved. Review the preview and try again.",
+          linkSharingRefusalMessage(failure) ??
+            "The scope could not be approved. Review the preview and try again.",
         );
       }
     },

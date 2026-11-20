@@ -2,6 +2,7 @@ import type {
   SecurityRedactionGateResult,
   SecurityRedactionPreview,
 } from "@cantiara/api/security-redaction";
+import { isDefinedError, ORPCError } from "@orpc/client";
 import { useState } from "react";
 
 type ApplyFailure =
@@ -10,27 +11,22 @@ type ApplyFailure =
   | { code: "SPREAD_INCOMPLETE" }
   | { code: "UNKNOWN" };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 /**
  * The oRPC failure kinds of `applySecurityRedaction`: a name mismatch burns
  * nothing, a rejected grant needs a fresh confirmation and a partial spread
  * has already removed some copies while leaving the event for replay.
  */
 export function parseApplyFailure(error: unknown): ApplyFailure {
-  if (!isRecord(error)) {
+  if (!(error instanceof ORPCError && isDefinedError(error))) {
     return { code: "UNKNOWN" };
   }
-  const data = isRecord(error.data) ? error.data : error;
-  if (data.code === "SECURITY_REDACTION_TYPED_NAME_MISMATCH") {
+  if (error.code === "SECURITY_REDACTION_TYPED_NAME_MISMATCH") {
     return { code: "NAME_MISMATCH" };
   }
-  if (data.code === "SECURITY_REDACTION_GRANT_REJECTED") {
+  if (error.code === "SECURITY_REDACTION_GRANT_REJECTED") {
     return { code: "GRANT_REJECTED" };
   }
-  if (data.code === "SECURITY_REDACTION_SPREAD_INCOMPLETE") {
+  if (error.code === "SECURITY_REDACTION_SPREAD_INCOMPLETE") {
     return { code: "SPREAD_INCOMPLETE" };
   }
   return { code: "UNKNOWN" };

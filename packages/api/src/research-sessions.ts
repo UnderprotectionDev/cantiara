@@ -155,6 +155,21 @@ export class ResearchSessionConsentError extends Error {
   }
 }
 
+/** A receipt exists, but its pinned content is no longer permitted. */
+export class ResearchSessionBindingConsentError extends Error {}
+
+export class ResearchSessionAccessError extends Error {
+  readonly reason: "unavailable" | "project-archived" | "invalid-binding";
+
+  constructor(
+    reason: ResearchSessionAccessError["reason"],
+    message = "Research Session operation is unavailable.",
+  ) {
+    super(message);
+    this.reason = reason;
+  }
+}
+
 /** Call only with the persisted Consent, inside the owning write transaction. */
 export function captureResearchSessionContent(
   consent: ResearchSessionConsent,
@@ -271,6 +286,10 @@ export interface ResearchSessionsAccess
     accountId: string,
     projectId: string,
   ) => Promise<{ records: ResearchSessionRecord[]; readOnly: boolean } | null>;
+  read: (
+    accountId: string,
+    input: { id: string; projectId: string },
+  ) => Promise<ResearchSessionRecord>;
   save: (
     accountId: string,
     input: SaveResearchSessionInput,
