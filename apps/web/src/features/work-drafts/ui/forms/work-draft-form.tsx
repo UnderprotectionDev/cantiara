@@ -588,7 +588,7 @@ export default function WorkDraftForm({
     () => workDraftInitialValues(initialType),
     [initialType],
   );
-  const initialDraftId = useMemo(() => crypto.randomUUID(), []);
+  const [initialDraftId] = useState(() => crypto.randomUUID());
   const revisionRef = useRef(0);
   const editVersionRef = useRef(0);
   const autosaveEpochRef = useRef(0);

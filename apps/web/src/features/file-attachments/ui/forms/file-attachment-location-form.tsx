@@ -14,7 +14,7 @@ import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef } from "react";
 import { submitForm } from "@/lib/submit-form";
 import {
   type LocationKind,
@@ -65,13 +65,10 @@ export default function FileAttachmentLocationBinder({
   });
   const { data: preview } = inspect;
   const resetBind = bindStatus?.reset;
-  const resetPreview = useCallback(
-    (_geometry?: typeof geometry.state.values) => {
-      inspect.reset();
-      resetBind?.();
-    },
-    [inspect.reset, resetBind],
-  );
+  const resetPreview = useCallback(() => {
+    inspect.reset();
+    resetBind?.();
+  }, [inspect.reset, resetBind]);
   const pending = inspect.isPending || bindStatus?.isPending;
   const bindIdempotencyKey = useRef<string | null>(null);
 
@@ -186,8 +183,10 @@ export default function FileAttachmentLocationBinder({
   });
 
   const mode = useSelector(form.store, (state) => state.values.mode);
-  const geometryValues = useSelector(geometry.store, (state) => state.values);
-  const locationKind = geometryValues.kind;
+  const locationKind = useSelector(
+    geometry.store,
+    (state) => state.values.kind,
+  );
   const validationError = useSelector(
     form.store,
     (state): string | undefined => state.errorMap.onSubmit,
@@ -205,10 +204,23 @@ export default function FileAttachmentLocationBinder({
     });
   }
 
-  useEffect(() => {
-    resetPreview(geometryValues);
+  const invalidateLocationPreview = useEffectEvent(() => {
+    resetPreview();
     bindIdempotencyKey.current = null;
-  }, [geometryValues, resetPreview]);
+  });
+
+  useEffect(() => {
+    invalidateLocationPreview();
+    let previousValues = geometry.state.values;
+    const subscription = geometry.store.subscribe(() => {
+      const { values } = geometry.state;
+      if (values !== previousValues) {
+        previousValues = values;
+        invalidateLocationPreview();
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [geometry]);
 
   const handleFormSubmit = useCallback(
     (event: React.SubmitEvent<HTMLFormElement>) => {
@@ -223,12 +235,10 @@ export default function FileAttachmentLocationBinder({
     (event: React.MouseEvent<HTMLButtonElement>) => {
       const nextKind = event.currentTarget.dataset.locationKind;
       if (nextKind === "point" || nextKind === "region") {
-        resetPreview();
-        bindIdempotencyKey.current = null;
         onLocationKindChange(nextKind);
       }
     },
-    [onLocationKindChange, resetPreview],
+    [onLocationKindChange],
   );
   const handleMode = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -306,7 +316,6 @@ export default function FileAttachmentLocationBinder({
                   onChange={(event) => {
                     const value = Number(event.target.value) || 1;
                     field.handleChange(value);
-                    resetPreview();
                   }}
                   type="number"
                   value={field.state.value}
@@ -325,7 +334,6 @@ export default function FileAttachmentLocationBinder({
                 onChange={(event) => {
                   const value = Number(event.target.value) || 0;
                   field.handleChange(value);
-                  resetPreview();
                 }}
                 type="number"
                 value={field.state.value}
@@ -343,7 +351,6 @@ export default function FileAttachmentLocationBinder({
                 onChange={(event) => {
                   const value = Number(event.target.value) || 0;
                   field.handleChange(value);
-                  resetPreview();
                 }}
                 type="number"
                 value={field.state.value}
@@ -366,7 +373,6 @@ export default function FileAttachmentLocationBinder({
                     onChange={(event) => {
                       const value = Number(event.target.value) || 0;
                       field.handleChange(value);
-                      resetPreview();
                     }}
                     type="number"
                     value={field.state.value}
@@ -387,7 +393,6 @@ export default function FileAttachmentLocationBinder({
                     onChange={(event) => {
                       const value = Number(event.target.value) || 0;
                       field.handleChange(value);
-                      resetPreview();
                     }}
                     type="number"
                     value={field.state.value}

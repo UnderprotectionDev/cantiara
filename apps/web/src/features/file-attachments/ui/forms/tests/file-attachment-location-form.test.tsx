@@ -1,7 +1,10 @@
 // @vitest-environment happy-dom
 // biome-ignore-all lint/performance/noJsxPropsBind: Test handlers are inline doubles.
 // biome-ignore-all lint/performance/noAwaitInLoops: Timers settle one after another.
-import { FILE_ATTACHMENT_UI_LABELS } from "@cantiara/api/file-attachments";
+import {
+  FILE_ATTACHMENT_UI_LABELS,
+  type FileAttachmentLocationBindPreview,
+} from "@cantiara/api/file-attachments";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -27,22 +30,35 @@ async function settle() {
   }
 }
 
-function Fixture({ onPreview }: { onPreview: () => Promise<never> }) {
+type PreviewHandler = NonNullable<
+  React.ComponentProps<typeof FileAttachmentLocationBinder>["onPreview"]
+>;
+
+function Fixture({ onPreview }: { onPreview: PreviewHandler }) {
   const geometry = useLocationFieldsForm({ kind: "point", x: 0.2, y: 0.3 });
   return (
-    <FileAttachmentLocationBinder
-      attachmentId="a1"
-      geometry={geometry}
-      onClose={() => undefined}
-      onLocationKindChange={() => undefined}
-      onPreview={onPreview}
-      projectId="p1"
-      versionId="v1"
-    />
+    <>
+      <button
+        data-source-location
+        onClick={() => geometry.reset({ ...geometry.state.values, x: 0.6 })}
+        type="button"
+      >
+        {FILE_ATTACHMENT_UI_LABELS.point}
+      </button>
+      <FileAttachmentLocationBinder
+        attachmentId="a1"
+        geometry={geometry}
+        onClose={() => undefined}
+        onLocationKindChange={() => undefined}
+        onPreview={onPreview}
+        projectId="p1"
+        versionId="v1"
+      />
+    </>
   );
 }
 
-function mount(onPreview: () => Promise<never>) {
+function mount(onPreview: PreviewHandler) {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -63,6 +79,15 @@ function click(selector: string) {
   });
 }
 
+function previewLocation() {
+  return act(async () => {
+    host
+      ?.querySelector("form")
+      ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await settle();
+  });
+}
+
 test("the New Work mode is form state: it picks the fields and the preview input mode", async () => {
   const onPreview = vi.fn().mockRejectedValue(new Error("offline"));
   mount(onPreview);
@@ -74,15 +99,41 @@ test("the New Work mode is form state: it picks the fields and the preview input
   expect(pressed("new")).toBe("true");
   expect(host?.textContent).toContain(FILE_ATTACHMENT_UI_LABELS.title);
 
-  await act(async () => {
-    host
-      ?.querySelector("form")
-      ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    await settle();
-  });
+  await previewLocation();
   expect(onPreview).toHaveBeenCalledTimes(1);
   expect(onPreview.mock.calls[0]?.[0]).toMatchObject({
     mode: "new",
     projectId: "p1",
+  });
+});
+
+test("selecting a new source location discards a pending preview", async () => {
+  const pending = Promise.withResolvers<FileAttachmentLocationBindPreview>();
+  const onPreview = vi.fn<PreviewHandler>().mockReturnValue(pending.promise);
+  mount(onPreview);
+  await click('[data-mode="new"]');
+  await previewLocation();
+  const input = onPreview.mock.calls[0]?.[0];
+  expect(input?.location).toEqual({ kind: "point", x: 0.2, y: 0.3 });
+
+  await click("[data-source-location]");
+  await act(async () => {
+    pending.resolve({
+      attachmentId: "a1",
+      location: { kind: "point", x: 0.2, y: 0.3 },
+      previewId: "preview-1",
+      target: { mode: "new", projectId: "p1", title: "Work", type: "Task" },
+      versionId: "v1",
+    });
+    await settle();
+  });
+  expect(host?.textContent).not.toContain(
+    FILE_ATTACHMENT_UI_LABELS.reviewLocationBind,
+  );
+  await previewLocation();
+  expect(onPreview.mock.calls[1]?.[0].location).toEqual({
+    kind: "point",
+    x: 0.6,
+    y: 0.3,
   });
 });

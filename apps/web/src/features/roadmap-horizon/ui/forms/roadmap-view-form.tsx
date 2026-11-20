@@ -14,7 +14,7 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode, SubmitEvent } from "react";
-import { useMemo } from "react";
+import { useState } from "react";
 import { commandVariables } from "@/lib/command-variables";
 import { submitForm } from "@/lib/submit-form";
 import { client, orpc } from "@/utils/orpc";
@@ -72,7 +72,7 @@ export default function RoadmapViewEditor({
   onSaved: (id: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const initialDraftId = useMemo(() => crypto.randomUUID(), []);
+  const [initialDraftId] = useState(() => crypto.randomUUID());
   const saveView = useMutation({
     mutationKey: orpc.saveRoadmapView.mutationKey(),
     meta: { onlineWrite: true },

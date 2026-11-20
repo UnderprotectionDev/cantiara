@@ -106,7 +106,7 @@ export function ImportView({
             preview={shown.preview}
           />
           <ImportApplyPanel
-            busy={preview.isPlaceholderData || isCancelling}
+            busy={preview.isFetching || isCancelling}
             key={`${shown.preview.stagingId}:${shown.preview.finalSetFingerprint}`}
             onApply={onApply}
             onAttempt={setReceiptKey}
