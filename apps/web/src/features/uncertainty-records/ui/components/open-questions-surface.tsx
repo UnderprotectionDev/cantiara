@@ -2,11 +2,10 @@
 
 import type { DocumentEvidenceSelection } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { AppLink } from "@/components/app-link";
 import { projectSourceRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import {
   type OpenQuestionDraft,
@@ -24,6 +23,17 @@ export default function OpenQuestionsSurface({
   selectedId?: string;
   readOnly?: boolean;
 }) {
+  const createProjectSourceRecordMutation = useMutation(
+    orpc.createProjectSourceRecord.mutationOptions({
+      mutationFn: (request) => client.createProjectSourceRecord(request),
+    }),
+  );
+  const transitionProjectSourceRecordMutation = useMutation(
+    orpc.transitionProjectSourceRecord.mutationOptions({
+      mutationFn: (input) => client.transitionProjectSourceRecord(input),
+      onSuccess: () => refresh(),
+    }),
+  );
   const queryClient = useQueryClient();
   const records = useQuery(
     orpc.openQuestions.queryOptions({ input: { projectId } }),
@@ -66,36 +76,42 @@ export default function OpenQuestionsSurface({
     pendingWrite.current = null;
     setEditing(undefined);
     setSaved("Open Question saved.");
-    await queryClient.invalidateQueries();
+    await Promise.all(
+      [
+        orpc.openQuestions.queryKey({ input: { projectId } }),
+        orpc.openQuestionContext.key(),
+        orpc.projectSourceRecord.key(),
+        orpc.projectSourceRecords.key(),
+        orpc.searchRecords.key(),
+      ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    );
   }
   async function save(draft: OpenQuestionDraft, record?: OpenQuestionRecord) {
     const { id, key } = commandIdentity(draft, record);
-    await runOnlineOnlyWrite(() =>
-      record
-        ? client.transitionProjectSourceRecord({
-            baseRevision: record.revision,
-            clientIdempotencyKey: key,
-            projectId,
-            sourceId: id,
-            sourceType: "Open Question",
-            life: "Answered",
-            answer: draft.answer.trim(),
-            rationale: draft.rationale.trim() || null,
-            ...(draft.documentEvidence
-              ? { documentEvidence: draft.documentEvidence }
-              : {}),
-          })
-        : client.createProjectSourceRecord({
-            baseRevision: 0,
-            clientIdempotencyKey: key,
-            projectId,
-            id,
-            sourceType: "Open Question",
-            title: draft.title.trim(),
-            question: draft.question.trim(),
-            context: draft.context.trim() || null,
-          }),
-    );
+    await (record
+      ? transitionProjectSourceRecordMutation.mutateAsync({
+          baseRevision: record.revision,
+          clientIdempotencyKey: key,
+          projectId,
+          sourceId: id,
+          sourceType: "Open Question",
+          life: "Answered",
+          answer: draft.answer.trim(),
+          rationale: draft.rationale.trim() || null,
+          ...(draft.documentEvidence
+            ? { documentEvidence: draft.documentEvidence }
+            : {}),
+        })
+      : createProjectSourceRecordMutation.mutateAsync({
+          baseRevision: 0,
+          clientIdempotencyKey: key,
+          projectId,
+          id,
+          sourceType: "Open Question",
+          title: draft.title.trim(),
+          question: draft.question.trim(),
+          context: draft.context.trim() || null,
+        }));
     await refresh();
   }
   async function close() {
@@ -109,14 +125,11 @@ export default function OpenQuestionsSurface({
       life: "No longer applicable" as const,
     };
     const { key } = commandIdentity(payload, selected);
-    await runOnlineOnlyWrite(() =>
-      client.transitionProjectSourceRecord({
-        ...payload,
-        baseRevision: selected.revision,
-        clientIdempotencyKey: key,
-      }),
-    );
-    await refresh();
+    await transitionProjectSourceRecordMutation.mutateAsync({
+      ...payload,
+      baseRevision: selected.revision,
+      clientIdempotencyKey: key,
+    });
   }
   function start(mode: "create" | "answer") {
     pendingWrite.current = null;

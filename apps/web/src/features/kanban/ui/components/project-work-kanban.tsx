@@ -4,11 +4,11 @@ import type {
   WorkStatusLabel,
 } from "@cantiara/api/project-shell";
 import type { WorkStatus } from "@cantiara/api/work-lifecycle";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { currentDateInTimeZone } from "@/features/account-preferences/lib/account-preferences-format";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -66,33 +66,32 @@ export default function ProjectWorkKanban({
       input: { archived: false, projectId },
     }),
   );
-  const updateStatus = useMutation({
-    mutationFn: (input: KanbanDirectMove) =>
-      runOnlineOnlyWrite(() =>
-        client.updateWorkStatus({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: async (work) => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: projectWorksQueryPrefix,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.work.queryOptions({
-            input: { workId: work.id },
-          }).queryKey,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.scopeTree.queryOptions({
-            input: { projectId },
-          }).queryKey,
-        }),
-        ...invalidateSmartCollectionMembership(queryClient),
-      ]);
-    },
-  });
+  const updateStatus = usePreparedMutation(
+    orpc.updateWorkStatus.mutationOptions({
+      mutationFn: (input) => client.updateWorkStatus(input),
+      onSuccess: async (work) => {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: projectWorksQueryPrefix,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.work.queryOptions({
+              input: { workId: work.id },
+            }).queryKey,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.scopeTree.queryOptions({
+              input: { projectId },
+            }).queryKey,
+          }),
+          ...invalidateSmartCollectionMembership(queryClient),
+        ]);
+      },
+    }),
+    (input: KanbanDirectMove) => ({
+      ...input,
+    }),
+  );
   const handleStatusAction = useCallback(
     (
       work: Parameters<typeof requestKanbanStatusMove>[0],

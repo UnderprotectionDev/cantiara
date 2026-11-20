@@ -1,78 +1,72 @@
-import type {
-  CreateWorkTemplateInput,
-  InstantiateWorkTemplateInput,
-  UpdateWorkTemplateInput,
-} from "@cantiara/api/work-templates";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import {
   client,
   invalidateSmartCollectionMembership,
   orpc,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
 
-export function useWorkTemplates(projectId: string) {
+interface WorkTemplateCallbacks {
+  onCreatedWork: (key: string) => void;
+  onSavedTemplate: () => void;
+}
+
+export function useWorkTemplates(
+  projectId: string,
+  { onCreatedWork, onSavedTemplate }: WorkTemplateCallbacks,
+) {
   const queryClient = useQueryClient();
   const options = orpc.workTemplates.queryOptions({ input: { projectId } });
   const query = useQuery(options);
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: options.queryKey });
+  const invalidateTemplates = (template: { projectId: string }) =>
+    queryClient.invalidateQueries({
+      queryKey: orpc.workTemplates.queryKey({
+        input: { projectId: template.projectId },
+      }),
+    });
 
-  const create = useMutation({
-    mutationFn: (input: CreateWorkTemplateInput) =>
-      runOnlineOnlyWrite(() =>
-        client.createWorkTemplate({
-          ...input,
-          baseRevision: 0,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
-  const instantiate = useMutation({
-    mutationFn: (
-      input: Omit<InstantiateWorkTemplateInput, "clientIdempotencyKey">,
-    ) =>
-      runOnlineOnlyWrite(() =>
-        client.instantiateWorkTemplate({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
-        ...invalidateSmartCollectionMembership(queryClient),
-      ]);
-    },
-  });
-  const update = useMutation({
-    mutationFn: (
-      input: UpdateWorkTemplateInput & {
-        baseRevision: number;
-        templateId: string;
+  async function savedTemplate(template: { projectId: string }) {
+    if (template.projectId === projectId) {
+      onSavedTemplate();
+    }
+    await invalidateTemplates(template);
+  }
+
+  const create = useMutation(
+    orpc.createWorkTemplate.mutationOptions({
+      mutationFn: (input) => client.createWorkTemplate(input),
+      onSuccess: savedTemplate,
+    }),
+  );
+  const instantiate = useMutation(
+    orpc.instantiateWorkTemplate.mutationOptions({
+      mutationFn: (input) => client.instantiateWorkTemplate(input),
+      onSuccess: async (work) => {
+        if (work.projectId === projectId) {
+          onCreatedWork(work.key);
+        }
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectWorks.queryKey({
+              input: { projectId: work.projectId },
+            }),
+          }),
+          ...invalidateSmartCollectionMembership(queryClient),
+        ]);
       },
-    ) =>
-      runOnlineOnlyWrite(() =>
-        client.updateWorkTemplate({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
-  const moveToTrash = useMutation({
-    mutationFn: (input: { baseRevision: number; templateId: string }) =>
-      runOnlineOnlyWrite(() =>
-        client.trashWorkTemplate({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+    }),
+  );
+  const update = useMutation(
+    orpc.updateWorkTemplate.mutationOptions({
+      mutationFn: (input) => client.updateWorkTemplate(input),
+      onSuccess: savedTemplate,
+    }),
+  );
+  const moveToTrash = useMutation(
+    orpc.trashWorkTemplate.mutationOptions({
+      mutationFn: (input) => client.trashWorkTemplate(input),
+      onSuccess: invalidateTemplates,
+    }),
+  );
 
   return { create, instantiate, moveToTrash, query, update };
 }

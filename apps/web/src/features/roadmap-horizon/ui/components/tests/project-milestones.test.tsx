@@ -8,7 +8,8 @@ import ProjectMilestones from "../project-milestones";
 
 const mocks = vi.hoisted(() => ({ useQuery: vi.fn() }));
 
-vi.mock("@tanstack/react-query", () => ({
+vi.mock("@tanstack/react-query", async (importActual) => ({
+  ...(await importActual<typeof import("@tanstack/react-query")>()),
   useMutation: () => ({ isError: false, isPending: false, mutate: vi.fn() }),
   useQuery: mocks.useQuery,
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
@@ -24,20 +25,34 @@ vi.mock("@/features/project-shell/lib/project-shell-navigation", () => ({
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({
   runOnlineOnlyWrite: vi.fn(),
 }));
-vi.mock("@/utils/orpc", () => ({
-  client: {
-    createMilestone: vi.fn(),
-    createRelation: vi.fn(),
-    relationPreview: vi.fn(),
-    updateMilestone: vi.fn(),
-    updateMilestoneStatus: vi.fn(),
-  },
-  orpc: {
-    projectMilestones: { queryOptions: () => ({ queryKey: ["milestones"] }) },
-    relations: { queryOptions: () => ({ queryKey: ["relations"] }) },
-  },
-  projectWorksQueryPrefix: ["project-works"],
-}));
+vi.mock("@/utils/orpc", async (importActual) => {
+  const actual = await importActual<typeof import("@/utils/orpc")>();
+  return {
+    ...actual,
+    client: {
+      createMilestone: vi.fn(),
+      createRelation: vi.fn(),
+      relationPreview: vi.fn(),
+      updateMilestone: vi.fn(),
+      updateMilestoneStatus: vi.fn(),
+    },
+    orpc: new Proxy(actual.orpc, {
+      get(target, property, receiver) {
+        const overrides = {
+          projectMilestones: {
+            queryOptions: () => ({ queryKey: ["milestones"] }),
+          },
+          relations: { queryOptions: () => ({ queryKey: ["relations"] }) },
+        };
+        return (
+          Reflect.get(overrides, property) ??
+          Reflect.get(target, property, receiver)
+        );
+      },
+    }),
+    projectWorksQueryPrefix: ["project-works"],
+  };
+});
 
 const work = {
   id: "work-1",

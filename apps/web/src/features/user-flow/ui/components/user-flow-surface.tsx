@@ -3,9 +3,13 @@ import type {
   UserFlowViewport,
 } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
-import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { lazy, Suspense, useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import type { EditorDocument } from "../../lib/flow-editor";
 import type { PromoteChoice } from "../forms/promote-to-screen-form";
@@ -19,6 +23,51 @@ import {
 const UserFlowCanvas = lazy(() => import("./user-flow-canvas"));
 
 export default function UserFlowSurface({ projectId }: { projectId: string }) {
+  const createUserFlowFromTemplateMutation = useMutation(
+    orpc.createUserFlowFromTemplate.mutationOptions({
+      mutationFn: (input) => client.createUserFlowFromTemplate(input),
+    }),
+  );
+  const createUserFlowMutation = useMutation(
+    orpc.createUserFlow.mutationOptions({
+      mutationFn: (input) => client.createUserFlow(input),
+    }),
+  );
+  const saveUserFlowVersionMutation = useMutation(
+    orpc.saveUserFlowVersion.mutationOptions({
+      mutationFn: (input) => client.saveUserFlowVersion(input),
+    }),
+  );
+  const placeUserFlowNodeMutation = useMutation(
+    orpc.placeUserFlowNode.mutationOptions({
+      mutationFn: (input) => client.placeUserFlowNode(input),
+    }),
+  );
+  const convertUserFlowNodeMutation = useMutation(
+    orpc.convertUserFlowNode.mutationOptions({
+      mutationFn: (input) => client.convertUserFlowNode(input),
+    }),
+  );
+  const placeUserFlowCardMutation = useMutation(
+    orpc.placeUserFlowCard.mutationOptions({
+      mutationFn: (input) => client.placeUserFlowCard(input),
+    }),
+  );
+  const promoteUserFlowNodeMutation = useMutation(
+    orpc.promoteUserFlowNode.mutationOptions({
+      mutationFn: (input) => client.promoteUserFlowNode(input),
+    }),
+  );
+  const rebindUserFlowBindMutation = useMutation(
+    orpc.rebindUserFlowBind.mutationOptions({
+      mutationFn: (input) => client.rebindUserFlowBind(input),
+    }),
+  );
+  const saveUserFlowTemplateMutation = useMutation(
+    orpc.saveUserFlowTemplate.mutationOptions({
+      mutationFn: (input) => client.saveUserFlowTemplate(input),
+    }),
+  );
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -58,16 +107,19 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
     });
   }
   async function createFromTemplate(templateId: string, title: string) {
-    const created = await runOnlineOnlyWrite(() =>
-      client.createUserFlowFromTemplate({ projectId, templateId, title }),
-    );
+    const created = await createUserFlowFromTemplateMutation.mutateAsync({
+      projectId,
+      templateId,
+      title,
+    });
     setSelectedId(created.id);
     await refresh();
   }
   async function create(title: string) {
-    const created = await runOnlineOnlyWrite(() =>
-      client.createUserFlow({ projectId, title }),
-    );
+    const created = await createUserFlowMutation.mutateAsync({
+      projectId,
+      title,
+    });
     setSelectedId(created.id);
     await refresh();
   }
@@ -76,14 +128,12 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
       return;
     }
     try {
-      await runOnlineOnlyWrite(() =>
-        client.saveUserFlowVersion({
-          document,
-          expectedVersion: flow.data.version,
-          projectId,
-          userFlowId: flow.data.id,
-        }),
-      );
+      await saveUserFlowVersionMutation.mutateAsync({
+        document,
+        expectedVersion: flow.data.version,
+        projectId,
+        userFlowId: flow.data.id,
+      });
     } finally {
       await refresh();
     }
@@ -107,16 +157,14 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
       return;
     }
     try {
-      await runOnlineOnlyWrite(() =>
-        client.placeUserFlowNode({
-          expectedVersion: flow.data.version,
-          kind: draft.kind,
-          projectId,
-          screenId: draft.screenId,
-          text: draft.text,
-          userFlowId: flow.data.id,
-        }),
-      );
+      await placeUserFlowNodeMutation.mutateAsync({
+        expectedVersion: flow.data.version,
+        kind: draft.kind,
+        projectId,
+        screenId: draft.screenId,
+        text: draft.text,
+        userFlowId: flow.data.id,
+      });
     } finally {
       await refresh();
     }
@@ -128,18 +176,16 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
         cardRecords: cardRecords.data ?? [],
         onConvertConfirm: async (nodeId, plan, identity) => {
           try {
-            return await runOnlineOnlyWrite(() =>
-              client.convertUserFlowNode({
-                baseRevision: 0,
-                clientIdempotencyKey: identity.key,
-                id: identity.id,
-                nodeId,
-                plan,
-                projectId,
-                recordId: identity.recordId,
-                userFlowId: flow.data.id,
-              }),
-            );
+            return await convertUserFlowNodeMutation.mutateAsync({
+              baseRevision: 0,
+              clientIdempotencyKey: identity.key,
+              id: identity.id,
+              nodeId,
+              plan,
+              projectId,
+              recordId: identity.recordId,
+              userFlowId: flow.data.id,
+            });
           } finally {
             await refresh();
           }
@@ -154,15 +200,13 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
           }),
         onPlaceCard: async (kind, recordId) => {
           try {
-            await runOnlineOnlyWrite(() =>
-              client.placeUserFlowCard({
-                expectedVersion: flow.data.version,
-                kind,
-                projectId,
-                recordId,
-                userFlowId: flow.data.id,
-              }),
-            );
+            await placeUserFlowCardMutation.mutateAsync({
+              expectedVersion: flow.data.version,
+              kind,
+              projectId,
+              recordId,
+              userFlowId: flow.data.id,
+            });
           } finally {
             await refresh();
           }
@@ -175,15 +219,13 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
           }),
         onPromote: async (nodeId: string, choice: PromoteChoice) => {
           try {
-            await runOnlineOnlyWrite(() =>
-              client.promoteUserFlowNode({
-                expectedVersion: flow.data.version,
-                nodeId,
-                projectId,
-                screen: choice,
-                userFlowId: flow.data.id,
-              }),
-            );
+            await promoteUserFlowNodeMutation.mutateAsync({
+              expectedVersion: flow.data.version,
+              nodeId,
+              projectId,
+              screen: choice,
+              userFlowId: flow.data.id,
+            });
           } finally {
             await refresh();
             await queryClient.invalidateQueries({
@@ -193,14 +235,12 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
         },
         onRebind: async (bindId: string, plan: UserFlowRebindPlan) => {
           try {
-            await runOnlineOnlyWrite(() =>
-              client.rebindUserFlowBind({
-                bindId,
-                plan,
-                projectId,
-                userFlowId: flow.data.id,
-              }),
-            );
+            await rebindUserFlowBindMutation.mutateAsync({
+              bindId,
+              plan,
+              projectId,
+              userFlowId: flow.data.id,
+            });
           } finally {
             await refresh();
           }
@@ -228,14 +268,12 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
             })),
           }),
         onSaveTemplate: async (name, nodeIds) => {
-          await runOnlineOnlyWrite(() =>
-            client.saveUserFlowTemplate({
-              name,
-              nodeIds,
-              projectId,
-              userFlowId: flow.data.id,
-            }),
-          );
+          await saveUserFlowTemplateMutation.mutateAsync({
+            name,
+            nodeIds,
+            projectId,
+            userFlowId: flow.data.id,
+          });
           await queryClient.invalidateQueries({
             queryKey: orpc.userFlowTemplates.key(),
           });

@@ -15,10 +15,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type SubmitEvent, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -58,6 +57,11 @@ export default function WorkMergeForm({
   onMerged?: (result: WorkMergeResult) => void;
   work: WorkProfile;
 }) {
+  const mergeWorkMutation = useMutation(
+    orpc.mergeWork.mutationOptions({
+      mutationFn: (input) => client.mergeWork(input),
+    }),
+  );
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -109,9 +113,7 @@ export default function WorkMergeForm({
           setError(mergeErrorMessage(null));
           return;
         }
-        const result = await runOnlineOnlyWrite(() =>
-          client.mergeWork(mergeInput.data),
-        );
+        const result = await mergeWorkMutation.mutateAsync(mergeInput.data);
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: projectWorksQueryPrefix,

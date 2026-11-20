@@ -9,6 +9,7 @@ import { useRef, useState } from "react";
 
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 import WorkChecklist from "../forms/work-checklist-form";
 
@@ -27,38 +28,37 @@ export default function WorkChecklistEditor({ work }: { work: WorkProfile }) {
     clientIdempotencyKey: string;
     previewId: string;
   } | null>(null);
-  const mutation = useMutation({
-    mutationFn: (checklist: WorkProfile["checklist"]) =>
-      runOnlineOnlyWrite(() =>
-        client.updateWorkChecklist({
-          baseRevision: work.revision,
-          checklist,
-          clientIdempotencyKey: crypto.randomUUID(),
-          workId: work.id,
-        }),
-      ),
-    onError: (mutationError) => {
-      setError(checklistMutationErrorMessage(mutationError));
-    },
-    onSuccess: (updatedWork) => {
-      setError(null);
-      for (const archived of [work.archivedAt !== null, "all" as const]) {
-        queryClient.setQueryData<WorkProfile[]>(
-          orpc.projectWorks.queryOptions({
-            input: { archived, projectId: work.projectId },
-          }).queryKey,
-          (current) =>
-            current?.map((item) =>
-              item.id === updatedWork.id ? updatedWork : item,
-            ),
+  const mutation = usePreparedMutation(
+    orpc.updateWorkChecklist.mutationOptions({
+      mutationFn: (input) => client.updateWorkChecklist(input),
+      onError: (mutationError) => {
+        setError(checklistMutationErrorMessage(mutationError));
+      },
+      onSuccess: (updatedWork) => {
+        setError(null);
+        for (const archived of [work.archivedAt !== null, "all" as const]) {
+          queryClient.setQueryData<WorkProfile[]>(
+            orpc.projectWorks.queryOptions({
+              input: { archived, projectId: work.projectId },
+            }).queryKey,
+            (current) =>
+              current?.map((item) =>
+                item.id === updatedWork.id ? updatedWork : item,
+              ),
+          );
+        }
+        queryClient.setQueryData(
+          orpc.work.queryOptions({ input: { workId: work.id } }).queryKey,
+          updatedWork,
         );
-      }
-      queryClient.setQueryData(
-        orpc.work.queryOptions({ input: { workId: work.id } }).queryKey,
-        updatedWork,
-      );
-    },
-  });
+      },
+    }),
+    (checklist: WorkProfile["checklist"]) => ({
+      baseRevision: work.revision,
+      checklist,
+      workId: work.id,
+    }),
+  );
   const previewConversionMutation = useMutation({
     mutationFn: (itemId: string) =>
       client.workChecklistConversionPreview({

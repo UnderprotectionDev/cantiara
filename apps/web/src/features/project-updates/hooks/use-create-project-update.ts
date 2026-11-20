@@ -1,6 +1,5 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 
 type CreateInput = Parameters<typeof client.createProjectUpdate>[0];
@@ -11,6 +10,11 @@ type CreateInput = Parameters<typeof client.createProjectUpdate>[0];
  * entry; a changed save gets a new id. The chronology is refreshed afterwards.
  */
 export function useCreateProjectUpdate() {
+  const createProjectUpdateMutation = useMutation(
+    orpc.createProjectUpdate.mutationOptions({
+      mutationFn: (input) => client.createProjectUpdate(input),
+    }),
+  );
   const queryClient = useQueryClient();
   const attempt = useRef<{ fingerprint: string; id: string } | null>(null);
   return async function create(input: Omit<CreateInput, "updateId">) {
@@ -20,9 +24,10 @@ export function useCreateProjectUpdate() {
     }
     const { id } = attempt.current;
     try {
-      const saved = await runOnlineOnlyWrite(() =>
-        client.createProjectUpdate({ ...input, updateId: id }),
-      );
+      const saved = await createProjectUpdateMutation.mutateAsync({
+        ...input,
+        updateId: id,
+      });
       attempt.current = null;
       return saved;
     } finally {

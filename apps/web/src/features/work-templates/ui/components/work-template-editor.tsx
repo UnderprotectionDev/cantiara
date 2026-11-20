@@ -9,6 +9,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { format } from "date-fns";
 import { useMemo, useState } from "react";
 import { useWorkTemplates } from "@/features/work-templates/hooks/use-work-templates";
+import { commandVariables } from "@/lib/command-variables";
 import { useCustomFields } from "@/lib/use-custom-fields";
 import { InstantiateWorkTemplateForm } from "../forms/instantiate-work-template-form";
 import { WorkTemplateForm } from "../forms/work-template-form";
@@ -43,12 +44,19 @@ export default function WorkTemplateEditor({
   previewDate?: string;
   projectId: string;
 }) {
-  const templates = useWorkTemplates(projectId);
   const customFields = useCustomFields(projectId);
   const [editing, setEditing] = useState<WorkTemplate | null>(null);
   const [instantiating, setInstantiating] = useState<WorkTemplate | null>(null);
   const [createdWorkKey, setCreatedWorkKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const templates = useWorkTemplates(projectId, {
+    onCreatedWork: (key) => {
+      setCreatedWorkKey(key);
+      setInstantiating(null);
+      setError(null);
+    },
+    onSavedTemplate: resetDraft,
+  });
   const definitions = useMemo(
     () =>
       (customFields.query.data ?? []).filter(
@@ -78,15 +86,24 @@ export default function WorkTemplateEditor({
     try {
       if (editing) {
         const { projectId: _projectId, ...rest } = input;
-        await templates.update.mutateAsync({
-          ...rest,
-          baseRevision: editing.revision,
-          templateId: editing.id,
-        });
+        await templates.update.mutateAsync(
+          commandVariables(
+            {
+              ...rest,
+              baseRevision: editing.revision,
+              templateId: editing.id,
+            },
+            templates.update.isError ? templates.update.variables : undefined,
+          ),
+        );
       } else {
-        await templates.create.mutateAsync(input);
+        await templates.create.mutateAsync(
+          commandVariables(
+            { ...input, baseRevision: 0 },
+            templates.create.isError ? templates.create.variables : undefined,
+          ),
+        );
       }
-      resetDraft();
     } catch (mutationError) {
       setError(
         mutationError instanceof Error
@@ -101,14 +118,19 @@ export default function WorkTemplateEditor({
   async function instantiateTemplate(template: WorkTemplate, title: string) {
     setError(null);
     try {
-      const work = await templates.instantiate.mutateAsync({
-        baseRevision: template.revision,
-        createDate: previewDate,
-        templateId: template.id,
-        title,
-      });
-      setCreatedWorkKey(work.key);
-      setInstantiating(null);
+      await templates.instantiate.mutateAsync(
+        commandVariables(
+          {
+            baseRevision: template.revision,
+            createDate: previewDate,
+            templateId: template.id,
+            title,
+          },
+          templates.instantiate.isError
+            ? templates.instantiate.variables
+            : undefined,
+        ),
+      );
     } catch (mutationError) {
       setError(
         mutationError instanceof Error
@@ -191,10 +213,15 @@ export default function WorkTemplateEditor({
                       disabled={pending}
                       onClick={() =>
                         templates.moveToTrash.mutate(
-                          {
-                            baseRevision: template.revision,
-                            templateId: template.id,
-                          },
+                          commandVariables(
+                            {
+                              baseRevision: template.revision,
+                              templateId: template.id,
+                            },
+                            templates.moveToTrash.isError
+                              ? templates.moveToTrash.variables
+                              : undefined,
+                          ),
                           {
                             onError: (mutationError) =>
                               setError(

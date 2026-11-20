@@ -1,9 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the Project.
 import type { TestAssessmentContextKind } from "@cantiara/api/test-assessments";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { toRecordInput } from "../../lib/test-assessment-form";
 import { TestAssessmentsView } from "../views/test-assessments-view";
@@ -14,6 +13,11 @@ export default function TestAssessmentsSurface({
 }: {
   projectId: string;
 }) {
+  const recordTestAssessmentMutation = useMutation(
+    orpc.recordTestAssessment.mutationOptions({
+      mutationFn: (input) => client.recordTestAssessment(input),
+    }),
+  );
   const queryClient = useQueryClient();
   const options = orpc.projectTestAssessments.queryOptions({
     input: { projectId },
@@ -47,7 +51,7 @@ export default function TestAssessmentsSurface({
         if (!input) {
           throw new Error("Choose a context and a decision.");
         }
-        await runOnlineOnlyWrite(() => client.recordTestAssessment(input));
+        await recordTestAssessmentMutation.mutateAsync(input);
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: options.queryKey }),
           // The Test Summary reads Test Assessments.

@@ -9,6 +9,7 @@ import {
   QueryCache,
   QueryClient,
 } from "@tanstack/react-query";
+import { defaultClientShell } from "../store/client-shell";
 
 export interface SupportReferenceFailurePresenterOptions {
   kind: "mutation" | "query";
@@ -31,6 +32,7 @@ export function createClientShellQueryClient(
     defaultOptions: {
       mutations: {
         networkMode: "always",
+        retry: false,
       },
     },
     queryCache: new QueryCache({
@@ -45,8 +47,12 @@ export function createClientShellQueryClient(
         if (!onlineManager.isOnline()) {
           throw new Error(SUPPORT_FAILURE_MESSAGES.offline);
         }
+        defaultClientShell.assertWriteAllowed();
       },
       onError: (error, _variables, _onMutateResult, mutation) => {
+        if (mutation.meta?.presentsSupportFailure === true) {
+          return;
+        }
         const retryCount = mutationRetryCounts.get(mutation) ?? 0;
         const writeOutcome = isSupportWriteOutcome(mutation.meta?.writeOutcome)
           ? mutation.meta.writeOutcome
@@ -54,10 +60,19 @@ export function createClientShellQueryClient(
 
         presentSupportReferenceFailure(error, {
           kind: "mutation",
-          retry: () => {
-            mutationRetryCounts.set(mutation, retryCount + 1);
-            return mutation.execute(mutation.state.variables);
-          },
+          retry:
+            retryCount > 0 || mutation.meta?.privateInput === true
+              ? undefined
+              : () => {
+                  if (
+                    mutation.state.status !== "error" ||
+                    (mutationRetryCounts.get(mutation) ?? 0) !== retryCount
+                  ) {
+                    return;
+                  }
+                  mutationRetryCounts.set(mutation, retryCount + 1);
+                  return mutation.execute(mutation.state.variables);
+                },
           retryCount,
           writeOutcome,
         });

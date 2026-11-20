@@ -4,9 +4,8 @@ import type {
   DecisionSupersessionSelection,
 } from "@cantiara/api/decision-supersession";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { SupersessionSelectionForm } from "../forms/supersession-selection-form";
 import {
@@ -32,7 +31,6 @@ export default function DecisionSupersessionControls({
     preview: DecisionSupersessionPreview;
     key: string;
   }>();
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [conflict, setConflict] = useState(false);
   function cancel() {
@@ -60,21 +58,37 @@ export default function DecisionSupersessionControls({
     setPrepared({ preview: result, key: crypto.randomUUID() });
     setError(undefined);
   }
+  const commit = useMutation(
+    orpc.commitDecisionSupersession.mutationOptions({
+      mutationFn: (input) => client.commitDecisionSupersession(input),
+      onSuccess: async (_, { projectId: committedProjectId }) => {
+        cancel();
+        await Promise.all(
+          [
+            orpc.decisionSupersessionGraph.queryKey({
+              input: { projectId: committedProjectId },
+            }),
+            orpc.projectDecisions.queryKey({
+              input: { projectId: committedProjectId },
+            }),
+            orpc.decisionSupersessionHistory.key(),
+            orpc.projectSourceRecord.key(),
+            orpc.searchRecords.key(),
+          ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+        );
+      },
+    }),
+  );
   async function confirm() {
     if (!prepared) {
       return;
     }
-    setPending(true);
     setError(undefined);
     try {
-      await runOnlineOnlyWrite(() =>
-        client.commitDecisionSupersession({
-          ...prepared.preview.command,
-          clientIdempotencyKey: prepared.key,
-        }),
-      );
-      cancel();
-      await queryClient.invalidateQueries();
+      await commit.mutateAsync({
+        ...prepared.preview.command,
+        clientIdempotencyKey: prepared.key,
+      });
     } catch (cause) {
       const stale =
         typeof cause === "object" &&
@@ -88,8 +102,6 @@ export default function DecisionSupersessionControls({
           ? "Decisions changed. Cancel and preview again before confirming."
           : "Supersession could not be saved. Retry to check the same request.",
       );
-    } finally {
-      setPending(false);
     }
   }
   if (graph.status === "pending") {
@@ -146,7 +158,7 @@ export default function DecisionSupersessionControls({
         confirm={confirm}
         conflict={conflict}
         graph={graph}
-        pending={pending}
+        pending={commit.isPending}
         prepared={prepared}
         readOnly={readOnly}
         selection={selection}

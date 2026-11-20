@@ -9,6 +9,7 @@ import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 
 export function useExternalExecutionHandoffs(
@@ -29,23 +30,22 @@ export function useExternalExecutionHandoffs(
   const query = useQuery({ ...options, enabled });
   const history = useQuery({ ...historyOptions, enabled });
   const relatedWorks = useQuery({ ...relatedWorksOptions, enabled });
-  const start = useMutation({
-    mutationFn: (input: Omit<ExternalExecutionHandoffInput, "workId">) =>
-      runOnlineOnlyWrite(() =>
-        client.startExternalExecutionHandoff({
-          ...input,
-          baseRevision: work.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          workId: work.id,
-        }),
-      ),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: options.queryKey }),
-        queryClient.invalidateQueries({ queryKey: historyOptions.queryKey }),
-      ]);
-    },
-  });
+  const start = usePreparedMutation(
+    orpc.startExternalExecutionHandoff.mutationOptions({
+      mutationFn: (input) => client.startExternalExecutionHandoff(input),
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: options.queryKey }),
+          queryClient.invalidateQueries({ queryKey: historyOptions.queryKey }),
+        ]);
+      },
+    }),
+    (input: Omit<ExternalExecutionHandoffInput, "workId">) => ({
+      ...input,
+      baseRevision: work.revision,
+      workId: work.id,
+    }),
+  );
   const recordPackageExport = useMutation({
     mutationFn: (input: { clientEventId: string; handoffId: string }) =>
       runOnlineOnlyWrite(() =>

@@ -15,7 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 type DiagramType =
   | "Technical Architecture"
@@ -62,7 +62,9 @@ export function NewTechnicalDiagramForm({ projectId }: { projectId: string }) {
     onSuccess: async () => {
       pendingKey.current = null;
       setError(null);
-      await queryClient.invalidateQueries();
+      await queryClient.invalidateQueries({
+        queryKey: orpc.technicalDiagrams.queryKey({ input: { projectId } }),
+      });
     },
   });
   const form = useForm({

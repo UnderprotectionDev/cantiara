@@ -1,6 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the Project.
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import {
   client,
@@ -21,6 +21,41 @@ export default function TestReviewSurface({
 }: {
   projectId: string;
 }) {
+  const commitReviewBulkMutation = useMutation(
+    orpc.commitReviewBulk.mutationOptions({
+      mutationFn: (input) => client.commitReviewBulk(input),
+      onSuccess: () => refresh(),
+    }),
+  );
+  const setReviewItemStateMutation = useMutation(
+    orpc.setReviewItemState.mutationOptions({
+      mutationFn: (input) => client.setReviewItemState(input),
+      onSuccess: () => refresh(),
+    }),
+  );
+  const setReviewSessionStateMutation = useMutation(
+    orpc.setReviewSessionState.mutationOptions({
+      mutationFn: (input) => client.setReviewSessionState(input),
+      onSuccess: () => refresh(),
+    }),
+  );
+  const bindReviewResultMutation = useMutation(
+    orpc.bindReviewResult.mutationOptions({
+      mutationFn: (input) => client.bindReviewResult(input),
+      onSuccess: () => refresh(),
+    }),
+  );
+  const commitReviewFollowUpMutation = useMutation(
+    orpc.commitReviewFollowUp.mutationOptions({
+      mutationFn: (input) => client.commitReviewFollowUp(input),
+    }),
+  );
+  const supersedeReviewResultMutation = useMutation(
+    orpc.supersedeReviewResult.mutationOptions({
+      mutationFn: (input) => client.supersedeReviewResult(input),
+      onSuccess: () => refresh(),
+    }),
+  );
   const queryClient = useQueryClient();
   const options = orpc.projectTestReview.queryOptions({ input: { projectId } });
   const review = useQuery(options);
@@ -48,15 +83,12 @@ export default function TestReviewSurface({
   }
   const actions: TestReviewActions = {
     commitBulk: async (sessionId, sessionTestIds, preview) => {
-      await runOnlineOnlyWrite(() =>
-        client.commitReviewBulk({
-          previewFingerprint: preview.fingerprint,
-          projectId,
-          sessionId,
-          sessionTestIds,
-        }),
-      );
-      await refresh();
+      await commitReviewBulkMutation.mutateAsync({
+        previewFingerprint: preview.fingerprint,
+        projectId,
+        sessionId,
+        sessionTestIds,
+      });
     },
     previewBulk: (sessionId, sessionTestIds) =>
       client.previewReviewBulk({ projectId, sessionId, sessionTestIds }),
@@ -96,52 +128,41 @@ export default function TestReviewSurface({
       await refresh();
     },
     setItem: async (sessionId, sessionTestId, state) => {
-      await runOnlineOnlyWrite(() =>
-        client.setReviewItemState({
-          projectId,
-          sessionId,
-          sessionTestId,
-          state,
-        }),
-      );
-      await refresh();
+      await setReviewItemStateMutation.mutateAsync({
+        projectId,
+        sessionId,
+        sessionTestId,
+        state,
+      });
     },
     setSession: async (sessionId, state, reason) => {
-      await runOnlineOnlyWrite(() =>
-        client.setReviewSessionState({
-          projectId,
-          reason,
-          sessionId,
-          state,
-        }),
-      );
-      await refresh();
+      await setReviewSessionStateMutation.mutateAsync({
+        projectId,
+        reason,
+        sessionId,
+        state,
+      });
     },
   };
   const signalActions: TestReviewSignalActions = {
     bindResult: async (scenarioId, scenarioVersion, sessionTestId) => {
-      await runOnlineOnlyWrite(() =>
-        client.bindReviewResult({
-          projectId,
-          scenarioId,
-          scenarioVersion,
-          sessionTestId,
-        }),
-      );
-      await refresh();
+      await bindReviewResultMutation.mutateAsync({
+        projectId,
+        scenarioId,
+        scenarioVersion,
+        sessionTestId,
+      });
     },
     commitFollowUp: async (sessionTestIds, target, preview) => {
-      await runOnlineOnlyWrite(() =>
-        client.commitReviewFollowUp({
-          previewFingerprint: preview.fingerprint,
-          projectId,
-          sessionTestIds,
-          target,
-          // Derived from the preview, so a retried commit reuses the same
-          // Work identity and the server-side idempotency key.
-          workId: followUpWorkId(preview.fingerprint),
-        }),
-      );
+      await commitReviewFollowUpMutation.mutateAsync({
+        previewFingerprint: preview.fingerprint,
+        projectId,
+        sessionTestIds,
+        target,
+        // Derived from the preview, so a retried commit reuses the same
+        // Work identity and the server-side idempotency key.
+        workId: followUpWorkId(preview.fingerprint),
+      });
       // The follow-up created Work, so Work lists and Smart Collection
       // membership read it again.
       await Promise.all([
@@ -153,14 +174,11 @@ export default function TestReviewSurface({
     previewFollowUp: (sessionTestIds, target) =>
       client.previewReviewFollowUp({ projectId, sessionTestIds, target }),
     supersede: async (newerId, olderId) => {
-      await runOnlineOnlyWrite(() =>
-        client.supersedeReviewResult({
-          newerSessionTestId: newerId,
-          olderSessionTestId: olderId,
-          projectId,
-        }),
-      );
-      await refresh();
+      await supersedeReviewResultMutation.mutateAsync({
+        newerSessionTestId: newerId,
+        olderSessionTestId: olderId,
+        projectId,
+      });
     },
   };
   return (

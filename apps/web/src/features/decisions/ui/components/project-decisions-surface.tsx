@@ -1,11 +1,10 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import FavoriteControl from "@/components/favorite-control";
 import PersonalReminderControl from "@/components/personal-reminder-control";
 import EvidenceFlowPanel from "@/features/evidence/ui/components/evidence-flow-panel";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -29,6 +28,21 @@ export default function ProjectDecisionsSurface({
   readOnly?: boolean;
   accountFormattingPreferences?: AccountPreferences;
 }) {
+  const updateProjectSourceRecordMutation = useMutation(
+    orpc.updateProjectSourceRecord.mutationOptions({
+      mutationFn: (request) => client.updateProjectSourceRecord(request),
+    }),
+  );
+  const createProjectSourceRecordMutation = useMutation(
+    orpc.createProjectSourceRecord.mutationOptions({
+      mutationFn: (request) => client.createProjectSourceRecord(request),
+    }),
+  );
+  const transitionProjectSourceRecordMutation = useMutation(
+    orpc.transitionProjectSourceRecord.mutationOptions({
+      mutationFn: (input) => client.transitionProjectSourceRecord(input),
+    }),
+  );
   const queryClient = useQueryClient();
   const options = orpc.projectDecisions.queryOptions({ input: { projectId } });
   const records = useQuery(options);
@@ -82,21 +96,19 @@ export default function ProjectDecisionsSurface({
       { operation: "save", ...fields },
       record,
     );
-    await runOnlineOnlyWrite(() =>
-      record
-        ? client.updateProjectSourceRecord({
-            ...fields,
-            sourceId: id,
-            baseRevision: record.revision,
-            clientIdempotencyKey: key,
-          })
-        : client.createProjectSourceRecord({
-            ...fields,
-            id,
-            baseRevision: 0,
-            clientIdempotencyKey: key,
-          }),
-    );
+    await (record
+      ? updateProjectSourceRecordMutation.mutateAsync({
+          ...fields,
+          sourceId: id,
+          baseRevision: record.revision,
+          clientIdempotencyKey: key,
+        })
+      : createProjectSourceRecordMutation.mutateAsync({
+          ...fields,
+          id,
+          baseRevision: 0,
+          clientIdempotencyKey: key,
+        }));
     await refresh("Decision saved.");
   }
   async function withdraw(draft: DecisionDraft, record?: DecisionRecord) {
@@ -114,13 +126,11 @@ export default function ProjectDecisionsSurface({
       { operation: "withdraw", ...fields },
       record,
     );
-    await runOnlineOnlyWrite(() =>
-      client.transitionProjectSourceRecord({
-        ...fields,
-        baseRevision: record.revision,
-        clientIdempotencyKey: key,
-      }),
-    );
+    await transitionProjectSourceRecordMutation.mutateAsync({
+      ...fields,
+      baseRevision: record.revision,
+      clientIdempotencyKey: key,
+    });
     await refresh("Decision withdrawn.");
   }
   function startEditing() {

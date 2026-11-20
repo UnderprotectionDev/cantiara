@@ -9,6 +9,7 @@ import type {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 
 export interface UpdateCustomFieldArgs {
@@ -51,61 +52,56 @@ export function useCustomFields(projectId: string) {
     await queryClient.invalidateQueries({ queryKey });
   };
 
-  const create = useMutation({
-    mutationFn: (input: CreateCustomFieldInput) =>
-      runOnlineOnlyWrite(() =>
-        client.createCustomField({
-          ...input,
-          baseRevision: 0,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const create = usePreparedMutation(
+    orpc.createCustomField.mutationOptions({
+      mutationFn: (input) => client.createCustomField(input),
+      onSuccess: invalidate,
+    }),
+    (input: CreateCustomFieldInput) => ({
+      ...input,
+      baseRevision: 0,
+    }),
+  );
 
-  const update = useMutation({
-    mutationFn: (input: UpdateCustomFieldArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.updateCustomField({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const update = usePreparedMutation(
+    orpc.updateCustomField.mutationOptions({
+      mutationFn: (input) => client.updateCustomField(input),
+      onSuccess: invalidate,
+    }),
+    (input: UpdateCustomFieldArgs) => ({
+      ...input,
+    }),
+  );
 
-  const moveToTrash = useMutation({
-    mutationFn: (input: DefinitionRevisionArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.trashCustomField({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const moveToTrash = usePreparedMutation(
+    orpc.trashCustomField.mutationOptions({
+      mutationFn: (input) => client.trashCustomField(input),
+      onSuccess: invalidate,
+    }),
+    (input: DefinitionRevisionArgs) => ({
+      ...input,
+    }),
+  );
 
-  const restore = useMutation({
-    mutationFn: (input: DefinitionRevisionArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.restoreCustomField({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const restore = usePreparedMutation(
+    orpc.restoreCustomField.mutationOptions({
+      mutationFn: (input) => client.restoreCustomField(input),
+      onSuccess: invalidate,
+    }),
+    (input: DefinitionRevisionArgs) => ({
+      ...input,
+    }),
+  );
 
-  const deletePermanently = useMutation({
-    mutationFn: (input: DefinitionRevisionArgs) =>
-      runOnlineOnlyWrite(() =>
-        client.deleteCustomField({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSuccess: invalidate,
-  });
+  const deletePermanently = usePreparedMutation(
+    orpc.deleteCustomField.mutationOptions({
+      mutationFn: (input) => client.deleteCustomField(input),
+      onSuccess: invalidate,
+    }),
+    (input: DefinitionRevisionArgs) => ({
+      ...input,
+    }),
+  );
 
   return {
     create,

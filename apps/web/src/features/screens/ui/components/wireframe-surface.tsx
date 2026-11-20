@@ -3,7 +3,7 @@ import type { WireframeViewport } from "@cantiara/api/screen-viewport";
 import type { ScreenWireframe } from "@cantiara/api/screens";
 import { Button } from "@cantiara/ui/components/button";
 import { LiteDebouncer } from "@tanstack/pacer-lite";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -11,10 +11,7 @@ import {
   projectSourceRecordHash,
   workRecordHref,
 } from "@/features/project-shell/lib/project-shell-navigation";
-import {
-  defaultClientShell,
-  runOnlineOnlyWrite,
-} from "@/features/web-macos-client/store/client-shell";
+import { defaultClientShell } from "@/features/web-macos-client/store/client-shell";
 import { presentSupportReferenceFailure } from "@/features/web-macos-client/ui/components/support-reference";
 import { client, orpc } from "@/utils/orpc";
 import { createWireframeEditor } from "../../engine/editor";
@@ -55,11 +52,39 @@ function LoadedWireframe({
   savedViewport: WireframeViewport | null;
   wireframe: ScreenWireframe;
 }) {
+  const saveScreenWireframeMutation = useMutation(
+    orpc.saveScreenWireframe.mutationOptions({
+      meta: { presentsSupportFailure: true },
+      mutationFn: (input) => client.saveScreenWireframe(input),
+    }),
+  );
+  const applyLinkedBlockChangeMutation = useMutation(
+    orpc.applyLinkedBlockChange.mutationOptions({
+      mutationFn: (input) => client.applyLinkedBlockChange(input),
+    }),
+  );
+  const createLinkedBlockMutation = useMutation(
+    orpc.createLinkedBlock.mutationOptions({
+      mutationFn: (input) => client.createLinkedBlock(input),
+    }),
+  );
+  const confirmConvertAndBindMutation = useMutation(
+    orpc.confirmConvertAndBind.mutationOptions({
+      mutationFn: (input) => client.confirmConvertAndBind(input),
+    }),
+  );
+  const saveScreenWireframeVersionMutation = useMutation(
+    orpc.saveScreenWireframeVersion.mutationOptions({
+      mutationFn: (input) => client.saveScreenWireframeVersion(input),
+    }),
+  );
+  const saveWireframe = saveScreenWireframeMutation.mutateAsync;
   const queryClient = useQueryClient();
   const { screenId } = wireframe;
-  const options = orpc.screenWireframe.queryOptions({
-    input: { projectId, screenId },
-  });
+  const options = useMemo(
+    () => orpc.screenWireframe.queryOptions({ input: { projectId, screenId } }),
+    [projectId, screenId],
+  );
   // One session per Screen (the caller keys by Screen id); saves never rebuild it.
   const [editor] = useState(() => createWireframeEditor(wireframe.document));
   const router = useRouter();
@@ -77,9 +102,11 @@ function LoadedWireframe({
       retryCount: number,
     ) {
       try {
-        const next = await runOnlineOnlyWrite(() =>
-          client.saveScreenWireframe({ document, projectId, screenId }),
-        );
+        const next = await saveWireframe({
+          document,
+          projectId,
+          screenId,
+        });
         saved.current = document;
         queryClient.setQueryData(options.queryKey, next);
         if (failing) {
@@ -115,7 +142,14 @@ function LoadedWireframe({
       debouncer.cancel();
       unsubscribe();
     };
-  }, [editor, options.queryKey, projectId, queryClient, screenId]);
+  }, [
+    editor,
+    options.queryKey,
+    projectId,
+    queryClient,
+    saveWireframe,
+    screenId,
+  ]);
 
   // The personal viewport has its own query key and write: a geometry write
   // never refetches it and a viewport write never touches the Wireframe cache
@@ -147,13 +181,17 @@ function LoadedWireframe({
 
   const linked: LinkedBlockActions = {
     apply: (definitionId, content) =>
-      runOnlineOnlyWrite(() =>
-        client.applyLinkedBlockChange({ content, definitionId, projectId }),
-      ),
+      applyLinkedBlockChangeMutation.mutateAsync({
+        content,
+        definitionId,
+        projectId,
+      }),
     create: async (name, content) => {
-      const record = await runOnlineOnlyWrite(() =>
-        client.createLinkedBlock({ content, name, projectId }),
-      );
+      const record = await createLinkedBlockMutation.mutateAsync({
+        content,
+        name,
+        projectId,
+      });
       return {
         content: record.content,
         id: record.id,
@@ -169,23 +207,19 @@ function LoadedWireframe({
   // flushed first and the preview and confirm address the version that returns.
   const convert: ConvertAndBindActions = {
     confirm: (plan) =>
-      runOnlineOnlyWrite(() =>
-        client.confirmConvertAndBind({
-          originId: crypto.randomUUID(),
-          plan,
-          projectId,
-          recordId: crypto.randomUUID(),
-          screenId,
-        }),
-      ),
+      confirmConvertAndBindMutation.mutateAsync({
+        originId: crypto.randomUUID(),
+        plan,
+        projectId,
+        recordId: crypto.randomUUID(),
+        screenId,
+      }),
     preview: async (request) => {
-      const flushed = await runOnlineOnlyWrite(() =>
-        client.saveScreenWireframe({
-          document: editor.getState().document,
-          projectId,
-          screenId,
-        }),
-      );
+      const flushed = await saveWireframe({
+        document: editor.getState().document,
+        projectId,
+        screenId,
+      });
       saved.current = editor.getState().document;
       queryClient.setQueryData(options.queryKey, flushed);
       return client.previewConvertAndBind({
@@ -198,13 +232,11 @@ function LoadedWireframe({
   };
 
   async function saveVersion() {
-    await runOnlineOnlyWrite(() =>
-      client.saveScreenWireframeVersion({
-        document: editor.getState().document,
-        projectId,
-        screenId,
-      }),
-    );
+    await saveScreenWireframeVersionMutation.mutateAsync({
+      document: editor.getState().document,
+      projectId,
+      screenId,
+    });
     await queryClient.invalidateQueries({
       queryKey: orpc.projectScreens.queryOptions({ input: { projectId } })
         .queryKey,

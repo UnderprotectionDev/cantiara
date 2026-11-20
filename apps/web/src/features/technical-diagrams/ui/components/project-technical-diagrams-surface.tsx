@@ -11,9 +11,10 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { AppLink } from "@/components/app-link";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 import { usePersonalTechnicalDiagramView } from "../../hooks/use-personal-technical-diagram-view";
 import type { ArchitectureBindOption } from "../../lib/technical-diagram-field-options";
@@ -54,32 +55,37 @@ function DiagramCard({
     ...versionOptions,
     enabled: diagram.authorityMode !== "External Source Link",
   });
-  const versionKey = useRef<string | null>(null);
   const [versionError, setVersionError] = useState<string | null>(null);
-  const invalidate = () => queryClient.invalidateQueries();
-  const createVersion = useMutation({
-    mutationFn: (versionName: string) => {
-      versionKey.current ??= crypto.randomUUID();
-      return runOnlineOnlyWrite(() =>
-        client.createDiagramVersion({
-          clientIdempotencyKey: versionKey.current as string,
-          diagramId: diagram.id,
-          name: versionName,
+  const invalidate = () =>
+    Promise.all(
+      [
+        orpc.technicalDiagrams.queryKey({
+          input: { projectId: diagram.projectId },
         }),
-      );
-    },
-    onError: (failure) =>
-      setVersionError(
-        failure instanceof Error
-          ? failure.message
-          : "Diagram Version could not be created.",
-      ),
-    onSuccess: async () => {
-      versionKey.current = null;
-      setVersionError(null);
-      await invalidate();
-    },
-  });
+        orpc.technicalDiagram.queryKey({ input: { diagramId: diagram.id } }),
+        options.queryKey,
+        versionOptions.queryKey,
+        orpc.technicalDiagramRecordCards.queryKey({
+          input: { diagramId: diagram.id },
+        }),
+      ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    );
+  const createVersion = usePreparedMutation(
+    orpc.createDiagramVersion.mutationOptions({
+      mutationFn: (input) => client.createDiagramVersion(input),
+      onError: (failure) =>
+        setVersionError(
+          failure instanceof Error
+            ? failure.message
+            : "Diagram Version could not be created.",
+        ),
+      onSuccess: async () => {
+        setVersionError(null);
+        await invalidate();
+      },
+    }),
+    (name: string) => ({ diagramId: diagram.id, name }),
+  );
   const restoreVersion = useMutation({
     mutationFn: (versionId: string) =>
       runOnlineOnlyWrite(() =>
@@ -102,8 +108,6 @@ function DiagramCard({
   });
   const [plan, setPlan] = useState<ConvertToRecordPlan | null>(null);
   const [compositionError, setCompositionError] = useState<string | null>(null);
-  const placeKey = useRef<string | null>(null);
-  const convertKey = useRef<string | null>(null);
   const personalView = usePersonalTechnicalDiagramView(
     diagram.id,
     diagram.view?.id,
@@ -115,27 +119,23 @@ function DiagramCard({
   );
   const compositionFailure = (fallback: string) => (failure: unknown) =>
     setCompositionError(failure instanceof Error ? failure.message : fallback);
-  const placeCard = useMutation({
-    mutationFn: (option: RecordCardOption) => {
-      placeKey.current ??= crypto.randomUUID();
-      return runOnlineOnlyWrite(() =>
-        client.placeDiagramRecordCard({
-          clientIdempotencyKey: placeKey.current as string,
-          diagramId: diagram.id,
-          sourceId: option.id,
-          sourceType: option.sourceType,
-          x: 40,
-          y: 40,
-        }),
-      );
-    },
-    onError: compositionFailure("The record card could not be placed."),
-    onSuccess: async () => {
-      placeKey.current = null;
-      setCompositionError(null);
-      await invalidate();
-    },
-  });
+  const placeCard = usePreparedMutation(
+    orpc.placeDiagramRecordCard.mutationOptions({
+      mutationFn: (input) => client.placeDiagramRecordCard(input),
+      onError: compositionFailure("The record card could not be placed."),
+      onSuccess: async () => {
+        setCompositionError(null);
+        await invalidate();
+      },
+    }),
+    (option: RecordCardOption) => ({
+      diagramId: diagram.id,
+      sourceId: option.id,
+      sourceType: option.sourceType,
+      x: 40,
+      y: 40,
+    }),
+  );
   const moveCard = useMutation({
     mutationFn: (input: { cardId: string; x: number; y: number }) =>
       runOnlineOnlyWrite(() =>
@@ -153,39 +153,31 @@ function DiagramCard({
     onSuccess: invalidate,
   });
   const previewConvert = useMutation({
-    mutationFn: (input: Omit<PreviewConvertToRecordInput, "diagramId">) => {
-      convertKey.current = null;
-      return runOnlineOnlyWrite(() =>
+    mutationFn: (input: Omit<PreviewConvertToRecordInput, "diagramId">) =>
+      runOnlineOnlyWrite(() =>
         client.previewDiagramNodeConversion({
           diagramId: diagram.id,
           ...input,
         }),
-      );
-    },
+      ),
     onError: compositionFailure("The conversion could not be previewed."),
     onSuccess: (preview) => {
       setCompositionError(null);
       setPlan(preview);
     },
   });
-  const confirmConvert = useMutation({
-    mutationFn: (confirmed: ConvertToRecordPlan) => {
-      convertKey.current ??= crypto.randomUUID();
-      return runOnlineOnlyWrite(() =>
-        client.convertDiagramNodeToRecord({
-          clientIdempotencyKey: convertKey.current as string,
-          plan: confirmed,
-        }),
-      );
-    },
-    onError: compositionFailure("The conversion could not be confirmed."),
-    onSuccess: async () => {
-      convertKey.current = null;
-      setPlan(null);
-      setCompositionError(null);
-      await invalidate();
-    },
-  });
+  const confirmConvert = usePreparedMutation(
+    orpc.convertDiagramNodeToRecord.mutationOptions({
+      mutationFn: (input) => client.convertDiagramNodeToRecord(input),
+      onError: compositionFailure("The conversion could not be confirmed."),
+      onSuccess: async () => {
+        setPlan(null);
+        setCompositionError(null);
+        await invalidate();
+      },
+    }),
+    (confirmed: ConvertToRecordPlan) => ({ plan: confirmed }),
+  );
   const saveStructure = useMutation({
     mutationFn: (model: TechnicalDiagramSource["model"]) =>
       runOnlineOnlyWrite(() =>
@@ -285,7 +277,6 @@ function DiagramCard({
         }
         error={compositionError}
         onCancelConvert={() => {
-          convertKey.current = null;
           setPlan(null);
         }}
         onConfirmConvert={(confirmed) => confirmConvert.mutate(confirmed)}

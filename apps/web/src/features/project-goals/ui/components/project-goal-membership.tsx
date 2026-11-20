@@ -1,7 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import type { GoalRelationChange } from "../../lib/goal-relation-selection";
 import { ProjectGoalMembershipView } from "./project-goal-membership-panel";
@@ -13,6 +12,11 @@ export default function ProjectGoalMembership({
   projectId: string;
   goalId: string;
 }) {
+  const setProjectGoalRelationMutation = useMutation(
+    orpc.setProjectGoalRelation.mutationOptions({
+      mutationFn: (input) => client.setProjectGoalRelation(input),
+    }),
+  );
   const options = orpc.projectGoalDetail.queryOptions({
     input: { projectId, id: goalId },
   });
@@ -33,12 +37,10 @@ export default function ProjectGoalMembership({
     if (pending.current?.fingerprint !== fingerprint) {
       pending.current = { fingerprint, key: crypto.randomUUID() };
     }
-    await runOnlineOnlyWrite(() =>
-      client.setProjectGoalRelation({
-        ...payload,
-        clientIdempotencyKey: pending.current?.key ?? "",
-      }),
-    );
+    await setProjectGoalRelationMutation.mutateAsync({
+      ...payload,
+      clientIdempotencyKey: pending.current?.key ?? "",
+    });
     pending.current = null;
     await queryClient.invalidateQueries({ queryKey: options.queryKey });
   }

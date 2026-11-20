@@ -14,7 +14,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTags } from "@/features/tags/hooks/use-tags";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { commandVariables } from "@/lib/command-variables";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -29,10 +29,6 @@ import {
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
-}
-
-interface TagRenameCommand extends TagRenameRequest {
-  clientIdempotencyKey: string;
 }
 
 interface TagRenameUndo {
@@ -86,78 +82,78 @@ export default function ProjectTagsSurface({
     filterTagId || undefined,
   );
 
-  const create = useMutation({
-    mutationFn: (name: string) =>
-      runOnlineOnlyWrite(() => client.createTag({ name })),
-    onError: (error) => {
-      setFormError(errorMessage(error, "Tag could not be created."));
-    },
-    onSuccess: async () => {
-      setFormError(null);
-      await invalidateTagQueries(queryClient);
-    },
-  });
+  const create = useMutation(
+    orpc.createTag.mutationOptions({
+      mutationFn: (input) => client.createTag(input),
+      onError: (error) => {
+        setFormError(errorMessage(error, "Tag could not be created."));
+      },
+      onSuccess: async () => {
+        setFormError(null);
+        await invalidateTagQueries(queryClient);
+      },
+    }),
+  );
 
-  const apply = useMutation({
-    mutationFn: (input: Parameters<typeof client.applyTag>[0]) =>
-      runOnlineOnlyWrite(() => client.applyTag(input)),
-    onError: (error) => {
-      setActionError(errorMessage(error, "Tag could not be applied."));
-    },
-    onSuccess: async () => {
-      setActionError(null);
-      await invalidateTagMembershipQueries(queryClient);
-    },
-  });
+  const apply = useMutation(
+    orpc.applyTag.mutationOptions({
+      mutationFn: (input) => client.applyTag(input),
+      onError: (error) => {
+        setActionError(errorMessage(error, "Tag could not be applied."));
+      },
+      onSuccess: async () => {
+        setActionError(null);
+        await invalidateTagMembershipQueries(queryClient);
+      },
+    }),
+  );
 
-  const remove = useMutation({
-    mutationFn: (input: Parameters<typeof client.removeTag>[0]) =>
-      runOnlineOnlyWrite(() => client.removeTag(input)),
-    onError: (error) => {
-      setActionError(errorMessage(error, "Tag could not be removed."));
-    },
-    onSuccess: async () => {
-      setActionError(null);
-      await invalidateTagMembershipQueries(queryClient);
-    },
-  });
+  const remove = useMutation(
+    orpc.removeTag.mutationOptions({
+      mutationFn: (input) => client.removeTag(input),
+      onError: (error) => {
+        setActionError(errorMessage(error, "Tag could not be removed."));
+      },
+      onSuccess: async () => {
+        setActionError(null);
+        await invalidateTagMembershipQueries(queryClient);
+      },
+    }),
+  );
 
-  const rename = useMutation({
-    mutationFn: (input: TagRenameCommand) =>
-      runOnlineOnlyWrite(() => client.renameTag(input)),
-    onError: (error) => {
-      setRenameError(errorMessage(error, "Tag could not be renamed."));
-    },
-    onSuccess: async (renamed) => {
-      setRenameError(null);
-      setRenameUndo({
-        baseRevision: renamed.tag.revision,
-        receiptId: renamed.receiptId,
-        tagId: renamed.tag.id,
-      });
-      await invalidateTagRenameQueries(queryClient);
-    },
-  });
+  const rename = useMutation(
+    orpc.renameTag.mutationOptions({
+      mutationFn: (input) => client.renameTag(input),
+      onError: (error) => {
+        setRenameError(errorMessage(error, "Tag could not be renamed."));
+      },
+      onSuccess: async (renamed) => {
+        setRenameError(null);
+        setRenameUndo({
+          baseRevision: renamed.tag.revision,
+          receiptId: renamed.receiptId,
+          tagId: renamed.tag.id,
+        });
+        await invalidateTagRenameQueries(queryClient);
+      },
+    }),
+  );
 
-  const undoRename = useMutation({
-    mutationFn: (input: TagRenameUndo) =>
-      runOnlineOnlyWrite(() =>
-        client.undoTagRename({
-          baseRevision: input.baseRevision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          receiptId: input.receiptId,
-          tagId: input.tagId,
-        }),
-      ),
-    onError: (error) => {
-      setRenameError(errorMessage(error, "Tag could not be undone safely."));
-    },
-    onSuccess: async () => {
-      setRenameError(null);
-      setRenameUndo(null);
-      await invalidateTagRenameQueries(queryClient);
-    },
-  });
+  const undoRename = useMutation(
+    orpc.undoTagRename.mutationOptions({
+      mutationFn: (input) => client.undoTagRename(input),
+      onError: (error) => {
+        setRenameError(errorMessage(error, "Tag could not be undone safely."));
+      },
+      onSuccess: async (_, { receiptId }) => {
+        setRenameError(null);
+        setRenameUndo((current) =>
+          current?.receiptId === receiptId ? null : current,
+        );
+        await invalidateTagRenameQueries(queryClient);
+      },
+    }),
+  );
 
   return (
     <section aria-labelledby="tags-heading" className="space-y-8" id="tags">
@@ -177,7 +173,7 @@ export default function ProjectTagsSurface({
 
       <CreateTagForm
         error={formError}
-        onCreate={(name) => create.mutateAsync(name)}
+        onCreate={(name) => create.mutateAsync({ name })}
         onValidationError={setFormError}
         pending={create.isPending}
       />
@@ -193,10 +189,12 @@ export default function ProjectTagsSurface({
           filterTagId={filterTagId}
           onFilterChange={setFilterTagId}
           onRename={(input) =>
-            rename.mutate({
-              ...input,
-              clientIdempotencyKey: crypto.randomUUID(),
-            })
+            rename.mutate(
+              commandVariables(
+                input,
+                rename.isError ? rename.variables : undefined,
+              ),
+            )
           }
           onRenameValidationError={setRenameError}
           renameError={renameError}
@@ -218,11 +216,12 @@ export default function ProjectTagsSurface({
                   setRenameError("Tag could not be undone. Reload this page.");
                   return;
                 }
-                undoRename.mutate({
-                  baseRevision: renameUndo.baseRevision,
-                  receiptId: renameUndo.receiptId,
-                  tagId: renameUndo.tagId,
-                });
+                undoRename.mutate(
+                  commandVariables(
+                    renameUndo,
+                    undoRename.isError ? undoRename.variables : undefined,
+                  ),
+                );
               }}
               size="sm"
               type="button"

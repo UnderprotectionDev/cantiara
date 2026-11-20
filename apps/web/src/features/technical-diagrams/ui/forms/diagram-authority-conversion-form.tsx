@@ -17,8 +17,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { z } from "zod";
 
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client } from "@/utils/orpc";
+import { commandVariables } from "@/lib/command-variables";
+import { client, orpc } from "@/utils/orpc";
 import { conversionSchema } from "../../lib/technical-diagram-form-schemas";
 
 const TARGET_MODES: CreatableAuthorityMode[] = [
@@ -47,7 +47,6 @@ export function DiagramAuthorityConversion({
     null,
   );
   const [error, setError] = useState<string | null>(null);
-  const pendingKey = useRef<string | null>(null);
   const checkedAt = useRef(new Date().toISOString());
 
   const request = (values: ConversionValues) => {
@@ -68,7 +67,6 @@ export function DiagramAuthorityConversion({
     };
   };
   const reset = () => {
-    pendingKey.current = null;
     setPreview(null);
   };
   const form = useForm({
@@ -112,27 +110,24 @@ export function DiagramAuthorityConversion({
       setPreview(result);
     },
   });
-  const confirmMutation = useMutation({
-    mutationFn: () => {
-      pendingKey.current ??= crypto.randomUUID();
-      return runOnlineOnlyWrite(() =>
-        client.convertDiagramAuthority({
-          ...request(form.state.values),
-          clientIdempotencyKey: pendingKey.current as string,
-          previewToken: (preview as AuthorityConversionPreview).previewToken,
-        }),
-      );
-    },
-    onError: (failure) =>
-      setError(
-        failure instanceof Error ? failure.message : "Conversion failed.",
-      ),
-    onSuccess: async () => {
-      reset();
-      setError(null);
-      await queryClient.invalidateQueries();
-    },
-  });
+  const confirmMutation = useMutation(
+    orpc.convertDiagramAuthority.mutationOptions({
+      mutationFn: (input) => client.convertDiagramAuthority(input),
+      onError: (failure) =>
+        setError(
+          failure instanceof Error ? failure.message : "Conversion failed.",
+        ),
+      onSuccess: async () => {
+        reset();
+        setError(null);
+        await queryClient.invalidateQueries({
+          queryKey: orpc.technicalDiagrams.queryKey({
+            input: { projectId: diagram.projectId },
+          }),
+        });
+      },
+    }),
+  );
 
   if (targets.length === 0) {
     return null;
@@ -266,7 +261,19 @@ export function DiagramAuthorityConversion({
           <p>{preview.history}</p>
           <Button
             disabled={!preview.canConvert || confirmMutation.isPending}
-            onClick={() => confirmMutation.mutate()}
+            onClick={() =>
+              confirmMutation.mutate(
+                commandVariables(
+                  {
+                    ...request(form.state.values),
+                    previewToken: preview.previewToken,
+                  },
+                  confirmMutation.isError
+                    ? confirmMutation.variables
+                    : undefined,
+                ),
+              )
+            }
             type="button"
           >
             Confirm conversion

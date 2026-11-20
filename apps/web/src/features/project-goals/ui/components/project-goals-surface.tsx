@@ -3,9 +3,8 @@ import {
   projectGoalFieldsSchema,
 } from "@cantiara/api/project-goals";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useRef, useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import {
   type ProjectGoalDraft,
@@ -23,6 +22,16 @@ export default function ProjectGoalsSurface({
   selectedId?: string;
   valueChainArea?: (goalId: string) => ReactNode;
 }) {
+  const updateProjectGoalMutation = useMutation(
+    orpc.updateProjectGoal.mutationOptions({
+      mutationFn: (request) => client.updateProjectGoal(request),
+    }),
+  );
+  const createProjectGoalMutation = useMutation(
+    orpc.createProjectGoal.mutationOptions({
+      mutationFn: (request) => client.createProjectGoal(request),
+    }),
+  );
   const queryClient = useQueryClient();
   const options = orpc.projectGoals.queryOptions({ input: { projectId } });
   const goals = useQuery(options);
@@ -49,23 +58,21 @@ export default function ProjectGoalsSurface({
     }
     const { id, key } = pendingProjectGoalSave.current;
     try {
-      await runOnlineOnlyWrite(() =>
-        goal
-          ? client.updateProjectGoal({
-              ...fields,
-              projectId,
-              id,
-              baseRevision: goal.revision,
-              clientIdempotencyKey: key,
-            })
-          : client.createProjectGoal({
-              ...fields,
-              projectId,
-              id,
-              baseRevision: 0,
-              clientIdempotencyKey: key,
-            }),
-      );
+      await (goal
+        ? updateProjectGoalMutation.mutateAsync({
+            ...fields,
+            projectId,
+            id,
+            baseRevision: goal.revision,
+            clientIdempotencyKey: key,
+          })
+        : createProjectGoalMutation.mutateAsync({
+            ...fields,
+            projectId,
+            id,
+            baseRevision: 0,
+            clientIdempotencyKey: key,
+          }));
     } catch (error) {
       if (
         error &&

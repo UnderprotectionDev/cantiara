@@ -4,7 +4,7 @@ import type {
   ResearchSessionRecord,
 } from "@cantiara/api/research-sessions";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
@@ -24,6 +24,31 @@ export default function ResearchSessionsSurface({
     input: { projectId },
   });
   const query = useQuery(options);
+  const confirmBinding = useMutation(
+    orpc.confirmResearchSessionBinding.mutationOptions({
+      mutationFn: (input) => client.confirmResearchSessionBinding(input),
+      onSuccess: async (_, { id, projectId: targetProjectId }) => {
+        await Promise.all(
+          [
+            orpc.projectResearchSessionBindings.queryKey({
+              input: { id, projectId: targetProjectId },
+            }),
+            orpc.researchSessionBindingTargets.queryKey({
+              input: { id, projectId: targetProjectId },
+            }),
+            orpc.researchSessionBindingFeedback.key(),
+            orpc.evidenceFlow.key(),
+            orpc.projectResearchSessions.queryKey({
+              input: { projectId: targetProjectId },
+            }),
+          ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+        );
+      },
+      onError: () =>
+        queryClient.invalidateQueries({ queryKey: options.queryKey }),
+    }),
+  );
+  const confirmBindingAsync = confirmBinding.mutateAsync;
   const bindingActions = useMemo<ResearchBindingActions>(
     () => ({
       feedback: (record, bindingId) =>
@@ -60,26 +85,16 @@ export default function ResearchSessionsSurface({
           throw error;
         }
       },
-      confirm: async (record, preview, key) => {
-        try {
-          const result = await runOnlineOnlyWrite(() =>
-            client.confirmResearchSessionBinding({
-              id: record.id,
-              projectId,
-              baseRevision: record.revision,
-              previewId: preview.previewId,
-              clientIdempotencyKey: key,
-            }),
-          );
-          await queryClient.invalidateQueries();
-          return result;
-        } catch (error) {
-          await queryClient.invalidateQueries({ queryKey: options.queryKey });
-          throw error;
-        }
-      },
+      confirm: (record, preview, key) =>
+        confirmBindingAsync({
+          id: record.id,
+          projectId,
+          baseRevision: record.revision,
+          previewId: preview.previewId,
+          clientIdempotencyKey: key,
+        }),
     }),
-    [projectId, queryClient, options.queryKey],
+    [projectId, queryClient, options.queryKey, confirmBindingAsync],
   );
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
   const notePending = useRef(
@@ -90,6 +105,40 @@ export default function ResearchSessionsSurface({
     id: string;
     key: string;
   } | null>(null);
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: options.queryKey });
+  const refreshConflict = (error: unknown) => {
+    if (isResearchSessionConflict(error)) {
+      return refresh();
+    }
+  };
+  const saveSession = useMutation(
+    orpc.saveResearchSession.mutationOptions({
+      mutationFn: (input) => client.saveResearchSession(input),
+      onError: refreshConflict,
+      onSuccess: async (_, input) => {
+        if (pending.current?.key === input.clientIdempotencyKey) {
+          pending.current = null;
+        }
+        await refresh();
+      },
+    }),
+  );
+  const saveSessionNote = useMutation(
+    orpc.saveResearchSessionNote.mutationOptions({
+      mutationFn: (input) => client.saveResearchSessionNote(input),
+      onError: refreshConflict,
+      onSuccess: async (_, input) => {
+        const draftId = JSON.stringify([input.id, input.note.id]);
+        if (
+          notePending.current.get(draftId)?.key === input.clientIdempotencyKey
+        ) {
+          notePending.current.delete(draftId);
+        }
+        await refresh();
+      },
+    }),
+  );
   async function save(
     fields: ResearchSessionFields,
     record?: ResearchSessionRecord,
@@ -107,16 +156,13 @@ export default function ResearchSessionsSurface({
       };
     }
     const identity = pending.current;
-    await commit(() =>
-      client.saveResearchSession({
-        fields,
-        projectId,
-        id: identity.id,
-        baseRevision: record?.revision ?? 0,
-        clientIdempotencyKey: identity.key,
-      }),
-    );
-    pending.current = null;
+    await saveSession.mutateAsync({
+      fields,
+      projectId,
+      id: identity.id,
+      baseRevision: record?.revision ?? 0,
+      clientIdempotencyKey: identity.key,
+    });
   }
   async function saveNote(
     note: ResearchSessionNoteInput,
@@ -136,30 +182,14 @@ export default function ResearchSessionsSurface({
       notePending.current.set(draftId, identity);
     }
     const { key } = identity;
-    await commit(() =>
-      client.saveResearchSessionNote({
-        id: record.id,
-        projectId,
-        baseRevision: record.revision,
-        clientIdempotencyKey: key,
-        note,
-        create,
-      }),
-    );
-    if (notePending.current.get(draftId) === identity) {
-      notePending.current.delete(draftId);
-    }
-  }
-  async function commit(write: () => Promise<unknown>) {
-    try {
-      await runOnlineOnlyWrite(write);
-    } catch (error) {
-      if (isResearchSessionConflict(error)) {
-        await queryClient.invalidateQueries({ queryKey: options.queryKey });
-      }
-      throw error;
-    }
-    await queryClient.invalidateQueries({ queryKey: options.queryKey });
+    await saveSessionNote.mutateAsync({
+      id: record.id,
+      projectId,
+      baseRevision: record.revision,
+      clientIdempotencyKey: key,
+      note,
+      create,
+    });
   }
   function retry() {
     query.refetch().catch(() => undefined);

@@ -36,12 +36,17 @@ vi.mock("@/features/web-macos-client/ui/components/support-reference", () => ({
   presentSupportReferenceFailure: (...args: unknown[]) =>
     presentFailure(...args),
 }));
-vi.mock("@/utils/orpc", () => ({
-  client: {
-    saveScreenViewport: (input: unknown) => saveViewport(input),
-    saveScreenWireframe: (input: unknown) => save(input),
-  },
-  orpc: {
+vi.mock("@/utils/orpc", async (importActual) => {
+  const actual = await importActual<typeof import("@/utils/orpc")>();
+  const orpc = new Proxy(actual.orpc, {
+    get(target, property, receiver) {
+      return (
+        Reflect.get(overrides, property) ??
+        Reflect.get(target, property, receiver)
+      );
+    },
+  });
+  const overrides = {
     projectScreens: {
       queryOptions: () => ({
         queryFn: () => listFetch(),
@@ -61,8 +66,16 @@ vi.mock("@/utils/orpc", () => ({
         staleTime: Number.POSITIVE_INFINITY,
       }),
     },
-  },
-}));
+  };
+  return {
+    ...actual,
+    orpc,
+    client: {
+      saveScreenViewport: (input: unknown) => saveViewport(input),
+      saveScreenWireframe: (input: unknown) => save(input),
+    },
+  };
+});
 vi.mock("../wireframe-stage", () => ({
   default: ({ height, width }: { height: number; width: number }) => (
     <div data-height={height} data-testid="stage" data-width={width} />

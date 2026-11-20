@@ -1,12 +1,21 @@
+// @vitest-environment happy-dom
 import type { CustomFieldDefinition } from "@cantiara/api/custom-fields";
 import type { WorkTemplate } from "@cantiara/api/work-templates";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createElement } from "react";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
+import { createClientShellQueryClient } from "@/features/web-macos-client/lib/client-shell";
 import { orpc } from "@/utils/orpc";
 import WorkTemplateEditor from "../work-template-editor";
+
+const rpc = vi.hoisted(() => ({ instantiateWorkTemplate: vi.fn() }));
+vi.mock("@/utils/orpc", async (importActual) => {
+  const actual = await importActual<typeof import("@/utils/orpc")>();
+  return { ...actual, client: rpc };
+});
 
 const template: WorkTemplate = {
   checklist: [{ id: "check-1", text: "Draft release notes" }],
@@ -88,4 +97,94 @@ describe("Work Template editor", () => {
       expect(html).not.toContain(forbidden);
     }
   });
+});
+
+test("retries Create from template with the same command and refreshes the relevant lists", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const presentFailure = vi.fn();
+  const queryClient = createClientShellQueryClient(presentFailure);
+  queryClient.setDefaultOptions({
+    queries: { staleTime: Number.POSITIVE_INFINITY },
+  });
+  const projectId = "project-1";
+  queryClient.setQueryData(
+    orpc.workTemplates.queryKey({ input: { projectId } }),
+    [template],
+  );
+  queryClient.setQueryData(
+    orpc.customFields.queryKey({ input: { projectId } }),
+    [field],
+  );
+  const projectWorkKey = orpc.projectWorks.queryKey({ input: { projectId } });
+  const otherProjectKey = orpc.projectWorks.queryKey({
+    input: { projectId: "project-2" },
+  });
+  queryClient.setQueryData(projectWorkKey, []);
+  queryClient.setQueryData(otherProjectKey, []);
+  const writeError = new Error("Work could not be saved. Try again.");
+  rpc.instantiateWorkTemplate
+    .mockRejectedValueOnce(writeError)
+    .mockResolvedValue({ key: "PAY-42", projectId });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => {
+      await Promise.resolve();
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <WorkTemplateEditor previewDate="2026-09-22" projectId={projectId} />
+        </QueryClientProvider>,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      [...host.querySelectorAll("button")]
+        .find((button) => button.textContent === "Create from template")
+        ?.click();
+    });
+    const form = host.querySelector(
+      'form[aria-label="Create Work from Release preparation"]',
+    );
+    const title = form?.querySelector("input");
+    if (!(form && title)) {
+      throw new Error("Create from template form did not render");
+    }
+    act(() => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(title, "Ship release");
+      title.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+      form.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true }),
+      );
+    });
+    expect(title.value).toBe("Ship release");
+    expect(host.textContent).toContain(writeError.message);
+    expect(queryClient.getQueryState(projectWorkKey)?.isInvalidated).toBe(
+      false,
+    );
+
+    await act(async () => {
+      await presentFailure.mock.calls[0]?.[1].retry?.();
+    });
+    expect(rpc.instantiateWorkTemplate).toHaveBeenCalledTimes(2);
+    expect(rpc.instantiateWorkTemplate.mock.calls[1][0]).toEqual(
+      rpc.instantiateWorkTemplate.mock.calls[0][0],
+    );
+    expect(queryClient.getQueryState(projectWorkKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(otherProjectKey)?.isInvalidated).toBe(
+      false,
+    );
+    expect(host.textContent).toContain("Created Work PAY-42.");
+    expect(host.textContent).not.toContain(writeError.message);
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    queryClient.clear();
+  }
 });

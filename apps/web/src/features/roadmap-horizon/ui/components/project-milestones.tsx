@@ -9,6 +9,7 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -57,42 +58,40 @@ function MilestoneCard({
       input: { recordId: milestone.id, recordType: "Milestone" },
     }),
   );
-  const updateMutation = useMutation({
-    mutationFn: (draft: MilestoneDraft) =>
-      runOnlineOnlyWrite(() =>
-        client.updateMilestone({
-          baseRevision: milestone.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          description: draft.description || null,
-          milestoneId: milestone.id,
-          projectId,
-          targetDate: draft.targetDate || null,
-          title: draft.title,
-        }),
-      ),
-    onSuccess: async () => {
-      setEditing(false);
-      await invalidateMilestones(queryClient, projectId);
-    },
-  });
-  const statusMutation = useMutation({
-    mutationFn: (status: "Reached" | "Abandoned") =>
-      runOnlineOnlyWrite(() =>
-        client.updateMilestoneStatus({
-          baseRevision: milestone.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          milestoneId: milestone.id,
-          projectId,
-          status,
-        }),
-      ),
-    onSuccess: async () => {
-      await Promise.all([
-        invalidateMilestones(queryClient, projectId),
-        ...invalidateSmartCollectionMembership(queryClient),
-      ]);
-    },
-  });
+  const updateMutation = usePreparedMutation(
+    orpc.updateMilestone.mutationOptions({
+      mutationFn: (input) => client.updateMilestone(input),
+      onSuccess: async () => {
+        setEditing(false);
+        await invalidateMilestones(queryClient, projectId);
+      },
+    }),
+    (draft: MilestoneDraft) => ({
+      baseRevision: milestone.revision,
+      description: draft.description || null,
+      milestoneId: milestone.id,
+      projectId,
+      targetDate: draft.targetDate || null,
+      title: draft.title,
+    }),
+  );
+  const statusMutation = usePreparedMutation(
+    orpc.updateMilestoneStatus.mutationOptions({
+      mutationFn: (input) => client.updateMilestoneStatus(input),
+      onSuccess: async () => {
+        await Promise.all([
+          invalidateMilestones(queryClient, projectId),
+          ...invalidateSmartCollectionMembership(queryClient),
+        ]);
+      },
+    }),
+    (status: "Reached" | "Abandoned") => ({
+      baseRevision: milestone.revision,
+      milestoneId: milestone.id,
+      projectId,
+      status,
+    }),
+  );
   const relationPreviewMutation = useMutation({
     mutationFn: (workId: string) =>
       client.relationPreview({
@@ -251,23 +250,22 @@ export default function ProjectMilestones({
   const query = useQuery(
     orpc.projectMilestones.queryOptions({ input: { projectId } }),
   );
-  const createMutation = useMutation({
-    mutationFn: (draft: MilestoneDraft) =>
-      runOnlineOnlyWrite(() =>
-        client.createMilestone({
-          baseRevision: 0,
-          clientIdempotencyKey: crypto.randomUUID(),
-          description: draft.description || null,
-          id: crypto.randomUUID(),
-          projectId,
-          targetDate: draft.targetDate || null,
-          title: draft.title,
-        }),
-      ),
-    onSuccess: async () => {
-      await invalidateMilestones(queryClient, projectId);
-    },
-  });
+  const createMutation = usePreparedMutation(
+    orpc.createMilestone.mutationOptions({
+      mutationFn: (input) => client.createMilestone(input),
+      onSuccess: async () => {
+        await invalidateMilestones(queryClient, projectId);
+      },
+    }),
+    (draft: MilestoneDraft) => ({
+      baseRevision: 0,
+      description: draft.description || null,
+      id: crypto.randomUUID(),
+      projectId,
+      targetDate: draft.targetDate || null,
+      title: draft.title,
+    }),
+  );
 
   if (query.status === "pending") {
     return <p role="status">Loading…</p>;

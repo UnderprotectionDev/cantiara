@@ -19,16 +19,17 @@ const rpc = vi.hoisted(() => ({
   saveNote: vi.fn(),
   bindings: vi.fn(),
 }));
-vi.mock("@/utils/orpc", () => ({
-  client: {
-    saveResearchSession: rpc.save,
-    saveResearchSessionNote: rpc.saveNote,
-  },
-  accountPreferencesQueryOptions: () => ({
-    queryKey: ["preferences"],
-    queryFn: async () => ({ timeZone: "Europe/Istanbul" }),
-  }),
-  orpc: {
+vi.mock("@/utils/orpc", async (importActual) => {
+  const actual = await importActual<typeof import("@/utils/orpc")>();
+  const orpc = new Proxy(actual.orpc, {
+    get(target, property, receiver) {
+      return (
+        Reflect.get(overrides, property) ??
+        Reflect.get(target, property, receiver)
+      );
+    },
+  });
+  const overrides = {
     projectResearchSessionBindings: {
       queryOptions: ({ input }: { input: unknown }) => ({
         queryKey: ["research-session-bindings", input],
@@ -41,8 +42,20 @@ vi.mock("@/utils/orpc", () => ({
         queryFn: rpc.list,
       }),
     },
-  },
-}));
+  };
+  return {
+    ...actual,
+    orpc,
+    client: {
+      saveResearchSession: rpc.save,
+      saveResearchSessionNote: rpc.saveNote,
+    },
+    accountPreferencesQueryOptions: () => ({
+      queryKey: ["preferences"],
+      queryFn: async () => ({ timeZone: "Europe/Istanbul" }),
+    }),
+  };
+});
 
 async function openSurface() {
   rpc.bindings.mockResolvedValue([]);

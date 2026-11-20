@@ -28,6 +28,7 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
 import { fetchCurrentWork } from "@/lib/fetch-current-work";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import {
   accountPreferencesQueryOptions,
   client,
@@ -150,33 +151,32 @@ export default function UnifiedCalendarView({
     });
   }
 
-  const updateCalendarDate = useMutation({
-    mutationFn: (change: CalendarDateChange) =>
-      runOnlineOnlyWrite(() =>
-        client.updateWorkDate({
-          baseRevision: change.baseRevision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          date: change.date,
-          dateField: change.dateField,
-          workId: change.workId,
-        }),
-      ),
-    onError: (error) =>
-      handleCalendarDateError(
-        error,
-        "Calendar date could not be saved. Try again.",
-      ),
-    onSuccess: async (work) => {
-      setDateChangeError(null);
-      setDateChangeUndo({
-        receiptId: work.receiptId,
-        workId: work.id,
-      });
-      await queryClient.invalidateQueries({
-        queryKey: projectWorksQueryPrefix,
-      });
-    },
-  });
+  const updateCalendarDate = usePreparedMutation(
+    orpc.updateWorkDate.mutationOptions({
+      mutationFn: (input) => client.updateWorkDate(input),
+      onError: (error) =>
+        handleCalendarDateError(
+          error,
+          "Calendar date could not be saved. Try again.",
+        ),
+      onSuccess: async (work) => {
+        setDateChangeError(null);
+        setDateChangeUndo({
+          receiptId: work.receiptId,
+          workId: work.id,
+        });
+        await queryClient.invalidateQueries({
+          queryKey: projectWorksQueryPrefix,
+        });
+      },
+    }),
+    (change: CalendarDateChange) => ({
+      baseRevision: change.baseRevision,
+      date: change.date,
+      dateField: change.dateField,
+      workId: change.workId,
+    }),
+  );
   const undoCalendarDate = useMutation({
     mutationFn: () => {
       const undo = dateChangeUndo;

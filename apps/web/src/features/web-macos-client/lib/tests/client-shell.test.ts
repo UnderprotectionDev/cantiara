@@ -1,7 +1,7 @@
 import { MutationObserver, onlineManager } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-
+import { defaultClientShell } from "../../store/client-shell";
 import { presentSupportReferenceFailure } from "../../ui/components/support-reference";
 import { createClientShellQueryClient } from "../client-shell";
 
@@ -128,6 +128,25 @@ describe("Client Shell query error boundary", () => {
       | undefined;
     expect(supportSecondOptions?.action).toBeUndefined();
     expect(supportSecondOptions?.duration).toBeGreaterThan(0);
+  });
+
+  test("refuses a Query write when the desktop client requires an update", async () => {
+    const queryClient = createClientShellQueryClient(
+      presentSupportReferenceFailure,
+    );
+    const write = vi.fn(async () => "saved");
+    const mutation = new MutationObserver(queryClient, { mutationFn: write });
+
+    defaultClientShell.setUpdateRequired(true);
+    try {
+      await expect(mutation.mutate(undefined)).rejects.toThrow(
+        "Update required",
+      );
+      expect(write).not.toHaveBeenCalled();
+      expect(mutation.getCurrentResult().isPaused).toBe(false);
+    } finally {
+      defaultClientShell.setUpdateRequired(false);
+    }
   });
 
   test("does not offer Retry after a written mutation failure", async () => {

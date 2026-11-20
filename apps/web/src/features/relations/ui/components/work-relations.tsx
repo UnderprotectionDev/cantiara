@@ -14,7 +14,7 @@ import { useLinkProps } from "@tanstack/react-router";
 import { useState } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { commandVariables } from "@/lib/command-variables";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { client, orpc } from "@/utils/orpc";
 import { CreateRelationForm } from "../forms/create-relation-form";
@@ -103,62 +103,47 @@ export default function WorkRelations({
     },
   });
 
-  const createMutation = useMutation({
-    mutationFn: () => {
-      if (!(preview && createIdempotencyKey)) {
-        throw new Error("Review the relation preview before confirming.");
-      }
-      return runOnlineOnlyWrite(() =>
-        client.createRelation({
-          baseRevision: preview.baseRevision,
-          clientIdempotencyKey: createIdempotencyKey,
-          kind: preview.kind,
-          previewId: preview.previewId,
-          source: {
-            recordId: preview.source.recordId,
-            recordType: preview.source.recordType,
-          },
-          target: {
-            recordId: preview.target.recordId,
-            recordType: preview.target.recordType,
-          },
-        }),
-      );
-    },
-    onError: (mutationError) => {
-      setError(
-        mutationErrorMessage(mutationError, "Relation could not be created."),
-      );
-    },
-    onSuccess: async () => {
-      setError(null);
-      setPreview(null);
-      setCreateIdempotencyKey(null);
-      await invalidateRelations(
-        preview
-          ? [preview.source.recordId, preview.target.recordId].find(
-              (recordId) => recordId !== work.id,
-            )
-          : undefined,
-      );
-    },
-  });
+  const createMutation = useMutation(
+    orpc.createRelation.mutationOptions({
+      mutationFn: (input) => client.createRelation(input),
+      onError: (mutationError) => {
+        setError(
+          mutationErrorMessage(mutationError, "Relation could not be created."),
+        );
+      },
+      onSuccess: async (_, input) => {
+        setError(null);
+        setPreview(null);
+        setCreateIdempotencyKey(null);
+        await invalidateRelations(
+          [input.source.recordId, input.target.recordId].find(
+            (recordId) => recordId !== work.id,
+          ),
+        );
+      },
+    }),
+  );
 
   const removeMutation = useMutation({
-    mutationFn: (relation: RelationView) =>
-      runOnlineOnlyWrite(() =>
-        client.removeRelation({
-          baseRevision: relation.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          relationId: relation.id,
-        }),
-      ),
+    mutationKey: orpc.removeRelation.mutationKey(),
+    mutationFn: ({
+      relation,
+      clientIdempotencyKey,
+    }: {
+      relation: RelationView;
+      clientIdempotencyKey: string;
+    }) =>
+      client.removeRelation({
+        baseRevision: relation.revision,
+        clientIdempotencyKey,
+        relationId: relation.id,
+      }),
     onError: (mutationError) => {
       setError(
         mutationErrorMessage(mutationError, "Relation could not be removed."),
       );
     },
-    onSuccess: async (result, relation) => {
+    onSuccess: async (result, { relation }) => {
       setError(null);
       const otherRecordId =
         relation.source.recordId === work.id
@@ -175,21 +160,22 @@ export default function WorkRelations({
   });
 
   const resolveMutation = useMutation({
+    mutationKey: orpc.resolveBlocker.mutationKey(),
     mutationFn: ({
       relation,
+      clientIdempotencyKey,
       note,
     }: {
       relation: RelationView;
-      note?: string;
+      note: string | undefined;
+      clientIdempotencyKey: string;
     }) =>
-      runOnlineOnlyWrite(() =>
-        client.resolveBlocker({
-          baseRevision: relation.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          ...(note ? { note } : {}),
-          relationId: relation.id,
-        }),
-      ),
+      client.resolveBlocker({
+        baseRevision: relation.revision,
+        clientIdempotencyKey,
+        ...(note ? { note } : {}),
+        relationId: relation.id,
+      }),
     onError: (mutationError) => {
       setError(
         mutationErrorMessage(mutationError, "Blocker could not be resolved."),
@@ -206,14 +192,19 @@ export default function WorkRelations({
   });
 
   const reactivateMutation = useMutation({
-    mutationFn: (relation: RelationView) =>
-      runOnlineOnlyWrite(() =>
-        client.reactivateBlocker({
-          baseRevision: relation.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          relationId: relation.id,
-        }),
-      ),
+    mutationKey: orpc.reactivateBlocker.mutationKey(),
+    mutationFn: ({
+      relation,
+      clientIdempotencyKey,
+    }: {
+      relation: RelationView;
+      clientIdempotencyKey: string;
+    }) =>
+      client.reactivateBlocker({
+        baseRevision: relation.revision,
+        clientIdempotencyKey,
+        relationId: relation.id,
+      }),
     onError: (mutationError) => {
       setError(
         mutationErrorMessage(
@@ -222,7 +213,7 @@ export default function WorkRelations({
         ),
       );
     },
-    onSuccess: async (_result, relation) => {
+    onSuccess: async (_result, { relation }) => {
       setError(null);
       await invalidateRelations(
         relation.source.recordId === work.id
@@ -233,29 +224,19 @@ export default function WorkRelations({
   });
 
   const undoMutation = useMutation({
-    mutationFn: () => {
-      if (!removedRelation) {
-        throw new Error("This relation is no longer available for Undo.");
-      }
-      return runOnlineOnlyWrite(() =>
-        client.undoRelation({
-          baseRevision: removedRelation.baseRevision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          receiptId: removedRelation.receiptId,
-          relationId: removedRelation.relationId,
-        }),
-      );
-    },
+    mutationKey: orpc.undoRelation.mutationKey(),
+    mutationFn: ({
+      otherRecordId: _,
+      ...input
+    }: NonNullable<typeof removedRelation> & {
+      clientIdempotencyKey: string;
+    }) => client.undoRelation(input),
     onError: (mutationError) => {
       setError(
         mutationErrorMessage(mutationError, "Relation could not be undone."),
       );
     },
-    onSuccess: async () => {
-      if (!removedRelation) {
-        return;
-      }
-      const { otherRecordId } = removedRelation;
+    onSuccess: async (_, { otherRecordId }) => {
       setError(null);
       setRemovedRelation(null);
       await invalidateRelations(otherRecordId);
@@ -314,7 +295,25 @@ export default function WorkRelations({
                 <div className="flex flex-wrap gap-2">
                   <Button
                     disabled={createMutation.isPending}
-                    onClick={() => createMutation.mutate()}
+                    onClick={() => {
+                      if (!(preview && createIdempotencyKey)) {
+                        return;
+                      }
+                      createMutation.mutate({
+                        baseRevision: preview.baseRevision,
+                        clientIdempotencyKey: createIdempotencyKey,
+                        kind: preview.kind,
+                        previewId: preview.previewId,
+                        source: {
+                          recordId: preview.source.recordId,
+                          recordType: preview.source.recordType,
+                        },
+                        target: {
+                          recordId: preview.target.recordId,
+                          recordType: preview.target.recordType,
+                        },
+                      });
+                    }}
                     size="xs"
                     type="button"
                   >
@@ -350,7 +349,14 @@ export default function WorkRelations({
           <span>Relation removed.</span>
           <Button
             disabled={undoMutation.isPending}
-            onClick={() => undoMutation.mutate()}
+            onClick={() =>
+              undoMutation.mutate(
+                commandVariables(
+                  removedRelation,
+                  undoMutation.isError ? undoMutation.variables : undefined,
+                ),
+              )
+            }
             size="xs"
             type="button"
             variant="outline"
@@ -366,10 +372,31 @@ export default function WorkRelations({
         formattingPreferences={formattingPreferences}
         isError={query.isError || usedInQuery.isError}
         isPending={query.status === "pending" || usedInQuery.isPending}
-        onReactivate={(relation) => reactivateMutation.mutate(relation)}
-        onRemove={(relation) => removeMutation.mutate(relation)}
+        onReactivate={(relation) =>
+          reactivateMutation.mutate(
+            commandVariables(
+              { relation },
+              reactivateMutation.isError
+                ? reactivateMutation.variables
+                : undefined,
+            ),
+          )
+        }
+        onRemove={(relation) =>
+          removeMutation.mutate(
+            commandVariables(
+              { relation },
+              removeMutation.isError ? removeMutation.variables : undefined,
+            ),
+          )
+        }
         onResolve={(relation, note) =>
-          resolveMutation.mutateAsync({ relation, note })
+          resolveMutation.mutateAsync(
+            commandVariables(
+              { relation, note },
+              resolveMutation.isError ? resolveMutation.variables : undefined,
+            ),
+          )
         }
         outgoing={outgoing}
         removePending={removeMutation.isPending}

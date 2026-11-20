@@ -13,10 +13,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -46,6 +45,11 @@ function updateSelection<T>(values: T[], value: T, checked: boolean) {
 }
 
 export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
+  const recreateWorkMutation = useMutation(
+    orpc.recreateWork.mutationOptions({
+      mutationFn: (input) => client.recreateWork(input),
+    }),
+  );
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
   const projectsQuery = useQuery(projectsQueryOptions());
@@ -123,8 +127,8 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
           setError(recreateErrorMessage(null));
           return;
         }
-        const recreatedWork = await runOnlineOnlyWrite(() =>
-          client.recreateWork(recreateInput.data),
+        const recreatedWork = await recreateWorkMutation.mutateAsync(
+          recreateInput.data,
         );
         pendingRecreate.current = null;
         setRecreatedKey(recreatedWork.key);

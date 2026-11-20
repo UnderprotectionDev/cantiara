@@ -7,7 +7,8 @@ import ProjectBacklog from "../project-backlog";
 
 const mocks = vi.hoisted(() => ({ useQuery: vi.fn(), mutationError: false }));
 
-vi.mock("@tanstack/react-query", () => ({
+vi.mock("@tanstack/react-query", async (importActual) => ({
+  ...(await importActual<typeof import("@tanstack/react-query")>()),
   useMutation: () => ({ isError: mocks.mutationError, isPending: false }),
   useQuery: mocks.useQuery,
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
@@ -26,23 +27,35 @@ vi.mock("@/features/project-shell/lib/project-shell-navigation", () => ({
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({
   runOnlineOnlyWrite: vi.fn(),
 }));
-vi.mock("@/utils/orpc", () => ({
-  orpc: {
-    accountPreferences: { queryOptions: () => ({}) },
-    projectBacklog: {
-      queryOptions: () => ({}),
-    },
-    projectWorks: {
-      queryOptions: () => ({}),
-    },
-    projectBacklogOrder: {
-      queryOptions: () => ({}),
-    },
-    projectBacklogPresentation: {
-      queryOptions: () => ({}),
-    },
-  },
-}));
+vi.mock("@/utils/orpc", async (importActual) => {
+  const actual = await importActual<typeof import("@/utils/orpc")>();
+  return {
+    ...actual,
+    orpc: new Proxy(actual.orpc, {
+      get(target, property, receiver) {
+        const overrides = {
+          accountPreferences: { queryOptions: () => ({}) },
+          projectBacklog: {
+            queryOptions: () => ({}),
+          },
+          projectWorks: {
+            queryOptions: () => ({}),
+          },
+          projectBacklogOrder: {
+            queryOptions: () => ({}),
+          },
+          projectBacklogPresentation: {
+            queryOptions: () => ({}),
+          },
+        };
+        return (
+          Reflect.get(overrides, property) ??
+          Reflect.get(target, property, receiver)
+        );
+      },
+    }),
+  };
+});
 
 function renderBacklog(queryResult: unknown) {
   vi.mocked(useQuery)

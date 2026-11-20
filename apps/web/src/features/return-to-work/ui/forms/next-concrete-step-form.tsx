@@ -9,12 +9,12 @@ import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
-import { client } from "@/utils/orpc";
+import { commandVariables } from "@/lib/command-variables";
+import { client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
-import { runOnlineOnlyWrite } from "../../../web-macos-client/store/client-shell";
 import { ReturnSourceLink } from "../components/return-cards";
 
 export function NextConcreteStepForm({
@@ -31,7 +31,24 @@ export function NextConcreteStepForm({
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const pending = useRef<{ fingerprint: string; key: string } | null>(null);
+  const save = useMutation(
+    orpc.saveNextConcreteStep.mutationOptions({
+      mutationFn: (input) => client.saveNextConcreteStep(input),
+      onSuccess: async (_, { projectId, workId }) => {
+        await Promise.all(
+          [
+            orpc.returnToWork.queryKey({ input: { projectId } }),
+            workId
+              ? orpc.work.queryKey({ input: { workId } })
+              : orpc.project.queryKey({ input: { projectId } }),
+          ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+        );
+        setError(null);
+        setSaved(true);
+        toast.success("Next concrete step saved.");
+      },
+    }),
+  );
   const form = useForm({
     defaultValues: { nextConcreteStep: source.nextConcreteStep ?? "" },
     onSubmit: async ({ value }) => {
@@ -49,24 +66,11 @@ export function NextConcreteStepForm({
         baseRevision: source.revision,
         nextConcreteStep: parsed.data || null,
       };
-      const fingerprint = JSON.stringify(request);
-      const attempt =
-        pending.current?.fingerprint === fingerprint
-          ? pending.current
-          : { fingerprint, key: crypto.randomUUID() };
-      pending.current = attempt;
       try {
-        await runOnlineOnlyWrite(() =>
-          client.saveNextConcreteStep({
-            ...request,
-            clientIdempotencyKey: attempt.key,
-          }),
+        await save.mutateAsync(
+          commandVariables(request, save.isError ? save.variables : undefined),
         );
-        pending.current = null;
-        await queryClient.invalidateQueries();
         form.reset({ nextConcreteStep: parsed.data ?? "" });
-        setSaved(true);
-        toast.success("Next concrete step saved.");
       } catch (failure) {
         const message =
           failure instanceof Error

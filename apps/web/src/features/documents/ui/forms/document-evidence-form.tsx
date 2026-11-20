@@ -22,9 +22,8 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type SubmitEvent, useRef, useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { documentEvidenceFormSchema } from "../../lib/document-evidence-form";
 import { EvidencePreview } from "../components/document-evidence-preview";
@@ -50,6 +49,11 @@ export default function DocumentEvidenceForm({
   rebind: DocumentEvidenceBinding | null;
   record: Document;
 }) {
+  const confirmDocumentEvidenceMutation = useMutation(
+    orpc.confirmDocumentEvidence.mutationOptions({
+      mutationFn: (input) => client.confirmDocumentEvidence(input),
+    }),
+  );
   const { projectId } = record;
   const cache = useQueryClient();
   const [plan, setPlan] = useState<DocumentEvidencePlan | null>(null);
@@ -170,16 +174,14 @@ export default function DocumentEvidenceForm({
     setPending(true);
     setError(null);
     try {
-      await runOnlineOnlyWrite(() =>
-        client.confirmDocumentEvidence({
-          ...selection,
-          id: identity.id,
-          baseRevision: plan.bindingRevision,
-          clientIdempotencyKey: identity.key,
-          plan,
-          ...(plan.mode === "create" ? { recordId: identity.recordId } : {}),
-        }),
-      );
+      await confirmDocumentEvidenceMutation.mutateAsync({
+        ...selection,
+        id: identity.id,
+        baseRevision: plan.bindingRevision,
+        clientIdempotencyKey: identity.key,
+        plan,
+        ...(plan.mode === "create" ? { recordId: identity.recordId } : {}),
+      });
       command.current = null;
       await cache.invalidateQueries({
         queryKey: orpc.documentEvidenceBindings.key(),

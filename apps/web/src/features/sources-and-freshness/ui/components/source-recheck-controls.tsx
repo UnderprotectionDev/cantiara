@@ -3,9 +3,8 @@ import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { SourceCheck } from "@cantiara/api/source-recheck";
 import type { SourceRecord } from "@cantiara/api/sources-and-freshness";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { SourceCheckCompare } from "./source-check-compare";
 
@@ -18,6 +17,16 @@ export function SourceRecheckControls({
   preferences: AccountPreferences;
   readOnly: boolean;
 }) {
+  const recheckSourceMutation = useMutation(
+    orpc.recheckSource.mutationOptions({
+      mutationFn: (input) => client.recheckSource(input),
+    }),
+  );
+  const decideSourceCheckMutation = useMutation(
+    orpc.decideSourceCheck.mutationOptions({
+      mutationFn: (input) => client.decideSourceCheck(input),
+    }),
+  );
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,13 +61,11 @@ export function SourceRecheckControls({
     recheckId.current ??= crypto.randomUUID();
     const id = recheckId.current;
     try {
-      await runOnlineOnlyWrite(() =>
-        client.recheckSource({
-          ...selection,
-          id,
-          expectedSourceRevision: source.revision,
-        }),
-      );
+      await recheckSourceMutation.mutateAsync({
+        ...selection,
+        id,
+        expectedSourceRevision: source.revision,
+      });
       recheckId.current = null;
       await refresh();
     } catch {
@@ -84,16 +91,14 @@ export function SourceRecheckControls({
     }
     const command = decisionKey.current;
     try {
-      await runOnlineOnlyWrite(() =>
-        client.decideSourceCheck({
-          ...selection,
-          checkId: check.id,
-          baseRevision: check.revision,
-          expectedSourceRevision: source.revision,
-          clientIdempotencyKey: command.key,
-          decision,
-        }),
-      );
+      await decideSourceCheckMutation.mutateAsync({
+        ...selection,
+        checkId: check.id,
+        baseRevision: check.revision,
+        expectedSourceRevision: source.revision,
+        clientIdempotencyKey: command.key,
+        decision,
+      });
       decisionKey.current = null;
       await refresh();
     } catch {

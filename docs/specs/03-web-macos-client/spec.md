@@ -55,6 +55,8 @@ Web ve macOS Tauri aynı Hono/Bun backend'ini, Neon doğruluk kaynağını ve ü
 
 ## Testing Decisions
 
+- **Query write policy (#544).** The Client Shell QueryClient rejects offline and update-blocked writes before execution. An eligible Support reference Retry replays the submitted variables once, and reconnect never replays an offline write. The existing Client Shell query boundary tests exercise this policy.
+
 - **RPC refusal evidence (#543).** `apps/server/src/app.test.ts` exercises declared and undeclared errors on `/rpc`, checks unmatched procedure declarations and status mismatches, strips private or invalid details, and compares the response Support reference to its header. `support-reference.test.ts` covers existing Conflict Draft, Selected Export, and generic counterparts.
 
 - **Document conflict recovery notice.** At the Client Shell seam, a stale Document mutation with a schema-valid Conflict Draft matching its target shows `Conflict Draft` and directs the founder to `Compare` in the Document, rather than only saying the page is out of date. The notice retains the server-issued Support reference, main-record write outcome, safe retry bound, and persistent unwritten-write behavior. Private draft title/body never enter the toast. Missing, invalid, or mismatched drafts keep the ordinary stale-write notice; query failures never claim a saved draft. Documents browser coverage verifies this notice alongside the actual preserved text and resolution panel.

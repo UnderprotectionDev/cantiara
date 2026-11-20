@@ -8,12 +8,12 @@ import type { ProductGapLinkTargetType } from "@cantiara/api/product-gaps";
 import { Button } from "@cantiara/ui/components/button";
 import {
   keepPreviousData,
+  useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
 import {
   client,
@@ -54,6 +54,27 @@ export function gapDateTimeFormatter(
  * and converts nothing by itself: every write is the founder's explicit action.
  */
 function ProductGapsContent() {
+  const closeToolEscapeMutation = useMutation(
+    orpc.closeToolEscape.mutationOptions({
+      mutationFn: (input) => client.closeToolEscape(input),
+    }),
+  );
+  const confirmProductGapFollowUpMutation = useMutation(
+    orpc.confirmProductGapFollowUp.mutationOptions({
+      mutationFn: (input) => client.confirmProductGapFollowUp(input),
+    }),
+  );
+  const recordToolEscapeMutation = useMutation(
+    orpc.recordToolEscape.mutationOptions({
+      mutationFn: (input) => client.recordToolEscape(input),
+      onSuccess: () => refresh(),
+    }),
+  );
+  const setProductGapStatusMutation = useMutation(
+    orpc.setProductGapStatus.mutationOptions({
+      mutationFn: (input) => client.setProductGapStatus(input),
+    }),
+  );
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<GapFilterValues>(EMPTY_GAP_FILTER);
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
@@ -101,10 +122,8 @@ function ProductGapsContent() {
       loadTargets={loadTargets}
       onCloseEscape={async (event, values, impact) => {
         try {
-          await runOnlineOnlyWrite(() =>
-            client.closeToolEscape(
-              toCloseToolEscapeInput(event.id, values, impact),
-            ),
+          await closeToolEscapeMutation.mutateAsync(
+            toCloseToolEscapeInput(event.id, values, impact),
           );
         } finally {
           await refresh();
@@ -112,16 +131,14 @@ function ProductGapsContent() {
       }}
       onConfirmFollowUp={async (gap, plan) => {
         try {
-          await runOnlineOnlyWrite(() =>
-            client.confirmProductGapFollowUp({
-              baseRevision: 0,
-              clientIdempotencyKey: crypto.randomUUID(),
-              gapId: gap.id,
-              id: crypto.randomUUID(),
-              plan,
-              ...(plan.kind === "Work" ? { workId: crypto.randomUUID() } : {}),
-            }),
-          );
+          await confirmProductGapFollowUpMutation.mutateAsync({
+            baseRevision: 0,
+            clientIdempotencyKey: crypto.randomUUID(),
+            gapId: gap.id,
+            id: crypto.randomUUID(),
+            plan,
+            ...(plan.kind === "Work" ? { workId: crypto.randomUUID() } : {}),
+          });
         } finally {
           // A Work follow-up creates a Work, which can join Smart Collections.
           await Promise.all([
@@ -139,20 +156,17 @@ function ProductGapsContent() {
         if (!source) {
           throw new Error("Choose the source Project or record.");
         }
-        await runOnlineOnlyWrite(() =>
-          client.recordToolEscape(toRecordToolEscapeInput(values, source)),
+        await recordToolEscapeMutation.mutateAsync(
+          toRecordToolEscapeInput(values, source),
         );
-        await refresh();
       }}
       onSetStatus={async (gap, status) => {
         try {
-          await runOnlineOnlyWrite(() =>
-            client.setProductGapStatus({
-              expectedStatus: gap.status,
-              gapId: gap.id,
-              status,
-            }),
-          );
+          await setProductGapStatusMutation.mutateAsync({
+            expectedStatus: gap.status,
+            gapId: gap.id,
+            status,
+          });
         } finally {
           await refresh();
         }

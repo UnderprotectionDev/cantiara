@@ -19,6 +19,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 import { WorkContextCustomSectionForm } from "../forms/work-context-custom-section-form";
 
@@ -74,7 +75,7 @@ export default function WorkContextCardLayoutEditor({
         client.previewWorkContextLayout({
           baseRevision: currentRevision,
           change: {
-            kind: "set-work-context-layout",
+            kind: "set-work-context-layout" as const,
             layout: draft,
             workType,
           },
@@ -92,37 +93,36 @@ export default function WorkContextCardLayoutEditor({
     },
   });
 
-  const applyMutation = useMutation({
-    mutationFn: async () =>
-      runOnlineOnlyWrite(() =>
-        client.updateProjectConfiguration({
-          baseRevision: currentRevision,
-          change: {
-            kind: "set-work-context-layout",
-            layout: draft,
-            workType,
-          },
-          clientIdempotencyKey: crypto.randomUUID(),
-          projectId,
-        }),
-      ),
-    onError: (mutationError) => {
-      setLocalError(
-        errorMessage(
-          mutationError,
-          "Work Context Card layout could not be changed.",
-        ),
-      );
-    },
-    onSuccess: async (nextProject) => {
-      setLocalError(null);
-      setPreview(null);
-      setReceiptId("receiptId" in nextProject ? nextProject.receiptId : null);
-      setCurrentRevision(nextProject.revision);
-      queryClient.setQueryData(projectQueryKey, nextProject);
-      await queryClient.invalidateQueries({ queryKey: projectQueryKey });
-    },
-  });
+  const applyMutation = usePreparedMutation(
+    orpc.updateProjectConfiguration.mutationOptions({
+      mutationFn: (input) => client.updateProjectConfiguration(input),
+      onError: (mutationError) => {
+        setLocalError(
+          errorMessage(
+            mutationError,
+            "Work Context Card layout could not be changed.",
+          ),
+        );
+      },
+      onSuccess: async (nextProject) => {
+        setLocalError(null);
+        setPreview(null);
+        setReceiptId("receiptId" in nextProject ? nextProject.receiptId : null);
+        setCurrentRevision(nextProject.revision);
+        queryClient.setQueryData(projectQueryKey, nextProject);
+        await queryClient.invalidateQueries({ queryKey: projectQueryKey });
+      },
+    }),
+    (_: undefined) => ({
+      baseRevision: currentRevision,
+      change: {
+        kind: "set-work-context-layout" as const,
+        layout: draft,
+        workType,
+      },
+      projectId,
+    }),
+  );
 
   const undoMutation = useMutation({
     mutationFn: () => {
@@ -335,7 +335,7 @@ export default function WorkContextCardLayoutEditor({
         </Button>
         <Button
           disabled={busy || !isDirty || !preview}
-          onClick={() => applyMutation.mutate()}
+          onClick={() => applyMutation.mutate(undefined)}
           type="button"
         >
           Confirm

@@ -8,19 +8,33 @@ const rpc = vi.hoisted(() => ({ setRole: vi.fn() }));
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({
   runOnlineOnlyWrite: (write: () => Promise<unknown>) => write(),
 }));
-vi.mock("@/utils/orpc", () => ({
-  client: { setDocumentEvidenceRole: rpc.setRole },
-  orpc: {
-    documentEvidenceBindings: { key: () => ["document-evidence-bindings"] },
-    documentEvidenceHistory: {
-      key: () => ["document-evidence-history"],
-      queryOptions: () => ({
-        queryKey: ["document-evidence-history"],
-        queryFn: async () => [],
-      }),
-    },
-  },
-}));
+vi.mock("@/utils/orpc", async (importActual) => {
+  const actual = await importActual<typeof import("@/utils/orpc")>();
+  return {
+    ...actual,
+    client: { setDocumentEvidenceRole: rpc.setRole },
+    orpc: new Proxy(actual.orpc, {
+      get(target, property, receiver) {
+        const overrides = {
+          documentEvidenceBindings: {
+            key: () => ["document-evidence-bindings"],
+          },
+          documentEvidenceHistory: {
+            key: () => ["document-evidence-history"],
+            queryOptions: () => ({
+              queryKey: ["document-evidence-history"],
+              queryFn: async () => [],
+            }),
+          },
+        };
+        return (
+          Reflect.get(overrides, property) ??
+          Reflect.get(target, property, receiver)
+        );
+      },
+    }),
+  };
+});
 
 import DocumentEvidenceRoleForm from "../document-evidence-role-form";
 

@@ -1,7 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the Project Release.
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { client, orpc } from "@/utils/orpc";
 import { ReleaseEvidencePackView } from "../views/release-evidence-pack-view";
 
@@ -13,6 +12,30 @@ export default function ReleaseEvidencePackSurface({
   projectId: string;
   releaseId: string;
 }) {
+  const addReleaseChecklistItemMutation = useMutation(
+    orpc.addReleaseChecklistItem.mutationOptions({
+      mutationFn: (command) => client.addReleaseChecklistItem(command),
+      onSuccess: () => refresh(),
+    }),
+  );
+  const closeReleaseOpenScopeSignalMutation = useMutation(
+    orpc.closeReleaseOpenScopeSignal.mutationOptions({
+      mutationFn: (command) => client.closeReleaseOpenScopeSignal(command),
+      onSuccess: () => refresh(),
+    }),
+  );
+  const removeReleaseChecklistItemMutation = useMutation(
+    orpc.removeReleaseChecklistItem.mutationOptions({
+      mutationFn: (command) => client.removeReleaseChecklistItem(command),
+      onSuccess: () => refresh(),
+    }),
+  );
+  const setReleaseChecklistItemMutation = useMutation(
+    orpc.setReleaseChecklistItem.mutationOptions({
+      mutationFn: (command) => client.setReleaseChecklistItem(command),
+      onSuccess: () => refresh(),
+    }),
+  );
   const queryClient = useQueryClient();
   const input = { projectId, releaseId };
   const packOptions = orpc.projectReleaseEvidencePack.queryOptions({ input });
@@ -44,28 +67,23 @@ export default function ReleaseEvidencePackSurface({
     <ReleaseEvidencePackView
       actions={{
         onAddItem: async (text) => {
-          await runOnlineOnlyWrite(() =>
-            client.addReleaseChecklistItem({ ...input, text }),
-          );
-          await refresh();
+          await addReleaseChecklistItemMutation.mutateAsync({ ...input, text });
         },
         onCloseSignal: async () => {
-          await runOnlineOnlyWrite(() =>
-            client.closeReleaseOpenScopeSignal(input),
-          );
-          await refresh();
+          await closeReleaseOpenScopeSignalMutation.mutateAsync(input);
         },
         onRemoveItem: async (itemId) => {
-          await runOnlineOnlyWrite(() =>
-            client.removeReleaseChecklistItem({ ...input, itemId }),
-          );
-          await refresh();
+          await removeReleaseChecklistItemMutation.mutateAsync({
+            ...input,
+            itemId,
+          });
         },
         onSetItem: async (itemId, checked) => {
-          await runOnlineOnlyWrite(() =>
-            client.setReleaseChecklistItem({ ...input, checked, itemId }),
-          );
-          await refresh();
+          await setReleaseChecklistItemMutation.mutateAsync({
+            ...input,
+            checked,
+            itemId,
+          });
         },
       }}
       pack={pack.data}

@@ -18,6 +18,7 @@ export interface ClientShellState {
 
 export interface ClientShell {
   assertOnline: () => void;
+  assertWriteAllowed: () => void;
   get: () => ClientShellState;
   getState: () => ClientShellState;
   markUnsavedChanges: (hasUnsavedChanges?: boolean) => void;
@@ -180,14 +181,18 @@ export function createClientShell(
   }
 
   async function runOnlineOnly<T>(operation: () => Promise<T>) {
-    assertOnline();
-    assertUpdateAllowed();
+    assertWriteAllowed();
     try {
       return await operation();
     } catch (error) {
       recordNetworkFailure(error);
       throw error;
     }
+  }
+
+  function assertWriteAllowed() {
+    assertOnline();
+    assertUpdateAllowed();
   }
 
   async function runWrite<T>(write: () => Promise<T>) {
@@ -205,6 +210,7 @@ export function createClientShell(
 
   return {
     assertOnline,
+    assertWriteAllowed,
     get: () => store.state,
     getState: () => store.state,
     markUnsavedChanges,

@@ -4,9 +4,8 @@ import type {
   TestGapRelationTargetType,
 } from "@cantiara/api/test-gaps";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { toRelationInputs } from "../../lib/test-gap-form";
 import { TestGapsView } from "../views/test-gaps-view";
@@ -18,6 +17,37 @@ function planningState(gap: TestGapRecord): "Open" | "Planned" {
 
 /** The Tests area's Test Gap list; it files, plans and closes nothing by itself. */
 export default function TestGapsSurface({ projectId }: { projectId: string }) {
+  const closeTestGapMutation = useMutation(
+    orpc.closeTestGap.mutationOptions({
+      mutationFn: (input) => client.closeTestGap(input),
+    }),
+  );
+  const createTestGapMutation = useMutation(
+    orpc.createTestGap.mutationOptions({
+      mutationFn: (input) => client.createTestGap(input),
+      onSuccess: () => refresh(),
+    }),
+  );
+  const bindTestGapCaseMutation = useMutation(
+    orpc.bindTestGapCase.mutationOptions({
+      mutationFn: (input) => client.bindTestGapCase(input),
+    }),
+  );
+  const bindTestGapHandoffMutation = useMutation(
+    orpc.bindTestGapHandoff.mutationOptions({
+      mutationFn: (input) => client.bindTestGapHandoff(input),
+    }),
+  );
+  const unbindTestGapCaseMutation = useMutation(
+    orpc.unbindTestGapCase.mutationOptions({
+      mutationFn: (input) => client.unbindTestGapCase(input),
+    }),
+  );
+  const unbindTestGapHandoffMutation = useMutation(
+    orpc.unbindTestGapHandoff.mutationOptions({
+      mutationFn: (input) => client.unbindTestGapHandoff(input),
+    }),
+  );
   const queryClient = useQueryClient();
   const options = orpc.projectTestGaps.queryOptions({ input: { projectId } });
   const gaps = useQuery(options);
@@ -81,78 +111,77 @@ export default function TestGapsSurface({ projectId }: { projectId: string }) {
       loadTargets={loadTargets}
       onClose={async (gap, values) => {
         try {
-          await runOnlineOnlyWrite(() =>
-            client.closeTestGap(
-              values.outcome === "Met by result"
-                ? {
-                    expectedState: planningState(gap),
-                    gapId: gap.id,
-                    outcome: "Met by result",
-                    projectId,
-                    rationale: values.rationale,
-                    sessionTestIds: values.sessionTestIds,
-                  }
-                : {
-                    decisionId: values.decisionId || null,
-                    expectedState: planningState(gap),
-                    gapId: gap.id,
-                    outcome: "Not needed",
-                    projectId,
-                    rationale: values.rationale,
-                  },
-            ),
+          await closeTestGapMutation.mutateAsync(
+            values.outcome === "Met by result"
+              ? {
+                  expectedState: planningState(gap),
+                  gapId: gap.id,
+                  outcome: "Met by result",
+                  projectId,
+                  rationale: values.rationale,
+                  sessionTestIds: values.sessionTestIds,
+                }
+              : {
+                  decisionId: values.decisionId || null,
+                  expectedState: planningState(gap),
+                  gapId: gap.id,
+                  outcome: "Not needed",
+                  projectId,
+                  rationale: values.rationale,
+                },
           );
         } finally {
           await refresh();
         }
       }}
       onCreate={async (values) => {
-        await runOnlineOnlyWrite(() =>
-          client.createTestGap({
-            projectId,
-            rationale: values.rationale,
-            relations: toRelationInputs(values.relations),
-            title: values.title,
-          }),
-        );
-        await refresh();
+        await createTestGapMutation.mutateAsync({
+          projectId,
+          rationale: values.rationale,
+          relations: toRelationInputs(values.relations),
+          title: values.title,
+        });
       }}
       onPlanCase={async (gap, ref) => {
         try {
-          await runOnlineOnlyWrite(() =>
-            client.bindTestGapCase({ ...ref, gapId: gap.id, projectId }),
-          );
+          await bindTestGapCaseMutation.mutateAsync({
+            ...ref,
+            gapId: gap.id,
+            projectId,
+          });
         } finally {
           await refresh();
         }
       }}
       onPlanHandoff={async (gap, handoffId) => {
         try {
-          await runOnlineOnlyWrite(() =>
-            client.bindTestGapHandoff({ gapId: gap.id, handoffId, projectId }),
-          );
+          await bindTestGapHandoffMutation.mutateAsync({
+            gapId: gap.id,
+            handoffId,
+            projectId,
+          });
         } finally {
           await refresh();
         }
       }}
       onUnplanCase={async (gap, ref) => {
         try {
-          await runOnlineOnlyWrite(() =>
-            client.unbindTestGapCase({ ...ref, gapId: gap.id, projectId }),
-          );
+          await unbindTestGapCaseMutation.mutateAsync({
+            ...ref,
+            gapId: gap.id,
+            projectId,
+          });
         } finally {
           await refresh();
         }
       }}
       onUnplanHandoff={async (gap, handoffId) => {
         try {
-          await runOnlineOnlyWrite(() =>
-            client.unbindTestGapHandoff({
-              gapId: gap.id,
-              handoffId,
-              projectId,
-            }),
-          );
+          await unbindTestGapHandoffMutation.mutateAsync({
+            gapId: gap.id,
+            handoffId,
+            projectId,
+          });
         } finally {
           await refresh();
         }

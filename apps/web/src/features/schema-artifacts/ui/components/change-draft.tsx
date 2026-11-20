@@ -1,8 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: The draft binds its own edit and reset handlers.
 import type { SchemaChangePreview } from "@cantiara/api/schema-artifacts";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 
 import { ConfirmArtifactForm } from "../forms/confirm-artifact-form";
@@ -98,40 +98,36 @@ export function ChangeDraft({
   targetVersionId: string;
 }) {
   const queryClient = useQueryClient();
-  const confirmKey = useRef<string | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
-  const confirm = useMutation({
-    mutationFn: (input: {
+  const confirm = usePreparedMutation(
+    orpc.confirmMigrationArtifact.mutationOptions({
+      mutationFn: (input) => client.confirmMigrationArtifact(input),
+      onError: (failure) =>
+        setConfirmError(
+          failure instanceof Error
+            ? failure.message
+            : "Migration Artifact could not be confirmed.",
+        ),
+      onSuccess: async () => {
+        setConfirmError(null);
+        await queryClient.invalidateQueries({
+          queryKey: orpc.migrationArtifacts.key(),
+        });
+      },
+    }),
+    (input: {
       confirmedDestructiveOperationIds: string[];
       supersedes: string | null;
       upSql: string;
       generated: string;
-    }) => {
-      confirmKey.current ??= crypto.randomUUID();
-      return runOnlineOnlyWrite(() =>
-        client.confirmMigrationArtifact({
-          clientIdempotencyKey: confirmKey.current as string,
-          confirmedDestructiveOperationIds:
-            input.confirmedDestructiveOperationIds,
-          editedUpSql: input.upSql === input.generated ? null : input.upSql,
-          sourceVersionId,
-          supersedes: input.supersedes,
-          targetVersionId,
-        }),
-      );
-    },
-    onError: (failure) =>
-      setConfirmError(
-        failure instanceof Error
-          ? failure.message
-          : "Migration Artifact could not be confirmed.",
-      ),
-    onSuccess: async () => {
-      confirmKey.current = null;
-      setConfirmError(null);
-      await queryClient.invalidateQueries();
-    },
-  });
+    }) => ({
+      confirmedDestructiveOperationIds: input.confirmedDestructiveOperationIds,
+      editedUpSql: input.upSql === input.generated ? null : input.upSql,
+      sourceVersionId,
+      supersedes: input.supersedes,
+      targetVersionId,
+    }),
+  );
   const [edited, setEdited] = useState<string | null>(null);
   const preview = useQuery({
     ...orpc.schemaChangePreview.queryOptions({

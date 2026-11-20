@@ -3,9 +3,8 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { ProjectOverviewSources } from "@cantiara/api/project-overview";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { useCreateProjectUpdate } from "../../hooks/use-create-project-update";
 import {
@@ -25,6 +24,18 @@ export default function ProjectUpdatesSurface({
 }: {
   projectId: string;
 }) {
+  const configureProjectUpdateReminderMutation = useMutation(
+    orpc.configureProjectUpdateReminder.mutationOptions({
+      mutationFn: (command) => client.configureProjectUpdateReminder(command),
+      onSuccess: () => refreshReminder(),
+    }),
+  );
+  const skipProjectUpdateReminderMutation = useMutation(
+    orpc.skipProjectUpdateReminder.mutationOptions({
+      mutationFn: (command) => client.skipProjectUpdateReminder(command),
+      onSuccess: () => refreshReminder(),
+    }),
+  );
   const input = { projectId };
   const updates = useQuery(orpc.projectUpdates.queryOptions({ input }));
   const profile = useQuery(orpc.project.queryOptions({ input }));
@@ -123,19 +134,15 @@ export default function ProjectUpdatesSurface({
         reminder.data
           ? {
               onConfigure: async (values) => {
-                await runOnlineOnlyWrite(() =>
-                  client.configureProjectUpdateReminder({
-                    ...values,
-                    projectId,
-                  }),
-                );
-                await refreshReminder();
+                await configureProjectUpdateReminderMutation.mutateAsync({
+                  ...values,
+                  projectId,
+                });
               },
               onSkip: async () => {
-                await runOnlineOnlyWrite(() =>
-                  client.skipProjectUpdateReminder({ projectId }),
-                );
-                await refreshReminder();
+                await skipProjectUpdateReminderMutation.mutateAsync({
+                  projectId,
+                });
               },
               reminder: reminder.data,
             }

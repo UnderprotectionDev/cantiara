@@ -56,6 +56,7 @@ import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hook
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 import {
   type BacklogPresentation,
@@ -83,27 +84,26 @@ function BacklogCard({
     () => setReappearDate(work.reappearDate ?? ""),
     [work.reappearDate],
   );
-  const saveReappearDate = useMutation({
-    mutationFn: (value: string | null) =>
-      runOnlineOnlyWrite(() =>
-        client.updateWorkReappearDate({
-          baseRevision: work.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          reappearDate: value,
-          workId: work.id,
-        }),
-      ),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: orpc.projectBacklog.queryOptions({ input: { projectId } })
-            .queryKey,
-        }),
-        queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
-      ]);
-    },
-    onError: () => setReappearDate(work.reappearDate ?? ""),
-  });
+  const saveReappearDate = usePreparedMutation(
+    orpc.updateWorkReappearDate.mutationOptions({
+      mutationFn: (input) => client.updateWorkReappearDate(input),
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectBacklog.queryOptions({ input: { projectId } })
+              .queryKey,
+          }),
+          queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
+        ]);
+      },
+      onError: () => setReappearDate(work.reappearDate ?? ""),
+    }),
+    (value: string | null) => ({
+      baseRevision: work.revision,
+      reappearDate: value,
+      workId: work.id,
+    }),
+  );
   const selectedDate = reappearDate ? parseISO(reappearDate) : undefined;
   const {
     attributes,

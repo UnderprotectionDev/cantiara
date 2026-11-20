@@ -74,6 +74,8 @@ Kurucu kapalı dünya önizlemesini onayladıktan sonra bir Dış yüzey ve Onay
 
 ## Testing Decisions
 
+- **Issued token boundary (#544).** The Link Sharing surface test uses a real QueryClient to observe Approve scope, Rotate link and Reshare with a new link. A synthetic token reaches the private link display and never reaches mutation variables, results or global cache callbacks. Each operation refreshes its scope preview.
+
 - **RPC refusal evidence (#543).** `link-sharing-rpc.test.ts` covers typed scope, placeholder, state and mutation conflict responses. `apps/server/src/app.test.ts` verifies the safe placeholder count, target identity, expiry refusal and retry delay through HTTP. `share-lifecycle-panel.test.tsx` verifies that a rate-limited `Revoke` shows the refusal and keeps confirmation open. `share-scope-form.test.tsx` and `share-access-panel.test.tsx` verify the visible refusal on approval, rotation, and password removal.
 
 - **What a good test is.** Tests observe Link Sharing through its public interface: preview list of exact records, versions, fields, and files, approve/mint, visitor session exchange, password/expiry/revoke, asset/range, placeholder list with resolve-or-`Publish/share anyway`, YouTube no-request-on-load, founder-session rejection of visitor cookie, empty-body `410 Gone` after revoke. They do not assert CDN internals. Expected values are PRD rules (12-hour session, generic errors, revoke beats cache).

@@ -1,6 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
 
 /** The `Archive` view: archived Projects, living surfaces and open security actions. */
 export function useArchivedProjects() {
@@ -27,38 +31,63 @@ export function useDeletePreview(projectId: string | null) {
   );
 }
 
+function invalidateRetirementQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  return async (
+    _: unknown,
+    __: unknown,
+    { projectId }: { projectId: string },
+  ) => {
+    await Promise.all([
+      ...[
+        orpc.listArchivedProjects.key(),
+        orpc.previewArchiveProject.queryKey({ input: { projectId } }),
+        orpc.previewDeleteProject.queryKey({ input: { projectId } }),
+        orpc.project.queryKey({ input: { projectId } }),
+        orpc.projects.key(),
+        orpc.projectWorks.queryKey({ input: { projectId } }),
+        orpc.documents.key(),
+        orpc.projectScreens.key(),
+        orpc.projectDecisions.key(),
+        orpc.projectRisks.key(),
+        orpc.searchRecords.key(),
+        orpc.workspaceOverview.key(),
+        orpc.listExternalSurfaces.key(),
+        orpc.projectGitHubOverview.key(),
+        orpc.trash.key(),
+      ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+      ...invalidateSmartCollectionMembership(queryClient),
+    ]);
+  };
+}
+
 /** `Delete Project`: online only, never carries a surface disposition. */
 export function useDeleteProject() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { baseRevision: number; projectId: string }) =>
-      runOnlineOnlyWrite(() =>
-        client.deleteProject({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSettled: () => queryClient.invalidateQueries(),
-  });
+  return usePreparedMutation(
+    orpc.deleteProject.mutationOptions({
+      mutationFn: (input) => client.deleteProject(input),
+      onSettled: invalidateRetirementQueries(queryClient),
+    }),
+    (input: { baseRevision: number; projectId: string }) => ({
+      ...input,
+    }),
+  );
 }
 
 /** `Restore to Archive`: online only; the entry and its revision come from the Archive view. */
 export function useRestoreToArchive() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (input: {
-      baseRevision: number;
-      entryId: string;
-      projectId: string;
-    }) =>
-      runOnlineOnlyWrite(() =>
-        client.restoreProjectToArchive({
-          ...input,
-          clientIdempotencyKey: crypto.randomUUID(),
-        }),
-      ),
-    onSettled: () => queryClient.invalidateQueries(),
-  });
+  return usePreparedMutation(
+    orpc.restoreProjectToArchive.mutationOptions({
+      mutationFn: (input) => client.restoreProjectToArchive(input),
+      onSettled: invalidateRetirementQueries(queryClient),
+    }),
+    (input: { baseRevision: number; entryId: string; projectId: string }) => ({
+      ...input,
+    }),
+  );
 }
 
 /**
@@ -68,20 +97,26 @@ export function useRestoreToArchive() {
  */
 export function useRetirementTransition() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (input: {
+  return usePreparedMutation(
+    {
+      mutationFn: ({
+        action,
+        ...command
+      }: {
+        action: "archive" | "unarchive";
+        baseRevision: number;
+        clientIdempotencyKey: string;
+        projectId: string;
+      }) =>
+        action === "archive"
+          ? client.archiveProject(command)
+          : client.unarchiveProject(command),
+      onSettled: invalidateRetirementQueries(queryClient),
+    },
+    (input: {
       action: "archive" | "unarchive";
       baseRevision: number;
       projectId: string;
-    }) => {
-      const { action, ...command } = input;
-      const body = { ...command, clientIdempotencyKey: crypto.randomUUID() };
-      return runOnlineOnlyWrite(() =>
-        action === "archive"
-          ? client.archiveProject(body)
-          : client.unarchiveProject(body),
-      );
-    },
-    onSettled: () => queryClient.invalidateQueries(),
-  });
+    }) => input,
+  );
 }
