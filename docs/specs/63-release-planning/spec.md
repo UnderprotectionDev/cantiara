@@ -32,6 +32,8 @@ Kurucu tam olarak bir Projeye ait Proje Sürümü ana kaydında yayımlanacak İ
 
 ## Testing Decisions
 
+- **Post-save navigation (#544).** Written releases remain saved if opening the detail page fails. Project Release creation and the detail route remain separate steps.
+
 - **Write lifecycle evidence (#544).** The web command seam observes the Project Release reads that refresh after a write, with Smart Collection membership updated.
 
 - **What a good test is.** Tests observe Project Release Planning through create, scope membership, status matrix, and hypothesis fields. They go red if a GitHub Release upsert writes `Published`/`Cancelled`, if the type is a Milestone or Focus Period, or if hypothesis fields act as a gate. They do not assert GitHub API internals.

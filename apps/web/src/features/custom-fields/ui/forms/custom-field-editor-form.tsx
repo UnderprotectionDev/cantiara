@@ -119,7 +119,19 @@ export default function CustomFieldEditor({
   const { create, deletePermanently, moveToTrash, query, restore, update } =
     useCustomFields(projectId);
   const [formError, setFormError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const failedAction =
+    update.error ??
+    moveToTrash.error ??
+    restore.error ??
+    deletePermanently.error;
+  const actionError = failedAction ? errorMessage(failedAction) : null;
+  function clearOtherActions(active: { reset: () => void }) {
+    for (const write of [update, moveToTrash, restore, deletePermanently]) {
+      if (write !== active) {
+        write.reset();
+      }
+    }
+  }
   const [editingId, setEditingId] = useState<string | null>(null);
   const form = useForm({
     defaultValues: INITIAL_VALUES,
@@ -158,32 +170,32 @@ export default function CustomFieldEditor({
       editingId={editingId}
       onCancelEdit={() => setEditingId(null)}
       onDeletePermanently={async (definition) => {
-        setActionError(null);
+        clearOtherActions(deletePermanently);
         try {
           await deletePermanently.mutateAsync(revisionArgs(definition));
-        } catch (error) {
-          setActionError(errorMessage(error));
+        } catch {
+          // Query exposes the failure and keeps the command available for retry.
         }
       }}
       onEdit={setEditingId}
       onMoveToTrash={async (definition) => {
-        setActionError(null);
+        clearOtherActions(moveToTrash);
         try {
           await moveToTrash.mutateAsync(revisionArgs(definition));
-        } catch (error) {
-          setActionError(errorMessage(error));
+        } catch {
+          // Query exposes the failure and keeps the command available for retry.
         }
       }}
       onRestore={async (definition) => {
-        setActionError(null);
+        clearOtherActions(restore);
         try {
           await restore.mutateAsync(revisionArgs(definition));
-        } catch (error) {
-          setActionError(errorMessage(error));
+        } catch {
+          // Query exposes the failure and keeps the command available for retry.
         }
       }}
       onSave={async (definition, values) => {
-        setActionError(null);
+        clearOtherActions(update);
         try {
           await update.mutateAsync({
             baseRevision: definition.revision,
@@ -193,8 +205,8 @@ export default function CustomFieldEditor({
             recordTypes: values.recordTypes,
           });
           setEditingId(null);
-        } catch (error) {
-          setActionError(errorMessage(error));
+        } catch {
+          // Query exposes the failure and keeps the command available for retry.
         }
       }}
     />

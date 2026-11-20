@@ -5,6 +5,7 @@ import {
   createEmptyWireframeDocument,
   createWireframeBlock,
 } from "@cantiara/api/wireframe-document";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, test, vi } from "vitest";
@@ -47,12 +48,14 @@ test("Preview Change submits the source label through the form", async () => {
   const root = createRoot(host);
   await act(async () =>
     root.render(
-      <LinkedBlockControls
-        actions={{ apply: vi.fn(), create: vi.fn(), preview }}
-        block={{ ...block, ...content }}
-        editor={editor}
-        linkedBlock={block}
-      />,
+      <QueryClientProvider client={new QueryClient()}>
+        <LinkedBlockControls
+          actions={{ apply: vi.fn(), create: vi.fn(), preview }}
+          block={{ ...block, ...content }}
+          editor={editor}
+          linkedBlock={block}
+        />
+      </QueryClientProvider>,
     ),
   );
   const input = host.querySelector("#linked-source-label") as HTMLInputElement;

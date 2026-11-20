@@ -180,7 +180,17 @@ export default function ProjectTagsSurface({
         error={formError}
         onCreate={(name) => {
           setFormValidationError(null);
-          return create.mutateAsync({ name });
+          return create.mutateAsync(
+            commandVariables(
+              { name },
+              create.isError && create.variables?.clientIdempotencyKey
+                ? {
+                    name: create.variables.name,
+                    clientIdempotencyKey: create.variables.clientIdempotencyKey,
+                  }
+                : undefined,
+            ),
+          );
         }}
         onValidationError={setFormValidationError}
         pending={create.isPending}

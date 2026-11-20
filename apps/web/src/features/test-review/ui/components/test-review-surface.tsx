@@ -1,6 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the Project.
+
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { commandVariables } from "@/lib/command-variables";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -12,6 +14,22 @@ import {
   TestReviewView,
 } from "../views/test-review-view";
 import type { TestReviewSignalActions } from "./test-review-signals";
+
+function reviewCommand<T extends object>(
+  input: T,
+  observer: {
+    isError: boolean;
+    variables?: T & { clientIdempotencyKey?: string };
+  },
+) {
+  const { variables } = observer;
+  return commandVariables(
+    input,
+    observer.isError && variables?.clientIdempotencyKey
+      ? { ...variables, clientIdempotencyKey: variables.clientIdempotencyKey }
+      : undefined,
+  );
+}
 
 /** The Tests area's Test Review section; it gates and archives nothing. */
 export default function TestReviewSurface({
@@ -129,15 +147,26 @@ export default function TestReviewSurface({
   }
   const actions: TestReviewActions = {
     commitBulk: async (sessionId, sessionTestIds, preview) => {
-      await commitReviewBulkMutation.mutateAsync({
-        previewFingerprint: preview.fingerprint,
-        projectId,
-        sessionId,
-        sessionTestIds,
-      });
+      await commitReviewBulkMutation.mutateAsync(
+        reviewCommand<Parameters<typeof client.commitReviewBulk>[0]>(
+          {
+            previewFingerprint: preview.fingerprint,
+            projectId,
+            sessionId,
+            sessionTestIds,
+          },
+          commitReviewBulkMutation,
+        ),
+      );
     },
     previewBulk: (sessionId, sessionTestIds) =>
-      client.previewReviewBulk({ projectId, sessionId, sessionTestIds }),
+      queryClient.query({
+        ...orpc.previewReviewBulk.queryOptions({
+          input: { projectId, sessionId, sessionTestIds },
+        }),
+        gcTime: 0,
+        staleTime: 0,
+      }),
     // The close preview names the remaining Session Tests and carries no
     // token the close needs, so it is a plain read.
     previewClose: (sessionId) =>
@@ -156,46 +185,73 @@ export default function TestReviewSurface({
         sessionTestId: draft.sessionTestId,
       };
       if (draft.kind === "Correction") {
-        await recordReviewCorrectionMutation.mutateAsync({
-          ...target,
-          correctedResult: draft.correctedResult,
-          note: draft.note,
-        });
+        await recordReviewCorrectionMutation.mutateAsync(
+          reviewCommand<Parameters<typeof client.recordReviewCorrection>[0]>(
+            {
+              ...target,
+              correctedResult: draft.correctedResult,
+              note: draft.note,
+            },
+            recordReviewCorrectionMutation,
+          ),
+        );
       } else if (draft.kind === "Withdrawal") {
-        await recordReviewWithdrawalMutation.mutateAsync(target);
+        await recordReviewWithdrawalMutation.mutateAsync(
+          reviewCommand<Parameters<typeof client.recordReviewWithdrawal>[0]>(
+            target,
+            recordReviewWithdrawalMutation,
+          ),
+        );
       } else {
-        await recordReviewRedactionMutation.mutateAsync({
-          ...target,
-          eventId: draft.eventId,
-        });
+        await recordReviewRedactionMutation.mutateAsync(
+          reviewCommand<Parameters<typeof client.recordReviewRedaction>[0]>(
+            { ...target, eventId: draft.eventId },
+            recordReviewRedactionMutation,
+          ),
+        );
       }
     },
     setItem: async (sessionId, sessionTestId, state) => {
-      await setReviewItemStateMutation.mutateAsync({
-        projectId,
-        sessionId,
-        sessionTestId,
-        state,
-      });
+      await setReviewItemStateMutation.mutateAsync(
+        reviewCommand<Parameters<typeof client.setReviewItemState>[0]>(
+          {
+            projectId,
+            sessionId,
+            sessionTestId,
+            state,
+          },
+          setReviewItemStateMutation,
+        ),
+      );
     },
     setSession: async (sessionId, state, reason) => {
-      await setReviewSessionStateMutation.mutateAsync({
-        projectId,
-        reason,
-        sessionId,
-        state,
-      });
+      await setReviewSessionStateMutation.mutateAsync(
+        reviewCommand<Parameters<typeof client.setReviewSessionState>[0]>(
+          {
+            projectId,
+            reason,
+            sessionId,
+            state,
+          },
+          setReviewSessionStateMutation,
+        ),
+      );
     },
   };
   const signalActions: TestReviewSignalActions = {
     bindState: bindReviewResultMutation,
     bindResult: async (scenarioId, scenarioVersion, sessionTestId) => {
-      await bindReviewResultMutation.mutateAsync({
-        projectId,
-        scenarioId,
-        scenarioVersion,
-        sessionTestId,
-      });
+      await bindReviewResultMutation.mutateAsync(
+        reviewCommand<Parameters<typeof client.bindReviewResult>[0]>(
+          {
+            projectId,
+            scenarioId,
+            scenarioVersion,
+            sessionTestId,
+          },
+          bindReviewResultMutation,
+        ),
+      );
     },
     commitFollowUp: async (sessionTestIds, target, preview) => {
       await commitReviewFollowUpMutation.mutateAsync({
@@ -210,15 +266,38 @@ export default function TestReviewSurface({
     },
     followUpState: commitReviewFollowUpMutation,
     previewFollowUp: (sessionTestIds, target) =>
-      client.previewReviewFollowUp({ projectId, sessionTestIds, target }),
+      queryClient.query({
+        ...orpc.previewReviewFollowUp.queryOptions({
+          input: { projectId, sessionTestIds, target },
+        }),
+        gcTime: 0,
+        staleTime: 0,
+      }),
     supersede: async (newerId, olderId) => {
-      await supersedeReviewResultMutation.mutateAsync({
-        newerSessionTestId: newerId,
-        olderSessionTestId: olderId,
-        projectId,
-      });
+      await supersedeReviewResultMutation.mutateAsync(
+        reviewCommand<Parameters<typeof client.supersedeReviewResult>[0]>(
+          {
+            newerSessionTestId: newerId,
+            olderSessionTestId: olderId,
+            projectId,
+          },
+          supersedeReviewResultMutation,
+        ),
+      );
     },
   };
+  const sessionWrites = [
+    recordReviewRedactionMutation,
+    recordReviewWithdrawalMutation,
+    recordReviewCorrectionMutation,
+    commitReviewBulkMutation,
+    setReviewItemStateMutation,
+    setReviewSessionStateMutation,
+  ];
+  const writeForSession = (sessionId: string) =>
+    sessionWrites
+      .filter(({ variables }) => variables?.sessionId === sessionId)
+      .sort((left, right) => right.submittedAt - left.submittedAt)[0];
   return (
     <TestReviewView
       actions={actions}
@@ -228,6 +307,7 @@ export default function TestReviewSurface({
       resultEvents={review.data.resultEvents}
       sessions={review.data.sessions}
       signals={{ actions: signalActions, data: review.data }}
+      writeForSession={writeForSession}
     />
   );
 }

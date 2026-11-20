@@ -7,7 +7,9 @@ import {
   wireframeLinkedContentSchema,
 } from "@cantiara/api/wireframe-document";
 import { Button } from "@cantiara/ui/components/button";
-import { useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import { orpc } from "@/utils/orpc";
 import type { WireframeEditor } from "../../engine/editor";
 import { LinkedSourceLabelForm } from "../forms/linked-source-label-form";
 
@@ -60,32 +62,68 @@ export function AffectedScreensPreview({
   );
 }
 
-export function LinkedBlockControls({
+interface LinkedBlockControlsProps {
+  actions?: LinkedBlockActions;
+  block: WireframeBlock;
+  editor: WireframeEditor;
+  linkedBlock: WireframeBlock;
+}
+
+export function LinkedBlockControls(props: LinkedBlockControlsProps) {
+  if (!props.actions) {
+    return props.linkedBlock.link ? (
+      <DetachLinkedBlock block={props.block} editor={props.editor} />
+    ) : null;
+  }
+  return <LinkedBlockWrites {...props} actions={props.actions} />;
+}
+
+function DetachLinkedBlock({
+  block,
+  editor,
+}: Pick<LinkedBlockControlsProps, "block" | "editor">) {
+  const [error, setError] = useState(false);
+  function detach() {
+    try {
+      editor.dispatch([{ blockId: block.id, type: "detachLink" }]);
+      setError(false);
+    } catch {
+      setError(true);
+    }
+  }
+  return (
+    <>
+      <Button onClick={detach} size="sm" type="button" variant="outline">
+        Detach Link
+      </Button>
+      {error ? (
+        <p className="text-xs text-destructive" role="alert">
+          Link could not be detached.
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function LinkedBlockWrites({
   actions,
   block,
   editor,
   linkedBlock,
-}: {
-  actions?: LinkedBlockActions;
-  /** The selected block with its definition applied. */
-  block: WireframeBlock;
-  editor: WireframeEditor;
-  /** The selected block as stored (carries the link). */
-  linkedBlock: WireframeBlock;
-}) {
-  const [preview, setPreview] = useState<LinkedBlockChangeResult>();
-  const previewedLabel = useRef(block.label);
+}: LinkedBlockControlsProps & { actions: LinkedBlockActions }) {
+  const inspect = useMutation({
+    mutationKey: orpc.previewLinkedBlockChange.mutationKey(),
+    mutationFn: ({
+      definitionId: sourceId,
+      content,
+    }: {
+      definitionId: string;
+      content: WireframeLinkedContent;
+    }) => actions.preview(sourceId, content),
+    meta: { retryInSurface: true },
+  });
   const [error, setError] = useState<string>();
   const parsed = linkedContentOf(block);
-
-  function detach() {
-    setError(undefined);
-    try {
-      editor.dispatch([{ blockId: block.id, type: "detachLink" }]);
-    } catch {
-      setError("Link could not be detached.");
-    }
-  }
 
   async function run(action: () => Promise<void>) {
     setError(undefined);
@@ -107,13 +145,13 @@ export function LinkedBlockControls({
       return;
     }
     const { definitionId } = linkedBlock.link;
-    await run(async () => {
-      const content = changedContent(label);
-      if (content) {
-        setPreview(await actions.preview(definitionId, content));
-        previewedLabel.current = label;
-      }
-    });
+    setError(undefined);
+    const content = changedContent(label);
+    if (content) {
+      await inspect
+        .mutateAsync({ definitionId, content })
+        .catch(() => undefined);
+    }
   }
 
   if (!linkedBlock.link) {
@@ -148,6 +186,9 @@ export function LinkedBlockControls({
   }
 
   const { definitionId } = linkedBlock.link;
+  const shownError = inspect.isError
+    ? "Linked block preview is unavailable."
+    : error;
   return (
     <div className="space-y-2 rounded-lg border border-border/70 p-3">
       <p className="text-xs text-muted-foreground">
@@ -155,24 +196,22 @@ export function LinkedBlockControls({
         Screen that uses it.
       </p>
       <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={detach} size="sm" type="button" variant="outline">
-          Detach Link
-        </Button>
+        <DetachLinkedBlock block={block} editor={editor} />
         {actions ? (
           <LinkedSourceLabelForm
             initialLabel={block.label}
-            onEdit={() => setPreview(undefined)}
+            onEdit={inspect.reset}
             onPreview={previewLabel}
           />
         ) : null}
       </div>
-      {preview && actions ? (
+      {inspect.data && inspect.variables ? (
         <div className="space-y-2">
-          <AffectedScreensPreview result={preview} />
+          <AffectedScreensPreview result={inspect.data} />
           <Button
             onClick={() =>
               run(async () => {
-                const content = changedContent(previewedLabel.current);
+                const content = inspect.variables?.content;
                 if (!content) {
                   return;
                 }
@@ -180,7 +219,7 @@ export function LinkedBlockControls({
                 editor.dispatch([
                   { definition: applied.definition, type: "applyLinkedSource" },
                 ]);
-                setPreview(undefined);
+                inspect.reset();
               })
             }
             size="sm"
@@ -190,9 +229,9 @@ export function LinkedBlockControls({
           </Button>
         </div>
       ) : null}
-      {error ? (
+      {shownError ? (
         <p className="text-xs text-destructive" role="alert">
-          {error}
+          {shownError}
         </p>
       ) : null}
     </div>

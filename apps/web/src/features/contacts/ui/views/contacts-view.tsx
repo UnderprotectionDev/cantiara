@@ -16,7 +16,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { contactLabel, NO_COMPANY } from "../../lib/contact-label";
 import MergePreviewPanel, {
@@ -71,24 +70,27 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
       }),
     ]);
   const createContact = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.createContact.mutationKey(),
     mutationFn: (input: Parameters<typeof client.createContact>[0]) =>
-      runOnlineOnlyWrite(() => client.createContact(input)),
+      client.createContact(input),
     onSuccess: async (contact) => {
       setSelectedId(contact.id);
       await refresh();
     },
   });
   const createCompany = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.createCompany.mutationKey(),
     mutationFn: (input: Parameters<typeof client.createCompany>[0]) =>
-      runOnlineOnlyWrite(() => client.createCompany(input)),
+      client.createCompany(input),
     onSuccess: refresh,
   });
   const setCompany = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.setContactCompany.mutationKey(),
     mutationFn: (input: Parameters<typeof client.setContactCompany>[0]) =>
-      runOnlineOnlyWrite(() => client.setContactCompany(input)),
+      client.setContactCompany(input),
     onSuccess: refresh,
   });
   const [mergePair, setMergePair] = useState<{
@@ -102,9 +104,10 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     enabled: mergePair !== null,
   });
   const mergeContacts = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.mergeContacts.mutationKey(),
     mutationFn: (input: Parameters<typeof client.mergeContacts>[0]) =>
-      runOnlineOnlyWrite(() => client.mergeContacts(input)),
+      client.mergeContacts(input),
     onSuccess: async (result) => {
       setMergePair(null);
       setSelectedId(result.survivor.id);
@@ -121,9 +124,10 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     retry: false,
   });
   const undoMerge = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.undoMerge.mutationKey(),
     mutationFn: (input: Parameters<typeof client.undoMerge>[0]) =>
-      runOnlineOnlyWrite(() => client.undoMerge(input)),
+      client.undoMerge(input),
     onSuccess: async (result) => {
       setUndoRetiredId(null);
       setUndoNotice(undoResultNotice(result));
@@ -139,9 +143,10 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     },
   });
   const updateContact = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.updateContact.mutationKey(),
     mutationFn: (input: Parameters<typeof client.updateContact>[0]) =>
-      runOnlineOnlyWrite(() => client.updateContact(input)),
+      client.updateContact(input),
     onSuccess: refresh,
   });
 

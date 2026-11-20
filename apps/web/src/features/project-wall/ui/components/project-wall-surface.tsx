@@ -20,6 +20,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { executeWrite } from "@/utils/execute-write";
 import { client, orpc } from "@/utils/orpc";
 import { usePersonalProjectWallView } from "../../hooks/use-personal-project-wall-view";
+import { useProjectWallRelation } from "../../hooks/use-project-wall-relation";
 import { AddCardForm } from "../forms/place-project-wall-card-form";
 import {
   type ProjectWallActions,
@@ -145,6 +146,8 @@ export default function ProjectWallSurface({
     [collapsedIds, wall.data],
   );
 
+  const createRelation = useProjectWallRelation(projectId, wallId ?? "");
+
   const actions: ProjectWallActions = {
     onCreateFromSkeleton: async (skeleton) => {
       const attempt = await write(() =>
@@ -164,20 +167,18 @@ export default function ProjectWallSurface({
           wallId: wallId ?? "",
         }),
       ).then((attempt) => attempt.ok),
-    onCreateRelation: ({ baseRevision, kind, linkId, previewId }) => {
-      const clientIdempotencyKey = crypto.randomUUID();
-      return write(() =>
-        client.createProjectWallPersistentRelation({
-          baseRevision,
-          clientIdempotencyKey,
-          kind,
-          linkId,
-          previewId,
-          projectId,
-          wallId: wallId ?? "",
-        }),
-      ).then((attempt) => attempt.ok);
-    },
+    onCreateRelation: (input) =>
+      createRelation.mutateAsync(input).then(
+        () => true,
+        (failure: unknown) => {
+          setError(
+            failure instanceof Error
+              ? failure.message
+              : "Project Wall change failed.",
+          );
+          return false;
+        },
+      ),
     onDeleteGroup: (groupId) =>
       write(() =>
         client.deleteProjectWallGroup({

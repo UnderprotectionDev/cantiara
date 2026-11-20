@@ -6,7 +6,6 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 const rpc = vi.hoisted(() => ({
   createProjectSourceRecord: vi.fn(),
-  view: { props: null as null | { onSave: (...args: unknown[]) => unknown } },
 }));
 
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({
@@ -19,12 +18,6 @@ vi.mock("@/utils/orpc", async (importActual) => {
     client: { createProjectSourceRecord: rpc.createProjectSourceRecord },
   };
 });
-vi.mock("../project-risks-view", () => ({
-  ProjectRisksView: (props: { onSave: (...args: unknown[]) => unknown }) => {
-    rpc.view.props = props;
-    return null;
-  },
-}));
 
 import { orpc } from "@/utils/orpc";
 import ProjectRisksSurface from "../project-risks-surface";
@@ -44,8 +37,10 @@ afterEach(() => {
 });
 
 describe("Project Risks surface", () => {
-  test("saving a Risk refreshes Smart Collection membership", async () => {
-    rpc.createProjectSourceRecord.mockResolvedValue({});
+  test("a Risk keeps its draft and command after a failed save and refreshes only affected queries", async () => {
+    rpc.createProjectSourceRecord
+      .mockRejectedValueOnce(new Error("Connection interrupted"))
+      .mockResolvedValueOnce({});
     const queryClient = new QueryClient();
     queryClient.setQueryData(
       orpc.projectRisks.queryOptions({ input: { projectId: "project-1" } })
@@ -65,18 +60,46 @@ describe("Project Risks surface", () => {
         </QueryClientProvider>,
       );
     });
-    await act(async () => {
-      await rpc.view.props?.onSave({
-        description: "",
-        impact: "",
-        life: "Open",
-        probability: "",
-        rationale: "",
-        response: "",
-        title: "Vendor lock-in",
-      });
+    function button(label: string) {
+      const control = Array.from(host?.querySelectorAll("button") ?? []).find(
+        (item) => item.textContent === label,
+      );
+      if (!control) {
+        throw new Error(`Missing ${label}`);
+      }
+      return control;
+    }
+    await act(async () => button("Create").click());
+    const title = host.querySelector<HTMLInputElement>("#risk-title");
+    if (!title) {
+      throw new Error("Missing Title");
+    }
+    await act(() => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(title, "Vendor lock-in");
+      title.dispatchEvent(new Event("input", { bubbles: true }));
+      button("Save").click();
     });
-    expect(rpc.createProjectSourceRecord).toHaveBeenCalledTimes(1);
+    await vi.waitFor(async () => {
+      await act(async () => undefined);
+      expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
+        "could not be saved",
+      );
+    });
+    expect(title.value).toBe("Vendor lock-in");
+    await act(async () => button("Save").click());
+    await vi.waitFor(async () => {
+      await act(async () => undefined);
+      expect(host?.querySelector('[role="status"]')?.textContent).toBe(
+        "Risk saved.",
+      );
+    });
+    expect(rpc.createProjectSourceRecord).toHaveBeenCalledTimes(2);
+    expect(rpc.createProjectSourceRecord.mock.calls[1]).toEqual(
+      rpc.createProjectSourceRecord.mock.calls[0],
+    );
     const keys = invalidate.mock.calls.map((call) => call[0]?.queryKey);
     expect(keys).toContainEqual(orpc.smartCollectionViews.key());
   });

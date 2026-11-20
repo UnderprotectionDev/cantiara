@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { hashKey, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { executeWrite } from "@/utils/execute-write";
 import { invalidateSmartCollectionMembership, orpc } from "@/utils/orpc";
@@ -34,7 +34,7 @@ export function useProjectReleaseCommand(projectId: string) {
     write: (clientIdempotencyKey: string) => Promise<T>,
     onSuccess: () => Promise<void>,
   ) {
-    const fingerprint = JSON.stringify(command);
+    const fingerprint = hashKey([command]);
     if (pending.current?.fingerprint !== fingerprint) {
       pending.current = { fingerprint, key: crypto.randomUUID() };
     }
@@ -43,7 +43,10 @@ export function useProjectReleaseCommand(projectId: string) {
       await refreshProjectRelease(queryClient, projectId, command.id);
       if (!error && pending.current?.key === id) {
         pending.current = null;
-        await onSuccess();
+        // Navigation runs after the server commit. A refused route cannot undo it.
+        await Promise.resolve()
+          .then(onSuccess)
+          .catch(() => undefined);
       }
     });
   };

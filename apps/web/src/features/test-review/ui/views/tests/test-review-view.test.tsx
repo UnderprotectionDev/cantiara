@@ -4,7 +4,12 @@ import type {
   TestResultEvent,
   TestReviewSession,
 } from "@cantiara/api/test-review";
-import { act } from "react";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useMutation,
+} from "@tanstack/react-query";
+import { act, useCallback } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, type Mock, test, vi } from "vitest";
 import { type TestReviewActions, TestReviewView } from "../test-review-view";
@@ -124,15 +129,31 @@ async function mount(
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  await act(() => {
-    root?.render(
+  function ReviewProbe() {
+    const write = useMutation({
+      mutationFn: (execute: () => Promise<unknown>) => execute(),
+    });
+    const writeForSession = useCallback(() => write, [write]);
+    return (
       <TestReviewView
-        actions={actions}
+        actions={{
+          ...actions,
+          commitBulk: (...args) =>
+            write.mutateAsync(() => actions.commitBulk(...args)),
+        }}
         events={[]}
         readOnly={props.readOnly ?? false}
         resultEvents={props.resultEvents ?? []}
         sessions={[props.session ?? session]}
-      />,
+        writeForSession={writeForSession}
+      />
+    );
+  }
+  await act(() => {
+    root?.render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ReviewProbe />
+      </QueryClientProvider>,
     );
   });
 }
@@ -238,9 +259,12 @@ test("a failed commit shows an alert and nothing is claimed as saved", async () 
   await mount(actions);
   await click(byText("Mark session and selected results as reviewed"));
   await click(byText("Apply review"));
-  expect(document.querySelector('[role="alert"]')?.textContent).toBe(
-    "Preview again.",
-  );
+  await vi.waitFor(async () => {
+    await act(async () => undefined);
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+      "Preview again.",
+    );
+  });
   expect(document.querySelector('[role="status"]')).toBeNull();
 });
 

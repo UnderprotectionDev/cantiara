@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 describe("useProjectReleaseCommand", () => {
-  test("a saved Project Release write refreshes Smart Collection membership", async () => {
+  test("a saved Project Release refreshes membership even when post-save navigation rejects", async () => {
     const queryClient = new QueryClient();
     const invalidate = vi
       .spyOn(queryClient, "invalidateQueries")
@@ -47,11 +47,13 @@ describe("useProjectReleaseCommand", () => {
       );
     });
     await act(async () => {
-      await run?.(
-        { id: "x" },
-        async () => "ok",
-        () => Promise.resolve(),
-      );
+      await expect(
+        run?.(
+          { id: "x" },
+          () => Promise.resolve("ok"),
+          () => Promise.reject(new Error("Route failed")),
+        ),
+      ).resolves.toBe("ok");
     });
     const keys = invalidate.mock.calls.map((call) => call[0]?.queryKey);
     expect(keys).toContainEqual(orpc.smartCollectionViews.key());

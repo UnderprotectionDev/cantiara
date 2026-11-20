@@ -59,6 +59,8 @@ Kurucu tek Çalışma Alanı etiket ad alanında düz etiket oluşturur, kayıtl
 
 ## Testing Decisions
 
+- **Tag creation retry (#544).** The Project Tags browser test loses the first successful response, resubmits the same form, and sees one Tag. The PostgreSQL seam checks receipt replay, changed input conflict and independent duplicate-name rejection.
+
 - **Tag rename Undo retry (#544).** The Project Tags surface test checks that a failed Undo remains available, Retry repeats the receipt, base revision and client key, and success refreshes Tags and their dependent views.
 
 - **What a good test is.** Tests observe Tags through its public interface: create, apply, detach, picker suggestion order, atomic rename, identity filter after rename, and import preview mapping. They assert product rules (one Workspace identity per visible name, `/` is not hierarchy, rename is all-or-nothing, Document tokens are not a second dictionary, saved/import consumers match identity not a frozen display name) rather than row shapes or Markdown parser internals.

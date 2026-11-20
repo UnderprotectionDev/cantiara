@@ -6,12 +6,23 @@ import type {
 import { Button } from "@cantiara/ui/components/button";
 import { useState } from "react";
 import { ResearchSessionNotes } from "../components/research-session-notes";
-import type { ResearchBindingActions } from "../forms/research-note-binding-form";
+import type {
+  ResearchBindingActions,
+  ResearchBindingPreviewState,
+} from "../forms/research-note-binding-form";
 import {
   ResearchSessionEditor,
   type Save,
 } from "../forms/research-session-form";
 import type { SaveResearchNote } from "../forms/research-session-note-form";
+
+export interface ResearchWriteState {
+  error: unknown;
+  isPending: boolean;
+  isSuccess: boolean;
+  reset: () => void;
+  variables?: { id: string };
+}
 
 export function ResearchSessionsView({
   records,
@@ -19,28 +30,38 @@ export function ResearchSessionsView({
   readOnly,
   onSave,
   onStartEditing,
+  onStartNoteEditing = onStartEditing,
   onSaveNote,
   bindingActions,
+  bindingPreview,
+  bindingWrite,
+  noteWrite,
+  sessionWrite,
 }: {
   records: ResearchSessionRecord[];
   timeZone: string;
   readOnly: boolean;
   onSave: Save;
   onStartEditing: () => void;
+  onStartNoteEditing?: () => void;
   onSaveNote: SaveResearchNote;
   bindingActions?: ResearchBindingActions;
+  bindingPreview?: ResearchBindingPreviewState;
+  bindingWrite?: ResearchWriteState;
+  noteWrite?: ResearchWriteState;
+  sessionWrite?: ResearchWriteState;
 }) {
-  const [editing, setEditing] = useState<ResearchSessionRecord | "new" | null>(
+  const [draft, setEditing] = useState<ResearchSessionRecord | "new" | null>(
     null,
   );
-  const [saved, setSaved] = useState(false);
+  const saved = sessionWrite?.isSuccess;
+  const editing = saved ? null : draft;
   async function save(
     fields: ResearchSessionFields,
     record?: ResearchSessionRecord,
   ) {
     await onSave(fields, record);
     setEditing(null);
-    setSaved(true);
   }
   return (
     <section aria-label="Research Sessions" className="space-y-4">
@@ -51,7 +72,6 @@ export function ResearchSessionsView({
           onClick={() => {
             onStartEditing();
             setEditing("new");
-            setSaved(false);
           }}
         >
           Create Research Session
@@ -67,6 +87,8 @@ export function ResearchSessionsView({
           onCancel={() => setEditing(null)}
           onSave={save}
           record={editing === "new" ? undefined : editing}
+          saveError={sessionWrite?.error}
+          savePending={sessionWrite?.isPending}
           timeZone={timeZone}
         />
       ) : null}
@@ -89,7 +111,6 @@ export function ResearchSessionsView({
                   onClick={() => {
                     onStartEditing();
                     setEditing(record);
-                    setSaved(false);
                   }}
                   variant="outline"
                 >
@@ -99,8 +120,18 @@ export function ResearchSessionsView({
               <p className="text-sm whitespace-pre-wrap">{record.purpose}</p>
               <ResearchSessionNotes
                 bindingActions={bindingActions}
+                bindingPreview={bindingPreview}
+                bindingWrite={
+                  bindingWrite?.variables?.id === record.id ||
+                  !bindingWrite?.variables
+                    ? bindingWrite
+                    : undefined
+                }
+                noteWrite={
+                  noteWrite?.variables?.id === record.id ? noteWrite : undefined
+                }
                 onSave={onSaveNote}
-                onStartEditing={onStartEditing}
+                onStartEditing={onStartNoteEditing}
                 readOnly={readOnly || editing !== null}
                 record={record}
               />

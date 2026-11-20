@@ -42,6 +42,65 @@ function stateOf(
 const settable = TEST_REVIEW_SETTABLE_STATES;
 
 describe("Test Review: independent session and item state", () => {
+  test("replaying a state change never overwrites a more recent review", async () => {
+    const harness = setup();
+    const input = {
+      clientIdempotencyKey: "first-review",
+      projectId,
+      sessionId: "s1",
+      state: "Reviewed" as const,
+    };
+    const saved = await harness.testReview.setSessionReviewState(
+      accountId,
+      input,
+    );
+    await harness.testReview.setSessionReviewState(accountId, {
+      ...input,
+      clientIdempotencyKey: "later-review",
+      state: "Follow-up needed",
+    });
+    expect(
+      await harness.testReview.setSessionReviewState(accountId, input),
+    ).toEqual(saved);
+    expect(stateOf(harness, "s1")).toBe("Follow-up needed");
+    await expect(
+      harness.testReview.setSessionReviewState(accountId, {
+        ...input,
+        state: "Closed",
+      }),
+    ).rejects.toMatchObject({ code: "TEST_REVIEW_COMMAND_CONFLICT" });
+  });
+
+  test("a repeated bulk command returns its original changes without another history batch", async () => {
+    const harness = setup();
+    const selection = {
+      projectId,
+      sessionId: "s1",
+      sessionTestIds: ["t1", "t2"],
+    };
+    const preview = await harness.testReview.previewBulkReview(
+      accountId,
+      selection,
+    );
+    const input = {
+      ...selection,
+      clientIdempotencyKey: "bulk-review",
+      previewFingerprint: preview.fingerprint,
+    };
+    const saved = await harness.testReview.commitBulkReview(accountId, input);
+    const writes = [...harness.writes];
+    expect(await harness.testReview.commitBulkReview(accountId, input)).toEqual(
+      saved,
+    );
+    await expect(
+      harness.testReview.commitBulkReview(accountId, {
+        ...input,
+        sessionTestIds: ["t1"],
+      }),
+    ).rejects.toMatchObject({ code: "TEST_REVIEW_COMMAND_CONFLICT" });
+    expect(harness.writes).toEqual(writes);
+  });
+
   test("a new session and every item start Unreviewed", async () => {
     const harness = setup();
     const { sessions } = await harness.testReview.list(accountId, projectId);

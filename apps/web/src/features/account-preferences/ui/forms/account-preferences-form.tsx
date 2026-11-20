@@ -31,7 +31,7 @@ import {
 import { toast } from "sonner";
 
 import { STALE_BASE_REVISION_MESSAGE } from "@/lib/mutation-messages";
-import { accountPreferencesQueryOptions, client } from "@/utils/orpc";
+import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import {
   formatAccountDateTime,
   formatAccountNumber,
@@ -263,6 +263,8 @@ export default function AccountPreferencesForm({
     }),
   );
   const savePreferences = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.saveAccountPreferences.mutationKey(),
     mutationFn: (input: {
       baseRevision: number;
       clientIdempotencyKey: string;

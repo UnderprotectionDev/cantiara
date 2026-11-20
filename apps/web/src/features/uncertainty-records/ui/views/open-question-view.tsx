@@ -1,37 +1,28 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Fields and actions bind to the current question form.
 import type { DocumentEvidenceSelection } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
 
 import type { OpenQuestionRecord } from "../forms/open-question-editor-form";
 
 export function OpenQuestionDetail({
+  closeFailed = false,
+  closePending = false,
   record,
   evidence,
   readOnly = false,
   onAnswer,
   onClose,
 }: {
+  closeFailed?: boolean;
+  closePending?: boolean;
   record: OpenQuestionRecord;
   evidence: DocumentEvidenceSelection[];
   readOnly?: boolean;
   onAnswer: () => void;
   onClose: () => Promise<unknown>;
 }) {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string>();
-  async function close() {
-    setPending(true);
-    setError(undefined);
-    try {
-      await onClose();
-    } catch {
-      setError(
-        "Open Question could not be saved. Reload to check for changes, or retry.",
-      );
-    } finally {
-      setPending(false);
-    }
+  function close() {
+    onClose().catch(() => undefined);
   }
   return (
     <article
@@ -73,17 +64,19 @@ export function OpenQuestionDetail({
           <p className="text-muted-foreground">No evidence linked.</p>
         )}
       </section>
-      {error ? <p role="alert">{error}</p> : null}
+      {closeFailed ? (
+        <p role="alert">Open Question could not be closed. Try again.</p>
+      ) : null}
       {readOnly ? null : (
         <div className="flex flex-wrap gap-2">
           {record.life === "Open" ? (
-            <Button disabled={pending} onClick={onAnswer}>
+            <Button disabled={closePending} onClick={onAnswer}>
               Answered
             </Button>
           ) : null}
           {record.life === "No longer applicable" ? null : (
-            <Button disabled={pending} onClick={close} variant="outline">
-              {pending ? "Saving…" : "No longer applicable"}
+            <Button disabled={closePending} onClick={close} variant="outline">
+              {closePending ? "Saving…" : "No longer applicable"}
             </Button>
           )}
         </div>

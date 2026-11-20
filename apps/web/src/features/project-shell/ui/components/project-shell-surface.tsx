@@ -33,6 +33,7 @@ import {
 } from "react";
 import type { WorkStatusActionRequest } from "@/components/work-status-form";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
+import CustomFieldEditor from "@/features/custom-fields/ui/forms/custom-field-editor-form";
 import ProjectDecisionsSurface from "@/features/decisions/ui/components/project-decisions-surface";
 import FeedSurface from "@/features/feedback/ui/components/feed-surface";
 import FeedbackSurface from "@/features/feedback/ui/components/feedback-surface";
@@ -883,6 +884,7 @@ function ProjectShellContent({
         <div className="mt-8">
           <ProjectConfigurationForm
             baseRevision={revision}
+            CustomFieldEditor={CustomFieldEditor}
             configuration={configuration}
             configurationHost={configurationHost}
             onConfigurationHostChange={setConfigurationHost}

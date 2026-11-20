@@ -1,7 +1,7 @@
 import type { AssumptionRecord } from "@cantiara/api/uncertainty-records";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import EvidenceFlowPanel from "@/features/evidence/ui/components/evidence-flow-panel";
 import {
   client,
@@ -51,7 +51,11 @@ export default function ProjectAssumptionsSurface({
     ...orpc.documents.queryOptions({ input: { projectId } }),
     enabled: records.data?.readOnly === false,
   });
-  const [savedMessage, setSavedMessage] = useState<string>();
+  const saved = [
+    createProjectSourceRecordMutation,
+    updateProjectSourceRecordMutation,
+    transitionProjectSourceRecordMutation,
+  ].some((mutation) => mutation.isSuccess);
   const pendingWrite = useRef<{
     fingerprint: string;
     id: string;
@@ -75,7 +79,6 @@ export default function ProjectAssumptionsSurface({
   async function refresh(sourceId: string, commandKey: string) {
     if (pendingWrite.current?.key === commandKey) {
       pendingWrite.current = null;
-      setSavedMessage("Assumption saved.");
     }
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: options.queryKey }),
@@ -149,7 +152,9 @@ export default function ProjectAssumptionsSurface({
   }
   function startEditing() {
     pendingWrite.current = null;
-    setSavedMessage(undefined);
+    createProjectSourceRecordMutation.reset();
+    updateProjectSourceRecordMutation.reset();
+    transitionProjectSourceRecordMutation.reset();
   }
   function retry() {
     records.refetch().catch(() => undefined);
@@ -191,7 +196,7 @@ export default function ProjectAssumptionsSurface({
         onTransition={transition}
         projectId={projectId}
         renderEvidenceFlow={renderEvidenceFlow}
-        savedMessage={savedMessage}
+        savedMessage={saved ? "Assumption saved." : undefined}
         selectedId={selectedId}
       />
     </div>

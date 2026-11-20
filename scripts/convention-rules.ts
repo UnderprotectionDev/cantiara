@@ -36,6 +36,7 @@ export interface StructureRules {
   forbiddenFeatureNames: string[];
   imports: {
     forbiddenFolders: string[];
+    projectCompositionRoot?: string;
     shellExceptFolder: string | undefined;
     shellFeatures: string[];
     webNeverImportsServer: boolean;
@@ -128,6 +129,8 @@ const BARREL = /No `([^`]+)` barrels/g;
 const EXTENSION = /\.[^.]+$/;
 const FORBIDDEN_IMPORTS = /does not import another feature's ([^.]+)\./;
 const SHELL_FEATURES = /shell features (.+?) except their `([^`]+)`/;
+const PROJECT_COMPOSITION_ROOT =
+  /`([^`]+)` is the composition root of the Project page/;
 const KEBAB_NAME = /^[a-z0-9-]+$/;
 const TABLE_SEPARATOR = /^\|\s*-/;
 const CONTROLS_CLAUSE = /Kontroller `([^`]+)` bileşenleridir:\s*([^.|]+)/;
@@ -324,6 +327,7 @@ function readImports(rules: string): StructureRules["imports"] {
   const [, shells, shellExceptFolder] = imports.match(SHELL_FEATURES) ?? [];
   return {
     forbiddenFolders: backticked(forbidden),
+    projectCompositionRoot: imports.match(PROJECT_COMPOSITION_ROOT)?.[1],
     shellExceptFolder,
     shellFeatures: shells
       ? backticked(shells).filter((name) => KEBAB_NAME.test(name))

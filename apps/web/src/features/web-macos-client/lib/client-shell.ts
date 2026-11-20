@@ -11,6 +11,18 @@ import {
 } from "@tanstack/react-query";
 import { defaultClientShell } from "../store/client-shell";
 
+declare module "@tanstack/react-query" {
+  interface Register {
+    mutationMeta: {
+      onlineWrite?: boolean;
+      presentsSupportFailure?: boolean;
+      privateInput?: boolean;
+      retryInSurface?: boolean;
+      writeOutcome?: SupportWriteOutcome;
+    };
+  }
+}
+
 export interface SupportReferenceFailurePresenterOptions {
   kind: "mutation" | "query";
   retry?: () => Promise<unknown> | unknown;

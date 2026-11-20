@@ -51,6 +51,8 @@ Kullanıcı Araştırması Oturumu Proje ana kaydıdır. İzin `Not asked`, `All
 
 ## Testing Decisions
 
+- **Write lifecycle (#544).** The Research Sessions surface tests cover lost create and note responses, repeated command identities, maintained drafts, and typed conflict. The browser journey verifies conversion preview and evidence binding after confirmation.
+
 - **RPC refusal evidence (#543).** `apps/server/src/app.test.ts` checks typed revision and Consent refusals through HTTP, including the pre-commit and post-commit write outcomes. `research-sessions-surface.test.tsx` checks draft retention and reopen with that code. `research-sessions-database.integration.test.ts` exercises both previews through the RPC client and PostgreSQL, covering owner success, a foreign Account, and another Project under the same Account. It also covers Consent refusal when replaying a committed binding. `research-sessions.e2e.ts` covers the owner’s Consent flow and unauthenticated refusal.
 
 - **What a good test is.** Tests observe Research Sessions through consent, typed notes, convert preview, and share closed-world counterparts. They go red if an unconsented quote/file leaks, if interpretation is labeled as a participant quote, or if a pin silently follows a later session edit. They do not assert editor internals.

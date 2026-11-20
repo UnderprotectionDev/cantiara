@@ -65,6 +65,45 @@ function itemOf(
 }
 
 describe("Test Review: Correction and Withdrawal", () => {
+  test("replays a committed Correction without extending its history", async () => {
+    const harness = setup();
+    const input = {
+      clientIdempotencyKey: crypto.randomUUID(),
+      correctedResult: "passed" as const,
+      projectId,
+      reason: "Wrong build.",
+      sessionId: "s1",
+      sessionTestId: "t1",
+    };
+    const saved = await harness.testReview.recordCorrection(accountId, input);
+    expect(await harness.testReview.recordCorrection(accountId, input)).toEqual(
+      saved,
+    );
+    await expect(
+      harness.testReview.recordCorrection(accountId, {
+        ...input,
+        reason: "Another reason.",
+      }),
+    ).rejects.toMatchObject({ code: "TEST_REVIEW_COMMAND_CONFLICT" });
+    expect(harness.writes).toEqual(["result-event"]);
+  });
+
+  test("a repeated Withdrawal returns its original receipt", async () => {
+    const harness = setup();
+    const input = {
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId,
+      reason: "Wrong build.",
+      sessionId: "s1",
+      sessionTestId: "t1",
+    };
+    const saved = await harness.testReview.recordWithdrawal(accountId, input);
+    expect(await harness.testReview.recordWithdrawal(accountId, input)).toEqual(
+      saved,
+    );
+    expect(harness.writes).toEqual(["result-event"]);
+  });
+
   test("a Correction promotes the corrected result and keeps the original report", async () => {
     const harness = setup();
     const { event } = await harness.testReview.recordCorrection(accountId, {

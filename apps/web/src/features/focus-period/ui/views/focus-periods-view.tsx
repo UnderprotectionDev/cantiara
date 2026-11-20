@@ -7,7 +7,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import type {
   FocusPeriodAction,
@@ -36,66 +35,73 @@ export default function FocusPeriodsView() {
       queryKey: orpc.focusPeriods.queryOptions().queryKey,
     });
   const create = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.createFocusPeriod.mutationKey(),
     mutationFn: (input: {
       purpose: string;
       startDate: string;
       endDate: string;
-    }) => runOnlineOnlyWrite(() => client.createFocusPeriod(input)),
+    }) => client.createFocusPeriod(input),
     onSuccess: async (period) => {
       setSelectedId(period.id);
       await refresh();
     },
   });
   const add = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.addToFocusPeriod.mutationKey(),
     mutationFn: (input: { periodId: string; workId: string }) =>
-      runOnlineOnlyWrite(() => client.addToFocusPeriod(input)),
+      client.addToFocusPeriod(input),
     onSuccess: refresh,
   });
   const move = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.moveToFocusPeriod.mutationKey(),
     mutationFn: (input: { periodId: string; workId: string }) =>
-      runOnlineOnlyWrite(() => client.moveToFocusPeriod(input)),
+      client.moveToFocusPeriod(input),
     onSuccess: refresh,
   });
   const remove = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.removeFromFocusPeriod.mutationKey(),
     mutationFn: (input: { periodId: string; workId: string }) =>
-      runOnlineOnlyWrite(() => client.removeFromFocusPeriod(input)),
+      client.removeFromFocusPeriod(input),
     onSuccess: refresh,
   });
   const cancel = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.cancelFocusPeriod.mutationKey(),
-    mutationFn: (periodId: string) =>
-      runOnlineOnlyWrite(() => client.cancelFocusPeriod({ periodId })),
+    mutationFn: (periodId: string) => client.cancelFocusPeriod({ periodId }),
     onSuccess: refresh,
   });
   const close = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.closeFocusPeriod.mutationKey(),
-    mutationFn: (periodId: string) =>
-      runOnlineOnlyWrite(() => client.closeFocusPeriod({ periodId })),
+    mutationFn: (periodId: string) => client.closeFocusPeriod({ periodId }),
     onSuccess: refresh,
   });
   const decide = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.decideFocusPeriodLeftovers.mutationKey(),
     mutationFn: (
       input: Parameters<typeof client.decideFocusPeriodLeftovers>[0],
-    ) => runOnlineOnlyWrite(() => client.decideFocusPeriodLeftovers(input)),
+    ) => client.decideFocusPeriodLeftovers(input),
     onSuccess: refresh,
   });
   const saveEvaluation = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.saveFocusPeriodEvaluation.mutationKey(),
     mutationFn: (
       input: Parameters<typeof client.saveFocusPeriodEvaluation>[0],
-    ) => runOnlineOnlyWrite(() => client.saveFocusPeriodEvaluation(input)),
+    ) => client.saveFocusPeriodEvaluation(input),
     onSuccess: refresh,
   });
   const createFollowUp = useMutation({
+    meta: { onlineWrite: true },
     mutationKey: orpc.createFocusPeriodFollowUpWork.mutationKey(),
     mutationFn: (
       input: Parameters<typeof client.createFocusPeriodFollowUpWork>[0],
-    ) => runOnlineOnlyWrite(() => client.createFocusPeriodFollowUpWork(input)),
+    ) => client.createFocusPeriodFollowUpWork(input),
     onSuccess: refresh,
   });
   async function act(action: () => Promise<unknown>) {

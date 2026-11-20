@@ -8,9 +8,13 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { type SubmitEvent, useState } from "react";
-import { type RiskRecord, riskFormSchema } from "../../lib/risk-form";
+import {
+  isRiskConflict,
+  type RiskRecord,
+  riskFormSchema,
+} from "../../lib/risk-form";
 
 export interface RiskDraft {
   description: string;
@@ -36,15 +40,18 @@ export function RiskEditor({
   changingStatus = false,
   onSave,
   onCancel,
+  saveError,
+  savePending = false,
 }: {
   record?: RiskRecord;
   changingStatus?: boolean;
   onSave: (draft: RiskDraft, record?: RiskRecord) => Promise<unknown>;
   onCancel: () => void;
+  saveError?: unknown;
+  savePending?: boolean;
 }) {
   const [baseRecord] = useState(record);
-  const [error, setError] = useState<string>();
-  const [conflict, setConflict] = useState(false);
+  const conflict = isRiskConflict(saveError);
   const form = useForm({
     defaultValues: {
       title: baseRecord?.title ?? "",
@@ -55,33 +62,26 @@ export function RiskEditor({
       rationale: baseRecord?.rationale ?? "",
       life: baseRecord?.life ?? "Open",
     } satisfies RiskDraft,
-    onSubmit: async ({ value }) => {
-      setError(undefined);
-      const parsed = riskFormSchema({
-        baseLife: baseRecord?.life,
-        changingStatus,
-      }).safeParse(value);
-      if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? "Check the form.");
-        return;
-      }
-      try {
-        await onSave(value, baseRecord);
-      } catch (saveError) {
-        const changed =
-          typeof saveError === "object" &&
-          saveError !== null &&
-          "code" in saveError &&
-          saveError.code === "CONFLICT";
-        setConflict(changed);
-        setError(
-          changed
-            ? "Risk changed. Cancel and reopen before saving again. Your text is kept here."
-            : "Risk could not be saved. Retry, or reload to check for changes. Your text is kept here.",
-        );
-      }
+    validators: {
+      onSubmit: ({ value }) => {
+        const parsed = riskFormSchema({
+          baseLife: baseRecord?.life,
+          changingStatus,
+        }).safeParse(value);
+        return parsed.success
+          ? undefined
+          : (parsed.error.issues[0]?.message ?? "Check the form.");
+      },
     },
+    onSubmit: ({ value }) => onSave(value, baseRecord),
   });
+  const formError = useSelector(form.store, (state) => state.errorMap.onSubmit);
+  let error = formError;
+  if (!error && saveError) {
+    error = conflict
+      ? "Risk changed. Cancel and reopen before saving again. Your text is kept here."
+      : "Risk could not be saved. Retry, or reload to check for changes. Your text is kept here.";
+  }
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
@@ -98,7 +98,7 @@ export function RiskEditor({
           {error}
         </p>
       ) : null}
-      <form.Subscribe selector={(state) => state.isSubmitting}>
+      <form.Subscribe selector={(state) => state.isSubmitting || savePending}>
         {(pending) => (
           <>
             {changingStatus ? (

@@ -4314,10 +4314,15 @@ async function runTestGapOperation<T>(operation: () => Promise<T>): Promise<T> {
 
 interface TestReviewFailure {
   message: string;
-  status: "BAD_REQUEST" | "NOT_FOUND";
+  status: "BAD_REQUEST" | "CONFLICT" | "NOT_FOUND";
 }
 
 const TEST_REVIEW_FAILURES: Record<string, TestReviewFailure> = {
+  TEST_REVIEW_COMMAND_CONFLICT: {
+    message:
+      "This command has already been used for a different review change.",
+    status: "CONFLICT",
+  },
   TEST_REVIEW_ALREADY_REDACTED: {
     message: "This value was already redacted.",
     status: "BAD_REQUEST",
@@ -10390,11 +10395,19 @@ export const appRouter = {
     ),
   createTag: protectedProcedure
     .input(createTagInputSchema)
-    .handler(({ context, input }) =>
-      runTagOperation(() =>
-        requireTags(context).create(context.session.user.id, input),
-      ),
-    ),
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireTags(context).create(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (input.clientIdempotencyKey) {
+          rethrowTagMutationError(error, input.clientIdempotencyKey);
+        }
+        rethrowTagError(error);
+      }
+    }),
   applyTag: protectedProcedure
     .input(applyTagInputSchema)
     .handler(({ context, input }) =>

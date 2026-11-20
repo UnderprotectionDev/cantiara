@@ -63,6 +63,8 @@ Kurucu Test Oturumu incelemesi ile her Oturum Testi incelemesini bağımsız tam
 
 ## Testing Decisions
 
+- **Review command replay (#544).** The review-state and result-event seams verify replay after a saved response is lost, no repeated history entry, conflict for changed input under the same key, and preservation of a later review state.
+
 - **What a good test is.** Tests observe Test Review through its public interface: review-state commands, bulk preview/commit, correction/withdrawal/redaction events, superseding relations, conflict/context signals, follow-up-work preview, Tests area section drill-down, and Feature/Proje Sürümü summary drill-down. They do not assert Drizzle row shapes or recompute a coverage formula. Expected values are product rules (independence of session vs item, additive events, no auto-gap, counts open exact sets).
 - **Seam (one).** Test Review. Report ingest, Test Açığı write, Test değerlendirmesi write, and Release Evidence Pack are counterparts: this suite may assert they are not invoked or not rewritten.
 - **Modules under test.** Test Review only. Playwright for the closed accessibility journey “test raporu inceleme” is the same seam observed through the UI.

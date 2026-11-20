@@ -33,7 +33,21 @@ test("classifies Work records with one Workspace tag dictionary", async ({
   const nameInput = page.getByLabel("Name", { exact: true });
   const createButton = page.getByRole("button", { name: "Create tag" });
   const tagFilter = page.getByRole("combobox", { name: "Filter by tag" });
+  await page.route(
+    "**/rpc/createTag",
+    async (route) => {
+      const committed = await route.fetch();
+      expect(committed.ok()).toBe(true);
+      await route.abort();
+    },
+    { times: 1 },
+  );
   await nameInput.fill("roadmap/next");
+  await createButton.click();
+  await expect(nameInput).toHaveValue("roadmap/next");
+  await expect(
+    page.getByRole("form", { name: "Create tag" }).getByRole("alert"),
+  ).toBeVisible();
   await createButton.click();
   await expect(tagFilter).toContainText("roadmap/next");
 

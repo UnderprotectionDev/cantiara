@@ -26,7 +26,7 @@ const wireframeFetch = vi.fn();
 vi.mock("@/env", () => ({
   env: { VITE_SERVER_URL: "https://api.example.org" },
 }));
-const markUnsavedChanges = vi.fn();
+const markUnsavedChanges = vi.hoisted(() => vi.fn());
 const presentFailure = vi.fn();
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({
   defaultClientShell: { markUnsavedChanges },

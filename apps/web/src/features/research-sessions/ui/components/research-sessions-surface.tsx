@@ -70,13 +70,7 @@ export default function ResearchSessionsSurface({
           staleTime: 0,
         }),
       targets: (record) =>
-        queryClient.query({
-          ...orpc.researchSessionBindingTargets.queryOptions({
-            input: { id: record.id, projectId },
-          }),
-          gcTime: 0,
-          staleTime: 0,
-        }),
+        client.researchSessionBindingTargets({ id: record.id, projectId }),
       list: (record) =>
         queryClient.query({
           ...orpc.projectResearchSessionBindings.queryOptions({
@@ -200,6 +194,12 @@ export default function ResearchSessionsSurface({
   }
   function startEditing() {
     pending.current = null;
+    saveSession.reset();
+  }
+  function startNoteEditing() {
+    if (saveSessionNote.isSuccess) {
+      saveSessionNote.reset();
+    }
   }
   if (query.status === "pending" || preferences.isPending) {
     return <p role="status">Loading Research Sessions…</p>;
@@ -215,11 +215,16 @@ export default function ResearchSessionsSurface({
   return (
     <ResearchSessionsView
       bindingActions={bindingActions}
+      bindingPreview={previewBinding}
+      bindingWrite={confirmBinding}
+      noteWrite={saveSessionNote}
       onSave={save}
       onSaveNote={saveNote}
       onStartEditing={startEditing}
+      onStartNoteEditing={startNoteEditing}
       readOnly={query.data.readOnly}
       records={query.data.records}
+      sessionWrite={saveSession}
       timeZone={preferences.data.timeZone}
     />
   );

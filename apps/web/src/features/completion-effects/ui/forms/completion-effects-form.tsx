@@ -25,7 +25,11 @@ import {
 } from "react";
 
 import { STALE_BASE_REVISION_MESSAGE } from "@/lib/mutation-messages";
-import { client, completionEffectsPreferencesQueryOptions } from "@/utils/orpc";
+import {
+  client,
+  completionEffectsPreferencesQueryOptions,
+  orpc,
+} from "@/utils/orpc";
 import {
   COMPLETION_EFFECT_MOTION_DESCRIPTIONS,
   COMPLETION_EFFECT_PALETTE_COLORS,
@@ -92,6 +96,8 @@ export default function CompletionEffectsForm({
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const savePreferences = useMutation({
+    meta: { onlineWrite: true },
+    mutationKey: orpc.saveCompletionEffectsPreferences.mutationKey(),
     mutationFn: (input: {
       baseRevision: number;
       clientIdempotencyKey: string;

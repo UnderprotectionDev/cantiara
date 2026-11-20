@@ -62,6 +62,20 @@ function LoadedWireframe({
     orpc.applyLinkedBlockChange.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.applyLinkedBlockChange(input),
+      onSuccess: async ({ affectedScreens }, input) => {
+        await Promise.all(
+          affectedScreens.map(({ screenId: affectedScreenId }) =>
+            queryClient.invalidateQueries({
+              queryKey: orpc.screenWireframe.key({
+                input: {
+                  projectId: input.projectId,
+                  screenId: affectedScreenId,
+                },
+              }),
+            }),
+          ),
+        );
+      },
     }),
   );
   const createLinkedBlockMutation = useMutation(
@@ -210,7 +224,13 @@ function LoadedWireframe({
       };
     },
     preview: (definitionId, content) =>
-      client.previewLinkedBlockChange({ content, definitionId, projectId }),
+      queryClient.query({
+        ...orpc.previewLinkedBlockChange.queryOptions({
+          input: { content, definitionId, projectId },
+        }),
+        gcTime: 0,
+        staleTime: 0,
+      }),
   };
 
   // Convert and Bind names an exact stored version, so the current document is

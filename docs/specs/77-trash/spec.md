@@ -62,6 +62,8 @@ Kurucu desteklenen ana kaydı ve yapılandırma varlığını `Trash`'e alır. K
 
 ## Testing Decisions
 
+- **Restore and Permanently Delete retry (#544).** The web Trash tests verify that the same Restore input reuses its key, a different revision gets a new key, and early permanent delete can repeat the command only with a fresh private identity grant.
+
 - **Write lifecycle evidence (#544).** The web Trash seam checks that moving a Risk refreshes its own Project’s Risk and Trash queries while unrelated Document and Project queries stay fresh.
 
 - **What a good test is.** Tests observe Trash through its public interface: move, preview (including External Surface list and `Keep approved surface` eligibility), restore, configuration-inactive, duration-end permanent delete, early permanent delete (grant consume + typed name), and whether a protected command is authorized. They do not assert Drizzle row shapes or mock private collaborators. Expected values are product rules (30-day unit, identity preserved, no active membership, grant missing fails closed, typed-name mismatch fails closed), not recomputed implementation.

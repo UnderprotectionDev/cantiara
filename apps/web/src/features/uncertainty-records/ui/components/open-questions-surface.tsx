@@ -27,13 +27,16 @@ export default function OpenQuestionsSurface({
     orpc.createProjectSourceRecord.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (request) => client.createProjectSourceRecord(request),
+      onSuccess: (_, input) =>
+        refresh(input.projectId, input.id, input.clientIdempotencyKey),
     }),
   );
   const transitionProjectSourceRecordMutation = useMutation(
     orpc.transitionProjectSourceRecord.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.transitionProjectSourceRecord(input),
-      onSuccess: () => refresh(),
+      onSuccess: (_, input) =>
+        refresh(input.projectId, input.sourceId, input.clientIdempotencyKey),
     }),
   );
   const queryClient = useQueryClient();
@@ -49,7 +52,9 @@ export default function OpenQuestionsSurface({
   const [editing, setEditing] = useState<"create" | "answer" | undefined>(
     undefined,
   );
-  const [saved, setSaved] = useState<string>();
+  const saved =
+    createProjectSourceRecordMutation.isSuccess ||
+    transitionProjectSourceRecordMutation.isSuccess;
   const pendingWrite = useRef<{
     fingerprint: string;
     key: string;
@@ -74,16 +79,24 @@ export default function OpenQuestionsSurface({
     }
     return pendingWrite.current;
   }
-  async function refresh() {
-    pendingWrite.current = null;
-    setEditing(undefined);
-    setSaved("Open Question saved.");
+  async function refresh(
+    affectedProjectId: string,
+    sourceId: string,
+    commandKey: string,
+  ) {
+    if (pendingWrite.current?.key === commandKey) {
+      pendingWrite.current = null;
+      setEditing(undefined);
+    }
+    const source = { sourceId, sourceType: "Open Question" as const };
     await Promise.all(
       [
-        orpc.openQuestions.queryKey({ input: { projectId } }),
-        orpc.openQuestionContext.key(),
-        orpc.projectSourceRecord.key(),
-        orpc.projectSourceRecords.key(),
+        orpc.openQuestions.key({ input: { projectId: affectedProjectId } }),
+        orpc.openQuestionContext.key({ input: source }),
+        orpc.projectSourceRecord.key({ input: source }),
+        orpc.projectSourceRecords.key({
+          input: { projectId: affectedProjectId },
+        }),
         orpc.searchRecords.key(),
       ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
     );
@@ -114,7 +127,6 @@ export default function OpenQuestionsSurface({
           question: draft.question.trim(),
           context: draft.context.trim() || null,
         }));
-    await refresh();
   }
   async function close() {
     if (!selected) {
@@ -135,7 +147,8 @@ export default function OpenQuestionsSurface({
   }
   function start(mode: "create" | "answer") {
     pendingWrite.current = null;
-    setSaved(undefined);
+    createProjectSourceRecordMutation.reset();
+    transitionProjectSourceRecordMutation.reset();
     setEditing(mode);
   }
   function cancel() {
@@ -149,6 +162,11 @@ export default function OpenQuestionsSurface({
       <p role="status">Loading Open Questions…</p>
     );
   }
+  const transition = transitionProjectSourceRecordMutation.variables;
+  const closingSelected =
+    transition?.sourceType === "Open Question" &&
+    transition.life === "No longer applicable" &&
+    transition.sourceId === selectedId;
   const questions = records.data.records;
   const locked = readOnly || records.data.readOnly;
   return (
@@ -166,7 +184,7 @@ export default function OpenQuestionsSurface({
           Open Questions could not be refreshed. Your draft is safe.
         </p>
       ) : null}
-      {saved ? <p role="status">{saved}</p> : null}
+      {saved ? <p role="status">Open Question saved.</p> : null}
       {questions.length ? (
         <ul className="space-y-2">
           {questions.map((item) => (
@@ -186,6 +204,12 @@ export default function OpenQuestionsSurface({
       )}
       {selectedId ? (
         <QuestionSelection
+          closeFailed={
+            closingSelected && transitionProjectSourceRecordMutation.isError
+          }
+          closePending={
+            closingSelected && transitionProjectSourceRecordMutation.isPending
+          }
           details={context.data}
           failed={context.isError}
           loading={context.isPending}
@@ -208,6 +232,8 @@ export default function OpenQuestionsSurface({
 }
 
 function QuestionSelection({
+  closeFailed,
+  closePending,
   record,
   loading,
   failed,
@@ -216,6 +242,8 @@ function QuestionSelection({
   onAnswer,
   onClose,
 }: {
+  closeFailed: boolean;
+  closePending: boolean;
   record?: OpenQuestionRecord;
   loading: boolean;
   failed: boolean;
@@ -235,6 +263,8 @@ function QuestionSelection({
   }
   return (
     <OpenQuestionDetail
+      closeFailed={closeFailed}
+      closePending={closePending}
       evidence={details.evidence}
       key={record.id}
       onAnswer={onAnswer}

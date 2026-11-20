@@ -459,6 +459,9 @@ function importViolation(
   if (!imports.forbiddenFolders.includes(folder)) {
     return;
   }
+  if (path === imports.projectCompositionRoot && folder === "ui/") {
+    return;
+  }
   const shell = imports.shellFeatures.includes(other.feature);
   const shellExcept = Boolean(
     imports.shellExceptFolder &&

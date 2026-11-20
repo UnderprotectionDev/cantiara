@@ -54,6 +54,8 @@ Kurucu birden fazla düz, adlandırılmış Proje Duvarı tutar. Kalıcı öğel
 
 ## Testing Decisions
 
+- **Persistent relation retry (#544).** The Project Wall relation seam keeps the original command for a repeated submission of the reviewed visual link and refreshes that wall after the write.
+
 - **What a good test is.** Tests observe Project Wall through the public interface: live card identity equals source id, move does not write source, visual line does not create a relation, explicit relation preview does, skeletons are empty English headings, Presentation Mode is view metadata not a content copy, snapshot is a dated frozen PNG/PDF and not a share grant, viewport restore, outline tasks, 500/750. Not xyflow internals.
 - **Seam (one).** Project Wall — the product-facing wall, card, line, skeleton, and internal snapshot interface.
 - **Modules under test.** Project Wall only. Wireframe sketch, Moodboard, Wiki, link-sharing, Build in Public, Project shell catalog selection are counterparts.
