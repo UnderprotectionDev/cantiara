@@ -11,6 +11,7 @@ import {
 } from "@cantiara/api/trash";
 import type { TrashRestorePreview } from "@cantiara/api/trash-configuration";
 import { Button } from "@cantiara/ui/components/button";
+import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
 import { useMoveToTrashFlow } from "../../hooks/use-move-to-trash-flow";
 import {
   type TrashPermanentDelete,
@@ -93,6 +94,7 @@ export function TrashView({
         />
       ) : null}
       {deleting || !del.error ? null : <p role="alert">{del.error}</p>}
+      {del.support ? <SupportReferenceNotice failure={del.support} /> : null}
       {conflicts ? (
         <TrashRestoreConflicts
           conflicts={conflicts.conflicts}

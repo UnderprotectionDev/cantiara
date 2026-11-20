@@ -87,7 +87,7 @@ export function ProjectGoalsView({
       )}
       <ProjectGoalEditControls
         canEdit={canEdit}
-        editing={editing}
+        editing={editing && !savedMessage}
         onSave={onSave}
         onStartEditing={onStartEditing}
         selected={selected}

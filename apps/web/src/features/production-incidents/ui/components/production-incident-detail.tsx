@@ -180,6 +180,7 @@ export function ProductionIncidentDetail({
             <ProductionIncidentFollowUpDialog
               actions={actions}
               incident={incident}
+              projectId={projectId}
             />
           )}
         </div>

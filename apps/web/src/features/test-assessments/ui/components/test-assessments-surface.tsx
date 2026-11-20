@@ -17,6 +17,19 @@ export default function TestAssessmentsSurface({
     orpc.recordTestAssessment.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.recordTestAssessment(input),
+      onSuccess: (_, { projectId: affectedProject }) =>
+        Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectTestAssessments.key({
+              input: { projectId: affectedProject },
+            }),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectTestSummary.key({
+              input: { projectId: affectedProject },
+            }),
+          }),
+        ]),
     }),
   );
   const queryClient = useQueryClient();
@@ -53,13 +66,6 @@ export default function TestAssessmentsSurface({
           throw new Error("Choose a context and a decision.");
         }
         await recordTestAssessmentMutation.mutateAsync(input);
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: options.queryKey }),
-          // The Test Summary reads Test Assessments.
-          queryClient.invalidateQueries({
-            queryKey: orpc.projectTestSummary.key(),
-          }),
-        ]);
       }}
       preferences={preferences.data}
     />

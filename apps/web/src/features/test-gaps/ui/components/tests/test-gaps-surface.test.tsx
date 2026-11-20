@@ -50,8 +50,14 @@ test("filing a Test Gap refreshes the Test Summary that lists Test Gaps", async 
     orpc.projectSessionTests.queryOptions({ input }).queryKey,
     { readOnly: false, sessionTests: [] },
   );
-  const summaryKey = orpc.projectTestSummary.key();
-  queryClient.setQueryData(summaryKey, {});
+  const summaryKey = orpc.projectTestSummary.queryKey({
+    input: { projectId: "project-1", scope: { kind: "Project" } },
+  });
+  queryClient.setQueryData(summaryKey, {
+    attention: [],
+    sections: [],
+    scope: { kind: "Project", id: "project-1", label: "Project" },
+  });
   const root = createRoot(document.createElement("div"));
   await act(() => {
     root.render(

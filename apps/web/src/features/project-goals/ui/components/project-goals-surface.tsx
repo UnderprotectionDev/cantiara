@@ -4,7 +4,7 @@ import {
 } from "@cantiara/api/project-goals";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useRef } from "react";
 import { client, orpc } from "@/utils/orpc";
 import {
   type ProjectGoalDraft,
@@ -26,23 +26,54 @@ export default function ProjectGoalsSurface({
     orpc.updateProjectGoal.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (request) => client.updateProjectGoal(request),
+      onSuccess: (_, { id, projectId: targetProject, clientIdempotencyKey }) =>
+        refresh(id, targetProject, clientIdempotencyKey),
     }),
   );
   const createProjectGoalMutation = useMutation(
     orpc.createProjectGoal.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (request) => client.createProjectGoal(request),
+      onSuccess: (_, { id, projectId: targetProject, clientIdempotencyKey }) =>
+        refresh(id, targetProject, clientIdempotencyKey),
     }),
   );
   const queryClient = useQueryClient();
   const options = orpc.projectGoals.queryOptions({ input: { projectId } });
   const goals = useQuery(options);
-  const [savedMessage, setSavedMessage] = useState<string>();
+  const saved =
+    createProjectGoalMutation.isSuccess || updateProjectGoalMutation.isSuccess;
   const pendingProjectGoalSave = useRef<{
     fingerprint: string;
     id: string;
     key: string;
   } | null>(null);
+  async function refresh(
+    goalId: string,
+    targetProject: string,
+    commandKey: string,
+  ) {
+    if (pendingProjectGoalSave.current?.key === commandKey) {
+      pendingProjectGoalSave.current = null;
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: orpc.projectGoals.key({
+          input: { projectId: targetProject },
+        }),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.projectGoal.key({
+          input: { id: goalId, projectId: targetProject },
+        }),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.projectGoalDetail.key({
+          input: { id: goalId, projectId: targetProject },
+        }),
+      }),
+    ]);
+  }
   async function save(draft: ProjectGoalDraft, goal?: ProjectGoalRecord) {
     const fields = projectGoalFieldsSchema.parse(draft);
     const fingerprint = JSON.stringify({
@@ -92,16 +123,14 @@ export default function ProjectGoalsSurface({
       }
       throw error;
     }
-    pendingProjectGoalSave.current = null;
-    setSavedMessage("Project Goal saved.");
-    await queryClient.invalidateQueries({ queryKey: options.queryKey });
   }
   function retry() {
     goals.refetch().catch(() => undefined);
   }
   function startEditing() {
     pendingProjectGoalSave.current = null;
-    setSavedMessage(undefined);
+    createProjectGoalMutation.reset();
+    updateProjectGoalMutation.reset();
   }
   if (goals.status === "pending") {
     return <p role="status">Loading Goals…</p>;
@@ -135,7 +164,7 @@ export default function ProjectGoalsSurface({
       onStartEditing={startEditing}
       projectId={projectId}
       readOnly={goals.data.readOnly}
-      savedMessage={savedMessage}
+      savedMessage={saved ? "Project Goal saved." : undefined}
       selectedId={selectedId}
     />
   );

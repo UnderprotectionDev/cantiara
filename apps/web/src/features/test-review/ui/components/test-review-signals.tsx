@@ -7,7 +7,6 @@ import {
   type TestReviewContextChangeReason,
 } from "@cantiara/api/test-review-signals";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
 import { errorText } from "../../lib/test-review-panel";
 import { endLine } from "../../lib/test-review-signal-lines";
 import type {
@@ -33,30 +32,15 @@ function ConflictPanel({
   conflicts,
   disabled,
   onBind,
+  state,
 }: {
   conflicts: TestReviewSignalData["conflicts"];
   disabled: boolean;
   onBind: TestReviewSignalActions["bindResult"];
+  state: TestReviewSignalActions["bindState"];
 }) {
-  const [error, setError] = useState<string>();
-  const [pending, setPending] = useState(false);
   if (conflicts.length === 0) {
     return null;
-  }
-  async function bind(
-    scenarioId: string,
-    scenarioVersion: number,
-    sessionTestId: string,
-  ) {
-    setError(undefined);
-    setPending(true);
-    try {
-      await onBind(scenarioId, scenarioVersion, sessionTestId);
-    } catch (caught) {
-      setError(errorText(caught, "The result was not bound."));
-    } finally {
-      setPending(false);
-    }
   }
   return (
     <section
@@ -90,13 +74,13 @@ function ConflictPanel({
                   <Button
                     aria-label={`Bind valid result: ${member.title} by ${member.executorName}`}
                     className="h-8 px-3 text-xs"
-                    disabled={disabled || pending}
+                    disabled={disabled || state?.isPending}
                     onClick={() =>
-                      bind(
+                      onBind(
                         conflict.scenarioId,
                         conflict.scenarioVersion,
                         member.sessionTestId,
-                      )
+                      ).catch(() => undefined)
                     }
                     type="button"
                     variant="outline"
@@ -109,7 +93,11 @@ function ConflictPanel({
           </li>
         ))}
       </ul>
-      {error ? <p role="alert">{error}</p> : null}
+      {state?.error ? (
+        <p role="alert">
+          {errorText(state.error, "The result was not bound.")}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -178,6 +166,7 @@ export function TestReviewSignals({
         conflicts={data.conflicts}
         disabled={readOnly}
         onBind={actions.bindResult}
+        state={actions.bindState}
       />
       <ContextPanel changes={data.contextChanges} />
       <TestReviewSupersedesForm

@@ -423,10 +423,48 @@ const PACKAGE_INCLUDED_SECTIONS = [
 ] as const;
 
 /** Content fingerprint: everything the founder previewed except the clock. */
-function packageFingerprint(pkg: TestHandoffPackageJson) {
+function packageFingerprint(pkg: object) {
   return createHash("sha256")
     .update(JSON.stringify({ ...pkg, created_at: null }))
     .digest("hex");
+}
+
+async function replayStoredPackage(
+  transaction: PlannedTestTransaction,
+  handoff: TestHandoffStoredRecord,
+  input: { expectedPackageVersion: number; previewFingerprint: string },
+) {
+  if (input.expectedPackageVersion > handoff.packageVersion) {
+    return;
+  }
+  const prior = (await transaction.listPackages(handoff.id)).find(
+    (entry) => entry.packageVersion === input.expectedPackageVersion,
+  );
+  if (prior) {
+    const saved: unknown = JSON.parse(prior.json);
+    if (
+      saved !== null &&
+      typeof saved === "object" &&
+      packageFingerprint(saved) === input.previewFingerprint
+    ) {
+      return toPackageRecord(prior);
+    }
+  }
+  throw new TestHandoffPackageStaleError(handoff.id);
+}
+
+function nextConfirmedPackageVersion(
+  handoff: TestHandoffStoredRecord,
+  expectedVersion: number,
+) {
+  if (!TEST_HANDOFF_PACKAGE_STATES.includes(handoff.state)) {
+    throw new TestHandoffPackageStateError(handoff.state);
+  }
+  const next = handoff.packageVersion + 1;
+  if (expectedVersion !== next) {
+    throw new TestHandoffPackageStaleError(handoff.id);
+  }
+  return next;
 }
 
 interface CollectedPackage {
@@ -804,13 +842,18 @@ export function createPlannedTests(
             input.handoffId,
             true,
           );
-          if (!TEST_HANDOFF_PACKAGE_STATES.includes(handoff.state)) {
-            throw new TestHandoffPackageStateError(handoff.state);
+          const replayed = await replayStoredPackage(
+            transaction,
+            handoff,
+            input,
+          );
+          if (replayed) {
+            return replayed;
           }
-          const packageVersion = handoff.packageVersion + 1;
-          if (input.expectedPackageVersion !== packageVersion) {
-            throw new TestHandoffPackageStaleError(handoff.id);
-          }
+          const packageVersion = nextConfirmedPackageVersion(
+            handoff,
+            input.expectedPackageVersion,
+          );
           const createdAt = new Date().toISOString();
           const { blockers, package: built } = await collectPackage(
             transaction,

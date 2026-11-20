@@ -5,6 +5,10 @@ import type {
 import { isDefinedError, ORPCError } from "@orpc/client";
 import { useMutation } from "@tanstack/react-query";
 import { useRef } from "react";
+import {
+  PrivateWriteFailure,
+  privateWriteNotice,
+} from "@/features/web-macos-client/lib/support-reference";
 import { orpc } from "@/utils/orpc";
 
 type ApplyFailure =
@@ -116,8 +120,11 @@ export function useSecurityRedactionFlow(calls: SecurityRedactionCalls) {
           reason: result.reason.replaceAll(input.sensitiveValue, "[Redacted]"),
         };
       } catch (caught) {
-        // biome-ignore lint/style/useErrorCause: Only the classified refusal may enter MutationCache.
-        throw new Error(APPLY_ERRORS[parseApplyFailure(caught).code]);
+        // biome-ignore lint/style/useErrorCause: Only approved Support fields can enter MutationCache.
+        throw new PrivateWriteFailure(
+          caught,
+          APPLY_ERRORS[parseApplyFailure(caught).code],
+        );
       }
     },
   });
@@ -174,6 +181,7 @@ export function useSecurityRedactionFlow(calls: SecurityRedactionCalls) {
       }
     },
     result: commit.data ?? null,
+    support: commit.error ? privateWriteNotice(commit.error) : null,
     review:
       inspect.isSuccess && !commit.isSuccess
         ? {

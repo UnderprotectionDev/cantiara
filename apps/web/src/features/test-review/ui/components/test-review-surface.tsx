@@ -5,7 +5,6 @@ import {
   client,
   invalidateSmartCollectionMembership,
   orpc,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
 import { followUpWorkId } from "../../lib/test-review-panel";
 import {
@@ -73,6 +72,21 @@ export default function TestReviewSurface({
     orpc.commitReviewFollowUp.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.commitReviewFollowUp(input),
+      onSuccess: async (_, input) => {
+        await Promise.all([
+          refresh(input.projectId),
+          ...(input.target.mode === "new"
+            ? [
+                queryClient.invalidateQueries({
+                  queryKey: orpc.projectWorks.key({
+                    input: { projectId: input.projectId },
+                  }),
+                }),
+                ...invalidateSmartCollectionMembership(queryClient),
+              ]
+            : []),
+        ]);
+      },
     }),
   );
   const supersedeReviewResultMutation = useMutation(
@@ -87,12 +101,18 @@ export default function TestReviewSurface({
   const review = useQuery(options);
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
   // The Test Summary reads this area's records, so it is read again with them.
-  const refreshSummary = () =>
-    queryClient.invalidateQueries({ queryKey: orpc.projectTestSummary.key() });
-  const refresh = () =>
+  const refresh = (affectedProjectId = projectId) =>
     Promise.all([
-      queryClient.invalidateQueries({ queryKey: options.queryKey }),
-      refreshSummary(),
+      queryClient.invalidateQueries({
+        queryKey: orpc.projectTestReview.key({
+          input: { projectId: affectedProjectId },
+        }),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.projectTestSummary.key({
+          input: { projectId: affectedProjectId },
+        }),
+      }),
     ]);
   if (review.status === "pending") {
     return <p role="status">Loading Test Review…</p>;
@@ -168,6 +188,7 @@ export default function TestReviewSurface({
     },
   };
   const signalActions: TestReviewSignalActions = {
+    bindState: bindReviewResultMutation,
     bindResult: async (scenarioId, scenarioVersion, sessionTestId) => {
       await bindReviewResultMutation.mutateAsync({
         projectId,
@@ -186,14 +207,8 @@ export default function TestReviewSurface({
         // Work identity and the server-side idempotency key.
         workId: followUpWorkId(preview.fingerprint),
       });
-      // The follow-up created Work, so Work lists and Smart Collection
-      // membership read it again.
-      await Promise.all([
-        refresh(),
-        queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
-        ...invalidateSmartCollectionMembership(queryClient),
-      ]);
     },
+    followUpState: commitReviewFollowUpMutation,
     previewFollowUp: (sessionTestIds, target) =>
       client.previewReviewFollowUp({ projectId, sessionTestIds, target }),
     supersede: async (newerId, olderId) => {

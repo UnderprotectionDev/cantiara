@@ -80,6 +80,12 @@ function LoadedWireframe({
     orpc.saveScreenWireframeVersion.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.saveScreenWireframeVersion(input),
+      onSuccess: (_, { projectId: affectedProject }) =>
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectScreens.key({
+            input: { projectId: affectedProject },
+          }),
+        }),
     }),
   );
   const saveWireframe = saveScreenWireframeMutation.mutateAsync;
@@ -240,10 +246,6 @@ function LoadedWireframe({
       document: editor.getState().document,
       projectId,
       screenId,
-    });
-    await queryClient.invalidateQueries({
-      queryKey: orpc.projectScreens.queryOptions({ input: { projectId } })
-        .queryKey,
     });
   }
 

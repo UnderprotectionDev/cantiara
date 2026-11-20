@@ -28,6 +28,11 @@ export function ValidationRecordsView({
   onSave,
   onTransition,
   onStartEditing,
+  saveError,
+  savePending,
+  saved,
+  transitionFailed,
+  transitionPending,
 }: {
   records: ValidationRecord[];
   counterparts: ProjectSourceRecord[];
@@ -36,6 +41,11 @@ export function ValidationRecordsView({
   onSave: Save;
   onTransition: Transition;
   onStartEditing?: () => void;
+  saveError?: unknown;
+  savePending?: boolean;
+  saved?: boolean;
+  transitionFailed?: boolean;
+  transitionPending?: boolean;
 }) {
   const [editing, setEditing] = useState<{ record?: ValidationRecord } | null>(
     null,
@@ -43,31 +53,17 @@ export function ValidationRecordsView({
   const [status, setStatus] = useState<ValidationRecord["status"]>(
     records.find((record) => record.id === selectedId)?.status ?? "Active",
   );
-  const [error, setError] = useState<string>();
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string>();
   async function save(draft: ValidationDraft, record?: ValidationRecord) {
     await onSave(draft, record);
     setEditing(null);
-    setMessage("Validation Record saved.");
   }
-  async function transition(
+  function transition(
     record: ValidationRecord,
     next: ValidationRecord["status"],
   ) {
-    setError(undefined);
-    setBusy(true);
-    try {
-      await onTransition(record, next);
-      setMessage("Validation Record saved.");
-    } catch {
-      setError(
-        "Validation Record could not be changed. Reload to check for changes.",
-      );
-    } finally {
-      setBusy(false);
-    }
+    onTransition(record, next).catch(() => undefined);
   }
+  const activeEditor = saved ? null : editing;
   const selected = records.find((record) => record.id === selectedId);
   const visible = records.filter((record) =>
     selectedId ? record.id === selectedId : record.status === status,
@@ -80,11 +76,10 @@ export function ValidationRecordsView({
         </h2>
         {readOnly ? null : (
           <Button
-            disabled={busy || Boolean(editing)}
+            disabled={transitionPending || Boolean(activeEditor)}
             onClick={() => {
               onStartEditing?.();
               setEditing({});
-              setMessage(undefined);
             }}
           >
             Create
@@ -114,14 +109,20 @@ export function ValidationRecordsView({
           This Project is archived and read-only.
         </p>
       ) : null}
-      {error ? <p role="alert">{error}</p> : null}
-      {message ? <p role="status">{message}</p> : null}
-      {editing && !readOnly ? (
+      {transitionFailed ? (
+        <p role="alert">
+          Validation Record could not be changed. Reload to check for changes.
+        </p>
+      ) : null}
+      {saved ? <p role="status">Validation Record saved.</p> : null}
+      {activeEditor && !readOnly ? (
         <ValidationRecordEditor
           counterparts={counterparts}
           onCancel={() => setEditing(null)}
           onSave={save}
-          record={editing.record}
+          record={activeEditor.record}
+          saveError={saveError}
+          savePending={savePending}
         />
       ) : null}
       {visible.length === 0 ? (
@@ -192,18 +193,17 @@ export function ValidationRecordsView({
               {record.status === "Active" ? (
                 <>
                   <Button
-                    disabled={busy || Boolean(editing)}
+                    disabled={transitionPending || Boolean(activeEditor)}
                     onClick={() => {
                       onStartEditing?.();
                       setEditing({ record });
-                      setMessage(undefined);
                     }}
                     variant="outline"
                   >
                     Edit
                   </Button>
                   <Button
-                    disabled={busy || Boolean(editing)}
+                    disabled={transitionPending || Boolean(activeEditor)}
                     onClick={() => transition(record, "Archived")}
                     variant="outline"
                   >
@@ -212,7 +212,7 @@ export function ValidationRecordsView({
                 </>
               ) : (
                 <Button
-                  disabled={busy || Boolean(editing)}
+                  disabled={transitionPending || Boolean(activeEditor)}
                   onClick={() => transition(record, "Active")}
                   variant="outline"
                 >
@@ -221,7 +221,7 @@ export function ValidationRecordsView({
               )}
               {record.status === "Trash" ? null : (
                 <Button
-                  disabled={busy || Boolean(editing)}
+                  disabled={transitionPending || Boolean(activeEditor)}
                   onClick={() => transition(record, "Trash")}
                   variant="outline"
                 >

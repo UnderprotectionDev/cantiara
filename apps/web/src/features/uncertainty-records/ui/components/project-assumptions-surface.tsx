@@ -22,18 +22,24 @@ export default function ProjectAssumptionsSurface({
     orpc.updateProjectSourceRecord.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (request) => client.updateProjectSourceRecord(request),
+      onSuccess: (_, { sourceId, clientIdempotencyKey }) =>
+        refresh(sourceId, clientIdempotencyKey),
     }),
   );
   const createProjectSourceRecordMutation = useMutation(
     orpc.createProjectSourceRecord.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (request) => client.createProjectSourceRecord(request),
+      onSuccess: ({ id }, { clientIdempotencyKey }) =>
+        refresh(id, clientIdempotencyKey),
     }),
   );
   const transitionProjectSourceRecordMutation = useMutation(
     orpc.transitionProjectSourceRecord.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.transitionProjectSourceRecord(input),
+      onSuccess: (_, { sourceId, clientIdempotencyKey }) =>
+        refresh(sourceId, clientIdempotencyKey),
     }),
   );
   const queryClient = useQueryClient();
@@ -66,9 +72,11 @@ export default function ProjectAssumptionsSurface({
     }
     return pendingWrite.current;
   }
-  async function refresh(sourceId: string) {
-    pendingWrite.current = null;
-    setSavedMessage("Assumption saved.");
+  async function refresh(sourceId: string, commandKey: string) {
+    if (pendingWrite.current?.key === commandKey) {
+      pendingWrite.current = null;
+      setSavedMessage("Assumption saved.");
+    }
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: options.queryKey }),
       queryClient.invalidateQueries({
@@ -109,7 +117,6 @@ export default function ProjectAssumptionsSurface({
           baseRevision: 0,
           clientIdempotencyKey: key,
         }));
-    await refresh(id);
   }
   async function transition(
     life: AssumptionRecord["life"],
@@ -139,7 +146,6 @@ export default function ProjectAssumptionsSurface({
       baseRevision: record.revision,
       clientIdempotencyKey: key,
     });
-    await refresh(record.id);
   }
   function startEditing() {
     pendingWrite.current = null;

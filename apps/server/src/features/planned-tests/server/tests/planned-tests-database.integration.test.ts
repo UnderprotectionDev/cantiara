@@ -43,7 +43,6 @@ import {
   SessionTestAlreadyInHandoffError,
   TestHandoffLockedError,
   TestHandoffPackageBlockedError,
-  TestHandoffPackageStaleError,
   TestHandoffPackageStateError,
   TestHandoffScopeMismatchError,
   TestHandoffStateConflictError,
@@ -986,7 +985,7 @@ describeDatabase("Planned Tests PostgreSQL integration", () => {
         previewFingerprint: preview.fingerprint ?? "",
         projectId,
       }),
-    ).rejects.toBeInstanceOf(TestHandoffPackageStaleError);
+    ).resolves.toEqual(first);
 
     // Later edits of the case, the Work and the Handoff leave the copy alone.
     await access.createVersion(accountId, {

@@ -6,7 +6,6 @@ import type {
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import { isResearchSessionConflict } from "../../lib/research-session-conflict";
 import type { ResearchBindingActions } from "../forms/research-note-binding-form";
@@ -49,6 +48,16 @@ export default function ResearchSessionsSurface({
         queryClient.invalidateQueries({ queryKey: options.queryKey }),
     }),
   );
+  const previewBinding = useMutation(
+    orpc.previewResearchSessionBinding.mutationOptions({
+      gcTime: 0,
+      meta: { onlineWrite: true, retryInSurface: true },
+      mutationFn: (input) => client.previewResearchSessionBinding(input),
+      onError: () =>
+        queryClient.invalidateQueries({ queryKey: options.queryKey }),
+    }),
+  );
+  const previewBindingAsync = previewBinding.mutateAsync;
   const confirmBindingAsync = confirmBinding.mutateAsync;
   const bindingActions = useMemo<ResearchBindingActions>(
     () => ({
@@ -76,16 +85,7 @@ export default function ResearchSessionsSurface({
           gcTime: 0,
           staleTime: 0,
         }),
-      preview: async (input) => {
-        try {
-          return await runOnlineOnlyWrite(() =>
-            client.previewResearchSessionBinding(input),
-          );
-        } catch (error) {
-          await queryClient.invalidateQueries({ queryKey: options.queryKey });
-          throw error;
-        }
-      },
+      preview: previewBindingAsync,
       confirm: (record, preview, key) =>
         confirmBindingAsync({
           id: record.id,
@@ -95,7 +95,7 @@ export default function ResearchSessionsSurface({
           clientIdempotencyKey: key,
         }),
     }),
-    [projectId, queryClient, options.queryKey, confirmBindingAsync],
+    [projectId, queryClient, previewBindingAsync, confirmBindingAsync],
   );
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
   const notePending = useRef(

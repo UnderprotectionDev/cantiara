@@ -2,10 +2,10 @@
 
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
-import { useProductionIncidentCommand } from "../../hooks/use-production-incident-command";
+import { refreshProductionIncident } from "../../lib/refresh-production-incident";
 import {
   type ProductionIncidentActions,
   ProductionIncidentDetail,
@@ -25,11 +25,73 @@ export function ProductionIncidentSurface({
       input: { incidentId, projectId },
     }),
   );
-  const run = useProductionIncidentCommand();
-  // One Work id per previewed attempt, so a retried confirm cannot make a second Work.
-  const followUpWorkId = useRef<string | null>(null);
-  const [savedMessage, setSavedMessage] = useState<string>();
-  const [errorMessage, setErrorMessage] = useState<string>();
+  const queryClient = useQueryClient();
+  const refresh = () =>
+    refreshProductionIncident(queryClient, projectId, incidentId);
+  const writeLink = usePreparedMutation(
+    orpc.setProductionIncidentLink.mutationOptions({
+      mutationFn: (input) => client.setProductionIncidentLink(input),
+      onSettled: refresh,
+    }),
+    (
+      input: Omit<
+        Parameters<typeof client.setProductionIncidentLink>[0],
+        "clientIdempotencyKey"
+      >,
+    ) => input,
+  );
+  const writeStatus = usePreparedMutation(
+    orpc.transitionProjectSourceRecord.mutationOptions({
+      mutationFn: (input) => client.transitionProjectSourceRecord(input),
+      onSettled: refresh,
+    }),
+    (
+      input: Omit<
+        Extract<
+          Parameters<typeof client.transitionProjectSourceRecord>[0],
+          { sourceType: "Production Incident" }
+        >,
+        "clientIdempotencyKey"
+      >,
+    ) => input,
+  );
+  const writeIncident = usePreparedMutation(
+    orpc.updateProjectSourceRecord.mutationOptions({
+      mutationFn: (input) => client.updateProjectSourceRecord(input),
+      onSettled: refresh,
+    }),
+    (
+      input: Omit<
+        Extract<
+          Parameters<typeof client.updateProjectSourceRecord>[0],
+          { sourceType: "Production Incident" }
+        >,
+        "clientIdempotencyKey"
+      >,
+    ) => input,
+  );
+  const incidentStatus =
+    writeStatus.variables?.sourceType === "Production Incident"
+      ? writeStatus.variables.status
+      : "";
+  const [feedback] = [
+    {
+      mutation: writeLink,
+      message: writeLink.variables?.attached
+        ? "Record linked."
+        : "Link removed.",
+    },
+    { mutation: writeStatus, message: `Status changed to ${incidentStatus}.` },
+    { mutation: writeIncident, message: "Incident saved." },
+  ].sort(
+    (left, right) => right.mutation.submittedAt - left.mutation.submittedAt,
+  );
+  const savedMessage = feedback?.mutation.isSuccess
+    ? feedback.message
+    : undefined;
+  const errorMessage = feedback?.mutation.isError
+    ? "Change could not be saved. The Production Incident was reloaded; check it and try again."
+    : undefined;
 
   if (detail.status === "pending") {
     return <p role="status">Loading source record…</p>;
@@ -52,45 +114,17 @@ export function ProductionIncidentSurface({
   }
   const current = detail.data;
   const base = { incidentId, projectId };
-  async function done<T>(message: string, write: Promise<T>) {
-    setSavedMessage(undefined);
-    setErrorMessage(undefined);
-    try {
-      await write;
-    } catch (error) {
-      setErrorMessage(
-        "Change could not be saved. The Production Incident was reloaded; check it and try again.",
-      );
-      throw error;
-    }
-    setSavedMessage(message);
-  }
   const actions: ProductionIncidentActions = {
     onPreview: (values) =>
       client.previewProductionIncidentFollowUp({ ...base, ...values }),
-    onCreate: async (values, preview) => {
-      // The id survives a failed attempt: a retried identical command replays
-      // the server receipt instead of creating a second Work.
-      followUpWorkId.current ??= crypto.randomUUID();
-      const workId = followUpWorkId.current;
-      const command = {
+    onCreate: (values, preview, identity) =>
+      client.createProductionIncidentFollowUp({
         ...base,
         ...values,
+        ...identity,
+        baseRevision: 0,
         previewFingerprint: preview.fingerprint,
-        workId,
-      };
-      await done(
-        "Follow-up work created.",
-        run(command, (clientIdempotencyKey) =>
-          client.createProductionIncidentFollowUp({
-            ...command,
-            baseRevision: 0,
-            clientIdempotencyKey,
-          }),
-        ),
-      );
-      followUpWorkId.current = null;
-    },
+      }),
     onAddLink: (target) => {
       const command = {
         ...base,
@@ -103,16 +137,10 @@ export function ProductionIncidentSurface({
         (link) =>
           link.target.type === target.type && link.target.id === target.id,
       );
-      return done(
-        "Record linked.",
-        run(command, (clientIdempotencyKey) =>
-          client.setProductionIncidentLink({
-            ...command,
-            baseRevision: previous?.revision ?? 0,
-            clientIdempotencyKey,
-          }),
-        ),
-      );
+      return writeLink.mutateAsync({
+        ...command,
+        baseRevision: previous?.revision ?? 0,
+      });
     },
     onRemoveLink: (link) => {
       const command = {
@@ -121,16 +149,7 @@ export function ProductionIncidentSurface({
         targetId: link.target.id,
         targetType: link.target.type,
       };
-      return done(
-        "Link removed.",
-        run(command, (clientIdempotencyKey) =>
-          client.setProductionIncidentLink({
-            ...command,
-            baseRevision: link.revision,
-            clientIdempotencyKey,
-          }),
-        ),
-      );
+      return writeLink.mutateAsync({ ...command, baseRevision: link.revision });
     },
     onChangeStatus: (status) => {
       const { incident } = current;
@@ -141,16 +160,10 @@ export function ProductionIncidentSurface({
         sourceType: "Production Incident" as const,
         status,
       };
-      return done(
-        `Status changed to ${status}.`,
-        run(command, (clientIdempotencyKey) =>
-          client.transitionProjectSourceRecord({
-            ...command,
-            baseRevision: incident.revision,
-            clientIdempotencyKey,
-          }),
-        ),
-      );
+      return writeStatus.mutateAsync({
+        ...command,
+        baseRevision: incident.revision,
+      });
     },
     onSave: (values) => {
       const { incident } = current;
@@ -161,16 +174,10 @@ export function ProductionIncidentSurface({
         sourceId: incident.id,
         sourceType: "Production Incident" as const,
       };
-      return done(
-        "Incident saved.",
-        run(command, (clientIdempotencyKey) =>
-          client.updateProjectSourceRecord({
-            ...command,
-            baseRevision: incident.revision,
-            clientIdempotencyKey,
-          }),
-        ),
-      );
+      return writeIncident.mutateAsync({
+        ...command,
+        baseRevision: incident.revision,
+      });
     },
   };
   return (

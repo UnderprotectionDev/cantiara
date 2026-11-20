@@ -29,12 +29,24 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
     orpc.saveScreenTemplate.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.saveScreenTemplate(input),
+      onSuccess: (_, { projectId: affectedProject }) =>
+        queryClient.invalidateQueries({
+          queryKey: orpc.screenTemplates.key({
+            input: { projectId: affectedProject },
+          }),
+        }),
     }),
   );
   const setScreenLifecycleMutation = useMutation(
     orpc.setScreenLifecycle.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.setScreenLifecycle(input),
+      onSettled: (_, _error, { projectId: affectedProject }) =>
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectScreens.key({
+            input: { projectId: affectedProject },
+          }),
+        }),
     }),
   );
   const queryClient = useQueryClient();
@@ -65,9 +77,6 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
         screenId: screen.id,
         wireframeVersion,
       });
-      await queryClient.invalidateQueries({
-        queryKey: templateOptions.queryKey,
-      });
     },
     templates: templateList.data ?? [],
   };
@@ -75,16 +84,12 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
     screen: ScreenRecord,
     action: ScreenLifecycleAction,
   ) {
-    try {
-      await setScreenLifecycleMutation.mutateAsync({
-        action,
-        expectedRevision: screen.revision,
-        projectId,
-        screenId: screen.id,
-      });
-    } finally {
-      await refresh();
-    }
+    await setScreenLifecycleMutation.mutateAsync({
+      action,
+      expectedRevision: screen.revision,
+      projectId,
+      screenId: screen.id,
+    });
   }
   function renderWireframe(screen: ScreenRecord) {
     return (
@@ -112,6 +117,11 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-6">
       <ScreensView
+        lifecycleWrite={{
+          failed: setScreenLifecycleMutation.isError,
+          pending: setScreenLifecycleMutation.isPending,
+          screenId: setScreenLifecycleMutation.variables?.screenId,
+        }}
         onCreate={create}
         onSetLifecycle={setLifecycle}
         readOnly={screens.data.readOnly}

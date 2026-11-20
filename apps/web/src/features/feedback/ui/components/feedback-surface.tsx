@@ -6,11 +6,7 @@ import type {
 } from "@cantiara/api/feedback";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  client,
-  invalidateSmartCollectionMembership,
-  orpc,
-} from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 import type { FeedbackDraft } from "../forms/create-feedback-form";
 import type { SaveEvidence } from "../forms/evidence-quality-form";
 import { FeedbackView } from "../views/feedback-view";
@@ -27,24 +23,21 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
     orpc.setFeedbackIdentity.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.setFeedbackIdentity(input),
+      onSettled: () => refresh(),
     }),
   );
   const setFeedbackEvidenceMutation = useMutation(
     orpc.setFeedbackEvidence.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.setFeedbackEvidence(input),
-    }),
-  );
-  const convertFeedbackToWorkMutation = useMutation(
-    orpc.convertFeedbackToWork.mutationOptions({
-      meta: { onlineWrite: true },
-      mutationFn: (input) => client.convertFeedbackToWork(input),
+      onSettled: () => refresh(),
     }),
   );
   const setFeedbackStatusMutation = useMutation(
     orpc.setFeedbackStatus.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.setFeedbackStatus(input),
+      onSettled: () => refresh(),
     }),
   );
   const queryClient = useQueryClient();
@@ -70,29 +63,21 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
     record: FeedbackRecord,
     identity: { companyId: string | null; contactId: string | null },
   ) {
-    try {
-      await setFeedbackIdentityMutation.mutateAsync({
-        ...identity,
-        expectedRevision: record.revision,
-        feedbackId: record.id,
-        projectId,
-      });
-    } finally {
-      await refresh();
-    }
+    await setFeedbackIdentityMutation.mutateAsync({
+      ...identity,
+      expectedRevision: record.revision,
+      feedbackId: record.id,
+      projectId,
+    });
   }
   function saveEvidence(record: FeedbackRecord): SaveEvidence {
     return async (origin, command) => {
-      try {
-        await setFeedbackEvidenceMutation.mutateAsync({
-          ...command,
-          feedbackId: record.id,
-          projectId,
-          workId: origin.workId,
-        });
-      } finally {
-        await refresh();
-      }
+      await setFeedbackEvidenceMutation.mutateAsync({
+        ...command,
+        feedbackId: record.id,
+        projectId,
+        workId: origin.workId,
+      });
     };
   }
   function previewConvert(record: FeedbackRecord) {
@@ -104,40 +89,27 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
       });
   }
   function confirmConvert(record: FeedbackRecord) {
-    return async (
+    return (
       plan: FeedbackWorkPlan,
       identity: { id: string; key: string; workId: string },
-    ) => {
-      try {
-        return await convertFeedbackToWorkMutation.mutateAsync({
-          baseRevision: 0,
-          clientIdempotencyKey: identity.key,
-          feedbackId: record.id,
-          id: identity.id,
-          plan,
-          projectId,
-          workId: identity.workId,
-        });
-      } finally {
-        // A converted Feedback creates a Work, which can join Smart Collections.
-        await Promise.all([
-          refresh(),
-          ...invalidateSmartCollectionMembership(queryClient),
-        ]);
-      }
-    };
+    ) =>
+      client.convertFeedbackToWork({
+        baseRevision: 0,
+        clientIdempotencyKey: identity.key,
+        feedbackId: record.id,
+        id: identity.id,
+        plan,
+        projectId,
+        workId: identity.workId,
+      });
   }
   async function setStatus(record: FeedbackRecord, status: FeedbackStatus) {
-    try {
-      await setFeedbackStatusMutation.mutateAsync({
-        expectedRevision: record.revision,
-        feedbackId: record.id,
-        projectId,
-        status,
-      });
-    } finally {
-      await refresh();
-    }
+    await setFeedbackStatusMutation.mutateAsync({
+      expectedRevision: record.revision,
+      feedbackId: record.id,
+      projectId,
+      status,
+    });
   }
   function retry() {
     records.refetch().catch(() => undefined);

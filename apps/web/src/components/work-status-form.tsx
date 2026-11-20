@@ -296,7 +296,12 @@ export default function WorkStatusForm({
         return;
       }
       updateStatus.mutate(
-        commandVariables(
+        commandVariables<
+          Omit<
+            Parameters<typeof client.updateWorkStatus>[0],
+            "clientIdempotencyKey"
+          >
+        >(
           {
             baseRevision: latestWorkRevision.current,
             status: nextStatus,

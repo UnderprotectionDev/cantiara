@@ -49,7 +49,9 @@ import TestReviewSurface from "../test-review-surface";
 
 test("committing a review follow-up refreshes Work lists and Smart Collection membership because it creates Work", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  hoisted.commitReviewFollowUp.mockResolvedValue({});
+  hoisted.commitReviewFollowUp
+    .mockRejectedValueOnce(new Error("Connection interrupted"))
+    .mockResolvedValueOnce({});
   // Refetches of the mounted queries fail fast: there is no server here.
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -61,9 +63,16 @@ test("committing a review follow-up refreshes Work lists and Smart Collection me
   );
   const worksKey = orpc.projectWorks.queryOptions({ input }).queryKey;
   const membershipKey = orpc.smartCollectionViews.key();
-  const summaryKey = orpc.projectTestSummary.key();
+  const otherInput = { projectId: "project-2" };
+  const otherWorksKey = orpc.projectWorks.queryOptions({
+    input: otherInput,
+  }).queryKey;
+  const summaryKey = orpc.projectTestSummary.key({ input });
+  const otherSummaryKey = orpc.projectTestSummary.key({ input: otherInput });
   queryClient.setQueryData(summaryKey, {});
+  queryClient.setQueryData(otherSummaryKey, {});
   queryClient.setQueryData(worksKey, []);
+  queryClient.setQueryData(otherWorksKey, []);
   queryClient.setQueryData(membershipKey, []);
   const container = document.createElement("div");
   const root = createRoot(container);
@@ -76,17 +85,31 @@ test("committing a review follow-up refreshes Work lists and Smart Collection me
   });
 
   await act(async () => {
-    await hoisted.captured.signals?.actions.commitFollowUp(
-      ["session-test-1"],
-      { kind: "new" },
-      { fingerprint: "fingerprint-1" },
-    );
+    await expect(
+      hoisted.captured.signals?.actions.commitFollowUp(
+        ["session-test-1"],
+        { mode: "new", workType: "Task" },
+        { fingerprint: "fingerprint-1" },
+      ),
+    ).rejects.toThrow("Connection interrupted");
+  });
+  const [failed] = queryClient.getMutationCache().getAll();
+  if (!failed) {
+    throw new Error("Expected a recorded follow-up mutation");
+  }
+  await act(async () => {
+    await failed.execute(failed.state.variables);
   });
 
-  expect(hoisted.commitReviewFollowUp).toHaveBeenCalledTimes(1);
+  expect(hoisted.commitReviewFollowUp).toHaveBeenCalledTimes(2);
+  expect(hoisted.commitReviewFollowUp.mock.calls[1]).toEqual(
+    hoisted.commitReviewFollowUp.mock.calls[0],
+  );
   expect(queryClient.getQueryState(worksKey)?.isInvalidated).toBe(true);
   expect(queryClient.getQueryState(membershipKey)?.isInvalidated).toBe(true);
   expect(queryClient.getQueryState(summaryKey)?.isInvalidated).toBe(true);
+  expect(queryClient.getQueryState(otherWorksKey)?.isInvalidated).toBe(false);
+  expect(queryClient.getQueryState(otherSummaryKey)?.isInvalidated).toBe(false);
   await act(async () => root.unmount());
 });
 

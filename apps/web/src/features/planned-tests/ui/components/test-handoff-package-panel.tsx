@@ -126,9 +126,12 @@ export function TestHandoffPackagePanel({
 }) {
   const queryClient = useQueryClient();
   const shareable = TEST_HANDOFF_PACKAGE_STATES.includes(handoff.state);
-  const packagesKey = orpc.projectTestHandoffPackages.queryKey({
-    input: { handoffId: handoff.id, projectId: handoff.projectId },
-  });
+  const packagesKey = [
+    ...orpc.projectTestHandoffPackages.queryKey({
+      input: { handoffId: handoff.id, projectId: handoff.projectId },
+    }),
+    handoff.packageVersion,
+  ] as const;
   const packagesQuery = useQuery({
     enabled: handoff.packageVersion !== 0,
     queryFn: () => loadPackages(handoff),
@@ -145,12 +148,15 @@ export function TestHandoffPackagePanel({
       handoff: TestHandoffRecord;
       preview: TestHandoffPackagePreview;
     }) => onProduce(input.handoff, input.preview),
-    onSuccess: async (record, input) => {
+    onSuccess: (record, input) => {
       const { id: handoffId, projectId } = input.handoff;
       queryClient.setQueryData<TestHandoffPackageRecord[]>(
-        orpc.projectTestHandoffPackages.queryKey({
-          input: { handoffId, projectId },
-        }),
+        [
+          ...orpc.projectTestHandoffPackages.queryKey({
+            input: { handoffId, projectId },
+          }),
+          input.handoff.packageVersion,
+        ],
         (current) => [
           record,
           ...(current ?? []).filter(
@@ -158,9 +164,22 @@ export function TestHandoffPackagePanel({
           ),
         ],
       );
-      await queryClient.invalidateQueries({
-        queryKey: orpc.projectTestHandoffs.queryKey({ input: { projectId } }),
-      });
+    },
+    onSettled: async (_, error, { handoff: { id: handoffId, projectId } }) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectTestHandoffs.queryKey({ input: { projectId } }),
+        }),
+        ...(error
+          ? [
+              queryClient.invalidateQueries({
+                queryKey: orpc.projectTestHandoffPackages.queryKey({
+                  input: { handoffId, projectId },
+                }),
+              }),
+            ]
+          : []),
+      ]);
     },
   });
   const preview = produce.isSuccess ? undefined : inspect.data;

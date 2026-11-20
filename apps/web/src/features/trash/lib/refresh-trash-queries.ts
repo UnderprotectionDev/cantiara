@@ -1,4 +1,8 @@
-import { TRASH_RECORD_KINDS, type TrashRecordKind } from "@cantiara/api/trash";
+import {
+  TRASH_RECORD_KINDS,
+  type TrashOverview,
+  type TrashRecordKind,
+} from "@cantiara/api/trash";
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { invalidateSmartCollectionMembership, orpc } from "@/utils/orpc";
 
@@ -57,18 +61,48 @@ export async function refreshTrashQueries(
       orpc.projectTestSummary.key(project),
     ],
   };
+  const trashKey = orpc.trash.queryKey(project);
+  const members = target.groupId
+    ? queryClient
+        .getQueryData<TrashOverview>(trashKey)
+        ?.entries.filter(({ groupId }) => groupId === target.groupId)
+    : undefined;
   const records = target.groupId
     ? TRASH_RECORD_KINDS.flatMap((kind) => keys[kind])
     : keys[recordKind];
   const affected = [
     ...records,
-    orpc.trash.key(project),
+    trashKey,
     orpc.scopeTree.key(project),
     orpc.searchRecords.key(),
     orpc.workspaceOverview.key(),
     orpc.relations.key({ input: { recordId } }),
     orpc.usedIn.key({ input: { recordId } }),
   ];
+  if (target.groupId) {
+    if (members?.length) {
+      for (const member of members) {
+        const { recordId: memberId } = member;
+        affected.push(
+          orpc.relations.key({ input: { recordId: memberId } }),
+          orpc.usedIn.key({ input: { recordId: memberId } }),
+        );
+        if (member.recordKind === "Work") {
+          affected.push(orpc.work.key({ input: { workId: memberId } }));
+        }
+        if (member.recordKind === "Document") {
+          affected.push(orpc.document.key({ input: { documentId: memberId } }));
+        }
+      }
+    } else {
+      affected.push(
+        orpc.work.key(),
+        orpc.document.key(),
+        orpc.relations.key(),
+        orpc.usedIn.key(),
+      );
+    }
+  }
   if (recordKind !== "External Surface") {
     affected.push(orpc.listExternalSurfaces.key());
   }

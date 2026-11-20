@@ -32,29 +32,28 @@ const LIFECYCLE_SECTIONS: ScreenLifecycle[] = [
 
 export type RenderWireframe = (screen: ScreenRecord) => ReactNode;
 
+interface LifecycleWriteState {
+  failed: boolean;
+  pending: boolean;
+  screenId?: string;
+}
+
 function ScreenItem({
+  lifecycleWrite,
   onSetLifecycle,
   readOnly,
   renderWireframe,
   screen,
   templates,
 }: {
+  lifecycleWrite?: LifecycleWriteState;
   onSetLifecycle: SetScreenLifecycle;
   readOnly: boolean;
   renderWireframe?: RenderWireframe;
   screen: ScreenRecord;
   templates?: ScreenTemplateActions;
 }) {
-  const [error, setError] = useState<string>();
   const [wireframeOpen, setWireframeOpen] = useState(false);
-  async function run(action: ScreenLifecycleAction) {
-    setError(undefined);
-    try {
-      await onSetLifecycle(screen, action);
-    } catch {
-      setError("Screen could not be updated. Reload and try again.");
-    }
-  }
   return (
     <li
       className="space-y-2 rounded-lg border border-border/70 p-4"
@@ -74,17 +73,20 @@ function ScreenItem({
             .join(", ")}
         </p>
       ) : null}
-      {error ? (
+      {lifecycleWrite?.failed && lifecycleWrite.screenId === screen.id ? (
         <p className="text-sm text-destructive" role="alert">
-          {error}
+          Screen could not be updated. Reload and try again.
         </p>
       ) : null}
       {readOnly ? null : (
         <div className="flex flex-wrap gap-2">
           {LIFECYCLE_ACTIONS[screen.lifecycle].map((action) => (
             <Button
+              disabled={lifecycleWrite?.pending}
               key={action}
-              onClick={() => run(action)}
+              onClick={() =>
+                onSetLifecycle(screen, action).catch(() => undefined)
+              }
               size="sm"
               type="button"
               variant="outline"
@@ -116,6 +118,7 @@ function ScreenItem({
 }
 
 export function ScreensView({
+  lifecycleWrite,
   onCreate,
   onSetLifecycle,
   readOnly,
@@ -123,6 +126,7 @@ export function ScreensView({
   screens,
   templates,
 }: {
+  lifecycleWrite?: LifecycleWriteState;
   onCreate: CreateScreen;
   onSetLifecycle: SetScreenLifecycle;
   readOnly: boolean;
@@ -156,6 +160,7 @@ export function ScreensView({
                 {items.map((item) => (
                   <ScreenItem
                     key={item.id}
+                    lifecycleWrite={lifecycleWrite}
                     onSetLifecycle={onSetLifecycle}
                     readOnly={readOnly}
                     renderWireframe={renderWireframe}

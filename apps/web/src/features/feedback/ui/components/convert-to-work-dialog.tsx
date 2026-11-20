@@ -11,7 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
-import { useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { invalidateSmartCollectionMembership, orpc } from "@/utils/orpc";
 import { ConvertToWorkForm } from "../forms/convert-to-work-form";
 
 /** Identity of one confirmation attempt; reused on retry so the Work is created once. */
@@ -77,50 +79,77 @@ export function ConvertToWorkDialog({
   onPreview: PreviewConvert;
   record: FeedbackRecord;
 }) {
-  const [plan, setPlan] = useState<FeedbackWorkPlan | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const identity = useRef<ConvertCommandIdentity | null>(null);
-
+  const queryClient = useQueryClient();
+  const active = useRef<ConvertCommandIdentity | null>(null);
+  useEffect(
+    () => () => {
+      active.current = null;
+    },
+    [],
+  );
+  const inspect = useMutation({
+    mutationKey: orpc.previewFeedbackWork.mutationKey(),
+    mutationFn: onPreview,
+  });
+  const convert = useMutation({
+    mutationKey: orpc.convertFeedbackToWork.mutationKey(),
+    meta: { onlineWrite: true },
+    mutationFn: ({
+      plan: submitted,
+      identity,
+    }: {
+      plan: FeedbackWorkPlan;
+      identity: ConvertCommandIdentity;
+    }) => onConfirm(submitted, identity),
+    onSuccess: async (_, { plan: submitted, identity }) => {
+      const projectId = submitted.targetProject.id;
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectFeedback.key({ input: { projectId } }),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectWorks.key({ input: { projectId } }),
+        }),
+        ...invalidateSmartCollectionMembership(queryClient),
+      ]);
+      if (active.current?.key === identity.key) {
+        active.current = null;
+        onClose();
+      }
+    },
+  });
+  const plan = inspect.data;
+  const pending = inspect.isPending || convert.isPending;
+  let error: string | null = null;
+  if (inspect.isError) {
+    error = "The preview could not be loaded. Reload and try again.";
+  }
+  if (convert.isError) {
+    error =
+      "The Work could not be created. If the Feedback changed, preview again.";
+  }
   function reset() {
-    setPlan(null);
-    setError(null);
-    identity.current = null;
+    active.current = null;
+    inspect.reset();
+    convert.reset();
   }
   async function preview(workType: FeedbackWorkType) {
-    setPending(true);
     reset();
-    try {
-      setPlan(await onPreview(workType));
-    } catch {
-      setError("The preview could not be loaded. Reload and try again.");
-    } finally {
-      setPending(false);
-    }
+    await inspect.mutateAsync(workType).catch(() => undefined);
   }
   async function confirm() {
-    if (!plan || pending) {
-      return;
-    }
-    identity.current ??= {
-      id: crypto.randomUUID(),
-      key: crypto.randomUUID(),
-      workId: crypto.randomUUID(),
-    };
-    setPending(true);
-    setError(null);
-    try {
-      await onConfirm(plan, identity.current);
-      identity.current = null;
-      onClose();
-    } catch {
-      setError(
-        "The Work could not be created. If the Feedback changed, preview again.",
-      );
-    } finally {
-      setPending(false);
+    if (plan && !pending) {
+      active.current ??= {
+        id: crypto.randomUUID(),
+        key: crypto.randomUUID(),
+        workId: crypto.randomUUID(),
+      };
+      await convert
+        .mutateAsync({ plan, identity: active.current })
+        .catch(() => undefined);
     }
   }
+
   return (
     <Dialog onOpenChange={(open) => !open && onClose()} open>
       <DialogContent>
@@ -132,7 +161,7 @@ export function ConvertToWorkDialog({
           </DialogDescription>
         </DialogHeader>
         <ConvertToWorkForm
-          canConfirm={plan !== null}
+          canConfirm={plan !== undefined}
           onClose={onClose}
           onConfirm={confirm}
           onPreview={preview}

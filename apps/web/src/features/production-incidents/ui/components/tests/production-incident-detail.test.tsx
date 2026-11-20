@@ -1,5 +1,6 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { ProductionIncidentDetail as Detail } from "@cantiara/api/production-incidents";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 import { ProductionIncidentDetail } from "../production-incident-detail";
@@ -96,12 +97,14 @@ function detail(overrides: Partial<Detail> = {}): Detail {
 
 function render(value: Detail) {
   return renderToStaticMarkup(
-    <ProductionIncidentDetail
-      actions={actions}
-      detail={value}
-      formatting={DEFAULT_ACCOUNT_PREFERENCES}
-      projectId="project-1"
-    />,
+    <QueryClientProvider client={new QueryClient()}>
+      <ProductionIncidentDetail
+        actions={actions}
+        detail={value}
+        formatting={DEFAULT_ACCOUNT_PREFERENCES}
+        projectId="project-1"
+      />
+    </QueryClientProvider>,
   );
 }
 

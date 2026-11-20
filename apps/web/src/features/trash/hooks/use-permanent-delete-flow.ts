@@ -2,6 +2,10 @@ import type { TrashEntry } from "@cantiara/api/trash";
 import type { TrashEarlyDeletePreview } from "@cantiara/api/trash-early-delete";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
+import {
+  PrivateWriteFailure,
+  privateWriteNotice,
+} from "@/features/web-macos-client/lib/support-reference";
 import { commandVariables } from "@/lib/command-variables";
 import { orpc } from "@/utils/orpc";
 import { refreshTrashQueries } from "../lib/refresh-trash-queries";
@@ -23,9 +27,11 @@ export function usePermanentDeleteFlow(permanentDelete?: TrashPermanentDelete) {
   const queryClient = useQueryClient();
   const session = useRef(0);
   const grant = useRef<string | null>(null);
-  const confirmation = useRef<{ grant: string; typedName: string } | null>(
-    null,
-  );
+  const confirmation = useRef<{
+    session: number;
+    grant: string;
+    typedName: string;
+  } | null>(null);
   const lastAttempt = useRef<{
     typedName: string;
     request: { entry: TrashEntry; clientIdempotencyKey: string };
@@ -60,26 +66,31 @@ export function usePermanentDeleteFlow(permanentDelete?: TrashPermanentDelete) {
     mutationFn: async (request: {
       entry: TrashEntry;
       clientIdempotencyKey: string;
+      session: number;
     }) => {
       const approved = confirmation.current;
-      confirmation.current = null;
-      if (!(permanentDelete && approved)) {
+      if (!(permanentDelete && approved?.session === request.session)) {
         throw new Error("Confirm GitHub Identity again.");
       }
+      confirmation.current = null;
       try {
         await permanentDelete.permanentlyDelete(request.entry, {
-          ...approved,
+          grant: approved.grant,
+          typedName: approved.typedName,
           clientIdempotencyKey: request.clientIdempotencyKey,
         });
-      } catch {
-        // biome-ignore lint/style/useErrorCause: The raw authentication error stays outside MutationCache.
-        throw new Error(
+      } catch (failure) {
+        // biome-ignore lint/style/useErrorCause: Only approved Support fields can enter MutationCache.
+        throw new PrivateWriteFailure(
+          failure,
           "Could not permanently delete. Check the name and confirm again.",
         );
       }
     },
-    onSettled: (_, _error, { entry }) => {
-      confirmation.current = null;
+    onSettled: (_, _error, { entry, session: viewed }) => {
+      if (confirmation.current?.session === viewed) {
+        confirmation.current = null;
+      }
       return refreshTrashQueries(queryClient, entry);
     },
   });
@@ -129,7 +140,11 @@ export function usePermanentDeleteFlow(permanentDelete?: TrashPermanentDelete) {
       if (!(permanentDelete && deleting && grant.current) || commit.isPending) {
         return;
       }
-      confirmation.current = { grant: grant.current, typedName };
+      confirmation.current = {
+        session: session.current,
+        grant: grant.current,
+        typedName,
+      };
       grant.current = null;
       identity.reset();
       const previous = lastAttempt.current;
@@ -138,10 +153,13 @@ export function usePermanentDeleteFlow(permanentDelete?: TrashPermanentDelete) {
         previous?.typedName === typedName ? previous.request : undefined,
       );
       lastAttempt.current = { typedName, request };
-      await commit.mutateAsync(request).catch(() => undefined);
+      await commit
+        .mutateAsync({ ...request, session: session.current })
+        .catch(() => undefined);
     },
     deleting,
     error,
+    support: commit.error ? privateWriteNotice(commit.error) : null,
     async review(entry: TrashEntry) {
       reset();
       if (permanentDelete) {
