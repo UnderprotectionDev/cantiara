@@ -5,6 +5,7 @@ import type {
   TestReviewSession,
 } from "@cantiara/api/test-review";
 import {
+  notifyManager,
   QueryClient,
   QueryClientProvider,
   useMutation,
@@ -266,6 +267,32 @@ test("a failed commit shows an alert and nothing is claimed as saved", async () 
     );
   });
   expect(document.querySelector('[role="status"]')).toBeNull();
+});
+
+test("a delayed review success leaves a newly opened Correction form in place", async () => {
+  await mount(actionsMock());
+  await click(byText("Mark session and selected results as reviewed"));
+  const notifications: (() => void)[] = [];
+  notifyManager.setScheduler((notify) => notifications.push(notify));
+  try {
+    await click(byText("Apply review"));
+    expect(document.body.textContent).not.toContain("Apply review");
+    await click(byLabel("Correction for Login works"));
+    expect(byText("Record Correction")).toBeTruthy();
+
+    await act(() => {
+      for (const notify of notifications) {
+        notify();
+      }
+    });
+
+    expect(document.querySelector('[role="status"]')?.textContent).toBe(
+      "Marked as reviewed.",
+    );
+    expect(byText("Record Correction")).toBeTruthy();
+  } finally {
+    notifyManager.setScheduler((notify) => setTimeout(notify, 0));
+  }
 });
 
 test("offers no archive, Trash, delete or release control for a Session Test", async () => {

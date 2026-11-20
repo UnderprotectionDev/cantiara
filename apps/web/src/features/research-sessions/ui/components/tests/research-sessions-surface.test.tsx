@@ -302,10 +302,16 @@ test("a lost note response retries the same identity, while an edited retry reta
   const surface = await openSurface();
   async function start() {
     await act(async () => surface.button("Add note").click());
-    const select = surface.host.querySelector("select");
-    if (!select) {
-      throw new Error("Note type required");
-    }
+    const select = await vi.waitFor(async () => {
+      await act(async () => undefined);
+      const field = surface.host.querySelector<HTMLSelectElement>(
+        'form[aria-label="Add note"] select',
+      );
+      if (!field) {
+        throw new Error("Note type required");
+      }
+      return field;
+    });
     await act(() => {
       select.value = "Founder interpretation";
       select.dispatchEvent(new Event("change", { bubbles: true }));

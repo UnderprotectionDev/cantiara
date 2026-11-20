@@ -135,6 +135,25 @@ async function selectCompletedClosureResult(closeDialog: Locator) {
     .selectOption("Completed");
 }
 
+async function pauseCompletionClock(page: Page) {
+  const nativeSetTimeout = await page.evaluateHandle(() => {
+    const browser: Window = window;
+    return browser.setTimeout.bind(browser);
+  });
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await page.evaluate((schedule) => {
+    const browser: Window = window;
+    const clockSetTimeout = browser.setTimeout;
+    // Query delivers observer updates on zero-delay timers, including the Close preview.
+    browser.setTimeout = (handler, delay, ...args) =>
+      delay === 0
+        ? schedule(handler, delay, ...args)
+        : clockSetTimeout(handler, delay, ...args);
+  }, nativeSetTimeout);
+  await nativeSetTimeout.dispose();
+}
+
 test("keeps Completion Effects samples still until Preview and saves one Account choice", async ({
   context,
   page,
@@ -380,8 +399,7 @@ test("plays only after an accepted Completed close and waits 30 seconds per clie
   const fourthWork = await createWork(page, "Complete after a hidden start");
   const projectWorkUrl = page.url();
 
-  await page.clock.install();
-  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await pauseCompletionClock(page);
 
   let releaseCloseRequest: (() => void) | undefined;
   let closeRequestIntercepted = false;
@@ -537,6 +555,7 @@ test("plays only after an accepted Completed close and waits 30 seconds per clie
   ).toHaveCount(0);
   await page.unroute("**/rpc/closeWork", holdHiddenCloseRequest);
 
+  await page.clock.resume();
   await page.reload();
   const refreshedFirstWork = page
     .getByRole("list", { name: "Work list" })
@@ -601,8 +620,7 @@ test("keeps the base success notice for ten seconds when effects are off", async
 
   await openProjectWorkSurface(page, "Completion Effects Base Notice Project");
   const work = await createWork(page, "Keep the base success notice visible");
-  await page.clock.install();
-  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await pauseCompletionClock(page);
 
   await work
     .getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME })

@@ -21,7 +21,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { accountDateTimeFormatter } from "@/features/account-preferences/lib/account-preferences-format";
 import { orpc } from "@/utils/orpc";
 import { usePanelFocus } from "../../hooks/use-panel-focus";
@@ -420,11 +420,6 @@ function SessionReview({
       ? writeState
       : undefined;
   const success = currentWrite?.isSuccess;
-  useEffect(() => {
-    if (success) {
-      setPanel(null);
-    }
-  }, [success]);
   const previewError = inspectClose.error ?? inspectBulk.error;
   const error = reviewFeedbackError(previewError, currentWrite?.error);
   const notice = success ? noticeLabel : undefined;
