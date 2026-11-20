@@ -1,54 +1,84 @@
 import type { TrashEntry } from "@cantiara/api/trash";
 import {
   isTrashConfigurationKind,
-  type TrashRestoreConflict,
   type TrashRestorePreview,
 } from "@cantiara/api/trash-configuration";
-import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { commandVariables } from "@/lib/command-variables";
+import { orpc } from "@/utils/orpc";
+import { refreshTrashQueries } from "../lib/refresh-trash-queries";
 
-/**
- * The restore state of one Trash list. A definition with an unresolvable
- * dependency shows a conflict preview and stays in Trash; nothing is rebound.
- */
 export function useRestoreFlow({
   onRestore,
   onRestorePreview,
 }: {
-  onRestore: (entry: TrashEntry) => Promise<unknown>;
+  onRestore: (
+    entry: TrashEntry,
+    clientIdempotencyKey: string,
+  ) => Promise<unknown>;
   onRestorePreview?: (entry: TrashEntry) => Promise<TrashRestorePreview>;
 }) {
-  const [conflicts, setConflicts] = useState<{
-    conflicts: TrashRestoreConflict[];
-    label: string;
-  } | null>(null);
-  const [restoring, setRestoring] = useState<string | null>(null);
-  const [failedId, setFailedId] = useState<string | null>(null);
-  const [restoredLabel, setRestoredLabel] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const inspect = useMutation({
+    mutationFn: (entry: TrashEntry) =>
+      onRestorePreview?.(entry) ?? Promise.resolve(undefined),
+  });
+  const commit = useMutation({
+    mutationKey: orpc.restoreFromTrash.mutationKey(),
+    meta: { onlineWrite: true },
+    mutationFn: ({
+      entry,
+      clientIdempotencyKey,
+    }: {
+      entry: TrashEntry;
+      clientIdempotencyKey: string;
+    }) => onRestore(entry, clientIdempotencyKey),
+    onSettled: (_, _error, { entry }) =>
+      refreshTrashQueries(queryClient, entry),
+  });
 
   async function restore(entry: TrashEntry) {
-    setRestoring(entry.id);
-    setFailedId(null);
-    setRestoredLabel(null);
-    setConflicts(null);
-    try {
-      if (onRestorePreview && isTrashConfigurationKind(entry.recordKind)) {
-        const check = await onRestorePreview(entry);
-        if (!check.restorable) {
-          setConflicts({
-            conflicts: check.conflicts,
-            label: entry.recordLabel,
-          });
+    inspect.reset();
+    if (onRestorePreview && isTrashConfigurationKind(entry.recordKind)) {
+      try {
+        const check = await inspect.mutateAsync(entry);
+        if (!check?.restorable) {
           return;
         }
+      } catch {
+        return;
       }
-      await onRestore(entry);
-      setRestoredLabel(entry.recordLabel);
-    } catch {
-      setFailedId(entry.id);
-    } finally {
-      setRestoring(null);
     }
+    await commit
+      .mutateAsync(
+        commandVariables(
+          { entry },
+          commit.isError ? commit.variables : undefined,
+        ),
+      )
+      .catch(() => undefined);
   }
-
-  return { conflicts, failedId, restore, restoredLabel, restoring };
+  const conflicts =
+    inspect.isSuccess && inspect.data && !inspect.data.restorable
+      ? {
+          conflicts: inspect.data.conflicts,
+          label: inspect.variables.recordLabel,
+        }
+      : null;
+  return {
+    conflicts,
+    failedId:
+      (inspect.isError && inspect.variables.id) ||
+      (commit.isError && commit.variables.entry.id) ||
+      null,
+    restore,
+    restoredLabel:
+      !(inspect.isPending || conflicts) && commit.isSuccess
+        ? commit.variables.entry.recordLabel
+        : null,
+    restoring:
+      (inspect.isPending && inspect.variables.id) ||
+      (commit.isPending && commit.variables.entry.id) ||
+      null,
+  };
 }

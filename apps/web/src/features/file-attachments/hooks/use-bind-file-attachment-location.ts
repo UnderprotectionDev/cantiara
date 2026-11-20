@@ -15,6 +15,7 @@ import {
 export function useBindFileAttachmentLocation() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: orpc.bindFileAttachmentLocation.mutationKey(),
     mutationFn: async (input: FileAttachmentLocationBindInput) => {
       await client.bindFileAttachmentLocation(input);
     },

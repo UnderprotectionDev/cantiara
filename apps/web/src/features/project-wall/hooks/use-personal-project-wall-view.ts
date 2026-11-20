@@ -34,6 +34,7 @@ export function usePersonalProjectWallView(
     }),
   );
   const save = useMutation({
+    mutationKey: orpc.saveProjectWallViewport.mutationKey(),
     mutationFn: ({ view, wallId: target }: Pending) =>
       client.saveProjectWallViewport({
         projectId,

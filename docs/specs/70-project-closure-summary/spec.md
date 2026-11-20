@@ -43,6 +43,8 @@ Kurucu seçtiği Karar, Risk, Proje Sürümü, Belge, Üretim Olayı ve tamamlan
 
 ## Testing Decisions
 
+- **Write lifecycle evidence (#544).** The Closure Summary view test retries an interrupted Save as Document with the same payload and command key. The save seam checks that only the affected Project’s Document list is invalidated.
+
 - **What a good test is.** Tests observe Project Closure Summary through its public interface: source selection, preview of heading/link mapping, unsaved draft is not a Belge, save creates type `General` with Kökeni, source ana kayıtlar unchanged, no generated success prose, optional date comparison is neutral. They do not parse private markdown builders or assert Drizzle. Expected values are product rules (headings+links only, persist-on-save-only).
 - **Seam (one).** Project Closure Summary — the product-facing draft-and-save interface on a completing or abandoned Proje. Belge versioning after save is the documents module as collaborator.
 - **Modules under test.** Project Closure Summary only. Başlangıç iskeleti, Manuel Proje Güncellemesi, and sürüm notu are counterparts.

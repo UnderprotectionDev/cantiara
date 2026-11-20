@@ -88,6 +88,7 @@ function MilestoneCard({
     }),
   );
   const relationPreviewMutation = useMutation({
+    mutationKey: orpc.relationPreview.mutationKey(),
     mutationFn: (workId: string) =>
       client.relationPreview({
         kind: "Contributes to Milestone",

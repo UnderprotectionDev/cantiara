@@ -43,7 +43,7 @@ export function SecurityRedactionPanel({
         <RedactForm
           busy={flow.busy}
           error={flow.error}
-          grant={flow.review?.grant ?? null}
+          grant={flow.review?.grant ?? false}
           identityPending={flow.review?.identityPending ?? false}
           onCancel={close}
           onConfirmIdentity={flow.confirmIdentity}

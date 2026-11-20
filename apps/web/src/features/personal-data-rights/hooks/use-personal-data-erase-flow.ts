@@ -3,14 +3,10 @@ import {
   type PersonalDataErasePreview,
   type PersonalDataEraseResult,
 } from "@cantiara/api/personal-data-rights";
-import { useState } from "react";
-import { usePersonalDataAction } from "./use-personal-data-action";
+import { useMutation } from "@tanstack/react-query";
+import { useRef } from "react";
+import { personalDataRefusalMessage } from "../lib/personal-data-refusal";
 
-/**
- * The Erase Personal Data review state. The impact preview comes first, the
- * GitHub identity grant is held until the founder submits, and a refused erase
- * drops the grant so it is never reused.
- */
 export function usePersonalDataEraseFlow({
   onConfirmIdentity,
   onErase,
@@ -23,59 +19,97 @@ export function usePersonalDataEraseFlow({
   ) => Promise<PersonalDataEraseResult>;
   onPreview: (contactId: string) => Promise<PersonalDataErasePreview>;
 }) {
-  const main = usePersonalDataAction(ERASE_PERSONAL_DATA_LABEL);
-  const identity = usePersonalDataAction(ERASE_PERSONAL_DATA_LABEL);
-  const [preview, setPreview] = useState<PersonalDataErasePreview | null>(null);
-  const [grant, setGrant] = useState<string | null>(null);
-  const [result, setResult] = useState<PersonalDataEraseResult | null>(null);
+  const reviewSession = useRef(0);
+  const grant = useRef<string>(null);
+  const submission = useRef<{
+    preview: PersonalDataErasePreview;
+    grant: string;
+    typedName: string;
+  }>(null);
+  const inspect = useMutation({
+    gcTime: 0,
+    meta: { presentsSupportFailure: true },
+    mutationFn: onPreview,
+  });
+  const identity = useMutation({
+    gcTime: 0,
+    meta: { onlineWrite: true, presentsSupportFailure: true },
+    mutationFn: async (session: number) => {
+      const confirmed = await onConfirmIdentity();
+      if (reviewSession.current === session) {
+        grant.current = confirmed;
+      }
+    },
+  });
+  const commit = useMutation({
+    gcTime: 0,
+    meta: {
+      onlineWrite: true,
+      privateInput: true,
+      presentsSupportFailure: true,
+    },
+    onSettled: () => {
+      submission.current = null;
+    },
+    mutationFn: () => {
+      const input = submission.current;
+      submission.current = null;
+      if (!input) {
+        throw new Error(
+          "Confirm GitHub Identity before erasing personal data.",
+        );
+      }
+      return onErase(input.preview, {
+        grant: input.grant,
+        typedName: input.typedName,
+      });
+    },
+  });
+  const failure = commit.error ?? identity.error ?? inspect.error;
 
   function reset() {
-    setPreview(null);
-    setGrant(null);
-    setResult(null);
-    main.setRefusal(null);
-    identity.setRefusal(null);
-  }
-
-  async function review(contactId: string) {
-    reset();
-    await main.run(async () => {
-      setPreview(await onPreview(contactId));
-    });
-  }
-
-  async function confirmIdentity() {
-    main.setRefusal(null);
-    await identity.run(async () => {
-      setGrant(await onConfirmIdentity());
-    });
-  }
-
-  async function erase(typedName: string) {
-    if (!(preview && grant)) {
-      return;
-    }
-    identity.setRefusal(null);
-    await main.run(
-      async () => {
-        setResult(await onErase(preview, { grant, typedName }));
-        setPreview(null);
-      },
-      // A grant is single-use: a refused or failed erase needs a fresh one.
-      () => setGrant(null),
-    );
+    reviewSession.current += 1;
+    grant.current = null;
+    submission.current = null;
+    inspect.reset();
+    identity.reset();
+    commit.reset();
   }
 
   return {
     cancel: reset,
-    confirmIdentity,
-    erase,
-    grant,
-    identityPending: identity.pending,
-    pending: main.pending,
-    preview,
-    refusal: main.refusal ?? identity.refusal,
-    result,
-    review,
+    async confirmIdentity() {
+      if (inspect.data && !identity.isPending && !commit.isPending) {
+        commit.reset();
+        await identity
+          .mutateAsync(reviewSession.current)
+          .catch(() => undefined);
+      }
+    },
+    async erase(typedName: string) {
+      if (!(inspect.data && grant.current) || commit.isPending) {
+        return;
+      }
+      submission.current = {
+        preview: inspect.data,
+        grant: grant.current,
+        typedName,
+      };
+      grant.current = null;
+      identity.reset();
+      await commit.mutateAsync().catch(() => undefined);
+    },
+    grant: identity.isSuccess,
+    identityPending: identity.isPending,
+    pending: inspect.isPending || commit.isPending,
+    preview: commit.isSuccess ? null : (inspect.data ?? null),
+    refusal: failure
+      ? personalDataRefusalMessage(failure, ERASE_PERSONAL_DATA_LABEL)
+      : null,
+    result: commit.data ?? null,
+    async review(contactId: string) {
+      reset();
+      await inspect.mutateAsync(contactId).catch(() => undefined);
+    },
   };
 }

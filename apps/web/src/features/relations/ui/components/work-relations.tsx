@@ -91,6 +91,7 @@ export default function WorkRelations({
   }
 
   const previewMutation = useMutation({
+    mutationKey: orpc.relationPreview.mutationKey(),
     mutationFn: (input: RelationCreatePreviewInput) =>
       client.relationPreview(input),
     onError: (mutationError) => {

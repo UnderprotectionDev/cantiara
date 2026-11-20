@@ -18,7 +18,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { PersonalReminderForm } from "@/components/personal-reminder-form";
 import { accountDateTimeFormatter } from "@/features/account-preferences/lib/account-preferences-format";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 
 function reminderErrorMessage(error: unknown) {
@@ -47,7 +46,6 @@ export default function PersonalReminderControl({
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState<PersonalReminderAction>("Review Later");
-  const [error, setError] = useState<string | null>(null);
   const retry = useRef<{ fingerprint: string; key: string } | null>(null);
   const source = { sourceRecordId, sourceRecordType };
   const remindersQuery = useQuery({
@@ -61,36 +59,44 @@ export default function PersonalReminderControl({
   });
   const formatDateTime = accountDateTimeFormatter(preferences.data);
 
-  async function refresh() {
+  async function refresh(target: typeof source) {
     await queryClient.invalidateQueries({
-      queryKey: orpc.personalReminders.queryOptions({ input: source }).queryKey,
+      queryKey: orpc.personalReminders.queryKey({ input: target }),
     });
   }
 
-  const create = useMutation({
-    mutationFn: (input: Parameters<typeof client.createPersonalReminder>[0]) =>
-      runOnlineOnlyWrite(() => client.createPersonalReminder(input)),
-    onError: (mutationError) => setError(reminderErrorMessage(mutationError)),
-    onSuccess: async () => {
-      retry.current = null;
-      setError(null);
-      await refresh();
-    },
-  });
-
+  const create = useMutation(
+    orpc.createPersonalReminder.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.createPersonalReminder(input),
+      onSuccess: async (_, input) => {
+        if (retry.current?.key === input.clientIdempotencyKey) {
+          retry.current = null;
+        }
+        await refresh({
+          sourceRecordId: input.sourceRecordId,
+          sourceRecordType: input.sourceRecordType,
+        });
+      },
+    }),
+  );
   const cancel = useMutation({
-    mutationFn: (reminderId: string) =>
-      runOnlineOnlyWrite(() => client.cancelPersonalReminder({ reminderId })),
-    onError: (mutationError) => setError(reminderErrorMessage(mutationError)),
-    onSuccess: async () => {
-      setError(null);
-      await refresh();
-    },
+    mutationKey: orpc.cancelPersonalReminder.mutationKey(),
+    meta: { onlineWrite: true },
+    mutationFn: ({ reminderId }: typeof source & { reminderId: string }) =>
+      client.cancelPersonalReminder({ reminderId }),
+    onSuccess: (
+      _,
+      { sourceRecordId: targetId, sourceRecordType: targetType },
+    ) => refresh({ sourceRecordId: targetId, sourceRecordType: targetType }),
   });
+  const failure = create.error ?? cancel.error;
+  const error = failure ? reminderErrorMessage(failure) : null;
 
   function openFor(nextAction: PersonalReminderAction) {
     setAction(nextAction);
-    setError(null);
+    create.reset();
+    cancel.reset();
     setOpen(true);
   }
 
@@ -121,7 +127,8 @@ export default function PersonalReminderControl({
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen);
           if (nextOpen) {
-            setError(null);
+            create.reset();
+            cancel.reset();
           }
         }}
         open={open}
@@ -136,8 +143,15 @@ export default function PersonalReminderControl({
           </DialogHeader>
           <PersonalReminderForm
             action={action}
-            onCreate={(input, onSuccess) => create.mutate(input, { onSuccess })}
-            onError={setError}
+            createdKey={
+              create.isSuccess
+                ? create.variables.clientIdempotencyKey
+                : undefined
+            }
+            onCreate={(input) => {
+              cancel.reset();
+              create.mutate(input);
+            }}
             pending={pending}
             retry={retry}
             sectionOptions={sectionOptions}
@@ -195,7 +209,10 @@ export default function PersonalReminderControl({
                     {reminder.status === "Planned" ? (
                       <Button
                         disabled={pending}
-                        onClick={() => cancel.mutate(reminder.id)}
+                        onClick={() => {
+                          create.reset();
+                          cancel.mutate({ ...source, reminderId: reminder.id });
+                        }}
                         size="sm"
                         type="button"
                         variant="outline"

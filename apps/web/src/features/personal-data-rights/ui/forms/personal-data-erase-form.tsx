@@ -30,7 +30,7 @@ export function PersonalDataEraseForm({
   preview,
 }: {
   busy: boolean;
-  grant: string | null;
+  grant: boolean;
   identityPending: boolean;
   onCancel: () => void;
   onConfirmIdentity: () => void;

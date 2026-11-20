@@ -34,7 +34,7 @@ function render(withPreview: boolean) {
     <RedactForm
       busy={false}
       error={null}
-      grant={null}
+      grant={false}
       identityPending={false}
       onCancel={noop}
       onConfirmIdentity={noop}
@@ -78,7 +78,7 @@ describe("RedactForm", () => {
         <RedactForm
           busy={false}
           error={null}
-          grant="grant"
+          grant={true}
           identityPending={false}
           onCancel={noop}
           onConfirmIdentity={noop}

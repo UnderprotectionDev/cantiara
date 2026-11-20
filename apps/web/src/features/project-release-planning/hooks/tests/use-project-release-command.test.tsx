@@ -33,7 +33,7 @@ describe("useProjectReleaseCommand", () => {
       .mockResolvedValue(undefined);
     let run: ReturnType<typeof useProjectReleaseCommand> | null = null;
     function Probe() {
-      run = useProjectReleaseCommand();
+      run = useProjectReleaseCommand("project-1");
       return null;
     }
     host = document.createElement("div");
@@ -47,7 +47,11 @@ describe("useProjectReleaseCommand", () => {
       );
     });
     await act(async () => {
-      await run?.({ id: "x" }, async () => "ok");
+      await run?.(
+        { id: "x" },
+        async () => "ok",
+        () => Promise.resolve(),
+      );
     });
     const keys = invalidate.mock.calls.map((call) => call[0]?.queryKey);
     expect(keys).toContainEqual(orpc.smartCollectionViews.key());

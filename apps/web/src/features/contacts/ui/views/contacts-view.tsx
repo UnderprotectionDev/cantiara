@@ -71,6 +71,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
       }),
     ]);
   const createContact = useMutation({
+    mutationKey: orpc.createContact.mutationKey(),
     mutationFn: (input: Parameters<typeof client.createContact>[0]) =>
       runOnlineOnlyWrite(() => client.createContact(input)),
     onSuccess: async (contact) => {
@@ -79,11 +80,13 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     },
   });
   const createCompany = useMutation({
+    mutationKey: orpc.createCompany.mutationKey(),
     mutationFn: (input: Parameters<typeof client.createCompany>[0]) =>
       runOnlineOnlyWrite(() => client.createCompany(input)),
     onSuccess: refresh,
   });
   const setCompany = useMutation({
+    mutationKey: orpc.setContactCompany.mutationKey(),
     mutationFn: (input: Parameters<typeof client.setContactCompany>[0]) =>
       runOnlineOnlyWrite(() => client.setContactCompany(input)),
     onSuccess: refresh,
@@ -99,6 +102,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     enabled: mergePair !== null,
   });
   const mergeContacts = useMutation({
+    mutationKey: orpc.mergeContacts.mutationKey(),
     mutationFn: (input: Parameters<typeof client.mergeContacts>[0]) =>
       runOnlineOnlyWrite(() => client.mergeContacts(input)),
     onSuccess: async (result) => {
@@ -117,6 +121,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     retry: false,
   });
   const undoMerge = useMutation({
+    mutationKey: orpc.undoMerge.mutationKey(),
     mutationFn: (input: Parameters<typeof client.undoMerge>[0]) =>
       runOnlineOnlyWrite(() => client.undoMerge(input)),
     onSuccess: async (result) => {
@@ -134,6 +139,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     },
   });
   const updateContact = useMutation({
+    mutationKey: orpc.updateContact.mutationKey(),
     mutationFn: (input: Parameters<typeof client.updateContact>[0]) =>
       runOnlineOnlyWrite(() => client.updateContact(input)),
     onSuccess: refresh,

@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 // biome-ignore-all lint/performance/noJsxPropsBind: Test handlers are inline doubles.
+
 import {
   ERASE_PERSONAL_DATA_LABEL,
   EXPORT_PERSONAL_DATA_LABEL,
@@ -7,8 +8,12 @@ import {
   type PersonalDataPreview,
 } from "@cantiara/api/personal-data-rights";
 import { ORPCError } from "@orpc/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
+import { usePersonalDataEraseFlow } from "../../../hooks/use-personal-data-erase-flow";
 import { personalDataRefusalMessage } from "../../../lib/personal-data-refusal";
 import { PersonalDataEraseForm } from "../../forms/personal-data-erase-form";
 import { PersonalDataPreviewPanel } from "../../forms/personal-data-preview-form";
@@ -57,14 +62,16 @@ const never = () => Promise.reject(new Error("unused"));
 describe("Export Personal Data view", () => {
   test("uses the English label and names no Exit Package or closure", () => {
     const html = renderToStaticMarkup(
-      <PersonalDataView
-        contacts={[{ id: "c1", label: "Ada Lovelace" }]}
-        onConfirmIdentity={never}
-        onErase={never}
-        onPreview={never}
-        onPreviewErase={never}
-        onProduce={never}
-      />,
+      <QueryClientProvider client={new QueryClient()}>
+        <PersonalDataView
+          contacts={[{ id: "c1", label: "Ada Lovelace" }]}
+          onConfirmIdentity={never}
+          onErase={never}
+          onPreview={never}
+          onPreviewErase={never}
+          onProduce={never}
+        />
+      </QueryClientProvider>,
     );
     expect(html).toContain("Export Personal Data");
     expect(html).not.toMatch(NAMES_OTHER_FLOWS);
@@ -112,7 +119,7 @@ describe("Export Personal Data view", () => {
     const html = renderToStaticMarkup(
       <PersonalDataEraseForm
         busy={false}
-        grant={null}
+        grant={false}
         identityPending={false}
         onCancel={() => undefined}
         onConfirmIdentity={() => undefined}
@@ -135,8 +142,6 @@ describe("Export Personal Data view", () => {
 
 describe("Export Personal Data package form", () => {
   test("Create package submits the chosen format", async () => {
-    const { act } = await import("react");
-    const { createRoot } = await import("react-dom/client");
     (
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -173,4 +178,67 @@ describe("Export Personal Data package form", () => {
     act(() => root.unmount());
     host.remove();
   });
+});
+
+test("a failed erase requires a new identity grant and keeps grants outside Query", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const queryClient = new QueryClient();
+  const root = createRoot(document.createElement("div"));
+  const onConfirmIdentity = vi
+    .fn()
+    .mockResolvedValueOnce("first-test-grant")
+    .mockResolvedValueOnce("second-test-grant");
+  const onErase = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("Connection interrupted"))
+    .mockResolvedValueOnce({});
+  let flow: ReturnType<typeof usePersonalDataEraseFlow> | undefined;
+  function Probe() {
+    flow = usePersonalDataEraseFlow({
+      onConfirmIdentity,
+      onErase,
+      onPreview: () => Promise.resolve(erasePreview),
+    });
+    return null;
+  }
+  try {
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <Probe />
+        </QueryClientProvider>,
+      ),
+    );
+    function current() {
+      if (!flow) {
+        throw new Error("Erase flow is unavailable.");
+      }
+      return flow;
+    }
+    await act(async () => current().review("c1"));
+    await vi.waitFor(() => expect(current().preview).toEqual(erasePreview));
+    await act(async () => current().confirmIdentity());
+    await vi.waitFor(() => expect(current().grant).toBe(true));
+    await act(async () => current().erase("Mert"));
+    await act(async () => current().erase("Mert"));
+    expect(onErase).toHaveBeenCalledTimes(1);
+    await act(async () => current().confirmIdentity());
+    await vi.waitFor(() => expect(current().grant).toBe(true));
+    await act(async () => current().erase("Mert"));
+    expect(onErase.mock.calls.map(([, input]) => input.grant)).toEqual([
+      "first-test-grant",
+      "second-test-grant",
+    ]);
+    expect(
+      JSON.stringify(
+        queryClient
+          .getMutationCache()
+          .getAll()
+          .map(({ state }) => state),
+      ),
+    ).not.toContain("-test-grant");
+  } finally {
+    await act(async () => root.unmount());
+    queryClient.clear();
+  }
 });

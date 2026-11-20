@@ -630,12 +630,14 @@ export function FileAttachmentPreviewPanel({
     [attachment.currentVersion.id, attachment.id, queryClient],
   );
   const createMarkingMutation = useMutation({
+    mutationKey: orpc.createFileAttachmentMarking.mutationKey(),
     mutationFn: async (input: FileAttachmentMarkingInput) => {
       await client.createFileAttachmentMarking(input);
     },
     onSuccess: invalidateMarkings,
   });
   const undoMarkingMutation = useMutation({
+    mutationKey: orpc.undoFileAttachmentMarking.mutationKey(),
     mutationFn: async (marking: FileAttachmentMarking) => {
       await client.undoFileAttachmentMarking({
         attachmentId: marking.attachmentId,
@@ -646,6 +648,7 @@ export function FileAttachmentPreviewPanel({
     onSuccess: invalidateMarkings,
   });
   const previewLocationMutation = useMutation({
+    mutationKey: orpc.previewFileAttachmentLocationBind.mutationKey(),
     mutationFn: async (input: FileAttachmentLocationBindPreviewInput) =>
       (await client.previewFileAttachmentLocationBind(
         input,

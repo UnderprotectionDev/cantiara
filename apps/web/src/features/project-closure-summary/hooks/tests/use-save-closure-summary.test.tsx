@@ -10,16 +10,10 @@ vi.mock("@/utils/orpc", async (importActual) => {
   const actual = await importActual<typeof import("@/utils/orpc")>();
   return {
     ...actual,
-    orpc: new Proxy(actual.orpc, {
-      get: (target, key, receiver) =>
-        key === "saveProjectClosureSummary"
-          ? {
-              mutationOptions: () => ({
-                mutationFn: rpc.saveProjectClosureSummary,
-              }),
-            }
-          : Reflect.get(target, key, receiver),
-    }),
+    client: {
+      ...actual.client,
+      saveProjectClosureSummary: rpc.saveProjectClosureSummary,
+    },
   };
 });
 
@@ -34,6 +28,10 @@ test("saving the Closure Summary as a Document refreshes the Documents lists", a
     input: { projectId: "project-1" },
   }).queryKey;
   queryClient.setQueryData(documentsKey, []);
+  const unrelated = orpc.documents.queryKey({
+    input: { projectId: "project-2" },
+  });
+  queryClient.setQueryData(unrelated, []);
   const save = vi.fn();
   function Probe() {
     const mutation = useSaveClosureSummary();
@@ -63,5 +61,6 @@ test("saving the Closure Summary as a Document refreshes the Documents lists", a
   });
 
   expect(queryClient.getQueryState(documentsKey)?.isInvalidated).toBe(true);
+  expect(queryClient.getQueryState(unrelated)?.isInvalidated).toBe(false);
   await act(async () => root.unmount());
 });

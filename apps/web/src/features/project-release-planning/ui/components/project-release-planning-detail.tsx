@@ -48,12 +48,18 @@ export function ProjectReleasePlanningDetail({
   errorMessage,
   projectId,
   savedMessage,
+  statusError,
+  statusPending,
+  resetStatus,
 }: {
   actions: ProjectReleasePlanningActions;
   detail: Detail;
   errorMessage?: string;
   projectId: string;
   savedMessage?: string;
+  statusError?: boolean;
+  statusPending?: boolean;
+  resetStatus?: () => void;
 }) {
   const { release, readOnly } = detail;
   const attached = detail.scope.filter((member) => member.attached);
@@ -135,10 +141,13 @@ export function ProjectReleasePlanningDetail({
         </div>
         <div className="space-y-8">
           <ProjectReleaseStatusControl
+            failed={statusError}
             onChangeStatus={actions.onChangeStatus}
             openScope={counts.open}
             readOnly={readOnly}
             release={release}
+            resetStatus={resetStatus}
+            saving={statusPending}
             suggestion={detail.suggestion}
           />
           <ReferencesSection

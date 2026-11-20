@@ -41,13 +41,6 @@ export default function PlannedTestsSurface({
       onSuccess: () => refresh(),
     }),
   );
-  const createPlannedTestCaseVersionMutation = useMutation(
-    orpc.createPlannedTestCaseVersion.mutationOptions({
-      meta: { onlineWrite: true },
-      mutationFn: (input) => client.createPlannedTestCaseVersion(input),
-      onSettled: () => refresh(),
-    }),
-  );
   const createTestHandoffMutation = useMutation(
     orpc.createTestHandoff.mutationOptions({
       meta: { onlineWrite: true },
@@ -59,20 +52,6 @@ export default function PlannedTestsSurface({
     orpc.linkTestHandoffSessionTest.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.linkTestHandoffSessionTest(input),
-      onSettled: () => refreshHandoffs(),
-    }),
-  );
-  const producePackage = useMutation(
-    orpc.produceTestHandoffPackage.mutationOptions({
-      meta: { onlineWrite: true },
-      mutationFn: (input) => client.produceTestHandoffPackage(input),
-      onSettled: () => refreshHandoffs(),
-    }),
-  );
-  const transitionTestHandoffMutation = useMutation(
-    orpc.transitionTestHandoff.mutationOptions({
-      meta: { onlineWrite: true },
-      mutationFn: (input) => client.transitionTestHandoff(input),
       onSettled: () => refreshHandoffs(),
     }),
   );
@@ -170,7 +149,7 @@ export default function PlannedTestsSurface({
           });
         }}
         onCreateVersion={async (record, values) => {
-          await createPlannedTestCaseVersionMutation.mutateAsync({
+          await client.createPlannedTestCaseVersion({
             caseId: record.id,
             changeKind: values.changeKind,
             expectedVersion: record.current.version,
@@ -209,7 +188,7 @@ export default function PlannedTestsSurface({
             })
           }
           onProducePackage={(handoff, preview) =>
-            producePackage.mutateAsync({
+            client.produceTestHandoffPackage({
               expectedPackageVersion: preview.nextPackageVersion,
               handoffId: handoff.id,
               previewFingerprint: preview.fingerprint ?? "",
@@ -217,7 +196,7 @@ export default function PlannedTestsSurface({
             })
           }
           onTransition={async (handoff, to) => {
-            await transitionTestHandoffMutation.mutateAsync({
+            await client.transitionTestHandoff({
               expectedState: handoff.state,
               handoffId: handoff.id,
               projectId,

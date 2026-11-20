@@ -7,8 +7,12 @@ import {
   type ClosureSummarySources,
   PROJECT_CLOSURE_SUMMARY_LABEL,
 } from "@cantiara/api/project-closure-summary";
+import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { projectRecordHref } from "@/features/project-history/lib/project-record-links";
+import { commandVariables } from "@/lib/command-variables";
+import { type client, orpc } from "@/utils/orpc";
+import { useSaveClosureSummary } from "../../hooks/use-save-closure-summary";
 import {
   closureSummaryMarkdownOf,
   closureSummarySourcesOfSelection,
@@ -21,15 +25,14 @@ import {
 } from "../forms/closure-summary-source-form";
 
 type Stage =
-  | { kind: "select"; preview: ClosureSummaryDraft | null; selected: string[] }
+  | { kind: "select"; selected: string[] }
   | {
       generation: number;
       kind: "draft";
       markdown: string;
       saveKey: string;
       sources: ReturnType<typeof closureSummarySourcesOfSelection>;
-    }
-  | { documentId: string; kind: "saved"; title: string };
+    };
 
 /**
  * Closure Summary Draft of a completed or abandoned Project: select sources,
@@ -53,110 +56,108 @@ export function ClosureSummaryView({
   onDraft: (
     sources: ReturnType<typeof closureSummarySourcesOfSelection>,
   ) => Promise<ClosureSummaryDraft>;
-  onSave: (input: {
-    body: string;
-    clientIdempotencyKey: string;
-    title: string;
-  }) => Promise<{ id: string; title: string }>;
+  onSave: (
+    input: Parameters<typeof client.saveProjectClosureSummary>[0],
+  ) => Promise<{ id: string; title: string }>;
   projectId: string;
   sources: ClosureSummarySources;
 }) {
-  const [stage, setStage] = useState<Stage>({
-    kind: "select",
-    preview: null,
-    selected: [],
-  });
-  const [failed, setFailed] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [stage, setStage] = useState<Stage>({ kind: "select", selected: [] });
   const [generation, setGeneration] = useState(0);
-  const [comparison, setComparison] =
-    useState<ClosureSummaryDateComparison | null>(null);
+  const draftStage = stage.kind === "draft" ? stage : null;
+  const inspect = useMutation({
+    meta: { presentsSupportFailure: true },
+    mutationFn: ({
+      refs,
+    }: {
+      refs: ReturnType<typeof closureSummarySourcesOfSelection>;
+      selected: string[];
+      action: ClosureSummarySourceAction;
+    }) => onDraft(refs),
+    onSuccess: (draft, { action, refs, selected }) => {
+      if (action === "generate") {
+        setGeneration(generation + 1);
+        setStage({
+          generation: generation + 1,
+          kind: "draft",
+          markdown: closureSummaryMarkdownOf(projectId, draft.sections),
+          saveKey: crypto.randomUUID(),
+          sources: refs,
+        });
+      } else {
+        setStage({ kind: "select", selected });
+      }
+    },
+  });
+  const save = useSaveClosureSummary(onSave);
+  const comparison = useQuery({
+    ...orpc.projectClosureSummaryDateComparison.queryOptions({
+      input: draftStage
+        ? { projectId, sources: draftStage.sources }
+        : skipToken,
+    }),
+    queryKey: [
+      ...orpc.projectClosureSummaryDateComparison.queryKey({
+        input: draftStage
+          ? { projectId, sources: draftStage.sources }
+          : skipToken,
+      }),
+      draftStage?.saveKey,
+    ],
+    queryFn: draftStage ? () => onDateHistory(draftStage.sources) : skipToken,
+    enabled: false,
+    gcTime: 0,
+  });
+  const saved = save.data;
+  const failed = inspect.isError || save.isError || comparison.isError;
+  const pending = inspect.isPending || save.isPending;
+  const { mutateAsync: inspectAsync, reset: resetInspect } = inspect;
+  const { mutate: saveAsync, reset: resetSave } = save;
+  const { refetch: fetchComparison } = comparison;
+  const failedSave = save.isError ? save.variables : undefined;
 
   const submitSources = useCallback(
     async (selected: string[], action: ClosureSummarySourceAction) => {
-      setPending(true);
-      setFailed(false);
-      try {
-        const refs = closureSummarySourcesOfSelection(selected);
-        const draft = await onDraft(refs);
-        if (action === "generate") {
-          setGeneration((value) => value + 1);
-          setComparison(null);
-          setStage({
-            generation: generation + 1,
-            kind: "draft",
-            markdown: closureSummaryMarkdownOf(projectId, draft.sections),
-            saveKey: crypto.randomUUID(),
-            sources: refs,
-          });
-        } else {
-          setStage({ kind: "select", preview: draft, selected });
-        }
-      } catch {
-        setFailed(true);
-      } finally {
-        setPending(false);
-      }
+      await inspectAsync({
+        refs: closureSummarySourcesOfSelection(selected),
+        selected,
+        action,
+      }).catch(() => undefined);
     },
-    [generation, onDraft, projectId],
+    [inspectAsync],
   );
   const discard = useCallback(() => {
-    setComparison(null);
-    setStage({ kind: "select", preview: null, selected: [] });
-  }, []);
-  const save = useCallback(
-    async (
-      draft: Extract<Stage, { kind: "draft" }>,
-      value: { markdown: string; title: string },
-    ) => {
-      setPending(true);
-      setFailed(false);
-      try {
-        // The idempotency key stays stable per draft, so a retry after a lost
-        // response returns the same Document instead of a second one.
-        const document = await onSave({
-          body: value.markdown,
-          clientIdempotencyKey: draft.saveKey,
-          title: value.title,
-        });
-        setStage({
-          documentId: document.id,
-          kind: "saved",
-          title: document.title,
-        });
-      } catch {
-        setFailed(true);
-      } finally {
-        setPending(false);
-      }
-    },
-    [onSave],
-  );
-  const readDateHistory = useCallback(
-    async (draft: Extract<Stage, { kind: "draft" }>) => {
-      setFailed(false);
-      try {
-        setComparison(await onDateHistory(draft.sources));
-      } catch {
-        setFailed(true);
-      }
-    },
-    [onDateHistory],
-  );
-
-  const draftStage = stage.kind === "draft" ? stage : null;
+    resetInspect();
+    resetSave();
+    setStage({ kind: "select", selected: [] });
+  }, [resetInspect, resetSave]);
   const onDateHistoryClick = useCallback(() => {
     if (draftStage) {
-      readDateHistory(draftStage);
+      fetchComparison().catch(() => undefined);
     }
-  }, [draftStage, readDateHistory]);
+  }, [draftStage, fetchComparison]);
   const onSaveDraft = useCallback(
     (value: { markdown: string; title: string }) => {
       if (draftStage) {
-        save(draftStage, value);
+        saveAsync(
+          commandVariables<
+            Omit<
+              Parameters<typeof client.saveProjectClosureSummary>[0],
+              "clientIdempotencyKey"
+            >
+          >(
+            {
+              body: value.markdown,
+              baseRevision: 0,
+              projectId,
+              title: value.title,
+            },
+            failedSave,
+          ),
+        );
       }
     },
-    [draftStage, save],
+    [draftStage, failedSave, projectId, saveAsync],
   );
 
   if (!sources.eligible) {
@@ -174,22 +175,22 @@ export function ClosureSummaryView({
       {failed ? (
         <p role="alert">The request could not be completed. Try again.</p>
       ) : null}
-      {stage.kind === "saved" ? (
+      {saved ? (
         <p role="status">
           {PROJECT_CLOSURE_SUMMARY_LABEL} saved as a Document.{" "}
           <a
             href={projectRecordHref(projectId, {
-              recordId: stage.documentId,
+              recordId: saved.id,
               recordType: "Document",
             })}
           >
-            {stage.title}
+            {saved.title}
           </a>{" "}
           Use {CLOSURE_SUMMARY_WIKI_COPY_LABEL} on the Document to copy it to
           the Personal Wiki.
         </p>
       ) : null}
-      {stage.kind === "draft" ? (
+      {stage.kind === "draft" && !saved ? (
         <>
           <ClosureSummaryEditorForm
             hasDateSources={stage.sources.some(
@@ -202,9 +203,9 @@ export function ClosureSummaryView({
             onSave={onSaveDraft}
             pending={pending}
           />
-          {comparison ? (
+          {comparison.data ? (
             <ClosureSummaryDateHistory
-              comparison={comparison}
+              comparison={comparison.data}
               formatDate={formatDate}
             />
           ) : null}
@@ -219,7 +220,7 @@ export function ClosureSummaryView({
             pending={pending}
             selected={stage.selected}
           />
-          {stage.preview ? <PreviewList preview={stage.preview} /> : null}
+          {inspect.data ? <PreviewList preview={inspect.data} /> : null}
         </>
       ) : null}
     </section>

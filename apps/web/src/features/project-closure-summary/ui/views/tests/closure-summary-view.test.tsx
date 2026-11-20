@@ -6,6 +6,7 @@ import {
   deriveClosureSummaryPreview,
   groupClosureSummaryCandidates,
 } from "@cantiara/api/project-closure-summary";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
@@ -51,7 +52,13 @@ function render(ui: React.ReactElement) {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  act(() => root?.render(ui));
+  act(() =>
+    root?.render(
+      <QueryClientProvider client={new QueryClient()}>
+        {ui}
+      </QueryClientProvider>,
+    ),
+  );
   return host;
 }
 
@@ -183,8 +190,10 @@ test("Save as Document writes once with the default title and shows the Document
     body: "## Decisions\n\n- [Use SQLite](/projects/p1#source-decision-d1)",
     title: "Project Closure Summary",
   });
-  expect(rendered.textContent).toContain(
-    "Project Closure Summary saved as a Document.",
+  await vi.waitFor(() =>
+    expect(rendered.textContent).toContain(
+      "Project Closure Summary saved as a Document.",
+    ),
   );
   expect(rendered.querySelector("a")?.getAttribute("href")).toContain("doc-1");
 });
@@ -195,6 +204,11 @@ test("the optional Planned date history is a neutral reading with no score", asy
   await click(button(rendered, "Generate draft"));
   expect(rendered.textContent).not.toContain("It is not a score.");
   await click(button(rendered, "Planned date history"));
+  await vi.waitFor(() =>
+    expect(
+      rendered.querySelector("section[aria-label='Planned date history']"),
+    ).toBeTruthy(),
+  );
   const text = rendered.querySelector(
     "section[aria-label='Planned date history']",
   )?.textContent;
@@ -229,4 +243,21 @@ test("offers nothing on a Project that is not completed or abandoned", () => {
     />,
   );
   expect(rendered.textContent).toBe("");
+});
+
+test("a failed Closure Summary save replays the exact command", async () => {
+  onSave.mockRejectedValueOnce(new Error("Connection interrupted"));
+  const rendered = renderView();
+  await click(checkbox(rendered, "Use SQLite"));
+  await click(button(rendered, "Generate draft"));
+  await click(button(rendered, "Save as Document"));
+  await vi.waitFor(() =>
+    expect(rendered.querySelector('[role="alert"]')).toBeTruthy(),
+  );
+  await click(button(rendered, "Save as Document"));
+  await vi.waitFor(() =>
+    expect(rendered.textContent).toContain("saved as a Document"),
+  );
+  expect(onSave).toHaveBeenCalledTimes(2);
+  expect(onSave.mock.calls[1]).toEqual(onSave.mock.calls[0]);
 });

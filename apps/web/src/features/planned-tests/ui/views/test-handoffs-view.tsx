@@ -7,7 +7,9 @@ import {
   type TestHandoffState,
 } from "@cantiara/api/planned-tests";
 import { Button } from "@cantiara/ui/components/button";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { orpc } from "@/utils/orpc";
 import { errorText } from "../../lib/error-text";
 import {
   describeContextRef,
@@ -48,19 +50,31 @@ function TransitionControls({
   handoff: TestHandoffRecord;
   onTransition: TransitionTestHandoff;
 }) {
-  const [error, setError] = useState<string>();
-  const [pending, setPending] = useState(false);
-  async function move(to: TestHandoffState) {
-    setError(undefined);
-    setPending(true);
-    try {
-      await onTransition(handoff, to);
-    } catch (caught) {
-      setError(errorText(caught, `${TEST_HANDOFF_LABEL} did not change.`));
-    } finally {
-      setPending(false);
-    }
-  }
+  const queryClient = useQueryClient();
+  const transition = useMutation({
+    mutationKey: orpc.transitionTestHandoff.mutationKey(),
+    meta: { onlineWrite: true },
+    mutationFn: ({
+      record,
+      to,
+    }: {
+      record: TestHandoffRecord;
+      to: TestHandoffState;
+    }) => onTransition(record, to),
+    onSuccess: async (_, { record: { projectId } }) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectTestHandoffs.queryKey({ input: { projectId } }),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectTestSummary.key({ input: { projectId } }),
+        }),
+      ]);
+    },
+  });
+  const error = transition.isError
+    ? errorText(transition.error, `${TEST_HANDOFF_LABEL} did not change.`)
+    : undefined;
   const suggested = handoff.suggestion?.state;
   return (
     <div className="space-y-2">
@@ -78,8 +92,8 @@ function TransitionControls({
             {handoff.allowedTransitions.map((to) => (
               <li key={to}>
                 <Button
-                  disabled={pending}
-                  onClick={() => move(to)}
+                  disabled={transition.isPending}
+                  onClick={() => transition.mutate({ record: handoff, to })}
                   size="sm"
                   type="button"
                   variant={to === suggested ? "default" : "outline"}

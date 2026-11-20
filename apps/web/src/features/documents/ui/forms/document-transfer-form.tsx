@@ -159,6 +159,7 @@ export default function DocumentTransferForm({
   const exportPreview =
     inspect.data?.kind === "export" ? inspect.data.snapshot : null;
   const cancelPreview = useMutation({
+    mutationKey: orpc.previewDocumentTransfer.mutationKey(),
     mutationFn: async (input: DocumentTransferInput) => {
       const result = await client.previewDocumentTransfer(input);
       if (!("externalSurfaceIds" in result)) {

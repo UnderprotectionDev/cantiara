@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { ORPCError } from "@orpc/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, test, vi } from "vitest";
@@ -54,25 +55,28 @@ test.each([
     const host = document.createElement("div");
     document.body.append(host);
     const root = createRoot(host);
+    const cache = new QueryClient();
     const apply = vi
       .fn()
       .mockRejectedValue(new ORPCError(code, { defined: true, status }));
     try {
       act(() => {
         root.render(
-          <SecurityRedactionPanel
-            calls={{
-              apply,
-              confirmIdentity: vi.fn().mockResolvedValue("test-grant"),
-              preview: vi.fn().mockResolvedValue({
-                detectionLimit: "Synthetic preview",
-                locators: [],
-                notSearched: [],
-                typedNameTarget: { kind: "Account", name: "Founder" },
-              }),
-            }}
-            scope={{ kind: "Account" }}
-          />,
+          <QueryClientProvider client={cache}>
+            <SecurityRedactionPanel
+              calls={{
+                apply,
+                confirmIdentity: vi.fn().mockResolvedValue("test-grant"),
+                preview: vi.fn().mockResolvedValue({
+                  detectionLimit: "Synthetic preview",
+                  locators: [],
+                  notSearched: [],
+                  typedNameTarget: { kind: "Account", name: "Founder" },
+                }),
+              }}
+              scope={{ kind: "Account" }}
+            />
+          </QueryClientProvider>,
         );
       });
       act(() => click(host, "Redact"));
@@ -81,10 +85,16 @@ test.each([
         click(host, "Preview");
         return Promise.resolve();
       });
+      await vi.waitFor(() =>
+        expect(host.textContent).toContain("Confirm GitHub Identity"),
+      );
       await act(() => {
         click(host, "Confirm GitHub Identity");
         return Promise.resolve();
       });
+      await vi.waitFor(() =>
+        expect(host.textContent).toContain("GitHub identity confirmed."),
+      );
       act(() => fill(host, "#redact-typed-name", "Founder"));
       act(() => fill(host, "#redact-reason", "Remove synthetic value"));
       await act(() => {
@@ -92,8 +102,18 @@ test.each([
         return Promise.resolve();
       });
 
-      expect(apply).toHaveBeenCalledOnce();
-      expect(host.querySelector('[role="alert"]')?.textContent).toBe(message);
+      await vi.waitFor(() => expect(apply).toHaveBeenCalledOnce());
+      const states = JSON.stringify(
+        cache
+          .getMutationCache()
+          .getAll()
+          .map(({ state }) => state),
+      );
+      expect(states).not.toContain("test-grant");
+      expect(states).not.toContain("synthetic value");
+      await vi.waitFor(() =>
+        expect(host.querySelector('[role="alert"]')?.textContent).toBe(message),
+      );
       expect(host.querySelector("button[type=submit]")).toHaveProperty(
         "disabled",
         true,

@@ -51,6 +51,8 @@ Kurucu Planlı Test Senaryosunu başlık, amaç, kapsam, önkoşul, beklenen dav
 
 ## Testing Decisions
 
+- **Write lifecycle evidence (#544).** The web package and transition seams observe the confirmation result, errors and retry state through Query, using the reviewed package version and fingerprint.
+
 - **What a good test is.** Tests observe Planned Tests and Handoff through the public interface: case versioning, session bind pinned to selected version (historical bind not moved), Handoff states, Markdown/JSON equality for one package version, explicit root package `schema_version`, closed package membership, no runner API, package vs Work external-handoff contract difference. Expected values are the PRD table, not regenerated fixtures from code.
 - **İlişki hedefi testi.** Planned Tests seam'i, Proje kapsamındaki hedef listesini ve bu feature'ın sahip olduğu her hedef ailesi için çözümlenmiş bir ilişkiyi sınar. Sahip kaydı veya resolver'ı olmayan hedef reddedilir; yalnız başlık ya da placeholder ilişki kabul edilmez.
 - **Seam (one).** Planned Tests and Handoff — the product-facing case, Handoff, and package-export interface.

@@ -42,6 +42,8 @@ Kurucu Contact, e-posta takma değerleri, Geri Bildirim, Araştırma ve ilişkil
 
 ## Testing Decisions
 
+- **Write lifecycle evidence (#544).** The web erase flow test checks that a failed erase requires fresh identity confirmation and keeps both grants outside MutationCache.
+
 - **RPC refusal evidence (#543).** `apps/server/src/app.test.ts` verifies that a missing Contact yields a typed response without its identifier. `personal-data-view.test.tsx` verifies the client’s typed refusal messages and generic fallback.
 
 - **What a good test is.** Tests observe Personal Data Rights: package contains the Contact's listed sources and not secrets/other Contacts; erase without grant or typed name writes nothing; erase calls 78 (spy/double) rather than a local spread; published value gone; tombstone content-free; Trash restore does not resurrect (78 counterpart).

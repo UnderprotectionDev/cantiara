@@ -28,6 +28,7 @@ function FavoriteRow({
     queryKey: [...baseOptions.queryKey, accountId],
   };
   const opening = useMutation({
+    mutationKey: orpc.openFavoriteSource.mutationKey(),
     mutationFn: () =>
       client.openFavoriteSource({
         sourceRecordId: entry.sourceRecordId,

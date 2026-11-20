@@ -383,6 +383,7 @@ function WorkNotNowDialog({
   }
 
   const recordNotNow = useMutation({
+    mutationKey: orpc.recordWorkNotNow.mutationKey(),
     mutationFn: (input: Parameters<typeof client.recordWorkNotNow>[0]) =>
       runOnlineOnlyWrite(() => client.recordWorkNotNow(input)),
     onError: (mutationError) => setError(errorMessage(mutationError)),
@@ -395,6 +396,7 @@ function WorkNotNowDialog({
   });
 
   const reconsiderNotNow = useMutation({
+    mutationKey: orpc.reconsiderWorkNotNow.mutationKey(),
     mutationFn: (input: Parameters<typeof client.reconsiderWorkNotNow>[0]) =>
       runOnlineOnlyWrite(() => client.reconsiderWorkNotNow(input)),
     onError: (mutationError) => setError(errorMessage(mutationError)),

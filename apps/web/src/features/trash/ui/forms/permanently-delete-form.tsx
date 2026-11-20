@@ -31,7 +31,7 @@ export function PermanentlyDeleteForm({
 }: {
   busy: boolean;
   error: string | null;
-  grant: string | null;
+  grant: boolean;
   identityPending: boolean;
   onCancel: () => void;
   onConfirmIdentity: () => void;
@@ -48,16 +48,14 @@ export function PermanentlyDeleteForm({
         permanentlyDeleteFromTrashInputSchema.shape.typedName.safeParse(
           value.typedName,
         );
-      const grantCheck =
-        permanentlyDeleteFromTrashInputSchema.shape.grant.safeParse(grant);
-      if (!(typed.success && grantCheck.success)) {
+      if (!(typed.success && grant)) {
         setInvalid(
           "Check the Project name and Confirm GitHub Identity, then try again.",
         );
         return;
       }
       setInvalid(null);
-      onSubmit(value.typedName);
+      onSubmit(typed.data);
     },
   });
   const [invalid, setInvalid] = useState<string | null>(null);

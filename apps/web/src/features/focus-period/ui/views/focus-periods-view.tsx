@@ -36,6 +36,7 @@ export default function FocusPeriodsView() {
       queryKey: orpc.focusPeriods.queryOptions().queryKey,
     });
   const create = useMutation({
+    mutationKey: orpc.createFocusPeriod.mutationKey(),
     mutationFn: (input: {
       purpose: string;
       startDate: string;
@@ -47,43 +48,51 @@ export default function FocusPeriodsView() {
     },
   });
   const add = useMutation({
+    mutationKey: orpc.addToFocusPeriod.mutationKey(),
     mutationFn: (input: { periodId: string; workId: string }) =>
       runOnlineOnlyWrite(() => client.addToFocusPeriod(input)),
     onSuccess: refresh,
   });
   const move = useMutation({
+    mutationKey: orpc.moveToFocusPeriod.mutationKey(),
     mutationFn: (input: { periodId: string; workId: string }) =>
       runOnlineOnlyWrite(() => client.moveToFocusPeriod(input)),
     onSuccess: refresh,
   });
   const remove = useMutation({
+    mutationKey: orpc.removeFromFocusPeriod.mutationKey(),
     mutationFn: (input: { periodId: string; workId: string }) =>
       runOnlineOnlyWrite(() => client.removeFromFocusPeriod(input)),
     onSuccess: refresh,
   });
   const cancel = useMutation({
+    mutationKey: orpc.cancelFocusPeriod.mutationKey(),
     mutationFn: (periodId: string) =>
       runOnlineOnlyWrite(() => client.cancelFocusPeriod({ periodId })),
     onSuccess: refresh,
   });
   const close = useMutation({
+    mutationKey: orpc.closeFocusPeriod.mutationKey(),
     mutationFn: (periodId: string) =>
       runOnlineOnlyWrite(() => client.closeFocusPeriod({ periodId })),
     onSuccess: refresh,
   });
   const decide = useMutation({
+    mutationKey: orpc.decideFocusPeriodLeftovers.mutationKey(),
     mutationFn: (
       input: Parameters<typeof client.decideFocusPeriodLeftovers>[0],
     ) => runOnlineOnlyWrite(() => client.decideFocusPeriodLeftovers(input)),
     onSuccess: refresh,
   });
   const saveEvaluation = useMutation({
+    mutationKey: orpc.saveFocusPeriodEvaluation.mutationKey(),
     mutationFn: (
       input: Parameters<typeof client.saveFocusPeriodEvaluation>[0],
     ) => runOnlineOnlyWrite(() => client.saveFocusPeriodEvaluation(input)),
     onSuccess: refresh,
   });
   const createFollowUp = useMutation({
+    mutationKey: orpc.createFocusPeriodFollowUpWork.mutationKey(),
     mutationFn: (
       input: Parameters<typeof client.createFocusPeriodFollowUpWork>[0],
     ) => runOnlineOnlyWrite(() => client.createFocusPeriodFollowUpWork(input)),

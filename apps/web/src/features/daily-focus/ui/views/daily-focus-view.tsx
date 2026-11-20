@@ -252,6 +252,7 @@ function DailyFocusDayView({
     ({ id }) => !rejectedCandidateIds.has(id),
   );
   const add = useMutation({
+    mutationKey: orpc.addToDailyFocus.mutationKey(),
     mutationFn: (selectedWorkId: string) =>
       runOnlineOnlyWrite(() =>
         client.addToDailyFocus({ focusDate, workId: selectedWorkId }),
@@ -264,6 +265,7 @@ function DailyFocusDayView({
     },
   });
   const remove = useMutation({
+    mutationKey: orpc.removeFromDailyFocus.mutationKey(),
     mutationFn: (selectedWorkId: string) =>
       runOnlineOnlyWrite(() =>
         client.removeFromDailyFocus({ focusDate, workId: selectedWorkId }),

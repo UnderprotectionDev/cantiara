@@ -30,7 +30,7 @@ afterEach(() => {
   host = null;
 });
 
-function mount(grant: string | null, onSubmit: (typedName: string) => void) {
+function mount(grant: boolean, onSubmit: (typedName: string) => void) {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -73,7 +73,7 @@ async function submit() {
 describe("PermanentlyDeleteForm submit validation", () => {
   test("an empty typed name is refused with an alert and no delete request", async () => {
     const onSubmit = vi.fn();
-    mount("grant", onSubmit);
+    mount(true, onSubmit);
     await submit();
     expect(onSubmit).not.toHaveBeenCalled();
     expect(host?.querySelector('[role="alert"]')).not.toBeNull();
@@ -81,7 +81,7 @@ describe("PermanentlyDeleteForm submit validation", () => {
 
   test("a missing grant is refused with an alert and no delete request", async () => {
     const onSubmit = vi.fn();
-    mount(null, onSubmit);
+    mount(false, onSubmit);
     type(host?.querySelector("input") as HTMLInputElement, "Atlas");
     await submit();
     expect(onSubmit).not.toHaveBeenCalled();
@@ -90,7 +90,7 @@ describe("PermanentlyDeleteForm submit validation", () => {
 
   test("a valid name and grant reach the delete request", async () => {
     const onSubmit = vi.fn();
-    mount("grant", onSubmit);
+    mount(true, onSubmit);
     type(host?.querySelector("input") as HTMLInputElement, "Atlas");
     await submit();
     expect(onSubmit).toHaveBeenCalledWith("Atlas");

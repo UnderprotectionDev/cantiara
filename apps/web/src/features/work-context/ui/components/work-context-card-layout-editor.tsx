@@ -70,6 +70,7 @@ export default function WorkContextCardLayoutEditor({
   }, [workType]);
 
   const previewMutation = useMutation({
+    mutationKey: orpc.previewWorkContextLayout.mutationKey(),
     mutationFn: async () =>
       runOnlineOnlyWrite(() =>
         client.previewWorkContextLayout({

@@ -15,7 +15,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import type { ReactNode, RefObject } from "react";
+import { type ReactNode, type RefObject, useEffect } from "react";
 import { DateTimePicker } from "@/components/date-picker";
 import {
   defaultFireAt,
@@ -31,7 +31,7 @@ export function PersonalReminderForm({
   action,
   children,
   onCreate,
-  onError,
+  createdKey,
   pending,
   retry,
   sectionOptions,
@@ -40,8 +40,8 @@ export function PersonalReminderForm({
 }: {
   action: PersonalReminderAction;
   children: ReactNode;
-  onCreate: (input: CreateReminderInput, onSuccess: () => void) => void;
-  onError: (message: string | null) => void;
+  onCreate: (input: CreateReminderInput) => void;
+  createdKey?: string;
   pending: boolean;
   retry: RefObject<{ fingerprint: string; key: string } | null>;
   sectionOptions: readonly Pick<DocumentSection, "heading" | "id">[];
@@ -58,11 +58,18 @@ export function PersonalReminderForm({
       const { condition, fireAt, sectionId } = value;
       const fireAtDate = new Date(fireAt);
       if (!fireAt || Number.isNaN(fireAtDate.valueOf())) {
-        onError("Choose a valid time.");
+        formApi.setErrorMap({
+          onSubmit: { form: "Choose a valid time.", fields: {} },
+        });
         return;
       }
       if (fireAtDate.valueOf() <= Date.now()) {
-        onError("Reminder must be scheduled for a future time.");
+        formApi.setErrorMap({
+          onSubmit: {
+            form: "Reminder must be scheduled for a future time.",
+            fields: {},
+          },
+        });
         return;
       }
       const nextCondition =
@@ -97,17 +104,24 @@ export function PersonalReminderForm({
         sourceRecordType,
       });
       if (!parsed.success) {
-        onError(parsed.error.issues[0]?.message ?? "Check the reminder.");
+        formApi.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the reminder.",
+            fields: {},
+          },
+        });
         return;
       }
       retry.current = { fingerprint, key: clientIdempotencyKey };
-      onError(null);
-      onCreate(parsed.data, () => {
-        formApi.setFieldValue("fireAt", defaultFireAt());
-        formApi.setFieldValue("sectionId", "");
-      });
+      onCreate(parsed.data);
     },
   });
+  useEffect(() => {
+    if (createdKey) {
+      form.setFieldValue("fireAt", defaultFireAt());
+      form.setFieldValue("sectionId", "");
+    }
+  }, [createdKey, form]);
   const fireAt = useSelector(form.store, (state) => state.values.fireAt);
   const showCondition =
     action === "Review Later" && supportsOpenCondition(sourceRecordType);
@@ -200,6 +214,11 @@ export function PersonalReminderForm({
           </form.Field>
         </Field>
       ) : null}
+      <form.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+        {(error) =>
+          typeof error === "string" ? <p role="alert">{error}</p> : null
+        }
+      </form.Subscribe>
       {children}
       <DialogFooter>
         <Button disabled={pending || !fireAt} type="submit">

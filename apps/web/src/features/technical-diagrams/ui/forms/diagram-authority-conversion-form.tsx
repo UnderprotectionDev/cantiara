@@ -87,6 +87,7 @@ export function DiagramAuthorityConversion({
     },
   });
   const previewMutation = useMutation({
+    mutationKey: orpc.previewDiagramAuthorityConversion.mutationKey(),
     mutationFn: (values: ConversionValues) => {
       checkedAt.current = new Date().toISOString();
       return client.previewDiagramAuthorityConversion(request(values));

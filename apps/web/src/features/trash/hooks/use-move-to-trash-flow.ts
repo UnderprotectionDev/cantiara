@@ -2,67 +2,89 @@ import type {
   MoveToTrashPreview,
   TrashSurfaceDisposition,
 } from "@cantiara/api/trash";
-import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { commandVariables } from "@/lib/command-variables";
+import { orpc } from "@/utils/orpc";
+import { refreshTrashQueries } from "../lib/refresh-trash-queries";
 import type { TrashCandidate } from "../lib/trash-candidates";
 
-/**
- * The `Move to Trash` review state. The preview comes first: the founder sees
- * every attached External Surface before anything is committed.
- */
+function candidateKey(candidate: TrashCandidate) {
+  return `${candidate.kind}:${candidate.id}`;
+}
+
 export function useMoveToTrashFlow({
   onMove,
   onPreview,
+  projectId,
 }: {
   onMove: (
     candidate: TrashCandidate,
     disposition: TrashSurfaceDisposition,
+    clientIdempotencyKey: string,
   ) => Promise<unknown>;
   onPreview: (candidate: TrashCandidate) => Promise<MoveToTrashPreview>;
+  projectId: string;
 }) {
-  const [pending, setPending] = useState<string | null>(null);
-  const [failed, setFailed] = useState<string | null>(null);
-  const [reviewing, setReviewing] = useState<{
-    candidate: TrashCandidate;
-    preview: MoveToTrashPreview;
-  } | null>(null);
-
-  async function review(candidate: TrashCandidate) {
-    const key = `${candidate.kind}:${candidate.id}`;
-    setPending(key);
-    setFailed(null);
-    try {
-      setReviewing({ candidate, preview: await onPreview(candidate) });
-    } catch {
-      setFailed(key);
-    } finally {
-      setPending(null);
-    }
+  const queryClient = useQueryClient();
+  const inspect = useMutation({ mutationFn: onPreview });
+  const move = useMutation({
+    mutationKey: orpc.moveToTrash.mutationKey(),
+    meta: { onlineWrite: true },
+    mutationFn: ({
+      candidate,
+      disposition,
+      clientIdempotencyKey,
+    }: {
+      candidate: TrashCandidate;
+      disposition: TrashSurfaceDisposition;
+      clientIdempotencyKey: string;
+    }) => onMove(candidate, disposition, clientIdempotencyKey),
+    onSettled: (_, _error, { candidate }) =>
+      refreshTrashQueries(queryClient, {
+        projectId,
+        recordId: candidate.id,
+        recordKind: candidate.kind,
+      }),
+  });
+  let pending: string | null = null;
+  let failed: string | null = null;
+  if (inspect.isPending) {
+    pending = candidateKey(inspect.variables);
+  } else if (move.isPending) {
+    pending = candidateKey(move.variables.candidate);
   }
-
-  async function confirm(disposition: TrashSurfaceDisposition) {
-    if (!reviewing) {
-      return;
-    }
-    const { candidate } = reviewing;
-    const key = `${candidate.kind}:${candidate.id}`;
-    setPending(key);
-    setFailed(null);
-    try {
-      await onMove(candidate, disposition);
-      setReviewing(null);
-    } catch {
-      setFailed(key);
-    } finally {
-      setPending(null);
-    }
+  if (inspect.isError) {
+    failed = candidateKey(inspect.variables);
+  } else if (move.isError) {
+    failed = candidateKey(move.variables.candidate);
   }
-
+  const reviewing =
+    inspect.isSuccess && !move.isSuccess
+      ? { candidate: inspect.variables, preview: inspect.data }
+      : null;
   return {
-    cancel: () => setReviewing(null),
-    confirm,
+    cancel: () => {
+      inspect.reset();
+      move.reset();
+    },
+    async confirm(disposition: TrashSurfaceDisposition) {
+      if (reviewing && !move.isPending) {
+        await move
+          .mutateAsync(
+            commandVariables(
+              { candidate: reviewing.candidate, disposition },
+              move.isError ? move.variables : undefined,
+            ),
+          )
+          .catch(() => undefined);
+      }
+    },
     failed,
     pending,
-    review,
+    async review(candidate: TrashCandidate) {
+      move.reset();
+      await inspect.mutateAsync(candidate).catch(() => undefined);
+    },
     reviewing,
   };
 }

@@ -62,6 +62,8 @@ Kurucu desteklenen ana kaydı ve yapılandırma varlığını `Trash`'e alır. K
 
 ## Testing Decisions
 
+- **Write lifecycle evidence (#544).** The web Trash seam checks that moving a Risk refreshes its own Project’s Risk and Trash queries while unrelated Document and Project queries stay fresh.
+
 - **What a good test is.** Tests observe Trash through its public interface: move, preview (including External Surface list and `Keep approved surface` eligibility), restore, configuration-inactive, duration-end permanent delete, early permanent delete (grant consume + typed name), and whether a protected command is authorized. They do not assert Drizzle row shapes or mock private collaborators. Expected values are product rules (30-day unit, identity preserved, no active membership, grant missing fails closed, typed-name mismatch fails closed), not recomputed implementation.
 - **Seam (one).** Trash — the product-facing recoverable-deletion interface used by record UIs, Configuration Trash, Project delete group retention, and early permanent delete. External Surface revoke/keep, Account Access grant consume, and the security-event log are adapters behind that interface (real versus test double). Playwright for the closed accessibility journey that includes Çöp Kutusu ve geri yükleme is the same seam observed through the UI, not a second product module.
 - **Modules under test.** Trash only. Project Archive (83), security redaction (78), Account closure (84), operator backup RPO/RTO (85), and GitHub App sync internals are not in this suite except as counterparts: Archive is a different command; redaction is not Trash; grant missing cannot permanently delete; restore-point library absent; GitHub-record in Trash refuses new source writes via the life-cycle gate.

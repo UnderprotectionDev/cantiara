@@ -32,6 +32,8 @@ Kurucu tam olarak bir Projeye ait Proje Sürümü ana kaydında yayımlanacak İ
 
 ## Testing Decisions
 
+- **Write lifecycle evidence (#544).** The web command seam observes the Project Release reads that refresh after a write, with Smart Collection membership updated.
+
 - **What a good test is.** Tests observe Project Release Planning through create, scope membership, status matrix, and hypothesis fields. They go red if a GitHub Release upsert writes `Published`/`Cancelled`, if the type is a Milestone or Focus Period, or if hypothesis fields act as a gate. They do not assert GitHub API internals.
 - **Seam (one).** Project Release Planning — CRUD Proje Sürümü, scope, explicit terminals. 64 pack and 65 notes consume this record.
 - **Modules under test.** Project Release Planning only.

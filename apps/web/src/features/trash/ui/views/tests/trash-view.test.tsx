@@ -1,4 +1,5 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 
@@ -10,14 +11,17 @@ const unused = () => Promise.reject(new Error("unused"));
 describe("TrashView", () => {
   test("offers Move to Trash per live record and states the 30-day window", () => {
     const html = renderToStaticMarkup(
-      <TrashView
-        candidates={[{ id: "r1", kind: "Risk", label: "Slip", revision: 2 }]}
-        entries={[]}
-        formatting={DEFAULT_ACCOUNT_PREFERENCES}
-        onMove={moved}
-        onPreview={unused}
-        onRestore={moved}
-      />,
+      <QueryClientProvider client={new QueryClient()}>
+        <TrashView
+          candidates={[{ id: "r1", kind: "Risk", label: "Slip", revision: 2 }]}
+          entries={[]}
+          formatting={DEFAULT_ACCOUNT_PREFERENCES}
+          onMove={moved}
+          onPreview={unused}
+          onRestore={moved}
+          projectId="p1"
+        />
+      </QueryClientProvider>,
     );
 
     expect(html).toContain("Move to Trash: Slip");

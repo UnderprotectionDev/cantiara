@@ -47,6 +47,7 @@ export function useExternalExecutionHandoffs(
     }),
   );
   const recordPackageExport = useMutation({
+    mutationKey: orpc.recordExternalExecutionHandoffPackageExport.mutationKey(),
     mutationFn: (input: { clientEventId: string; handoffId: string }) =>
       runOnlineOnlyWrite(() =>
         client.recordExternalExecutionHandoffPackageExport(input),
@@ -55,6 +56,7 @@ export function useExternalExecutionHandoffs(
       queryClient.invalidateQueries({ queryKey: historyOptions.queryKey }),
   });
   const cancel = useMutation({
+    mutationKey: orpc.cancelExternalExecutionHandoff.mutationKey(),
     mutationFn: (input: CancelExternalExecutionHandoffInput) =>
       runOnlineOnlyWrite(() => client.cancelExternalExecutionHandoff(input)),
     onSuccess: async () => {
@@ -72,6 +74,7 @@ export function useExternalExecutionHandoffs(
   });
 
   const recordReturn = useMutation({
+    mutationKey: orpc.recordExternalExecutionHandoffReturn.mutationKey(),
     mutationFn: (input: RecordExternalExecutionHandoffReturnInput) =>
       runOnlineOnlyWrite(() =>
         client.recordExternalExecutionHandoffReturn(input),
@@ -85,11 +88,13 @@ export function useExternalExecutionHandoffs(
   });
 
   const previewReconcile = useMutation({
+    mutationKey: orpc.previewExternalExecutionHandoffReconcile.mutationKey(),
     mutationFn: (input: PreviewExternalExecutionHandoffReconcileInput) =>
       client.previewExternalExecutionHandoffReconcile(input),
   });
 
   const confirmReconcile = useMutation({
+    mutationKey: orpc.confirmExternalExecutionHandoffReconcile.mutationKey(),
     mutationFn: (input: ConfirmExternalExecutionHandoffReconcileInput) =>
       runOnlineOnlyWrite(() =>
         client.confirmExternalExecutionHandoffReconcile(input),

@@ -22,6 +22,7 @@ export function usePersonalMoodboardView(moodboardId: string) {
   });
   const query = useQuery(options);
   const save = useMutation({
+    mutationKey: orpc.saveMoodboardPersonalView.mutationKey(),
     mutationFn: (view: PersonalMoodboardView) =>
       client.saveMoodboardPersonalView({ moodboardId, view }),
     onSuccess: (saved) => queryClient.setQueryData(options.queryKey, saved),

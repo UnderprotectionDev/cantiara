@@ -33,7 +33,7 @@ export function RedactForm({
 }: {
   busy: boolean;
   error: string | null;
-  grant: string | null;
+  grant: boolean;
   identityPending: boolean;
   onCancel: () => void;
   onConfirmIdentity: () => void;

@@ -30,6 +30,7 @@ export function usePersonalTechnicalDiagramView(
   const query = useQuery(orpc.technicalDiagramViewport.queryOptions({ input }));
   const [saveError, setSaveError] = useState<string | null>(null);
   const save = useMutation({
+    mutationKey: orpc.saveTechnicalDiagramViewport.mutationKey(),
     mutationFn: ({
       diagramId: pendingDiagram,
       viewId: pendingView,

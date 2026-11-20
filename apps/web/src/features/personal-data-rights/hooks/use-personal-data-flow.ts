@@ -4,13 +4,9 @@ import {
   type PersonalDataFormat,
   type PersonalDataPreview,
 } from "@cantiara/api/personal-data-rights";
-import { useState } from "react";
-import { usePersonalDataAction } from "./use-personal-data-action";
+import { useMutation } from "@tanstack/react-query";
+import { personalDataRefusalMessage } from "../lib/personal-data-refusal";
 
-/**
- * The Export Personal Data review state. The preview comes first and nothing
- * is produced until the founder confirms that exact preview.
- */
 export function usePersonalDataFlow({
   onPreview,
   onProduce,
@@ -21,40 +17,45 @@ export function usePersonalDataFlow({
     format: PersonalDataFormat,
   ) => Promise<PersonalDataArtifact>;
 }) {
-  const { pending, refusal, run, setRefusal } = usePersonalDataAction(
-    EXPORT_PERSONAL_DATA_LABEL,
-  );
-  const [preview, setPreview] = useState<PersonalDataPreview | null>(null);
-  const [produced, setProduced] = useState<PersonalDataArtifact | null>(null);
-
-  async function review(contactId: string) {
-    setProduced(null);
-    setPreview(null);
-    await run(async () => {
-      setPreview(await onPreview(contactId));
-    });
-  }
-
-  async function confirm(format: PersonalDataFormat) {
-    if (!preview) {
-      return;
-    }
-    await run(async () => {
-      setProduced(await onProduce(preview, format));
-    });
-  }
+  const inspect = useMutation({
+    gcTime: 0,
+    meta: { presentsSupportFailure: true },
+    mutationFn: onPreview,
+  });
+  const produce = useMutation({
+    gcTime: 0,
+    meta: { presentsSupportFailure: true },
+    mutationFn: ({
+      preview,
+      format,
+    }: {
+      preview: PersonalDataPreview;
+      format: PersonalDataFormat;
+    }) => onProduce(preview, format),
+  });
+  const failure = produce.error ?? inspect.error;
 
   return {
     cancel: () => {
-      setPreview(null);
-      setProduced(null);
-      setRefusal(null);
+      inspect.reset();
+      produce.reset();
     },
-    confirm,
-    pending,
-    preview,
-    produced,
-    refusal,
-    review,
+    async confirm(format: PersonalDataFormat) {
+      if (inspect.data && !produce.isPending) {
+        await produce
+          .mutateAsync({ preview: inspect.data, format })
+          .catch(() => undefined);
+      }
+    },
+    pending: inspect.isPending || produce.isPending,
+    preview: inspect.data ?? null,
+    produced: produce.data ?? null,
+    refusal: failure
+      ? personalDataRefusalMessage(failure, EXPORT_PERSONAL_DATA_LABEL)
+      : null,
+    async review(contactId: string) {
+      produce.reset();
+      await inspect.mutateAsync(contactId).catch(() => undefined);
+    },
   };
 }

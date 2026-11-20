@@ -2,10 +2,7 @@ import type { ClosureSummarySourceRef } from "@cantiara/api/project-closure-summ
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { accountDateFormatter } from "@/features/account-preferences/lib/account-preferences-format";
-import { orpc } from "@/utils/orpc";
-import { useClosureSummaryDateComparison } from "../../hooks/use-closure-summary-date-comparison";
-import { useClosureSummaryDraft } from "../../hooks/use-closure-summary-draft";
-import { useSaveClosureSummary } from "../../hooks/use-save-closure-summary";
+import { client, orpc } from "@/utils/orpc";
 import { ClosureSummaryView } from "../views/closure-summary-view";
 
 /**
@@ -23,26 +20,18 @@ export default function ClosureSummarySurface({
     orpc.projectClosureSummarySources.queryOptions({ input: { projectId } }),
   );
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
-  const draft = useClosureSummaryDraft();
-  const { mutateAsync } = draft;
   const onDraft = useCallback(
     (selected: ClosureSummarySourceRef[]) =>
-      mutateAsync({ projectId, sources: selected }),
-    [mutateAsync, projectId],
+      client.projectClosureSummaryDraft({ projectId, sources: selected }),
+    [projectId],
   );
-  const save = useSaveClosureSummary();
-  const { mutateAsync: saveAsync } = save;
-  const onSave = useCallback(
-    (input: { body: string; clientIdempotencyKey: string; title: string }) =>
-      saveAsync({ ...input, baseRevision: 0, projectId }),
-    [projectId, saveAsync],
-  );
-  const dateHistory = useClosureSummaryDateComparison();
-  const { mutateAsync: dateHistoryAsync } = dateHistory;
   const onDateHistory = useCallback(
     (selected: ClosureSummarySourceRef[]) =>
-      dateHistoryAsync({ projectId, sources: selected }),
-    [dateHistoryAsync, projectId],
+      client.projectClosureSummaryDateComparison({
+        projectId,
+        sources: selected,
+      }),
+    [projectId],
   );
   if (sources.status === "pending") {
     return <p role="status">Loading Closure Summary Draft…</p>;
@@ -55,7 +44,7 @@ export default function ClosureSummarySurface({
       formatDate={accountDateFormatter(preferences.data)}
       onDateHistory={onDateHistory}
       onDraft={onDraft}
-      onSave={onSave}
+      onSave={client.saveProjectClosureSummary}
       projectId={projectId}
       sources={sources.data}
     />

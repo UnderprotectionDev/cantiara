@@ -3,7 +3,9 @@ import type {
   SecurityRedactionPreview,
 } from "@cantiara/api/security-redaction";
 import { isDefinedError, ORPCError } from "@orpc/client";
-import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useRef } from "react";
+import { orpc } from "@/utils/orpc";
 
 type ApplyFailure =
   | { code: "GRANT_REJECTED" }
@@ -43,113 +45,152 @@ export interface SecurityRedactionCalls {
   preview: (sensitiveValue: string) => Promise<SecurityRedactionPreview>;
 }
 
-/**
- * The review state of one `Redact`: preview, the Account Access grant step,
- * the typed name and the result. The sensitive value lives only in this
- * component state and is dropped on cancel, success and failure.
- */
+const APPLY_ERRORS = {
+  NAME_MISMATCH: "Could not redact. Check the name and confirm again.",
+  GRANT_REJECTED:
+    "Confirm GitHub Identity was not accepted. Confirm again to redact.",
+  SPREAD_INCOMPLETE:
+    "Some copies could not be removed yet. Confirm again to retry; the removal is already recorded.",
+  UNKNOWN: "Could not redact. Confirm identity again to retry.",
+};
+
 export function useSecurityRedactionFlow(calls: SecurityRedactionCalls) {
-  const [review, setReview] = useState<{
-    grant: string | null;
-    identityPending: boolean;
-    preview: SecurityRedactionPreview;
-    sensitiveValue: string;
-  } | null>(null);
-  const [result, setResult] = useState<SecurityRedactionGateResult | null>(
-    null,
-  );
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function showPreview(sensitiveValue: string) {
-    setError(null);
-    setResult(null);
-    setBusy(true);
-    try {
-      setReview({
-        grant: null,
-        identityPending: false,
-        preview: await calls.preview(sensitiveValue),
-        sensitiveValue,
-      });
-    } catch {
-      setError("Could not load the Redact preview.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function confirmIdentity() {
-    if (!review) {
-      return;
-    }
-    setError(null);
-    setReview({ ...review, identityPending: true });
-    try {
-      const grant = await calls.confirmIdentity();
-      setReview((current) =>
-        current ? { ...current, grant, identityPending: false } : current,
-      );
-    } catch {
-      setError("Confirm GitHub Identity could not be completed.");
-      setReview((current) =>
-        current ? { ...current, identityPending: false } : current,
-      );
-    }
-  }
-
-  async function redact(typedName: string, reason: string) {
-    if (!review?.grant) {
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      setResult(
-        await calls.apply({
-          grant: review.grant,
-          reason,
-          sensitiveValue: review.sensitiveValue,
-          typedName,
-        }),
-      );
-      setReview(null);
-    } catch (caught) {
-      // The grant is single-use: a failed attempt needs a fresh confirmation.
-      setReview((current) => (current ? { ...current, grant: null } : null));
-      switch (parseApplyFailure(caught).code) {
-        case "NAME_MISMATCH":
-          setError("Could not redact. Check the name and confirm again.");
-          break;
-        case "GRANT_REJECTED":
-          setError(
-            "Confirm GitHub Identity was not accepted. Confirm again to redact.",
-          );
-          break;
-        case "SPREAD_INCOMPLETE":
-          setError(
-            "Some copies could not be removed yet. Confirm again to retry; the removal is already recorded.",
-          );
-          break;
-        default:
-          setError("Could not redact. Confirm identity again to retry.");
+  const reviewSession = useRef(0);
+  const value = useRef<string | null>(null);
+  const grant = useRef<string | null>(null);
+  const submission = useRef<
+    Parameters<SecurityRedactionCalls["apply"]>[0] | null
+  >(null);
+  const inspect = useMutation({
+    mutationKey: orpc.previewSecurityRedaction.mutationKey(),
+    gcTime: 0,
+    meta: { privateInput: true, presentsSupportFailure: true },
+    mutationFn: async () => {
+      try {
+        if (value.current !== null) {
+          return await calls.preview(value.current);
+        }
+      } catch {
+        // The raw input and upstream errors stay outside Query.
       }
-    } finally {
-      setBusy(false);
-    }
+      throw new Error("Could not load the Redact preview.");
+    },
+  });
+  const identity = useMutation({
+    gcTime: 0,
+    meta: {
+      privateInput: true,
+      presentsSupportFailure: true,
+      onlineWrite: true,
+    },
+    mutationFn: async (session: number) => {
+      try {
+        const result = await calls.confirmIdentity();
+        if (session === reviewSession.current) {
+          grant.current = result;
+        }
+      } catch {
+        // biome-ignore lint/style/useErrorCause: The authentication failure may carry private data.
+        throw new Error("Confirm GitHub Identity could not be completed.");
+      }
+    },
+  });
+  const commit = useMutation({
+    mutationKey: orpc.applySecurityRedaction.mutationKey(),
+    gcTime: 0,
+    meta: {
+      privateInput: true,
+      presentsSupportFailure: true,
+      onlineWrite: true,
+    },
+    mutationFn: async () => {
+      const input = submission.current;
+      submission.current = null;
+      if (!input) {
+        throw new Error(APPLY_ERRORS.GRANT_REJECTED);
+      }
+      try {
+        const result = await calls.apply(input);
+        return {
+          ...result,
+          reason: result.reason.replaceAll(input.sensitiveValue, "[Redacted]"),
+        };
+      } catch (caught) {
+        // biome-ignore lint/style/useErrorCause: Only the classified refusal may enter MutationCache.
+        throw new Error(APPLY_ERRORS[parseApplyFailure(caught).code]);
+      }
+    },
+  });
+
+  function reset() {
+    reviewSession.current += 1;
+    value.current = null;
+    grant.current = null;
+    submission.current = null;
+    inspect.reset();
+    identity.reset();
+    commit.reset();
   }
 
   return {
-    busy,
-    cancel: () => {
-      setReview(null);
-      setError(null);
+    busy: inspect.isPending || commit.isPending,
+    cancel: reset,
+    async confirmIdentity() {
+      if (inspect.isSuccess && !identity.isPending && !commit.isPending) {
+        commit.reset();
+        await identity
+          .mutateAsync(reviewSession.current)
+          .catch(() => undefined);
+      }
     },
-    confirmIdentity,
-    error,
-    redact,
-    result,
-    review,
-    showPreview,
+    error: (commit.error ?? identity.error ?? inspect.error)?.message ?? null,
+    async redact(typedName: string, reason: string) {
+      if (
+        value.current === null ||
+        grant.current === null ||
+        commit.isPending
+      ) {
+        return;
+      }
+      submission.current = {
+        grant: grant.current,
+        sensitiveValue: value.current,
+        reason,
+        typedName,
+      };
+      identity.reset();
+      grant.current = null;
+      const session = reviewSession.current;
+      await commit
+        .mutateAsync()
+        .then(() => {
+          if (session === reviewSession.current) {
+            value.current = null;
+          }
+        })
+        .catch(() => undefined);
+      if (session === reviewSession.current) {
+        submission.current = null;
+      }
+    },
+    result: commit.data ?? null,
+    review:
+      inspect.isSuccess && !commit.isSuccess
+        ? {
+            preview: inspect.data,
+            grant: identity.isSuccess,
+            identityPending: identity.isPending,
+          }
+        : null,
+    async showPreview(sensitiveValue: string) {
+      reset();
+      value.current = sensitiveValue;
+      const session = reviewSession.current;
+      await inspect.mutateAsync().catch(() => {
+        if (session === reviewSession.current) {
+          value.current = null;
+        }
+      });
+    },
   };
 }
