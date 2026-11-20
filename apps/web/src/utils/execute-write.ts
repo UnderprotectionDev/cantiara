@@ -5,7 +5,11 @@ export function executeWrite<T, Variables>(
   queryClient: QueryClient,
   variables: Variables,
   write: (variables: Variables) => Promise<T>,
-  onSettled: () => Promise<unknown>,
+  onSettled: (
+    data: T | undefined,
+    error: unknown,
+    variables: Variables,
+  ) => Promise<unknown>,
   retryInSurface = false,
 ) {
   const options = queryClient.defaultMutationOptions({

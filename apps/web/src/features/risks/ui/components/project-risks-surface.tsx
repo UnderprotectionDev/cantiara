@@ -2,7 +2,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import PersonalReminderControl from "@/components/personal-reminder-control";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { executeWrite } from "@/utils/execute-write";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -43,9 +43,11 @@ export default function ProjectRisksSurface({
     }
     return pendingWrite.current;
   }
-  async function refresh(message: string) {
-    pendingWrite.current = null;
-    setSavedMessage(message);
+  async function refresh(key: string, message: string) {
+    if (pendingWrite.current?.key === key) {
+      pendingWrite.current = null;
+      setSavedMessage(message);
+    }
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: options.queryKey }),
       queryClient.invalidateQueries({
@@ -56,19 +58,22 @@ export default function ProjectRisksSurface({
       ...invalidateSmartCollectionMembership(queryClient),
     ]);
   }
-  async function write(command: () => Promise<unknown>) {
-    try {
-      await runOnlineOnlyWrite(command);
-    } catch (error) {
-      if (
+  function write(
+    key: string,
+    command: () => Promise<unknown>,
+    message: string,
+  ) {
+    return executeWrite(queryClient, key, command, async (_, error) => {
+      if (!error) {
+        await refresh(key, message);
+      } else if (
         error instanceof Error &&
         "code" in error &&
         error.code === "CONFLICT"
       ) {
         await queryClient.invalidateQueries({ queryKey: options.queryKey });
       }
-      throw error;
-    }
+    });
   }
   async function save(draft: RiskDraft, record?: RiskRecord) {
     const fields = {
@@ -84,23 +89,25 @@ export default function ProjectRisksSurface({
       { operation: "save", ...fields, rationale: draft.rationale },
       record,
     );
-    await write(() =>
-      record
-        ? client.updateProjectSourceRecord({
-            ...fields,
-            rationale: draft.rationale.trim() || null,
-            sourceId: id,
-            baseRevision: record.revision,
-            clientIdempotencyKey: key,
-          })
-        : client.createProjectSourceRecord({
-            ...fields,
-            id,
-            baseRevision: 0,
-            clientIdempotencyKey: key,
-          }),
+    await write(
+      key,
+      () =>
+        record
+          ? client.updateProjectSourceRecord({
+              ...fields,
+              rationale: draft.rationale.trim() || null,
+              sourceId: id,
+              baseRevision: record.revision,
+              clientIdempotencyKey: key,
+            })
+          : client.createProjectSourceRecord({
+              ...fields,
+              id,
+              baseRevision: 0,
+              clientIdempotencyKey: key,
+            }),
+      "Risk saved.",
     );
-    await refresh("Risk saved.");
   }
   async function transition(draft: RiskDraft, record?: RiskRecord) {
     if (!record) {
@@ -117,14 +124,16 @@ export default function ProjectRisksSurface({
       { operation: "transition", ...fields },
       record,
     );
-    await write(() =>
-      client.transitionProjectSourceRecord({
-        ...fields,
-        baseRevision: record.revision,
-        clientIdempotencyKey: key,
-      }),
+    await write(
+      key,
+      () =>
+        client.transitionProjectSourceRecord({
+          ...fields,
+          baseRevision: record.revision,
+          clientIdempotencyKey: key,
+        }),
+      "Risk status saved.",
     );
-    await refresh("Risk status saved.");
   }
   function startEditing() {
     pendingWrite.current = null;

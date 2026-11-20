@@ -1,7 +1,7 @@
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { executeWrite } from "@/utils/execute-write";
 import { client, orpc } from "@/utils/orpc";
 import {
   isValidationContextRecord,
@@ -48,8 +48,10 @@ export default function ValidationRecordsSurface({
     }
     return pending.current;
   }
-  async function refresh() {
-    pending.current = null;
+  async function refresh(key: string) {
+    if (pending.current?.key === key) {
+      pending.current = null;
+    }
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: options.queryKey }),
       queryClient.invalidateQueries({
@@ -60,19 +62,15 @@ export default function ValidationRecordsSurface({
       }),
     ]);
   }
-  async function write(command: () => Promise<unknown>) {
-    try {
-      await runOnlineOnlyWrite(command);
-    } catch (error) {
+  function write(key: string, command: () => Promise<unknown>) {
+    return executeWrite(queryClient, key, command, async (_, error) => {
       if (
-        error instanceof Error &&
-        "code" in error &&
-        error.code === "CONFLICT"
+        !error ||
+        (error instanceof Error && "code" in error && error.code === "CONFLICT")
       ) {
-        await refresh();
+        await refresh(key);
       }
-      throw error;
-    }
+    });
   }
   async function save(draft: ValidationDraft, record?: ValidationRecord) {
     const fields = {
@@ -81,7 +79,7 @@ export default function ValidationRecordsSurface({
       sourceType: "Validation Record" as const,
     };
     const { id, key } = validationCommandIdentity(fields, record);
-    await write(() =>
+    await write(key, () =>
       record
         ? client.updateProjectSourceRecord({
             ...fields,
@@ -96,14 +94,13 @@ export default function ValidationRecordsSurface({
             clientIdempotencyKey: key,
           }),
     );
-    await refresh();
   }
   async function transition(
     record: ValidationRecord,
     status: ValidationRecord["status"],
   ) {
     const { key } = validationCommandIdentity({ status }, record);
-    await write(() =>
+    await write(key, () =>
       client.transitionProjectSourceRecord({
         projectId,
         sourceType: "Validation Record",
@@ -113,7 +110,6 @@ export default function ValidationRecordsSurface({
         clientIdempotencyKey: key,
       }),
     );
-    await refresh();
   }
   function startEditing() {
     pending.current = null;

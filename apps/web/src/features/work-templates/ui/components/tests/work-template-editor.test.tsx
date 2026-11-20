@@ -11,7 +11,10 @@ import { createClientShellQueryClient } from "@/features/web-macos-client/lib/cl
 import { orpc } from "@/utils/orpc";
 import WorkTemplateEditor from "../work-template-editor";
 
-const rpc = vi.hoisted(() => ({ instantiateWorkTemplate: vi.fn() }));
+const rpc = vi.hoisted(() => ({
+  createWorkTemplate: vi.fn(),
+  instantiateWorkTemplate: vi.fn(),
+}));
 vi.mock("@/utils/orpc", async (importActual) => {
   const actual = await importActual<typeof import("@/utils/orpc")>();
   return { ...actual, client: rpc };
@@ -181,6 +184,84 @@ test("retries Create from template with the same command and refreshes the relev
       false,
     );
     expect(host.textContent).toContain("Created Work PAY-42.");
+    expect(host.textContent).not.toContain(writeError.message);
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    queryClient.clear();
+  }
+});
+
+test("saving the same Work Template again after a failure retains its command and Checklist", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const queryClient = createClientShellQueryClient(vi.fn());
+  queryClient.setDefaultOptions({
+    queries: { staleTime: Number.POSITIVE_INFINITY },
+  });
+  const projectId = "project-1";
+  const templatesKey = orpc.workTemplates.queryKey({ input: { projectId } });
+  queryClient.setQueryData(templatesKey, [template]);
+  queryClient.setQueryData(
+    orpc.customFields.queryKey({ input: { projectId } }),
+    [field],
+  );
+  const refetch = vi
+    .spyOn(queryClient, "invalidateQueries")
+    .mockResolvedValue();
+  const writeError = new Error("Work Template could not be saved. Try again.");
+  rpc.createWorkTemplate
+    .mockRejectedValueOnce(writeError)
+    .mockResolvedValue(template);
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    act(() =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <WorkTemplateEditor projectId={projectId} />
+        </QueryClientProvider>,
+      ),
+    );
+    const form = host.querySelector('form[aria-label="Add Work Template"]');
+    const name = form?.querySelector<HTMLInputElement>("#work-template-name");
+    const checklist = form?.querySelector<HTMLTextAreaElement>(
+      "#work-template-checklist",
+    );
+    if (!(form && name && checklist)) {
+      throw new Error("Add Work Template form did not render");
+    }
+    act(() => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(name, "Release plan");
+      name.dispatchEvent(new Event("input", { bubbles: true }));
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value",
+      )?.set?.call(checklist, "Draft release notes");
+      checklist.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    async function submit() {
+      await act(async () => {
+        form?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+        await Promise.resolve();
+      });
+    }
+    await submit();
+    expect(host.textContent).toContain(writeError.message);
+    expect(checklist.value).toBe("Draft release notes");
+    expect(refetch).not.toHaveBeenCalled();
+
+    await submit();
+    expect(rpc.createWorkTemplate).toHaveBeenCalledTimes(2);
+    expect(rpc.createWorkTemplate.mock.calls[1][0]).toEqual(
+      rpc.createWorkTemplate.mock.calls[0][0],
+    );
+    expect(refetch).toHaveBeenCalledWith({ queryKey: templatesKey });
     expect(host.textContent).not.toContain(writeError.message);
   } finally {
     act(() => root.unmount());

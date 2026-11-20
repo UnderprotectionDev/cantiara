@@ -577,56 +577,35 @@ export function WorkArchiveAction({ work }: { work: WorkProfile }) {
   const [error, setError] = useState<string | null>(null);
   const isArchived = work.archivedAt !== null;
   const mutation = useMutation({
-    mutationFn: () =>
-      runOnlineOnlyWrite(() =>
-        isArchived
-          ? client.unarchiveWork({
-              baseRevision: work.revision,
-              clientIdempotencyKey: crypto.randomUUID(),
-              workId: work.id,
-            })
-          : client.archiveWork({
-              baseRevision: work.revision,
-              clientIdempotencyKey: crypto.randomUUID(),
-              workId: work.id,
-            }),
-      ),
-    onError: (mutationError) => {
+    meta: { onlineWrite: true },
+    mutationFn: ({
+      archived,
+      ...input
+    }: {
+      archived: boolean;
+      baseRevision: number;
+      clientIdempotencyKey: string;
+      workId: string;
+    }) => (archived ? client.unarchiveWork(input) : client.archiveWork(input)),
+    onError: (mutationError, { archived }) => {
       setError(
         mutationErrorMessage(
           mutationError,
-          isArchived
+          archived
             ? "Work could not be unarchived. Try again."
             : "Work could not be archived. Try again.",
         ),
       );
     },
-    onSuccess: async () => {
+    onSuccess: async (savedWork) => {
       setError(null);
+      const { id: workId, projectId } = savedWork;
       await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: projectWorksQueryPrefix,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.projectWorks.queryOptions({
-            input: { archived: false, projectId: work.projectId },
-          }).queryKey,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.projectWorks.queryOptions({
-            input: { archived: true, projectId: work.projectId },
-          }).queryKey,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.work.queryOptions({
-            input: { workId: work.id },
-          }).queryKey,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.scopeTree.queryOptions({
-            input: { projectId: work.projectId },
-          }).queryKey,
-        }),
+        ...[
+          orpc.projectWorks.queryKey({ input: { projectId } }),
+          orpc.work.queryKey({ input: { workId } }),
+          orpc.scopeTree.queryKey({ input: { projectId } }),
+        ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
         ...invalidateSmartCollectionMembership(queryClient),
       ]);
     },
@@ -636,7 +615,18 @@ export function WorkArchiveAction({ work }: { work: WorkProfile }) {
     <div className="flex flex-col items-end gap-1">
       <Button
         disabled={connection === "offline" || mutation.isPending}
-        onClick={() => mutation.mutate()}
+        onClick={() =>
+          mutation.mutate(
+            commandVariables(
+              {
+                archived: isArchived,
+                baseRevision: work.revision,
+                workId: work.id,
+              },
+              mutation.isError ? mutation.variables : undefined,
+            ),
+          )
+        }
         size="xs"
         type="button"
         variant="outline"
