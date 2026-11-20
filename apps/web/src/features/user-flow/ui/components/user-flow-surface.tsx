@@ -10,6 +10,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { lazy, Suspense, useState } from "react";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { client, orpc } from "@/utils/orpc";
 import type { EditorDocument } from "../../lib/flow-editor";
 import type { PromoteChoice } from "../forms/promote-to-screen-form";
@@ -252,7 +253,7 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
             userFlowId: flow.data.id,
           }),
         onConvertPreview: (nodeId, target, workType) =>
-          queryClient.query({
+          fetchFresh(queryClient, {
             ...orpc.previewUserFlowConvert.queryOptions({
               input: {
                 nodeId,
@@ -263,7 +264,6 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
               },
             }),
             gcTime: 0,
-            staleTime: 0,
           }),
         onPlaceCard: async (kind, recordId) => {
           await placeUserFlowCardMutation.mutateAsync({

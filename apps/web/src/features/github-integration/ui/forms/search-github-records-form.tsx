@@ -1,29 +1,16 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm } from "@tanstack/react-form";
-import {
-  GITHUB_SEARCH_QUERY_MAX_LENGTH,
-  parseSearchGitHubRecords,
-} from "../../lib/github-forms";
+import type { useGitHubRecordSearchForm } from "../../hooks/use-github-record-search-form";
+import { GITHUB_SEARCH_QUERY_MAX_LENGTH } from "../../lib/github-forms";
 
 export const SEARCH_GITHUB_RECORDS_LABEL = "Search GitHub records";
 
 export function SearchGitHubRecordsForm({
-  onSearch,
+  form,
 }: {
-  onSearch: (query: string) => void;
+  form: ReturnType<typeof useGitHubRecordSearchForm>;
 }) {
-  const form = useForm({
-    defaultValues: { query: "" },
-    onSubmit: ({ value }) => {
-      const parsed = parseSearchGitHubRecords(value);
-      if (!parsed.ok) {
-        return;
-      }
-      onSearch(parsed.data.query);
-    },
-  });
   return (
     <form
       aria-label={SEARCH_GITHUB_RECORDS_LABEL}

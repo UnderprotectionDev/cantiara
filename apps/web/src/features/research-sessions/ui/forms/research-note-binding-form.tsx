@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to this explicit conversion draft.
+
 import {
   type PreviewResearchSessionBindingInput,
   previewResearchSessionBindingInputSchema,
@@ -19,9 +20,10 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SyntheticEvent, useId, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SyntheticEvent, useId } from "react";
 import { commandVariables } from "@/lib/command-variables";
+import { submitForm } from "@/lib/submit-form";
 import { isResearchSessionConflict } from "../../lib/research-session-conflict";
 
 const fieldLabels: Record<string, string> = {
@@ -72,15 +74,7 @@ export function ResearchNoteBindingEditor({
       : undefined;
   const confirming = confirmState?.isPending ?? false;
   const conflict = isResearchSessionConflict(confirmState?.error);
-  const [validationError, setValidationError] = useState<string>();
-  let error = validationError;
-  if (previewState?.error) {
-    error = "Preview is unavailable. Retry or cancel; your draft is kept.";
-  } else if (confirmState?.error) {
-    error = conflict
-      ? "Research Session changed or preview expired. Cancel and reopen the preview."
-      : "Binding could not be confirmed. Retry with this same preview; your draft is kept.";
-  }
+
   const form = useForm({
     defaultValues: {
       type: "",
@@ -92,7 +86,7 @@ export function ResearchNoteBindingEditor({
       end: note.text.length,
     },
     onSubmit: async ({ value }) => {
-      setValidationError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = previewResearchSessionBindingInputSchema.safeParse({
         id: record.id,
         projectId: record.projectId,
@@ -114,7 +108,12 @@ export function ResearchNoteBindingEditor({
         },
       });
       if (!parsed.success) {
-        setValidationError("Choose the target and complete its fields.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Choose the target and complete its fields.",
+            fields: {},
+          },
+        });
         return;
       }
       const { clientIdempotencyKey: _initialKey, ...input } = parsed.data;
@@ -126,6 +125,18 @@ export function ResearchNoteBindingEditor({
       );
     },
   });
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  let error = validationError;
+  if (previewState?.error) {
+    error = "Preview is unavailable. Retry or cancel; your draft is kept.";
+  } else if (confirmState?.error) {
+    error = conflict
+      ? "Research Session changed or preview expired. Cancel and reopen the preview."
+      : "Binding could not be confirmed. Retry with this same preview; your draft is kept.";
+  }
   function selectText(event: SyntheticEvent<HTMLTextAreaElement>) {
     const { selectionStart, selectionEnd } = event.currentTarget;
     if (selectionEnd > selectionStart) {
@@ -201,7 +212,7 @@ export function ResearchNoteBindingEditor({
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            form.handleSubmit().catch(() => undefined);
+            submitForm(form).catch(() => undefined);
           }}
         >
           <form.Subscribe

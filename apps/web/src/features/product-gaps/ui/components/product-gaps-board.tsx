@@ -24,6 +24,7 @@ import {
   FollowUpPanel,
   type PreviewFollowUp,
 } from "../forms/product-gap-follow-up-form";
+import type { LoadProductGapTargets } from "../forms/product-gap-links-field-form";
 import {
   type RecordGap,
   RecordProductGapForm,
@@ -34,7 +35,6 @@ import {
   type LoadEscapes,
   ToolEscapesPanel,
 } from "./dogfooding-summary";
-import type { LoadProductGapTargets } from "./product-gap-links-field";
 
 export type { RecordGap } from "../forms/record-product-gap-form";
 export type { CloseEscape } from "../forms/tool-escape-close-form";

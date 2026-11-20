@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the loaded Screen and editor.
+
 import type { WireframeViewport } from "@cantiara/api/screen-viewport";
 import type { ScreenWireframe } from "@cantiara/api/screens";
 import { Button } from "@cantiara/ui/components/button";
@@ -13,6 +14,7 @@ import {
 } from "@/features/project-shell/lib/project-shell-navigation";
 import { defaultClientShell } from "@/features/web-macos-client/store/client-shell";
 import { presentSupportReferenceFailure } from "@/features/web-macos-client/ui/components/support-reference";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import {
   client,
@@ -238,12 +240,11 @@ function LoadedWireframe({
       };
     },
     preview: (definitionId, content) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewLinkedBlockChange.queryOptions({
           input: { content, definitionId, projectId },
         }),
         gcTime: 0,
-        staleTime: 0,
       }),
   };
 
@@ -277,7 +278,7 @@ function LoadedWireframe({
       const flushed = await saveWireframe({ document, projectId, screenId });
       saved.current = document;
       queryClient.setQueryData(options.queryKey, flushed);
-      return queryClient.query({
+      return fetchFresh(queryClient, {
         ...orpc.previewConvertAndBind.queryOptions({
           input: {
             ...request,
@@ -287,7 +288,6 @@ function LoadedWireframe({
           },
         }),
         gcTime: 0,
-        staleTime: 0,
       });
     },
   };

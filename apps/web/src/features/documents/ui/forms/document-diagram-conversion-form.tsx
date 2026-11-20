@@ -60,7 +60,7 @@ export default function DocumentDiagramConversionDialog({
       void,
       unknown
     >,
-    "mutate" | "isPending" | "isError" | "error"
+    "mutateAsync" | "isPending" | "isError" | "error"
   >;
 }) {
   const form = useForm({
@@ -68,13 +68,13 @@ export default function DocumentDiagramConversionDialog({
       originalBlock: originalBlockOutcome,
       title: conversionTitle,
     },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value }) => {
       const parsed = convertMermaidDiagramFormSchema.safeParse(value);
       if (!parsed.success) {
         return;
       }
       if (!convertDiagram.isPending) {
-        convertDiagram.mutate();
+        await convertDiagram.mutateAsync();
       }
     },
   });

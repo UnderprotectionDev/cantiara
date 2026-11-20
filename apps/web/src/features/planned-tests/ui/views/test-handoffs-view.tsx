@@ -17,13 +17,13 @@ import {
   formFromHandoff,
   type TestHandoffFormValues,
 } from "../../lib/test-handoff-form";
-import type { LoadTestHandoffContextTargets } from "../components/test-handoff-context-field";
 import {
   type LoadTestHandoffPackages,
   type PreviewTestHandoffPackage,
   type ProduceTestHandoffPackage,
   TestHandoffPackagePanel,
 } from "../components/test-handoff-package-panel";
+import type { LoadTestHandoffContextTargets } from "../forms/test-handoff-context-field-form";
 import {
   HandoffForm,
   LinkArrivingSessionTestForm,

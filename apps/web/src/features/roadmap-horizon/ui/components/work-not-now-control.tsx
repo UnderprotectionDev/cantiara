@@ -19,16 +19,17 @@ import {
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSelector } from "@tanstack/react-store";
 import { useRef, useState } from "react";
 import { AppLink } from "@/components/app-link";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 import {
-  type NotNowDraft,
-  NotNowEntryForm,
   type NotNowPreview,
-} from "../forms/not-now-entry-form";
+  useNotNowEntryForm,
+} from "../../hooks/use-not-now-entry-form";
+import { NotNowEntryForm } from "../forms/not-now-entry-form";
 import { NotNowReconsideration } from "../forms/not-now-reconsideration-form";
 import { reviewLaterHandlingPreview } from "./not-now-review-later-field";
 
@@ -327,14 +328,6 @@ function WorkNotNowDialog({
   const [mode, setMode] = useState<Mode>(
     initialNotNowDialogMode(canStart, activeFromWork !== null),
   );
-  const [draft, setDraft] = useState<NotNowDraft>({
-    condition: "",
-    groundRelationIds: [],
-    reason: "",
-    reviewLaterHandling: "Keep Review later",
-  });
-  const [preview, setPreview] = useState<NotNowPreview | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const recordRetry = useRef<{ fingerprint: string; key: string } | null>(null);
   const reconsiderRetry = useRef<{ event: string; key: string } | null>(null);
   const queryClient = useQueryClient();
@@ -357,6 +350,14 @@ function WorkNotNowDialog({
     ) ??
     work.notNow?.revision ??
     0;
+  const form = useNotNowEntryForm(latestRevision, work.id, () =>
+    setMode("preview"),
+  );
+  const { draft, preview } = useSelector(form.store, (state) => state.values);
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const workContext = workContextQuery.data
     ? buildWorkContextModel({
         priorityValues: workContextQuery.data.priorityValues,
@@ -386,10 +387,9 @@ function WorkNotNowDialog({
     mutationKey: orpc.recordWorkNotNow.mutationKey(),
     mutationFn: (input: Parameters<typeof client.recordWorkNotNow>[0]) =>
       runOnlineOnlyWrite(() => client.recordWorkNotNow(input)),
-    onError: (mutationError) => setError(errorMessage(mutationError)),
     onSuccess: async () => {
       recordRetry.current = null;
-      setError(null);
+
       setMode("details");
       await refreshWorkNotNow();
     },
@@ -399,24 +399,21 @@ function WorkNotNowDialog({
     mutationKey: orpc.reconsiderWorkNotNow.mutationKey(),
     mutationFn: (input: Parameters<typeof client.reconsiderWorkNotNow>[0]) =>
       runOnlineOnlyWrite(() => client.reconsiderWorkNotNow(input)),
-    onError: (mutationError) => setError(errorMessage(mutationError)),
     onSuccess: async () => {
       reconsiderRetry.current = null;
-      setError(null);
+
       setMode("details");
       await refreshWorkNotNow();
     },
   });
 
+  const failed = recordNotNow.error ?? reconsiderNotNow.error;
+  const error = validationError ?? (failed ? errorMessage(failed) : null);
+
   function startNewTrail() {
-    setDraft({
-      condition: "",
-      groundRelationIds: [],
-      reason: "",
-      reviewLaterHandling: "Keep Review later",
-    });
-    setPreview(null);
-    setError(null);
+    form.reset();
+    recordNotNow.reset();
+    reconsiderNotNow.reset();
     setMode("form");
   }
 
@@ -435,7 +432,7 @@ function WorkNotNowDialog({
         ? recordRetry.current.key
         : crypto.randomUUID();
     recordRetry.current = { fingerprint, key: clientIdempotencyKey };
-    setError(null);
+
     recordNotNow.mutate({ ...preview, clientIdempotencyKey });
   }
 
@@ -454,7 +451,7 @@ function WorkNotNowDialog({
         ? reconsiderRetry.current.key
         : crypto.randomUUID();
     reconsiderRetry.current = { event, key: clientIdempotencyKey };
-    setError(null);
+
     reconsiderNotNow.mutate({
       baseRevision: latestRevision,
       clientIdempotencyKey,
@@ -464,21 +461,8 @@ function WorkNotNowDialog({
     });
   }
 
-  function previewDraft(nextPreview: NotNowPreview) {
-    setPreview(nextPreview);
-    setMode("preview");
-  }
-
   return (
-    <Dialog
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) {
-          setError(null);
-        }
-        onOpenChange(nextOpen);
-      }}
-      open
-    >
+    <Dialog onOpenChange={onOpenChange} open>
       <DialogContent className="max-h-[calc(100svh-2rem)] max-w-xl overflow-y-auto p-5 sm:p-6">
         <DialogHeader>
           <DialogTitle>Not now</DialogTitle>
@@ -500,7 +484,10 @@ function WorkNotNowDialog({
             historyPending={historyQuery.isPending}
             onReconsider={confirmReconsidering}
             onReviewLaterHandlingChange={(reviewLaterHandling) =>
-              setDraft((current) => ({ ...current, reviewLaterHandling }))
+              form.setFieldValue(
+                "draft.reviewLaterHandling",
+                reviewLaterHandling,
+              )
             }
             onStartNew={startNewTrail}
             reconsiderPending={reconsiderNotNow.isPending}
@@ -512,16 +499,12 @@ function WorkNotNowDialog({
         ) : null}
         {mode === "form" ? (
           <NotNowEntryForm
-            baseRevision={latestRevision}
             connection={connection}
-            draft={draft}
             error={error}
+            form={form}
             groundOptions={groundOptions}
             hasActiveTrail={currentTrail !== null}
             hasHistory={(history?.length ?? 0) > 0}
-            onDraftChange={setDraft}
-            onError={setError}
-            onPreview={previewDraft}
             onShowHistory={() => setMode("details")}
             pending={recordNotNow.isPending}
             workContextError={workContextQuery.isError}

@@ -7,9 +7,13 @@ import {
 } from "@cantiara/api/work-templates";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
+import { useSelector } from "@tanstack/react-store";
 import { format } from "date-fns";
 import { useMemo, useState } from "react";
-import { useWorkTemplates } from "@/features/work-templates/hooks/use-work-templates";
+import {
+  useWorkTemplateSelectionForm,
+  useWorkTemplates,
+} from "@/features/work-templates/hooks/use-work-templates";
 import { commandVariables } from "@/lib/command-variables";
 import { orpc } from "@/utils/orpc";
 
@@ -49,7 +53,8 @@ export default function WorkTemplateEditor({
   const customFields = useQuery(
     orpc.customFields.queryOptions({ input: { projectId } }),
   );
-  const [editing, setEditing] = useState<WorkTemplate | null>(null);
+  const selection = useWorkTemplateSelectionForm();
+  const editing = useSelector(selection.store, (state) => state.values.editing);
   const [instantiating, setInstantiating] = useState<WorkTemplate | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const templates = useWorkTemplates(projectId, {
@@ -75,39 +80,33 @@ export default function WorkTemplateEditor({
     templates.instantiate.isPending ||
     templates.update.isPending ||
     templates.moveToTrash.isPending;
-  const [formVersion, setFormVersion] = useState(0);
 
   function resetDraft() {
-    setFormVersion((version) => version + 1);
-    setEditing(null);
+    selection.reset();
     setValidationError(null);
   }
 
   async function saveTemplate(input: ParsedCreateWorkTemplateInput) {
     setValidationError(null);
-    try {
-      if (editing) {
-        const { projectId: _projectId, ...rest } = input;
-        await templates.update.mutateAsync(
-          commandVariables(
-            {
-              ...rest,
-              baseRevision: editing.revision,
-              templateId: editing.id,
-            },
-            templates.update.isError ? templates.update.variables : undefined,
-          ),
-        );
-      } else {
-        await templates.create.mutateAsync(
-          commandVariables(
-            { ...input, baseRevision: 0 },
-            templates.create.isError ? templates.create.variables : undefined,
-          ),
-        );
-      }
-    } catch {
-      // Query exposes the failure and retains the submitted variables for retry.
+    if (editing) {
+      const { projectId: _projectId, ...rest } = input;
+      await templates.update.mutateAsync(
+        commandVariables(
+          {
+            ...rest,
+            baseRevision: editing.revision,
+            templateId: editing.id,
+          },
+          templates.update.isError ? templates.update.variables : undefined,
+        ),
+      );
+    } else {
+      await templates.create.mutateAsync(
+        commandVariables(
+          { ...input, baseRevision: 0 },
+          templates.create.isError ? templates.create.variables : undefined,
+        ),
+      );
     }
   }
 
@@ -206,8 +205,7 @@ export default function WorkTemplateEditor({
                       onClick={() => {
                         templates.update.reset();
                         templates.moveToTrash.reset();
-                        setEditing(template);
-                        setFormVersion((version) => version + 1);
+                        selection.setFieldValue("editing", template);
                         setValidationError(null);
                       }}
                       size="xs"
@@ -293,14 +291,13 @@ export default function WorkTemplateEditor({
         definitions={definitions}
         editing={editing}
         error={error}
-        key={`${editing?.id ?? "new"}:${formVersion}`}
+        key={projectId}
         onCancel={() => {
           templates.create.reset();
           templates.update.reset();
           resetDraft();
         }}
         onSave={saveTemplate}
-        onValidationError={setValidationError}
         pending={pending}
         previewDate={previewDate}
         projectId={projectId}

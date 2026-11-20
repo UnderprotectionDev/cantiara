@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Fields bind to their own form state.
+
 import {
   IMPORT_CATALOG_TYPES,
   IMPORT_LABEL,
@@ -12,7 +13,8 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   buildPreviewInput,
   IMPORT_FILE_ACCEPT,
@@ -38,11 +40,10 @@ export default function ImportFileForm({
   previewing,
   projects,
 }: {
-  onPreview: (input: PreviewImportInput) => void;
+  onPreview: (input: PreviewImportInput) => Promise<unknown>;
   previewing: boolean;
   projects: readonly ImportProjectChoice[];
 }) {
-  const [error, setError] = useState<string>();
   const form = useForm({
     defaultValues: {
       catalogType: "" as ImportCatalogType | "",
@@ -52,10 +53,10 @@ export default function ImportFileForm({
     onSubmit: async ({ value }) => {
       const [file] = value.files;
       if (!file) {
-        setError("Choose a file.");
+        form.setErrorMap({ onSubmit: { form: "Choose a file.", fields: {} } });
         return;
       }
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       try {
         const built = buildPreviewInput({
           catalogType: value.catalogType,
@@ -65,21 +66,27 @@ export default function ImportFileForm({
           scopeChoice: value.scopeChoice,
         });
         if ("error" in built) {
-          setError(built.error);
+          form.setErrorMap({ onSubmit: { form: built.error, fields: {} } });
           return;
         }
-        onPreview(built.input);
+        await onPreview(built.input);
       } catch (caught) {
-        setError(importErrorText(caught));
+        form.setErrorMap({
+          onSubmit: { form: importErrorText(caught), fields: {} },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const pending = useSelector(form.store, (state) => state.isSubmitting);
 
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   return (
@@ -99,19 +106,32 @@ export default function ImportFileForm({
       ) : null}
       <div className="grid gap-2 text-sm">
         <label htmlFor="import-file">File</label>
-        <form.Field name="files">
+        <form.Field
+          name="files"
+          validators={{
+            onSubmit: ({ value }) =>
+              value.length ? undefined : "Choose a file.",
+          }}
+        >
           {(field) => (
-            <Input
-              accept={IMPORT_FILE_ACCEPT}
-              disabled={pending}
-              id="import-file"
-              multiple
-              name={field.name}
-              onChange={(event) =>
-                field.handleChange(Array.from(event.target.files ?? []))
-              }
-              type="file"
-            />
+            <>
+              <Input
+                accept={IMPORT_FILE_ACCEPT}
+                disabled={pending}
+                id="import-file"
+                multiple
+                name={field.name}
+                onChange={(event) =>
+                  field.handleChange(Array.from(event.target.files ?? []))
+                }
+                type="file"
+              />
+              {field.state.meta.errors.map((message) => (
+                <p key={message} role="alert">
+                  {message}
+                </p>
+              ))}
+            </>
           )}
         </form.Field>
       </div>

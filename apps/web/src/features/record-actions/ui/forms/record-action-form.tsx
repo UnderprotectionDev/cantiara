@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Record Action controls close over their current definition and draft field.
+
 import {
   type CustomFieldDefinition,
   customFieldValuePayloadSchema,
@@ -21,10 +22,11 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRecordActions } from "@/features/record-actions/hooks/use-record-actions";
+import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 
 type CustomFieldValueDraft =
@@ -40,6 +42,8 @@ type TextLikeCustomFieldValue = Extract<
 >;
 
 interface RecordActionDraft {
+  actionId: string | null;
+  baseRevision: number;
   customFieldValues: Record<string, CustomFieldValueDraft>;
   dailyFocusOperation: "" | "add" | "remove";
   name: string;
@@ -48,6 +52,8 @@ interface RecordActionDraft {
 }
 
 const EMPTY_DRAFT: RecordActionDraft = {
+  actionId: null,
+  baseRevision: 0,
   customFieldValues: {},
   dailyFocusOperation: "",
   name: "",
@@ -79,6 +85,8 @@ function initialCustomFieldValue(
 function draftFromAction(action: RecordAction): RecordActionDraft {
   const draft: RecordActionDraft = {
     ...EMPTY_DRAFT,
+    actionId: action.id,
+    baseRevision: action.revision,
     customFieldValues: {},
     name: action.name,
   };
@@ -213,8 +221,7 @@ export default function RecordActionEditor({
   const customFields = useQuery(
     orpc.customFields.queryOptions({ input: { projectId } }),
   );
-  const [editing, setEditing] = useState<RecordAction | null>(null);
-  const [error, setError] = useState<string | null>(null);
+
   const definitions = useMemo(
     () =>
       (customFields.data ?? []).filter(
@@ -233,17 +240,24 @@ export default function RecordActionEditor({
     defaultValues: EMPTY_DRAFT,
     onSubmit: ({ value }) => submitDraft(value),
   });
+  const editing = useSelector(
+    form.store,
+    (state) => state.values.actionId !== null,
+  );
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   function resetDraft() {
     form.reset(EMPTY_DRAFT);
-    setEditing(null);
-    setError(null);
+    form.setErrorMap({ onSubmit: undefined });
   }
 
   async function submitDraft(draft: RecordActionDraft) {
     const stepResult = recordActionSteps(draft);
     if (!stepResult.steps) {
-      setError(stepResult.error);
+      form.setErrorMap({ onSubmit: { form: stepResult.error, fields: {} } });
       return;
     }
     const parsed = createRecordActionInputSchema.safeParse({
@@ -252,38 +266,40 @@ export default function RecordActionEditor({
       steps: stepResult.steps,
     });
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Check the Record Action.");
+      form.setErrorMap({
+        onSubmit: {
+          form: parsed.error.issues[0]?.message ?? "Check the Record Action.",
+          fields: {},
+        },
+      });
       return;
     }
-    setError(null);
-    try {
-      if (editing) {
-        const { projectId: _projectId, ...input } = parsed.data;
-        await recordActions.update.mutateAsync({
-          ...input,
-          actionId: editing.id,
-          baseRevision: editing.revision,
-        });
-      } else {
-        await recordActions.create.mutateAsync(parsed.data);
-      }
-      resetDraft();
-    } catch (mutationError) {
-      setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : "Record Action could not be saved.",
-      );
+    form.setErrorMap({ onSubmit: undefined });
+    if (draft.actionId) {
+      const { projectId: _projectId, ...input } = parsed.data;
+      await recordActions.update.mutateAsync({
+        ...input,
+        actionId: draft.actionId,
+        baseRevision: draft.baseRevision,
+      });
+    } else {
+      await recordActions.create.mutateAsync(parsed.data);
     }
+    resetDraft();
   }
 
   function editAction(action: RecordAction) {
-    setEditing(action);
-    setError(null);
+    form.setErrorMap({ onSubmit: undefined });
     form.reset(draftFromAction(action));
   }
 
   const actions = recordActions.query.data ?? [];
+  const writeError = editing
+    ? recordActions.update.error
+    : recordActions.create.error;
+  const error =
+    validationError ??
+    (writeError instanceof Error ? writeError.message : null);
 
   return (
     <div className="mt-3 space-y-4">
@@ -344,11 +360,15 @@ export default function RecordActionEditor({
                         },
                         {
                           onError: (mutationError) =>
-                            setError(
-                              mutationError instanceof Error
-                                ? mutationError.message
-                                : "Record Action could not be moved to Trash.",
-                            ),
+                            form.setErrorMap({
+                              onSubmit: {
+                                form:
+                                  mutationError instanceof Error
+                                    ? mutationError.message
+                                    : "Record Action could not be moved to Trash.",
+                                fields: {},
+                              },
+                            }),
                         },
                       )
                     }
@@ -372,7 +392,7 @@ export default function RecordActionEditor({
         onSubmit={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          form.handleSubmit().catch(() => undefined);
+          submitForm(form).catch(() => undefined);
         }}
       >
         <div className="flex items-center justify-between gap-4">

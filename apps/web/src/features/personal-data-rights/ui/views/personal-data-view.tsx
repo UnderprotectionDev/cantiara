@@ -73,11 +73,11 @@ export function PersonalDataView({
         disabled={busy}
         onPreview={(contactId) => {
           erase.cancel();
-          flow.review(contactId).catch(() => undefined);
+          return flow.review(contactId);
         }}
         onPreviewErase={(contactId) => {
           flow.cancel();
-          erase.review(contactId).catch(() => undefined);
+          return erase.review(contactId);
         }}
       />
       {flow.refusal ? (

@@ -152,20 +152,24 @@ test("a stale preview reports an error and keeps the block untouched", async () 
   );
 });
 
+function enterTitle(title: string) {
+  const input = document.querySelector("#convert-title") as HTMLInputElement;
+  return act(() => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )?.set?.call(input, title);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    return Promise.resolve();
+  });
+}
+
 test("an over-long title is rejected by the form schema and nothing is previewed", async () => {
   const preview = vi.fn().mockResolvedValue(plan);
   mount({ confirm: vi.fn(), preview });
 
   await click("Convert and Bind");
-  const input = document.querySelector("#convert-title") as HTMLInputElement;
-  await act(() => {
-    Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      "value",
-    )?.set?.call(input, "x".repeat(256));
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    return Promise.resolve();
-  });
+  await enterTitle("x".repeat(256));
   await click("Preview");
 
   expect(preview).not.toHaveBeenCalled();
@@ -181,11 +185,20 @@ test("retrying Confirm reuses both IDs for the same previewed plan", async () =>
   mount({ confirm, preview });
 
   await click("Convert and Bind");
+  await enterTitle("Start trial");
   await click("Preview");
   await click("Confirm");
+  expect(
+    document.querySelector<HTMLInputElement>("#convert-title")?.value,
+  ).toBe("Start trial");
   await click("Confirm");
 
   expect(confirm).toHaveBeenCalledTimes(2);
   expect(confirm.mock.calls[0]?.[0]).toEqual(confirm.mock.calls[1]?.[0]);
   expect(document.body.textContent).toContain("Created Decision: Start trial");
+
+  await click("Convert and Bind");
+  expect(
+    document.querySelector<HTMLInputElement>("#convert-title")?.value,
+  ).toBe("");
 });

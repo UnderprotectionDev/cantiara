@@ -1,100 +1,50 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls close over one Work and its previewed trail.
 
 import type { WorkContextSource } from "@cantiara/api/work-context";
-import {
-  recordWorkNotNowInputSchema,
-  type WorkNotNowReviewLaterHandling,
-} from "@cantiara/api/work-not-now";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { DialogFooter } from "@cantiara/ui/components/dialog";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import type { useNotNowEntryForm } from "../../hooks/use-not-now-entry-form";
 import { ReviewLaterHandlingField } from "../components/not-now-review-later-field";
 
-export interface NotNowDraft {
-  condition: string;
-  groundRelationIds: string[];
-  reason: string;
-  reviewLaterHandling: WorkNotNowReviewLaterHandling;
-}
-
-export type NotNowPreview = ReturnType<
-  typeof recordWorkNotNowInputSchema.parse
->;
-
 export function NotNowEntryForm({
-  baseRevision,
+  form,
   connection,
-  draft,
   error,
   hasActiveTrail,
   hasHistory,
   groundOptions,
   workContextError,
   workContextPending,
-  onError,
   onShowHistory,
-  onPreview,
-  onDraftChange,
   pending,
   workId,
 }: {
-  baseRevision: number;
+  form: ReturnType<typeof useNotNowEntryForm>;
   connection: string;
-  draft: NotNowDraft;
   error: string | null;
   hasActiveTrail: boolean;
   hasHistory: boolean;
   groundOptions: readonly WorkContextSource[];
   workContextError: boolean;
   workContextPending: boolean;
-  onError: (error: string | null) => void;
   onShowHistory: () => void;
-  onPreview: (preview: NotNowPreview) => void;
-  onDraftChange: (update: (draft: NotNowDraft) => NotNowDraft) => void;
   pending: boolean;
   workId: string;
 }) {
-  const form = useForm({
-    defaultValues: {
-      condition: draft.condition,
-      groundRelationIds: draft.groundRelationIds,
-      reason: draft.reason,
-      reviewLaterHandling: draft.reviewLaterHandling,
-    },
-    onSubmit: ({ value }) => {
-      const parsed = recordWorkNotNowInputSchema.safeParse({
-        baseRevision,
-        clientIdempotencyKey: "preview",
-        condition: value.condition,
-        groundRelationIds: value.groundRelationIds,
-        reason: value.reason,
-        reviewLaterHandling: value.reviewLaterHandling,
-        workId,
-      });
-      if (!parsed.success) {
-        onError(
-          parsed.error.issues[0]?.message ?? "Check the Not now details.",
-        );
-        return;
-      }
-      onError(null);
-      onPreview(parsed.data);
-    },
-  });
-
   return (
     <form
       className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
+        form.setErrorMap({ onSubmit: undefined });
         return form.handleSubmit();
       }}
     >
-      <form.Field name="reason">
+      <form.Field name="draft.reason">
         {(field) => (
           <Field>
             <FieldLabel htmlFor={`not-now-reason-${workId}`}>Reason</FieldLabel>
@@ -105,7 +55,6 @@ export function NotNowEntryForm({
               onChange={(event) => {
                 const { value } = event.target;
                 field.handleChange(value);
-                onDraftChange((current) => ({ ...current, reason: value }));
               }}
               required
               rows={3}
@@ -114,7 +63,7 @@ export function NotNowEntryForm({
           </Field>
         )}
       </form.Field>
-      <form.Field name="condition">
+      <form.Field name="draft.condition">
         {(field) => (
           <Field>
             <FieldLabel htmlFor={`not-now-condition-${workId}`}>
@@ -127,7 +76,6 @@ export function NotNowEntryForm({
               onChange={(event) => {
                 const { value } = event.target;
                 field.handleChange(value);
-                onDraftChange((current) => ({ ...current, condition: value }));
               }}
               rows={2}
               value={field.state.value}
@@ -135,13 +83,12 @@ export function NotNowEntryForm({
           </Field>
         )}
       </form.Field>
-      <form.Field name="groundRelationIds">
+      <form.Field name="draft.groundRelationIds">
         {(field) => (
           <SupportingRecordsField
             groundOptions={groundOptions}
             onChange={(groundRelationIds) => {
               field.handleChange(groundRelationIds);
-              onDraftChange((current) => ({ ...current, groundRelationIds }));
             }}
             pending={pending}
             value={field.state.value}
@@ -151,16 +98,12 @@ export function NotNowEntryForm({
         )}
       </form.Field>
       {hasActiveTrail ? (
-        <form.Field name="reviewLaterHandling">
+        <form.Field name="draft.reviewLaterHandling">
           {(field) => (
             <ReviewLaterHandlingField
               name={`not-now-review-later-handling-${workId}`}
               onChange={(reviewLaterHandling) => {
                 field.handleChange(reviewLaterHandling);
-                onDraftChange((current) => ({
-                  ...current,
-                  reviewLaterHandling,
-                }));
               }}
               pending={pending}
               value={field.state.value}

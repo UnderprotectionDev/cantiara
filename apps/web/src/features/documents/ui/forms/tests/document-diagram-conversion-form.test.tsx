@@ -9,7 +9,7 @@ import DocumentDiagramConversionDialog from "../document-diagram-conversion-form
 
 async function submit(title: string) {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  const mutate = vi.fn();
+  const mutateAsync = vi.fn().mockResolvedValue(undefined);
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
@@ -21,7 +21,7 @@ async function submit(title: string) {
           conversionPreview: { data: undefined, isError: false },
           conversionSelection: { end: 10, start: 0 },
           conversionTitle: title,
-          convertDiagram: { isError: false, isPending: false, mutate },
+          convertDiagram: { isError: false, isPending: false, mutateAsync },
           originalBlockOutcome: "Keep independent",
           record: { title: "Doc" },
           setConversionSelection: vi.fn(),
@@ -39,7 +39,7 @@ async function submit(title: string) {
   });
   await act(async () => root.unmount());
   host.remove();
-  return mutate;
+  return mutateAsync;
 }
 
 test("converting submits through the form only with a valid title", async () => {

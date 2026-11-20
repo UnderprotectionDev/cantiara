@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Explicit per-use commands capture the displayed pin and version.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import {
   findSourceEvidenceMatch,
@@ -13,9 +14,11 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type SubmitEvent, useId, useState } from "react";
+import { type SubmitEvent, useId } from "react";
+import { fetchFresh } from "@/lib/fetch-fresh";
+import { submitForm } from "@/lib/submit-form";
 import { type client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 
@@ -40,24 +43,21 @@ export default function EvidenceSelection({
   onSave,
   onCancel,
 }: EvidenceSelectionProps) {
-  const [range, setRange] = useState(
-    use
-      ? (findSourceEvidenceMatch(
-          use.pin.excerpt,
-          source.version.capturedContent,
-        ) ?? { start: 0, end: 0 })
-      : { start: 0, end: 0 },
-  );
+  const initialRange = use
+    ? (findSourceEvidenceMatch(
+        use.pin.excerpt,
+        source.version.capturedContent,
+      ) ?? { start: 0, end: 0 })
+    : { start: 0, end: 0 };
   const cache = useQueryClient();
   const inspect = useMutation({
     meta: { presentsSupportFailure: true },
     mutationFn: async (
       input: Parameters<typeof client.previewSourceEvidence>[0],
     ) => {
-      const plan = await cache.query({
+      const plan = await fetchFresh(cache, {
         ...orpc.previewSourceEvidence.queryOptions({ input }),
         gcTime: 0,
-        staleTime: 0,
       });
       if (!plan) {
         throw new Error("Evidence unavailable");
@@ -65,13 +65,8 @@ export default function EvidenceSelection({
       return plan;
     },
   });
-  const [invalidSelection, setInvalidSelection] = useState(false);
   const plan = inspect.data ?? null;
-  const error =
-    inspect.isError || invalidSelection
-      ? "Evidence preview is unavailable. Reload if the Source or target changed."
-      : null;
-  const pending = saving || inspect.isPending;
+
   const selection = { sourceId: source.id, projectId: source.projectId };
   const targets = useQuery({
     ...orpc.sourceEvidenceTargets.queryOptions({ input: selection }),
@@ -79,9 +74,9 @@ export default function EvidenceSelection({
   });
   const fieldId = useId();
   const form = useForm({
-    defaultValues: { targetId: "" },
-    onSubmit: async ({ value }) => {
-      if (pending) {
+    defaultValues: { range: initialRange, targetId: "" },
+    onSubmit: async ({ value, formApi }) => {
+      if (saving || inspect.isPending) {
         return;
       }
       const target = targets.data?.find(
@@ -96,7 +91,7 @@ export default function EvidenceSelection({
         ...selection,
         expectedSourceRevision: source.revision,
         versionRevision: source.revision,
-        ...range,
+        ...value.range,
         ...(use
           ? { bindingId: use.id }
           : {
@@ -109,16 +104,30 @@ export default function EvidenceSelection({
                 : undefined,
             }),
       });
-      setInvalidSelection(!parsed.success);
-      if (parsed.success) {
-        await inspect.mutateAsync(parsed.data).catch(() => undefined);
+      if (!parsed.success) {
+        formApi.setErrorMap({
+          onSubmit: { form: true, fields: {} },
+        });
+        return;
       }
+      await inspect.mutateAsync(parsed.data);
     },
   });
+  const range = useSelector(form.store, (state) => state.values.range);
+  const invalidSelection = useSelector(
+    form.store,
+    (state) => state.errorMap.onSubmit,
+  );
+  const submitting = useSelector(form.store, (state) => state.isSubmitting);
+  const pending = saving || inspect.isPending || submitting;
+  const error =
+    inspect.isError || invalidSelection
+      ? "Evidence preview is unavailable. Reload if the Source or target changed."
+      : null;
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form onSubmit={handleSubmit}>
@@ -155,10 +164,11 @@ export default function EvidenceSelection({
           className="min-h-32 w-full"
           id={`${fieldId}-text`}
           onSelect={(event) => {
-            setRange({
+            form.setFieldValue("range", {
               start: event.currentTarget.selectionStart,
               end: event.currentTarget.selectionEnd,
             });
+            form.setErrorMap({ onSubmit: undefined });
             inspect.reset();
           }}
           readOnly

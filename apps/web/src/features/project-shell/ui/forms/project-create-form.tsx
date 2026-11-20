@@ -1,7 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props and local picker state require closures over current field handlers.
+
 import {
-  type CreateProjectMutationInput,
-  createProjectInputSchema,
   STARTER_CONFIGURATION_OPTIONS,
   type StarterConfiguration,
 } from "@cantiara/api/project-shell";
@@ -18,44 +17,12 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { ArrowLeft, FolderPlus } from "lucide-react";
-import { type ChangeEvent, type SubmitEvent, useRef, useState } from "react";
-import { toast } from "sonner";
-
+import type { SubmitEvent } from "react";
 import { DatePicker } from "@/components/date-picker";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, projectsQueryPrefix } from "@/utils/orpc";
-
-const INITIAL_VALUES = {
-  logo: "",
-  name: "",
-  problem: "",
-  purpose: "",
-  scope: "",
-  starterConfiguration: "Blank Project" as StarterConfiguration,
-  targetDate: "",
-};
-
-function errorMessage(error: unknown) {
-  if (typeof error === "object" && error !== null && "data" in error) {
-    const { data } = error;
-    if (typeof data === "object" && data !== null && "label" in data) {
-      const { label } = data;
-      if (typeof label === "string") {
-        return label;
-      }
-    }
-  }
-  return "Project could not be created. Try again.";
-}
-
-function optionalValue(value: string) {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
+import { submitForm } from "@/lib/submit-form";
+import { useProjectCreateForm } from "../../hooks/use-project-create-form";
 
 const PROJECT_LOGO_ACCEPTED_TYPES = new Set([
   "image/gif",
@@ -82,105 +49,159 @@ function readProjectLogo(file: File) {
   });
 }
 
+function ProjectProfileDetails({
+  form,
+}: {
+  form: ReturnType<typeof useProjectCreateForm>["form"];
+}) {
+  return (
+    <details className="border-t border-border/70 pt-4">
+      <summary className="flex min-h-10 cursor-pointer items-center text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+        Optional profile details
+      </summary>
+      <FieldGroup className="mt-6 grid gap-x-6 gap-y-6 sm:grid-cols-2">
+        <form.Field name="purpose">
+          {(field) => (
+            <Field>
+              <FieldLabel htmlFor="project-purpose">Purpose</FieldLabel>
+              <Textarea
+                id="project-purpose"
+                name={field.name}
+                onChange={(event) => field.handleChange(event.target.value)}
+                placeholder="What are you building?"
+                value={field.state.value}
+              />
+            </Field>
+          )}
+        </form.Field>
+        <form.Field name="problem">
+          {(field) => (
+            <Field>
+              <FieldLabel htmlFor="project-problem">Problem</FieldLabel>
+              <Textarea
+                id="project-problem"
+                name={field.name}
+                onChange={(event) => field.handleChange(event.target.value)}
+                placeholder="What problem does it solve?"
+                value={field.state.value}
+              />
+            </Field>
+          )}
+        </form.Field>
+        <form.Field name="scope">
+          {(field) => (
+            <Field>
+              <FieldLabel htmlFor="project-scope">Scope</FieldLabel>
+              <Textarea
+                id="project-scope"
+                name={field.name}
+                onChange={(event) => field.handleChange(event.target.value)}
+                placeholder="What belongs in this Project?"
+                value={field.state.value}
+              />
+            </Field>
+          )}
+        </form.Field>
+        <form.Field name="targetDate">
+          {(field) => (
+            <Field>
+              <FieldLabel htmlFor="project-target-date">Target date</FieldLabel>
+              <DatePicker
+                ariaLabel="Target date"
+                clearLabel="Clear target date"
+                id="project-target-date"
+                onChange={(value) => field.handleChange(value)}
+                placeholder="Select a target date"
+                value={field.state.value}
+              />
+            </Field>
+          )}
+        </form.Field>
+        <form.Field
+          name="logoFile"
+          validators={{
+            onChangeAsync: async ({ value: file, signal }) => {
+              if (!file) {
+                return;
+              }
+              if (!PROJECT_LOGO_ACCEPTED_TYPES.has(file.type)) {
+                return "Logo must be a PNG, JPEG, WebP, or GIF image.";
+              }
+              if (file.size > PROJECT_LOGO_MAX_BYTES) {
+                return "Logo must be 750 KB or smaller.";
+              }
+              try {
+                const logo = await readProjectLogo(file);
+                if (!signal.aborted) {
+                  form.setFieldValue("logo", logo);
+                }
+              } catch (error) {
+                return error instanceof Error
+                  ? error.message
+                  : "Logo could not be read.";
+              }
+            },
+          }}
+        >
+          {(field) => (
+            <Field className="sm:col-span-2">
+              <FieldLabel htmlFor="project-logo">Logo</FieldLabel>
+              <Input
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                id="project-logo"
+                name={field.name}
+                onChange={(event) => {
+                  form.setFieldValue("logo", "");
+                  field.handleChange(event.target.files?.[0] ?? null);
+                }}
+                type="file"
+              />
+              <FieldDescription>
+                Optional. Choose a PNG, JPEG, WebP, or GIF image up to 750 KB.
+                Project color, CSS, and fonts are not part of the profile.
+              </FieldDescription>
+              {field.state.meta.errors.map((error) => (
+                <p key={error} role="alert">
+                  {error}
+                </p>
+              ))}
+            </Field>
+          )}
+        </form.Field>
+      </FieldGroup>
+    </details>
+  );
+}
+
 export default function ProjectCreateForm() {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [formError, setFormError] = useState<string | null>(null);
-  const [isLogoReading, setIsLogoReading] = useState(false);
-  const pendingCreate = useRef<{
-    clientIdempotencyKey: string;
-    values: string;
-  } | null>(null);
-
-  const createProject = useMutation({
-    mutationFn: (input: CreateProjectMutationInput) =>
-      runOnlineOnlyWrite(() => client.createProject(input)),
-    onError: (error) => {
-      setFormError(errorMessage(error));
-    },
-    onSuccess: async () => {
-      pendingCreate.current = null;
-      await queryClient.invalidateQueries({ queryKey: projectsQueryPrefix });
-      toast.success("Project created.");
-      await navigate({ to: "/projects" });
-    },
-  });
-
-  const form = useForm({
-    defaultValues: INITIAL_VALUES,
-    onSubmit: async ({ value }) => {
-      const parsed = createProjectInputSchema.safeParse({
-        logo: optionalValue(value.logo),
-        name: value.name,
-        problem: optionalValue(value.problem),
-        purpose: optionalValue(value.purpose),
-        scope: optionalValue(value.scope),
-        starterConfiguration: value.starterConfiguration,
-        targetDate: optionalValue(value.targetDate),
-      });
-      if (!parsed.success) {
-        setFormError(parsed.error.issues[0]?.message ?? "Check the form.");
-        return;
-      }
-
-      setFormError(null);
-      const serialized = JSON.stringify(parsed.data);
-      const pending = pendingCreate.current;
-      const clientIdempotencyKey =
-        pending?.values === serialized
-          ? pending.clientIdempotencyKey
-          : crypto.randomUUID();
-      pendingCreate.current = { clientIdempotencyKey, values: serialized };
-      await createProject.mutateAsync({
-        ...parsed.data,
-        baseRevision: 0,
-        clientIdempotencyKey,
-      });
-    },
-  });
+  const { form, formError, isPending } = useProjectCreateForm();
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
-  }
-
-  function handleLogoChange(
-    event: ChangeEvent<HTMLInputElement>,
-    onChange: (value: string) => void,
-  ) {
-    const file = event.target.files?.[0];
-    if (!file) {
-      onChange("");
-      return;
-    }
-    if (!PROJECT_LOGO_ACCEPTED_TYPES.has(file.type)) {
-      event.target.value = "";
-      setFormError("Logo must be a PNG, JPEG, WebP, or GIF image.");
-      return;
-    }
-    if (file.size > PROJECT_LOGO_MAX_BYTES) {
-      event.target.value = "";
-      setFormError("Logo must be 750 KB or smaller.");
-      return;
-    }
-
-    setFormError(null);
-    setIsLogoReading(true);
-    readProjectLogo(file)
-      .then((logo) => onChange(logo))
-      .catch((error) => {
-        onChange("");
-        setFormError(
-          error instanceof Error ? error.message : "Logo could not be read.",
-        );
-        event.target.value = "";
-      })
-      .finally(() => setIsLogoReading(false));
+    submitForm(form).catch(() => undefined);
   }
 
   return (
-    <form className="space-y-8" noValidate onSubmit={handleSubmit}>
+    <ProjectCreateFields
+      form={form}
+      formError={formError}
+      isPending={isPending}
+      onSubmit={handleSubmit}
+    />
+  );
+}
+
+function ProjectCreateFields({
+  form,
+  formError,
+  isPending,
+  onSubmit,
+}: ReturnType<typeof useProjectCreateForm> & {
+  onSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form className="space-y-8" noValidate onSubmit={onSubmit}>
       {formError ? (
         <div
           className="rounded-lg border border-destructive/25 bg-destructive/5 p-4"
@@ -264,92 +285,7 @@ export default function ProjectCreateForm() {
         </FieldGroup>
       </section>
 
-      <details className="border-t border-border/70 pt-4">
-        <summary className="flex min-h-10 cursor-pointer items-center text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-          Optional profile details
-        </summary>
-        <FieldGroup className="mt-6 grid gap-x-6 gap-y-6 sm:grid-cols-2">
-          <form.Field name="purpose">
-            {(field) => (
-              <Field>
-                <FieldLabel htmlFor="project-purpose">Purpose</FieldLabel>
-                <Textarea
-                  id="project-purpose"
-                  name={field.name}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="What are you building?"
-                  value={field.state.value}
-                />
-              </Field>
-            )}
-          </form.Field>
-          <form.Field name="problem">
-            {(field) => (
-              <Field>
-                <FieldLabel htmlFor="project-problem">Problem</FieldLabel>
-                <Textarea
-                  id="project-problem"
-                  name={field.name}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="What problem does it solve?"
-                  value={field.state.value}
-                />
-              </Field>
-            )}
-          </form.Field>
-          <form.Field name="scope">
-            {(field) => (
-              <Field>
-                <FieldLabel htmlFor="project-scope">Scope</FieldLabel>
-                <Textarea
-                  id="project-scope"
-                  name={field.name}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="What belongs in this Project?"
-                  value={field.state.value}
-                />
-              </Field>
-            )}
-          </form.Field>
-          <form.Field name="targetDate">
-            {(field) => (
-              <Field>
-                <FieldLabel htmlFor="project-target-date">
-                  Target date
-                </FieldLabel>
-                <DatePicker
-                  ariaLabel="Target date"
-                  clearLabel="Clear target date"
-                  id="project-target-date"
-                  onChange={(value) => field.handleChange(value)}
-                  placeholder="Select a target date"
-                  value={field.state.value}
-                />
-              </Field>
-            )}
-          </form.Field>
-          <form.Field name="logo">
-            {(field) => (
-              <Field className="sm:col-span-2">
-                <FieldLabel htmlFor="project-logo">Logo</FieldLabel>
-                <Input
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  id="project-logo"
-                  name={field.name}
-                  onChange={(event) => {
-                    handleLogoChange(event, field.handleChange);
-                  }}
-                  type="file"
-                />
-                <FieldDescription>
-                  Optional. Choose a PNG, JPEG, WebP, or GIF image up to 750 KB.
-                  Project color, CSS, and fonts are not part of the profile.
-                </FieldDescription>
-              </Field>
-            )}
-          </form.Field>
-        </FieldGroup>
-      </details>
+      <ProjectProfileDetails form={form} />
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-5">
         <Link
@@ -359,19 +295,20 @@ export default function ProjectCreateForm() {
           <ArrowLeft aria-hidden="true" />
           Cancel
         </Link>
-        <form.Subscribe selector={(state) => state.isSubmitting}>
-          {(isSubmitting) => (
+        <form.Subscribe
+          selector={(state) => ({
+            isSubmitting: state.isSubmitting,
+            isValidating: state.isValidating,
+          })}
+        >
+          {({ isSubmitting, isValidating }) => (
             <Button
               className="min-h-11"
-              disabled={
-                isLogoReading || isSubmitting || createProject.isPending
-              }
+              disabled={isValidating || isSubmitting || isPending}
               type="submit"
             >
               <FolderPlus aria-hidden="true" />
-              {isSubmitting || createProject.isPending
-                ? "Creating…"
-                : "Create Project"}
+              {isSubmitting || isPending ? "Creating…" : "Create Project"}
             </Button>
           )}
         </form.Subscribe>

@@ -61,9 +61,9 @@ export function useExportFlow({
     pending: inspect.isPending || produce.isPending,
     produced: produce.data ?? null,
     refusal: error ? exportRefusalMessage(error) : null,
-    review: (request: ExportRequest) => {
+    review: async (request: ExportRequest) => {
       produce.reset();
-      inspect.mutate(request);
+      await inspect.mutateAsync(request);
     },
     reviewing,
   };

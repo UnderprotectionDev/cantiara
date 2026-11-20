@@ -7,7 +7,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useEffect } from "react";
+import type { SubmitEvent } from "react";
 import { goalRelationFormSchema } from "../../lib/goal-relation-form";
 import {
   type GoalRelationChange,
@@ -18,32 +18,29 @@ export function ProjectGoalRelationForm({
   detail,
   onAdd,
   pending,
-  settledChanges,
 }: {
   detail: ProjectGoalDetail;
   onAdd: (change: GoalRelationChange) => Promise<unknown>;
   pending: boolean;
-  /** Submission timestamp of the saved relation. */
-  settledChanges: number;
 }) {
   const form = useForm({
     defaultValues: {
       kind: "Contributes to Goal" as GoalRelationChange["kind"],
       selection: "",
     },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value, formApi }) => {
       if (!goalRelationFormSchema.safeParse(value).success) {
         return;
       }
-      add();
+      if (chosen) {
+        await add(chosen);
+        formApi.reset(
+          { kind: value.kind, selection: "" },
+          { keepDefaultValues: true },
+        );
+      }
     },
   });
-  // biome-ignore lint/correctness/useExhaustiveDependencies: A saved change is the only trigger that clears the Record choice.
-  useEffect(() => {
-    if (settledChanges) {
-      form.setFieldValue("selection", "");
-    }
-  }, [settledChanges]);
   const { kind, selection } = useSelector(form.store, (state) => state.values);
   const candidates = detail.candidates.filter(
     (source) =>
@@ -58,20 +55,17 @@ export function ProjectGoalRelationForm({
   const chosen = candidates.find(
     (source) => selectionKey(source) === selection,
   );
-  function add() {
-    if (!chosen) {
-      return;
-    }
+  function add(source: ProjectGoalDetail["candidates"][number]) {
     const previous = detail.relations.find(
       (row) =>
-        row.kind === kind && selectionKey(row.source) === selectionKey(chosen),
+        row.kind === kind && selectionKey(row.source) === selectionKey(source),
     );
-    onAdd({
-      source: chosen,
+    return onAdd({
+      source,
       kind,
       attached: true,
       baseRevision: previous?.revision ?? 0,
-    }).catch(() => undefined);
+    });
   }
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -99,9 +93,7 @@ export function ProjectGoalRelationForm({
                 field.handleChange(
                   event.target.value as GoalRelationChange["kind"],
                 );
-                if (settledChanges) {
-                  form.setFieldValue("selection", "");
-                }
+                form.setFieldValue("selection", "");
               }}
               value={field.state.value}
             >

@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the current record and form field.
+
 import type {
   Document,
   DocumentEvidenceSelection,
@@ -11,8 +12,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { type SubmitEvent, useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 import { assumptionFormSchema } from "../../lib/uncertainty-record-form";
 
@@ -51,29 +53,30 @@ export function AssumptionEditor({
   onSave: Save;
   onCancel: () => void;
 }) {
-  const [baseRecord] = useState(record);
-  const [error, setError] = useState<string>();
   const [conflict, setConflict] = useState(false);
   const outcome = life === "Confirmed" || life === "Refuted";
   // Keep each editing session pinned to the versions it offered; a stale choice must conflict at commit.
-  const [evidenceDocuments] = useState(() =>
-    documents.filter(
-      (doc) => doc.body.trim().length > 0 && doc.body.length <= 100_000,
-    ),
-  );
   const form = useForm({
     defaultValues: {
-      title: baseRecord?.title ?? "",
-      statement: baseRecord?.statement ?? "",
-      rationale: life ? "" : (baseRecord?.rationale ?? ""),
+      baseRecord: record,
+      evidenceDocuments: documents.filter(
+        (doc) => doc.body.trim().length > 0 && doc.body.length <= 100_000,
+      ),
+      title: record?.title ?? "",
+      statement: record?.statement ?? "",
+      rationale: life ? "" : (record?.rationale ?? ""),
       documentId: "",
     },
-    onSubmit: async ({ value }) => {
-      setError(undefined);
+    onSubmit: async ({
+      value: { baseRecord, evidenceDocuments, ...value },
+    }) => {
+      form.setErrorMap({ onSubmit: undefined });
       if (!life) {
         const parsed = assumptionFormSchema.safeParse(value);
         if (!parsed.success) {
-          setError(parsed.error.issues[0]?.message);
+          form.setErrorMap({
+            onSubmit: { form: parsed.error.issues[0]?.message, fields: {} },
+          });
           return;
         }
       }
@@ -81,7 +84,12 @@ export function AssumptionEditor({
         (doc) => doc.id === value.documentId,
       );
       if (outcome && value.documentId && !selected) {
-        setError("Evidence is unavailable. Choose it again before saving.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Evidence is unavailable. Choose it again before saving.",
+            fields: {},
+          },
+        });
         return;
       }
       try {
@@ -111,18 +119,29 @@ export function AssumptionEditor({
           "code" in saveError &&
           saveError.code === "CONFLICT";
         setConflict(changed);
-        setError(
-          changed
-            ? "Assumption or Evidence changed. Cancel and reopen before saving again. Your text is kept here."
-            : "Assumption could not be saved. Retry, or reload to check for changes. Your text is kept here.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form: changed
+              ? "Assumption or Evidence changed. Cancel and reopen before saving again. Your text is kept here."
+              : "Assumption could not be saved. Retry, or reload to check for changes. Your text is kept here.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const { evidenceDocuments: offeredDocuments } = useSelector(
+    form.store,
+    (state) => state.values,
+  );
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form
@@ -180,7 +199,7 @@ export function AssumptionEditor({
             {outcome ? (
               <form.Field name="documentId">
                 {(field) => {
-                  const selected = evidenceDocuments.find(
+                  const selected = offeredDocuments.find(
                     (doc) => doc.id === field.state.value,
                   );
                   return (
@@ -199,7 +218,7 @@ export function AssumptionEditor({
                         <NativeSelectOption value="">
                           No new evidence
                         </NativeSelectOption>
-                        {evidenceDocuments.map((doc) => (
+                        {offeredDocuments.map((doc) => (
                           <NativeSelectOption key={doc.id} value={doc.id}>
                             {doc.title} — Version {doc.revision}
                           </NativeSelectOption>

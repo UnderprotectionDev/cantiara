@@ -1,20 +1,20 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over current field handlers.
+
 import { createTagInputSchema } from "@cantiara/api/tags";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 export function CreateTagForm({
-  error,
+  error: writeError,
   onCreate,
-  onValidationError,
   pending,
 }: {
   error: string | null;
   onCreate: (name: string) => Promise<unknown>;
-  onValidationError: (message: string | null) => void;
   pending: boolean;
 }) {
   const form = useForm({
@@ -22,12 +22,14 @@ export function CreateTagForm({
     onSubmit: async ({ value, formApi }) => {
       const parsed = createTagInputSchema.safeParse({ name: value.name });
       if (!parsed.success) {
-        onValidationError(
-          parsed.error.issues[0]?.message ?? "Check the tag name.",
-        );
+        formApi.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the tag name.",
+            fields: {},
+          },
+        });
         return;
       }
-      onValidationError(null);
       try {
         await onCreate(parsed.data.name);
       } catch {
@@ -37,10 +39,16 @@ export function CreateTagForm({
     },
   });
 
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const error = validationError ?? writeError;
+
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   return (

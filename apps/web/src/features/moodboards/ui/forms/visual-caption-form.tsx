@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current Moodboard and field handlers.
+
 import {
   MOODBOARD_CAPTION_MAX_LENGTH,
   MOODBOARD_UI_LABELS,
@@ -10,7 +11,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
 import { captionOrNull } from "../../lib/moodboard-form";
@@ -26,28 +27,36 @@ export function VisualCaptionForm({
   item: MoodboardVisual;
   moodboard: Moodboard;
 }) {
-  const [formError, setFormError] = useState<string | null>(null);
   const inputId = `moodboard-caption-${item.id}`;
   const form = useForm({
     defaultValues: { caption: item.caption ?? "" },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value }) => {
       const parsed = updateMoodboardVisualCaptionInputSchema.safeParse({
         caption: captionOrNull(value.caption),
         itemId: item.id,
         moodboardId: moodboard.id,
       });
       if (!parsed.success) {
-        setFormError(parsed.error.issues[0]?.message ?? "Check the Caption.");
+        form.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the Caption.",
+            fields: {},
+          },
+        });
         return;
       }
-      setFormError(null);
-      api.updateCaption.mutate({
+      form.setErrorMap({ onSubmit: undefined });
+      await api.updateCaption.mutateAsync({
         caption: parsed.data.caption,
         itemId: item.id,
         moodboard,
       });
     },
   });
+  const formError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const caption = useSelector(form.store, (state) => state.values.caption);
 
   return (
@@ -57,7 +66,7 @@ export function VisualCaptionForm({
         onSubmit={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          form.handleSubmit().catch(() => undefined);
+          submitForm(form).catch(() => undefined);
         }}
       >
         <div className="flex-1 space-y-1">

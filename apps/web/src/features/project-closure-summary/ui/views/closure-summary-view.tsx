@@ -112,7 +112,7 @@ export function ClosureSummaryView({
   const failed = inspect.isError || save.isError || comparison.isError;
   const pending = inspect.isPending || save.isPending;
   const { mutateAsync: inspectAsync, reset: resetInspect } = inspect;
-  const { mutate: saveAsync, reset: resetSave } = save;
+  const { mutateAsync: saveAsync, reset: resetSave } = save;
   const { refetch: fetchComparison } = comparison;
   const failedSave = save.isError ? save.variables : undefined;
 
@@ -137,9 +137,9 @@ export function ClosureSummaryView({
     }
   }, [draftStage, fetchComparison]);
   const onSaveDraft = useCallback(
-    (value: { markdown: string; title: string }) => {
+    async (value: { markdown: string; title: string }) => {
       if (draftStage) {
-        saveAsync(
+        await saveAsync(
           commandVariables<
             Omit<
               Parameters<typeof client.saveProjectClosureSummary>[0],

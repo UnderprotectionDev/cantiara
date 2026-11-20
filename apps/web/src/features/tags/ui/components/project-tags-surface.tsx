@@ -66,9 +66,6 @@ export default function ProjectTagsSurface({
   projectId: string;
 }) {
   const [filterTagId, setFilterTagId] = useState("");
-  const [formValidationError, setFormValidationError] = useState<string | null>(
-    null,
-  );
   const [renameValidationError, setRenameValidationError] = useState<
     string | null
   >(null);
@@ -143,11 +140,9 @@ export default function ProjectTagsSurface({
   const actionError = remove.isError
     ? errorMessage(remove.error, "Tag could not be removed.")
     : applyError;
-  const formError =
-    formValidationError ??
-    (create.isError
-      ? errorMessage(create.error, "Tag could not be created.")
-      : null);
+  const formError = create.isError
+    ? errorMessage(create.error, "Tag could not be created.")
+    : null;
   const renameFailure = rename.isError
     ? errorMessage(rename.error, "Tag could not be renamed.")
     : null;
@@ -175,9 +170,8 @@ export default function ProjectTagsSurface({
 
       <CreateTagForm
         error={formError}
-        onCreate={(name) => {
-          setFormValidationError(null);
-          return create.mutateAsync(
+        onCreate={(name) =>
+          create.mutateAsync(
             commandVariables(
               { name },
               create.isError && create.variables?.clientIdempotencyKey
@@ -187,9 +181,8 @@ export default function ProjectTagsSurface({
                   }
                 : undefined,
             ),
-          );
-        }}
-        onValidationError={setFormValidationError}
+          )
+        }
         pending={create.isPending}
       />
 

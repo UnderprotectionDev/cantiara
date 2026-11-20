@@ -1,15 +1,17 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import type { SubmitEvent } from "react";
+import { type Ref, type SubmitEvent, useImperativeHandle } from "react";
 
 import { recordTablePasteTextFormSchema } from "../../lib/record-table-paste-form";
 
 /** The `Paste rows` form: the pasted text that `Preview paste` turns into reviewable rows. */
 export default function RecordTablePasteForm({
   onReview,
+  resetRef,
 }: {
   onReview: (text: string) => void;
+  resetRef?: Ref<() => void>;
 }) {
   const form = useForm({
     defaultValues: { pasteText: "" },
@@ -20,6 +22,7 @@ export default function RecordTablePasteForm({
       }
     },
   });
+  useImperativeHandle(resetRef, () => () => form.reset(), [form]);
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();

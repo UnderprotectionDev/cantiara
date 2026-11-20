@@ -7,8 +7,9 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   type ProductionIncidentFollowUpDraft,
   type ProductionIncidentFollowUpValues,
@@ -28,27 +29,37 @@ export function ProductionIncidentFollowUpForm({
   onCancel: () => void;
   onPreview: (values: ProductionIncidentFollowUpValues) => Promise<unknown>;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: draft,
     onSubmit: async ({ value }) => {
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = productionIncidentFollowUpFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError("Enter a title for the Work.");
+        form.setErrorMap({
+          onSubmit: { form: "Enter a title for the Work.", fields: {} },
+        });
         return;
       }
       try {
         await onPreview(parsed.data);
       } catch {
-        setError("The preview could not be loaded. Retry.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "The preview could not be loaded. Retry.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form aria-label="Follow-up work" className="space-y-4" onSubmit={submit}>

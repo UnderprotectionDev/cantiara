@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Toolbar commands use the current Tiptap selection.
+
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import {
@@ -10,10 +11,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import type { useEditor } from "@tiptap/react";
 import { Sigma } from "lucide-react";
 import { useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { documentFormulaFormSchema } from "../../lib/document-insert-form";
 import FieldErrors from "../components/document-field-errors";
 
@@ -21,16 +23,21 @@ type Editor = NonNullable<ReturnType<typeof useEditor>>;
 
 export function DocumentFormulaPopover({ editor }: { editor: Editor }) {
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
   const formulaForm = useForm({
     defaultValues: { latex: "", placement: "inline" },
     onSubmit: ({ value }) => {
       const parsed = documentFormulaFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? null);
+        formulaForm.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? null,
+            fields: {},
+          },
+        });
         return;
       }
-      setError(null);
+      formulaForm.setErrorMap({ onSubmit: undefined });
       const { latex, placement } = parsed.data;
       if (placement === "block") {
         editor.chain().focus().insertBlockMath({ latex }).run();
@@ -41,6 +48,10 @@ export function DocumentFormulaPopover({ editor }: { editor: Editor }) {
       formulaForm.reset();
     },
   });
+  const error = useSelector(
+    formulaForm.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   return (
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger
@@ -57,7 +68,7 @@ export function DocumentFormulaPopover({ editor }: { editor: Editor }) {
           onSubmit={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            formulaForm.handleSubmit().catch(() => undefined);
+            submitForm(formulaForm).catch(() => undefined);
           }}
         >
           <formulaForm.Field name="latex">

@@ -5,7 +5,7 @@ import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
 
 import {
   isConflictError,
@@ -36,22 +36,22 @@ export function ValidationRecordEditor({
   saveError?: unknown;
   savePending?: boolean;
 }) {
-  const [baseRecord] = useState(record);
   const conflict = isConflictError(saveError);
   const form = useForm({
     defaultValues: {
+      baseRecord: record,
       title: record?.title ?? "",
       method: record?.method ?? "",
       result: record?.result ?? "",
       context: record?.context ?? [],
     },
     validators: {
-      onSubmit: ({ value }) =>
+      onSubmit: ({ value: { baseRecord: _baseRecord, ...value } }) =>
         validationRecordFormSchema.safeParse(value).success
           ? undefined
           : "Enter a Title and Method before saving.",
     },
-    onSubmit: async ({ value }) => {
+    onSubmit: async ({ value: { baseRecord, ...value } }) => {
       await onSave(
         { ...value, result: value.result.trim() || null },
         baseRecord,

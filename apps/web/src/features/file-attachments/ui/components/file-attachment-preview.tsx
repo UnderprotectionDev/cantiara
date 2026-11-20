@@ -31,6 +31,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { client, orpc } from "@/utils/orpc";
 import { useBindFileAttachmentLocation } from "../../hooks/use-bind-file-attachment-location";
 import {
@@ -690,10 +691,9 @@ export function FileAttachmentPreviewPanel({
   );
   const handlePreviewLocation = useCallback(
     (input: FileAttachmentLocationBindPreviewInput) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewFileAttachmentLocationBind.queryOptions({ input }),
         gcTime: 0,
-        staleTime: 0,
       }),
     [queryClient],
   );

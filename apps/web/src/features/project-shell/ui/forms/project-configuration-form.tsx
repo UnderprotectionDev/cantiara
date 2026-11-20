@@ -23,7 +23,6 @@ import {
   useCallback,
   useState,
 } from "react";
-import RecordActionEditor from "@/components/record-action-form";
 import PriorityMetricEditor from "@/features/priority-metrics/ui/components/priority-metric-editor";
 import { useProjectAreaEnable } from "@/features/project-shell/hooks/use-project-area-enable";
 import { useProjectConfiguration } from "@/features/project-shell/hooks/use-project-configuration";
@@ -40,7 +39,6 @@ import {
   ProjectAreaAvailability,
   projectAreaAvailabilityLabel,
 } from "@/features/project-shell/ui/components/project-area-availability";
-import WorkContextCardLayoutEditor from "@/features/work-context/ui/components/work-context-card-layout-editor";
 import WorkTemplateEditor from "@/features/work-templates/ui/components/work-template-editor";
 
 function submitConfigurationChange(
@@ -69,6 +67,14 @@ interface ProjectAreasNavigationPreview {
   restorePreviewOpen: boolean;
 }
 
+type WorkContextLayoutFormComponent = ComponentType<{
+  baseRevision: number;
+  configuration: ProjectShellConfiguration;
+  disabled: boolean;
+  error: string | null;
+  projectId: string;
+}>;
+
 type CustomFieldEditorComponent = ComponentType<{
   disabled: boolean;
   projectId: string;
@@ -82,6 +88,8 @@ export default function ProjectConfigurationForm({
   baseRevision,
   configuration,
   CustomFieldEditor,
+  WorkContextLayoutForm,
+  RecordActionEditor,
   configurationHost,
   onConfigurationHostChange,
   projectId,
@@ -91,6 +99,8 @@ export default function ProjectConfigurationForm({
   baseRevision: number;
   configuration: ProjectShellConfiguration;
   CustomFieldEditor: CustomFieldEditorComponent;
+  WorkContextLayoutForm: WorkContextLayoutFormComponent;
+  RecordActionEditor: CustomFieldEditorComponent;
   configurationHost: ConfigurationHost | null;
   onConfigurationHostChange: (host: ConfigurationHost | null) => void;
   projectId: string;
@@ -232,6 +242,8 @@ export default function ProjectConfigurationForm({
               projectAreasNavigationPreview={projectAreasNavigationPreview}
               projectId={projectId}
               projectName={projectName}
+              RecordActionEditor={RecordActionEditor}
+              WorkContextLayoutForm={WorkContextLayoutForm}
             />
           ) : (
             <div className="flex min-h-20 items-center border-t border-border/70 pt-4 lg:min-h-32 lg:border-0 lg:pt-0">
@@ -279,6 +291,8 @@ function ConfigurationHostPanel({
   baseRevision,
   configuration,
   CustomFieldEditor,
+  WorkContextLayoutForm,
+  RecordActionEditor,
   disabled,
   error,
   label,
@@ -292,6 +306,8 @@ function ConfigurationHostPanel({
   baseRevision: number;
   configuration: ProjectShellConfiguration;
   CustomFieldEditor: CustomFieldEditorComponent;
+  WorkContextLayoutForm: WorkContextLayoutFormComponent;
+  RecordActionEditor: CustomFieldEditorComponent;
   disabled: boolean;
   error: string | null;
   label: ConfigurationHost;
@@ -334,6 +350,8 @@ function ConfigurationHostPanel({
         projectAreasNavigationPreview={projectAreasNavigationPreview}
         projectId={projectId}
         projectName={projectName}
+        RecordActionEditor={RecordActionEditor}
+        WorkContextLayoutForm={WorkContextLayoutForm}
       />
     </section>
   );
@@ -343,6 +361,8 @@ function ConfigurationHostContent({
   baseRevision,
   configuration,
   CustomFieldEditor,
+  WorkContextLayoutForm,
+  RecordActionEditor,
   disabled,
   error,
   label,
@@ -357,6 +377,8 @@ function ConfigurationHostContent({
   baseRevision: number;
   configuration: ProjectShellConfiguration;
   CustomFieldEditor: CustomFieldEditorComponent;
+  WorkContextLayoutForm: WorkContextLayoutFormComponent;
+  RecordActionEditor: CustomFieldEditorComponent;
   disabled: boolean;
   error: string | null;
   label: ConfigurationHost;
@@ -448,7 +470,7 @@ function ConfigurationHostContent({
       return <RecordActionEditor disabled={disabled} projectId={projectId} />;
     case "Work Context Card layout":
       return (
-        <WorkContextCardLayoutEditor
+        <WorkContextLayoutForm
           baseRevision={baseRevision}
           configuration={configuration}
           disabled={disabled}

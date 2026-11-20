@@ -3,8 +3,9 @@
 import { LINK_PASSWORD_LABEL } from "@cantiara/api/link-sharing";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { linkSharingRefusalMessage } from "../../lib/link-sharing-refusal";
 import { sharePasswordFormSchema } from "../../lib/share-access";
 
@@ -21,46 +22,71 @@ export function SharePasswordForm({
   onSave: (password: string) => Promise<unknown>;
   passwordProtected: boolean;
 }) {
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
   const form = useForm({
-    defaultValues: { password: "" },
-    onSubmit: async ({ formApi, value }) => {
-      setError(null);
-      setSaved(null);
-      const parsed = sharePasswordFormSchema.safeParse(value);
+    defaultValues: { password: "", result: null as string | null },
+    onSubmitMeta: { action: "save" } as { action: "save" | "remove" },
+    onSubmit: async ({ formApi, meta, value }) => {
+      formApi.setFieldValue("result", null);
+      if (meta.action === "remove") {
+        await remove();
+        return;
+      }
+      form.setErrorMap({ onSubmit: undefined });
+      const parsed = sharePasswordFormSchema.safeParse({
+        password: value.password,
+      });
       if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? "Enter a password.");
+        form.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Enter a password.",
+            fields: {},
+          },
+        });
         return;
       }
       try {
         await onSave(parsed.data.password);
         formApi.reset();
-        setSaved("Password saved. Every open visit ended.");
-      } catch (failure) {
-        setError(
-          linkSharingRefusalMessage(failure) ??
-            "The password could not be saved. Try again.",
+        formApi.setFieldValue(
+          "result",
+          "Password saved. Every open visit ended.",
         );
+      } catch (failure) {
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              linkSharingRefusalMessage(failure) ??
+              "The password could not be saved. Try again.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const saved = useSelector(form.store, (state) => state.values.result);
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   async function remove() {
-    setError(null);
-    setSaved(null);
+    form.setErrorMap({ onSubmit: undefined });
     try {
       await onRemove();
-      setSaved("Password removed. Every open visit ended.");
+      form.setFieldValue("result", "Password removed. Every open visit ended.");
     } catch (failure) {
-      setError(
-        linkSharingRefusalMessage(failure) ??
-          "The password could not be removed. Try again.",
-      );
+      form.setErrorMap({
+        onSubmit: {
+          form:
+            linkSharingRefusalMessage(failure) ??
+            "The password could not be removed. Try again.",
+          fields: {},
+        },
+      });
     }
   }
   return (
@@ -105,7 +131,9 @@ export function SharePasswordForm({
             {passwordProtected ? (
               <Button
                 disabled={isSubmitting}
-                onClick={remove}
+                onClick={() =>
+                  submitForm(form, { action: "remove" }).catch(() => undefined)
+                }
                 type="button"
                 variant="outline"
               >

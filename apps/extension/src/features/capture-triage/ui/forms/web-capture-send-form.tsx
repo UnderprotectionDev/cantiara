@@ -7,6 +7,7 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useEffect } from "react";
 
+import type { useWebCaptureInboxSearch } from "../../hooks/use-web-capture-inbox-search";
 import type {
   StoredWebCaptureLink,
   WebCaptureDraft,
@@ -19,8 +20,7 @@ export function WebCaptureSendForm({
   link,
   onInvalid,
   onSend,
-  onTargetSearchChange,
-  targetSearch,
+  searchForm,
   targets,
 }: {
   draft: WebCaptureDraft;
@@ -28,8 +28,7 @@ export function WebCaptureSendForm({
   link: StoredWebCaptureLink | null;
   onInvalid: () => void;
   onSend: (targetId: string) => Promise<void>;
-  onTargetSearchChange: (value: string) => void;
-  targetSearch: string;
+  searchForm: ReturnType<typeof useWebCaptureInboxSearch>;
   targets: WebCaptureTarget[];
 }) {
   const form = useForm({
@@ -90,12 +89,18 @@ export function WebCaptureSendForm({
           <dd>
             {link ? (
               <>
-                <Input
-                  aria-label="Search Inbox"
-                  onChange={(event) => onTargetSearchChange(event.target.value)}
-                  placeholder="Search Inbox"
-                  value={targetSearch}
-                />
+                <searchForm.Field name="targetSearch">
+                  {(field) => (
+                    <Input
+                      aria-label="Search Inbox"
+                      onChange={(event) =>
+                        field.handleChange(event.target.value)
+                      }
+                      placeholder="Search Inbox"
+                      value={field.state.value}
+                    />
+                  )}
+                </searchForm.Field>
                 <form.Field name="targetId">
                   {(field) => (
                     <NativeSelect
@@ -121,13 +126,19 @@ export function WebCaptureSendForm({
           </dd>
         </div>
       </dl>
-      <button
-        className="send-button"
-        disabled={!link || isSending || targets.length === 0}
-        type="submit"
-      >
-        {isSending ? "Sending…" : "Send"}
-      </button>
+      <form.Subscribe selector={(state) => state.isSubmitting}>
+        {(isSubmitting) => (
+          <button
+            className="send-button"
+            disabled={
+              !link || isSending || isSubmitting || targets.length === 0
+            }
+            type="submit"
+          >
+            {isSending || isSubmitting ? "Sending…" : "Send"}
+          </button>
+        )}
+      </form.Subscribe>
     </form>
   );
 }

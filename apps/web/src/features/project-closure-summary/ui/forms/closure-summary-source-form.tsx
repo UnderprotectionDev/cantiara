@@ -9,6 +9,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useForm } from "@tanstack/react-form";
 import { useId } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   type ClosureSummarySelectionForm,
   closureSummarySelectionFormSchema,
@@ -29,17 +30,17 @@ export function ClosureSummarySourceForm({
   onSubmitSources: (
     selected: string[],
     action: ClosureSummarySourceAction,
-  ) => void;
+  ) => Promise<void>;
   pending: boolean;
   selected: string[];
 }) {
   const idPrefix = useId();
   const form = useForm({
     defaultValues: { selected } as ClosureSummarySelectionForm,
-    onSubmit: ({ meta, value }) => {
+    onSubmit: async ({ meta, value }) => {
       const parsed = closureSummarySelectionFormSchema.safeParse(value);
       if (parsed.success) {
-        onSubmitSources(parsed.data.selected, meta?.action ?? "preview");
+        await onSubmitSources(parsed.data.selected, meta?.action ?? "preview");
       }
     },
     onSubmitMeta: { action: "preview" } as {
@@ -53,7 +54,7 @@ export function ClosureSummarySourceForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit({ action: "preview" }).catch(() => undefined);
+        submitForm(form, { action: "preview" }).catch(() => undefined);
       }}
     >
       <h4 className="text-sm font-medium">
@@ -107,7 +108,7 @@ export function ClosureSummarySourceForm({
         <Button
           disabled={pending}
           onClick={() => {
-            form.handleSubmit({ action: "generate" }).catch(() => undefined);
+            submitForm(form, { action: "generate" }).catch(() => undefined);
           }}
           type="button"
         >

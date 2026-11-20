@@ -11,8 +11,9 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   EMPTY_PROJECT_RELEASE_LINK_DRAFT,
   projectReleaseLinkFormSchema,
@@ -42,31 +43,44 @@ export function ProjectReleaseLinkForm({
   onAdd: (values: ProjectReleaseLinkValues) => Promise<unknown>;
   repositories: readonly ProjectReleaseRepository[];
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: EMPTY_PROJECT_RELEASE_LINK_DRAFT,
     onSubmit: async ({ value, formApi }) => {
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = projectReleaseLinkFormSchema.safeParse(value);
       if (!parsed.success) {
         const field = parsed.error.issues[0]?.path[0];
-        setError(
-          LINK_ERRORS[field as keyof typeof LINK_ERRORS] ?? LINK_ERRORS.label,
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              LINK_ERRORS[field as keyof typeof LINK_ERRORS] ??
+              LINK_ERRORS.label,
+            fields: {},
+          },
+        });
         return;
       }
       try {
         await onAdd(parsed.data);
         formApi.reset();
       } catch {
-        setError("Reference could not be added. Reload and try again.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Reference could not be added. Reload and try again.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form

@@ -45,7 +45,7 @@ export default function DocumentEvidenceDialog({
       { targetRecordId: string; targetRecordType: DocumentEvidenceTargetType },
       unknown
     >,
-    "mutate" | "isPending" | "isError" | "error"
+    "mutateAsync" | "isPending" | "isError" | "error"
   >;
 }) {
   return (
@@ -91,7 +91,7 @@ function DocumentEvidenceForm({
       { targetRecordId: string; targetRecordType: DocumentEvidenceTargetType },
       unknown
     >,
-    "mutate" | "isPending" | "isError" | "error"
+    "mutateAsync" | "isPending" | "isError" | "error"
   >;
   pinEvidenceKey: import("react").RefObject<string | null>;
   recordReferenceOptions: { id: string; label: string; recordType: string }[];
@@ -101,10 +101,10 @@ function DocumentEvidenceForm({
       targetRecordId: "",
       targetRecordType: "Work" as DocumentEvidenceTargetType,
     },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value }) => {
       const parsed = pinDocumentEvidenceFormSchema.safeParse(value);
       if (parsed.success) {
-        pinEvidence.mutate(parsed.data);
+        await pinEvidence.mutateAsync(parsed.data);
       }
     },
   });

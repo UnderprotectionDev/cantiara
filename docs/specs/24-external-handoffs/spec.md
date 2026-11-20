@@ -59,6 +59,8 @@ Her kesin gidiş İşe ait, bağımsız yaşayamayan tarihsel bir Dış yürütm
 
 ## Testing Decisions
 
+- **#545.** The web external-execution-handoff.test.tsx seam checks that a rejected Work history write leaves the successful Clipboard announcement visible and presents the write failure separately.
+
 - The Work Handoff seam keeps Start and Reconcile failures associated with their active commands and verifies that rejecting a preview clears that handoff’s review.
 
 - **What a good test is.** Tests observe External Execution Handoff through its public interface: start on a Work, package bytes from a selected version manifest, start/production/export Work-history events with actor and time and visible `You` attribution but no package content, archived Work history reads, the free-text warning, record return, reconcile preview/confirm, cancel with reason, and whether `external-run-returned` is produced or closed. They do not assert general Drizzle row shapes, Markdown template internals, or mock private collaborators. The signal tombstone counterpart may check only that its account and source identities persist after Work deletion at the database persistence boundary; it must not read source content. Expected values are product rules (owned component, frozen package, terminals only `Reconciled`/`Canceled`, no silent field overwrite).

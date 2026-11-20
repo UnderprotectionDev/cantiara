@@ -149,7 +149,7 @@ test("an unpublished Project offers nothing to manage", () => {
   expect(view.querySelectorAll("button")).toHaveLength(0);
 });
 
-test("a reserved or malformed slug shows the schema message and is not previewed", () => {
+test("a reserved or malformed slug shows the schema message and is not previewed", async () => {
   const onPreviewSlug = vi.fn();
   const view = render(
     <BuildInPublicPublicationPanel
@@ -161,7 +161,7 @@ test("a reserved or malformed slug shows the schema message and is not previewed
     />,
   );
 
-  click(button(view, "Preview slug change"));
+  await clickAndSettle(button(view, "Preview slug change"));
 
   expect(onPreviewSlug).not.toHaveBeenCalled();
   expect(view.querySelector('[role="alert"]')?.textContent).toBe(

@@ -1,10 +1,11 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
+
 import { userFlowTitleSchema } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 export function CreateUserFlowForm({
   onCreate,
@@ -13,28 +14,40 @@ export function CreateUserFlowForm({
   onCreate: (title: string) => Promise<unknown>;
   readOnly: boolean;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: { title: "" },
     onSubmit: async ({ formApi, value }) => {
       const parsed = userFlowTitleSchema.safeParse(value.title);
       if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? "Check the title.");
+        form.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the title.",
+            fields: {},
+          },
+        });
         return;
       }
       try {
         await onCreate(parsed.data);
         formApi.setFieldValue("title", "");
-        setError(null);
+        form.setErrorMap({ onSubmit: undefined });
       } catch (failure) {
-        setError(
-          failure instanceof Error
-            ? failure.message
-            : "User Flow could not be created.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              failure instanceof Error
+                ? failure.message
+                : "User Flow could not be created.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const title = useSelector(form.store, (state) => state.values.title);
 
   return (
@@ -43,7 +56,7 @@ export function CreateUserFlowForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form).catch(() => undefined);
       }}
     >
       <Label htmlFor="user-flow-title">Title</Label>

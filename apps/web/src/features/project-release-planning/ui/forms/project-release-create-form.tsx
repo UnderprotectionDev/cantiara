@@ -3,8 +3,9 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   EMPTY_PROJECT_RELEASE_CREATE_DRAFT,
   projectReleaseCreateFormSchema,
@@ -24,29 +25,37 @@ export function ProjectReleaseCreateForm({
   onCancel: () => void;
   onCreate: (values: ProjectReleaseCreateValues) => Promise<unknown>;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: EMPTY_PROJECT_RELEASE_CREATE_DRAFT,
     onSubmit: async ({ value }) => {
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = projectReleaseCreateFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError("Enter a Name before creating.");
+        form.setErrorMap({
+          onSubmit: { form: "Enter a Name before creating.", fields: {} },
+        });
         return;
       }
       try {
         await onCreate(parsed.data);
       } catch {
-        setError(
-          "Project Release could not be created. Retry; your text is kept here.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form: "Project Release could not be created. Retry; your text is kept here.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form className="space-y-4" onSubmit={submit}>

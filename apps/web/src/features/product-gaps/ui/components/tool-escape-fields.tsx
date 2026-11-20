@@ -17,11 +17,10 @@ import {
 import { Input } from "@cantiara/ui/components/input";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useState } from "react";
 import { DateTimePicker } from "@/components/date-picker";
 import { useProductGapLinkTargets } from "../../hooks/use-product-gap-link-targets";
 import type { EscapeFormValues } from "../../lib/product-gap-form";
-import type { LoadProductGapTargets } from "./product-gap-links-field";
+import type { LoadProductGapTargets } from "../forms/product-gap-links-field-form";
 
 /**
  * The Tool Escape half of `Record Product Gap`: when it happened, the Project
@@ -33,16 +32,18 @@ export function ToolEscapeFields({
   idPrefix,
   loadTargets,
   onChange,
+  onSourceTypeChange,
+  sourceType,
   value,
 }: {
   disabled: boolean;
   idPrefix: string;
   loadTargets: LoadProductGapTargets;
   onChange: (value: EscapeFormValues) => void;
+  onSourceTypeChange: (kind: ProductGapLinkTargetType) => void;
+  sourceType: ProductGapLinkTargetType;
   value: EscapeFormValues;
 }) {
-  const [sourceType, setSourceType] =
-    useState<ProductGapLinkTargetType>("Project");
   const { data: targets = [], isError: loadError } = useProductGapLinkTargets(
     loadTargets,
     sourceType,
@@ -95,7 +96,9 @@ export function ToolEscapeFields({
             disabled={disabled}
             id={`${idPrefix}-source-type`}
             onChange={(event) => {
-              setSourceType(event.target.value as ProductGapLinkTargetType);
+              onSourceTypeChange(
+                event.target.value as ProductGapLinkTargetType,
+              );
               onChange({ ...value, source: null });
             }}
             value={sourceType}

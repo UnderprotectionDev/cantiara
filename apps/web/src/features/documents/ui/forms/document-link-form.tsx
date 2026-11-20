@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Toolbar commands use the current Tiptap selection.
+
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import {
@@ -6,10 +7,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import type { useEditor } from "@tiptap/react";
 import { Link2, Unlink2 } from "lucide-react";
 import { useRef, useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { documentLinkFormSchema } from "../../lib/document-insert-form";
 import FieldErrors from "../components/document-field-errors";
 
@@ -23,16 +25,21 @@ export function DocumentLinkPopover({
 }) {
   const [open, setOpen] = useState(false);
   const linkSelection = useRef<Editor["state"]["selection"] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+
   const linkForm = useForm({
     defaultValues: { url: "" },
     onSubmit: ({ value }) => {
       const parsed = documentLinkFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? null);
+        linkForm.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? null,
+            fields: {},
+          },
+        });
         return;
       }
-      setError(null);
+      linkForm.setErrorMap({ onSubmit: undefined });
       const chain = editor.chain().focus();
       if (linkSelection.current) {
         const selection = linkSelection.current;
@@ -46,6 +53,10 @@ export function DocumentLinkPopover({
       setOpen(false);
     },
   });
+  const error = useSelector(
+    linkForm.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   return (
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger
@@ -53,7 +64,7 @@ export function DocumentLinkPopover({
         aria-pressed={active}
         className={`inline-flex size-10 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring ${active ? "bg-accent text-accent-foreground" : ""}`}
         onClick={() => {
-          setError(null);
+          linkForm.setErrorMap({ onSubmit: undefined });
           linkForm.reset({
             url: editor.getAttributes("link").href ?? "",
           });
@@ -72,7 +83,7 @@ export function DocumentLinkPopover({
           onSubmit={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            linkForm.handleSubmit().catch(() => undefined);
+            submitForm(linkForm).catch(() => undefined);
           }}
         >
           <label className="font-medium" htmlFor="document-link-url">

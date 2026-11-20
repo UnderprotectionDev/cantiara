@@ -25,7 +25,7 @@ import {
 } from "@tanstack/react-query";
 import { useSelector } from "@tanstack/react-store";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import { getWorkStatusLabel } from "@/components/work-status-form";
 import type { UserInitiatedWorkCloseOutcome } from "@/features/completion-effects/hooks/use-user-initiated-work-success";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
@@ -33,12 +33,14 @@ import { buildSupportReferenceFailure } from "@/features/web-macos-client/lib/su
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
 import { fetchCurrentWork } from "@/lib/fetch-current-work";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { executeWrite } from "@/utils/execute-write";
 import {
   client,
   invalidateSmartCollectionMembership,
   orpc,
 } from "@/utils/orpc";
+import { useBulkEditStatusForm } from "../../hooks/use-bulk-edit-status-form";
 import type { BulkWorkSelection } from "../../hooks/use-bulk-work-selection";
 import type { BulkEditStatusFormInput } from "../../lib/bulk-edit-form";
 import {
@@ -59,7 +61,6 @@ import {
   updateBulkEditResultAt,
 } from "../../store/bulk-edit-operation";
 import BulkEditStatusForm, {
-  BULK_EDIT_STATUS_FORM_DEFAULTS,
   BULK_EDIT_STATUS_FORM_ID,
 } from "../forms/bulk-edit-status-form";
 
@@ -270,11 +271,10 @@ async function buildBulkEditPreview(
         async (work) =>
           [
             work.id,
-            await queryClient.query({
+            await fetchFresh(queryClient, {
               ...orpc.workClosePreview.queryOptions({
                 input: { workId: work.id },
               }),
-              staleTime: 0,
               gcTime: 0,
             }),
           ] as const,
@@ -700,9 +700,11 @@ export default function BulkEditDialog({
   const operation = operationState.operations
     .filter((candidate) => candidate.projectId === projectId)
     .at(-1);
-  const [formKey, setFormKey] = useState(0);
-  const [input, setInput] = useState(BULK_EDIT_STATUS_FORM_DEFAULTS);
-  const { closureReason, closureResult, targetStatus } = input;
+  const form = useBulkEditStatusForm(buildPreview);
+  const { closureReason, closureResult, targetStatus } = useSelector(
+    form.store,
+    (state) => state.values,
+  );
   const previewMutation = useMutation({
     meta: { presentsSupportFailure: true },
     mutationFn: (values: Parameters<typeof buildBulkEditPreview>[1]) =>
@@ -778,8 +780,7 @@ export default function BulkEditDialog({
   );
 
   function resetForm() {
-    setFormKey((key) => key + 1);
-    setInput(BULK_EDIT_STATUS_FORM_DEFAULTS);
+    form.reset();
     previewMutation.reset();
     applyMutation.reset();
   }
@@ -809,19 +810,16 @@ export default function BulkEditDialog({
     applyMutation.mutate({ operationId: crypto.randomUUID(), preview });
   }
 
-  function changeStatus(status: WorkStatus | "") {
-    setInput((previous) => ({ ...previous, targetStatus: status }));
+  function changeStatus() {
     previewMutation.reset();
     applyMutation.reset();
   }
 
-  function changeClosureResult(result: WorkClosureResult) {
-    setInput((previous) => ({ ...previous, closureResult: result }));
+  function changeClosureResult() {
     applyMutation.reset();
   }
 
-  function changeClosureReason(reason: string) {
-    setInput((previous) => ({ ...previous, closureReason: reason }));
+  function changeClosureReason() {
     applyMutation.reset();
   }
 
@@ -846,10 +844,9 @@ export default function BulkEditDialog({
         <BulkEditStatusForm
           disabled={operation !== undefined}
           displayed={operation ? operation.preview : null}
-          key={formKey}
+          form={form}
           onClosureReasonChange={changeClosureReason}
           onClosureResultChange={changeClosureResult}
-          onPreview={buildPreview}
           onStatusChange={changeStatus}
           workStatusLabels={workStatusLabels}
         />

@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
+
 import type { GitHubExternalRecord } from "@cantiara/api/github-integration";
 import {
   GITHUB_LINK_WORK_LABEL,
@@ -13,7 +14,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { errorText } from "../../lib/github-error-text";
 import type { LinkWorkValues } from "../../lib/github-forms";
 import { parseLinkWork } from "../../lib/github-forms";
@@ -43,8 +44,6 @@ export function LinkWorkForm({
   repositories: RepositoryChoice[];
   works: GitHubWorkLinksOverview["works"];
 }) {
-  const [error, setError] = useState<string>();
-  const [saved, setSaved] = useState<string>();
   const form = useForm({
     defaultValues: {
       linkId: repositories[0]?.id ?? "",
@@ -55,8 +54,7 @@ export function LinkWorkForm({
       workId: "",
     },
     onSubmit: async ({ formApi, value }) => {
-      setError(undefined);
-      setSaved(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = parseLinkWork(
         value.target === "record"
           ? {
@@ -74,19 +72,35 @@ export function LinkWorkForm({
             },
       );
       if (!parsed.ok) {
-        setError(parsed.message);
+        form.setErrorMap({ onSubmit: { form: parsed.message, fields: {} } });
         return;
       }
       try {
         await onLink(parsed.data);
-        setSaved("Linked. The Work and the GitHub record are unchanged.");
         formApi.setFieldValue("recordId", "");
         formApi.setFieldValue("reference", "");
       } catch (caught) {
-        setError(errorText(caught, "The link was not made."));
+        form.setErrorMap({
+          onSubmit: {
+            form: errorText(caught, "The link was not made."),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const succeeded = useSelector(
+    form.store,
+    (state) => state.isSubmitSuccessful,
+  );
+  const saved =
+    succeeded && !error
+      ? "Linked. The Work and the GitHub record are unchanged."
+      : undefined;
   const values = useSelector(form.store, (state) => state.values);
   const pending = useSelector(form.store, (state) => state.isSubmitting);
   const selected = records.find((record) => record.id === values.recordId);
@@ -99,7 +113,7 @@ export function LinkWorkForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form).catch(() => undefined);
       }}
     >
       <h4 className="font-medium">{GITHUB_LINK_WORK_LABEL}</h4>

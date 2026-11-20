@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the picker's local selection.
+
 import {
   PLANNED_TEST_RELATION_MAX,
   PLANNED_TEST_RELATION_TARGET_TYPES,
@@ -7,8 +8,11 @@ import {
 } from "@cantiara/api/planned-tests";
 import { Button } from "@cantiara/ui/components/button";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
+import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useSelector } from "@tanstack/react-store";
+import { type Ref, useId, useImperativeHandle, useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import type { RelationDraft } from "../../lib/planned-test-form";
 
@@ -25,6 +29,7 @@ export function PlannedTestRelationsField({
   idPrefix,
   loadTargets,
   onChange,
+  resetRef,
   projectId,
   value,
 }: {
@@ -32,11 +37,37 @@ export function PlannedTestRelationsField({
   loadTargets: LoadRelationTargets;
   projectId: string;
   onChange: (relations: RelationDraft[]) => void;
+  resetRef?: Ref<() => void>;
   value: RelationDraft[];
 }) {
   const statusId = useId();
-  const [targetType, setTargetType] =
-    useState<PlannedTestRelationTargetType>("Work");
+  const [message, setMessage] = useState("");
+  const picker = useForm({
+    defaultValues: {
+      targetType: "Work" as PlannedTestRelationTargetType,
+      targetId: "",
+      sectionId: "",
+    },
+    onSubmit: ({ formApi }) => {
+      setMessage("");
+      const error = add();
+      if (error) {
+        formApi.setErrorMap({ onSubmit: { form: error, fields: {} } });
+      }
+    },
+  });
+  useImperativeHandle(
+    resetRef,
+    () => () => {
+      picker.reset();
+      setMessage("");
+    },
+    [picker],
+  );
+  const { targetType, targetId, sectionId } = useSelector(
+    picker.store,
+    (state) => state.values,
+  );
   const targetsQuery = useQuery({
     gcTime: 0,
     queryFn: () => loadTargets(targetType),
@@ -45,16 +76,14 @@ export function PlannedTestRelationsField({
     }),
   });
   const targets = targetsQuery.data;
-  const [targetId, setTargetId] = useState("");
-  const [sectionId, setSectionId] = useState("");
-  const [message, setMessage] = useState("");
 
   const selected = targets?.find((target) => target.targetId === targetId);
 
   function chooseType(next: PlannedTestRelationTargetType) {
-    setTargetType(next);
-    setTargetId("");
-    setSectionId("");
+    picker.reset(
+      { targetType: next, targetId: "", sectionId: "" },
+      { keepDefaultValues: true },
+    );
     setMessage("");
   }
 
@@ -65,9 +94,9 @@ export function PlannedTestRelationsField({
     loadMessage = `This Project has no ${targetType} to relate yet.`;
   }
 
-  function add() {
+  function add(): string | undefined {
     if (!selected) {
-      return;
+      return undefined;
     }
     const duplicate = value.some(
       (item) =>
@@ -76,8 +105,7 @@ export function PlannedTestRelationsField({
         item.sectionId === (sectionId || null),
     );
     if (duplicate) {
-      setMessage(`${selected.label} is already related.`);
-      return;
+      return `${selected.label} is already related.`;
     }
     onChange([
       ...value,
@@ -99,12 +127,14 @@ export function PlannedTestRelationsField({
         targetType: selected.targetType,
       },
     ]);
-    setTargetId("");
-    setSectionId("");
+    picker.setFieldValue("targetId", "");
+    picker.setFieldValue("sectionId", "");
     setMessage(`${selected.label} added to relations.`);
+    return undefined;
   }
 
   function remove(index: number) {
+    picker.setErrorMap({ onSubmit: undefined });
     const removed = value[index];
     onChange(value.filter((_, position) => position !== index));
     setMessage(removed ? `${removed.label} removed from relations.` : "");
@@ -166,8 +196,9 @@ export function PlannedTestRelationsField({
               aria-describedby={statusId}
               id={`${idPrefix}-relation-target`}
               onChange={(event) => {
-                setTargetId(event.target.value);
-                setSectionId("");
+                picker.setErrorMap({ onSubmit: undefined });
+                picker.setFieldValue("targetId", event.target.value);
+                picker.setFieldValue("sectionId", "");
               }}
               value={targetId}
             >
@@ -186,7 +217,10 @@ export function PlannedTestRelationsField({
               </label>
               <NativeSelect
                 id={`${idPrefix}-relation-section`}
-                onChange={(event) => setSectionId(event.target.value)}
+                onChange={(event) => {
+                  picker.setErrorMap({ onSubmit: undefined });
+                  picker.setFieldValue("sectionId", event.target.value);
+                }}
                 value={sectionId}
               >
                 <option value="">Whole Document</option>
@@ -201,7 +235,7 @@ export function PlannedTestRelationsField({
           <div className="sm:col-span-2">
             <Button
               disabled={!selected}
-              onClick={add}
+              onClick={() => submitForm(picker).catch(() => undefined)}
               size="sm"
               type="button"
               variant="outline"
@@ -211,6 +245,15 @@ export function PlannedTestRelationsField({
           </div>
         </div>
       )}
+      <picker.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+        {(error) =>
+          typeof error === "string" ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null
+        }
+      </picker.Subscribe>
       <p
         aria-live="polite"
         className="text-sm text-muted-foreground"

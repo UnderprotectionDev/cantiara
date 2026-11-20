@@ -2,8 +2,6 @@
 import {
   CAPTURE_CONVERSION_TARGETS,
   type CaptureConversionTarget,
-  type CaptureConvertPreviewInput,
-  captureConvertPreviewInputSchema,
 } from "@cantiara/api/capture-triage";
 import type { ProjectProfile } from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
@@ -11,33 +9,20 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
 import type { SubmitEvent } from "react";
-
-export interface CaptureConversionSetupValues {
-  projectId: string;
-  recordType: CaptureConversionTarget | "";
-}
-
-function optionalProjectId(projectId: string) {
-  return projectId.trim() || undefined;
-}
+import type { useCaptureConversionSetupForm } from "../../hooks/use-capture-setup-forms";
 
 export function CaptureConversionSetupForm({
-  initialValues,
+  form,
   isOnline,
-  itemId,
   onCancel,
-  onPreview,
   previewPending,
   projects,
   sourceProjectId,
 }: {
-  initialValues: CaptureConversionSetupValues;
+  form: ReturnType<typeof useCaptureConversionSetupForm>;
   isOnline: boolean;
-  itemId: string;
   onCancel: () => void;
-  onPreview: (input: CaptureConvertPreviewInput) => void;
   previewPending: boolean;
   projects:
     | readonly Pick<ProjectProfile, "id" | "name" | "shortCode">[]
@@ -45,24 +30,11 @@ export function CaptureConversionSetupForm({
   sourceProjectId: string | null;
 }) {
   const availableProjects = projects ?? [];
-  const form = useForm({
-    defaultValues: initialValues,
-    onSubmit: ({ value }) => {
-      const parsed = captureConvertPreviewInputSchema.safeParse({
-        itemId,
-        projectId: optionalProjectId(value.projectId),
-        recordType: value.recordType,
-      });
-      if (!parsed.success) {
-        return;
-      }
-      onPreview(parsed.data);
-    },
-  });
 
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
+    form.setErrorMap({ onSubmit: undefined });
     form.handleSubmit().catch(() => undefined);
   }
 
@@ -71,6 +43,11 @@ export function CaptureConversionSetupForm({
       className="space-y-3 border border-border/70 bg-muted/15 p-4"
       onSubmit={submit}
     >
+      <form.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+        {(error) =>
+          typeof error === "string" ? <p role="alert">{error}</p> : null
+        }
+      </form.Subscribe>
       <h3 className="text-sm font-semibold">Choose conversion target</h3>
       <form.Field name="recordType">
         {(field) => (

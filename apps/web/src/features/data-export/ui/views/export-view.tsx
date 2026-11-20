@@ -49,9 +49,7 @@ export function ExportView({
         catalog={catalog}
         disabled={flow.pending}
         handoff={handoff}
-        onPreview={(request) => {
-          flow.review(request);
-        }}
+        onPreview={flow.review}
         projects={projects}
       />
       {flow.refusal ? (

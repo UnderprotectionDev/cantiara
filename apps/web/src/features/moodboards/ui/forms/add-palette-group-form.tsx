@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current Moodboard and field handlers.
+
 import {
   addPaletteGroupInputSchema,
   MOODBOARD_PALETTE_GROUP_NAME_MAX_LENGTH,
@@ -8,8 +9,8 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
-import { useForm } from "@tanstack/react-form";
-import { useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { submitForm } from "@/lib/submit-form";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
 
@@ -22,28 +23,37 @@ export function AddPaletteGroupForm({
   api: MoodboardsApi;
   moodboard: Moodboard;
 }) {
-  const [formError, setFormError] = useState<string | null>(null);
   const inputId = `moodboard-group-${moodboard.id}`;
   const form = useForm({
     defaultValues: { name: "" },
-    onSubmit: ({ formApi, value }) => {
+    onSubmit: async ({ formApi, value }) => {
       const parsed = addPaletteGroupInputSchema.safeParse({
         moodboardId: moodboard.id,
         name: value.name,
       });
       if (!parsed.success) {
-        setFormError(
-          parsed.error.issues[0]?.message ?? "Check the Palette group name.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ??
+              "Check the Palette group name.",
+            fields: {},
+          },
+        });
         return;
       }
-      setFormError(null);
-      api.addPaletteGroup.mutate(
-        { moodboard, name: parsed.data.name },
-        { onSuccess: () => formApi.setFieldValue("name", "") },
-      );
+      form.setErrorMap({ onSubmit: undefined });
+      await api.addPaletteGroup.mutateAsync({
+        moodboard,
+        name: parsed.data.name,
+      });
+      formApi.setFieldValue("name", "");
     },
   });
+  const formError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   return (
     <>
@@ -53,7 +63,7 @@ export function AddPaletteGroupForm({
         onSubmit={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          form.handleSubmit().catch(() => undefined);
+          submitForm(form).catch(() => undefined);
         }}
       >
         <div className="flex-1 space-y-1">

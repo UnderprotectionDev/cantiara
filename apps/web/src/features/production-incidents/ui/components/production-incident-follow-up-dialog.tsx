@@ -113,8 +113,8 @@ export function ProductionIncidentFollowUpDialog({
     inspect.reset();
   }
   function back() {
-    active.current = null;
     setReviewVisible(false);
+    active.current = null;
     create.reset();
   }
   function confirm() {

@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { orpc } from "@/utils/orpc";
 import type { TrashCandidate } from "../lib/trash-candidates";
 
@@ -6,7 +7,7 @@ import type { TrashCandidate } from "../lib/trash-candidates";
 export function usePreviewMoveToTrash(projectId: string) {
   const queryClient = useQueryClient();
   return function preview(candidate: TrashCandidate) {
-    return queryClient.query({
+    return fetchFresh(queryClient, {
       ...orpc.moveToTrashPreview.queryOptions({
         input: {
           projectId,
@@ -15,7 +16,6 @@ export function usePreviewMoveToTrash(projectId: string) {
         },
       }),
       gcTime: 0,
-      staleTime: 0,
     });
   };
 }

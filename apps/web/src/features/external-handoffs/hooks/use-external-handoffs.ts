@@ -7,8 +7,8 @@ import type {
 } from "@cantiara/api/external-handoffs";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 
@@ -90,12 +90,11 @@ export function useExternalExecutionHandoffs(
   const previewReconcile = useMutation({
     mutationKey: orpc.previewExternalExecutionHandoffReconcile.mutationKey(),
     mutationFn: (input: PreviewExternalExecutionHandoffReconcileInput) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewExternalExecutionHandoffReconcile.queryOptions({
           input,
         }),
         gcTime: 0,
-        staleTime: 0,
       }),
     meta: { presentsSupportFailure: true },
   });

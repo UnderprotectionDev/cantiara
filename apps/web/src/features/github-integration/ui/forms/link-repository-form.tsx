@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
+
 import {
   GITHUB_APP_LABEL,
   GITHUB_REPOSITORY_LABEL,
@@ -12,7 +13,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import { errorText } from "../../lib/github-error-text";
 import { parseLinkRepository } from "../../lib/github-forms";
@@ -42,8 +43,6 @@ export function LinkRepositoryForm({
   onLink: SubmitLinkRepository;
   projectId: string;
 }) {
-  const [error, setError] = useState<string>();
-  const [saved, setSaved] = useState<string>();
   const active = installations.filter(({ removedAt }) => removedAt === null);
   const form = useForm({
     defaultValues: {
@@ -51,24 +50,38 @@ export function LinkRepositoryForm({
       repositoryId: "",
     },
     onSubmit: async ({ formApi, value }) => {
-      setError(undefined);
-      setSaved(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = parseLinkRepository(value);
       if (!parsed.ok) {
-        setError(parsed.message);
+        form.setErrorMap({ onSubmit: { form: parsed.message, fields: {} } });
         return;
       }
       try {
         await onLink(parsed.data);
-        setSaved(`${GITHUB_REPOSITORY_LABEL} linked.`);
         formApi.setFieldValue("repositoryId", "");
       } catch (caught) {
-        setError(
-          errorText(caught, `${GITHUB_REPOSITORY_LABEL} was not linked.`),
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form: errorText(
+              caught,
+              `${GITHUB_REPOSITORY_LABEL} was not linked.`,
+            ),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const succeeded = useSelector(
+    form.store,
+    (state) => state.isSubmitSuccessful,
+  );
+  const saved =
+    succeeded && !error ? `${GITHUB_REPOSITORY_LABEL} linked.` : undefined;
   const values = useSelector(form.store, (state) => state.values);
   const pending = useSelector(form.store, (state) => state.isSubmitting);
   const installationId = Number(values.installationId);
@@ -93,7 +106,7 @@ export function LinkRepositoryForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form).catch(() => undefined);
       }}
     >
       <h3 className="font-medium">{`Link ${GITHUB_REPOSITORY_LABEL}`}</h3>

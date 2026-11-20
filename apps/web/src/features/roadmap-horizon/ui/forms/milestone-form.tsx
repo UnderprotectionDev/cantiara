@@ -5,9 +5,10 @@ import { Button } from "@cantiara/ui/components/button";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
 import { DatePicker } from "@/components/date-picker";
+import { submitForm } from "@/lib/submit-form";
 import { milestoneFormSchema } from "../../lib/milestone-forms";
 
 export interface MilestoneDraft {
@@ -47,7 +48,6 @@ export function MilestoneEditor({
   prefix: string;
   submitLabel: string;
 }) {
-  const [invalid, setInvalid] = useState(false);
   const form = useForm({
     defaultValues: initialValues,
     onSubmit: async ({ value }) => {
@@ -56,19 +56,19 @@ export function MilestoneEditor({
         description: value.description.trim(),
       });
       if (!parsed.success) {
-        setInvalid(true);
+        form.setErrorMap({ onSubmit: { form: true, fields: {} } });
         return;
       }
-      setInvalid(false);
       await onSave(parsed.data);
       form.reset(initialValues);
     },
   });
+  const invalid = useSelector(form.store, (state) => state.errorMap.onSubmit);
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   return (

@@ -55,6 +55,8 @@ Kurucu kapalı adım kataloğundan tek hedef kayıt üzerinde çalışan adland�
 
 ## Testing Decisions
 
+- **#545.** The Record Action editor seam checks creation and editing through Project Configuration Mode. Form retains the selected action identity and its base revision with the draft.
+
 - The Record Action seam verifies that Undo prepares the current Work revision, keeps the same prepared command on write retry and displays a preparation failure through its observer.
 
 - **Retry evidence (#544).** The web runner test exercises a failed apply and confirms that Retry submits the same command and refreshes the affected Work, Focus, fields, and relations after it commits.

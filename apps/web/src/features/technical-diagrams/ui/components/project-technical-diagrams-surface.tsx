@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each Diagram View form binds its own selected nodes.
+
 import type {
   ConvertToRecordPlan,
   PreviewConvertToRecordInput,
@@ -12,6 +13,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { AppLink } from "@/components/app-link";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 import { usePersonalTechnicalDiagramView } from "../../hooks/use-personal-technical-diagram-view";
@@ -120,12 +122,11 @@ function DiagramCard({
     meta: { retryInSurface: true },
     mutationKey: orpc.previewDiagramNodeConversion.mutationKey(),
     mutationFn: (input: Omit<PreviewConvertToRecordInput, "diagramId">) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewDiagramNodeConversion.queryOptions({
           input: { ...input, diagramId: diagram.id },
         }),
         gcTime: 0,
-        staleTime: 0,
       }),
   });
   const confirmConvert = usePreparedMutation(

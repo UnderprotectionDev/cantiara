@@ -1,13 +1,15 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props require closures over current field handlers.
+
 import {
   type ProjectProfile,
   shortCodeSchema,
 } from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { Check, LockKeyhole, Pencil, Save } from "lucide-react";
 import { type SubmitEvent, useCallback, useEffect, useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 import { useProjectShortCode } from "../../hooks/use-project-short-code";
 
@@ -17,7 +19,7 @@ export default function ProjectShortCodeForm({
   project: ProjectProfile;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
+
   const { clearError, error, isPending, isSuccess, saveShortCode } =
     useProjectShortCode(project);
 
@@ -31,13 +33,22 @@ export default function ProjectShortCodeForm({
       const parsed = shortCodeSchema.safeParse(nextShortCode);
       if (!parsed.success) {
         // shortCodeSchema carries its own messages.
-        setValidationError(parsed.error.issues[0]?.message ?? null);
+        form.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? null,
+            fields: {},
+          },
+        });
         return;
       }
-      setValidationError(null);
+      form.setErrorMap({ onSubmit: undefined });
       await saveShortCode(nextShortCode);
     },
   });
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   useEffect(() => {
     form.setFieldValue("shortCode", project.shortCode);
@@ -46,13 +57,13 @@ export default function ProjectShortCodeForm({
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
 
   function cancelEditing() {
     form.setFieldValue("shortCode", project.shortCode);
     setIsEditing(false);
-    setValidationError(null);
+    form.setErrorMap({ onSubmit: undefined });
     clearError();
   }
 

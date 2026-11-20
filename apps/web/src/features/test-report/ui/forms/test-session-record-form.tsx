@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the form fields and the draft Session Tests.
+
 import {
   SESSION_TEST_REPORT_LABEL,
   TEST_REPORT_EXECUTOR_TYPE_LABELS,
@@ -16,8 +17,9 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
 import { DateTimePicker } from "@/components/date-picker";
+import { submitForm } from "@/lib/submit-form";
 import { refusalText } from "../../lib/refusal-text";
 import {
   EMPTY_SESSION_TEST,
@@ -36,32 +38,44 @@ export default function TestSessionRecordForm({
 }: {
   onRecord: RecordTestSession;
 }) {
-  const [error, setError] = useState<string>();
   const form = useForm({
     defaultValues: EMPTY_TEST_SESSION_FORM,
     onSubmit: async ({ value }) => {
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = parseTestSessionForm(value);
       if (!parsed.success) {
-        setError(
-          parsed.error.issues[0]?.message ??
-            `${TEST_SESSION_LABEL} was not saved.`,
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ??
+              `${TEST_SESSION_LABEL} was not saved.`,
+            fields: {},
+          },
+        });
         return;
       }
       try {
         await onRecord(value);
         form.reset();
       } catch (caught) {
-        setError(refusalText(caught, `${TEST_SESSION_LABEL} was not saved.`));
+        form.setErrorMap({
+          onSubmit: {
+            form: refusalText(caught, `${TEST_SESSION_LABEL} was not saved.`),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const pending = useSelector(form.store, (state) => state.isSubmitting);
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form

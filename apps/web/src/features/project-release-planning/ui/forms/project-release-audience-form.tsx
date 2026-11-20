@@ -7,8 +7,9 @@ import {
   NativeSelectOptGroup,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { projectReleaseAudienceFormSchema } from "../../lib/project-release-planning-form";
 
 const TYPES = ["Persona", "Contact", "Company"] as const;
@@ -21,11 +22,10 @@ export function ProjectReleaseAudienceForm({
   candidates: readonly ProjectReleaseAudienceTarget[];
   onAdd: (target: ProjectReleaseAudienceTarget) => Promise<unknown>;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: { target: "" },
     onSubmit: async ({ value, formApi }) => {
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = projectReleaseAudienceFormSchema.safeParse(value);
       const target = parsed.success
         ? candidates.find(
@@ -34,21 +34,35 @@ export function ProjectReleaseAudienceForm({
           )
         : undefined;
       if (!target) {
-        setError("Choose a Persona, Contact or Company.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Choose a Persona, Contact or Company.",
+            fields: {},
+          },
+        });
         return;
       }
       try {
         await onAdd(target);
         formApi.reset();
       } catch {
-        setError("Audience link could not be added. Reload and try again.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Audience link could not be added. Reload and try again.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   if (!candidates.length) {
     return null;

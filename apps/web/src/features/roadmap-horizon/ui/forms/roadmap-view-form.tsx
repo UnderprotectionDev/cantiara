@@ -16,6 +16,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode, SubmitEvent } from "react";
 import { useState } from "react";
 import { commandVariables } from "@/lib/command-variables";
+import { submitForm } from "@/lib/submit-form";
 import { client, orpc } from "@/utils/orpc";
 
 const HORIZONS = ["Now", "Next", "Later"] as const;
@@ -71,7 +72,7 @@ export default function RoadmapViewEditor({
   onSaved: (id: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const [draftId, setDraftId] = useState(() => crypto.randomUUID());
+  const [initialDraftId] = useState(() => crypto.randomUUID());
   const saveView = useMutation({
     mutationKey: orpc.saveRoadmapView.mutationKey(),
     meta: { onlineWrite: true },
@@ -84,16 +85,16 @@ export default function RoadmapViewEditor({
         }).queryKey,
       });
       onSaved(view.id);
-      setDraftId(crypto.randomUUID());
+      form.setFieldValue("draftId", crypto.randomUUID());
     },
   });
   const form = useForm({
-    defaultValues: viewValues(saved),
+    defaultValues: { ...viewValues(saved), draftId: initialDraftId },
     onSubmit: ({ value, formApi }) => {
       const baseRevision = saved?.revision ?? 0;
       const view = viewFromValues(
         value,
-        saved?.id ?? draftId,
+        saved?.id ?? value.draftId,
         projectId,
         baseRevision,
       );
@@ -132,7 +133,7 @@ export default function RoadmapViewEditor({
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   function chooseGroup(value: RoadmapView["groupBy"]) {
     form.setFieldValue("groupBy", value);
@@ -256,12 +257,13 @@ export default function RoadmapViewEditor({
           )}
         </form.Field>
         <div className="flex items-end">
-          <form.Subscribe selector={(state) => state.values.name}>
-            {(name) => (
-              <Button
-                disabled={!name.trim() || saveView.isPending}
-                type="submit"
-              >
+          <form.Subscribe
+            selector={(state) =>
+              !state.values.name.trim() || state.isSubmitting
+            }
+          >
+            {(disabled) => (
+              <Button disabled={disabled} type="submit">
                 Save named view
               </Button>
             )}
@@ -283,7 +285,7 @@ export default function RoadmapViewEditor({
           renderResults(
             viewFromValues(
               values,
-              saved?.id ?? draftId,
+              saved?.id ?? values.draftId,
               projectId,
               saved?.revision ?? 0,
             ),

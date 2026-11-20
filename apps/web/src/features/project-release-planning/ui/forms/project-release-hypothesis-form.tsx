@@ -4,8 +4,9 @@ import type { ProjectReleaseRecord } from "@cantiara/api/project-release-plannin
 import { PROJECT_RELEASE_HYPOTHESIS_FIELDS } from "@cantiara/api/project-source-records";
 import { Button } from "@cantiara/ui/components/button";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   type ProjectReleaseHypothesis,
   projectReleaseHypothesisDraft,
@@ -22,29 +23,37 @@ export function ProjectReleaseHypothesisForm({
   onSave: (hypothesis: ProjectReleaseHypothesis) => Promise<unknown>;
   release: ProjectReleaseRecord;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: projectReleaseHypothesisDraft(release),
     onSubmit: async ({ value }) => {
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = projectReleaseHypothesisFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError("Shorten the text before saving.");
+        form.setErrorMap({
+          onSubmit: { form: "Shorten the text before saving.", fields: {} },
+        });
         return;
       }
       try {
         await onSave(parsed.data);
       } catch {
-        setError(
-          "Hypothesis could not be saved. Reload to check for changes; your text is kept here.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form: "Hypothesis could not be saved. Reload to check for changes; your text is kept here.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form

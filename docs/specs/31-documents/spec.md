@@ -70,6 +70,8 @@ Belge Proje veya Kişisel Wiki kapsamında, yalnız veritabanında yaşayan sür
 
 ## Testing Decisions
 
+- **#545.** The web document-organization-form.test.tsx and document-evidence-role-form.test.tsx seams check preview and apply, and replay of the same failed write from the retained draft.
+
 - The Document Evidence seam verifies that changes reset the old preview and that a failed confirmation can be retried against the same plan and command identity.
 
 - **Review Later section anchors.** `Preview` turns an explicit `{#stable-id}` heading suffix into the rendered heading id while hiding the suffix. Project and Personal Wiki navigation preserve both encoded Document and section ids; a valid target opens at that heading, while an unresolved target shows `This section is missing.` and does not fall back to another heading. Cover the renderer and hash parser at their UI seams; the reminder DB bind/idempotency contract remains owned by spec 35.

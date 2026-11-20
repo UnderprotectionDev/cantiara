@@ -13,8 +13,9 @@ import {
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   EMPTY_PROJECT_UPDATE_DRAFT,
   type ProjectUpdateLinkCandidate,
@@ -42,14 +43,18 @@ export function ProjectUpdateForm({
   candidates: readonly ProjectUpdateLinkCandidate[];
   onSubmit: (values: ProjectUpdateFormSubmit) => Promise<unknown>;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: EMPTY_PROJECT_UPDATE_DRAFT,
     onSubmit: async ({ formApi, value }) => {
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = projectUpdateFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError("Choose a mark and write a short narrative.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Choose a mark and write a short narrative.",
+            fields: {},
+          },
+        });
         return;
       }
       const links = parsed.data.links.flatMap((key) => {
@@ -60,16 +65,23 @@ export function ProjectUpdateForm({
         await onSubmit({ ...parsed.data, links });
         formApi.reset();
       } catch {
-        setError(
-          "Project Update could not be saved. Retry; your text is kept here.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form: "Project Update could not be saved. Retry; your text is kept here.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form

@@ -1,9 +1,11 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: The file control binds to the form field.
+
 import { TEST_SESSION_LABEL } from "@cantiara/api/test-report";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { refusalText } from "../../lib/refusal-text";
 import {
   parseTestSessionImport,
@@ -20,7 +22,6 @@ export default function TestSessionImportForm({
 }: {
   onImport: ImportTestSessionFile;
 }) {
-  const [error, setError] = useState<string>();
   const form = useForm({
     defaultValues: { file: null as File | null },
     onSubmit: async ({ value }) => {
@@ -30,36 +31,55 @@ export default function TestSessionImportForm({
       }
       const format = reportFormatOf(file.name);
       if (!format) {
-        setError("Choose a .json, .md or .markdown file.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Choose a .json, .md or .markdown file.",
+            fields: {},
+          },
+        });
         return;
       }
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       try {
         const parsed = parseTestSessionImport({
           content: await file.text(),
           format,
         });
         if (!parsed.success) {
-          setError(
-            parsed.error.issues[0]?.message ??
-              `${TEST_SESSION_LABEL} was not imported.`,
-          );
+          form.setErrorMap({
+            onSubmit: {
+              form:
+                parsed.error.issues[0]?.message ??
+                `${TEST_SESSION_LABEL} was not imported.`,
+              fields: {},
+            },
+          });
           return;
         }
         await onImport(parsed.data);
         form.reset();
       } catch (caught) {
-        setError(
-          refusalText(caught, `${TEST_SESSION_LABEL} was not imported.`),
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form: refusalText(
+              caught,
+              `${TEST_SESSION_LABEL} was not imported.`,
+            ),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const pending = useSelector(form.store, (state) => state.isSubmitting);
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form
@@ -80,18 +100,33 @@ export default function TestSessionImportForm({
       ) : null}
       <div className="grid gap-2 text-sm">
         <label htmlFor="test-session-file">Test report file</label>
-        <form.Field name="file">
+        <form.Field
+          name="file"
+          validators={{
+            onChange: ({ value }) =>
+              value && !reportFormatOf(value.name)
+                ? "Choose a .json, .md or .markdown file."
+                : undefined,
+          }}
+        >
           {(field) => (
-            <Input
-              accept=".json,.md,.markdown"
-              disabled={pending}
-              id="test-session-file"
-              name={field.name}
-              onChange={(event) =>
-                field.handleChange(event.target.files?.[0] ?? null)
-              }
-              type="file"
-            />
+            <>
+              <Input
+                accept=".json,.md,.markdown"
+                disabled={pending}
+                id="test-session-file"
+                name={field.name}
+                onChange={(event) =>
+                  field.handleChange(event.target.files?.[0] ?? null)
+                }
+                type="file"
+              />
+              {field.state.meta.errors.map((message) => (
+                <p key={message} role="alert">
+                  {message}
+                </p>
+              ))}
+            </>
           )}
         </form.Field>
       </div>

@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current Moodboard and field handlers.
+
 import { normalizeColorHex } from "@cantiara/api/moodboard-color";
 import {
   addColorSwatchInputSchema,
@@ -14,7 +15,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
 import {
@@ -34,11 +35,10 @@ export function AddColorSwatchForm({
   moodboard: Moodboard;
   onStartSampling: (apply: ((hex: string) => void) | null) => void;
 }) {
-  const [formError, setFormError] = useState<string | null>(null);
   const idPrefix = `moodboard-swatch-${moodboard.id}`;
   const form = useForm({
     defaultValues: { entry: "#808080", note: "", paletteGroupId: "" },
-    onSubmit: ({ formApi, value }) => {
+    onSubmit: async ({ formApi, value }) => {
       const parsed = addColorSwatchInputSchema.safeParse({
         color: value.entry,
         moodboardId: moodboard.id,
@@ -46,23 +46,30 @@ export function AddColorSwatchForm({
         paletteGroupId: value.paletteGroupId || null,
       });
       if (!parsed.success) {
-        setFormError(
-          parsed.error.issues[0]?.message ?? "Check the Color Swatch details.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ??
+              "Check the Color Swatch details.",
+            fields: {},
+          },
+        });
         return;
       }
-      setFormError(null);
-      api.addColorSwatch.mutate(
-        {
-          color: parsed.data.color,
-          moodboard,
-          note: parsed.data.note,
-          paletteGroupId: parsed.data.paletteGroupId,
-        },
-        { onSuccess: () => formApi.setFieldValue("note", "") },
-      );
+      form.setErrorMap({ onSubmit: undefined });
+      await api.addColorSwatch.mutateAsync({
+        color: parsed.data.color,
+        moodboard,
+        note: parsed.data.note,
+        paletteGroupId: parsed.data.paletteGroupId,
+      });
+      formApi.setFieldValue("note", "");
     },
   });
+  const formError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const entry = useSelector(form.store, (state) => state.values.entry);
   const normalized = normalizeColorHex(entry);
 
@@ -87,7 +94,7 @@ export function AddColorSwatchForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form).catch(() => undefined);
       }}
     >
       <div className="flex items-end gap-2">

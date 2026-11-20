@@ -8,8 +8,6 @@ import type {
 import type { TestGapRecord } from "@cantiara/api/test-gaps";
 import { AppLink } from "@/components/app-link";
 import { relationLabel } from "../../lib/test-gap-form";
-import type { LoadGapRelationTargets } from "../components/test-gap-relations-field";
-
 import {
   CloseForm,
   type CloseGap,
@@ -20,6 +18,7 @@ import {
   type PlanWithHandoff,
   type SubmitGap,
 } from "../forms/test-gap-form";
+import type { LoadGapRelationTargets } from "../forms/test-gap-relations-field-form";
 
 function ClosureDetails({ record }: { record: TestGapRecord }) {
   const { closure } = record;

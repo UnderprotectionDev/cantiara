@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Fields and actions bind to the current question form.
+
 import type {
   Document,
   DocumentEvidenceSelection,
@@ -11,8 +12,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { type SubmitEvent, useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 import {
   openQuestionAnswerFormSchema,
@@ -46,29 +48,32 @@ export function OpenQuestionEditor({
   ) => Promise<unknown>;
   onCancel: () => void;
 }) {
-  const [baseRecord] = useState(record);
-  const [error, setError] = useState<string>();
   const [conflict, setConflict] = useState(false);
   // Pin the offered versions for this editing session; a stale selection conflicts at commit.
-  const [evidenceDocuments] = useState(
-    documents.filter((item) => item.body.trim() && item.body.length <= 100_000),
-  );
   const form = useForm({
     defaultValues: {
+      baseRecord: record,
+      evidenceDocuments: documents.filter(
+        (item) => item.body.trim() && item.body.length <= 100_000,
+      ),
       title: "",
       question: "",
       context: "",
-      answer: baseRecord?.answer ?? "",
-      rationale: baseRecord?.rationale ?? "",
+      answer: record?.answer ?? "",
+      rationale: record?.rationale ?? "",
       documentId: "",
     },
-    onSubmit: async ({ value }) => {
-      setError(undefined);
+    onSubmit: async ({
+      value: { baseRecord, evidenceDocuments, ...value },
+    }) => {
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = (
         baseRecord ? openQuestionAnswerFormSchema : openQuestionCreateFormSchema
       ).safeParse(value);
       if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message);
+        form.setErrorMap({
+          onSubmit: { form: parsed.error.issues[0]?.message, fields: {} },
+        });
         return;
       }
       const evidence = evidenceDocuments.find(
@@ -99,20 +104,29 @@ export function OpenQuestionEditor({
           "code" in cause &&
           cause.code === "CONFLICT";
         setConflict(stale);
-        setError(
-          stale
-            ? "Open Question or evidence changed. Cancel and reopen before saving. Your text is kept here."
-            : "Open Question could not be saved. Retry, or reload to check for changes. Your text is kept here.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form: stale
+              ? "Open Question or evidence changed. Cancel and reopen before saving. Your text is kept here."
+              : "Open Question could not be saved. Retry, or reload to check for changes. Your text is kept here.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const { baseRecord: editingRecord, evidenceDocuments: offeredDocuments } =
+    useSelector(form.store, (state) => state.values);
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
-  const fields = baseRecord
+  const fields = editingRecord
     ? ([
         { name: "answer", label: "Answer", required: true },
         { name: "rationale", label: "Rationale (optional)", required: false },
@@ -128,7 +142,7 @@ export function OpenQuestionEditor({
       onSubmit={submit}
     >
       <h3 className="font-medium">
-        {baseRecord ? "Answered" : "Open Question"}
+        {editingRecord ? "Answered" : "Open Question"}
       </h3>
       {error ? <p role="alert">{error}</p> : null}
       <form.Subscribe selector={(state) => state.isSubmitting}>
@@ -168,7 +182,7 @@ export function OpenQuestionEditor({
                 )}
               </form.Field>
             ))}
-            {baseRecord ? (
+            {editingRecord ? (
               <form.Field name="documentId">
                 {(field) => (
                   <div className="grid gap-2 text-sm">
@@ -186,7 +200,7 @@ export function OpenQuestionEditor({
                       <NativeSelectOption value="">
                         No new evidence
                       </NativeSelectOption>
-                      {evidenceDocuments.map((item) => (
+                      {offeredDocuments.map((item) => (
                         <NativeSelectOption key={item.id} value={item.id}>
                           {item.title} — Version {item.revision}
                         </NativeSelectOption>

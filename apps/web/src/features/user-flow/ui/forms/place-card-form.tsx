@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Forms close over their own draft fields and the displayed bind.
+
 import type {
   CardRecordOption,
   UserFlowCardKind,
@@ -9,8 +10,9 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 import { placeCardFormSchema } from "../../lib/place-card-form";
 
@@ -23,7 +25,6 @@ export function PlaceCardForm({
   onPlace: (kind: UserFlowCardKind, recordId: string) => Promise<unknown>;
   options: CardRecordOption[];
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: { recordId: "" },
     onSubmit: async ({ formApi, value }) => {
@@ -38,21 +39,29 @@ export function PlaceCardForm({
       try {
         await onPlace(option.kind, option.id);
         formApi.reset();
-        setError(null);
+        form.setErrorMap({ onSubmit: undefined });
       } catch (failure) {
-        setError(
-          failure instanceof Error
-            ? failure.message
-            : "The card could not be placed.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              failure instanceof Error
+                ? failure.message
+                : "The card could not be placed.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form className="space-y-2" onSubmit={submit}>

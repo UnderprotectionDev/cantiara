@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
+
 import {
   PUBLIC_ROADMAP_REVIEW_MAX_DAYS,
   PUBLIC_ROADMAP_REVIEW_MIN_DAYS,
@@ -6,8 +7,9 @@ import {
 } from "@cantiara/api/attention-signals-public-roadmap";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm } from "@tanstack/react-form";
-import { useId, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { useId } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 const intervalSchema = setPublicRoadmapReviewIntervalInputSchema.pick({
   days: true,
@@ -22,39 +24,49 @@ export default function PublicRoadmapReviewForm({
   disabled: boolean;
   onSave: (days: number | null) => Promise<unknown>;
 }) {
-  const [error, setError] = useState<string>();
   const inputId = useId();
   const form = useForm({
     defaultValues: { days: days === null ? "" : String(days) },
     onSubmit: async ({ value }) => {
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = intervalSchema.safeParse({
         days: value.days.trim() === "" ? null : Number(value.days),
       });
       if (!parsed.success) {
-        setError(
-          `Enter a whole number of days from ${PUBLIC_ROADMAP_REVIEW_MIN_DAYS} to ${PUBLIC_ROADMAP_REVIEW_MAX_DAYS}.`,
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form: `Enter a whole number of days from ${PUBLIC_ROADMAP_REVIEW_MIN_DAYS} to ${PUBLIC_ROADMAP_REVIEW_MAX_DAYS}.`,
+            fields: {},
+          },
+        });
         return;
       }
       try {
         await onSave(parsed.data.days);
       } catch (caught) {
-        setError(
-          caught instanceof Error && caught.message
-            ? caught.message
-            : "The interval was not saved.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              caught instanceof Error && caught.message
+                ? caught.message
+                : "The interval was not saved.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   return (
     <form
       className="flex flex-wrap items-end gap-2"
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form).catch(() => undefined);
       }}
     >
       <form.Field name="days">

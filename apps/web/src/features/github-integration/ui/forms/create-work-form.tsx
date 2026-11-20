@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
+
 import type { GitHubExternalRecord } from "@cantiara/api/github-integration";
 import {
   GITHUB_CREATE_WORK_LABEL,
@@ -15,7 +16,7 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { errorText } from "../../lib/github-error-text";
 import {
   parseCreateWork,
@@ -41,7 +42,6 @@ function DraftForm({
   onCreate: SubmitCreateWork;
   preview: GitHubCreateWorkPreview;
 }) {
-  const [error, setError] = useState<string>();
   const form = useForm({
     defaultValues: {
       description: preview.draft.description,
@@ -49,7 +49,7 @@ function DraftForm({
       type: preview.draft.type as GitHubWorkType,
     },
     onSubmit: async ({ value }) => {
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = parseCreateWork({
         description: value.description,
         recordId: preview.recordId,
@@ -57,17 +57,26 @@ function DraftForm({
         type: value.type,
       });
       if (!parsed.ok) {
-        setError(parsed.message);
+        form.setErrorMap({ onSubmit: { form: parsed.message, fields: {} } });
         return;
       }
       try {
         await onCreate(parsed.data);
         onCancel();
       } catch (caught) {
-        setError(errorText(caught, "The Work was not created."));
+        form.setErrorMap({
+          onSubmit: {
+            form: errorText(caught, "The Work was not created."),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const pending = useSelector(form.store, (state) => state.isSubmitting);
   return (
     <form
@@ -76,7 +85,7 @@ function DraftForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form).catch(() => undefined);
       }}
     >
       <p className="text-sm text-muted-foreground">
@@ -171,23 +180,27 @@ export function CreateWorkForm({
     meta: { presentsSupportFailure: true },
   });
   const { data: preview } = inspect;
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const error =
-    validationError ??
-    (inspect.error && errorText(inspect.error, "The draft is unavailable."));
   const headingId = "github-create-work-heading";
   const pickForm = useForm({
     defaultValues: { recordId: "" },
     onSubmit: async ({ value }) => {
-      setValidationError(null);
       const parsed = parsePreviewCreateWork(value);
       if (!parsed.ok) {
-        setValidationError(parsed.message);
+        pickForm.setErrorMap({
+          onSubmit: { form: parsed.message, fields: {} },
+        });
         return;
       }
       await inspect.mutateAsync(parsed.data.recordId).catch(() => undefined);
     },
   });
+  const validationError = useSelector(
+    pickForm.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const error =
+    validationError ??
+    (inspect.error && errorText(inspect.error, "The draft is unavailable."));
   const loading = inspect.isPending;
   return (
     <section
@@ -210,7 +223,7 @@ export function CreateWorkForm({
           onSubmit={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            pickForm.handleSubmit().catch(() => undefined);
+            submitForm(pickForm).catch(() => undefined);
           }}
         >
           <div className="grid gap-2">

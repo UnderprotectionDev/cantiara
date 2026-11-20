@@ -3,6 +3,7 @@
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { commandVariables } from "@/lib/command-variables";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -160,22 +161,20 @@ export default function TestReviewSurface({
       );
     },
     previewBulk: (sessionId, sessionTestIds) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewReviewBulk.queryOptions({
           input: { projectId, sessionId, sessionTestIds },
         }),
         gcTime: 0,
-        staleTime: 0,
       }),
     // The close preview names the remaining Session Tests and carries no
     // token the close needs, so it is a plain read.
     previewClose: (sessionId) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewReviewClose.queryOptions({
           input: { projectId, sessionId },
         }),
         gcTime: 0,
-        staleTime: 0,
       }),
     recordEvent: async (sessionId, draft) => {
       const target = {
@@ -266,12 +265,11 @@ export default function TestReviewSurface({
     },
     followUpState: commitReviewFollowUpMutation,
     previewFollowUp: (sessionTestIds, target) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewReviewFollowUp.queryOptions({
           input: { projectId, sessionTestIds, target },
         }),
         gcTime: 0,
-        staleTime: 0,
       }),
     supersede: async (newerId, olderId) => {
       await supersedeReviewResultMutation.mutateAsync(

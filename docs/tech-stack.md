@@ -75,9 +75,9 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: başk
 | Marka logosu (SVG) | Kanonik kaynak `apps/web/public/logo.svg`: Paper `Cantiara · 00 Foundations` → `Brand · Logo` içindeki onaylı Folio Dragon maskotu; saydam zemin, gövde `#DFDFDF`, gölge `#A8A8A8`, kontur `#22222A`, göz ışığı `#FFFFFF`, vurgu `#EA6A0C`. Web favicon'u `apps/web/index.html` ve `apps/web/src/routes/__root.tsx` içinde bu SVG'ye bağlanır. `apps/web/public/logo.png` (512 px), `logo@2x.png` (1024 px), `apps/web/src-tauri/icons/` ve `apps/extension/public/icon/` aynı kaynağın türevleridir; tasarım değiştiğinde birlikte yenilenir. PNG'ler mevcut Sharp ile SVG'den ölçeklenir; ICO ve ICNS bu PNG çıktısından paketlenir; türevlerde ayrı tasarım düzenlenmez |
 | Geist Sans + Geist Mono (Variable) | Üretim UI tipografisi: Geist Sans arayüz metni, Geist Mono ID, sayı ve veri; OFL-1.1, henüz uygulamaya paketlenmedi (DESIGN.md Known Gaps) |
 | Sonner | Uygulama toast bildirimleri (`sonner`); `@cantiara/ui` Sonner sarmalayıcısını sağlar, ayrı bir toast sistemi eklenmez |
-| TanStack Query | Sunucu verisi ve önbellek |
+| TanStack Query | Sunucu verisi ve önbellek. Olay içi taze okumada [Ortak taze okuma ve form gönderimi](#ortak-taze-okuma-ve-form-gönderimi) uygulanır |
 | TanStack Store | Bileşenler arasında paylaşılan istemci, inspector, toolbar ve Wireframe editör oturumu durumu |
-| TanStack Form | Form state'i ve submission yaşam döngüsü; bağlayıcıdır: gönderilen her form `useForm` ile yazılır ve form state'i ham `useState` ile tutulmaz. Doğrulama `onSubmit` içinde Zod `safeParse` ile yapılır; `packages/api` input şeması varsa o, yoksa feature `lib/` form şeması kullanılır (örnek `apps/web/src/features/project-shell/ui/forms/project-create-form.tsx`). Kontroller `@cantiara/ui` bileşenleridir: metin, `file` ve `color` için `Input`, çok satır için `Textarea`, seçim için `NativeSelect` veya `Select`, onay için `Checkbox`, tekli seçim için `RadioGroup`. Kural muafiyetsizdir; en yakın örnek bu satırla çelişirse satır kazanır |
+| TanStack Form | Form state'i ve submission yaşam döngüsü; bağlayıcıdır: gönderilen her form `useForm` ile yazılır ve form state'i ham `useState` ile tutulmaz. Doğrulama `onSubmit` içinde Zod `safeParse` ile yapılır; `packages/api` input şeması varsa o, yoksa feature `lib/` form şeması kullanılır (örnek `apps/web/src/features/project-shell/hooks/use-project-create-form.ts`). Kontroller `@cantiara/ui` bileşenleridir: metin, `file` ve `color` için `Input`, çok satır için `Textarea`, seçim için `NativeSelect` veya `Select`, onay için `Checkbox`, tekli seçim için `RadioGroup`. Kural muafiyetsizdir; en yakın örnek bu satırla çelişirse satır kazanır |
 | Browser Clipboard API | Secure-context metin kopyalama; `apps/web/src/lib/clipboard.ts` üzerinden çalışır ve arka planda clipboard izlemez; başka dosya `navigator.clipboard` kullanmaz |
 | Zod | Şema/form doğrulama ile sürümlü `WireframeDocument` doğrulaması ve migration sınırları |
 | TanStack Pacer | Yoğun etkileşim kontrolü; paket `@tanstack/pacer-lite` |
@@ -86,6 +86,13 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: başk
 | dnd-kit | Sürükle-bırak etkileşimleri |
 | React DayPicker | Tarih seçimi |
 | date-fns | Tarih işlemleri |
+
+
+## Ortak taze okuma ve form gönderimi
+
+TanStack Query 5.108 queryClient.query üzerinden [fetchFresh](../apps/web/src/lib/fetch-fresh.ts) olay içi okumayı taze yapar. Work ve Document komutları güncel revizyonu okur. Önizlemeler güncel erişim, içerik ve hedefleri yeniden doğrular. Tazelik staleTime: 0 ile ortaklaşır. Var olan gcTime: 0 ayarları seçim, geçici önizleme ve hassas sonuçlarda çağrı yerinde kalır. Açılan Import receipt gözlemcisi etkinliği kullanıcı eylemine bağlar ve gözlem sona erdiğinde sonucu siler. Sürümü kesinleşmiş Wireframe çıktısı normal cache politikasını kullanır.
+
+TanStack Form gönderim boyunca Promise’i bekler. [submitForm](../apps/web/src/lib/submit-form.ts) yeniden denemeden önce önceki gönderimin hatasını temizler ve devam eden gönderimi korur. Form alanları, Zod doğrulaması ve komut hatası ilgili taslağın yanında görünür. Query sunucu sonucunu ve yeniden denenecek komutu taşır. Yazma reddedilirse Form değerleri korunur. Bu sözleşme [Mutation and Undo](specs/04-mutation-and-undo/spec.md#testing-decisions), [Project Custom Fields](specs/10-custom-fields/spec.md#testing-decisions) ve [External Handoffs](specs/24-external-handoffs/spec.md#testing-decisions) testlerine bağlıdır.
 
 ## İçerik ve görsel çalışma alanları
 

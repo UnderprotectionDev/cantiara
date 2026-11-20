@@ -1,11 +1,13 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Forms close over their own draft fields.
+
 import type { UserFlowNodeView } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 import { saveUserFlowTemplateFormSchema } from "../../lib/user-flow-forms";
 
@@ -19,7 +21,6 @@ export function SaveTemplateForm({
   nodes: UserFlowNodeView[];
   onSave: (name: string, nodeIds: string[]) => Promise<unknown>;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: { excluded: [] as string[], name: "" },
     onSubmit: async ({ formApi, value }) => {
@@ -36,21 +37,29 @@ export function SaveTemplateForm({
       try {
         await onSave(parsed.data.name, parsed.data.nodeIds);
         formApi.setFieldValue("name", "");
-        setError(null);
+        form.setErrorMap({ onSubmit: undefined });
       } catch (failure) {
-        setError(
-          failure instanceof Error
-            ? failure.message
-            : "The template could not be saved.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              failure instanceof Error
+                ? failure.message
+                : "The template could not be saved.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   function submit(event: SubmitEvent) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form className="space-y-2" onSubmit={submit}>

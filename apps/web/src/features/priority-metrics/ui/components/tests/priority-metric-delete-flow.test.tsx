@@ -165,7 +165,13 @@ test("permanent delete reuses its command after fresh identity and keeps confirm
       expect(rpc.deletePriorityMetric).toHaveBeenCalledTimes(1),
     );
     expect(exposed.includes(true)).toBe(false);
-    expect(form()?.textContent).not.toContain("GitHub identity confirmed.");
+    await vi.waitFor(() => {
+      expect(form()?.textContent).not.toContain("GitHub identity confirmed.");
+      const confirm = [...host.querySelectorAll("button")].find(
+        (button) => button.textContent === "Confirm GitHub Identity",
+      );
+      expect(confirm?.disabled).toBe(false);
+    });
     await click("Confirm GitHub Identity");
     await vi.waitFor(() =>
       expect(form()?.textContent).toContain("GitHub identity confirmed."),

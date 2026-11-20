@@ -22,11 +22,11 @@ import {
   type GapFilterValues,
   toListFilter,
 } from "../../lib/product-gap-form";
+import type { LoadProductGapTargets } from "../forms/product-gap-links-field-form";
 import {
   type CloseEscape,
   ToolEscapeCloseForm,
 } from "../forms/tool-escape-close-form";
-import type { LoadProductGapTargets } from "./product-gap-links-field";
 import { ToolEscapeCloseEvidence } from "./tool-escape-close";
 
 export type LoadEscapes = (

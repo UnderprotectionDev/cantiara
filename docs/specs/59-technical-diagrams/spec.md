@@ -53,6 +53,8 @@ Kurucu Proje ana kaydı Teknik Diyagramı üç türde oluşturur. Her kimlik tam
 
 ## Testing Decisions
 
+- **Authority conversion submission (#545).** `diagram-authority-conversion-form.test.tsx` verifies that a pending `Preview conversion` accepts only one submission, reports a failed read beside the input, and preserves the draft for retry.
+
 - **Query write lifecycle (#544).** The personal viewport uses the Client Shell Query write gate and reports failures for its own diagram and view from the mutation result. Late flushes keep their scheduled identity; a later movement supersedes an older failed viewport attempt. The composition panel keeps the reviewed diagram version and plan together. Authority conversion confirms the same request that produced the preview token, including its original source timestamp.
 
 - **What a good test is.** Public Technical Diagrams commands: create three types, refuse Repository-derived mint, refuse in-place mode change, view vs version pin, restore writes a new live revision, live card does not copy, Mermaid convert atomicity/retry, viewport restore and Fit View. Golden structural models, not screenshot pixels.

@@ -223,6 +223,34 @@ test("dropping an invalid row previews again with that row excluded", async () =
   );
 });
 
+test("Apply Import and Cancel wait for a refreshed preview after a row is excluded", async () => {
+  const refreshed = Promise.withResolvers<ImportPreview>();
+  const onPreview = vi
+    .fn<React.ComponentProps<typeof ImportView>["onPreview"]>()
+    .mockResolvedValueOnce(preview)
+    .mockReturnValueOnce(refreshed.promise);
+  const onApply = vi.fn();
+  const onCancel = vi.fn();
+  mount(onPreview, { onApply, onCancel });
+  await choose([new File(["Name\nSlip\n"], "risks.csv")], "project:p1", "Risk");
+  await vi.waitFor(() => expect(button("Cancel")?.disabled).toBe(false));
+
+  await click("Exclude row");
+  expect(onPreview).toHaveBeenCalledTimes(2);
+  expect(button("Apply Import")?.disabled).toBe(true);
+  expect(button("Cancel")?.disabled).toBe(true);
+  await click("Apply Import");
+  await click("Cancel");
+  expect(onApply).not.toHaveBeenCalled();
+  expect(onCancel).not.toHaveBeenCalled();
+
+  await act(async () => {
+    refreshed.resolve(validPreview);
+    await refreshed.promise;
+  });
+  await vi.waitFor(() => expect(button("Apply Import")?.disabled).toBe(false));
+});
+
 test("rapid row exclusions keep the latest exact preview when responses arrive out of order", async () => {
   const older = Promise.withResolvers<ImportPreview>();
   const latest = Promise.withResolvers<ImportPreview>();

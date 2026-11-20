@@ -42,6 +42,8 @@ Kurucu açık `Record Product Gap` eylemiyle Çalışma Alanı ana kaydı Ürün
 
 ## Testing Decisions
 
+- **#545.** The web product-gaps-board.test.tsx seam checks add and remove announcements, inline duplicate validation, and submission of the selected related records.
+
 - The Product Gap board seam verifies the owning write state and that the same follow-up plan retains its command identity after failure.
 
 - **What a good test is.** Tests observe Product Gaps and Tool Escapes: record action, attach-to-existing vs new gap, status matrix, event fields, derived count opening exact events, refused high-impact close without proof, accepted close with bound evidence, no telemetry side effects. They do not scrape a fake "other app" or assert GitHub/Handoff writes.

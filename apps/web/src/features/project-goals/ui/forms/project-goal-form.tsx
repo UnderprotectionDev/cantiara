@@ -7,8 +7,9 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 export interface ProjectGoalDraft {
   description: string;
@@ -68,45 +69,60 @@ export function ProjectGoalEditor({
   ) => Promise<unknown>;
   onCancel: () => void;
 }) {
-  const [error, setError] = useState<string | null>(null);
-  const [baseGoal] = useState(goal);
-  const [conflict, setConflict] = useState<ProjectGoalSaveConflictError | null>(
-    null,
-  );
   const form = useForm({
-    defaultValues: baseGoal
-      ? {
-          title: baseGoal.title,
-          description: baseGoal.description,
-          intendedOutcome: baseGoal.intendedOutcome ?? "",
-          observedOutcomeLearning: baseGoal.observedOutcomeLearning ?? "",
-        }
-      : EMPTY_DRAFT,
-    onSubmit: async ({ value }) => {
-      setError(null);
+    defaultValues: {
+      baseGoal: goal,
+      ...(goal
+        ? {
+            title: goal.title,
+            description: goal.description,
+            intendedOutcome: goal.intendedOutcome ?? "",
+            observedOutcomeLearning: goal.observedOutcomeLearning ?? "",
+          }
+        : EMPTY_DRAFT),
+    },
+    onSubmit: async ({ value: { baseGoal, ...value } }) => {
+      form.setErrorMap({ onSubmit: undefined });
       if (!projectGoalFieldsSchema.safeParse(value).success) {
-        setError("Enter a Title and Description before saving.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Enter a Title and Description before saving.",
+            fields: {},
+          },
+        });
         return;
       }
       try {
         await onSave(value, baseGoal);
       } catch (saveError) {
         if (saveError instanceof ProjectGoalSaveConflictError) {
-          setConflict(saveError);
-          setError(saveError.message);
+          form.setErrorMap({
+            onSubmit: { form: saveError, fields: {} },
+          });
           return;
         }
-        setError(
-          "Project Goal could not be saved. Retry, or reload to check for changes. Your text is kept here.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form: "Project Goal could not be saved. Retry, or reload to check for changes. Your text is kept here.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const validation = useSelector(
+    form.store,
+    (state): unknown => state.errorMap.onSubmit,
+  );
+  const conflict =
+    validation instanceof ProjectGoalSaveConflictError ? validation : null;
+  const error =
+    conflict?.message ?? (typeof validation === "string" ? validation : null);
   const saveLabel = error && !conflict ? "Retry" : "Save";
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form

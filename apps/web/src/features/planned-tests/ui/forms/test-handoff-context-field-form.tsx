@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the picker's local selection.
+
 import {
   TEST_HANDOFF_CONTEXT_KINDS,
   TEST_HANDOFF_CONTEXT_REF_MAX,
@@ -8,8 +9,11 @@ import {
 } from "@cantiara/api/planned-tests";
 import { Button } from "@cantiara/ui/components/button";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
+import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useSelector } from "@tanstack/react-store";
+import { type Ref, useId, useImperativeHandle, useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import {
   type ContextRefDraft,
@@ -32,6 +36,7 @@ export function TestHandoffContextField({
   idPrefix,
   loadTargets,
   onChange,
+  resetRef,
   projectId,
   value,
 }: {
@@ -39,10 +44,38 @@ export function TestHandoffContextField({
   loadTargets: LoadTestHandoffContextTargets;
   projectId: string;
   onChange: (refs: ContextRefDraft[]) => void;
+  resetRef?: Ref<() => void>;
   value: ContextRefDraft[];
 }) {
   const statusId = useId();
-  const [kind, setKind] = useState<TestHandoffContextKind>("Work");
+  const [message, setMessage] = useState("");
+  const picker = useForm({
+    defaultValues: {
+      kind: "Work" as TestHandoffContextKind,
+      targetId: "",
+      sectionId: "",
+      wireframeVersion: "",
+    },
+    onSubmit: ({ formApi }) => {
+      setMessage("");
+      const error = add();
+      if (error) {
+        formApi.setErrorMap({ onSubmit: { form: error, fields: {} } });
+      }
+    },
+  });
+  useImperativeHandle(
+    resetRef,
+    () => () => {
+      picker.reset();
+      setMessage("");
+    },
+    [picker],
+  );
+  const { kind, targetId, sectionId, wireframeVersion } = useSelector(
+    picker.store,
+    (state) => state.values,
+  );
   const targetsQuery = useQuery({
     gcTime: 0,
     queryFn: () => loadTargets(kind),
@@ -51,18 +84,14 @@ export function TestHandoffContextField({
     }),
   });
   const targets = targetsQuery.data;
-  const [targetId, setTargetId] = useState("");
-  const [sectionId, setSectionId] = useState("");
-  const [wireframeVersion, setWireframeVersion] = useState("");
-  const [message, setMessage] = useState("");
 
   const selected = targets?.find((target) => target.targetId === targetId);
 
   function chooseKind(next: TestHandoffContextKind) {
-    setKind(next);
-    setTargetId("");
-    setSectionId("");
-    setWireframeVersion("");
+    picker.reset(
+      { kind: next, targetId: "", sectionId: "", wireframeVersion: "" },
+      { keepDefaultValues: true },
+    );
     setMessage("");
   }
 
@@ -73,9 +102,9 @@ export function TestHandoffContextField({
     loadMessage = `This Project has no ${kind} to add yet.`;
   }
 
-  function add() {
+  function add(): string | undefined {
     if (!selected) {
-      return;
+      return undefined;
     }
     let ref: ContextRefDraft["ref"];
     if (selected.kind === "Document") {
@@ -87,8 +116,7 @@ export function TestHandoffContextField({
       };
     } else if (selected.kind === "Wireframe") {
       if (!wireframeVersion) {
-        setMessage("Choose a Wireframe version.");
-        return;
+        return "Choose a Wireframe version.";
       }
       ref = {
         kind: "Wireframe",
@@ -104,20 +132,21 @@ export function TestHandoffContextField({
           testHandoffContextRefKey(item.ref) === testHandoffContextRefKey(ref),
       )
     ) {
-      setMessage(`${selected.label} is already added.`);
-      return;
+      return `${selected.label} is already added.`;
     }
     onChange([
       ...value,
       { label: describeContextRef(ref, selected.label), ref },
     ]);
-    setTargetId("");
-    setSectionId("");
-    setWireframeVersion("");
+    picker.setFieldValue("targetId", "");
+    picker.setFieldValue("sectionId", "");
+    picker.setFieldValue("wireframeVersion", "");
     setMessage(`${selected.label} added to the package context.`);
+    return undefined;
   }
 
   function remove(index: number) {
+    picker.setErrorMap({ onSubmit: undefined });
     const removed = value[index];
     onChange(value.filter((_, position) => position !== index));
     setMessage(removed ? `${removed.label} removed.` : "");
@@ -182,9 +211,10 @@ export function TestHandoffContextField({
               aria-describedby={statusId}
               id={`${idPrefix}-context-target`}
               onChange={(event) => {
-                setTargetId(event.target.value);
-                setSectionId("");
-                setWireframeVersion("");
+                picker.setErrorMap({ onSubmit: undefined });
+                picker.setFieldValue("targetId", event.target.value);
+                picker.setFieldValue("sectionId", "");
+                picker.setFieldValue("wireframeVersion", "");
               }}
               value={targetId}
             >
@@ -203,7 +233,10 @@ export function TestHandoffContextField({
               </label>
               <NativeSelect
                 id={`${idPrefix}-context-section`}
-                onChange={(event) => setSectionId(event.target.value)}
+                onChange={(event) => {
+                  picker.setErrorMap({ onSubmit: undefined });
+                  picker.setFieldValue("sectionId", event.target.value);
+                }}
                 value={sectionId}
               >
                 <option value="">Whole Document</option>
@@ -222,7 +255,10 @@ export function TestHandoffContextField({
               </label>
               <NativeSelect
                 id={`${idPrefix}-context-version`}
-                onChange={(event) => setWireframeVersion(event.target.value)}
+                onChange={(event) => {
+                  picker.setErrorMap({ onSubmit: undefined });
+                  picker.setFieldValue("wireframeVersion", event.target.value);
+                }}
                 value={wireframeVersion}
               >
                 <option value="">Choose a version</option>
@@ -237,7 +273,7 @@ export function TestHandoffContextField({
           <div className="sm:col-span-2">
             <Button
               disabled={!selected}
-              onClick={add}
+              onClick={() => submitForm(picker).catch(() => undefined)}
               size="sm"
               type="button"
               variant="outline"
@@ -247,6 +283,15 @@ export function TestHandoffContextField({
           </div>
         </div>
       )}
+      <picker.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+        {(error) =>
+          typeof error === "string" ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null
+        }
+      </picker.Subscribe>
       <p
         aria-live="polite"
         className="text-sm text-muted-foreground"

@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
+
 import {
   type ScreenOption,
   USER_FLOW_NODE_KINDS,
@@ -12,7 +13,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import type { PlaceNodeDraft } from "../../lib/place-node-draft";
 import { createOutlineNodeFormSchema } from "../../lib/user-flow-forms";
 
@@ -25,7 +26,6 @@ export function PlaceNodeForm({
   onPlaceNode: (draft: PlaceNodeDraft) => Promise<unknown>;
   screens: ScreenOption[];
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: {
       kind: "Action" as UserFlowNodeKind,
@@ -35,7 +35,9 @@ export function PlaceNodeForm({
     onSubmit: async ({ formApi, value }) => {
       const parsed = createOutlineNodeFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError("Choose a Screen for a Screen node.");
+        form.setErrorMap({
+          onSubmit: { form: "Choose a Screen for a Screen node.", fields: {} },
+        });
         return;
       }
       try {
@@ -45,16 +47,24 @@ export function PlaceNodeForm({
           text: parsed.data.text,
         });
         formApi.setFieldValue("text", "");
-        setError(null);
+        form.setErrorMap({ onSubmit: undefined });
       } catch (failure) {
-        setError(
-          failure instanceof Error
-            ? failure.message
-            : "Node could not be placed.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              failure instanceof Error
+                ? failure.message
+                : "Node could not be placed.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const needsScreen =
     useSelector(form.store, (state) => state.values.kind) === "Screen";
 
@@ -64,7 +74,7 @@ export function PlaceNodeForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form).catch(() => undefined);
       }}
     >
       <div className="space-y-1">

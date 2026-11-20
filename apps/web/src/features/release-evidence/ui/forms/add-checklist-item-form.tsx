@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
+
 import {
   RELEASE_EVIDENCE_ADD_ITEM_LABEL,
   RELEASE_EVIDENCE_CHECKLIST_LABEL,
@@ -6,8 +7,9 @@ import {
 } from "@cantiara/api/release-evidence";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm } from "@tanstack/react-form";
-import { useId, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { useId } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 export function AddChecklistItemForm({
   disabled,
@@ -16,31 +18,38 @@ export function AddChecklistItemForm({
   disabled: boolean;
   onAdd: (text: string) => Promise<unknown>;
 }) {
-  const [error, setError] = useState<string>();
   const inputId = useId();
   const form = useForm({
     defaultValues: { text: "" },
     onSubmit: async ({ formApi, value }) => {
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       try {
         await onAdd(value.text.trim());
         formApi.reset();
       } catch (caught) {
-        setError(
-          caught instanceof Error && caught.message
-            ? caught.message
-            : "The item was not saved.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              caught instanceof Error && caught.message
+                ? caught.message
+                : "The item was not saved.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   return (
     <form
       className="flex flex-wrap items-end gap-2"
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form).catch(() => undefined);
       }}
     >
       <form.Field

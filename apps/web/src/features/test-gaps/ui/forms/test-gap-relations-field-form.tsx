@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the picker's local selection.
+
 import {
   TEST_GAP_LABEL,
   TEST_GAP_RELATION_MAX,
@@ -8,8 +9,11 @@ import {
 } from "@cantiara/api/test-gaps";
 import { Button } from "@cantiara/ui/components/button";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
+import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useSelector } from "@tanstack/react-store";
+import { type Ref, useId, useImperativeHandle, useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import type { RelationDraft } from "../../lib/test-gap-form";
 
@@ -34,6 +38,7 @@ export function TestGapRelationsField({
   idPrefix,
   loadTargets,
   onChange,
+  resetRef,
   projectId,
   value,
 }: {
@@ -41,11 +46,37 @@ export function TestGapRelationsField({
   loadTargets: LoadGapRelationTargets;
   projectId: string;
   onChange: (relations: RelationDraft[]) => void;
+  resetRef?: Ref<() => void>;
   value: RelationDraft[];
 }) {
   const statusId = useId();
-  const [targetType, setTargetType] =
-    useState<TestGapRelationTargetType>("Feature");
+  const [message, setMessage] = useState("");
+  const picker = useForm({
+    defaultValues: {
+      targetType: "Feature" as TestGapRelationTargetType,
+      targetId: "",
+      sectionId: "",
+    },
+    onSubmit: ({ formApi }) => {
+      setMessage("");
+      const error = add();
+      if (error) {
+        formApi.setErrorMap({ onSubmit: { form: error, fields: {} } });
+      }
+    },
+  });
+  useImperativeHandle(
+    resetRef,
+    () => () => {
+      picker.reset();
+      setMessage("");
+    },
+    [picker],
+  );
+  const { targetType, targetId, sectionId } = useSelector(
+    picker.store,
+    (state) => state.values,
+  );
   const targetsQuery = useQuery({
     gcTime: 0,
     queryFn: () => loadTargets(targetType),
@@ -54,16 +85,14 @@ export function TestGapRelationsField({
     }),
   });
   const targets = targetsQuery.data;
-  const [targetId, setTargetId] = useState("");
-  const [sectionId, setSectionId] = useState("");
-  const [message, setMessage] = useState("");
 
   const selected = targets?.find((target) => target.targetId === targetId);
 
   function chooseType(next: TestGapRelationTargetType) {
-    setTargetType(next);
-    setTargetId("");
-    setSectionId("");
+    picker.reset(
+      { targetType: next, targetId: "", sectionId: "" },
+      { keepDefaultValues: true },
+    );
     setMessage("");
   }
 
@@ -74,9 +103,9 @@ export function TestGapRelationsField({
     loadMessage = `This Project has no ${TARGET_TYPE_LABEL[targetType]} to relate yet.`;
   }
 
-  function add() {
+  function add(): string | undefined {
     if (!selected) {
-      return;
+      return undefined;
     }
     const duplicate = value.some(
       (item) =>
@@ -85,8 +114,7 @@ export function TestGapRelationsField({
         item.sectionId === (sectionId || null),
     );
     if (duplicate) {
-      setMessage(`${selected.label} is already related.`);
-      return;
+      return `${selected.label} is already related.`;
     }
     const sectionLabel = selected.sections.find(
       ({ id }) => id === sectionId,
@@ -106,12 +134,14 @@ export function TestGapRelationsField({
         targetType: selected.targetType,
       },
     ]);
-    setTargetId("");
-    setSectionId("");
+    picker.setFieldValue("targetId", "");
+    picker.setFieldValue("sectionId", "");
     setMessage(`${selected.label} added to support relations.`);
+    return undefined;
   }
 
   function remove(index: number) {
+    picker.setErrorMap({ onSubmit: undefined });
     const removed = value[index];
     onChange(value.filter((_, position) => position !== index));
     setMessage(
@@ -178,8 +208,9 @@ export function TestGapRelationsField({
               aria-describedby={statusId}
               id={`${idPrefix}-relation-target`}
               onChange={(event) => {
-                setTargetId(event.target.value);
-                setSectionId("");
+                picker.setErrorMap({ onSubmit: undefined });
+                picker.setFieldValue("targetId", event.target.value);
+                picker.setFieldValue("sectionId", "");
               }}
               value={targetId}
             >
@@ -198,7 +229,10 @@ export function TestGapRelationsField({
               </label>
               <NativeSelect
                 id={`${idPrefix}-relation-section`}
-                onChange={(event) => setSectionId(event.target.value)}
+                onChange={(event) => {
+                  picker.setErrorMap({ onSubmit: undefined });
+                  picker.setFieldValue("sectionId", event.target.value);
+                }}
                 value={sectionId}
               >
                 <option value="">Whole Document</option>
@@ -213,7 +247,7 @@ export function TestGapRelationsField({
           <div className="sm:col-span-2">
             <Button
               disabled={!selected}
-              onClick={add}
+              onClick={() => submitForm(picker).catch(() => undefined)}
               size="sm"
               type="button"
               variant="outline"
@@ -223,6 +257,15 @@ export function TestGapRelationsField({
           </div>
         </div>
       )}
+      <picker.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+        {(error) =>
+          typeof error === "string" ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null
+        }
+      </picker.Subscribe>
       <p
         aria-live="polite"
         className="text-sm text-muted-foreground"

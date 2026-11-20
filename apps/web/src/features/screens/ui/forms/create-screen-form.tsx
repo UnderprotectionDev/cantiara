@@ -1,34 +1,43 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the form field.
+
 import { screenTitleSchema } from "@cantiara/api/screens";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 export type CreateScreen = (title: string) => Promise<unknown>;
 
 export function CreateScreenForm({ onCreate }: { onCreate: CreateScreen }) {
-  const [error, setError] = useState<string>();
   const form = useForm({
     defaultValues: { title: "" },
     onSubmit: async ({ value, formApi }) => {
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = screenTitleSchema.safeParse(value.title);
       if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message);
+        form.setErrorMap({
+          onSubmit: { form: parsed.error.issues[0]?.message, fields: {} },
+        });
         return;
       }
       try {
         await onCreate(value.title);
         formApi.reset();
       } catch {
-        setError("Screen could not be created.");
+        form.setErrorMap({
+          onSubmit: { form: "Screen could not be created.", fields: {} },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form

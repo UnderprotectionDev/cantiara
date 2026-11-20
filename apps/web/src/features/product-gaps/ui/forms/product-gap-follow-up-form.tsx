@@ -24,7 +24,7 @@ import { useEffect, useId } from "react";
 import { orpc } from "@/utils/orpc";
 import { useProductGapLinkTargets } from "../../hooks/use-product-gap-link-targets";
 import { errorText } from "../../lib/product-gap-form";
-import type { LoadProductGapTargets } from "../components/product-gap-links-field";
+import type { LoadProductGapTargets } from "./product-gap-links-field-form";
 
 type FollowUpKind = "Feature relation" | "Work";
 

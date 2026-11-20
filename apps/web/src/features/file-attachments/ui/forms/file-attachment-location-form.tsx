@@ -1,6 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form fields and action buttons close over the current TanStack Form field handlers and binder state.
 import type {
-  FileAttachmentLocation,
   FileAttachmentLocationBindInput,
   FileAttachmentLocationBindPreview,
   FileAttachmentLocationBindPreviewInput,
@@ -15,8 +14,15 @@ import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { clampCoordinate } from "../../lib/file-attachment-markup-geometry";
+import { useCallback, useEffect, useEffectEvent, useRef } from "react";
+import { submitForm } from "@/lib/submit-form";
+import {
+  type LocationKind,
+  locationFromFields,
+  type useLocationFieldsForm,
+} from "../../hooks/use-location-fields-form";
+
+export type { LocationKind } from "../../hooks/use-location-fields-form";
 
 export interface LocationBindStatus {
   isError: boolean;
@@ -24,71 +30,12 @@ export interface LocationBindStatus {
   reset: () => void;
 }
 
-export type LocationKind = "point" | "region";
-
-interface LocationBinderValues {
-  description: string;
-  height: number;
-  page: number;
-  projectId: string;
-  title: string;
-  width: number;
-  workId: string;
-  x: number;
-  y: number;
-}
-
-function locationBinderValues(
-  location: FileAttachmentLocation,
-  projectId = "",
-): LocationBinderValues {
-  return {
-    description: "",
-    height: location.kind === "region" ? location.region.height : 0,
-    page: location.page ?? 1,
-    projectId,
-    title: FILE_ATTACHMENT_UI_LABELS.markedSourceLocation,
-    workId: "",
-    width: location.kind === "region" ? location.region.width : 0,
-    x: location.kind === "point" ? location.x : location.region.x,
-    y: location.kind === "point" ? location.y : location.region.y,
-  };
-}
-
-function locationFromBinderValues(
-  values: LocationBinderValues,
-  locationKind: LocationKind,
-  pageCount?: number,
-): FileAttachmentLocation {
-  const page = pageCount
-    ? Math.max(1, Math.min(pageCount, Math.round(values.page) || 1))
-    : undefined;
-  const pageField = page === undefined ? {} : { page };
-  const x = clampCoordinate(values.x);
-  const y = clampCoordinate(values.y);
-  if (locationKind === "point") {
-    return { kind: locationKind, ...pageField, x, y };
-  }
-  return {
-    kind: locationKind,
-    ...pageField,
-    region: {
-      height: Math.min(1 - y, Math.max(0.001, clampCoordinate(values.height))),
-      width: Math.min(1 - x, Math.max(0.001, clampCoordinate(values.width))),
-      x,
-      y,
-    },
-  };
-}
-
 export default function FileAttachmentLocationBinder({
   attachmentId,
   bindStatus,
-  location,
-  locationKind,
+  geometry,
   onBind,
   onClose,
-  onLocationChange,
   onLocationKindChange,
   onPreview,
   pageCount,
@@ -97,11 +44,9 @@ export default function FileAttachmentLocationBinder({
 }: {
   attachmentId: string;
   bindStatus?: LocationBindStatus;
-  location: FileAttachmentLocation;
-  locationKind: LocationKind;
+  geometry: ReturnType<typeof useLocationFieldsForm>;
   onBind?: (input: FileAttachmentLocationBindInput) => void | Promise<void>;
   onClose: () => void;
-  onLocationChange: (location: FileAttachmentLocation) => void;
   onLocationKindChange: (kind: LocationKind) => void;
   onPreview?: (
     input: FileAttachmentLocationBindPreviewInput,
@@ -124,32 +69,24 @@ export default function FileAttachmentLocationBinder({
     inspect.reset();
     resetBind?.();
   }, [inspect.reset, resetBind]);
-  const [validationError, setError] = useState<string | null>(null);
-  let error = validationError;
-  if (!error && inspect.isError) {
-    error = FILE_ATTACHMENT_UI_LABELS.locationPreviewUnavailable;
-  }
-  if (!error && bindStatus?.isError) {
-    error = FILE_ATTACHMENT_UI_LABELS.locationBindFailed;
-  }
   const pending = inspect.isPending || bindStatus?.isPending;
   const bindIdempotencyKey = useRef<string | null>(null);
-  const submitAction = useRef<"bind" | "preview">("preview");
+
   const form = useForm({
     defaultValues: {
-      ...locationBinderValues(location, projectId),
+      description: "",
+      projectId: projectId ?? "",
+      title: String(FILE_ATTACHMENT_UI_LABELS.markedSourceLocation),
+      workId: "",
       mode: "existing" as "existing" | "new",
     },
+    onSubmitMeta: { action: "preview" } as { action: "bind" | "preview" },
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Preview and confirm share one validated form submission boundary while targeting two distinct File Attachment operations.
-    onSubmit: async ({ value }) => {
+    onSubmit: async ({ value, meta }) => {
       const { mode } = value;
-      const nextLocation = locationFromBinderValues(
-        value,
-        locationKind,
-        pageCount,
-      );
+      const nextLocation = locationFromFields(geometry.state.values, pageCount);
 
-      if (submitAction.current === "preview") {
+      if (meta.action === "preview") {
         resetBind?.();
         bindIdempotencyKey.current = null;
         if (!onPreview) {
@@ -246,23 +183,50 @@ export default function FileAttachmentLocationBinder({
   });
 
   const mode = useSelector(form.store, (state) => state.values.mode);
+  const locationKind = useSelector(
+    geometry.store,
+    (state) => state.values.kind,
+  );
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const previewError = inspect.isError
+    ? FILE_ATTACHMENT_UI_LABELS.locationPreviewUnavailable
+    : null;
+  const bindError = bindStatus?.isError
+    ? FILE_ATTACHMENT_UI_LABELS.locationBindFailed
+    : null;
+  const error = validationError ?? previewError ?? bindError;
+  function setError(message: string | null) {
+    form.setErrorMap({
+      onSubmit: message ? { form: message, fields: {} } : undefined,
+    });
+  }
 
-  useEffect(() => {
-    const values = locationBinderValues(location, projectId);
-    form.setFieldValue("height", values.height);
-    form.setFieldValue("page", values.page);
-    form.setFieldValue("projectId", values.projectId);
-    form.setFieldValue("width", values.width);
-    form.setFieldValue("x", values.x);
-    form.setFieldValue("y", values.y);
+  const invalidateLocationPreview = useEffectEvent(() => {
     resetPreview();
     bindIdempotencyKey.current = null;
-  }, [form, location, projectId, resetPreview]);
+  });
+
+  useEffect(() => {
+    invalidateLocationPreview();
+    let previousValues = geometry.state.values;
+    const subscription = geometry.store.subscribe(() => {
+      const { values } = geometry.state;
+      if (values !== previousValues) {
+        previousValues = values;
+        invalidateLocationPreview();
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [geometry]);
 
   const handleFormSubmit = useCallback(
     (event: React.SubmitEvent<HTMLFormElement>) => {
       event.preventDefault();
-      form.handleSubmit().catch(() => undefined);
+      event.stopPropagation();
+      submitForm(form).catch(() => undefined);
     },
     [form],
   );
@@ -271,12 +235,10 @@ export default function FileAttachmentLocationBinder({
     (event: React.MouseEvent<HTMLButtonElement>) => {
       const nextKind = event.currentTarget.dataset.locationKind;
       if (nextKind === "point" || nextKind === "region") {
-        resetPreview();
-        bindIdempotencyKey.current = null;
         onLocationKindChange(nextKind);
       }
     },
-    [onLocationKindChange, resetPreview],
+    [onLocationKindChange],
   );
   const handleMode = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -344,7 +306,7 @@ export default function FileAttachmentLocationBinder({
         {pageCount ? (
           <label className="grid gap-1" htmlFor="file-attachment-location-page">
             <span>{FILE_ATTACHMENT_UI_LABELS.page}</span>
-            <form.Field name="page">
+            <geometry.Field name="page">
               {(field) => (
                 <Input
                   id="file-attachment-location-page"
@@ -354,23 +316,15 @@ export default function FileAttachmentLocationBinder({
                   onChange={(event) => {
                     const value = Number(event.target.value) || 1;
                     field.handleChange(value);
-                    onLocationChange(
-                      locationFromBinderValues(
-                        { ...form.state.values, page: value },
-                        locationKind,
-                        pageCount,
-                      ),
-                    );
-                    resetPreview();
                   }}
                   type="number"
                   value={field.state.value}
                 />
               )}
-            </form.Field>
+            </geometry.Field>
           </label>
         ) : null}
-        <form.Field name="x">
+        <geometry.Field name="x">
           {(field) => (
             <label className="grid gap-1" htmlFor="file-attachment-location-x">
               <span>{FILE_ATTACHMENT_UI_LABELS.xCoordinate}</span>
@@ -380,22 +334,14 @@ export default function FileAttachmentLocationBinder({
                 onChange={(event) => {
                   const value = Number(event.target.value) || 0;
                   field.handleChange(value);
-                  onLocationChange(
-                    locationFromBinderValues(
-                      { ...form.state.values, x: value },
-                      locationKind,
-                      pageCount,
-                    ),
-                  );
-                  resetPreview();
                 }}
                 type="number"
                 value={field.state.value}
               />
             </label>
           )}
-        </form.Field>
-        <form.Field name="y">
+        </geometry.Field>
+        <geometry.Field name="y">
           {(field) => (
             <label className="grid gap-1" htmlFor="file-attachment-location-y">
               <span>{FILE_ATTACHMENT_UI_LABELS.yCoordinate}</span>
@@ -405,24 +351,16 @@ export default function FileAttachmentLocationBinder({
                 onChange={(event) => {
                   const value = Number(event.target.value) || 0;
                   field.handleChange(value);
-                  onLocationChange(
-                    locationFromBinderValues(
-                      { ...form.state.values, y: value },
-                      locationKind,
-                      pageCount,
-                    ),
-                  );
-                  resetPreview();
                 }}
                 type="number"
                 value={field.state.value}
               />
             </label>
           )}
-        </form.Field>
+        </geometry.Field>
         {locationKind === "region" ? (
           <>
-            <form.Field name="width">
+            <geometry.Field name="width">
               {(field) => (
                 <label
                   className="grid gap-1"
@@ -435,22 +373,14 @@ export default function FileAttachmentLocationBinder({
                     onChange={(event) => {
                       const value = Number(event.target.value) || 0;
                       field.handleChange(value);
-                      onLocationChange(
-                        locationFromBinderValues(
-                          { ...form.state.values, width: value },
-                          locationKind,
-                          pageCount,
-                        ),
-                      );
-                      resetPreview();
                     }}
                     type="number"
                     value={field.state.value}
                   />
                 </label>
               )}
-            </form.Field>
-            <form.Field name="height">
+            </geometry.Field>
+            <geometry.Field name="height">
               {(field) => (
                 <label
                   className="grid gap-1"
@@ -463,21 +393,13 @@ export default function FileAttachmentLocationBinder({
                     onChange={(event) => {
                       const value = Number(event.target.value) || 0;
                       field.handleChange(value);
-                      onLocationChange(
-                        locationFromBinderValues(
-                          { ...form.state.values, height: value },
-                          locationKind,
-                          pageCount,
-                        ),
-                      );
-                      resetPreview();
                     }}
                     type="number"
                     value={field.state.value}
                   />
                 </label>
               )}
-            </form.Field>
+            </geometry.Field>
           </>
         ) : null}
       </div>
@@ -581,24 +503,16 @@ export default function FileAttachmentLocationBinder({
         </div>
       ) : null}
       <div className="flex gap-2">
-        <Button
-          disabled={pending}
-          onClick={() => {
-            submitAction.current = "preview";
-          }}
-          size="xs"
-          type="submit"
-          variant="outline"
-        >
+        <Button disabled={pending} size="xs" type="submit" variant="outline">
           {FILE_ATTACHMENT_UI_LABELS.preview}
         </Button>
         <Button
           disabled={pending || !(preview && onBind)}
-          onClick={() => {
-            submitAction.current = "bind";
-          }}
+          onClick={() =>
+            submitForm(form, { action: "bind" }).catch(() => undefined)
+          }
           size="xs"
-          type="submit"
+          type="button"
         >
           {FILE_ATTACHMENT_UI_LABELS.confirm}
         </Button>

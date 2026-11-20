@@ -126,6 +126,9 @@ test.each([false, true])(
         );
     });
     expect(rpc.previewCaptureConversion).toHaveBeenCalled();
+    await vi.waitFor(() =>
+      expect(buttonNamed(container, "Confirm")).toBeDefined(),
+    );
     await act(async () => buttonNamed(container, "Confirm")?.click());
 
     expect(rpc.convertCapture).toHaveBeenCalled();

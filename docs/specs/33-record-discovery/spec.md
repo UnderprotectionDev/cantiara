@@ -49,6 +49,8 @@ Evrensel Arama yetkili ana kayıtları kapalı eşitlik-bozucu sırayla bulur; e
 
 ## Testing Decisions
 
+- **#545.** The web Record Table seam checks blur-based cell saves and Paste review through the same validation and confirmation path. Rejected writes keep their edits for retry.
+
 - **Query write lifecycle (#544).** The Table web tests exercise the same cell draft after a failure, retaining its initial base revision and command identity; a different draft gets a new identity. Cell and paste writes are stopped before RPC while a desktop update is required. Rejected writes refresh no queries; confirmed writes refresh the displayed Table and Smart Collection membership.
 
 - **Next concrete step discovery (#293).** `Search` güncel Proje ve İşin aynı `Next concrete step` alanını kullanır. Proje adı/kısa kod eşleşmesi mevcut başlık/anahtar sırasına, adım eşleşmesi gövde sırasına uyar. Hesap, scope, type ve archive sınırları korunur; Proje sonucu kendi `Overview` kaynağına gider. `universal-search-database.integration.test.ts` değiştirilmiş adımın bulunmamasını ve Proje erişim/scope/archive sınırlarını; `universal-search-results.test.tsx` Proje kaynak bağlantısını doğrular. Yeni index veya ayrı adım kaydı oluşturulmaz.

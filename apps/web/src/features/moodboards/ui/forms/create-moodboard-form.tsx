@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
+
 import {
   createMoodboardInputSchema,
   MOODBOARD_UI_LABELS,
@@ -6,8 +7,8 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
-import { useForm } from "@tanstack/react-form";
-import { useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { submitForm } from "@/lib/submit-form";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
 
@@ -20,25 +21,31 @@ export function CreateMoodboardForm({
   api: MoodboardsApi;
   projectId: string;
 }) {
-  const [formError, setFormError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: { title: "" },
-    onSubmit: ({ formApi, value }) => {
+    onSubmit: async ({ formApi, value }) => {
       const parsed = createMoodboardInputSchema.safeParse({
         projectId,
         title: value.title,
       });
       if (!parsed.success) {
-        setFormError(parsed.error.issues[0]?.message ?? "Check the title.");
+        form.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the title.",
+            fields: {},
+          },
+        });
         return;
       }
-      setFormError(null);
-      api.createMoodboard.mutate(
-        { title: parsed.data.title },
-        { onSuccess: () => formApi.setFieldValue("title", "") },
-      );
+      form.setErrorMap({ onSubmit: undefined });
+      await api.createMoodboard.mutateAsync({ title: parsed.data.title });
+      formApi.setFieldValue("title", "");
     },
   });
+  const formError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
 
   return (
     <>
@@ -47,7 +54,7 @@ export function CreateMoodboardForm({
         onSubmit={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          form.handleSubmit().catch(() => undefined);
+          submitForm(form).catch(() => undefined);
         }}
       >
         <div className="flex-1 space-y-1">

@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the form fields.
+
 import type {
   PlannedTestCaseRecord,
   SessionTestRecord,
@@ -22,9 +23,10 @@ import {
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type SubmitEvent, useId, useState } from "react";
+import { type SubmitEvent, useId, useRef, useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import {
   type CloseFormValues,
@@ -40,7 +42,7 @@ import {
 import {
   type LoadGapRelationTargets,
   TestGapRelationsField,
-} from "../components/test-gap-relations-field";
+} from "./test-gap-relations-field-form";
 
 export type SubmitGap = (values: GapFormValues) => Promise<unknown>;
 
@@ -89,7 +91,29 @@ export function GapForm({
   onSubmit: SubmitGap;
   projectId: string;
 }) {
-  const [validationError, setValidationError] = useState<string>();
+  const resetPicker = useRef<(() => void) | null>(null);
+  const form = useForm({
+    defaultValues: EMPTY_GAP_FORM,
+    onSubmit: async ({ value, formApi }) => {
+      form.setErrorMap({ onSubmit: undefined });
+      const parsed = parseGapForm(value);
+      if (!parsed.ok) {
+        form.setErrorMap({ onSubmit: { form: parsed.message, fields: {} } });
+        return;
+      }
+      try {
+        await create.mutateAsync(value);
+        formApi.reset(EMPTY_GAP_FORM);
+        resetPicker.current?.();
+      } catch {
+        // The create observer presents write failures.
+      }
+    },
+  });
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   let error = validationError;
   const create = useMutation({
     meta: { onlineWrite: true },
@@ -99,27 +123,10 @@ export function GapForm({
   if (!error && create.error) {
     error = errorText(create.error, `${TEST_GAP_LABEL} was not saved.`);
   }
-  const form = useForm({
-    defaultValues: EMPTY_GAP_FORM,
-    onSubmit: async ({ value, formApi }) => {
-      setValidationError(undefined);
-      const parsed = parseGapForm(value);
-      if (!parsed.ok) {
-        setValidationError(parsed.message);
-        return;
-      }
-      try {
-        await create.mutateAsync(value);
-        formApi.reset(EMPTY_GAP_FORM);
-      } catch {
-        // The create observer presents write failures.
-      }
-    },
-  });
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form
@@ -175,6 +182,7 @@ export function GapForm({
                   loadTargets={loadTargets}
                   onChange={field.handleChange}
                   projectId={projectId}
+                  resetRef={resetPicker}
                   value={field.state.value}
                 />
               )}
@@ -274,7 +282,7 @@ export function PlanningControls({
         .catch(() => undefined);
     },
   });
-  function submitForm(form: { handleSubmit: () => Promise<void> }) {
+  function submitPlan(form: { handleSubmit: () => Promise<void> }) {
     return (event: SubmitEvent<HTMLFormElement>) => {
       event.preventDefault();
       event.stopPropagation();
@@ -346,7 +354,7 @@ export function PlanningControls({
           <form
             className="grid gap-1"
             noValidate
-            onSubmit={submitForm(versionForm)}
+            onSubmit={submitPlan(versionForm)}
           >
             <label htmlFor={`${id}-version`}>Planned Test Case version</label>
             <versionForm.Field name="version">
@@ -397,7 +405,7 @@ export function PlanningControls({
           <form
             className="grid gap-1"
             noValidate
-            onSubmit={submitForm(handoffForm)}
+            onSubmit={submitPlan(handoffForm)}
           >
             <label htmlFor={`${id}-handoff`}>Test Handoff</label>
             <handoffForm.Field name="handoffId">
@@ -464,14 +472,14 @@ export function CloseForm({
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string>();
+
   const form = useForm({
     defaultValues: EMPTY_CLOSE_FORM,
     onSubmit: async ({ value, formApi }) => {
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = parseCloseForm(value);
       if (!parsed.ok) {
-        setError(parsed.message);
+        form.setErrorMap({ onSubmit: { form: parsed.message, fields: {} } });
         return;
       }
       try {
@@ -479,10 +487,19 @@ export function CloseForm({
         setOpen(false);
         formApi.reset(EMPTY_CLOSE_FORM);
       } catch (caught) {
-        setError(errorText(caught, `${TEST_GAP_LABEL} was not closed.`));
+        form.setErrorMap({
+          onSubmit: {
+            form: errorText(caught, `${TEST_GAP_LABEL} was not closed.`),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const { data: decisions = [] } = useQuery({
     enabled: open,
     queryFn: loadDecisions,
@@ -493,7 +510,7 @@ export function CloseForm({
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   if (!open) {
     return (

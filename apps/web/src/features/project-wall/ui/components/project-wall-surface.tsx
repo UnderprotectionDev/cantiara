@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: The scene handlers close over the displayed wall and its personal view.
+
 import type {
   ProjectWallDensity,
   ProjectWallHighlight,
@@ -18,6 +19,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { fetchFresh } from "@/lib/fetch-fresh";
 
 import { executeWrite } from "@/utils/execute-write";
 import { client, orpc } from "@/utils/orpc";
@@ -187,12 +189,11 @@ export default function ProjectWallSurface({
         }),
       ).then((attempt) => attempt.ok),
     onPreviewRelation: (request) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewProjectWallPersistentRelation.queryOptions({
           input: { ...request, projectId, wallId: wallId ?? "" },
         }),
         gcTime: 0,
-        staleTime: 0,
       }),
     onExportSnapshot: async (scope, format) => {
       const output = await client.exportProjectWallSnapshot({
@@ -204,12 +205,11 @@ export default function ProjectWallSurface({
       return output.files;
     },
     onPreviewSnapshot: (scope) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewProjectWallSnapshot.queryOptions({
           input: { ...scope, projectId, wallId: wallId ?? "" },
         }),
         gcTime: 0,
-        staleTime: 0,
       }),
     onSetFocusOrder: (cardIds) =>
       write(() =>

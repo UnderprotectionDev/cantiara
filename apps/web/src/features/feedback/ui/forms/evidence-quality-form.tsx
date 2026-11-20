@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the field being edited.
+
 import { EVIDENCE_ROLES } from "@cantiara/api/document-evidence";
 import {
   EVIDENCE_QUALITY_FIELDS,
@@ -19,7 +20,8 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 
 type EvidenceCommand = Pick<
   SetFeedbackEvidenceInput,
@@ -50,10 +52,6 @@ export function EvidenceQualityPanel({
   readOnly: boolean;
 }) {
   const { evidence } = origin;
-  const [status, setStatus] = useState<{
-    kind: "error" | "ok";
-    text: string;
-  } | null>(null);
   const form = useForm({
     defaultValues: {
       followUp: (evidence.followUp ?? "") as FeedbackFollowUp | "",
@@ -73,7 +71,6 @@ export function EvidenceQualityPanel({
       role: evidence.role,
     },
     onSubmit: async ({ value }) => {
-      setStatus(null);
       const command = {
         expectedRevision: evidence.revision,
         followUp: value.followUp || null,
@@ -110,21 +107,36 @@ export function EvidenceQualityPanel({
           throw new Error("Evidence quality is invalid.");
         }
         await onSave(origin, command);
-        setStatus({ kind: "ok", text: "Evidence quality saved." });
       } catch {
-        setStatus({
-          kind: "error",
-          text: "Evidence quality could not be saved. Reload and try again.",
+        form.setErrorMap({
+          onSubmit: {
+            form: "Evidence quality could not be saved. Reload and try again.",
+            fields: {},
+          },
         });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const succeeded = useSelector(
+    form.store,
+    (state) => state.isSubmitSuccessful,
+  );
+  let status: { kind: "ok" | "error"; text: string } | null = null;
+  if (error) {
+    status = { kind: "error", text: error };
+  } else if (succeeded) {
+    status = { kind: "ok", text: "Evidence quality saved." };
+  }
   const pending = useSelector(form.store, (state) => state.isSubmitting);
   const drafts = useSelector(form.store, (state) => state.values.quality);
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   const idBase = `evidence-${origin.id}`;
   return (

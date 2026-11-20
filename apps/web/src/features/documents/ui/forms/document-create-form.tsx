@@ -17,10 +17,12 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { mutationErrorMessage } from "@/lib/mutation-messages";
+import { submitForm } from "@/lib/submit-form";
 import { client } from "@/utils/orpc";
 import { createDocumentFormSchema } from "../../lib/document-form";
 
@@ -49,7 +51,6 @@ export default function DocumentCreateForm({
   open: boolean;
   projectId: string | null;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const pendingCreate = useRef<{
     clientIdempotencyKey: string;
     projectId: string | null;
@@ -113,16 +114,10 @@ export default function DocumentCreateForm({
       ) {
         pendingCreate.current = null;
       }
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       form.reset();
       await onCreated(created);
     },
-    onError: (failure) =>
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Document could not be created.",
-      ),
   });
   const form = useForm({
     defaultValues: {
@@ -133,9 +128,14 @@ export default function DocumentCreateForm({
     onSubmit: async ({ value }) => {
       const parsed = createDocumentFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError(
-          parsed.error.issues[0]?.message ?? "Document could not be created.",
-        );
+        form.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ??
+              "Document could not be created.",
+            fields: {},
+          },
+        });
         return;
       }
       const createValue: DocumentCreateInput = parsed.data;
@@ -145,6 +145,15 @@ export default function DocumentCreateForm({
       });
     },
   });
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const error =
+    validationError ??
+    (create.isError
+      ? mutationErrorMessage(create.error, "Document could not be created.")
+      : undefined);
 
   return (
     <Dialog
@@ -152,7 +161,7 @@ export default function DocumentCreateForm({
         onOpenChange(open);
         if (!open) {
           form.reset();
-          setError(null);
+          create.reset();
         }
       }}
       open={createOpen}
@@ -171,7 +180,7 @@ export default function DocumentCreateForm({
           onSubmit={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            form.handleSubmit().catch(() => undefined);
+            submitForm(form).catch(() => undefined);
           }}
         >
           {documentStarterSkeletons.length > 0 ? (

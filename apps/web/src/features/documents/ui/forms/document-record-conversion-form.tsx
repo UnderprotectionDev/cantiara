@@ -1,7 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Document controls close over the selected record and current editor state.
 import type { Document } from "@cantiara/api/documents";
-import type { ProjectSourceRecord } from "@cantiara/api/project-source-records";
-import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import {
   Dialog,
@@ -59,12 +57,12 @@ export default function DocumentRecordConversionDialog({
   };
   convertSelectedText: Pick<
     import("@tanstack/react-query").UseMutationResult<
-      WorkProfile | ProjectSourceRecord | null,
+      void,
       Error,
       { recordType: DocumentConversionRecordType; title: string },
       unknown
     >,
-    "mutate" | "isPending" | "isError" | "error"
+    "mutateAsync" | "isPending" | "isError" | "error"
   >;
 }) {
   const selectedText = selectedTextRange
@@ -118,12 +116,12 @@ function DocumentRecordConversionForm({
 }: {
   convertSelectedText: Pick<
     import("@tanstack/react-query").UseMutationResult<
-      WorkProfile | ProjectSourceRecord | null,
+      void,
       Error,
       { recordType: DocumentConversionRecordType; title: string },
       unknown
     >,
-    "mutate" | "isPending" | "isError" | "error"
+    "mutateAsync" | "isPending" | "isError" | "error"
   >;
   initialTitle: string;
   onCancel: () => void;
@@ -138,10 +136,10 @@ function DocumentRecordConversionForm({
       recordType: "Work" as DocumentConversionRecordType,
       title: initialTitle,
     },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value }) => {
       const parsed = convertDocumentTextToRecordFormSchema.safeParse(value);
       if (parsed.success) {
-        convertSelectedText.mutate(parsed.data);
+        await convertSelectedText.mutateAsync(parsed.data);
       }
     },
   });

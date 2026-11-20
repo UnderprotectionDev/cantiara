@@ -14,9 +14,10 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useId, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useId } from "react";
 import { DateTimePicker } from "@/components/date-picker";
+import { submitForm } from "@/lib/submit-form";
 import { isResearchSessionConflict } from "../../lib/research-session-conflict";
 import {
   researchSessionTimeInput,
@@ -53,18 +54,10 @@ export function ResearchSessionEditor({
   savePending?: boolean;
 }) {
   const prefix = useId();
-  const [baseRecord] = useState(record);
-  const [entryTimeZone] = useState(timeZone);
-  const [validationError, setValidationError] = useState<string>();
-  const conflict = isResearchSessionConflict(saveError);
-  let error = validationError;
-  if (!error && saveError) {
-    error = conflict
-      ? "Research Session changed. Cancel and reopen before saving. Your text is kept here."
-      : "Research Session could not be saved. Retry or reload to check for changes. Your text is kept here.";
-  }
   const form = useForm({
     defaultValues: {
+      baseRecord: record,
+      entryTimeZone: timeZone,
       title: record?.title ?? "",
       purpose: record?.purpose ?? "",
       questionGuide: record?.questionGuide ?? "",
@@ -75,23 +68,29 @@ export function ResearchSessionEditor({
       consent: record?.consent ?? "Not asked",
       consentNote: record?.consentNote ?? "",
       scheduledAt: record?.scheduledAt
-        ? researchSessionTimeInput(record.scheduledAt, entryTimeZone)
+        ? researchSessionTimeInput(record.scheduledAt, timeZone)
         : "",
       durationMinutes: record?.durationMinutes?.toString() ?? "",
     },
-    onSubmit: async ({ value }) => {
-      setValidationError(undefined);
+    onSubmit: async ({
+      formApi,
+      value: { baseRecord, entryTimeZone: submittedTimeZone, ...value },
+    }) => {
       let scheduledAt: string | null = null;
       try {
         scheduledAt = researchSessionTimestamp(
           value.scheduledAt,
-          entryTimeZone,
+          submittedTimeZone,
           baseRecord?.scheduledAt,
         );
       } catch (cause) {
-        setValidationError(
-          cause instanceof Error ? cause.message : "Enter a valid Time.",
-        );
+        formApi.setErrorMap({
+          onSubmit: {
+            form:
+              cause instanceof Error ? cause.message : "Enter a valid Time.",
+            fields: {},
+          },
+        });
         return;
       }
       const parsed = researchSessionFieldsSchema.safeParse({
@@ -103,18 +102,37 @@ export function ResearchSessionEditor({
         participantContactId: baseRecord?.participantContactId ?? null,
       });
       if (!parsed.success) {
-        setValidationError(
-          parsed.error.issues[0]?.message ??
-            "Check the Research Session fields.",
-        );
+        formApi.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ??
+              "Check the Research Session fields.",
+            fields: {},
+          },
+        });
         return;
       }
       await onSave(parsed.data, baseRecord);
     },
   });
+  const entryTimeZone = useSelector(
+    form.store,
+    (state) => state.values.entryTimeZone,
+  );
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const conflict = isResearchSessionConflict(saveError);
+  let error = validationError;
+  if (!error && saveError) {
+    error = conflict
+      ? "Research Session changed. Cancel and reopen before saving. Your text is kept here."
+      : "Research Session could not be saved. Retry or reload to check for changes. Your text is kept here.";
+  }
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   const submitLabel = error && !conflict ? "Retry" : "Save";
   return (

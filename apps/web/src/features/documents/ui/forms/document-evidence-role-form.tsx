@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
+
 import {
   type DocumentEvidenceBinding,
   EVIDENCE_ROLES,
@@ -14,7 +15,8 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { client, orpc } from "@/utils/orpc";
 import { documentEvidenceRoleFormSchema } from "../../lib/document-evidence-form";
 import { EvidenceRoleHistory } from "../components/document-evidence-role-history";
@@ -34,7 +36,7 @@ export default function DocumentEvidenceRoleForm({
     }),
   );
   const cache = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
+
   const command = useRef<string | null>(null);
   const selection = {
     documentId: record.id,
@@ -54,11 +56,16 @@ export default function DocumentEvidenceRoleForm({
     onSubmit: async ({ value }) => {
       const parsed = documentEvidenceRoleFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError("Evidence Role could not be saved. Reload and try again.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Evidence Role could not be saved. Reload and try again.",
+            fields: {},
+          },
+        });
         return;
       }
       command.current ??= crypto.randomUUID();
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       try {
         await setDocumentEvidenceRoleMutation.mutateAsync({
           ...selection,
@@ -76,17 +83,26 @@ export default function DocumentEvidenceRoleForm({
           queryKey: orpc.documentEvidenceHistory.key(),
         });
       } catch {
-        setError("Evidence Role could not be saved. Reload and try again.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Evidence Role could not be saved. Reload and try again.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const values = useSelector(form.store, (state) => state.values);
   const pending = useSelector(form.store, (state) => state.isSubmitting);
   const dirty =
     values.role !== binding.role ||
     values.interpretation !== (binding.interpretation ?? "");
   function submit() {
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   // Rendered inside the Document edit `<form>`, so it submits through a button instead of a nested `<form>`.
   return (

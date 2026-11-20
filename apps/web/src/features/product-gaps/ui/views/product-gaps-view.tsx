@@ -16,6 +16,7 @@ import {
 import { useCallback, useRef, useState } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
+import { fetchFresh } from "@/lib/fetch-fresh";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -173,12 +174,11 @@ function ProductGapsContent() {
       }}
       onFilterChange={setFilter}
       onPreviewFollowUp={(gap, request) =>
-        queryClient.query({
+        fetchFresh(queryClient, {
           ...orpc.previewProductGapFollowUp.queryOptions({
             input: { ...request, gapId: gap.id },
           }),
           gcTime: 0,
-          staleTime: 0,
         })
       }
       onRecord={async (values) => {

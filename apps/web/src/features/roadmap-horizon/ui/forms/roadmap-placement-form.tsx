@@ -10,7 +10,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import type { SubmitEvent } from "react";
+import type { ReactNode, SubmitEvent } from "react";
 import { DatePicker } from "@/components/date-picker";
 import { roadmapPlacementFormSchema } from "../../lib/roadmap-placement-form";
 
@@ -19,13 +19,17 @@ const HORIZONS = ["Now", "Next", "Later"] as const;
 /** Chooses the Roadmap field and value to place a Work on the plan, then previews it. */
 export default function RoadmapPlacementForm({
   onCancel,
-  onChange,
-  onPreview,
+  children,
+  onConfirm,
   workId,
 }: {
   onCancel: () => void;
-  onChange: () => void;
-  onPreview: (choice: RoadmapPlacementChoice) => void;
+  children: (
+    choice: RoadmapPlacementChoice,
+    confirm: () => Promise<void>,
+    edit: () => void,
+  ) => ReactNode;
+  onConfirm: (choice: RoadmapPlacementChoice) => Promise<unknown>;
   workId: string;
 }) {
   const form = useForm({
@@ -33,16 +37,29 @@ export default function RoadmapPlacementForm({
       date: "",
       field: "horizon" as RoadmapPlacementChoice["field"],
       horizon: "" as RoadmapHorizon | "",
+      reviewed: null as RoadmapPlacementChoice | null,
     },
-    // Any edit invalidates the previewed placement.
-    listeners: { onChange },
-    onSubmit: ({ value }) => {
+    onSubmitMeta: { action: "preview" } as { action: "confirm" | "preview" },
+    listeners: {
+      onChange: ({ fieldApi }) => {
+        if (fieldApi.name !== "reviewed") {
+          form.setFieldValue("reviewed", null);
+        }
+      },
+    },
+    onSubmit: async ({ value, formApi, meta }) => {
+      if (meta.action === "confirm") {
+        if (value.reviewed) {
+          await onConfirm(value.reviewed);
+        }
+        return;
+      }
       const parsed = roadmapPlacementFormSchema.safeParse({
         field: value.field,
         value: value.field === "horizon" ? value.horizon : value.date,
       });
       if (parsed.success) {
-        onPreview(parsed.data);
+        formApi.setFieldValue("reviewed", parsed.data);
       }
     },
   });
@@ -156,6 +173,17 @@ export default function RoadmapPlacementForm({
           Cancel
         </Button>
       </div>
+      <form.Subscribe selector={(state) => state.values.reviewed}>
+        {(choice) =>
+          choice
+            ? children(
+                choice,
+                () => form.handleSubmit({ action: "confirm" }),
+                () => form.setFieldValue("reviewed", null),
+              )
+            : null
+        }
+      </form.Subscribe>
     </form>
   );
 }

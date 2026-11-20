@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Commands capture the displayed preview and the node it was made from.
+
 import {
   USER_FLOW_CONVERT_TARGETS,
   USER_FLOW_WORK_TYPES,
@@ -21,9 +22,10 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import { convertAndBindFormSchema } from "../../lib/user-flow-forms";
 
@@ -147,14 +149,30 @@ export function ConvertAndBindDialog({
     },
     // Any edit invalidates the previewed plan and its confirmation identity.
     listeners: { onChange: reset },
-    onSubmit: ({ value }) => preview(value),
+    onSubmitMeta: { action: "preview" } as { action: "confirm" | "preview" },
+    onSubmit: ({ meta, value }) =>
+      meta.action === "confirm" ? confirm() : preview(value),
   });
+  const submitting = useSelector(form.store, (state) => state.isSubmitting);
+  const validation = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const busy = pending || submitting;
+  const message = validation ?? error;
   async function preview(value: {
     target: UserFlowConvertTarget;
     workType: UserFlowWorkType;
   }) {
     const parsed = convertAndBindFormSchema.safeParse(value);
     if (!parsed.success) {
+      form.setErrorMap({
+        onSubmit: {
+          form:
+            parsed.error.issues[0]?.message ?? "Check the conversion options.",
+          fields: {},
+        },
+      });
       return;
     }
     reset();
@@ -162,7 +180,7 @@ export function ConvertAndBindDialog({
       .mutateAsync([parsed.data.target, parsed.data.workType])
       .catch(() => undefined);
   }
-  function confirm() {
+  async function confirm() {
     if (!plan || pending) {
       return;
     }
@@ -171,7 +189,7 @@ export function ConvertAndBindDialog({
       key: crypto.randomUUID(),
       recordId: crypto.randomUUID(),
     };
-    onConfirm(plan, identity.current).catch(() => undefined);
+    await onConfirm(plan, identity.current);
   }
   return (
     <Dialog onOpenChange={(open) => !open && onClose()} open>
@@ -189,14 +207,14 @@ export function ConvertAndBindDialog({
           onSubmit={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            form.handleSubmit().catch(() => undefined);
+            submitForm(form).catch(() => undefined);
           }}
         >
           <Label htmlFor={`convert-target-${node.id}`}>Record type</Label>
           <form.Field name="target">
             {(field) => (
               <NativeSelect
-                disabled={pending}
+                disabled={busy}
                 id={`convert-target-${node.id}`}
                 onChange={(event) =>
                   field.handleChange(
@@ -223,7 +241,7 @@ export function ConvertAndBindDialog({
                   <form.Field name="workType">
                     {(field) => (
                       <NativeSelect
-                        disabled={pending}
+                        disabled={busy}
                         id={`convert-work-type-${node.id}`}
                         onChange={(event) =>
                           field.handleChange(
@@ -246,20 +264,26 @@ export function ConvertAndBindDialog({
           </form.Subscribe>
         </form>
         {plan ? <ConvertAndBindPreview plan={plan} /> : null}
-        {error ? <p role="alert">{error}</p> : null}
+        {message ? <p role="alert">{message}</p> : null}
         <DialogFooter>
           <Button onClick={onClose} type="button" variant="outline">
             Cancel
           </Button>
           <Button
-            disabled={pending}
+            disabled={busy}
             form={`convert-and-bind-form-${node.id}`}
             type="submit"
             variant="outline"
           >
             Preview
           </Button>
-          <Button disabled={!plan || pending} onClick={confirm} type="button">
+          <Button
+            disabled={!plan || busy}
+            onClick={() =>
+              submitForm(form, { action: "confirm" }).catch(() => undefined)
+            }
+            type="button"
+          >
             Confirm
           </Button>
         </DialogFooter>

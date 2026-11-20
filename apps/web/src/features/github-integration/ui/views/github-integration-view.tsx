@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the chosen link and the last action message.
+
 import {
   type AccountPreferences,
   DEFAULT_ACCOUNT_PREFERENCES,
@@ -23,6 +24,7 @@ import {
 } from "@cantiara/api/github-integration";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useSelector } from "@tanstack/react-store";
 import {
   type MouseEvent as ReactMouseEvent,
   useEffect,
@@ -30,6 +32,7 @@ import {
   useState,
 } from "react";
 import { orpc } from "@/utils/orpc";
+import { useGitHubRecordSearchForm } from "../../hooks/use-github-record-search-form";
 import { errorText } from "../../lib/github-error-text";
 import { linkActionsFor, syncNowMessage } from "../../lib/github-sync-labels";
 import { GitHubLinkPreviewPanel } from "../components/github-link-preview";
@@ -354,13 +357,17 @@ function RecordSearch({
   onSearch: GitHubIntegrationActions["onSearch"];
   projectId: string;
 }) {
-  const [search, setSearch] = useState({ submitted: false, text: "" });
+  const searchForm = useGitHubRecordSearchForm();
+  const query = useSelector(
+    searchForm.store,
+    (state) => state.values.submitted,
+  );
   const results = useQuery({
-    enabled: search.submitted,
+    enabled: query !== null,
     gcTime: 0,
-    queryFn: () => onSearch(search.text),
+    queryFn: () => onSearch(query ?? ""),
     queryKey: orpc.searchGitHubRecords.queryKey({
-      input: { projectId, query: search.text },
+      input: { projectId, query: query ?? "" },
     }),
   });
   return (
@@ -371,9 +378,7 @@ function RecordSearch({
       <h3 className="font-medium" id="github-records-heading">
         GitHub records
       </h3>
-      <SearchGitHubRecordsForm
-        onSearch={(text) => setSearch({ submitted: true, text })}
-      />
+      <SearchGitHubRecordsForm form={searchForm} />
       {results.isError ? (
         <p className="text-destructive" role="alert">
           GitHub records are unavailable.

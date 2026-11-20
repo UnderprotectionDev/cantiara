@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each form binds its own field state.
+
 import type {
   CreatableAuthorityMode,
   ExternalSourceLink,
@@ -11,11 +12,12 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { z } from "zod";
-
 import { commandVariables } from "@/lib/command-variables";
+import { fetchFresh } from "@/lib/fetch-fresh";
+import { submitForm } from "@/lib/submit-form";
 import { client, orpc } from "@/utils/orpc";
 import { conversionSchema } from "../../lib/technical-diagram-form-schemas";
 
@@ -62,10 +64,9 @@ export function DiagramAuthorityConversion({
     meta: { retryInSurface: true },
     mutationKey: orpc.previewDiagramAuthorityConversion.mutationKey(),
     mutationFn: (input: ReturnType<typeof request>) =>
-      queryClient.query({
+      fetchFresh(queryClient, {
         ...orpc.previewDiagramAuthorityConversion.queryOptions({ input }),
         gcTime: 0,
-        staleTime: 0,
       }),
   });
   const confirmMutation = useMutation(
@@ -84,6 +85,7 @@ export function DiagramAuthorityConversion({
     previewMutation.reset();
     confirmMutation.reset();
   }
+  const preview = previewMutation.data;
   const form = useForm({
     defaultValues: {
       revision: "",
@@ -93,20 +95,45 @@ export function DiagramAuthorityConversion({
       url: "",
     } as ConversionValues,
     listeners: { onChange: reset },
-    onSubmit: ({ value }) => {
-      const values = conversionSchema.safeParse(value);
-      if (values.success) {
-        confirmMutation.reset();
-        previewMutation.mutate(request(values.data));
+    onSubmitMeta: { action: "preview" } as { action: "preview" | "confirm" },
+    onSubmit: async ({ formApi, meta, value }) => {
+      if (meta.action === "confirm") {
+        const reviewed = previewMutation.variables;
+        if (reviewed && preview?.canConvert) {
+          await confirmMutation.mutateAsync(
+            commandVariables(
+              { ...reviewed, previewToken: preview.previewToken },
+              confirmMutation.isError ? confirmMutation.variables : undefined,
+            ),
+          );
+          formApi.reset();
+          reset();
+        }
+        return;
       }
+      const values = conversionSchema.safeParse(value);
+      if (!values.success) {
+        formApi.setErrorMap({
+          onSubmit: { form: "Check the conversion fields.", fields: {} },
+        });
+        return;
+      }
+      confirmMutation.reset();
+      await previewMutation.mutateAsync(request(values.data));
     },
   });
-  const preview = previewMutation.data;
+  const busy = useSelector(form.store, (state) => state.isSubmitting);
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const failure = confirmMutation.error ?? previewMutation.error;
   const fallback = confirmMutation.isError
     ? "Conversion failed."
     : "Preview failed.";
-  const error = failure instanceof Error ? failure.message : fallback;
+  const error =
+    validationError ??
+    (failure instanceof Error ? failure.message : failure && fallback);
 
   if (targets.length === 0) {
     return null;
@@ -123,10 +150,10 @@ export function DiagramAuthorityConversion({
         onSubmit={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          form.handleSubmit().catch(() => undefined);
+          submitForm(form, { action: "preview" }).catch(() => undefined);
         }}
       >
-        <fieldset className="space-y-2" disabled={confirmMutation.isPending}>
+        <fieldset className="space-y-2" disabled={busy}>
           <form.Field name="targetMode">
             {(field) => (
               <>
@@ -223,46 +250,33 @@ export function DiagramAuthorityConversion({
               ) : null
             }
           </form.Subscribe>
-          <Button disabled={previewMutation.isPending} type="submit">
-            Preview conversion
-          </Button>
+          <Button type="submit">Preview conversion</Button>
         </fieldset>
-      </form>
-      {preview ? (
-        <div className="space-y-2" role="status">
-          <p>
-            {preview.sourceMode} to {preview.targetMode}: a new Technical
-            Diagram that Originates from this one.
-          </p>
-          <ul className="list-inside list-disc">
-            {preview.loss.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-          <p>{preview.history}</p>
-          <Button
-            disabled={!preview.canConvert || confirmMutation.isPending}
-            onClick={() => {
-              const reviewed = previewMutation.variables;
-              if (reviewed) {
-                confirmMutation.mutate(
-                  commandVariables(
-                    { ...reviewed, previewToken: preview.previewToken },
-                    confirmMutation.isError
-                      ? confirmMutation.variables
-                      : undefined,
-                  ),
-                  { onSuccess: reset },
-                );
+        {preview ? (
+          <div className="space-y-2" role="status">
+            <p>
+              {preview.sourceMode} to {preview.targetMode}: a new Technical
+              Diagram that Originates from this one.
+            </p>
+            <ul className="list-inside list-disc">
+              {preview.loss.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <p>{preview.history}</p>
+            <Button
+              disabled={!preview.canConvert || busy}
+              onClick={() =>
+                submitForm(form, { action: "confirm" }).catch(() => undefined)
               }
-            }}
-            type="button"
-          >
-            Confirm conversion
-          </Button>
-        </div>
-      ) : null}
-      {failure ? <p role="alert">{error}</p> : null}
+              type="button"
+            >
+              Confirm conversion
+            </Button>
+          </div>
+        ) : null}
+        {error ? <p role="alert">{error}</p> : null}
+      </form>
     </section>
   );
 }

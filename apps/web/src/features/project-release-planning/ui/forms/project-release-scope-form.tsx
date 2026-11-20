@@ -6,8 +6,9 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import type { SubmitEvent } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { projectReleaseScopeFormSchema } from "../../lib/project-release-planning-form";
 
 /** `Add Work to scope`: one explicit Work of this Project at a time. */
@@ -18,28 +19,38 @@ export function ProjectReleaseScopeForm({
   candidates: readonly ProjectReleaseWork[];
   onAdd: (workId: string) => Promise<unknown>;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: { workId: "" },
     onSubmit: async ({ value, formApi }) => {
-      setError(null);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = projectReleaseScopeFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError("Choose a Work to add.");
+        form.setErrorMap({
+          onSubmit: { form: "Choose a Work to add.", fields: {} },
+        });
         return;
       }
       try {
         await onAdd(parsed.data.workId);
         formApi.reset();
       } catch {
-        setError("Work could not be added. Reload and try again.");
+        form.setErrorMap({
+          onSubmit: {
+            form: "Work could not be added. Reload and try again.",
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   if (!candidates.length) {
     return (

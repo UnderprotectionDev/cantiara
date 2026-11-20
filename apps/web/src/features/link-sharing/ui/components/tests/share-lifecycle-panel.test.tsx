@@ -138,9 +138,11 @@ describe("Share lifecycle panel", () => {
     expect(host?.textContent).toContain("2099-10-01 12:00 (Europe/Istanbul)");
     await click("Remove expiry");
     expect(props.onSetExpiry).toHaveBeenCalledWith(null);
-    expect(host?.querySelector('[role="status"]')?.textContent).toContain(
-      "Expiry removed",
-    );
+    await vi.waitFor(() => {
+      expect(host?.querySelector('[role="status"]')?.textContent).toContain(
+        "Expiry removed",
+      );
+    });
   });
 
   test("Revoke is terminal: it warns first and runs only after the confirmation", async () => {
@@ -206,9 +208,11 @@ describe("Share lifecycle panel", () => {
     });
     await click("Revoke");
     await click("Revoke");
-    expect(host?.querySelector('[role="alert"]')?.textContent).toBe(
-      "Too many share changes. Try again later.",
-    );
+    await vi.waitFor(() => {
+      expect(host?.querySelector('[role="alert"]')?.textContent).toBe(
+        "Too many share changes. Try again later.",
+      );
+    });
     expect(host?.querySelector("fieldset")).not.toBeNull();
   });
 
@@ -218,9 +222,11 @@ describe("Share lifecycle panel", () => {
     });
     await click("Revoke");
     await click("Revoke");
-    expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
-      "did not work",
-    );
+    await vi.waitFor(() => {
+      expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
+        "did not work",
+      );
+    });
     expect(host?.querySelector("fieldset")).not.toBeNull();
   });
 });

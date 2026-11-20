@@ -691,15 +691,36 @@ test("adds an exact Document revision and a Wireframe version as package context
   });
   setValue("test-handoff-new-context-target", "d1");
   setValue("test-handoff-new-context-section", "payment");
-  act(() => button("Add context record").click());
+  await act(async () => button("Add context record").click());
   setValue("test-handoff-new-context-kind", "Wireframe");
   await act(async () => {
     await settle();
   });
   setValue("test-handoff-new-context-target", "sc1");
+  await act(async () => button("Add context record").click());
+  expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+    "Choose a Wireframe version.",
+  );
+  expect(
+    document.querySelector("#test-handoff-new-context-target")?.parentElement
+      ?.textContent,
+  ).not.toContain("Choose a Wireframe version.");
   setValue("test-handoff-new-context-version", "2");
-  act(() => button("Add context record").click());
+  await act(async () => button("Add context record").click());
+  expect(document.body.textContent).toContain(
+    "Checkout screen added to the package context.",
+  );
+  setValue("test-handoff-new-context-target", "sc1");
+  setValue("test-handoff-new-context-version", "2");
+  await act(async () => button("Add context record").click());
+  expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+    "Checkout screen is already added.",
+  );
   await submit("Create Test Handoff");
+  expect(document.querySelector('[role="alert"]')).toBeNull();
+  expect(document.body.textContent).not.toContain(
+    "Checkout screen added to the package context.",
+  );
 
   expect(onCreate).toHaveBeenCalledWith(
     expect.objectContaining({

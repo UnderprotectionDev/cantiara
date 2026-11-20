@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form field render props close over the current field handlers.
+
 import {
   TEST_ASSESSMENT_CONTEXT_KINDS,
   TEST_ASSESSMENT_DECISIONS,
@@ -14,7 +15,7 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   EMPTY_TEST_ASSESSMENT_FORM,
   parseTestAssessmentForm,
@@ -39,24 +40,34 @@ export function RecordTestAssessmentForm({
   loadContextTargets: LoadContextTargets;
   onRecord: SubmitTestAssessment;
 }) {
-  const [error, setError] = useState<string>();
   const form = useForm({
     defaultValues: EMPTY_TEST_ASSESSMENT_FORM,
     onSubmit: async ({ formApi, value }) => {
-      setError(undefined);
+      form.setErrorMap({ onSubmit: undefined });
       const parsed = parseTestAssessmentForm(value);
       if (!parsed.success) {
-        setError("Choose a context and a decision.");
+        form.setErrorMap({
+          onSubmit: { form: "Choose a context and a decision.", fields: {} },
+        });
         return;
       }
       try {
         await onRecord(value);
         formApi.reset();
       } catch (caught) {
-        setError(errorText(caught, `${TEST_ASSESSMENT_LABEL} was not saved.`));
+        form.setErrorMap({
+          onSubmit: {
+            form: errorText(caught, `${TEST_ASSESSMENT_LABEL} was not saved.`),
+            fields: {},
+          },
+        });
       }
     },
   });
+  const error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   const values = useSelector(form.store, (state) => state.values);
   const pending = useSelector(form.store, (state) => state.isSubmitting);
 
@@ -77,7 +88,7 @@ export function RecordTestAssessmentForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form).catch(() => undefined);
       }}
     >
       <h3 className="font-medium">{`Record ${TEST_ASSESSMENT_LABEL}`}</h3>

@@ -11,8 +11,14 @@ import {
 } from "@cantiara/api/link-sharing";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
+import { useSelector } from "@tanstack/react-store";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import type { ShareLifecycleFeedback } from "../../hooks/use-share-access";
+import {
+  useShareConfirmationForm,
+  useShareReopenForm,
+} from "../../hooks/use-share-lifecycle-confirmation";
 import { linkSharingRefusalMessage } from "../../lib/link-sharing-refusal";
 import {
   defaultNewExpiry,
@@ -174,7 +180,7 @@ function ExpiredActions({
   pending: boolean;
   timeZone: string;
 }) {
-  const [pendingExpiry, setPendingExpiry] = useState<string | null>(null);
+  const reopen = useShareReopenForm();
   if (confirming) {
     return (
       <ConfirmGroup
@@ -183,7 +189,7 @@ function ExpiredActions({
         description="Reopening makes this exact link work again for every old holder, including people you shared it with before. If you only want to share again, use Reshare with a new link instead."
         heading="Reopen the same link?"
         onCancel={onCancel}
-        onConfirm={() => onConfirmReopen(pendingExpiry)}
+        onConfirm={() => onConfirmReopen(reopen.getFieldValue("expiry"))}
         pending={pending}
       />
     );
@@ -199,7 +205,7 @@ function ExpiredActions({
       legend="New expiry (optional)"
       onSubmit={(id, expiresAt) => {
         if (id === "reopen") {
-          setPendingExpiry(expiresAt);
+          reopen.setFieldValue("expiry", expiresAt);
           onStartReopen();
           return Promise.resolve();
         }
@@ -228,7 +234,12 @@ function ConfirmGroup({
   pending: boolean;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const [acknowledged, setAcknowledged] = useState(!acknowledge);
+  const form = useShareConfirmationForm(Boolean(acknowledge), onConfirm);
+  const acknowledged = useSelector(
+    form.store,
+    (state) => state.values.acknowledged,
+  );
+  const submitting = useSelector(form.store, (state) => state.isSubmitting);
   useEffect(() => {
     headingRef.current?.focus();
   }, []);
@@ -254,15 +265,17 @@ function ConfirmGroup({
           <Checkbox
             checked={acknowledged}
             id="share-confirm-acknowledge"
-            onCheckedChange={(checked) => setAcknowledged(checked === true)}
+            onCheckedChange={(checked) =>
+              form.setFieldValue("acknowledged", checked === true)
+            }
           />
           {acknowledge}
         </label>
       ) : null}
       <div className="flex flex-wrap gap-2">
         <Button
-          disabled={!acknowledged || pending}
-          onClick={() => onConfirm().catch(() => undefined)}
+          disabled={!acknowledged || pending || submitting}
+          onClick={() => submitForm(form).catch(() => undefined)}
           type="button"
           variant="destructive"
         >

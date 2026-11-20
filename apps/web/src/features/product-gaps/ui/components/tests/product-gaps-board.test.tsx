@@ -297,6 +297,27 @@ test("submits a new Product Gap with its Tool Escape and the chosen records", as
   setValue("product-gap-new-scope", "Board view only.");
   setValue("product-gap-new-link-target", "p1");
   await click("Add related record");
+  expect(document.body.textContent).toContain(
+    "Checkout added to related records.",
+  );
+  setValue("product-gap-new-link-target", "p1");
+  await click("Add related record");
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+    "Checkout is already related.",
+  );
+  await act(() => {
+    document
+      .querySelector<HTMLButtonElement>(
+        '[aria-label="Remove related record Project: Checkout"]',
+      )
+      ?.click();
+    return Promise.resolve();
+  });
+  expect(document.body.textContent).toContain(
+    "Project: Checkout removed from related records.",
+  );
+  setValue("product-gap-new-link-target", "p1");
+  await click("Add related record");
   await fillEscape();
   await submitForm();
 

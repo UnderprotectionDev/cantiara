@@ -67,6 +67,8 @@ Dosya tam olarak bir Proje veya Kişisel Wiki kapsamında ana kayıt olarak yaş
 
 ## Testing Decisions
 
+- **#545.** The web file-attachment-location-form.test.tsx seam checks that the selected location and target mode feed the preview command from the current form values.
+
 - The protected asset and Binder seams verify retry from Query, discard a previous selection’s preview and keep an identical planned bind on retry.
 
 - **Query write lifecycle (#544).** Marking, Undo marking and the location bind use the Client Shell write gate. Retrying a failed marking resubmits its original geometry, identity and attachment version. Undo targets the same account-owned marking on the same version. The upload form verifies a retry keeps the command identity and the selected file, shows staging while pending, and hides Cancel when Finalizing begins. The location-bind web test verifies refresh of the committed Work and its Project alongside Smart Collection membership while leaving unrelated Work and Projects fresh.

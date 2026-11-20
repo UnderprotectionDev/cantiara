@@ -81,6 +81,7 @@ import {
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
 import ProjectSourceRecordView from "@/features/project-source-records/ui/components/project-source-record-view";
+import RecordActionEditor from "@/features/record-actions/ui/forms/record-action-form";
 import ResearchSessionsSurface from "@/features/research-sessions/ui/components/research-sessions-surface";
 import ReturnToWork from "@/features/return-to-work/ui/components/return-to-work";
 import ProjectRisksSurface from "@/features/risks/ui/components/project-risks-surface";
@@ -105,6 +106,7 @@ import OpenQuestionsSurface from "@/features/uncertainty-records/ui/components/o
 import ProjectAssumptionsSurface from "@/features/uncertainty-records/ui/components/project-assumptions-surface";
 import ValidationRecordsSurface from "@/features/validation-records/ui/components/validation-records-surface";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
+import WorkContextLayoutForm from "@/features/work-context/ui/forms/work-context-card-layout-form";
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
 import ScopeTreeView from "@/features/work-lifecycle/ui/components/scope-tree";
@@ -890,7 +892,9 @@ function ProjectShellContent({
             onConfigurationHostChange={setConfigurationHost}
             projectId={projectId}
             projectName={name}
+            RecordActionEditor={RecordActionEditor}
             starterConfiguration={starterConfiguration}
+            WorkContextLayoutForm={WorkContextLayoutForm}
           />
         </div>
       ) : (

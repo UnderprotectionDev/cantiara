@@ -84,13 +84,20 @@ export function WebCapturePairing({
               </label>
             )}
           </form.Field>
-          <form.Subscribe selector={(state) => state.values.pairingCode}>
-            {(pairingCode) => (
+          <form.Subscribe
+            selector={(state) => ({
+              pairingCode: state.values.pairingCode,
+              isSubmitting: state.isSubmitting,
+            })}
+          >
+            {({ pairingCode, isSubmitting }) => (
               <button
-                disabled={isPairing || pairingCode.trim().length === 0}
+                disabled={
+                  isPairing || isSubmitting || pairingCode.trim().length === 0
+                }
                 type="submit"
               >
-                {isPairing ? "Pairing…" : "Pair"}
+                {isPairing || isSubmitting ? "Pairing…" : "Pair"}
               </button>
             )}
           </form.Subscribe>
