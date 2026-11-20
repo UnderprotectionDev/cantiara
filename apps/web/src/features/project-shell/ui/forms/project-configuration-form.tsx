@@ -23,7 +23,6 @@ import {
   useCallback,
   useState,
 } from "react";
-import RecordActionEditor from "@/components/record-action-form";
 import PriorityMetricEditor from "@/features/priority-metrics/ui/components/priority-metric-editor";
 import { useProjectAreaEnable } from "@/features/project-shell/hooks/use-project-area-enable";
 import { useProjectConfiguration } from "@/features/project-shell/hooks/use-project-configuration";
@@ -90,6 +89,7 @@ export default function ProjectConfigurationForm({
   configuration,
   CustomFieldEditor,
   WorkContextLayoutForm,
+  RecordActionEditor,
   configurationHost,
   onConfigurationHostChange,
   projectId,
@@ -100,6 +100,7 @@ export default function ProjectConfigurationForm({
   configuration: ProjectShellConfiguration;
   CustomFieldEditor: CustomFieldEditorComponent;
   WorkContextLayoutForm: WorkContextLayoutFormComponent;
+  RecordActionEditor: CustomFieldEditorComponent;
   configurationHost: ConfigurationHost | null;
   onConfigurationHostChange: (host: ConfigurationHost | null) => void;
   projectId: string;
@@ -241,6 +242,7 @@ export default function ProjectConfigurationForm({
               projectAreasNavigationPreview={projectAreasNavigationPreview}
               projectId={projectId}
               projectName={projectName}
+              RecordActionEditor={RecordActionEditor}
               WorkContextLayoutForm={WorkContextLayoutForm}
             />
           ) : (
@@ -290,6 +292,7 @@ function ConfigurationHostPanel({
   configuration,
   CustomFieldEditor,
   WorkContextLayoutForm,
+  RecordActionEditor,
   disabled,
   error,
   label,
@@ -304,6 +307,7 @@ function ConfigurationHostPanel({
   configuration: ProjectShellConfiguration;
   CustomFieldEditor: CustomFieldEditorComponent;
   WorkContextLayoutForm: WorkContextLayoutFormComponent;
+  RecordActionEditor: CustomFieldEditorComponent;
   disabled: boolean;
   error: string | null;
   label: ConfigurationHost;
@@ -346,6 +350,7 @@ function ConfigurationHostPanel({
         projectAreasNavigationPreview={projectAreasNavigationPreview}
         projectId={projectId}
         projectName={projectName}
+        RecordActionEditor={RecordActionEditor}
         WorkContextLayoutForm={WorkContextLayoutForm}
       />
     </section>
@@ -357,6 +362,7 @@ function ConfigurationHostContent({
   configuration,
   CustomFieldEditor,
   WorkContextLayoutForm,
+  RecordActionEditor,
   disabled,
   error,
   label,
@@ -372,6 +378,7 @@ function ConfigurationHostContent({
   configuration: ProjectShellConfiguration;
   CustomFieldEditor: CustomFieldEditorComponent;
   WorkContextLayoutForm: WorkContextLayoutFormComponent;
+  RecordActionEditor: CustomFieldEditorComponent;
   disabled: boolean;
   error: string | null;
   label: ConfigurationHost;

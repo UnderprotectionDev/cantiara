@@ -81,6 +81,7 @@ import {
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
 import ProjectSourceRecordView from "@/features/project-source-records/ui/components/project-source-record-view";
+import RecordActionEditor from "@/features/record-actions/ui/forms/record-action-form";
 import ResearchSessionsSurface from "@/features/research-sessions/ui/components/research-sessions-surface";
 import ReturnToWork from "@/features/return-to-work/ui/components/return-to-work";
 import ProjectRisksSurface from "@/features/risks/ui/components/project-risks-surface";
@@ -891,6 +892,7 @@ function ProjectShellContent({
             onConfigurationHostChange={setConfigurationHost}
             projectId={projectId}
             projectName={name}
+            RecordActionEditor={RecordActionEditor}
             starterConfiguration={starterConfiguration}
             WorkContextLayoutForm={WorkContextLayoutForm}
           />

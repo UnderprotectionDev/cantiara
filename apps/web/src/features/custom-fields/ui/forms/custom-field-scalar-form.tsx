@@ -6,6 +6,7 @@ import {
 } from "@cantiara/api/custom-fields";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm, useSelector } from "@tanstack/react-form";
+import { useEffect } from "react";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { submitForm } from "@/lib/submit-form";
 
@@ -15,12 +16,17 @@ export function CustomFieldScalarForm({
   id,
   kind,
   onCommit,
+  revision,
 }: {
   current: ParsedCustomFieldValuePayload | null;
   disabled: boolean;
   id: string;
   kind: "text" | "number";
-  onCommit: (value: ParsedCustomFieldValuePayload | null) => Promise<void>;
+  onCommit: (
+    value: ParsedCustomFieldValuePayload | null,
+    baseRevision: number,
+  ) => Promise<void>;
+  revision: number;
 }) {
   let committed = "";
   if (current?.kind === "text") {
@@ -29,9 +35,13 @@ export function CustomFieldScalarForm({
     committed = String(current.number);
   }
   const form = useForm({
-    defaultValues: { draft: committed },
-    onSubmit: async ({ formApi, value: { draft } }) => {
+    defaultValues: { draft: committed, editingRevision: null as number | null },
+    onSubmit: async ({ formApi, value: { draft, editingRevision } }) => {
+      if (editingRevision === null) {
+        return;
+      }
       if (draft === committed) {
+        formApi.reset();
         return;
       }
       const trimmed = draft.trim();
@@ -52,8 +62,11 @@ export function CustomFieldScalarForm({
         return;
       }
       try {
-        await onCommit(parsed.data);
-        formApi.reset({ draft: trimmed }, { keepDefaultValues: true });
+        await onCommit(parsed.data, editingRevision);
+        formApi.reset(
+          { draft: trimmed, editingRevision: null },
+          { keepDefaultValues: true },
+        );
       } catch (failure) {
         formApi.setErrorMap({
           onSubmit: {
@@ -67,6 +80,17 @@ export function CustomFieldScalarForm({
       }
     },
   });
+  useEffect(() => {
+    if (
+      form.getFieldValue("editingRevision") === null &&
+      form.getFieldValue("draft") !== committed
+    ) {
+      form.reset(
+        { draft: committed, editingRevision: null },
+        { keepDefaultValues: true },
+      );
+    }
+  }, [committed, form]);
   const error = useSelector(
     form.store,
     (state): string | undefined => state.errorMap.onSubmit,
@@ -93,7 +117,12 @@ export function CustomFieldScalarForm({
               }
               submitForm(form).catch(() => undefined);
             }}
-            onChange={(event) => field.handleChange(event.target.value)}
+            onChange={(event) => {
+              if (form.getFieldValue("editingRevision") === null) {
+                form.setFieldValue("editingRevision", revision);
+              }
+              field.handleChange(event.target.value);
+            }}
             placeholder="Not evaluated"
             step={kind === "number" ? "any" : undefined}
             type={kind}

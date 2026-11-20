@@ -8,7 +8,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
 import { submitForm } from "@/lib/submit-form";
 
 export interface ProjectGoalDraft {
@@ -69,9 +69,6 @@ export function ProjectGoalEditor({
   ) => Promise<unknown>;
   onCancel: () => void;
 }) {
-  const [conflict, setConflict] = useState<ProjectGoalSaveConflictError | null>(
-    null,
-  );
   const form = useForm({
     defaultValues: {
       baseGoal: goal,
@@ -99,9 +96,8 @@ export function ProjectGoalEditor({
         await onSave(value, baseGoal);
       } catch (saveError) {
         if (saveError instanceof ProjectGoalSaveConflictError) {
-          setConflict(saveError);
           form.setErrorMap({
-            onSubmit: { form: saveError.message, fields: {} },
+            onSubmit: { form: saveError, fields: {} },
           });
           return;
         }
@@ -114,10 +110,14 @@ export function ProjectGoalEditor({
       }
     },
   });
-  const error = useSelector(
+  const validation = useSelector(
     form.store,
-    (state): string | undefined => state.errorMap.onSubmit,
+    (state): unknown => state.errorMap.onSubmit,
   );
+  const conflict =
+    validation instanceof ProjectGoalSaveConflictError ? validation : null;
+  const error =
+    conflict?.message ?? (typeof validation === "string" ? validation : null);
   const saveLabel = error && !conflict ? "Retry" : "Save";
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();

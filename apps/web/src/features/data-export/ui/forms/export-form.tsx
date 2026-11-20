@@ -70,7 +70,7 @@ export function ExportForm({
   catalog: readonly ExportCatalogEntry[];
   disabled: boolean;
   handoff?: ExportHandoff | null;
-  onPreview: (request: ExportRequest) => void;
+  onPreview: (request: ExportRequest) => Promise<unknown>;
   projects: ReadonlyArray<{ id: string; name: string }>;
 }) {
   const families = [...new Set(catalog.map((entry) => entry.family))];
@@ -98,7 +98,7 @@ export function ExportForm({
         "",
       status: "",
     },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value }) => {
       const base = handoff
         ? {
             filters: handoff.filters,
@@ -124,7 +124,7 @@ export function ExportForm({
       });
       if (parsed.success) {
         form.setErrorMap({ onSubmit: undefined });
-        onPreview(parsed.data);
+        await onPreview(parsed.data);
       } else {
         // A locally refused selection never calls the preview: it answers
         // visibly instead of leaving the Preview button dead.

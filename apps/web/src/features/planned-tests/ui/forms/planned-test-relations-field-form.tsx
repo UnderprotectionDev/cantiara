@@ -11,7 +11,7 @@ import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useSelector } from "@tanstack/react-store";
-import { useId, useState } from "react";
+import { type Ref, useId, useImperativeHandle, useState } from "react";
 import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import type { RelationDraft } from "../../lib/planned-test-form";
@@ -29,6 +29,7 @@ export function PlannedTestRelationsField({
   idPrefix,
   loadTargets,
   onChange,
+  resetRef,
   projectId,
   value,
 }: {
@@ -36,6 +37,7 @@ export function PlannedTestRelationsField({
   loadTargets: LoadRelationTargets;
   projectId: string;
   onChange: (relations: RelationDraft[]) => void;
+  resetRef?: Ref<() => void>;
   value: RelationDraft[];
 }) {
   const statusId = useId();
@@ -54,6 +56,14 @@ export function PlannedTestRelationsField({
       }
     },
   });
+  useImperativeHandle(
+    resetRef,
+    () => () => {
+      picker.reset();
+      setMessage("");
+    },
+    [picker],
+  );
   const { targetType, targetId, sectionId } = useSelector(
     picker.store,
     (state) => state.values,

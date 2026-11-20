@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Commands capture the displayed preview and the candidate it was made from.
 import type { SpecChangeReviewCandidate } from "@cantiara/api/spec-change-review-candidates";
 import {
+  previewSpecChangeReviewFollowUpInputSchema,
   SPEC_FOLLOW_UP_WORK_TYPES,
   type SpecChangeReviewFollowUpPreview,
   type SpecFollowUpWorkType,
@@ -22,6 +23,7 @@ import {
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 
 /** Identity of one confirmation attempt; reused on retry so the Work is created once. */
@@ -120,8 +122,23 @@ export function SpecFollowUpDialog({
 }) {
   const form = useForm({
     defaultValues: { workType: "Task" as SpecFollowUpWorkType },
-    onSubmit: async () => {
-      if (!preview || pending) {
+    onSubmit: async ({ value, formApi }) => {
+      if (!preview || commit.isPending) {
+        return;
+      }
+      const parsed = previewSpecChangeReviewFollowUpInputSchema.safeParse({
+        candidate: candidate.identity,
+        reviewId,
+        workType: value.workType,
+      });
+      if (!parsed.success) {
+        formApi.setErrorMap({
+          onSubmit: {
+            form:
+              parsed.error.issues[0]?.message ?? "Check the Follow-up Work.",
+            fields: {},
+          },
+        });
         return;
       }
       identity.current ??= {
@@ -162,8 +179,13 @@ export function SpecFollowUpDialog({
     },
   });
   const preview = previewQuery.data;
-  const pending = previewQuery.status === "pending" || commit.isPending;
-  let error: string | null = null;
+  const submitting = useSelector(form.store, (state) => state.isSubmitting);
+  const pending =
+    previewQuery.status === "pending" || commit.isPending || submitting;
+  let error = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
   if (previewQuery.isError) {
     error = "The preview could not be loaded. Reload and try again.";
   } else if (commit.isError) {
@@ -181,45 +203,52 @@ export function SpecFollowUpDialog({
             status.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="spec-follow-up-work-type">Work type</Label>
-          <NativeSelect
-            disabled={pending}
-            id="spec-follow-up-work-type"
-            onChange={(event) => {
-              identity.current = null;
-              commit.reset();
-              form.setFieldValue(
-                "workType",
-                event.target.value as SpecFollowUpWorkType,
-              );
-            }}
-            value={workType}
-          >
-            {SPEC_FOLLOW_UP_WORK_TYPES.map((value) => (
-              <NativeSelectOption key={value} value={value}>
-                {value}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
-        <p aria-live="polite" role="status">
-          {pending && !preview ? "Loading preview…" : ""}
-        </p>
-        {preview ? <SpecFollowUpPreview preview={preview} /> : null}
-        {error ? <p role="alert">{error}</p> : null}
-        <DialogFooter>
-          <Button onClick={onClose} type="button" variant="outline">
-            Cancel
-          </Button>
-          <Button
-            disabled={!preview || pending}
-            onClick={() => form.handleSubmit().catch(() => undefined)}
-            type="button"
-          >
-            Confirm
-          </Button>
-        </DialogFooter>
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!pending) {
+              submitForm(form).catch(() => undefined);
+            }
+          }}
+        >
+          <div className="space-y-2">
+            <Label htmlFor="spec-follow-up-work-type">Work type</Label>
+            <NativeSelect
+              disabled={pending}
+              id="spec-follow-up-work-type"
+              onChange={(event) => {
+                identity.current = null;
+                commit.reset();
+                form.setFieldValue(
+                  "workType",
+                  event.target.value as SpecFollowUpWorkType,
+                );
+              }}
+              value={workType}
+            >
+              {SPEC_FOLLOW_UP_WORK_TYPES.map((value) => (
+                <NativeSelectOption key={value} value={value}>
+                  {value}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <p aria-live="polite" role="status">
+            {pending && !preview ? "Loading preview…" : ""}
+          </p>
+          {preview ? <SpecFollowUpPreview preview={preview} /> : null}
+          {error ? <p role="alert">{error}</p> : null}
+          <DialogFooter>
+            <Button onClick={onClose} type="button" variant="outline">
+              Cancel
+            </Button>
+            <Button disabled={!preview || pending} type="submit">
+              Confirm
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

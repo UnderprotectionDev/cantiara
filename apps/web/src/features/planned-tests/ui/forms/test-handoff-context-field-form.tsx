@@ -12,7 +12,7 @@ import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useSelector } from "@tanstack/react-store";
-import { useId, useState } from "react";
+import { type Ref, useId, useImperativeHandle, useState } from "react";
 import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import {
@@ -36,6 +36,7 @@ export function TestHandoffContextField({
   idPrefix,
   loadTargets,
   onChange,
+  resetRef,
   projectId,
   value,
 }: {
@@ -43,6 +44,7 @@ export function TestHandoffContextField({
   loadTargets: LoadTestHandoffContextTargets;
   projectId: string;
   onChange: (refs: ContextRefDraft[]) => void;
+  resetRef?: Ref<() => void>;
   value: ContextRefDraft[];
 }) {
   const statusId = useId();
@@ -62,6 +64,14 @@ export function TestHandoffContextField({
       }
     },
   });
+  useImperativeHandle(
+    resetRef,
+    () => () => {
+      picker.reset();
+      setMessage("");
+    },
+    [picker],
+  );
   const { kind, targetId, sectionId, wireframeVersion } = useSelector(
     picker.store,
     (state) => state.values,

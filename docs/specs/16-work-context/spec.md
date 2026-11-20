@@ -63,6 +63,8 @@ Kurucu bir İşin nedenini, beklenen sonucunu, kanıtını ve ilişkili proje ge
 
 ## Testing Decisions
 
+- **#545.** The layout editor validates the selected Work type and layout before Preview or Confirm. The Work Context Card web seam checks the shared draft and the review controls in Configuration Mode.
+
 - The layout configuration seam verifies that previews follow the current revision, and that Apply and Undo display their own results and errors.
 
 - **What a good test is.** Tests observe Work Context Card through its public interface: five layouts × four Starter Configurations, progressive sections, live source rendering, configuration preview/apply/undo, Markdown copy, and Priority Foundations counts. They assert no gates, no copies, no scores, no share-scope — not DOM structure of cards.

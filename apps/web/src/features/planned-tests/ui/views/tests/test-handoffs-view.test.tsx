@@ -717,6 +717,10 @@ test("adds an exact Document revision and a Wireframe version as package context
     "Checkout screen is already added.",
   );
   await submit("Create Test Handoff");
+  expect(document.querySelector('[role="alert"]')).toBeNull();
+  expect(document.body.textContent).not.toContain(
+    "Checkout screen added to the package context.",
+  );
 
   expect(onCreate).toHaveBeenCalledWith(
     expect.objectContaining({

@@ -7,9 +7,13 @@ import {
 } from "@cantiara/api/work-templates";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
+import { useSelector } from "@tanstack/react-store";
 import { format } from "date-fns";
 import { useMemo, useState } from "react";
-import { useWorkTemplates } from "@/features/work-templates/hooks/use-work-templates";
+import {
+  useWorkTemplateSelectionForm,
+  useWorkTemplates,
+} from "@/features/work-templates/hooks/use-work-templates";
 import { commandVariables } from "@/lib/command-variables";
 import { orpc } from "@/utils/orpc";
 
@@ -49,7 +53,8 @@ export default function WorkTemplateEditor({
   const customFields = useQuery(
     orpc.customFields.queryOptions({ input: { projectId } }),
   );
-  const [editing, setEditing] = useState<WorkTemplate | null>(null);
+  const selection = useWorkTemplateSelectionForm();
+  const editing = useSelector(selection.store, (state) => state.values.editing);
   const [instantiating, setInstantiating] = useState<WorkTemplate | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const templates = useWorkTemplates(projectId, {
@@ -77,7 +82,7 @@ export default function WorkTemplateEditor({
     templates.moveToTrash.isPending;
 
   function resetDraft() {
-    setEditing(null);
+    selection.reset();
     setValidationError(null);
   }
 
@@ -200,7 +205,7 @@ export default function WorkTemplateEditor({
                       onClick={() => {
                         templates.update.reset();
                         templates.moveToTrash.reset();
-                        setEditing(template);
+                        selection.setFieldValue("editing", template);
                         setValidationError(null);
                       }}
                       size="xs"

@@ -21,6 +21,7 @@ import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { useRef } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { submitForm } from "@/lib/submit-form";
 import { client } from "@/utils/orpc";
 import { createDocumentFormSchema } from "../../lib/document-form";
@@ -117,16 +118,6 @@ export default function DocumentCreateForm({
       form.reset();
       await onCreated(created);
     },
-    onError: (failure) =>
-      form.setErrorMap({
-        onSubmit: {
-          form:
-            failure instanceof Error
-              ? failure.message
-              : "Document could not be created.",
-          fields: {},
-        },
-      }),
   });
   const form = useForm({
     defaultValues: {
@@ -154,10 +145,15 @@ export default function DocumentCreateForm({
       });
     },
   });
-  const error = useSelector(
+  const validationError = useSelector(
     form.store,
     (state): string | undefined => state.errorMap.onSubmit,
   );
+  const error =
+    validationError ??
+    (create.isError
+      ? mutationErrorMessage(create.error, "Document could not be created.")
+      : undefined);
 
   return (
     <Dialog
@@ -165,7 +161,7 @@ export default function DocumentCreateForm({
         onOpenChange(open);
         if (!open) {
           form.reset();
-          form.setErrorMap({ onSubmit: undefined });
+          create.reset();
         }
       }}
       open={createOpen}

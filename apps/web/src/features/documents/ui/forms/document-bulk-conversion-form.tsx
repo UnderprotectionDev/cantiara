@@ -34,7 +34,7 @@ export default function DocumentBulkConversionDialog({
       string[],
       unknown
     >,
-    "mutate" | "isPending" | "isError" | "error"
+    "mutateAsync" | "isPending" | "isError" | "error"
   >;
   setBulkConversionOpen: import("react").Dispatch<
     import("react").SetStateAction<boolean>
@@ -96,16 +96,16 @@ function DocumentBulkConversionForm({
       string[],
       unknown
     >,
-    "mutate" | "isPending" | "isError" | "error"
+    "mutateAsync" | "isPending" | "isError" | "error"
   >;
   onCancel: () => void;
 }) {
   const bulkForm = useForm({
     defaultValues: { selectedKeys: [] as string[] },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value }) => {
       const parsed = convertDocumentListToWorkFormSchema.safeParse(value);
       if (parsed.success) {
-        convertListToWork.mutate(parsed.data.selectedKeys);
+        await convertListToWork.mutateAsync(parsed.data.selectedKeys);
       }
     },
   });

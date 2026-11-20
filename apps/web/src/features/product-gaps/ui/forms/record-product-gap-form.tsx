@@ -14,7 +14,7 @@ import { Input } from "@cantiara/ui/components/input";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
-import type { SubmitEvent } from "react";
+import { type SubmitEvent, useRef } from "react";
 import { submitForm } from "@/lib/submit-form";
 import {
   emptyGapForm,
@@ -50,6 +50,7 @@ export function RecordProductGapForm({
       escapeSourceType: "Project" as ProductGapLinkTargetType,
     };
   }
+  const resetPicker = useRef<(() => void) | null>(null);
   const form = useForm({
     defaultValues: defaults(),
     onSubmit: async ({
@@ -65,6 +66,7 @@ export function RecordProductGapForm({
       try {
         await onSubmit(value);
         formApi.reset(defaults());
+        resetPicker.current?.();
       } catch (caught) {
         form.setErrorMap({
           onSubmit: {
@@ -192,6 +194,7 @@ export function RecordProductGapForm({
                           idPrefix="product-gap-new"
                           loadTargets={loadTargets}
                           onChange={field.handleChange}
+                          resetRef={resetPicker}
                           value={field.state.value}
                         />
                       )}

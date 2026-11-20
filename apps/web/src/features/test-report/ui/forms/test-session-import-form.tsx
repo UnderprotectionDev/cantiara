@@ -100,18 +100,33 @@ export default function TestSessionImportForm({
       ) : null}
       <div className="grid gap-2 text-sm">
         <label htmlFor="test-session-file">Test report file</label>
-        <form.Field name="file">
+        <form.Field
+          name="file"
+          validators={{
+            onChange: ({ value }) =>
+              value && !reportFormatOf(value.name)
+                ? "Choose a .json, .md or .markdown file."
+                : undefined,
+          }}
+        >
           {(field) => (
-            <Input
-              accept=".json,.md,.markdown"
-              disabled={pending}
-              id="test-session-file"
-              name={field.name}
-              onChange={(event) =>
-                field.handleChange(event.target.files?.[0] ?? null)
-              }
-              type="file"
-            />
+            <>
+              <Input
+                accept=".json,.md,.markdown"
+                disabled={pending}
+                id="test-session-file"
+                name={field.name}
+                onChange={(event) =>
+                  field.handleChange(event.target.files?.[0] ?? null)
+                }
+                type="file"
+              />
+              {field.state.meta.errors.map((message) => (
+                <p key={message} role="alert">
+                  {message}
+                </p>
+              ))}
+            </>
           )}
         </form.Field>
       </div>

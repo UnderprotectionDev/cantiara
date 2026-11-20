@@ -21,6 +21,7 @@ import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, type SubmitEvent, useEffect, useRef } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { submitForm } from "@/lib/submit-form";
 import {
   client,
@@ -123,7 +124,7 @@ export default function SmartCollectionCreateForm({
       await create.mutateAsync(parsed.data);
     },
   });
-  const error = useSelector(
+  const validationError = useSelector(
     form.store,
     (state): string | undefined => state.errorMap.onSubmit,
   );
@@ -149,17 +150,15 @@ export default function SmartCollectionCreateForm({
       form.setErrorMap({ onSubmit: undefined });
       await Promise.all(invalidateSmartCollectionMembership(queryClient));
     },
-    onError: (failure) =>
-      form.setErrorMap({
-        onSubmit: {
-          form:
-            failure instanceof Error
-              ? failure.message
-              : "Smart Collection could not be saved.",
-          fields: {},
-        },
-      }),
   });
+  const error =
+    validationError ??
+    (create.isError
+      ? mutationErrorMessage(
+          create.error,
+          "Smart Collection could not be saved.",
+        )
+      : undefined);
   const statusOptions = SMART_COLLECTION_STATUS_OPTIONS[sourceType] ?? [];
   const isDocumentSource =
     sourceType === "Document" || sourceType === "Wiki Document";

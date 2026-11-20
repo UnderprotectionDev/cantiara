@@ -283,6 +283,7 @@ export default function CustomFieldValuesForm({
   async function commit(
     item: CustomFieldValueListItem,
     nextValue: ParsedCustomFieldValuePayload | null,
+    baseRevision = valueRevision(item),
   ) {
     if (!recordId) {
       onDraftValuesChange?.({
@@ -295,13 +296,13 @@ export default function CustomFieldValuesForm({
     if (nextValue === null) {
       values.setValue.reset();
       await values.clearValue.mutateAsync({
-        baseRevision: valueRevision(item),
+        baseRevision,
         definitionId: item.definition.id,
       });
     } else {
       values.clearValue.reset();
       await values.setValue.mutateAsync({
-        baseRevision: valueRevision(item),
+        baseRevision,
         definitionId: item.definition.id,
         payload: nextValue,
       });
@@ -343,6 +344,7 @@ function CustomFieldValueInputs({
   commit: (
     item: CustomFieldValueListItem,
     nextValue: ParsedCustomFieldValuePayload | null,
+    baseRevision?: number,
   ) => Promise<void>;
   formattingPreferences: AccountPreferences;
 }) {
@@ -361,7 +363,10 @@ function CustomFieldValueInputs({
                 disabled={busy}
                 id={id}
                 kind={item.definition.type === "Text" ? "text" : "number"}
-                onCommit={(nextValue) => commit(item, nextValue)}
+                onCommit={(nextValue, baseRevision) =>
+                  commit(item, nextValue, baseRevision)
+                }
+                revision={valueRevision(item)}
               />
             ) : null}
             {item.definition.type === "Boolean" ? (

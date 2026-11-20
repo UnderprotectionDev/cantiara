@@ -121,7 +121,6 @@ export function ProjectGoalMembershipView({
             detail={detail}
             onAdd={onSetRelation}
             pending={pending}
-            settledChanges={saved?.at ?? 0}
           />
         )}
       </section>

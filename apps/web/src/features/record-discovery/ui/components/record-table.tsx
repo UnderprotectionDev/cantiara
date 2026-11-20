@@ -41,6 +41,7 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -562,12 +563,24 @@ function EditableCell({
       record.sourceType === "Decision" &&
       record.life === "Superseded")
   );
-  async function save(nextValue: string) {
+  useEffect(() => {
+    const committed = displayValue(currentValue);
     if (
-      !editable ||
-      write?.isPending ||
-      nextValue === displayValue(currentValue)
+      form.getFieldValue("editingRevision") === null &&
+      form.getFieldValue("value") !== committed
     ) {
+      form.reset(
+        { value: committed, editingRevision: null },
+        { keepDefaultValues: true },
+      );
+    }
+  }, [currentValue, form]);
+  async function save(nextValue: string, editingRevision: number | null) {
+    if (editingRevision === null || !editable || write?.isPending) {
+      return;
+    }
+    if (nextValue === displayValue(currentValue)) {
+      form.reset();
       return;
     }
     let parsedValue: RecordTableCellUpdateInput["value"];
@@ -587,30 +600,41 @@ function EditableCell({
     }
     await onSave(
       commandVariables(
-        { ...target, value: parsedValue },
+        { ...target, baseRevision: editingRevision, value: parsedValue },
         write?.error ? write.variables : undefined,
       ),
     );
-    form.reset({ value: nextValue }, { keepDefaultValues: true });
+    form.reset(
+      { value: nextValue, editingRevision: null },
+      { keepDefaultValues: true },
+    );
   }
   const handleBlur = useCallback(
     () => submitForm(form).catch(() => undefined),
     [form],
   );
+  const stage = useCallback(
+    (nextValue: string) => {
+      form.setErrorMap({ onSubmit: undefined });
+      if (form.getFieldValue("editingRevision") === null) {
+        form.setFieldValue("editingRevision", target.baseRevision);
+      }
+      form.setFieldValue("value", nextValue);
+    },
+    [form, target.baseRevision],
+  );
   const handleValueChange = useCallback(
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      form.setErrorMap({ onSubmit: undefined });
-      form.setFieldValue("value", event.target.value);
+      stage(event.target.value);
     },
-    [form],
+    [stage],
   );
   const handleChoiceChange = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => {
-      form.setErrorMap({ onSubmit: undefined });
-      form.setFieldValue("value", event.target.value);
+      stage(event.target.value);
       submitForm(form).catch(() => undefined);
     },
-    [form],
+    [form, stage],
   );
   const label = `Edit ${fieldLabels[field]} for ${title}`;
   const commonProps = {
@@ -686,7 +710,7 @@ function RecordTableGrid({
         cell: ({ row }) => (
           <EditableCell
             field={field}
-            key={`${row.id}:${field}:${row.original.revision}`}
+            key={`${row.id}:${field}`}
             onSave={onSaveCell}
             record={row.original}
             recordType={recordType}

@@ -12,18 +12,21 @@ test("a failed Custom field write keeps the edit available for another blur", as
   const root = createRoot(host);
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   try {
-    await act(() => {
-      root.render(
-        <CustomFieldScalarForm
-          current={{ kind: "text", text: "Previous" }}
-          disabled={false}
-          id="custom-field"
-          kind="text"
-          onCommit={onCommit}
-        />,
-      );
-      return Promise.resolve();
-    });
+    const render = (text: string, revision: number) =>
+      act(() => {
+        root.render(
+          <CustomFieldScalarForm
+            current={{ kind: "text", text }}
+            disabled={false}
+            id="custom-field"
+            kind="text"
+            onCommit={onCommit}
+            revision={revision}
+          />,
+        );
+        return Promise.resolve();
+      });
+    await render("Previous", 1);
     const input = host.querySelector("input");
     if (!input) {
       throw new Error("Custom field input is missing");
@@ -35,10 +38,14 @@ test("a failed Custom field write keeps the edit available for another blur", as
     await act(() => {
       setValue?.call(input, "Edited");
       input.dispatchEvent(new Event("input", { bubbles: true }));
+      return Promise.resolve();
+    });
+    await render("Refreshed", 2);
+    await act(() => {
       input.dispatchEvent(new Event("focusout", { bubbles: true }));
       return Promise.resolve();
     });
-    expect(onCommit).toHaveBeenCalledWith({ kind: "text", text: "Edited" });
+    expect(onCommit).toHaveBeenCalledWith({ kind: "text", text: "Edited" }, 1);
     expect(input.value).toBe("Edited");
     expect(host.querySelector('[role="alert"]')?.textContent).toBe(
       "Write failed",
@@ -48,6 +55,10 @@ test("a failed Custom field write keeps the edit available for another blur", as
       return Promise.resolve();
     });
     expect(onCommit).toHaveBeenCalledTimes(2);
+    expect(onCommit).toHaveBeenLastCalledWith(
+      { kind: "text", text: "Edited" },
+      1,
+    );
     expect(host.querySelector('[role="alert"]')).toBeNull();
   } finally {
     await act(async () => root.unmount());

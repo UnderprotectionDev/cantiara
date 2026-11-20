@@ -70,6 +70,7 @@ export function CaseForm({
       firstField.current?.focus();
     }
   }, [focusOnMount]);
+  const resetPicker = useRef<(() => void) | null>(null);
   const form = useForm({
     defaultValues: initial,
     onSubmit: async ({ value, formApi }) => {
@@ -82,6 +83,7 @@ export function CaseForm({
       try {
         await onSubmit(value);
         formApi.reset();
+        resetPicker.current?.();
       } catch (caught) {
         form.setErrorMap({
           onSubmit: {
@@ -197,6 +199,7 @@ export function CaseForm({
                   loadTargets={loadTargets}
                   onChange={field.handleChange}
                   projectId={projectId}
+                  resetRef={resetPicker}
                   value={field.state.value}
                 />
               )}

@@ -30,7 +30,10 @@ afterEach(() => {
   host = null;
 });
 
-function mount(grant: boolean, onSubmit: (typedName: string) => void) {
+function mount(
+  grant: boolean,
+  onSubmit: (typedName: string) => Promise<unknown>,
+) {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -72,7 +75,7 @@ async function submit() {
 
 describe("PermanentlyDeleteForm submit validation", () => {
   test("an empty typed name is refused with an alert and no delete request", async () => {
-    const onSubmit = vi.fn();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
     mount(true, onSubmit);
     await submit();
     expect(onSubmit).not.toHaveBeenCalled();
@@ -80,7 +83,7 @@ describe("PermanentlyDeleteForm submit validation", () => {
   });
 
   test("a missing grant is refused with an alert and no delete request", async () => {
-    const onSubmit = vi.fn();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
     mount(false, onSubmit);
     type(host?.querySelector("input") as HTMLInputElement, "Atlas");
     await submit();
@@ -89,7 +92,7 @@ describe("PermanentlyDeleteForm submit validation", () => {
   });
 
   test("a valid name and grant reach the delete request", async () => {
-    const onSubmit = vi.fn();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
     mount(true, onSubmit);
     type(host?.querySelector("input") as HTMLInputElement, "Atlas");
     await submit();

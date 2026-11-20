@@ -2,11 +2,14 @@ import { useForm } from "@tanstack/react-form";
 
 export function useRecordTableCellForm(
   initialValue: string,
-  onSave: (value: string) => Promise<void>,
+  onSave: (value: string, editingRevision: number | null) => Promise<void>,
 ) {
   return useForm({
-    defaultValues: { value: initialValue },
-    onSubmit: ({ value }) => onSave(value.value),
+    defaultValues: {
+      value: initialValue,
+      editingRevision: null as number | null,
+    },
+    onSubmit: ({ value }) => onSave(value.value, value.editingRevision),
   });
 }
 

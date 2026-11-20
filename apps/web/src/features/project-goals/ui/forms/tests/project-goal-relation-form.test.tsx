@@ -32,12 +32,7 @@ function mount(onAdd: () => Promise<unknown>) {
   root = createRoot(host);
   act(() => {
     root?.render(
-      <ProjectGoalRelationForm
-        detail={detail}
-        onAdd={onAdd}
-        pending={false}
-        settledChanges={0}
-      />,
+      <ProjectGoalRelationForm detail={detail} onAdd={onAdd} pending={false} />,
     );
   });
 }

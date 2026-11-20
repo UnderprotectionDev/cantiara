@@ -23,8 +23,8 @@ export function PersonalDataContactForm({
 }: {
   contacts: ReadonlyArray<{ id: string; label: string }>;
   disabled: boolean;
-  onPreview: (contactId: string) => void;
-  onPreviewErase: (contactId: string) => void;
+  onPreview: (contactId: string) => Promise<unknown>;
+  onPreviewErase: (contactId: string) => Promise<unknown>;
 }) {
   const form = useForm({
     defaultValues: { contactId: contacts[0]?.id ?? "" },

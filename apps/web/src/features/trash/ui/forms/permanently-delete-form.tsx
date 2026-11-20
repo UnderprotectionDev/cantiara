@@ -36,13 +36,13 @@ export function PermanentlyDeleteForm({
   identityPending: boolean;
   onCancel: () => void;
   onConfirmIdentity: () => void;
-  onSubmit: (typedName: string) => void;
+  onSubmit: (typedName: string) => Promise<unknown>;
   preview: TrashEarlyDeletePreview;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const form = useForm({
     defaultValues: { typedName: "" },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value }) => {
       // The same field rules the server enforces: a refused value never
       // reaches the delete request.
       const typed =
@@ -59,7 +59,7 @@ export function PermanentlyDeleteForm({
         return;
       }
       form.setErrorMap({ onSubmit: undefined });
-      onSubmit(typed.data);
+      await onSubmit(typed.data);
     },
   });
   const invalid = useSelector(

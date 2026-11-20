@@ -25,7 +25,7 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type SubmitEvent, useId, useState } from "react";
+import { type SubmitEvent, useId, useRef, useState } from "react";
 import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import {
@@ -91,6 +91,7 @@ export function GapForm({
   onSubmit: SubmitGap;
   projectId: string;
 }) {
+  const resetPicker = useRef<(() => void) | null>(null);
   const form = useForm({
     defaultValues: EMPTY_GAP_FORM,
     onSubmit: async ({ value, formApi }) => {
@@ -103,6 +104,7 @@ export function GapForm({
       try {
         await create.mutateAsync(value);
         formApi.reset(EMPTY_GAP_FORM);
+        resetPicker.current?.();
       } catch {
         // The create observer presents write failures.
       }
@@ -180,6 +182,7 @@ export function GapForm({
                   loadTargets={loadTargets}
                   onChange={field.handleChange}
                   projectId={projectId}
+                  resetRef={resetPicker}
                   value={field.state.value}
                 />
               )}

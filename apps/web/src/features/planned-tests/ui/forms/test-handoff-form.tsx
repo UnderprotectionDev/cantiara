@@ -16,7 +16,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
-import type { SubmitEvent } from "react";
+import { type SubmitEvent, useRef } from "react";
 import { DatePicker } from "@/components/date-picker";
 import { submitForm } from "@/lib/submit-form";
 import { errorText } from "../../lib/error-text";
@@ -276,6 +276,7 @@ export function HandoffForm({
   projectId: string;
   submitLabel: string;
 }) {
+  const resetPicker = useRef<(() => void) | null>(null);
   const form = useForm({
     defaultValues: initial,
     onSubmit: async ({ value, formApi }) => {
@@ -289,6 +290,7 @@ export function HandoffForm({
         await onSubmit(value);
         if (!onCancel) {
           formApi.reset(EMPTY_TEST_HANDOFF_FORM);
+          resetPicker.current?.();
         }
       } catch (caught) {
         form.setErrorMap({
@@ -447,6 +449,7 @@ export function HandoffForm({
                   loadTargets={loadContextTargets}
                   onChange={field.handleChange}
                   projectId={projectId}
+                  resetRef={resetPicker}
                   value={field.state.value}
                 />
               )}

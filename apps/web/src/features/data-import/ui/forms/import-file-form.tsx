@@ -40,7 +40,7 @@ export default function ImportFileForm({
   previewing,
   projects,
 }: {
-  onPreview: (input: PreviewImportInput) => void;
+  onPreview: (input: PreviewImportInput) => Promise<unknown>;
   previewing: boolean;
   projects: readonly ImportProjectChoice[];
 }) {
@@ -69,7 +69,7 @@ export default function ImportFileForm({
           form.setErrorMap({ onSubmit: { form: built.error, fields: {} } });
           return;
         }
-        onPreview(built.input);
+        await onPreview(built.input);
       } catch (caught) {
         form.setErrorMap({
           onSubmit: { form: importErrorText(caught), fields: {} },
@@ -106,19 +106,32 @@ export default function ImportFileForm({
       ) : null}
       <div className="grid gap-2 text-sm">
         <label htmlFor="import-file">File</label>
-        <form.Field name="files">
+        <form.Field
+          name="files"
+          validators={{
+            onSubmit: ({ value }) =>
+              value.length ? undefined : "Choose a file.",
+          }}
+        >
           {(field) => (
-            <Input
-              accept={IMPORT_FILE_ACCEPT}
-              disabled={pending}
-              id="import-file"
-              multiple
-              name={field.name}
-              onChange={(event) =>
-                field.handleChange(Array.from(event.target.files ?? []))
-              }
-              type="file"
-            />
+            <>
+              <Input
+                accept={IMPORT_FILE_ACCEPT}
+                disabled={pending}
+                id="import-file"
+                multiple
+                name={field.name}
+                onChange={(event) =>
+                  field.handleChange(Array.from(event.target.files ?? []))
+                }
+                type="file"
+              />
+              {field.state.meta.errors.map((message) => (
+                <p key={message} role="alert">
+                  {message}
+                </p>
+              ))}
+            </>
           )}
         </form.Field>
       </div>

@@ -182,7 +182,19 @@ test("every field has a programmatic label and relations are a labelled group", 
 
 test("creating a case submits the typed definition and relations", async () => {
   const onCreate = vi.fn().mockResolvedValue(undefined);
-  mount({ onCreate });
+  mount({
+    onCreate,
+    loadTargets: () =>
+      Promise.resolve([
+        {
+          documentRevision: null,
+          label: "Checkout Work",
+          sections: [],
+          targetId: "checkout-work",
+          targetType: "Work",
+        },
+      ]),
+  });
   const fill = (id: string, value: string) => {
     const element = document.getElementById(id) as
       | HTMLInputElement
@@ -205,7 +217,32 @@ test("creating a case submits the typed definition and relations", async () => {
   fill("planned-test-new-preconditions", "An account exists");
   fill("planned-test-new-expectedBehavior", "The dashboard opens");
 
+  await act(settle);
+  const target = document.querySelector<HTMLSelectElement>(
+    "#planned-test-new-relation-target",
+  );
+  if (!target) {
+    throw new Error("Missing relation target selector");
+  }
+  const pick = () =>
+    act(() => {
+      target.value = "checkout-work";
+      target.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  pick();
+  await click("Add relation");
+  expect(
+    target.closest("fieldset")?.querySelector('[role="status"]')?.textContent,
+  ).toContain("Checkout Work added to relations.");
+  pick();
+  await click("Add relation");
+  expect(
+    target.closest("fieldset")?.querySelector('[role="alert"]')?.textContent,
+  ).toBe("Checkout Work is already related.");
   await submit("Create Planned Test Case");
+  expect(
+    target.closest("fieldset")?.querySelector('[role="alert"]'),
+  ).toBeNull();
 
   expect(onCreate).toHaveBeenCalledTimes(1);
   expect(onCreate.mock.calls[0]?.[0]).toMatchObject({
@@ -213,7 +250,12 @@ test("creating a case submits the typed definition and relations", async () => {
     notes: "",
     preconditions: "An account exists",
     purpose: "Sign in works",
-    relations: [],
+    relations: [
+      expect.objectContaining({
+        targetId: "checkout-work",
+        targetType: "Work",
+      }),
+    ],
     scope: "Email login",
     title: "Login",
   });

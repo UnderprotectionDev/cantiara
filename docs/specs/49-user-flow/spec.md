@@ -54,6 +54,8 @@ Kurucu Kullanıcı Akışını Proje kapsamlı tasarım ana kaydı olarak yönet
 
 ## Testing Decisions
 
+- **#545.** The Convert and Bind web seam checks that Preview and Confirm await their commands and retain the reviewed selection after a refused write.
+
 - The User Flow seam verifies that Rebind and Convert previews are tied to the active selection, that failures leave the current command available, and that Save reflects the version write’s pending and error state.
 
 - **What a good test is.** Tests observe User Flow through the public interface: node live-refs Screen id, archive/broken/trash counterparts, closed semantic set rejection, convert preview + Origin Location, template has no live source-Project bind, viewport restore, outline tasks, 500/750 scene. Empty canvas shows `Place node`; `Place node` defaults to `Action` so a node can land without a Screen id; `Screen` still requires a Screen. Not xyflow internals.

@@ -290,10 +290,11 @@ export default function DocumentEditor({
   });
   const convertDiagram = {
     ...diagramWrite,
-    mutate() {
+    mutateAsync() {
       if (!conversionSelection) {
-        diagramWrite.mutate(new Error("No Mermaid block selected."));
-        return;
+        return diagramWrite.mutateAsync(
+          new Error("No Mermaid block selected."),
+        );
       }
       const reviewed = conversionPreview.data;
       if (
@@ -307,11 +308,12 @@ export default function DocumentEditor({
           )
         )
       ) {
-        diagramWrite.mutate(new Error("Preview the Mermaid conversion again."));
-        return;
+        return diagramWrite.mutateAsync(
+          new Error("Preview the Mermaid conversion again."),
+        );
       }
       conversionKey.current ??= crypto.randomUUID();
-      diagramWrite.mutate({
+      return diagramWrite.mutateAsync({
         documentId: record.id,
         documentRevision: revision,
         blockStart: conversionSelection.start,
@@ -498,7 +500,7 @@ export default function DocumentEditor({
   });
   const pinEvidence = {
     ...evidenceWrite,
-    mutate(target: {
+    mutateAsync(target: {
       targetRecordId: string;
       targetRecordType: DocumentEvidenceTargetType;
     }) {
@@ -510,13 +512,12 @@ export default function DocumentEditor({
         target.targetRecordId.length === 0 ||
         body !== savedBody
       ) {
-        evidenceWrite.mutate(
+        return evidenceWrite.mutateAsync(
           new Error("Select saved Document text and an evidence target."),
         );
-        return;
       }
       pinEvidenceKey.current ??= crypto.randomUUID();
-      evidenceWrite.mutate({
+      return evidenceWrite.mutateAsync({
         ...target,
         baseRevision: 0,
         clientIdempotencyKey: pinEvidenceKey.current,
@@ -579,7 +580,10 @@ export default function DocumentEditor({
   });
   const convertSelectedText = {
     ...selectedTextWrite,
-    mutate(input: { recordType: DocumentConversionRecordType; title: string }) {
+    mutateAsync(input: {
+      recordType: DocumentConversionRecordType;
+      title: string;
+    }) {
       const { projectId } = record;
       const selection = selectedTextRange;
       const body = form.getFieldValue("body");
@@ -589,10 +593,9 @@ export default function DocumentEditor({
         body !== savedBody ||
         !input.title.trim()
       ) {
-        selectedTextWrite.mutate(
+        return selectedTextWrite.mutateAsync(
           new Error("Select saved Document text and review the record."),
         );
-        return;
       }
       recordConversionKey.current ??= crypto.randomUUID();
       recordConversionId.current ??= crypto.randomUUID();
@@ -611,7 +614,7 @@ export default function DocumentEditor({
         title: input.title,
       };
       if (input.recordType === "Work") {
-        selectedTextWrite.mutate({
+        return selectedTextWrite.mutateAsync({
           kind: "Work",
           command: {
             ...command,
@@ -622,7 +625,6 @@ export default function DocumentEditor({
             type: "Task",
           },
         });
-        return;
       }
       const details = {
         Decision: {
@@ -648,7 +650,7 @@ export default function DocumentEditor({
           sourceType: "Open Question",
         },
       } as const;
-      selectedTextWrite.mutate({
+      return selectedTextWrite.mutateAsync({
         kind: "Source",
         command: {
           ...command,
@@ -690,20 +692,19 @@ export default function DocumentEditor({
   });
   const convertListToWork = {
     ...listWrite,
-    mutate(selectedKeys: string[]) {
+    mutateAsync(selectedKeys: string[]) {
       const { projectId } = record;
       const body = form.getFieldValue("body");
       const selectedBulkRows = bulkRows.filter(({ start, end }) =>
         selectedKeys.includes(`${start}:${end}`),
       );
       if (!projectId || body !== savedBody || selectedBulkRows.length === 0) {
-        listWrite.mutate(
+        return listWrite.mutateAsync(
           new Error("Save the Document and choose list rows first."),
         );
-        return;
       }
       bulkConversionKey.current ??= crypto.randomUUID();
-      listWrite.mutate({
+      return listWrite.mutateAsync({
         baseRevision: 0,
         clientIdempotencyKey: bulkConversionKey.current,
         documentId: record.id,

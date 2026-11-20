@@ -1,6 +1,9 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Layout controls close over their current section and draft state.
 
-import type { ProjectShellConfiguration } from "@cantiara/api/project-shell";
+import {
+  type ProjectShellConfiguration,
+  workContextLayoutChangeSchema,
+} from "@cantiara/api/project-shell";
 import {
   cloneWorkContextLayout,
   getWorkContextLayout,
@@ -46,22 +49,29 @@ export default function WorkContextCardLayoutEditor({
     },
     onSubmitMeta: { action: "preview" } as { action: "preview" | "confirm" },
     onSubmit: async ({ value, meta }) => {
+      const parsed = workContextLayoutChangeSchema.safeParse({
+        kind: "set-work-context-layout",
+        layout: value.layout,
+        workType: value.workType,
+      });
+      if (!parsed.success) {
+        setValidationError(
+          parsed.error.issues[0]?.message ??
+            "Check the Work Context Card layout.",
+        );
+        return;
+      }
       if (meta.action === "confirm") {
         if (preview) {
-          await applyMutation.mutateAsync(undefined);
+          await applyMutation.mutateAsync(parsed.data);
         }
         return;
       }
       applyMutation.reset();
       undoMutation.reset();
-      setValidationError(null);
       await previewMutation.mutateAsync({
         baseRevision: currentRevision,
-        change: {
-          kind: "set-work-context-layout",
-          layout: value.layout,
-          workType: value.workType,
-        },
+        change: parsed.data,
         projectId,
       });
     },
@@ -118,13 +128,11 @@ export default function WorkContextCardLayoutEditor({
         await queryClient.invalidateQueries({ queryKey: projectQueryKey });
       },
     }),
-    (_: undefined) => ({
+    (
+      change: Parameters<typeof client.previewWorkContextLayout>[0]["change"],
+    ) => ({
       baseRevision: currentRevision,
-      change: {
-        kind: "set-work-context-layout" as const,
-        layout: draft,
-        workType,
-      },
+      change,
       projectId,
     }),
   );
@@ -343,15 +351,17 @@ export default function WorkContextCardLayoutEditor({
         onError={setValidationError}
       />
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          disabled={busy || !isDirty}
-          onClick={() =>
-            submitForm(form, { action: "preview" }).catch(() => undefined)
+      <form
+        className="flex flex-wrap gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!busy && isDirty) {
+            submitForm(form, { action: "preview" }).catch(() => undefined);
           }
-          type="button"
-          variant="outline"
-        >
+        }}
+      >
+        <Button disabled={busy || !isDirty} type="submit" variant="outline">
           Preview
         </Button>
         <Button
@@ -373,7 +383,7 @@ export default function WorkContextCardLayoutEditor({
             Undo
           </Button>
         ) : null}
-      </div>
+      </form>
 
       {preview ? (
         <div

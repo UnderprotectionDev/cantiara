@@ -1,3 +1,5 @@
+import type { WorkTemplate } from "@cantiara/api/work-templates";
+import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   client,
@@ -73,4 +75,8 @@ export function useWorkTemplates(
   );
 
   return { create, instantiate, moveToTrash, query, update };
+}
+
+export function useWorkTemplateSelectionForm() {
+  return useForm({ defaultValues: { editing: null as WorkTemplate | null } });
 }

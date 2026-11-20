@@ -17,7 +17,7 @@ import {
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useSelector } from "@tanstack/react-store";
-import { useId, useState } from "react";
+import { type Ref, useId, useImperativeHandle, useState } from "react";
 import { submitForm } from "@/lib/submit-form";
 import { useProductGapLinkTargets } from "../../hooks/use-product-gap-link-targets";
 import type { LinkDraft } from "../../lib/product-gap-form";
@@ -36,6 +36,7 @@ export function ProductGapLinksField({
   legend = "Related records",
   loadTargets,
   onChange,
+  resetRef,
   value,
 }: {
   idPrefix: string;
@@ -43,6 +44,7 @@ export function ProductGapLinksField({
   legend?: string;
   loadTargets: LoadProductGapTargets;
   onChange: (links: LinkDraft[]) => void;
+  resetRef?: Ref<() => void>;
   value: LinkDraft[];
 }) {
   const statusId = useId();
@@ -60,6 +62,14 @@ export function ProductGapLinksField({
       }
     },
   });
+  useImperativeHandle(
+    resetRef,
+    () => () => {
+      picker.reset();
+      setMessage("");
+    },
+    [picker],
+  );
   const { targetType, targetId } = useSelector(
     picker.store,
     (state) => state.values,

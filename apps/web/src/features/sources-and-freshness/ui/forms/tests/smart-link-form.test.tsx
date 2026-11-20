@@ -17,6 +17,8 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { SmartLinkComposer as Composer } from "../smart-link-form";
 
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
 function ComposerWithWrite({
   onSave,
   ...props
@@ -197,6 +199,9 @@ describe("Sources and Freshness preview surface", () => {
         requireElement(container.querySelector("input")),
         "https://youtu.be/dQw4w9WgXcQ",
       );
+    });
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain("Load YouTube");
     });
     await act(async () => {
       button(container, "Load YouTube").click();

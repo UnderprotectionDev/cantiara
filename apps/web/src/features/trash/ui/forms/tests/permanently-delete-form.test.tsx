@@ -6,6 +6,7 @@ import { PermanentlyDeleteForm } from "../permanently-delete-form";
 
 const SECOND_FACTOR = /password|MFA|refresh/i;
 const noop = () => undefined;
+const submitDelete = () => Promise.resolve();
 
 const preview = (
   overrides: Partial<TrashEarlyDeletePreview> = {},
@@ -39,7 +40,7 @@ function render(
       identityPending={false}
       onCancel={noop}
       onConfirmIdentity={noop}
-      onSubmit={noop}
+      onSubmit={submitDelete}
       preview={preview(overrides)}
     />,
   );
