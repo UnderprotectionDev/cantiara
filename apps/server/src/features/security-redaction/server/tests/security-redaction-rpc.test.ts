@@ -58,11 +58,17 @@ describe("Security Redaction RPC", () => {
     const { client } = setup(consume);
 
     await expect(client.applySecurityRedaction(request)).rejects.toMatchObject({
-      code: "FORBIDDEN",
+      code: "SECURITY_REDACTION_GRANT_REJECTED",
+      defined: true,
+      status: 403,
     });
     await expect(
       client.applySecurityRedaction({ ...request, typedName: "Ship it" }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    ).rejects.toMatchObject({
+      code: "SECURITY_REDACTION_TYPED_NAME_MISMATCH",
+      defined: true,
+      status: 400,
+    });
     expect(consume).toHaveBeenCalledTimes(1);
     expect(consume).toHaveBeenCalledWith(
       { accountId: ACCOUNT, sessionId: "session" },

@@ -38,7 +38,11 @@ Kurucu Contact, e-posta takma değerleri, Geri Bildirim, Araştırma ve ilişkil
 - **English UI labels.** `Export Personal Data`, `Erase Personal Data`. Added to the term table when first shown. Grant label unchanged. No Turkish UI.
 - **Grant rule.** No second card. Do not re-specify OAuth/PKCE. Do not copy 78.
 
+- **RPC refusals (#543).** Personal Data export and erase refusals cross RPC with distinct codes and fixed messages. The package and erase surfaces use the codes to show the refusal.
+
 ## Testing Decisions
+
+- **RPC refusal evidence (#543).** `apps/server/src/app.test.ts` verifies that a missing Contact yields a typed response without its identifier. `personal-data-view.test.tsx` verifies the client’s typed refusal messages and generic fallback.
 
 - **What a good test is.** Tests observe Personal Data Rights: package contains the Contact's listed sources and not secrets/other Contacts; erase without grant or typed name writes nothing; erase calls 78 (spy/double) rather than a local spread; published value gone; tombstone content-free; Trash restore does not resurrect (78 counterpart).
 - **Seam (one).** Personal Data Rights. 78, 01 grant, and 14 surface revoke are adapters. Playwright on Hesap ve kişisel veri.

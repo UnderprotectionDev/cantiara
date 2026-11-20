@@ -18,6 +18,7 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { type SubmitEvent, useId, useState } from "react";
+import { isResearchSessionConflict } from "../../lib/research-session-conflict";
 
 export type SaveResearchNote = (
   note: ResearchSessionNoteInput,
@@ -80,10 +81,7 @@ export function ResearchSessionNoteEditor({
       try {
         await onSave(parsed.data);
       } catch (cause) {
-        const changed =
-          cause instanceof Error &&
-          "code" in cause &&
-          cause.code === "CONFLICT";
+        const changed = isResearchSessionConflict(cause);
         setConflict(changed);
         setError(
           changed

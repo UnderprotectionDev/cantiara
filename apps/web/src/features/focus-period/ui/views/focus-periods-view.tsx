@@ -1,11 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Focus Period controls act on the selected period and Work.
 
-import {
-  FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE,
-  FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE,
-  type FocusPeriodRecord,
-} from "@cantiara/api/focus-period";
+import type { FocusPeriodRecord } from "@cantiara/api/focus-period";
 import { Button } from "@cantiara/ui/components/button";
+import { isDefinedError, ORPCError } from "@orpc/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -107,13 +104,10 @@ export default function FocusPeriodsView() {
           ? mutationError.message
           : null;
       const membershipConflictMessage =
-        mutationError instanceof Error &&
-        "code" in mutationError &&
-        mutationError.code === "CONFLICT" &&
-        [
-          FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE,
-          FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE,
-        ].includes(mutationError.message)
+        mutationError instanceof ORPCError &&
+        isDefinedError(mutationError) &&
+        (mutationError.code === "FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT" ||
+          mutationError.code === "FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT")
           ? mutationError.message
           : null;
       setError(

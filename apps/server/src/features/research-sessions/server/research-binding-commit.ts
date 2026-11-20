@@ -6,9 +6,11 @@ import {
   researchBindingPlanSchema,
   researchEvidenceBindingSchema,
 } from "@cantiara/api/research-session-bindings";
-import type { ResearchSessionRecord } from "@cantiara/api/research-sessions";
+import {
+  ResearchSessionAccessError,
+  type ResearchSessionRecord,
+} from "@cantiara/api/research-sessions";
 import { researchSessionBindingPreview } from "@cantiara/db/schema/research-session";
-import { ORPCError } from "@orpc/server";
 import { and, eq } from "drizzle-orm";
 import { writeEvidenceBinding } from "../../evidence/server/evidence-database";
 import {
@@ -81,7 +83,7 @@ export async function commitResearchSessionBinding(
     true,
   );
   if (target.project.workspaceId !== input.workspaceId) {
-    throw new ORPCError("NOT_FOUND");
+    throw new ResearchSessionAccessError("unavailable");
   }
   const recordId =
     plan.target.mode === "create" ? crypto.randomUUID() : plan.target.recordId;

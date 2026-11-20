@@ -47,7 +47,11 @@ Kullanıcı Araştırması Oturumu Proje ana kaydıdır. İzin `Not asked`, `All
 
 - **Conversion history lifecycle (#329 review).** The 15-minute preview is temporary. Server startup and a 15-minute maintenance sweep delete expired preparations, including confirmed ones; durable mutation receipts remain the retry authority. Confirmation replays still check current Consent and target access. Historical binding reads resolve lifecycle separately from new-binding eligibility: `Archived`, `In Trash`, `Permanently deleted` and `No access` retain the row and `Bound at` time. Broken targets expose no cached title; `Open source record` is available only for accessible active/archived/Trash ends. Work (any type, including `Feature`), Decision, Risk, Assumption, Open Question and source records use existing exact-record navigation; a Feedback linked to the session by relation (never an evidence target) opens its current native record in a read-only dialog (`Feedback`, `Read-only source record.`, `Loading source record…`, `Source record is unavailable.`). This delivery is verified at the existing Research Sessions seam by the lifecycle tests below.
 
+- **RPC refusals (#543).** Snapshot and convert previews read one Research Session by Account, Project, and session identity. The RPC adapter preserves the Research Session revision conflict and Consent refusal as declared errors. A stale save keeps the editable draft and offers the existing refresh and reopen flow.
+
 ## Testing Decisions
+
+- **RPC refusal evidence (#543).** `apps/server/src/app.test.ts` checks the typed conflict through HTTP. `research-sessions-surface.test.tsx` checks draft retention and reopen with that code. `research-sessions.e2e.ts` exercises the account-scoped preview and Consent flow.
 
 - **What a good test is.** Tests observe Research Sessions through consent, typed notes, convert preview, and share closed-world counterparts. They go red if an unconsented quote/file leaks, if interpretation is labeled as a participant quote, or if a pin silently follows a later session edit. They do not assert editor internals.
 - **Seam (one).** Research Sessions — session, consent, typed notes, convert preview. Evidence pin is a collaborator interface behind this seam.

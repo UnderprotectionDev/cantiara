@@ -1,7 +1,7 @@
 import type { Context } from "@cantiara/api/context";
 import {
   type FocusPeriodAccess,
-  FocusPeriodConflictError,
+  FocusPeriodMembershipConflictError,
 } from "@cantiara/api/focus-period";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
@@ -45,21 +45,32 @@ function testClient(session: Context["session"]) {
 
 describe("Focus Period RPC", () => {
   test.each([
-    "Work is already in an active Focus Period. Use Move.",
-    "Work is already in another Focus Period.",
-  ])("preserves the membership conflict message: %s", async (message) => {
-    const { client, focusPeriod } = testClient({
-      session: { id: "session-1" },
-      user: { id: "founder" },
-    } as Context["session"]);
-    vi.spyOn(focusPeriod, "add").mockRejectedValue(
-      new FocusPeriodConflictError(message),
-    );
+    [
+      "active",
+      "FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT",
+      "Work is already in an active Focus Period. Use Move.",
+    ],
+    [
+      "overlapping",
+      "FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT",
+      "Work is already in another Focus Period.",
+    ],
+  ] as const)(
+    "types the %s membership conflict",
+    async (membership, code, message) => {
+      const { client, focusPeriod } = testClient({
+        session: { id: "session-1" },
+        user: { id: "founder" },
+      } as Context["session"]);
+      vi.spyOn(focusPeriod, "add").mockRejectedValue(
+        new FocusPeriodMembershipConflictError(membership),
+      );
 
-    await expect(
-      client.addToFocusPeriod({ periodId: "period-1", workId: "work-1" }),
-    ).rejects.toMatchObject({ code: "CONFLICT", message });
-  });
+      await expect(
+        client.addToFocusPeriod({ periodId: "period-1", workId: "work-1" }),
+      ).rejects.toMatchObject({ code, defined: true, message, status: 409 });
+    },
+  );
 
   test("binds period creation and membership to the authenticated Account", async () => {
     const { client, focusPeriod } = testClient({

@@ -47,7 +47,11 @@ Kurucu etkiyi önizler, Hesap Erişimi feature'ının `Confirm GitHub Identity` 
 - **English UI labels.** First user-visible copy: `Redact`, `Redacted for security`. Grant label stays `Confirm GitHub Identity`. New labels are added to the PRD term table in the same change that first shows them. No Turkish UI.
 - **Classification.** Contact email, research participant data, and private feedback are kişisel veri; sharing passwords, session, sharing, and integration keys are Secret. Secret never enters search, export, sharing, or publish — redaction of a leaked Secret still spreads to history/snapshots/indexes. The product does not claim to detect secrets in free Markdown; preview says that limit (already PRD 13). Health/biometric/government-id/payment-card/child data is not stored as a first-product type; this feature does not add a scanner.
 
+- **RPC refusals (#543).** The RPC adapter declares typed-name mismatch, rejected grant, and incomplete spread. Only the closed locator kinds may accompany an incomplete-spread refusal.
+
 ## Testing Decisions
+
+- **RPC refusal evidence (#543).** `security-redaction-rpc.test.ts` verifies the grant and typed-name outcomes. `apps/server/src/app.test.ts` verifies both name mismatch and incomplete spread through HTTP, including rejection of an invalid locator kind and omission of private fields.
 
 - **What a good test is.** Tests observe Security Redaction through its public interface: preview locator set, grant consume, typed-name gate, apply, then whether current/history/snapshot/search/export-staging/cache still yield the value. They assert restore-without-replay still cannot serve the value on the product read path after apply, and that replaying the event after a restored still-present row keeps the value gone. They do not assert Drizzle shapes or re-test OAuth.
 - **Seam (one).** Security Redaction — the product-facing irreversible content-removal interface used by the redaction UI and by 81/84. Account Access grant, External Surface snapshot store, search index, export staging, and the security-event log are adapters (real versus test double). Playwright for the Hesap ve kişisel veri high-risk slice is the same seam through the UI.

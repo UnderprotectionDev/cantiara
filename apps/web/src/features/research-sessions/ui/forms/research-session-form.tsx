@@ -17,6 +17,7 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { type SubmitEvent, useId, useState } from "react";
 import { DateTimePicker } from "@/components/date-picker";
+import { isResearchSessionConflict } from "../../lib/research-session-conflict";
 import {
   researchSessionTimeInput,
   researchSessionTimestamp,
@@ -101,10 +102,7 @@ export function ResearchSessionEditor({
       try {
         await onSave(parsed.data, baseRecord);
       } catch (cause) {
-        const changed =
-          cause instanceof Error &&
-          "code" in cause &&
-          cause.code === "CONFLICT";
+        const changed = isResearchSessionConflict(cause);
         setConflict(changed);
         setError(
           changed

@@ -20,6 +20,7 @@ import {
 import {
   captureResearchSessionContent,
   captureResearchSessionInputSchema,
+  ResearchSessionAccessError,
   type ResearchSessionRecord,
   type ResearchSessionsAccess,
   researchSessionConvertPreview,
@@ -39,7 +40,6 @@ import {
   researchSession,
   researchSessionBindingPreview,
 } from "@cantiara/db/schema/research-session";
-import { ORPCError } from "@orpc/server";
 import { and, asc, eq, lte } from "drizzle-orm";
 import { findFeedbackRecord } from "../../feedback/server/feedback-database";
 import { commitResearchSessionBinding } from "./research-binding-commit";
@@ -130,9 +130,10 @@ async function validateNewFiles(
       )
       .for("update", { of: fileAttachment });
     if (!file) {
-      throw new ORPCError("NOT_FOUND", {
-        message: "File Attachment is unavailable.",
-      });
+      throw new ResearchSessionAccessError(
+        "unavailable",
+        "File Attachment is unavailable.",
+      );
     }
   }
 }
@@ -192,9 +193,10 @@ function sessionTarget(
           session.participantContactId,
         ))
       ) {
-        throw new ORPCError("NOT_FOUND", {
-          message: "Contact is unavailable.",
-        });
+        throw new ResearchSessionAccessError(
+          "unavailable",
+          "Contact is unavailable.",
+        );
       }
       const binding = input.nextValue.bindingPreviewId
         ? await commitResearchSessionBinding(executor, {
@@ -270,7 +272,7 @@ export function createDatabaseResearchSessions(
       false,
     );
     if (!owner) {
-      throw new ORPCError("NOT_FOUND");
+      throw new ResearchSessionAccessError("unavailable");
     }
     const [row] = await database
       .select()
@@ -280,9 +282,10 @@ export function createDatabaseResearchSessions(
           eq(researchSession.id, input.id),
           eq(researchSession.projectId, input.projectId),
         ),
-      );
+      )
+      .limit(1);
     if (!row) {
-      throw new ORPCError("NOT_FOUND");
+      throw new ResearchSessionAccessError("unavailable");
     }
     return { owner, session: researchSessionRecordSchema.parse(row.data) };
   }
@@ -302,11 +305,11 @@ export function createDatabaseResearchSessions(
           ),
         );
       if (!row) {
-        throw new ORPCError("NOT_FOUND");
+        throw new ResearchSessionAccessError("unavailable");
       }
       const pin = researchBindingPlanSchema.shape.pin.parse(row.pin);
       if (!pin.source.componentId) {
-        throw new ORPCError("NOT_FOUND");
+        throw new ResearchSessionAccessError("unavailable");
       }
       researchSessionConvertPreview(session, pin.source.componentId);
       const target = await readResearchBindingTarget(
@@ -320,7 +323,7 @@ export function createDatabaseResearchSessions(
         },
       );
       if (!(target.canOpenSourceRecord && target.projectId)) {
-        throw new ORPCError("NOT_FOUND");
+        throw new ResearchSessionAccessError("unavailable");
       }
       const record = await findFeedbackRecord(
         database,
@@ -329,7 +332,7 @@ export function createDatabaseResearchSessions(
         target.recordId,
       );
       if (!record) {
-        throw new ORPCError("NOT_FOUND");
+        throw new ResearchSessionAccessError("unavailable");
       }
       return researchBindingFeedbackSchema.parse(record);
     },
@@ -341,7 +344,7 @@ export function createDatabaseResearchSessions(
       const input = previewResearchSessionBindingInputSchema.parse(rawInput);
       const { owner, session } = await readSession(accountId, input);
       if (owner.archivedAt) {
-        throw new ORPCError("FORBIDDEN");
+        throw new ResearchSessionAccessError("project-archived");
       }
       if (input.baseRevision !== session.revision) {
         throw new MutationConflictError(input.id);
@@ -354,7 +357,7 @@ export function createDatabaseResearchSessions(
         false,
       );
       if (owner.workspaceId !== target.project.workspaceId) {
-        throw new ORPCError("NOT_FOUND");
+        throw new ResearchSessionAccessError("unavailable");
       }
       const previewId = crypto.randomUUID();
       await database.insert(researchSessionBindingPreview).values({
@@ -376,7 +379,7 @@ export function createDatabaseResearchSessions(
       const input = confirmResearchSessionBindingInputSchema.parse(rawInput);
       const { owner } = await readSession(accountId, input);
       if (owner.archivedAt) {
-        throw new ORPCError("FORBIDDEN");
+        throw new ResearchSessionAccessError("project-archived");
       }
       const receipt = await mutation(accountId).mutate(
         {
@@ -428,7 +431,7 @@ export function createDatabaseResearchSessions(
           ),
         );
       if (!current) {
-        throw new ORPCError("NOT_FOUND");
+        throw new ResearchSessionAccessError("unavailable");
       }
       const target = await readResearchBindingTarget(
         database,
@@ -494,6 +497,10 @@ export function createDatabaseResearchSessions(
       return bindings.filter(
         (binding): binding is ResearchEvidenceBinding => binding !== null,
       );
+    },
+    async read(accountId, input) {
+      const { session } = await readSession(accountId, input);
+      return session;
     },
     async list(accountId, projectId) {
       const owner = await ownedProject(database, accountId, projectId, false);

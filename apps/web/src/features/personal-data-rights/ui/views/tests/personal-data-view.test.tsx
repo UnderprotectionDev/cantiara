@@ -6,6 +6,7 @@ import {
   type PersonalDataErasePreview,
   type PersonalDataPreview,
 } from "@cantiara/api/personal-data-rights";
+import { ORPCError } from "@orpc/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { personalDataRefusalMessage } from "../../../lib/personal-data-refusal";
@@ -89,7 +90,10 @@ describe("Export Personal Data view", () => {
   test("a refusal code shows its stable message", () => {
     expect(
       personalDataRefusalMessage(
-        { data: { code: "preview_required" } },
+        new ORPCError("PERSONAL_DATA_PREVIEW_REQUIRED", {
+          status: 400,
+          defined: true,
+        }),
         EXPORT_PERSONAL_DATA_LABEL,
       ),
     ).toContain("Review the preview");
@@ -98,7 +102,7 @@ describe("Export Personal Data view", () => {
     ).toContain("Erase Personal Data could not be completed");
     expect(
       personalDataRefusalMessage(
-        { data: { code: "tombstone_incomplete" } },
+        new ORPCError("PERSONAL_DATA_TOMBSTONE_INCOMPLETE", { defined: true }),
         ERASE_PERSONAL_DATA_LABEL,
       ),
     ).toContain("not fully cleared");

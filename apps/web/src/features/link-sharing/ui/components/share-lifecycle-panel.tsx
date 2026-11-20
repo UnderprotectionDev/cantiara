@@ -11,6 +11,7 @@ import {
 } from "@cantiara/api/link-sharing";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
+import { isDefinedError, ORPCError } from "@orpc/client";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   defaultNewExpiry,
@@ -44,18 +45,25 @@ export function ShareLifecyclePanel({
 }) {
   const [confirming, setConfirming] = useState<Confirming>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const expired = surface.state === "Expired";
 
   async function run(work: () => Promise<unknown>, done: string) {
     setStatus(null);
-    setFailed(false);
+    setError(null);
     try {
       await work();
       setConfirming(null);
       setStatus(done);
-    } catch {
-      setFailed(true);
+    } catch (failure) {
+      setError(
+        failure instanceof ORPCError &&
+          isDefinedError(failure) &&
+          (failure.code === "LINK_SHARING_STATE_INVALID" ||
+            failure.code === "LINK_SHARING_RATE_LIMITED")
+          ? failure.message
+          : "That did not work. Try again.",
+      );
     }
   }
   return (
@@ -131,9 +139,9 @@ export function ShareLifecyclePanel({
         )}
       </div>
       {status ? <p role="status">{status}</p> : null}
-      {failed ? (
+      {error ? (
         <p className="text-sm text-destructive" role="alert">
-          That did not work. Try again.
+          {error}
         </p>
       ) : null}
     </section>
