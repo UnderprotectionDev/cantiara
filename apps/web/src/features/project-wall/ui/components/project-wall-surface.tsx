@@ -3,7 +3,6 @@ import type {
   ProjectWallDensity,
   ProjectWallHighlight,
   ProjectWallPosition,
-  ProjectWallRelationPreview,
   ProjectWallSourceType,
 } from "@cantiara/api/project-wall";
 import {
@@ -18,7 +17,7 @@ import {
 } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { executeWrite } from "@/utils/execute-write";
 import { client, orpc } from "@/utils/orpc";
 import { usePersonalProjectWallView } from "../../hooks/use-personal-project-wall-view";
 import { AddCardForm } from "../forms/place-project-wall-card-form";
@@ -60,10 +59,25 @@ export default function ProjectWallSurface({
    * value, or `ok: false` with the reason surfaced as the page error.
    */
   const write = useCallback(
-    async <T,>(operation: () => Promise<T>) => {
+    async <T,>(operation: () => Promise<T>, retryInSurface = false) => {
       setError(null);
       try {
-        const result = await runOnlineOnlyWrite(operation);
+        const result = await executeWrite(
+          queryClient,
+          undefined,
+          operation,
+          async () => {
+            await Promise.all([
+              queryClient.invalidateQueries({
+                queryKey: orpc.projectWalls.queryKey({ input: { projectId } }),
+              }),
+              queryClient.invalidateQueries({
+                queryKey: orpc.projectWall.key(),
+              }),
+            ]);
+          },
+          retryInSurface,
+        );
         return { ok: true as const, result };
       } catch (cause) {
         setError(
@@ -72,16 +86,9 @@ export default function ProjectWallSurface({
             : "Project Wall change failed.",
         );
         return { ok: false as const };
-      } finally {
-        await queryClient.invalidateQueries({
-          queryKey: orpc.projectWalls.key(),
-        });
-        await queryClient.invalidateQueries({
-          queryKey: orpc.projectWall.key(),
-        });
       }
     },
-    [queryClient],
+    [projectId, queryClient],
   );
 
   const wallId = wall.data?.id;
@@ -157,18 +164,20 @@ export default function ProjectWallSurface({
           wallId: wallId ?? "",
         }),
       ).then((attempt) => attempt.ok),
-    onCreateRelation: ({ baseRevision, kind, linkId, previewId }) =>
-      write(() =>
+    onCreateRelation: ({ baseRevision, kind, linkId, previewId }) => {
+      const clientIdempotencyKey = crypto.randomUUID();
+      return write(() =>
         client.createProjectWallPersistentRelation({
           baseRevision,
-          clientIdempotencyKey: crypto.randomUUID(),
+          clientIdempotencyKey,
           kind,
           linkId,
           previewId,
           projectId,
           wallId: wallId ?? "",
         }),
-      ).then((attempt) => attempt.ok),
+      ).then((attempt) => attempt.ok);
+    },
     onDeleteGroup: (groupId) =>
       write(() =>
         client.deleteProjectWallGroup({
@@ -185,16 +194,21 @@ export default function ProjectWallSurface({
           wallId: wallId ?? "",
         }),
       ).then((attempt) => attempt.ok),
-    onPreviewRelation: (request) =>
-      write(() =>
-        client.previewProjectWallPersistentRelation({
+    onPreviewRelation: async (request) => {
+      try {
+        return await client.previewProjectWallPersistentRelation({
           ...request,
           projectId,
           wallId: wallId ?? "",
-        }),
-      ).then((attempt) =>
-        attempt.ok ? (attempt.result as ProjectWallRelationPreview) : undefined,
-      ),
+        });
+      } catch (cause) {
+        setError(
+          cause instanceof Error && cause.message
+            ? cause.message
+            : "Project Wall change failed.",
+        );
+      }
+    },
     onExportSnapshot: async (scope, format) => {
       // A snapshot reads the wall; it is not a write, so nothing refetches.
       try {
@@ -450,7 +464,7 @@ export default function ProjectWallSurface({
             `${cardIds.length - missed} of ${cardIds.length} cards joined the group; retrying adds the rest.`,
         );
       }
-    }).then((attempt) => attempt.ok);
+    }, true).then((attempt) => attempt.ok);
 
   if (walls.status === "pending") {
     return <p role="status">Loading Project Walls…</p>;

@@ -2,10 +2,9 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { ReturnContext } from "@cantiara/api/return-to-work";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
-import { runOnlineOnlyWrite } from "../../../web-macos-client/store/client-shell";
 import { NextConcreteStepForm } from "../forms/next-concrete-step-form";
 import ReturnCards from "./return-cards";
 import SinceLastLooked from "./since-last-looked";
@@ -24,6 +23,12 @@ export default function ReturnToWork({ projectId, workId }: ReturnContext) {
   const [visitError, setVisitError] = useState(false);
   const viewedContext = useRef<string | null>(null);
   const visitsInFlight = useRef(new Set<string>());
+  const { mutateAsync: saveVisit } = useMutation(
+    orpc.markReturnContextViewed.mutationOptions({
+      meta: { onlineWrite: true, retryInSurface: true },
+      mutationFn: (context) => client.markReturnContextViewed(context),
+    }),
+  );
   const markViewed = useCallback(() => {
     const contextKey = `${projectId}:${workId ?? ""}`;
     if (
@@ -36,19 +41,14 @@ export default function ReturnToWork({ projectId, workId }: ReturnContext) {
       return;
     }
     visitsInFlight.current.add(contextKey);
-    runOnlineOnlyWrite(() =>
-      client.markReturnContextViewed({
-        projectId,
-        ...(workId ? { workId } : {}),
-      }),
-    )
+    saveVisit({ projectId, ...(workId ? { workId } : {}) })
       .then(() => {
         viewedContext.current = contextKey;
         setVisitError(false);
       })
       .catch(() => setVisitError(true))
       .finally(() => visitsInFlight.current.delete(contextKey));
-  }, [projectId, workId, query.isSuccess, query.isFetching]);
+  }, [projectId, workId, query.isSuccess, query.isFetching, saveVisit]);
   useEffect(() => {
     markViewed();
     document.addEventListener("visibilitychange", markViewed);

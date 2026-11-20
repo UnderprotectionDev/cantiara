@@ -21,7 +21,6 @@ import {
   invalidateSmartCollectionMembership,
   orpc,
   projectsQueryOptions,
-  projectWorksQueryPrefix,
 } from "@/utils/orpc";
 
 function recreateErrorMessage(error: unknown) {
@@ -47,7 +46,29 @@ function updateSelection<T>(values: T[], value: T, checked: boolean) {
 export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
   const recreateWorkMutation = useMutation(
     orpc.recreateWork.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.recreateWork(input),
+      onSuccess: async (recreatedWork) => {
+        pendingRecreate.current = null;
+        setRecreatedKey(recreatedWork.key);
+        setPreview(null);
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectWorks.queryOptions({
+              input: { projectId: work.projectId },
+            }).queryKey,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectWorks.queryOptions({
+              input: { projectId: recreatedWork.projectId },
+            }).queryKey,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: projectsQueryOptions().queryKey,
+          }),
+          ...invalidateSmartCollectionMembership(queryClient),
+        ]);
+      },
     }),
   );
   const connection = useClientShellConnection();
@@ -127,31 +148,7 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
           setError(recreateErrorMessage(null));
           return;
         }
-        const recreatedWork = await recreateWorkMutation.mutateAsync(
-          recreateInput.data,
-        );
-        pendingRecreate.current = null;
-        setRecreatedKey(recreatedWork.key);
-        setPreview(null);
-        await Promise.all([
-          queryClient.invalidateQueries({
-            queryKey: projectWorksQueryPrefix,
-          }),
-          queryClient.invalidateQueries({
-            queryKey: orpc.projectWorks.queryOptions({
-              input: { projectId: work.projectId },
-            }).queryKey,
-          }),
-          queryClient.invalidateQueries({
-            queryKey: orpc.projectWorks.queryOptions({
-              input: { projectId: recreatedWork.projectId },
-            }).queryKey,
-          }),
-          queryClient.invalidateQueries({
-            queryKey: projectsQueryOptions().queryKey,
-          }),
-          ...invalidateSmartCollectionMembership(queryClient),
-        ]);
+        await recreateWorkMutation.mutateAsync(recreateInput.data);
       } catch (submitError) {
         setError(recreateErrorMessage(submitError));
       }

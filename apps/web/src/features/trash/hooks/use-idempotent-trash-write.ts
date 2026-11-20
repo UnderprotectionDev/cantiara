@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { executeWrite } from "@/utils/execute-write";
 import { invalidateSmartCollectionMembership, orpc } from "@/utils/orpc";
 
 // Every read family whose rows come from a record kind that Trash can move,
@@ -47,6 +47,14 @@ const TRASH_AFFECTED_QUERY_KEYS = () => [
 export function useIdempotentTrashWrite() {
   const queryClient = useQueryClient();
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
+  async function refresh() {
+    await Promise.all([
+      ...TRASH_AFFECTED_QUERY_KEYS().map((queryKey) =>
+        queryClient.invalidateQueries({ queryKey }),
+      ),
+      ...invalidateSmartCollectionMembership(queryClient),
+    ]);
+  }
   return async function write<Result>(
     fingerprint: string,
     send: (clientIdempotencyKey: string) => Promise<Result>,
@@ -55,17 +63,17 @@ export function useIdempotentTrashWrite() {
       attempt.current = { fingerprint, key: crypto.randomUUID() };
     }
     const { key } = attempt.current;
-    try {
-      const result = await runOnlineOnlyWrite(() => send(key));
-      attempt.current = null;
-      return result;
-    } finally {
-      await Promise.all([
-        ...TRASH_AFFECTED_QUERY_KEYS().map((queryKey) =>
-          queryClient.invalidateQueries({ queryKey }),
-        ),
-        ...invalidateSmartCollectionMembership(queryClient),
-      ]);
-    }
+    return await executeWrite(
+      queryClient,
+      key,
+      async (id) => {
+        const result = await send(id);
+        if (attempt.current?.key === id) {
+          attempt.current = null;
+        }
+        return result;
+      },
+      refresh,
+    );
   };
 }

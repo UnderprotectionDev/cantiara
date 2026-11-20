@@ -14,24 +14,28 @@ export default function ReleaseEvidencePackSurface({
 }) {
   const addReleaseChecklistItemMutation = useMutation(
     orpc.addReleaseChecklistItem.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (command) => client.addReleaseChecklistItem(command),
       onSuccess: () => refresh(),
     }),
   );
   const closeReleaseOpenScopeSignalMutation = useMutation(
     orpc.closeReleaseOpenScopeSignal.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (command) => client.closeReleaseOpenScopeSignal(command),
       onSuccess: () => refresh(),
     }),
   );
   const removeReleaseChecklistItemMutation = useMutation(
     orpc.removeReleaseChecklistItem.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (command) => client.removeReleaseChecklistItem(command),
       onSuccess: () => refresh(),
     }),
   );
   const setReleaseChecklistItemMutation = useMutation(
     orpc.setReleaseChecklistItem.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (command) => client.setReleaseChecklistItem(command),
       onSuccess: () => refresh(),
     }),

@@ -44,6 +44,7 @@ export function useShareAccess(
 
   const reopen = useMutation({
     mutationKey: orpc.reopenShareLink.mutationKey(),
+    meta: { onlineWrite: true },
     mutationFn: ({ root: _, ...input }: ShareTarget & ReopenExpiredLinkInput) =>
       client.reopenShareLink(input),
     onSettled: refreshPreview,
@@ -51,6 +52,7 @@ export function useShareAccess(
 
   const reshare = useMutation({
     mutationKey: orpc.reshareShareLink.mutationKey(),
+    meta: { onlineWrite: true },
     mutationFn: async ({
       root: _,
       ...input
@@ -71,6 +73,7 @@ export function useShareAccess(
 
   const revoke = useMutation({
     mutationKey: orpc.revokeShareLink.mutationKey(),
+    meta: { onlineWrite: true },
     mutationFn: ({ surfaceId }: ShareTarget) =>
       client.revokeShareLink({ surfaceId }),
     onSuccess: onRevoked,
@@ -79,6 +82,7 @@ export function useShareAccess(
 
   const rotate = useMutation({
     mutationKey: orpc.rotateShareToken.mutationKey(),
+    meta: { onlineWrite: true },
     mutationFn: async ({ surfaceId }: ShareTarget) => {
       const { token, ...access } = await client.rotateShareToken({ surfaceId });
       if (token) {
@@ -91,6 +95,7 @@ export function useShareAccess(
 
   const expiry = useMutation({
     mutationKey: orpc.setShareExpiry.mutationKey(),
+    meta: { onlineWrite: true },
     mutationFn: ({ root: _, ...input }: ShareTarget & SetShareExpiryInput) =>
       client.setShareExpiry(input),
     onSettled: refreshPreview,
@@ -98,7 +103,7 @@ export function useShareAccess(
 
   const password = useMutation({
     mutationKey: orpc.setLinkPassword.mutationKey(),
-    meta: { privateInput: true },
+    meta: { onlineWrite: true, privateInput: true },
     mutationFn: async (input: ShareTarget) => {
       const value = passwords.current.get(input);
       passwords.current.delete(input);

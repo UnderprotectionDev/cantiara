@@ -24,11 +24,13 @@ export default function ProjectGoalsSurface({
 }) {
   const updateProjectGoalMutation = useMutation(
     orpc.updateProjectGoal.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (request) => client.updateProjectGoal(request),
     }),
   );
   const createProjectGoalMutation = useMutation(
     orpc.createProjectGoal.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (request) => client.createProjectGoal(request),
     }),
   );

@@ -33,12 +33,14 @@ export function useWorkTemplates(
 
   const create = useMutation(
     orpc.createWorkTemplate.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createWorkTemplate(input),
       onSuccess: savedTemplate,
     }),
   );
   const instantiate = useMutation(
     orpc.instantiateWorkTemplate.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.instantiateWorkTemplate(input),
       onSuccess: async (work) => {
         if (work.projectId === projectId) {
@@ -57,12 +59,14 @@ export function useWorkTemplates(
   );
   const update = useMutation(
     orpc.updateWorkTemplate.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.updateWorkTemplate(input),
       onSuccess: savedTemplate,
     }),
   );
   const moveToTrash = useMutation(
     orpc.trashWorkTemplate.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.trashWorkTemplate(input),
       onSuccess: invalidateTemplates,
     }),

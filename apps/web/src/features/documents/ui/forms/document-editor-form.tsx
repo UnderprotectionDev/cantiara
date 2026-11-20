@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Document controls close over the selected record and current editor state.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import {
   type Document,
@@ -37,6 +38,7 @@ import {
   defaultClientShell,
   runOnlineOnlyWrite,
 } from "@/features/web-macos-client/store/client-shell";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -115,11 +117,7 @@ export default function DocumentEditor({
   );
   const [conversionWarning, setConversionWarning] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
-  const pendingRestore = useRef<{
-    sourceRevision: number;
-    baseRevision: number;
-    clientIdempotencyKey: string;
-  } | null>(null);
+
   const versionOptions = orpc.documentVersions.queryOptions({
     input: { documentId: record.id },
   });
@@ -303,43 +301,29 @@ export default function DocumentEditor({
           : "Document could not be saved.",
       ),
   });
-  const restore = useMutation({
-    mutationFn: (sourceRevision: number) => {
-      if (
-        pendingRestore.current?.sourceRevision !== sourceRevision ||
-        pendingRestore.current.baseRevision !== revision
-      ) {
-        pendingRestore.current = {
-          sourceRevision,
-          baseRevision: revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-        };
-      }
-      const command = pendingRestore.current;
-      return runOnlineOnlyWrite(() =>
-        client.restoreDocumentVersion({
-          documentId: record.id,
-          revision: sourceRevision,
-          baseRevision: command.baseRevision,
-          clientIdempotencyKey: command.clientIdempotencyKey,
-        }),
-      );
-    },
-    onSuccess: async (restored) => {
-      pendingRestore.current = null;
-      editSession.accept(restored);
-      setSelectedVersion(null);
-      setError(null);
-      await Promise.all(invalidateSmartCollectionMembership(queryClient));
-      await onSaved();
-    },
-    onError: (failure) =>
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Document could not be restored.",
-      ),
-  });
+  const restore = usePreparedMutation(
+    orpc.restoreDocumentVersion.mutationOptions({
+      mutationFn: (input) => client.restoreDocumentVersion(input),
+      onSuccess: async (restored) => {
+        editSession.accept(restored);
+        setSelectedVersion(null);
+        setError(null);
+        await Promise.all(invalidateSmartCollectionMembership(queryClient));
+        await onSaved();
+      },
+      onError: (failure) =>
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : "Document could not be restored.",
+        ),
+    }),
+    (sourceRevision: number) => ({
+      documentId: record.id,
+      baseRevision: revision,
+      revision: sourceRevision,
+    }),
+  );
   const form = useForm({
     defaultValues: {
       title: record.title,

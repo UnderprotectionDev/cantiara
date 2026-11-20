@@ -1,7 +1,6 @@
 import type { PrioritizationSession } from "@cantiara/api/prioritization-sessions";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 
@@ -89,23 +88,16 @@ export function usePrioritizationSessions(projectId: string) {
     }),
   );
 
-  const updateBacklogOrder = useMutation({
-    mutationFn: (workIds: string[]) => {
-      const order = backlogQuery.data;
-      if (!order) {
-        throw new Error("Backlog order is unavailable.");
-      }
-      return runOnlineOnlyWrite(() =>
-        client.updateBacklogOrder({
-          baseRevision: order.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          projectId,
-          workIds,
-        }),
-      );
-    },
-    onSuccess: invalidate,
-  });
+  const updateBacklogOrder = usePreparedMutation(
+    orpc.updateBacklogOrder.mutationOptions({
+      mutationFn: (input) => client.updateBacklogOrder(input),
+      onSuccess: invalidate,
+    }),
+    (input: { baseRevision: number; workIds: string[] }) => ({
+      ...input,
+      projectId,
+    }),
+  );
 
   return {
     allWorkQuery,

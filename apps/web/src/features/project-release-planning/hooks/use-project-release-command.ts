@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { executeWrite } from "@/utils/execute-write";
 import { invalidateSmartCollectionMembership, orpc } from "@/utils/orpc";
 
 /**
@@ -32,12 +32,17 @@ export function useProjectReleaseCommand() {
       pending.current = { fingerprint, key: crypto.randomUUID() };
     }
     const { key } = pending.current;
-    try {
-      const result = await runOnlineOnlyWrite(() => write(key));
-      pending.current = null;
-      return result;
-    } finally {
-      await refresh();
-    }
+    return await executeWrite(
+      queryClient,
+      key,
+      async (id) => {
+        const result = await write(id);
+        if (pending.current?.key === id) {
+          pending.current = null;
+        }
+        return result;
+      },
+      refresh,
+    );
   };
 }

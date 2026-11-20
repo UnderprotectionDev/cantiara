@@ -18,27 +18,32 @@ import { FeedbackView } from "../views/feedback-view";
 export default function FeedbackSurface({ projectId }: { projectId: string }) {
   const createFeedbackMutation = useMutation(
     orpc.createFeedback.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createFeedback(input),
       onSuccess: () => refresh(),
     }),
   );
   const setFeedbackIdentityMutation = useMutation(
     orpc.setFeedbackIdentity.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.setFeedbackIdentity(input),
     }),
   );
   const setFeedbackEvidenceMutation = useMutation(
     orpc.setFeedbackEvidence.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.setFeedbackEvidence(input),
     }),
   );
   const convertFeedbackToWorkMutation = useMutation(
     orpc.convertFeedbackToWork.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.convertFeedbackToWork(input),
     }),
   );
   const setFeedbackStatusMutation = useMutation(
     orpc.setFeedbackStatus.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.setFeedbackStatus(input),
     }),
   );

@@ -14,7 +14,7 @@ import {
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { addDays, addMonths, addWeeks, format, parseISO } from "date-fns";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { DatePicker } from "@/components/date-picker";
 import { currentDateInTimeZone } from "@/features/account-preferences/lib/account-preferences-format";
 import UnifiedCalendar, {
@@ -24,8 +24,8 @@ import UnifiedCalendar, {
   type CalendarView,
   calendarDateKindsForSelection,
 } from "@/features/unified-calendar/ui/components/unified-calendar";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
+import { commandVariables } from "@/lib/command-variables";
 import { fetchCurrentWork } from "@/lib/fetch-current-work";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
@@ -177,37 +177,62 @@ export default function UnifiedCalendarView({
       workId: change.workId,
     }),
   );
-  const undoCalendarDate = useMutation({
-    mutationFn: () => {
-      const undo = dateChangeUndo;
-      if (!undo) {
-        throw new Error(
+  const undoCalendarDate = useMutation(
+    orpc.undoWorkDate.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.undoWorkDate(input),
+      onError: (error) =>
+        handleCalendarDateError(
+          error,
           "This Work date change is no longer available for Undo.",
+        ),
+      onSuccess: async () => {
+        setDateChangeError(null);
+        setDateChangeUndo(null);
+        await queryClient.invalidateQueries({
+          queryKey: projectWorksQueryPrefix,
+        });
+      },
+    }),
+  );
+  const preparingUndo = useRef(false);
+  async function confirmUndoCalendarDate() {
+    if (
+      !dateChangeUndo ||
+      undoCalendarDate.isPending ||
+      preparingUndo.current
+    ) {
+      return;
+    }
+    preparingUndo.current = true;
+    try {
+      const failedUndo = undoCalendarDate.isError
+        ? undoCalendarDate.variables
+        : undefined;
+      if (failedUndo?.receiptId === dateChangeUndo.receiptId) {
+        await undoCalendarDate.mutateAsync(failedUndo);
+      } else {
+        const currentWork = await fetchCurrentWork(
+          queryClient,
+          dateChangeUndo.workId,
+        );
+        await undoCalendarDate.mutateAsync(
+          commandVariables({
+            baseRevision: currentWork.revision,
+            receiptId: dateChangeUndo.receiptId,
+            workId: currentWork.id,
+          }),
         );
       }
-      return runOnlineOnlyWrite(async () => {
-        const work = await fetchCurrentWork(queryClient, undo.workId);
-        return client.undoWorkDate({
-          baseRevision: work.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          receiptId: undo.receiptId,
-          workId: undo.workId,
-        });
-      });
-    },
-    onError: (error) =>
+    } catch (error) {
       handleCalendarDateError(
         error,
         "This Work date change is no longer available for Undo.",
-      ),
-    onSuccess: async () => {
-      setDateChangeError(null);
-      setDateChangeUndo(null);
-      await queryClient.invalidateQueries({
-        queryKey: projectWorksQueryPrefix,
-      });
-    },
-  });
+      );
+    } finally {
+      preparingUndo.current = false;
+    }
+  }
 
   const saving = [updateCalendarDate, undoCalendarDate].some(
     (mutation) => mutation.isPending,
@@ -299,7 +324,7 @@ export default function UnifiedCalendarView({
             <CalendarMutationFeedback
               dateChangeError={dateChangeError}
               disabled={saving}
-              onUndo={() => undoCalendarDate.mutate()}
+              onUndo={confirmUndoCalendarDate}
               showUndo={dateChangeUndo !== null}
             />
           </>

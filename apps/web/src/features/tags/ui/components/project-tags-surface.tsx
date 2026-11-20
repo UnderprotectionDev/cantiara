@@ -84,6 +84,7 @@ export default function ProjectTagsSurface({
 
   const create = useMutation(
     orpc.createTag.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createTag(input),
       onError: (error) => {
         setFormError(errorMessage(error, "Tag could not be created."));
@@ -97,6 +98,7 @@ export default function ProjectTagsSurface({
 
   const apply = useMutation(
     orpc.applyTag.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.applyTag(input),
       onError: (error) => {
         setActionError(errorMessage(error, "Tag could not be applied."));
@@ -110,6 +112,7 @@ export default function ProjectTagsSurface({
 
   const remove = useMutation(
     orpc.removeTag.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.removeTag(input),
       onError: (error) => {
         setActionError(errorMessage(error, "Tag could not be removed."));
@@ -123,6 +126,7 @@ export default function ProjectTagsSurface({
 
   const rename = useMutation(
     orpc.renameTag.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.renameTag(input),
       onError: (error) => {
         setRenameError(errorMessage(error, "Tag could not be renamed."));
@@ -141,6 +145,7 @@ export default function ProjectTagsSurface({
 
   const undoRename = useMutation(
     orpc.undoTagRename.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.undoTagRename(input),
       onError: (error) => {
         setRenameError(errorMessage(error, "Tag could not be undone safely."));

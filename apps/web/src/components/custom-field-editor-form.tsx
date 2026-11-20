@@ -27,7 +27,7 @@ import { type SubmitEvent, useState } from "react";
 import {
   type DefinitionRevisionArgs,
   useCustomFields,
-} from "@/lib/use-custom-fields";
+} from "@/features/custom-fields/hooks/use-custom-fields";
 
 interface CustomFieldFormValues {
   name: string;

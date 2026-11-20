@@ -112,6 +112,7 @@ export function DiagramAuthorityConversion({
   });
   const confirmMutation = useMutation(
     orpc.convertDiagramAuthority.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.convertDiagramAuthority(input),
       onError: (failure) =>
         setError(

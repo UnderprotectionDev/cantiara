@@ -12,6 +12,7 @@ export function useApproveShareScope(
   const attempt = useRef<{ fingerprint: string; id: string } | null>(null);
   const approval = useMutation({
     ...orpc.approveShareScope.mutationOptions(),
+    meta: { onlineWrite: true },
     mutationFn: async (input: ApproveShareScopeInput) => {
       const { accessToken, ...approved } =
         await client.approveShareScope(input);

@@ -15,6 +15,7 @@ export default function TestAssessmentsSurface({
 }) {
   const recordTestAssessmentMutation = useMutation(
     orpc.recordTestAssessment.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.recordTestAssessment(input),
     }),
   );

@@ -33,6 +33,7 @@ export function NextConcreteStepForm({
   const [saved, setSaved] = useState(false);
   const save = useMutation(
     orpc.saveNextConcreteStep.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.saveNextConcreteStep(input),
       onSuccess: async (_, { projectId, workId }) => {
         await Promise.all(

@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Capture cards own handlers that close over their current layout and item state.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type {
   CaptureAttachPreview,
@@ -14,16 +15,17 @@ import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import {
   useClientShell,
   useClientShellConnection,
 } from "@/features/web-macos-client/hooks/use-client-shell";
+import { commandVariables } from "@/lib/command-variables";
 import {
   captureInboxQueryOptions,
   client,
   invalidateSmartCollectionMembership,
+  orpc,
   projectsQueryOptions,
 } from "@/utils/orpc";
 import {
@@ -484,42 +486,31 @@ export function CaptureInboxItemActions({
       setPreview(nextPreview);
     },
   });
-  const attach = useMutation({
-    mutationFn: (previewId: string) =>
-      shell.runWrite(() =>
-        client.attachCapture({
-          clientIdempotencyKey: crypto.randomUUID(),
-          itemId: item.id,
-          previewId,
-          relation: attachmentValues.relation,
-          targetId: attachmentValues.targetId.trim(),
-        }),
-      ),
-    onError: () => setActionMessage(triageErrorMessage()),
-    onSuccess: async (receipt) => {
-      try {
-        const undoPreview = await shell.runOnlineOnly(() =>
-          client.previewCaptureMergeUndo({ mergeId: receipt.mergeId }),
-        );
-        onUndoPreview({ mergeId: receipt.mergeId, preview: undoPreview });
-        toast.success("Capture attached.");
-      } catch {
-        toast.error(triageErrorMessage());
-      }
-      await refreshInbox(true);
-    },
-  });
-  const deleteCapture = useMutation({
-    mutationFn: () =>
-      shell.runWrite(() =>
-        client.deleteCapture({
-          clientIdempotencyKey: crypto.randomUUID(),
-          itemId: item.id,
-        }),
-      ),
-    onError: () => setActionMessage(triageErrorMessage()),
-    onSuccess: () => refreshInbox(true),
-  });
+  const attach = useMutation(
+    orpc.attachCapture.mutationOptions({
+      mutationFn: (input) => shell.runWrite(() => client.attachCapture(input)),
+      onError: () => setActionMessage(triageErrorMessage()),
+      onSuccess: async (receipt) => {
+        try {
+          const undoPreview = await shell.runOnlineOnly(() =>
+            client.previewCaptureMergeUndo({ mergeId: receipt.mergeId }),
+          );
+          onUndoPreview({ mergeId: receipt.mergeId, preview: undoPreview });
+          toast.success("Capture attached.");
+        } catch {
+          toast.error(triageErrorMessage());
+        }
+        await refreshInbox(true);
+      },
+    }),
+  );
+  const deleteCapture = useMutation(
+    orpc.deleteCapture.mutationOptions({
+      mutationFn: (input) => shell.runWrite(() => client.deleteCapture(input)),
+      onError: () => setActionMessage(triageErrorMessage()),
+      onSuccess: () => refreshInbox(true),
+    }),
+  );
   const suggestions = useMutation({
     mutationFn: () =>
       shell.runOnlineOnly(() => client.captureSuggestions({ itemId: item.id })),
@@ -578,8 +569,14 @@ export function CaptureInboxItemActions({
   }, [item.projectId, startMode]);
   const openAttach = useCallback(() => startMode("attach"), [startMode]);
   const handleDelete = useCallback(
-    () => deleteCapture.mutate(),
-    [deleteCapture],
+    () =>
+      deleteCapture.mutate(
+        commandVariables(
+          { itemId: item.id },
+          deleteCapture.isError ? deleteCapture.variables : undefined,
+        ),
+      ),
+    [deleteCapture, item.id],
   );
   const showSuggestions = useCallback(
     () => suggestions.mutate(),
@@ -613,9 +610,30 @@ export function CaptureInboxItemActions({
   }, [conversionPreview, convert]);
   const confirmAttachment = useCallback(() => {
     if (attachPreview) {
-      attach.mutate(attachPreview.previewId);
+      attach.mutate(
+        commandVariables<
+          Omit<
+            Parameters<typeof client.attachCapture>[0],
+            "clientIdempotencyKey"
+          >
+        >(
+          {
+            itemId: item.id,
+            previewId: attachPreview.previewId,
+            relation: attachmentValues.relation,
+            targetId: attachmentValues.targetId.trim(),
+          },
+          attach.isError ? attach.variables : undefined,
+        ),
+      );
     }
-  }, [attach, attachPreview]);
+  }, [
+    attach,
+    attachPreview,
+    attachmentValues.relation,
+    attachmentValues.targetId,
+    item.id,
+  ]);
 
   return (
     <div className="space-y-3 border-t pt-3">

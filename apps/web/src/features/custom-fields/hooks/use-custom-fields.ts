@@ -1,6 +1,5 @@
 import type {
   CreateCustomFieldInput,
-  CustomFieldDefinition,
   CustomFieldRecordType,
   CustomFieldValueListItem,
   CustomFieldValueRecord,
@@ -192,39 +191,6 @@ export function useCustomFieldProjectValues(
     }),
   );
   return { query };
-}
-
-function projectValueItems(
-  projectValues: {
-    definitions: CustomFieldDefinition[];
-    values: CustomFieldValueRecord[];
-  },
-  recordId: string,
-): CustomFieldValueListItem[] {
-  return projectValues.definitions.map((definition) => ({
-    definition,
-    value:
-      projectValues.values.find(
-        (candidate) =>
-          candidate.definitionId === definition.id &&
-          candidate.recordId === recordId,
-      ) ?? null,
-  }));
-}
-
-export function customFieldItemsForRecord(
-  projectValues:
-    | {
-        definitions: CustomFieldDefinition[];
-        values: CustomFieldValueRecord[];
-      }
-    | undefined,
-  recordId: string,
-): CustomFieldValueListItem[] {
-  if (!projectValues) {
-    return [];
-  }
-  return projectValueItems(projectValues, recordId);
 }
 
 function sameCustomFieldValue(

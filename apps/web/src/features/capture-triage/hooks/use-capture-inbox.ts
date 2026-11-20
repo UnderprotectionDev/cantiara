@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-
 import { useClientShell } from "@/features/web-macos-client/hooks/use-client-shell";
+import { commandVariables } from "@/lib/command-variables";
 import {
   accountPreferencesQueryOptions,
   captureInboxQueryOptions,
   client,
+  orpc,
 } from "@/utils/orpc";
 
 import {
@@ -31,18 +32,16 @@ export function useCaptureInboxUndo(
   const shell = useClientShell();
   const [undoPreview, setUndoPreview] = useState<UndoPreviewState | null>(null);
   const undoMerge = useMutation({
-    mutationFn: (input: {
+    mutationKey: orpc.undoCaptureMerge.mutationKey(),
+    mutationFn: ({
+      itemId: _,
+      ...input
+    }: {
+      clientIdempotencyKey: string;
       itemId: string;
       mergeId: string;
       previewId: string;
-    }) =>
-      shell.runWrite(() =>
-        client.undoCaptureMerge({
-          clientIdempotencyKey: crypto.randomUUID(),
-          mergeId: input.mergeId,
-          previewId: input.previewId,
-        }),
-      ),
+    }) => shell.runWrite(() => client.undoCaptureMerge(input)),
     onError: () => toast.error(triageErrorMessage()),
     onSuccess: async (_, input) => {
       await queryClient.invalidateQueries({
@@ -60,11 +59,16 @@ export function useCaptureInboxUndo(
       return;
     }
 
-    undoMerge.mutate({
-      itemId: undoPreview.preview.itemId,
-      mergeId: undoPreview.mergeId,
-      previewId: undoPreview.preview.previewId,
-    });
+    undoMerge.mutate(
+      commandVariables(
+        {
+          itemId: undoPreview.preview.itemId,
+          mergeId: undoPreview.mergeId,
+          previewId: undoPreview.preview.previewId,
+        },
+        undoMerge.isError ? undoMerge.variables : undefined,
+      ),
+    );
   }, [undoMerge, undoPreview]);
 
   return {

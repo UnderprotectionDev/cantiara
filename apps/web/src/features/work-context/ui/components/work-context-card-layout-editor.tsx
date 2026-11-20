@@ -124,38 +124,31 @@ export default function WorkContextCardLayoutEditor({
     }),
   );
 
-  const undoMutation = useMutation({
-    mutationFn: () => {
-      if (!receiptId) {
-        throw new Error(
-          "This Work Context Card layout is no longer available for Undo.",
+  const undoMutation = usePreparedMutation(
+    orpc.undoWorkContextLayout.mutationOptions({
+      mutationFn: (input) => client.undoWorkContextLayout(input),
+      onError: (mutationError) => {
+        setLocalError(
+          errorMessage(
+            mutationError,
+            "Work Context Card layout could not be undone.",
+          ),
         );
-      }
-      return runOnlineOnlyWrite(() =>
-        client.undoWorkContextLayout({
-          baseRevision: currentRevision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          projectId,
-          receiptId,
-        }),
-      );
-    },
-    onError: (mutationError) => {
-      setLocalError(
-        errorMessage(
-          mutationError,
-          "Work Context Card layout could not be undone.",
-        ),
-      );
-    },
-    onSuccess: async (nextProject) => {
-      setLocalError(null);
-      setReceiptId(null);
-      setCurrentRevision(nextProject.revision);
-      queryClient.setQueryData(projectQueryKey, nextProject);
-      await queryClient.invalidateQueries({ queryKey: projectQueryKey });
-    },
-  });
+      },
+      onSuccess: async (nextProject) => {
+        setLocalError(null);
+        setReceiptId(null);
+        setCurrentRevision(nextProject.revision);
+        queryClient.setQueryData(projectQueryKey, nextProject);
+        await queryClient.invalidateQueries({ queryKey: projectQueryKey });
+      },
+    }),
+    (receipt: string) => ({
+      baseRevision: currentRevision,
+      projectId,
+      receiptId: receipt,
+    }),
+  );
 
   const busy =
     disabled ||
@@ -343,7 +336,7 @@ export default function WorkContextCardLayoutEditor({
         {receiptId ? (
           <Button
             disabled={busy}
-            onClick={() => undoMutation.mutate()}
+            onClick={() => undoMutation.mutate(receiptId)}
             type="button"
             variant="outline"
           >

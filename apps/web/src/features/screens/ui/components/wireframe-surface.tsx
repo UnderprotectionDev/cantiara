@@ -54,27 +54,31 @@ function LoadedWireframe({
 }) {
   const saveScreenWireframeMutation = useMutation(
     orpc.saveScreenWireframe.mutationOptions({
-      meta: { presentsSupportFailure: true },
+      meta: { onlineWrite: true, presentsSupportFailure: true },
       mutationFn: (input) => client.saveScreenWireframe(input),
     }),
   );
   const applyLinkedBlockChangeMutation = useMutation(
     orpc.applyLinkedBlockChange.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.applyLinkedBlockChange(input),
     }),
   );
   const createLinkedBlockMutation = useMutation(
     orpc.createLinkedBlock.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createLinkedBlock(input),
     }),
   );
   const confirmConvertAndBindMutation = useMutation(
     orpc.confirmConvertAndBind.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.confirmConvertAndBind(input),
     }),
   );
   const saveScreenWireframeVersionMutation = useMutation(
     orpc.saveScreenWireframeVersion.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.saveScreenWireframeVersion(input),
     }),
   );

@@ -19,32 +19,38 @@ function planningState(gap: TestGapRecord): "Open" | "Planned" {
 export default function TestGapsSurface({ projectId }: { projectId: string }) {
   const closeTestGapMutation = useMutation(
     orpc.closeTestGap.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.closeTestGap(input),
     }),
   );
   const createTestGapMutation = useMutation(
     orpc.createTestGap.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createTestGap(input),
       onSuccess: () => refresh(),
     }),
   );
   const bindTestGapCaseMutation = useMutation(
     orpc.bindTestGapCase.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.bindTestGapCase(input),
     }),
   );
   const bindTestGapHandoffMutation = useMutation(
     orpc.bindTestGapHandoff.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.bindTestGapHandoff(input),
     }),
   );
   const unbindTestGapCaseMutation = useMutation(
     orpc.unbindTestGapCase.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.unbindTestGapCase(input),
     }),
   );
   const unbindTestGapHandoffMutation = useMutation(
     orpc.unbindTestGapHandoff.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.unbindTestGapHandoff(input),
     }),
   );

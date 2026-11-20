@@ -36,12 +36,7 @@ export default function DocumentVersionHistory({
   >;
   selectedSnapshot: Document | undefined;
   revision: number;
-  restore: import("@tanstack/react-query").UseMutationResult<
-    Document,
-    Error,
-    number,
-    unknown
-  >;
+  restore: { isPending: boolean; mutate: (revision: number) => void };
   form: {
     getFieldValue: (name: "body") => string;
     state: { isDirty: boolean };

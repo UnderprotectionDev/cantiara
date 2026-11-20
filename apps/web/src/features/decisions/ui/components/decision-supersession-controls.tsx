@@ -60,6 +60,7 @@ export default function DecisionSupersessionControls({
   }
   const commit = useMutation(
     orpc.commitDecisionSupersession.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.commitDecisionSupersession(input),
       onSuccess: async (_, { projectId: committedProjectId }) => {
         cancel();

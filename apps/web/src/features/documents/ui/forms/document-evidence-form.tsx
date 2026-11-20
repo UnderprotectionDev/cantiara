@@ -51,7 +51,17 @@ export default function DocumentEvidenceForm({
 }) {
   const confirmDocumentEvidenceMutation = useMutation(
     orpc.confirmDocumentEvidence.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.confirmDocumentEvidence(input),
+      onSuccess: async (_, input) => {
+        if (command.current?.key === input.clientIdempotencyKey) {
+          command.current = null;
+          onClose();
+        }
+        await cache.invalidateQueries({
+          queryKey: orpc.documentEvidenceBindings.key(),
+        });
+      },
     }),
   );
   const { projectId } = record;
@@ -182,11 +192,6 @@ export default function DocumentEvidenceForm({
         plan,
         ...(plan.mode === "create" ? { recordId: identity.recordId } : {}),
       });
-      command.current = null;
-      await cache.invalidateQueries({
-        queryKey: orpc.documentEvidenceBindings.key(),
-      });
-      onClose();
     } catch {
       setError(
         "Evidence could not be saved. Reload if the Document or target changed, then preview again.",

@@ -16,7 +16,10 @@ export function usePreparedMutation<
   options: UseMutationOptions<TData, TError, TVariables, TContext>,
   prepare: (input: TInput) => Omit<TVariables, "clientIdempotencyKey">,
 ) {
-  const mutation = useMutation(options);
+  const mutation = useMutation({
+    ...options,
+    meta: { ...options.meta, onlineWrite: true },
+  });
 
   function variables(input: TInput) {
     return commandVariables(

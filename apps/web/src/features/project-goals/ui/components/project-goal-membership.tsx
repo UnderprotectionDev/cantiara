@@ -14,6 +14,7 @@ export default function ProjectGoalMembership({
 }) {
   const setProjectGoalRelationMutation = useMutation(
     orpc.setProjectGoalRelation.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.setProjectGoalRelation(input),
     }),
   );

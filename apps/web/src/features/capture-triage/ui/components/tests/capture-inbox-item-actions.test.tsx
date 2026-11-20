@@ -21,7 +21,8 @@ vi.mock("@/features/web-macos-client/hooks/use-client-shell", () => ({
   }),
   useClientShellConnection: () => "online",
 }));
-vi.mock("@/utils/orpc", () => ({
+vi.mock("@/utils/orpc", async (importActual) => ({
+  ...(await importActual<typeof import("@/utils/orpc")>()),
   captureInboxQueryOptions: (accountId: string) => ({
     queryKey: ["captureInbox", accountId],
   }),

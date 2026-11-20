@@ -13,23 +13,27 @@ import WireframeSurface from "./wireframe-surface";
 export default function ScreensSurface({ projectId }: { projectId: string }) {
   const createScreenMutation = useMutation(
     orpc.createScreen.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createScreen(input),
       onSuccess: () => refresh(),
     }),
   );
   const createScreenFromTemplateMutation = useMutation(
     orpc.createScreenFromTemplate.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createScreenFromTemplate(input),
       onSuccess: () => refresh(),
     }),
   );
   const saveScreenTemplateMutation = useMutation(
     orpc.saveScreenTemplate.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.saveScreenTemplate(input),
     }),
   );
   const setScreenLifecycleMutation = useMutation(
     orpc.setScreenLifecycle.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.setScreenLifecycle(input),
     }),
   );

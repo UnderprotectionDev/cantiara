@@ -43,11 +43,13 @@ export function createClientShellQueryClient(
       },
     }),
     mutationCache: new MutationCache({
-      onMutate: () => {
+      onMutate: (_variables, mutation) => {
         if (!onlineManager.isOnline()) {
           throw new Error(SUPPORT_FAILURE_MESSAGES.offline);
         }
-        defaultClientShell.assertWriteAllowed();
+        if (mutation.meta?.onlineWrite === true) {
+          defaultClientShell.assertWriteAllowed();
+        }
       },
       onError: (error, _variables, _onMutateResult, mutation) => {
         if (mutation.meta?.presentsSupportFailure === true) {
@@ -58,10 +60,13 @@ export function createClientShellQueryClient(
           ? mutation.meta.writeOutcome
           : undefined;
 
+        const retryInSurface =
+          mutation.meta?.privateInput === true ||
+          mutation.meta?.retryInSurface === true;
         presentSupportReferenceFailure(error, {
           kind: "mutation",
           retry:
-            retryCount > 0 || mutation.meta?.privateInput === true
+            retryCount > 0 || retryInSurface
               ? undefined
               : () => {
                   if (
@@ -73,7 +78,7 @@ export function createClientShellQueryClient(
                   mutationRetryCounts.set(mutation, retryCount + 1);
                   return mutation.execute(mutation.state.variables);
                 },
-          retryCount,
+          retryCount: retryInSurface ? 1 : retryCount,
           writeOutcome,
         });
       },

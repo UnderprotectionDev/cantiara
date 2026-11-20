@@ -6,9 +6,8 @@ import type {
 } from "@cantiara/api/source-evidence";
 import type { SourceRecord } from "@cantiara/api/sources-and-freshness";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 import EvidenceSelection from "../forms/source-evidence-selection-form";
@@ -93,7 +92,6 @@ export function SourceEvidenceControls({
   const [editor, setEditor] = useState<{ use?: SourceEvidenceUse } | null>(
     null,
   );
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const command = useRef<{
@@ -105,6 +103,43 @@ export function SourceEvidenceControls({
   const options = orpc.sourceEvidenceUses.queryOptions({ input: selection });
   const uses = useQuery({ ...options, enabled: open });
   const cache = useQueryClient();
+  async function saved(
+    input: typeof selection & { clientIdempotencyKey: string },
+    success: string,
+  ) {
+    if (command.current?.key === input.clientIdempotencyKey) {
+      command.current = null;
+      setEditor(null);
+      setError(null);
+      setMessage(success);
+    }
+    await cache.invalidateQueries({
+      queryKey: orpc.sourceEvidenceUses.queryKey({
+        input: { sourceId: input.sourceId, projectId: input.projectId },
+      }),
+    });
+  }
+  const reviewEvidence = useMutation(
+    orpc.reviewSourceEvidence.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.reviewSourceEvidence(input),
+      onSuccess: (_, input) =>
+        saved(
+          input,
+          input.decision === "Reviewed; keep current version"
+            ? input.decision
+            : "Rebind to new version saved.",
+        ),
+    }),
+  );
+  const bindEvidence = useMutation(
+    orpc.bindSourceEvidence.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.bindSourceEvidence(input),
+      onSuccess: (_, input) => saved(input, "Version-pinned evidence saved."),
+    }),
+  );
+  const pending = reviewEvidence.isPending || bindEvidence.isPending;
   function begin(use?: SourceEvidenceUse) {
     setEditor({ use });
     setError(null);
@@ -129,54 +164,33 @@ export function SourceEvidenceControls({
       };
     }
     const identity = command.current;
-    setPending(true);
     setError(null);
     try {
-      const result = await runOnlineOnlyWrite(() => {
-        if (use) {
-          return client.reviewSourceEvidence({
-            ...selection,
-            bindingId: use.id,
-            baseRevision: use.revision,
-            expectedSourceRevision: source.revision,
-            clientIdempotencyKey: identity.key,
-            decision: keep
-              ? "Reviewed; keep current version"
-              : "Rebind to new version",
-            ...(plan ? { plan } : {}),
-          });
-        }
-        if (plan) {
-          return client.bindSourceEvidence({
-            ...selection,
-            id: identity.id,
-            baseRevision: 0,
-            clientIdempotencyKey: identity.key,
-            plan,
-          });
-        }
-        return Promise.resolve(null);
-      });
-      if (!result) {
-        throw new Error("Evidence unavailable");
-      }
-      command.current = null;
-      setEditor(null);
-      let success = "Version-pinned evidence saved.";
       if (use) {
-        success = "Rebind to new version saved.";
+        await reviewEvidence.mutateAsync({
+          ...selection,
+          bindingId: use.id,
+          baseRevision: use.revision,
+          expectedSourceRevision: source.revision,
+          clientIdempotencyKey: identity.key,
+          decision: keep
+            ? "Reviewed; keep current version"
+            : "Rebind to new version",
+          ...(plan ? { plan } : {}),
+        });
+      } else if (plan) {
+        await bindEvidence.mutateAsync({
+          ...selection,
+          id: identity.id,
+          baseRevision: 0,
+          clientIdempotencyKey: identity.key,
+          plan,
+        });
       }
-      if (keep) {
-        success = "Reviewed; keep current version";
-      }
-      setMessage(success);
-      await cache.invalidateQueries({ queryKey: options.queryKey });
     } catch {
       setError(
         "Evidence could not be saved. Reload if the Source, target or bind changed, then preview again.",
       );
-    } finally {
-      setPending(false);
     }
   }
   const unavailable = uses.isError || uses.data === null;

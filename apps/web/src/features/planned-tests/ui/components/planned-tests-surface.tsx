@@ -6,7 +6,6 @@ import type {
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import {
   type CaseFormValues,
@@ -37,43 +36,63 @@ export default function PlannedTestsSurface({
 }) {
   const createPlannedTestCaseMutation = useMutation(
     orpc.createPlannedTestCase.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createPlannedTestCase(input),
       onSuccess: () => refresh(),
     }),
   );
   const createPlannedTestCaseVersionMutation = useMutation(
     orpc.createPlannedTestCaseVersion.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createPlannedTestCaseVersion(input),
+      onSettled: () => refresh(),
     }),
   );
   const createTestHandoffMutation = useMutation(
     orpc.createTestHandoff.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createTestHandoff(input),
       onSuccess: () => refreshHandoffs(),
     }),
   );
   const linkTestHandoffSessionTestMutation = useMutation(
     orpc.linkTestHandoffSessionTest.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.linkTestHandoffSessionTest(input),
+      onSettled: () => refreshHandoffs(),
+    }),
+  );
+  const producePackage = useMutation(
+    orpc.produceTestHandoffPackage.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.produceTestHandoffPackage(input),
+      onSettled: () => refreshHandoffs(),
     }),
   );
   const transitionTestHandoffMutation = useMutation(
     orpc.transitionTestHandoff.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.transitionTestHandoff(input),
+      onSettled: () => refreshHandoffs(),
     }),
   );
   const updateTestHandoffMutation = useMutation(
     orpc.updateTestHandoff.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.updateTestHandoff(input),
+      onSettled: () => refreshHandoffs(),
     }),
   );
   const linkSessionTestMutation = useMutation(
     orpc.linkSessionTest.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.linkSessionTest(input),
+      onSettled: () => refreshSessionTests(),
     }),
   );
   const recordSessionTestMutation = useMutation(
     orpc.recordSessionTest.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.recordSessionTest(input),
       onSuccess: () => refreshSessionTests(),
     }),
@@ -151,17 +170,13 @@ export default function PlannedTestsSurface({
           });
         }}
         onCreateVersion={async (record, values) => {
-          try {
-            await createPlannedTestCaseVersionMutation.mutateAsync({
-              caseId: record.id,
-              changeKind: values.changeKind,
-              expectedVersion: record.current.version,
-              projectId,
-              ...definition(values),
-            });
-          } finally {
-            await refresh();
-          }
+          await createPlannedTestCaseVersionMutation.mutateAsync({
+            caseId: record.id,
+            changeKind: values.changeKind,
+            expectedVersion: record.current.version,
+            projectId,
+            ...definition(values),
+          });
         }}
         readOnly={cases.data.readOnly}
       />
@@ -181,15 +196,11 @@ export default function PlannedTestsSurface({
             });
           }}
           onLink={async (handoff, sessionTestId) => {
-            try {
-              await linkTestHandoffSessionTestMutation.mutateAsync({
-                handoffId: handoff.id,
-                projectId,
-                sessionTestId,
-              });
-            } finally {
-              await refreshHandoffs();
-            }
+            await linkTestHandoffSessionTestMutation.mutateAsync({
+              handoffId: handoff.id,
+              projectId,
+              sessionTestId,
+            });
           }}
           onPreviewPackage={(handoff) =>
             client.previewTestHandoffPackage({
@@ -197,42 +208,28 @@ export default function PlannedTestsSurface({
               projectId,
             })
           }
-          onProducePackage={async (handoff, preview) => {
-            try {
-              return await runOnlineOnlyWrite(() =>
-                client.produceTestHandoffPackage({
-                  expectedPackageVersion: preview.nextPackageVersion,
-                  handoffId: handoff.id,
-                  previewFingerprint: preview.fingerprint ?? "",
-                  projectId,
-                }),
-              );
-            } finally {
-              await refreshHandoffs();
-            }
-          }}
+          onProducePackage={(handoff, preview) =>
+            producePackage.mutateAsync({
+              expectedPackageVersion: preview.nextPackageVersion,
+              handoffId: handoff.id,
+              previewFingerprint: preview.fingerprint ?? "",
+              projectId,
+            })
+          }
           onTransition={async (handoff, to) => {
-            try {
-              await transitionTestHandoffMutation.mutateAsync({
-                expectedState: handoff.state,
-                handoffId: handoff.id,
-                projectId,
-                to,
-              });
-            } finally {
-              await refreshHandoffs();
-            }
+            await transitionTestHandoffMutation.mutateAsync({
+              expectedState: handoff.state,
+              handoffId: handoff.id,
+              projectId,
+              to,
+            });
           }}
           onUpdate={async (handoff, values) => {
-            try {
-              await updateTestHandoffMutation.mutateAsync({
-                handoffId: handoff.id,
-                projectId,
-                ...toHandoffInput(values, cases.data.cases),
-              });
-            } finally {
-              await refreshHandoffs();
-            }
+            await updateTestHandoffMutation.mutateAsync({
+              handoffId: handoff.id,
+              projectId,
+              ...toHandoffInput(values, cases.data.cases),
+            });
           }}
           readOnly={handoffs.data.readOnly}
           sessionTests={sessionTests.data.sessionTests}
@@ -260,15 +257,11 @@ export default function PlannedTestsSurface({
         <SessionTestsView
           cases={cases.data.cases}
           onLink={async (sessionTestId, ref) => {
-            try {
-              await linkSessionTestMutation.mutateAsync({
-                ...ref,
-                projectId,
-                sessionTestId,
-              });
-            } finally {
-              await refreshSessionTests();
-            }
+            await linkSessionTestMutation.mutateAsync({
+              ...ref,
+              projectId,
+              sessionTestId,
+            });
           }}
           onRecord={async (values) => {
             await recordSessionTestMutation.mutateAsync(

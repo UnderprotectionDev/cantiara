@@ -24,6 +24,7 @@ export default function ProjectSourcesSurface({
 }) {
   const createSourceMutation = useMutation(
     orpc.createSource.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createSource(input),
     }),
   );

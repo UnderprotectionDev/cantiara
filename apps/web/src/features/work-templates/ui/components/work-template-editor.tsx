@@ -6,11 +6,13 @@ import {
   type WorkTemplate,
 } from "@cantiara/api/work-templates";
 import { Button } from "@cantiara/ui/components/button";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useMemo, useState } from "react";
 import { useWorkTemplates } from "@/features/work-templates/hooks/use-work-templates";
 import { commandVariables } from "@/lib/command-variables";
-import { useCustomFields } from "@/lib/use-custom-fields";
+import { orpc } from "@/utils/orpc";
+
 import { InstantiateWorkTemplateForm } from "../forms/instantiate-work-template-form";
 import { WorkTemplateForm } from "../forms/work-template-form";
 
@@ -44,7 +46,9 @@ export default function WorkTemplateEditor({
   previewDate?: string;
   projectId: string;
 }) {
-  const customFields = useCustomFields(projectId);
+  const customFields = useQuery(
+    orpc.customFields.queryOptions({ input: { projectId } }),
+  );
   const [editing, setEditing] = useState<WorkTemplate | null>(null);
   const [instantiating, setInstantiating] = useState<WorkTemplate | null>(null);
   const [createdWorkKey, setCreatedWorkKey] = useState<string | null>(null);
@@ -59,13 +63,13 @@ export default function WorkTemplateEditor({
   });
   const definitions = useMemo(
     () =>
-      (customFields.query.data ?? []).filter(
+      (customFields.data ?? []).filter(
         (definition) =>
           definition.trashedAt === null &&
           definition.type !== "Date" &&
           definition.recordTypes.includes("Work"),
       ),
-    [customFields.query.data],
+    [customFields.data],
   );
   const pending =
     disabled ||
@@ -289,7 +293,7 @@ export default function WorkTemplateEditor({
       )}
 
       <WorkTemplateForm
-        customFieldsLoaded={Boolean(customFields.query.data)}
+        customFieldsLoaded={Boolean(customFields.data)}
         definitions={definitions}
         editing={editing}
         error={error}

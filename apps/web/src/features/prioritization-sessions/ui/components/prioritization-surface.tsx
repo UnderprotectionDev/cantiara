@@ -103,8 +103,14 @@ export default function PrioritizationSurface({
 
   function moveBacklogWork(workId: string, offset: -1 | 1) {
     const next = moveWorkInOrder(orderedBacklogIds, workId, offset);
-    if (next.some((id, index) => id !== orderedBacklogIds[index])) {
-      updateBacklogOrder.mutate(next);
+    if (
+      backlogQuery.data &&
+      next.some((id, index) => id !== orderedBacklogIds[index])
+    ) {
+      updateBacklogOrder.mutate({
+        baseRevision: backlogQuery.data.revision,
+        workIds: next,
+      });
     }
   }
 

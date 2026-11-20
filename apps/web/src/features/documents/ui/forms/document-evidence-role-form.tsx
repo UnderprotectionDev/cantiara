@@ -29,6 +29,7 @@ export default function DocumentEvidenceRoleForm({
 }) {
   const setDocumentEvidenceRoleMutation = useMutation(
     orpc.setDocumentEvidenceRole.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.setDocumentEvidenceRole(input),
     }),
   );

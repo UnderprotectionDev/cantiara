@@ -56,22 +56,26 @@ export function gapDateTimeFormatter(
 function ProductGapsContent() {
   const closeToolEscapeMutation = useMutation(
     orpc.closeToolEscape.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.closeToolEscape(input),
     }),
   );
   const confirmProductGapFollowUpMutation = useMutation(
     orpc.confirmProductGapFollowUp.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.confirmProductGapFollowUp(input),
     }),
   );
   const recordToolEscapeMutation = useMutation(
     orpc.recordToolEscape.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.recordToolEscape(input),
       onSuccess: () => refresh(),
     }),
   );
   const setProductGapStatusMutation = useMutation(
     orpc.setProductGapStatus.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.setProductGapStatus(input),
     }),
   );

@@ -1,7 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the Project.
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -21,37 +20,64 @@ export default function TestReviewSurface({
 }: {
   projectId: string;
 }) {
+  const recordReviewRedactionMutation = useMutation(
+    orpc.recordReviewRedaction.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.recordReviewRedaction(input),
+      onSuccess: () => refresh(),
+    }),
+  );
+  const recordReviewWithdrawalMutation = useMutation(
+    orpc.recordReviewWithdrawal.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.recordReviewWithdrawal(input),
+      onSuccess: () => refresh(),
+    }),
+  );
+  const recordReviewCorrectionMutation = useMutation(
+    orpc.recordReviewCorrection.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.recordReviewCorrection(input),
+      onSuccess: () => refresh(),
+    }),
+  );
   const commitReviewBulkMutation = useMutation(
     orpc.commitReviewBulk.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.commitReviewBulk(input),
       onSuccess: () => refresh(),
     }),
   );
   const setReviewItemStateMutation = useMutation(
     orpc.setReviewItemState.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.setReviewItemState(input),
       onSuccess: () => refresh(),
     }),
   );
   const setReviewSessionStateMutation = useMutation(
     orpc.setReviewSessionState.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.setReviewSessionState(input),
       onSuccess: () => refresh(),
     }),
   );
   const bindReviewResultMutation = useMutation(
     orpc.bindReviewResult.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.bindReviewResult(input),
       onSuccess: () => refresh(),
     }),
   );
   const commitReviewFollowUpMutation = useMutation(
     orpc.commitReviewFollowUp.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.commitReviewFollowUp(input),
     }),
   );
   const supersedeReviewResultMutation = useMutation(
     orpc.supersedeReviewResult.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.supersedeReviewResult(input),
       onSuccess: () => refresh(),
     }),
@@ -109,23 +135,20 @@ export default function TestReviewSurface({
         sessionId,
         sessionTestId: draft.sessionTestId,
       };
-      await runOnlineOnlyWrite(() => {
-        if (draft.kind === "Correction") {
-          return client.recordReviewCorrection({
-            ...target,
-            correctedResult: draft.correctedResult,
-            note: draft.note,
-          });
-        }
-        if (draft.kind === "Withdrawal") {
-          return client.recordReviewWithdrawal(target);
-        }
-        return client.recordReviewRedaction({
+      if (draft.kind === "Correction") {
+        await recordReviewCorrectionMutation.mutateAsync({
+          ...target,
+          correctedResult: draft.correctedResult,
+          note: draft.note,
+        });
+      } else if (draft.kind === "Withdrawal") {
+        await recordReviewWithdrawalMutation.mutateAsync(target);
+      } else {
+        await recordReviewRedactionMutation.mutateAsync({
           ...target,
           eventId: draft.eventId,
         });
-      });
-      await refresh();
+      }
     },
     setItem: async (sessionId, sessionTestId, state) => {
       await setReviewItemStateMutation.mutateAsync({

@@ -25,11 +25,13 @@ export default function OpenQuestionsSurface({
 }) {
   const createProjectSourceRecordMutation = useMutation(
     orpc.createProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (request) => client.createProjectSourceRecord(request),
     }),
   );
   const transitionProjectSourceRecordMutation = useMutation(
     orpc.transitionProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.transitionProjectSourceRecord(input),
       onSuccess: () => refresh(),
     }),

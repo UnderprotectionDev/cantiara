@@ -25,46 +25,55 @@ const UserFlowCanvas = lazy(() => import("./user-flow-canvas"));
 export default function UserFlowSurface({ projectId }: { projectId: string }) {
   const createUserFlowFromTemplateMutation = useMutation(
     orpc.createUserFlowFromTemplate.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createUserFlowFromTemplate(input),
     }),
   );
   const createUserFlowMutation = useMutation(
     orpc.createUserFlow.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createUserFlow(input),
     }),
   );
   const saveUserFlowVersionMutation = useMutation(
     orpc.saveUserFlowVersion.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.saveUserFlowVersion(input),
     }),
   );
   const placeUserFlowNodeMutation = useMutation(
     orpc.placeUserFlowNode.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.placeUserFlowNode(input),
     }),
   );
   const convertUserFlowNodeMutation = useMutation(
     orpc.convertUserFlowNode.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.convertUserFlowNode(input),
     }),
   );
   const placeUserFlowCardMutation = useMutation(
     orpc.placeUserFlowCard.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.placeUserFlowCard(input),
     }),
   );
   const promoteUserFlowNodeMutation = useMutation(
     orpc.promoteUserFlowNode.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.promoteUserFlowNode(input),
     }),
   );
   const rebindUserFlowBindMutation = useMutation(
     orpc.rebindUserFlowBind.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.rebindUserFlowBind(input),
     }),
   );
   const saveUserFlowTemplateMutation = useMutation(
     orpc.saveUserFlowTemplate.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.saveUserFlowTemplate(input),
     }),
   );

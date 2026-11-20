@@ -22,9 +22,10 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useRecordActions } from "@/features/record-actions/hooks/use-record-actions";
-import { useCustomFields } from "@/lib/use-custom-fields";
+import { orpc } from "@/utils/orpc";
 
 type CustomFieldValueDraft =
   | ParsedCustomFieldValuePayload
@@ -209,17 +210,19 @@ export default function RecordActionEditor({
   projectId: string;
 }) {
   const recordActions = useRecordActions(projectId);
-  const customFields = useCustomFields(projectId);
+  const customFields = useQuery(
+    orpc.customFields.queryOptions({ input: { projectId } }),
+  );
   const [editing, setEditing] = useState<RecordAction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const definitions = useMemo(
     () =>
-      (customFields.query.data ?? []).filter(
+      (customFields.data ?? []).filter(
         (definition) =>
           definition.trashedAt === null &&
           definition.recordTypes.includes("Work"),
       ),
-    [customFields.query.data],
+    [customFields.data],
   );
   const pending =
     disabled ||

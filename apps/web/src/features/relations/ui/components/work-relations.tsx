@@ -105,6 +105,7 @@ export default function WorkRelations({
 
   const createMutation = useMutation(
     orpc.createRelation.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.createRelation(input),
       onError: (mutationError) => {
         setError(
@@ -126,6 +127,7 @@ export default function WorkRelations({
 
   const removeMutation = useMutation({
     mutationKey: orpc.removeRelation.mutationKey(),
+    meta: { onlineWrite: true },
     mutationFn: ({
       relation,
       clientIdempotencyKey,
@@ -161,6 +163,7 @@ export default function WorkRelations({
 
   const resolveMutation = useMutation({
     mutationKey: orpc.resolveBlocker.mutationKey(),
+    meta: { onlineWrite: true },
     mutationFn: ({
       relation,
       clientIdempotencyKey,
@@ -193,6 +196,7 @@ export default function WorkRelations({
 
   const reactivateMutation = useMutation({
     mutationKey: orpc.reactivateBlocker.mutationKey(),
+    meta: { onlineWrite: true },
     mutationFn: ({
       relation,
       clientIdempotencyKey,
@@ -225,6 +229,7 @@ export default function WorkRelations({
 
   const undoMutation = useMutation({
     mutationKey: orpc.undoRelation.mutationKey(),
+    meta: { onlineWrite: true },
     mutationFn: ({
       otherRecordId: _,
       ...input

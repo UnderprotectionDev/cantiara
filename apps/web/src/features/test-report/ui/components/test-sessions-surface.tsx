@@ -13,6 +13,7 @@ export default function TestSessionsSurface({
 }) {
   const acceptTestReportMutation = useMutation(
     orpc.acceptTestReport.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.acceptTestReport(input),
     }),
   );

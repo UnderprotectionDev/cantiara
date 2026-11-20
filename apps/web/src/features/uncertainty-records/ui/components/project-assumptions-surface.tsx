@@ -20,16 +20,19 @@ export default function ProjectAssumptionsSurface({
 }) {
   const updateProjectSourceRecordMutation = useMutation(
     orpc.updateProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (request) => client.updateProjectSourceRecord(request),
     }),
   );
   const createProjectSourceRecordMutation = useMutation(
     orpc.createProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (request) => client.createProjectSourceRecord(request),
     }),
   );
   const transitionProjectSourceRecordMutation = useMutation(
     orpc.transitionProjectSourceRecord.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.transitionProjectSourceRecord(input),
     }),
   );

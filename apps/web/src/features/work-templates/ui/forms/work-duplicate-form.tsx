@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work duplicate controls close over the selected Work and preview state.
+
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import {
   type DuplicateWorkInput,
@@ -8,6 +9,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useForm } from "@tanstack/react-form";
 import { type SubmitEvent, useEffect } from "react";
+import { commandVariables } from "@/lib/command-variables";
 
 export default function WorkDuplicateForm({
   duplicate,
@@ -42,12 +44,16 @@ export default function WorkDuplicateForm({
       customFieldDefinitionIds: previewDefinitionIds ?? ([] as string[]),
     },
     onSubmit: async ({ value }) => {
-      const parsed = duplicateWorkMutationInputSchema.safeParse({
-        baseRevision: preview.data?.sourceRevision ?? work.revision,
-        clientIdempotencyKey: crypto.randomUUID(),
-        customFieldDefinitionIds: value.customFieldDefinitionIds,
-        sourceWorkId: work.id,
-      });
+      const parsed = duplicateWorkMutationInputSchema.safeParse(
+        commandVariables(
+          {
+            baseRevision: preview.data?.sourceRevision ?? work.revision,
+            customFieldDefinitionIds: value.customFieldDefinitionIds,
+            sourceWorkId: work.id,
+          },
+          duplicate.isError ? duplicate.variables : undefined,
+        ),
+      );
       if (!parsed.success) {
         setError(
           parsed.error.issues[0]?.message ??

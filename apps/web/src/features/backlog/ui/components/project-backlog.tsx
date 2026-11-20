@@ -39,7 +39,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
@@ -55,7 +55,6 @@ import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/
 import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 import {
@@ -281,56 +280,46 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
-  const updateOrder = useMutation({
-    mutationFn: (workIds: string[]) => {
-      if (!orderQuery.data) {
-        throw new Error("Backlog order is unavailable.");
-      }
-      return runOnlineOnlyWrite(() =>
-        client.updateBacklogOrder({
-          baseRevision: orderQuery.data.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          projectId,
-          workIds,
-        }),
-      );
-    },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: orpc.projectBacklog.queryOptions({ input: { projectId } })
-            .queryKey,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.projectBacklogOrder.queryOptions({
+  const updateOrder = usePreparedMutation(
+    orpc.updateBacklogOrder.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.updateBacklogOrder(input),
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectBacklog.queryOptions({ input: { projectId } })
+              .queryKey,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectBacklogOrder.queryOptions({
+              input: { projectId },
+            }).queryKey,
+          }),
+        ]);
+      },
+    }),
+    (input: { baseRevision: number; workIds: string[] }) => ({
+      ...input,
+      projectId,
+    }),
+  );
+  const savePresentation = usePreparedMutation(
+    orpc.saveBacklogPresentation.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.saveBacklogPresentation(input),
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({
+          queryKey: orpc.projectBacklogPresentation.queryOptions({
             input: { projectId },
           }).queryKey,
-        }),
-      ]);
-    },
-  });
-  const savePresentation = useMutation({
-    mutationFn: (presentationToSave: BacklogSavedPresentation) => {
-      if (!presentationQuery.data) {
-        throw new Error("Backlog presentation is unavailable.");
-      }
-      return runOnlineOnlyWrite(() =>
-        client.saveBacklogPresentation({
-          baseRevision: presentationQuery.data.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          projectId,
-          saved: presentationToSave,
-        }),
-      );
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: orpc.projectBacklogPresentation.queryOptions({
-          input: { projectId },
-        }).queryKey,
-      });
-    },
-  });
+        });
+      },
+    }),
+    (input: { baseRevision: number; saved: BacklogSavedPresentation }) => ({
+      ...input,
+      projectId,
+    }),
+  );
 
   if (
     query.status === "pending" ||
@@ -402,14 +391,19 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
     priorityMetricId,
     field,
   );
-  const { saved } = presentationQuery.data;
+  const { saved, revision: presentationRevision } = presentationQuery.data;
   const savedDetail = savedPresentationDetail(saved, enabledMetrics);
   const canReorder = presentation === "Manual order" && !updateOrder.isPending;
   const workName = (id: string | number) =>
     works.find((work) => work.id === id)?.title ?? "Work";
 
+  const backlogRevision = orderQuery.data?.revision;
   function onDragEnd(event: DragEndEvent) {
-    if (!(canReorder && event.over) || event.active.id === event.over.id) {
+    if (
+      backlogRevision === undefined ||
+      !(canReorder && event.over) ||
+      event.active.id === event.over.id
+    ) {
       return;
     }
     const from = current.findIndex((work) => work.id === event.active.id);
@@ -424,8 +418,9 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
     );
     const currentIds = new Set(moved);
     let position = 0;
-    updateOrder.mutate(
-      works.map((work) => {
+    updateOrder.mutate({
+      baseRevision: backlogRevision,
+      workIds: works.map((work) => {
         if (!currentIds.has(work.id)) {
           return work.id;
         }
@@ -433,7 +428,7 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
         position += 1;
         return id;
       }),
-    );
+    });
   }
 
   function selectSavedPresentation() {
@@ -495,7 +490,14 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
         currentSaved={currentSaved}
         saved={saved}
         savedDetail={savedDetail}
-        savePresentation={savePresentation}
+        savePresentation={{
+          isPending: savePresentation.isPending,
+          mutate: (savedDraft) =>
+            savePresentation.mutate({
+              baseRevision: presentationRevision,
+              saved: savedDraft,
+            }),
+        }}
         selectSavedPresentation={selectSavedPresentation}
       />
       {savePresentation.isError ? (
@@ -568,22 +570,10 @@ function BacklogSavedPresentationControls({
     | { sort: "Date" }
     | { sort: "Field"; field: "Title" | "Status" }
     | null;
-  savePresentation: import("@tanstack/react-query").UseMutationResult<
-    {
-      projectId: string;
-      revision: number;
-      saved:
-        | { sort: "Priority"; metricId: string }
-        | { sort: "Date" }
-        | { sort: "Field"; field: "Title" | "Status" }
-        | null;
-    },
-    Error,
-    | { sort: "Priority"; metricId: string }
-    | { sort: "Date" }
-    | { sort: "Field"; field: "Title" | "Status" },
-    unknown
-  >;
+  savePresentation: {
+    isPending: boolean;
+    mutate: (saved: BacklogSavedPresentation) => void;
+  };
   saved:
     | { sort: "Priority"; metricId: string }
     | { sort: "Date" }

@@ -70,7 +70,7 @@ test("confirming a merge refreshes Smart Collection membership", async () => {
   const cache = new QueryClient();
   const invalidate = vi.spyOn(cache, "invalidateQueries");
   rpc.workMergePreview.mockResolvedValue(preview);
-  rpc.mergeWork.mockResolvedValue({});
+  rpc.mergeWork.mockResolvedValue({ work });
   const click = async (label: string) => {
     const button = Array.from(container.querySelectorAll("button")).find(
       (value) => value.textContent === label,

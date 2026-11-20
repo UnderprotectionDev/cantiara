@@ -19,11 +19,13 @@ export function SourceRecheckControls({
 }) {
   const recheckSourceMutation = useMutation(
     orpc.recheckSource.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.recheckSource(input),
     }),
   );
   const decideSourceCheckMutation = useMutation(
     orpc.decideSourceCheck.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.decideSourceCheck(input),
     }),
   );

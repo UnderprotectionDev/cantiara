@@ -35,6 +35,7 @@ import BulkEditDialog, {
 import useUserInitiatedWorkSuccess, {
   type UserInitiatedWorkCloseOutcome,
 } from "@/features/completion-effects/hooks/use-user-initiated-work-success";
+import { customFieldItemsForRecord } from "@/features/custom-fields/lib/custom-field-record-items";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
 import {
   groupRecordIdsByType,
@@ -62,9 +63,9 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import WorkChecklistEditor from "@/features/work-checklists/ui/components/work-checklist-editor";
 import WorkContextCard from "@/features/work-context/ui/components/work-context-card";
 import WorkDuplicateAction from "@/features/work-templates/ui/components/work-duplicate-action";
+import { commandVariables } from "@/lib/command-variables";
 import { fetchCurrentWork } from "@/lib/fetch-current-work";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
-import { customFieldItemsForRecord } from "@/lib/use-custom-fields";
 import {
   client,
   completionEffectsPreferencesQueryOptions,
@@ -167,49 +168,67 @@ export default function ProjectWorkList({
     }),
   );
   const priorityMetricValues = usePriorityMetricProjectValues(projectId);
-  const undoMerge = useMutation({
-    mutationFn: async () => {
-      if (!lastMergeResult) {
-        throw new Error("This Work merge is no longer available for Undo.");
+  const undoMerge = useMutation(
+    orpc.undoWorkMerge.mutationOptions({
+      meta: { onlineWrite: true },
+      mutationFn: (input) => client.undoWorkMerge(input),
+      onError: (error) => {
+        setMergeUndoError(
+          mutationErrorMessage(error, "Work merge could not be undone."),
+        );
+      },
+      onSuccess: async () => {
+        setMergeUndoError(null);
+        setLastMergeResult(null);
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: projectWorksQueryPrefix,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectWorks.queryOptions({
+              input: { archived: false, projectId },
+            }).queryKey,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.projectWorks.queryOptions({
+              input: { archived: true, projectId },
+            }).queryKey,
+          }),
+        ]);
+      },
+    }),
+  );
+  const preparingUndo = useRef(false);
+  async function confirmUndoMerge() {
+    if (!lastMergeResult || undoMerge.isPending || preparingUndo.current) {
+      return;
+    }
+    preparingUndo.current = true;
+    try {
+      const failed = undoMerge.isError ? undoMerge.variables : undefined;
+      if (failed?.mergeId === lastMergeResult.mergeId) {
+        await undoMerge.mutateAsync(failed);
+      } else {
+        const work = await fetchCurrentWork(
+          queryClient,
+          lastMergeResult.work.id,
+        );
+        await undoMerge.mutateAsync(
+          commandVariables({
+            baseRevision: work.revision,
+            mergeId: lastMergeResult.mergeId,
+            survivingWorkId: work.id,
+          }),
+        );
       }
-      const currentWork = await fetchCurrentWork(
-        queryClient,
-        lastMergeResult.work.id,
-      );
-      return runOnlineOnlyWrite(() =>
-        client.undoWorkMerge({
-          baseRevision: currentWork.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          mergeId: lastMergeResult.mergeId,
-          survivingWorkId: lastMergeResult.work.id,
-        }),
-      );
-    },
-    onError: (error) => {
+    } catch (error) {
       setMergeUndoError(
         mutationErrorMessage(error, "Work merge could not be undone."),
       );
-    },
-    onSuccess: async () => {
-      setMergeUndoError(null);
-      setLastMergeResult(null);
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: projectWorksQueryPrefix,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.projectWorks.queryOptions({
-            input: { archived: false, projectId },
-          }).queryKey,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.projectWorks.queryOptions({
-            input: { archived: true, projectId },
-          }).queryKey,
-        }),
-      ]);
-    },
-  });
+    } finally {
+      preparingUndo.current = false;
+    }
+  }
 
   if (query.status === "pending" || allProjectWorksQuery.isPending) {
     return <p className="mt-2 text-sm text-muted-foreground">Loading Work…</p>;
@@ -266,7 +285,7 @@ export default function ProjectWorkList({
           </p>
           <Button
             disabled={undoMerge.isPending}
-            onClick={() => undoMerge.mutate()}
+            onClick={confirmUndoMerge}
             size="xs"
             type="button"
             variant="outline"

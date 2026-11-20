@@ -135,7 +135,10 @@ describe("Client Shell query error boundary", () => {
       presentSupportReferenceFailure,
     );
     const write = vi.fn(async () => "saved");
-    const mutation = new MutationObserver(queryClient, { mutationFn: write });
+    const mutation = new MutationObserver(queryClient, {
+      meta: { onlineWrite: true },
+      mutationFn: write,
+    });
 
     defaultClientShell.setUpdateRequired(true);
     try {
@@ -147,6 +150,38 @@ describe("Client Shell query error boundary", () => {
     } finally {
       defaultClientShell.setUpdateRequired(false);
     }
+  });
+
+  test("keeps read-only previews available while a desktop update is required", async () => {
+    const queryClient = createClientShellQueryClient(
+      presentSupportReferenceFailure,
+    );
+    const preview = new MutationObserver(queryClient, {
+      mutationFn: async () => "preview",
+    });
+    defaultClientShell.setUpdateRequired(true);
+    try {
+      await expect(preview.mutate(undefined)).resolves.toBe("preview");
+    } finally {
+      defaultClientShell.setUpdateRequired(false);
+    }
+  });
+
+  test("does not promise Support Retry for a private input", async () => {
+    const presentFailure = vi.fn();
+    const queryClient = createClientShellQueryClient(presentFailure);
+    const write = new MutationObserver(queryClient, {
+      meta: { onlineWrite: true, privateInput: true },
+      mutationFn: () => Promise.reject(supportError),
+    });
+    await expect(write.mutate(undefined)).rejects.toBe(supportError);
+    expect(presentFailure).toHaveBeenCalledWith(
+      supportError,
+      expect.objectContaining({
+        retry: undefined,
+        retryCount: 1,
+      }),
+    );
   });
 
   test("does not offer Retry after a written mutation failure", async () => {

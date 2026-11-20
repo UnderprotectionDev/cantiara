@@ -36,6 +36,7 @@ describeDatabase("Link Sharing expiry, revoke and replay PostgreSQL", () => {
     ? createDb({ DATABASE_URL: databaseUrl })
     : undefined;
   const accountId = `share-lifecycle-${crypto.randomUUID()}`;
+  let fixtureSurfaceId: string | undefined;
 
   beforeEach(async () => {
     await database?.insert(user).values({
@@ -50,9 +51,16 @@ describeDatabase("Link Sharing expiry, revoke and replay PostgreSQL", () => {
   });
   afterEach(async () => {
     await database?.delete(user).where(eq(user.id, accountId));
-    await database
-      ?.delete(auditRecord)
-      .where(like(auditRecord.type, "link-sharing.%"));
+    if (fixtureSurfaceId) {
+      await database
+        ?.delete(auditRecord)
+        .where(
+          and(
+            like(auditRecord.type, "link-sharing.%"),
+            eq(auditRecord.targetSessionAlias, fixtureSurfaceId),
+          ),
+        );
+    }
   });
   afterAll(async () => {
     await database?.$client.end();
@@ -77,7 +85,6 @@ describeDatabase("Link Sharing expiry, revoke and replay PostgreSQL", () => {
       projectId: profile.id,
       title: "Plan",
     });
-    let current = new Date();
     // The security log lives in its own database; an in-memory log stands in.
     const events: ShareAccessEvent[] = [];
     const securityEvents: LinkSharingSecurityEvents = {
@@ -107,18 +114,21 @@ describeDatabase("Link Sharing expiry, revoke and replay PostgreSQL", () => {
     });
     const token = approved?.accessToken ?? "";
     const surfaceId = approved?.surfaceId ?? "";
+    fixtureSurfaceId = surfaceId;
 
-    // Expiry (a short one) ends access but not the row.
+    // Seed a future expiry, then advance only this fixture past it.
     await founder.setExpiry(accountId, {
-      expiresAt: new Date(current.getTime() + 1500).toISOString(),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
       surfaceId,
     });
     const granted = await visitor.exchange({ password: null, signals, token });
     if (granted.status !== "granted") {
       throw new Error("not granted");
     }
-    current = new Date(current.getTime() + 3000);
-    await new Promise((resolve) => setTimeout(resolve, 1600));
+    await database
+      .update(externalSurface)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(externalSurface.id, surfaceId));
     expect(
       (await visitor.authorize(surfaceId, granted.cookieValue)).status,
     ).toBe("denied");

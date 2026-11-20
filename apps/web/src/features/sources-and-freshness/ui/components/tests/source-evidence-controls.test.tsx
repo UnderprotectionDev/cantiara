@@ -41,17 +41,27 @@ const listing = vi.hoisted(() => ({
     },
   ],
 }));
-vi.mock("@/utils/orpc", () => ({
-  client: rpc,
-  orpc: {
-    sourceEvidenceUses: {
-      queryOptions: () => ({
-        queryKey: ["uses"],
-        queryFn: async () => listing,
-      }),
-    },
-  },
-}));
+vi.mock("@/utils/orpc", async (importActual) => {
+  const actual = await importActual<typeof import("@/utils/orpc")>();
+  return {
+    ...actual,
+    client: rpc,
+    orpc: new Proxy(actual.orpc, {
+      get(target, property, receiver) {
+        if (property === "sourceEvidenceUses") {
+          return {
+            queryKey: () => ["uses"],
+            queryOptions: () => ({
+              queryKey: ["uses"],
+              queryFn: async () => listing,
+            }),
+          };
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    }),
+  };
+});
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({
   runOnlineOnlyWrite: (write: () => unknown) => write(),
 }));

@@ -26,12 +26,14 @@ export default function ProjectUpdatesSurface({
 }) {
   const configureProjectUpdateReminderMutation = useMutation(
     orpc.configureProjectUpdateReminder.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (command) => client.configureProjectUpdateReminder(command),
       onSuccess: () => refreshReminder(),
     }),
   );
   const skipProjectUpdateReminderMutation = useMutation(
     orpc.skipProjectUpdateReminder.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (command) => client.skipProjectUpdateReminder(command),
       onSuccess: () => refreshReminder(),
     }),

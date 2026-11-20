@@ -26,6 +26,7 @@ export default function ResearchSessionsSurface({
   const query = useQuery(options);
   const confirmBinding = useMutation(
     orpc.confirmResearchSessionBinding.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.confirmResearchSessionBinding(input),
       onSuccess: async (_, { id, projectId: targetProjectId }) => {
         await Promise.all(
@@ -114,6 +115,7 @@ export default function ResearchSessionsSurface({
   };
   const saveSession = useMutation(
     orpc.saveResearchSession.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.saveResearchSession(input),
       onError: refreshConflict,
       onSuccess: async (_, input) => {
@@ -126,6 +128,7 @@ export default function ResearchSessionsSurface({
   );
   const saveSessionNote = useMutation(
     orpc.saveResearchSessionNote.mutationOptions({
+      meta: { onlineWrite: true },
       mutationFn: (input) => client.saveResearchSessionNote(input),
       onError: refreshConflict,
       onSuccess: async (_, input) => {
