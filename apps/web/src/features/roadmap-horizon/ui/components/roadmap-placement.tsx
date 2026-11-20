@@ -5,10 +5,10 @@ import {
 } from "@cantiara/api/roadmap-horizon";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, projectWorksQueryPrefix } from "@/utils/orpc";
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { usePreparedMutation } from "@/lib/use-prepared-mutation";
+import { client, orpc } from "@/utils/orpc";
 import RoadmapPlacementForm from "../forms/roadmap-placement-form";
 
 export default function RoadmapPlacementEditor({
@@ -23,49 +23,43 @@ export default function RoadmapPlacementEditor({
   const queryClient = useQueryClient();
   const [previewChoice, setPreviewChoice] =
     useState<RoadmapPlacementChoice | null>(null);
-  const pendingCommand = useRef<{ fingerprint: string; key: string } | null>(
-    null,
-  );
-  const mutation = useMutation({
-    mutationFn: (choice: RoadmapPlacementChoice) => {
-      const fingerprint = JSON.stringify({
-        baseRevision: work.revision,
+  const placementKey = orpc.projectWorks.queryKey({
+    input: { projectId: work.projectId },
+  });
+  const mutation = usePreparedMutation(
+    {
+      mutationFn: ({
         choice,
-      });
-      const pending =
-        pendingCommand.current?.fingerprint === fingerprint
-          ? pendingCommand.current
-          : { fingerprint, key: crypto.randomUUID() };
-      pendingCommand.current = pending;
-      return runOnlineOnlyWrite(() => {
+        ...command
+      }: {
+        choice: RoadmapPlacementChoice;
+        baseRevision: number;
+        workId: string;
+        clientIdempotencyKey: string;
+      }) => {
         if (choice.field === "horizon") {
           return client.updateWorkHorizon({
-            baseRevision: work.revision,
-            clientIdempotencyKey: pending.key,
+            ...command,
             horizon: choice.value,
-            workId: work.id,
           });
         }
         return client.updateWorkPlannedDate({
-          baseRevision: work.revision,
-          clientIdempotencyKey: pending.key,
+          ...command,
           field: choice.field,
           value: choice.value,
-          workId: work.id,
         });
-      });
+      },
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: placementKey });
+        onPlaced();
+      },
     },
-    onError: () => {
-      queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix });
-    },
-    onSuccess: async () => {
-      pendingCommand.current = null;
-      await queryClient.invalidateQueries({
-        queryKey: projectWorksQueryPrefix,
-      });
-      onPlaced();
-    },
-  });
+    (choice: RoadmapPlacementChoice) => ({
+      baseRevision: work.revision,
+      choice,
+      workId: work.id,
+    }),
+  );
   const preview = previewChoice
     ? createRoadmapPlacementPreview(
         {

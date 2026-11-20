@@ -26,7 +26,7 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useRef, useState } from "react";
 
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { commandVariables } from "@/lib/command-variables";
 import { client, orpc } from "@/utils/orpc";
 import {
   createDocumentFromTemplateFormSchema,
@@ -143,57 +143,32 @@ export default function DocumentTemplatesSurface({
       : templates.data?.find(({ id }) => id === selection);
   const [mode, setMode] = useState<TemplateMode | null>(null);
   const [templateAtOpen, setTemplateAtOpen] = useState<TemplateChoice>();
-  const [error, setError] = useState<string | null>(null);
-  const [templateSaved, setTemplateSaved] = useState(false);
-  const [preview, setPreview] = useState<TemplateSourcePreview | null>(null);
-  const pending = useRef<{ payload: string; key: string } | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const pending = useRef<{ key: string } | null>(null);
 
   const save = useMutation({
-    mutationFn: (values: TemplateFormValues) =>
-      runOnlineOnlyWrite(() => {
-        const payload = JSON.stringify({
-          mode,
-          values,
-          preview,
-          templateId: templateAtOpen?.id,
-          templateRevision:
-            templateAtOpen && "revision" in templateAtOpen
-              ? templateAtOpen.revision
-              : undefined,
-          projectId,
-        });
-        if (pending.current?.payload !== payload) {
-          pending.current = { payload, key: crypto.randomUUID() };
-        }
-        const clientIdempotencyKey = pending.current.key;
-        return submitTemplate({
-          mode,
-          values,
-          selected: templateAtOpen,
-          preview,
-          projectId,
-          clientIdempotencyKey,
-        });
-      }),
-    onSuccess: async (result) => {
+    meta: { onlineWrite: true },
+    mutationFn: submitTemplate,
+    onSuccess: async (result, input) => {
       if (result.document) {
         await onCreated(result.document);
       } else {
-        setSelection(result.template.id);
-        await queryClient.invalidateQueries({ queryKey: options.queryKey });
-        setTemplateSaved(true);
+        await queryClient.invalidateQueries({
+          queryKey: orpc.documentTemplates.queryKey({
+            input: { projectId: input.projectId },
+          }),
+        });
+        if (pending.current?.key === input.clientIdempotencyKey) {
+          setSelection(result.template.id);
+        }
       }
-      pending.current = null;
-      setMode(null);
-      setTemplateAtOpen(undefined);
-      setError(null);
+      if (pending.current?.key === input.clientIdempotencyKey) {
+        pending.current = null;
+        setMode(null);
+        setTemplateAtOpen(undefined);
+        setValidationError(null);
+      }
     },
-    onError: (failure) =>
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Document Template could not be saved.",
-      ),
   });
   const form = useForm({
     defaultValues: {
@@ -209,23 +184,38 @@ export default function DocumentTemplatesSurface({
           ? createDocumentFromTemplateFormSchema.safeParse(value)
           : documentTemplateFormSchema.safeParse(value);
       if (!parsed.success) {
-        setError(
+        setValidationError(
           parsed.error.issues[0]?.message ??
             "Document Template could not be saved.",
         );
         return;
       }
-      setError(null);
-      await save.mutateAsync({ ...value, ...parsed.data });
+      setValidationError(null);
+      const input = commandVariables<
+        Omit<Parameters<typeof submitTemplate>[0], "clientIdempotencyKey">
+      >(
+        {
+          mode,
+          values: { ...value, ...parsed.data },
+          selected: templateAtOpen,
+          preview,
+          projectId,
+        },
+        save.isError ? save.variables : undefined,
+      );
+      pending.current = { key: input.clientIdempotencyKey };
+      await save.mutateAsync(input);
     },
   });
   function open(nextMode: TemplateMode) {
     const openedTemplate = nextMode === "add" ? undefined : selected;
     pending.current = null;
+    save.reset();
     setTemplateAtOpen(openedTemplate);
-    setError(null);
-    setTemplateSaved(false);
-    setPreview(null);
+    setValidationError(null);
+    if (nextMode !== "convert") {
+      conversion.reset();
+    }
     let templateName = openedTemplate?.name ?? "";
     if (nextMode === "add") {
       templateName = "";
@@ -253,25 +243,29 @@ export default function DocumentTemplatesSurface({
     setMode(nextMode);
   }
   const conversion = useMutation({
-    mutationFn: () => {
-      if (!source) {
-        throw new Error("Select a Document.");
-      }
-      return client.previewDocumentTemplate({ documentId: source.id });
-    },
+    mutationKey: orpc.previewDocumentTemplate.mutationKey(),
+    mutationFn: (documentId: string) =>
+      client.previewDocumentTemplate({ documentId }),
     onSuccess: (result) => {
       open("convert");
-      setPreview({
-        sourceDocumentId: result.sourceDocumentId,
-        sourceRevision: result.sourceRevision,
-      });
       form.setFieldValue("name", result.name);
       form.setFieldValue("body", result.body);
       form.setFieldValue("type", result.type);
     },
-    onError: () =>
-      setError("Document could not be loaded for Convert to template."),
   });
+  const preview = conversion.data
+    ? {
+        sourceDocumentId: conversion.data.sourceDocumentId,
+        sourceRevision: conversion.data.sourceRevision,
+      }
+    : null;
+  const error =
+    validationError ??
+    save.error?.message ??
+    (conversion.isError
+      ? "Document could not be loaded for Convert to template."
+      : null);
+  const templateSaved = save.isSuccess && save.data.template;
   const title = templateDialogTitles[mode ?? "add"];
   let submitLabel = mode === "apply" ? "Create from template" : "Save";
   if (save.isPending) {
@@ -294,7 +288,7 @@ export default function DocumentTemplatesSurface({
             id={`${identifier}-selection`}
             onChange={(event) => {
               setSelection(event.target.value);
-              setTemplateSaved(false);
+              save.reset();
             }}
             value={selection}
           >
@@ -329,7 +323,7 @@ export default function DocumentTemplatesSurface({
         {source ? (
           <Button
             disabled={conversion.isPending}
-            onClick={() => conversion.mutate()}
+            onClick={() => conversion.mutate(source.id)}
             type="button"
             variant="outline"
           >
@@ -352,7 +346,9 @@ export default function DocumentTemplatesSurface({
             setMode(null);
             setTemplateAtOpen(undefined);
             pending.current = null;
-            setError(null);
+            save.reset();
+            conversion.reset();
+            setValidationError(null);
           }
         }}
         open={mode !== null}

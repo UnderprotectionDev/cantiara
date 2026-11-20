@@ -14,8 +14,8 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode, SubmitEvent } from "react";
-import { useRef, useState } from "react";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { useState } from "react";
+import { commandVariables } from "@/lib/command-variables";
 import { client, orpc } from "@/utils/orpc";
 
 const HORIZONS = ["Now", "Next", "Later"] as const;
@@ -72,12 +72,24 @@ export default function RoadmapViewEditor({
 }) {
   const queryClient = useQueryClient();
   const [draftId, setDraftId] = useState(() => crypto.randomUUID());
-  const pendingCommand = useRef<{
-    clientIdempotencyKey: string;
-    fingerprint: string;
-  } | null>(null);
   const saveView = useMutation({
-    mutationFn: (value: ViewValues) => {
+    mutationKey: orpc.saveRoadmapView.mutationKey(),
+    meta: { onlineWrite: true },
+    mutationFn: (input: Parameters<typeof client.saveRoadmapView>[0]) =>
+      client.saveRoadmapView(input),
+    onSuccess: async (view) => {
+      await queryClient.invalidateQueries({
+        queryKey: orpc.projectRoadmapViews.queryOptions({
+          input: { projectId: view.projectId },
+        }).queryKey,
+      });
+      onSaved(view.id);
+      setDraftId(crypto.randomUUID());
+    },
+  });
+  const form = useForm({
+    defaultValues: viewValues(saved),
+    onSubmit: ({ value, formApi }) => {
       const baseRevision = saved?.revision ?? 0;
       const view = viewFromValues(
         value,
@@ -85,45 +97,37 @@ export default function RoadmapViewEditor({
         projectId,
         baseRevision,
       );
-      const command = {
-        baseRevision,
-        groupBy: view.groupBy,
-        horizons: view.horizons,
-        id: view.id,
-        markBy: view.markBy,
-        name: value.name.trim(),
-        projectId: view.projectId,
-        types: view.types,
-      };
-      const fingerprint = JSON.stringify(command);
-      const pending =
-        pendingCommand.current?.fingerprint === fingerprint
-          ? pendingCommand.current
-          : { clientIdempotencyKey: crypto.randomUUID(), fingerprint };
-      pendingCommand.current = pending;
-      const parsed = saveRoadmapViewInputSchema.safeParse({
-        ...command,
-        clientIdempotencyKey: pending.clientIdempotencyKey,
-      });
+      const parsed = saveRoadmapViewInputSchema.safeParse(
+        commandVariables<
+          Omit<
+            Parameters<typeof client.saveRoadmapView>[0],
+            "clientIdempotencyKey"
+          >
+        >(
+          {
+            baseRevision,
+            groupBy: view.groupBy,
+            horizons: view.horizons,
+            id: view.id,
+            markBy: view.markBy,
+            name: value.name.trim(),
+            projectId: view.projectId,
+            types: view.types,
+          },
+          saveView.isError ? saveView.variables : undefined,
+        ),
+      );
       if (!parsed.success) {
-        throw new Error(parsed.error.issues[0]?.message ?? "Check the form.");
+        formApi.setErrorMap({
+          onSubmit: {
+            form: parsed.error.issues[0]?.message ?? "Check the form.",
+            fields: {},
+          },
+        });
+        return;
       }
-      return runOnlineOnlyWrite(() => client.saveRoadmapView(parsed.data));
+      return saveView.mutateAsync(parsed.data);
     },
-    onSuccess: async (view) => {
-      await queryClient.invalidateQueries({
-        queryKey: orpc.projectRoadmapViews.queryOptions({
-          input: { projectId },
-        }).queryKey,
-      });
-      onSaved(view.id);
-      pendingCommand.current = null;
-      setDraftId(crypto.randomUUID());
-    },
-  });
-  const form = useForm({
-    defaultValues: viewValues(saved),
-    onSubmit: ({ value }) => saveView.mutateAsync(value),
   });
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -263,6 +267,11 @@ export default function RoadmapViewEditor({
             )}
           </form.Subscribe>
         </div>
+        <form.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+          {(error) =>
+            typeof error === "string" ? <p role="alert">{error}</p> : null
+          }
+        </form.Subscribe>
         {saveView.isError ? (
           <p className="text-sm text-destructive" role="alert">
             Named view could not be saved.
