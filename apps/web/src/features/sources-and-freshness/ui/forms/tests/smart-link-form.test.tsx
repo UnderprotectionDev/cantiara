@@ -83,6 +83,14 @@ function button(container: HTMLElement, label: string) {
   );
 }
 
+function waitForPreview(container: HTMLElement) {
+  return vi.waitFor(() => {
+    if (!container.textContent?.includes("Save as Source")) {
+      throw new Error("The link preview is still loading.");
+    }
+  });
+}
+
 describe("Sources and Freshness preview surface", () => {
   test("formats capture time with Account Preferences without changing the saved instant", async () => {
     const { container, root } = createSurface();
@@ -112,6 +120,7 @@ describe("Sources and Freshness preview surface", () => {
     await act(async () =>
       paste(requireElement(container.querySelector("input")), captured.url),
     );
+    await waitForPreview(container);
     expect(container.textContent).toContain("12/10/2026 01:30");
     await act(async () =>
       root.render(
@@ -150,6 +159,7 @@ describe("Sources and Freshness preview surface", () => {
         "https://youtu.be/dQw4w9WgXcQ",
       );
     });
+    await waitForPreview(container);
     expect(container.textContent).toContain("Live preview");
     expect(container.textContent).toContain("Live external source");
     expect(container.textContent).toContain("third-party");
@@ -200,9 +210,7 @@ describe("Sources and Freshness preview surface", () => {
         "https://youtu.be/dQw4w9WgXcQ",
       );
     });
-    await vi.waitFor(() => {
-      expect(container.textContent).toContain("Load YouTube");
-    });
+    await waitForPreview(container);
     await act(async () => {
       button(container, "Load YouTube").click();
     });
@@ -243,6 +251,7 @@ describe("Sources and Freshness preview surface", () => {
         "https://youtu.be/dQw4w9WgXcQ",
       ),
     );
+    await waitForPreview(container);
     expect(container.querySelector("iframe")).toBeNull();
     await act(async () => button(container, "Load YouTube").click());
     const frame = requireElement(container.querySelector("iframe"));
