@@ -5,6 +5,8 @@ import {
   type ExportCatalogEntry,
   type ExportPreview,
 } from "@cantiara/api/data-export";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import {
@@ -17,7 +19,15 @@ import {
 } from "../../../lib/export-handoff";
 import { exportSelectionRefusal } from "../../../lib/export-refusal";
 import { ExportPreviewPanel } from "../../components/export-preview-panel";
-import { ExportView } from "../export-view";
+import { ExportView as ExportViewInner } from "../export-view";
+
+function ExportView(props: ComponentProps<typeof ExportViewInner>) {
+  return (
+    <QueryClientProvider client={new QueryClient()}>
+      <ExportViewInner {...props} />
+    </QueryClientProvider>
+  );
+}
 
 const catalog: ExportCatalogEntry[] = [
   { available: true, family: "Work", recordType: "Task" },

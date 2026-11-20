@@ -4,6 +4,7 @@ import {
   type ImportApplyResult,
   type ImportPreview,
   type ImportReceipt,
+  type ImportScope,
   type PreviewImportInput,
 } from "@cantiara/api/data-import";
 import { useCallback, useState } from "react";
@@ -23,12 +24,14 @@ import ImportFileForm, {
 export function ImportView({
   onApply,
   onCancel,
+  onCommitted,
   onPreview,
   onReopenReceipt,
   projects,
 }: {
   onApply: (input: ApplyImportInput) => Promise<ImportApplyResult>;
   onCancel: (stagingId: string) => Promise<unknown>;
+  onCommitted?: (receipt: ImportReceipt, scope: ImportScope) => Promise<void>;
   onPreview: (input: PreviewImportInput) => Promise<ImportPreview>;
   onReopenReceipt?: (idempotencyKey: string) => Promise<ImportReceipt>;
   projects: readonly ImportProjectChoice[];
@@ -123,7 +126,9 @@ export function ImportView({
             key={`${shown.preview.stagingId}:${shown.preview.finalSetFingerprint}`}
             onApply={apply}
             onCancel={cancel}
+            onCommitted={onCommitted}
             preview={shown.preview}
+            scope={shown.input.scope}
           />
         </>
       ) : null}

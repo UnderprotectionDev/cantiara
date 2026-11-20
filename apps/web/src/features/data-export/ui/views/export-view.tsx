@@ -7,6 +7,7 @@ import {
   type ExportPreview,
   type ExportRequest,
 } from "@cantiara/api/data-export";
+import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
 import { useExportFlow } from "../../hooks/use-export-flow";
 import type { ExportHandoff } from "../../lib/export-handoff";
 import { ExportPreviewPanel } from "../components/export-preview-panel";
@@ -49,7 +50,7 @@ export function ExportView({
         disabled={flow.pending}
         handoff={handoff}
         onPreview={(request) => {
-          flow.review(request).catch(() => undefined);
+          flow.review(request);
         }}
         projects={projects}
       />
@@ -58,17 +59,20 @@ export function ExportView({
           {flow.refusal}
         </p>
       ) : null}
+      {flow.failure?.supportReference ? (
+        <SupportReferenceNotice failure={flow.failure} />
+      ) : null}
       {flow.reviewing ? (
         <ExportPreviewPanel
           disabled={flow.pending}
           onCancel={flow.cancel}
           onConfirm={() => {
-            flow.confirm().catch(() => undefined);
+            flow.confirm();
           }}
           onUseAlternative={(format) => {
             const request = flow.reviewing?.request;
             if (request) {
-              flow.review({ ...request, format }).catch(() => undefined);
+              flow.review({ ...request, format });
             }
           }}
           preview={flow.reviewing.preview}

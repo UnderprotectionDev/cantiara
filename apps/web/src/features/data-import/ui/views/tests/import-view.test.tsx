@@ -7,10 +7,13 @@ import type {
   ImportReceipt,
   PreviewImportInput,
 } from "@cantiara/api/data-import";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
+import { orpc } from "@/utils/orpc";
 import { rememberLastApplyKey } from "../../../lib/import-form";
+import { invalidateImportQueries } from "../../../lib/invalidate-import-queries";
 import { ImportView } from "../import-view";
 
 (
@@ -105,6 +108,7 @@ function mount(
   handlers: {
     onApply?: (input: ApplyImportInput) => Promise<ImportApplyResult>;
     onCancel?: (stagingId: string) => Promise<unknown>;
+    onCommitted?: React.ComponentProps<typeof ImportView>["onCommitted"];
     onReopenReceipt?: (idempotencyKey: string) => Promise<ImportReceipt>;
   } = {},
 ) {
@@ -113,13 +117,16 @@ function mount(
   root = createRoot(host);
   act(() => {
     root?.render(
-      <ImportView
-        onApply={handlers.onApply ?? (() => Promise.reject(new Error("no")))}
-        onCancel={handlers.onCancel ?? (() => Promise.resolve({}))}
-        onPreview={onPreview}
-        onReopenReceipt={handlers.onReopenReceipt}
-        projects={[{ id: "p1", name: "Project Atlas" }]}
-      />,
+      <QueryClientProvider client={new QueryClient()}>
+        <ImportView
+          onApply={handlers.onApply ?? (() => Promise.reject(new Error("no")))}
+          onCancel={handlers.onCancel ?? (() => Promise.resolve({}))}
+          onCommitted={handlers.onCommitted}
+          onPreview={onPreview}
+          onReopenReceipt={handlers.onReopenReceipt}
+          projects={[{ id: "p1", name: "Project Atlas" }]}
+        />
+      </QueryClientProvider>,
     );
   });
 }
@@ -288,8 +295,10 @@ test("a dropped connection offers Retry with the same key", async () => {
   await choose([new File(["Name\nSlip\n"], "risks.csv")], "project:p1", "Risk");
 
   await click("Apply Import");
-  expect(document.querySelector('[role="alert"]')?.textContent).toBe(
-    "Network lost",
+  await vi.waitFor(() =>
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+      "Network lost",
+    ),
   );
   await click("Retry");
 
@@ -297,7 +306,9 @@ test("a dropped connection offers Retry with the same key", async () => {
     ([input]) => (input as ApplyImportInput).idempotencyKey,
   );
   expect(keys[0]).toBe(keys[1]);
-  expect(document.body.textContent).toContain("Import receipt");
+  await vi.waitFor(() =>
+    expect(document.body.textContent).toContain("Import receipt"),
+  );
 });
 
 test("passes the number of chosen files so the server can refuse a multi-file choice", async () => {
@@ -355,4 +366,31 @@ test("without a stored key no reopen control is offered", () => {
   mount(vi.fn());
 
   expect(button("Reopen receipt")).toBeUndefined();
+});
+
+test("a committed Risk import invalidates its Project Risk list only", async () => {
+  const queryClient = new QueryClient();
+  const affected = orpc.projectRisks.queryKey({ input: { projectId: "p1" } });
+  const anotherProject = orpc.projectRisks.queryKey({
+    input: { projectId: "p2" },
+  });
+  const unrelated = orpc.projectWorks.queryKey({ input: { projectId: "p1" } });
+  for (const key of [affected, anotherProject, unrelated]) {
+    queryClient.setQueryData(key, []);
+  }
+  mount(() => Promise.resolve(validPreview), {
+    onApply: () =>
+      Promise.resolve({ receipt, replayed: false, status: "committed" }),
+    onCommitted: (result, scope) =>
+      invalidateImportQueries(queryClient, result, scope),
+  });
+  await choose([new File(["Name\nSlip\n"], "risks.csv")], "project:p1", "Risk");
+  await click("Apply Import");
+  await vi.waitFor(() =>
+    expect(document.body.textContent).toContain("Import receipt"),
+  );
+  expect(queryClient.getQueryState(affected)?.isInvalidated).toBe(true);
+  expect(queryClient.getQueryState(anotherProject)?.isInvalidated).toBe(false);
+  expect(queryClient.getQueryState(unrelated)?.isInvalidated).toBe(false);
+  queryClient.clear();
 });

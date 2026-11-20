@@ -50,6 +50,7 @@ Kurucu tek kayıt türü ve tek seçili kapsamda, kapalı dünya önizlemesi ve 
 
 ## Testing Decisions
 
+- **Query preview and produce evidence (#544).** The browser Export seam verifies preview before download and the allowed JSON and CSV outputs. The artifact is read-only and can be requested after a successful preview.
 - **What a good test is.** Tests observe Selected Export through preview + bytes/manifest: catalog membership, closed-world (unselected relation omitted), secret absence, CSV escape vs JSON raw, schema version present, limit refusal, not-an-exit-package (no sessions/secrets/full history dump required of 82). They do not parse private serializers.
 - **Seam (one).** Selected Export. Search index, object storage, and Document-31 exporter are not this module. Playwright for Taşınabilirlik is this seam through the UI.
 - **Modules under test.** Selected Export only. Workspace Exit Package, single Document MD/PDF, test-report envelope, operator backup are counterparts (absent or different manifest).
