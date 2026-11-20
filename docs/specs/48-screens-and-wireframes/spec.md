@@ -60,6 +60,8 @@ Kurucu Ekranı Proje kapsamında bağımsız ana kayıt olarak tutar; yalnız ba
 
 ## Testing Decisions
 
+- **Convert and Bind submission (#545).** `convert-and-bind-form.test.tsx` verifies that a failed `Confirm` keeps the title, retry uses the same origin and target identifiers, and a successful `Confirm` clears the draft before the next conversion.
+
 - **Query lifecycle (#544).** The Convert and Bind web seam verifies a read-only preview, confirms the exact plan, and checks both record IDs are unchanged when Confirm is retried. The presentation seam verifies the selected saved Wireframe version is read through Query. The template seam confirms Save as Template uses the chosen saved Wireframe version and shows success only after the write. The PostgreSQL seam checks that parallel replays of Screen creation, template stamping, template instantiation, Linked Block creation and apply, and saving an exact Wireframe version return the original result; reusing a key with a different payload is rejected.
 
 - **Linked Block preview (#544).** The Linked Block controls test verifies that Preview Change reads the edited source label through a Query observer. The linked-block server seam verifies that confirmed changes update only screens using that definition.

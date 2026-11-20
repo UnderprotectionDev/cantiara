@@ -9,6 +9,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useForm } from "@tanstack/react-form";
 import { useId } from "react";
+import { submitForm } from "@/lib/submit-form";
 import {
   type ClosureSummarySelectionForm,
   closureSummarySelectionFormSchema,
@@ -53,7 +54,7 @@ export function ClosureSummarySourceForm({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit({ action: "preview" }).catch(() => undefined);
+        submitForm(form, { action: "preview" }).catch(() => undefined);
       }}
     >
       <h4 className="text-sm font-medium">
@@ -107,7 +108,7 @@ export function ClosureSummarySourceForm({
         <Button
           disabled={pending}
           onClick={() => {
-            form.handleSubmit({ action: "generate" }).catch(() => undefined);
+            submitForm(form, { action: "generate" }).catch(() => undefined);
           }}
           type="button"
         >

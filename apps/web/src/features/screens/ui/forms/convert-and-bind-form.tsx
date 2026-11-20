@@ -13,9 +13,10 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import { convertAndBindFormSchema } from "../../lib/screen-forms";
 
@@ -62,7 +63,6 @@ export function ConvertAndBindPanel({
   });
   const plan = preview.data;
   const created = confirm.data;
-  const busy = preview.isPending || confirm.isPending;
   const previewError = preview.isError ? "Preview is unavailable." : undefined;
   const requestError = confirm.isError
     ? "The preview is out of date. Preview again."
@@ -80,46 +80,46 @@ export function ConvertAndBindPanel({
       workType: "Task" as (typeof WORK_TYPES)[number],
     },
     listeners: { onChange: resetPreview },
-    validators: {
-      onSubmit: ({ value }) =>
-        convertAndBindFormSchema.safeParse(value).success
-          ? undefined
-          : "Preview is unavailable.",
-    },
-    onSubmit: async ({ value }) => {
+    onSubmitMeta: { action: "preview" } as { action: "preview" | "confirm" },
+    onSubmit: async ({ formApi, meta, value }) => {
+      if (meta.action === "confirm") {
+        if (!plan) {
+          return;
+        }
+        await confirm.mutateAsync(
+          confirm.isError && confirm.variables?.plan === plan
+            ? confirm.variables
+            : {
+                originId: crypto.randomUUID(),
+                plan,
+                projectId: plan.projectId,
+                recordId: crypto.randomUUID(),
+                screenId: plan.screenId,
+              },
+        );
+        formApi.reset();
+        setOpen(false);
+        preview.reset();
+        return;
+      }
+
+      const parsed = convertAndBindFormSchema.safeParse(value);
+      if (!parsed.success) {
+        formApi.setErrorMap({
+          onSubmit: { form: "Preview is unavailable.", fields: {} },
+        });
+        return;
+      }
       confirm.reset();
-      await preview.mutateAsync({
-        blockId,
-        ...convertAndBindFormSchema.parse(value),
-      });
+      await preview.mutateAsync({ blockId, ...parsed.data });
     },
   });
+  const isSubmitting = useSelector(form.store, (state) => state.isSubmitting);
+  const busy = isSubmitting || preview.isPending || confirm.isPending;
 
   function close() {
     setOpen(false);
     resetPreview();
-  }
-
-  function confirmPlan() {
-    if (!plan || busy) {
-      return;
-    }
-    const input =
-      confirm.isError && confirm.variables?.plan === plan
-        ? confirm.variables
-        : {
-            originId: crypto.randomUUID(),
-            plan,
-            projectId: plan.projectId,
-            recordId: crypto.randomUUID(),
-            screenId: plan.screenId,
-          };
-    confirm.mutate(input, {
-      onSuccess: () => {
-        setOpen(false);
-        preview.reset();
-      },
-    });
   }
 
   if (!open) {
@@ -152,7 +152,7 @@ export function ConvertAndBindPanel({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        form.handleSubmit().catch(() => undefined);
+        submitForm(form, { action: "preview" }).catch(() => undefined);
       }}
     >
       <fieldset
@@ -264,13 +264,20 @@ export function ConvertAndBindPanel({
         </dl>
       ) : null}
       {plan ? (
-        <Button disabled={busy} onClick={confirmPlan} size="sm" type="button">
+        <Button
+          disabled={busy}
+          onClick={() =>
+            submitForm(form, { action: "confirm" }).catch(() => undefined)
+          }
+          size="sm"
+          type="button"
+        >
           Confirm
         </Button>
       ) : null}
       <form.Subscribe selector={(state) => state.errorMap.onSubmit}>
         {(validationError) => {
-          const error = validationError ?? requestError;
+          const error = (validationError as string | undefined) ?? requestError;
           return error ? (
             <p className="text-xs text-destructive" role="alert">
               {error}

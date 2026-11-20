@@ -16,6 +16,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode, SubmitEvent } from "react";
 import { useMemo } from "react";
 import { commandVariables } from "@/lib/command-variables";
+import { submitForm } from "@/lib/submit-form";
 import { client, orpc } from "@/utils/orpc";
 
 const HORIZONS = ["Now", "Next", "Later"] as const;
@@ -132,7 +133,7 @@ export default function RoadmapViewEditor({
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   function chooseGroup(value: RoadmapView["groupBy"]) {
     form.setFieldValue("groupBy", value);
@@ -256,12 +257,13 @@ export default function RoadmapViewEditor({
           )}
         </form.Field>
         <div className="flex items-end">
-          <form.Subscribe selector={(state) => state.values.name}>
-            {(name) => (
-              <Button
-                disabled={!name.trim() || saveView.isPending}
-                type="submit"
-              >
+          <form.Subscribe
+            selector={(state) =>
+              !state.values.name.trim() || state.isSubmitting
+            }
+          >
+            {(disabled) => (
+              <Button disabled={disabled} type="submit">
                 Save named view
               </Button>
             )}

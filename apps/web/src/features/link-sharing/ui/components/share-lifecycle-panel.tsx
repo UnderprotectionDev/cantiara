@@ -13,6 +13,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useSelector } from "@tanstack/react-store";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { submitForm } from "@/lib/submit-form";
 import type { ShareLifecycleFeedback } from "../../hooks/use-share-access";
 import {
   useShareConfirmationForm,
@@ -274,7 +275,7 @@ function ConfirmGroup({
       <div className="flex flex-wrap gap-2">
         <Button
           disabled={!acknowledged || pending || submitting}
-          onClick={() => form.handleSubmit().catch(() => undefined)}
+          onClick={() => submitForm(form).catch(() => undefined)}
           type="button"
           variant="destructive"
         >

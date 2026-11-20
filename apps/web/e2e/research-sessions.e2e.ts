@@ -137,12 +137,7 @@ test("Research Session refuses skipped and repeated account-zone times and prese
   );
   for (const time of ["2026-03-08T02:30", "2026-11-01T01:30"]) {
     await pickDateTime(page, sessions, "Time", time);
-    await sessions
-      .getByRole("button", {
-        name: time === "2026-03-08T02:30" ? "Save" : "Retry",
-        exact: true,
-      })
-      .click();
+    await sessions.getByRole("button", { name: "Save", exact: true }).click();
     await expect(sessions.getByRole("alert")).toContainText(
       "Time is skipped or repeated",
     );
@@ -150,7 +145,7 @@ test("Research Session refuses skipped and repeated account-zone times and prese
   }
   await pickDateTime(page, sessions, "Time", "2026-11-01T03:30");
   const savedResponse = page.waitForResponse("**/rpc/saveResearchSession");
-  await sessions.getByRole("button", { name: "Retry", exact: true }).click();
+  await sessions.getByRole("button", { name: "Save", exact: true }).click();
   const saved = (await (await savedResponse).json()).json;
   expect(saved.scheduledAt).toBe("2026-11-01T08:30:00.000Z");
   await expect(sessions).toContainText("Research Session saved.");

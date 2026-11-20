@@ -16,8 +16,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useForm } from "@tanstack/react-form";
-import { type SubmitEvent, useId, useMemo, useState } from "react";
+import { useForm, useSelector } from "@tanstack/react-form";
+import { type SubmitEvent, useId, useMemo } from "react";
+import { submitForm } from "@/lib/submit-form";
 import { isResearchSessionConflict } from "../../lib/research-session-conflict";
 
 export type SaveResearchNote = (
@@ -56,15 +57,6 @@ export function ResearchSessionNoteEditor({
     () => note?.id ?? crypto.randomUUID(),
     [note?.id],
   );
-  const [validationError, setValidationError] = useState<string>();
-  const conflict = isResearchSessionConflict(saveError);
-  let error = validationError;
-  if (!error && saveError) {
-    error = conflict
-      ? "Research Session changed. Cancel and reopen before saving. Your text is kept here."
-      : "Note could not be saved. Retry or reload to check for changes. Your text is kept here.";
-  }
-  const submitLabel = error && !conflict ? "Retry" : "Save";
   const form = useForm({
     defaultValues: {
       noteId: initialNoteId,
@@ -77,8 +69,7 @@ export function ResearchSessionNoteEditor({
           ? note.containsPersonalInformation
           : true,
     },
-    onSubmit: async ({ value: { noteId, ...value } }) => {
-      setValidationError(undefined);
+    onSubmit: async ({ formApi, value: { noteId, ...value } }) => {
       const parsed = researchSessionNoteInputSchema.safeParse({
         id: noteId,
         kind: value.kind,
@@ -89,16 +80,33 @@ export function ResearchSessionNoteEditor({
           : { containsPersonalInformation: value.containsPersonalInformation }),
       });
       if (!parsed.success) {
-        setValidationError("Choose note type and enter its text.");
+        formApi.setErrorMap({
+          onSubmit: {
+            form: "Choose note type and enter its text.",
+            fields: {},
+          },
+        });
         return;
       }
       await onSave(parsed.data);
     },
   });
+  const validationError = useSelector(
+    form.store,
+    (state): string | undefined => state.errorMap.onSubmit,
+  );
+  const conflict = isResearchSessionConflict(saveError);
+  let error = validationError;
+  if (!error && saveError) {
+    error = conflict
+      ? "Research Session changed. Cancel and reopen before saving. Your text is kept here."
+      : "Note could not be saved. Retry or reload to check for changes. Your text is kept here.";
+  }
+  const submitLabel = error && !conflict ? "Retry" : "Save";
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    form.handleSubmit().catch(() => undefined);
+    submitForm(form).catch(() => undefined);
   }
   return (
     <form
