@@ -132,7 +132,8 @@ export default function DocumentEditor({
     }),
   );
   const editing = useSyncExternalStore(editSession.subscribe, editSession.get);
-  const [revision, setRevision] = useState(record.revision);
+  const { baseRevision: revision } = editing;
+  const syncedRevision = useRef(revision);
 
   const initialPresentation: DocumentEditorPresentation = {
     view: targetSectionId ? "preview" : "write",
@@ -414,16 +415,16 @@ export default function DocumentEditor({
       return;
     }
     editSession.accept(record);
+    syncedRevision.current = record.revision;
     // Move the form with the session now; otherwise its next change event
     // would write the previous body back into the accepted buffer.
     form.reset({ title: record.title, type: record.type, body: record.body });
-    setRevision(record.revision);
   }, [editSession, editing.baseRevision, editing.dirty, form, record]);
   useEffect(() => {
-    if (editing.dirty || editing.baseRevision === revision) {
+    if (editing.dirty || revision === syncedRevision.current) {
       return;
     }
-    setRevision(editing.baseRevision);
+    syncedRevision.current = revision;
     form.setFieldValue("title", editing.buffer.title);
     form.setFieldValue("type", editing.buffer.type);
     form.setFieldValue("body", editing.buffer.body);
@@ -456,14 +457,25 @@ export default function DocumentEditor({
       return;
     }
     editSession.accept(record);
+    syncedRevision.current = record.revision;
     form.setErrorMap({ onSubmit: undefined });
-    setRevision(record.revision);
     setPreviewBody(record.body);
     form.reset({
       title: record.title,
       type: record.type,
       body: record.body,
     });
+  }
+  function acceptOrganizationResult(saved: Document) {
+    const current = editSession.get();
+    if (
+      saved.id === record.id &&
+      !current.dirty &&
+      saved.revision > current.baseRevision
+    ) {
+      syncedRevision.current = saved.revision;
+      editSession.accept(saved);
+    }
   }
   const evidenceWrite = useMutation({
     mutationKey: orpc.pinDocumentEvidence.mutationKey(),
@@ -984,9 +996,7 @@ export default function DocumentEditor({
                   }
                   documents={documents}
                   onCommitted={async (saved) => {
-                    if (saved.id === record.id) {
-                      setRevision(saved.revision);
-                    }
+                    acceptOrganizationResult(saved);
                     await queryClient.invalidateQueries({
                       queryKey: orpc.documentVersions.key(),
                     });
@@ -1010,7 +1020,7 @@ export default function DocumentEditor({
                   }
                   documents={documents}
                   onCommitted={async (saved) => {
-                    setRevision(saved.revision);
+                    acceptOrganizationResult(saved);
                     await queryClient.invalidateQueries({
                       queryKey: versionOptions.queryKey,
                     });

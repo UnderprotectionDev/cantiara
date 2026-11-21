@@ -11,6 +11,21 @@ vi.mock("@/components/app-link", () => ({
 
 const ignoreLiveWorkAction = () => undefined;
 
+test("renders KaTeX output and displays invalid formula errors as text", () => {
+  const valid = renderToStaticMarkup(
+    <DocumentPreview source={"$$\nx^2\n$$"} />,
+  );
+  const invalid = renderToStaticMarkup(
+    <DocumentPreview source={"$$\n\\unknownFormula\n$$"} />,
+  );
+
+  expect(valid).toContain('class="katex"');
+  expect(valid).not.toContain('role="alert"');
+  expect(invalid).toContain('role="alert"');
+  expect(invalid).toContain("Undefined control sequence");
+  expect(invalid).not.toContain('class="katex"');
+});
+
 test("renders CRLF Mermaid fences as Mermaid previews", () => {
   const source = "```mermaid\r\ngraph TD; A-->B;\r\n```\r\n";
   const markup = renderToStaticMarkup(<DocumentPreview source={source} />);

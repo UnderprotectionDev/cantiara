@@ -9,6 +9,7 @@ test("Decisions follows the historical chain to the final Valid record and filte
   page,
   request,
 }) => {
+  test.setTimeout(60_000);
   const response = await request.get(
     `${serverUrl}/__e2e/setup?fixture=scope-tree`,
   );

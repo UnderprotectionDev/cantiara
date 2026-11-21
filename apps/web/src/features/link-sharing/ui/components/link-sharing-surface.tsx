@@ -27,16 +27,7 @@ interface LinkSharingSurfaceProps {
   selectedKey?: string;
 }
 
-export default function LinkSharingSurface(props: LinkSharingSurfaceProps) {
-  return (
-    <LinkSharingScope
-      {...props}
-      key={JSON.stringify([props.projectId, props.selectedKey])}
-    />
-  );
-}
-
-function LinkSharingScope({
+export default function LinkSharingSurface({
   projectId,
   selectedKey = "",
   onSelectRoot,
@@ -117,7 +108,10 @@ function LinkSharingScope({
           surfaceId: preview.data.surface?.surfaceId,
         });
       }}
-      onSelectRoot={onSelectRoot}
+      onSelectRoot={(key) => {
+        access.resetFeedback();
+        onSelectRoot(key);
+      }}
       preview={preview.data}
       previewError={preview.isError}
       previewLoading={root !== null && preview.isPending}

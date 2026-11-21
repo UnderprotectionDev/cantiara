@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // biome-ignore-all lint/suspicious/useAwait: React act exposes asynchronous event boundaries.
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
-import { act, useState } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
@@ -30,21 +30,16 @@ afterEach(() => {
   container.remove();
 });
 
-function SavedListLocation({ onChange }: { onChange: () => Promise<unknown> }) {
-  const [editingId, selectEditor] = useState<string>();
-  return (
-    <SavedProjectLists
-      editingId={editingId}
-      formattingPreferences={DEFAULT_ACCOUNT_PREFERENCES}
-      lists={[]}
-      onChange={onChange}
-      onEditingChange={selectEditor}
-    />
-  );
-}
-
 async function createList(onChange: () => Promise<unknown>) {
-  await act(async () => root.render(<SavedListLocation onChange={onChange} />));
+  await act(async () =>
+    root.render(
+      <SavedProjectLists
+        formattingPreferences={DEFAULT_ACCOUNT_PREFERENCES}
+        lists={[]}
+        onChange={onChange}
+      />,
+    ),
+  );
   await act(async () =>
     [...container.querySelectorAll("button")]
       .find((button) => button.textContent?.includes("New list"))
@@ -82,4 +77,26 @@ test("a successful save closes the saved list editor", async () => {
 
   expect(onChange).toHaveBeenCalledOnce();
   expect(container.querySelector("#saved-list-name")).toBeNull();
+});
+
+test("a late save does not close a reopened saved list editor", async () => {
+  const pending = Promise.withResolvers<void>();
+  const onChange = vi.fn(() => pending.promise);
+  await createList(onChange);
+  expect(onChange).toHaveBeenCalledOnce();
+
+  act(() =>
+    [...container.querySelectorAll("button")]
+      .find((button) => button.textContent === "Cancel")
+      ?.click(),
+  );
+  act(() =>
+    [...container.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("New list"))
+      ?.click(),
+  );
+  expect(container.querySelector("#saved-list-name")).not.toBeNull();
+
+  await act(async () => pending.resolve());
+  expect(container.querySelector("#saved-list-name")).not.toBeNull();
 });

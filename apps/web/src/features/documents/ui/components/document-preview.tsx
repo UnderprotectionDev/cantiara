@@ -31,8 +31,8 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
-  useState,
 } from "react";
 import type { SourceRecordPreviewTarget } from "@/features/record-discovery/ui/components/context-record-preview";
 import {
@@ -352,44 +352,44 @@ function MermaidPreview({ source }: { source: string }) {
 }
 
 function useKatexRendering(source: string, displayMode: boolean) {
-  const target = useRef<HTMLSpanElement>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!target.current) {
-      return;
-    }
+  return useMemo(() => {
     try {
-      katex.render(source, target.current, {
+      const html = katex.renderToString(source, {
         displayMode,
         throwOnError: true,
         trust: false,
       });
-      setError(null);
+      return { html, error: null };
     } catch (failure) {
-      target.current.replaceChildren();
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Formula could not be rendered.",
-      );
+      return {
+        html: "",
+        error:
+          failure instanceof Error
+            ? failure.message
+            : "Formula could not be rendered.",
+      };
     }
   }, [displayMode, source]);
-  return { error, target };
+}
+
+function KatexMarkup({ html }: { html: string }) {
+  // biome-ignore lint/security/noDangerouslySetInnerHtml: KaTeX generates this markup with trust disabled.
+  return <span dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 function MathPreview({ source }: { source: string }) {
-  const { error, target } = useKatexRendering(source, true);
+  const { error, html } = useKatexRendering(source, true);
   return (
     <div className="space-y-2">
       {error ? <p role="alert">{error}</p> : null}
-      <span ref={target} />
+      <KatexMarkup html={html} />
       <pre className="overflow-auto text-sm">{`$$${source}$$`}</pre>
     </div>
   );
 }
 
 function InlineMath({ latex }: { latex: string }) {
-  const { error, target } = useKatexRendering(latex, false);
+  const { error, html } = useKatexRendering(latex, false);
   return (
     <span>
       {error ? (
@@ -397,7 +397,7 @@ function InlineMath({ latex }: { latex: string }) {
           {error} ${latex}$
         </span>
       ) : null}
-      <span ref={target} />
+      <KatexMarkup html={html} />
     </span>
   );
 }

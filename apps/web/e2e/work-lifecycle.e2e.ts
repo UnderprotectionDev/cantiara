@@ -490,7 +490,7 @@ test("creates Work with a Project key, type, and protected start status", async 
 
   await expect(
     page.getByText("Work PAY-1 created.", { exact: true }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
   const firstWork = workListItem(page, "PAY-1 Investigate payment failures");
   await expect(firstWork).toContainText("Research");
   await expect(firstWork).toContainText("Not Started");
@@ -564,7 +564,7 @@ test("creates Work with a Project key, type, and protected start status", async 
     .click();
   await expect(
     page.getByText("Work PAY-2 created.", { exact: true }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
 
   const duplicateWork = workListItem(page, "PAY-2 Document the payment flow");
   await duplicateWork

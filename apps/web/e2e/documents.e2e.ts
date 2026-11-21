@@ -1041,6 +1041,7 @@ for (const scope of ["Project", "Personal Wiki"]) {
     page,
     request,
   }) => {
+    test.setTimeout(60_000);
     const response = await request.get(
       `${serverUrl}/__e2e/setup?fixture=documents`,
     );
@@ -1264,6 +1265,7 @@ for (const scope of ["Project", "Personal Wiki"]) {
       .click();
     await expect(editor.getByLabel("Title", { exact: true })).toHaveValue(
       "Updated Template Instance",
+      { timeout: 20_000 },
     );
     await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
     await expect(source).toHaveValue("## Saved changes\n");

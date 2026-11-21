@@ -184,20 +184,26 @@ test("a failed erase requires a new identity grant and keeps grants outside Quer
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const queryClient = new QueryClient();
   const root = createRoot(document.createElement("div"));
+  const cancelledIdentity = Promise.withResolvers<string>();
   const onConfirmIdentity = vi
     .fn()
+    .mockReturnValueOnce(cancelledIdentity.promise)
     .mockResolvedValueOnce("first-test-grant")
     .mockResolvedValueOnce("second-test-grant");
   const onErase = vi
     .fn()
     .mockRejectedValueOnce(new Error("Connection interrupted"))
     .mockResolvedValueOnce({});
+  const nextPreview = { ...erasePreview, contactId: "c2" };
   let flow: ReturnType<typeof usePersonalDataEraseFlow> | undefined;
   function Probe() {
     flow = usePersonalDataEraseFlow({
       onConfirmIdentity,
       onErase,
-      onPreview: () => Promise.resolve(erasePreview),
+      onPreview: (id) =>
+        Promise.resolve(
+          id === nextPreview.contactId ? nextPreview : erasePreview,
+        ),
     });
     return null;
   }
@@ -217,6 +223,24 @@ test("a failed erase requires a new identity grant and keeps grants outside Quer
     }
     await act(async () => current().review("c1"));
     await vi.waitFor(() => expect(current().preview).toEqual(erasePreview));
+    let confirmation: Promise<void> | undefined;
+    await act(async () => {
+      confirmation = current().confirmIdentity();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(onConfirmIdentity).toHaveBeenCalledOnce());
+    act(() => current().cancel());
+    await act(async () => current().review("c2"));
+    await vi.waitFor(() => expect(current().preview).toEqual(nextPreview));
+    await act(async () => {
+      cancelledIdentity.resolve("cancelled-test-grant");
+      await confirmation;
+    });
+    expect(current().grant).toBe(false);
+    await vi.waitFor(() => expect(current().identityPending).toBe(false));
+    await act(async () => current().erase("Mert"));
+    expect(onErase).not.toHaveBeenCalled();
+
     await act(async () => current().confirmIdentity());
     await vi.waitFor(() => expect(current().grant).toBe(true));
     await act(async () => current().erase("Mert"));

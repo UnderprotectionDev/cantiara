@@ -60,7 +60,7 @@ Kurucu tek Çalışma Alanındaki Projeleri ve kişisel dikkati dağılmış lis
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** The Projects route owns the saved-list editor’s New or existing list identity. Cancel and successful save close the editor through the route. The saved-list seam exercises success and failure.
+- **Client state ownership (#547).** The Projects route owns the selected saved list. The mounted saved-list surface owns New and Edit until Cancel or a successful save. The saved-list tests exercise successful save, draft retention after failure, and a save that resolves after the editor is reopened.
 
 - The Projects view seam rejects a presentation save after the optimistic layout is visible, checks rollback, then accepts a repeat intent and verifies that only the current account overview is refreshed.
 

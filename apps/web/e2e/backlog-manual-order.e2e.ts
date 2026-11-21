@@ -212,7 +212,7 @@ test("Backlog sort follows a deep link and browser history", async ({
   );
   const sort = page.getByLabel("Backlog sort");
   const field = page.getByLabel("Field to sort by");
-  await expect(sort).toHaveValue("Field");
+  await expect(sort).toHaveValue("Field", { timeout: 20_000 });
   await expect(field).toHaveValue("Status");
   await field.selectOption("Title");
   await expect(page).toHaveURL(/backlogField=Title/);

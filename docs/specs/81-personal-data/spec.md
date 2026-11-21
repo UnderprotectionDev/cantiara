@@ -43,6 +43,7 @@ Kurucu Contact, e-posta takma değerleri, Geri Bildirim, Araştırma ve ilişkil
 ## Testing Decisions
 
 - **Write lifecycle evidence (#544).** The web erase flow test checks that a failed erase requires fresh identity confirmation and keeps both grants outside MutationCache.
+- **Grant lifetime (TK-099, #547).** The raw grant stays in the existing private review ref. The web erase flow test resolves an identity confirmation after Cancel and reopening the review, then checks that the old grant cannot authorize an erase.
 
 - **RPC refusal evidence (#543).** `apps/server/src/app.test.ts` verifies that a missing Contact yields a typed response without its identifier. `personal-data-view.test.tsx` verifies the client’s typed refusal messages and generic fallback.
 

@@ -46,7 +46,7 @@ Varsayım ve Açık Soru ayrı Proje ana kayıtlarıdır. Varsayım `Open`, `Con
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** Open Question and Assumption edit choices live in the current panel session.
+- **Client state ownership (#547).** Open Question and Assumption edit choices live in the current panel session. The Open Question editor seam checks that typed text survives a failed write and that a conflict requires reopening even after more typing.
 
 - **Write completion (#544).** The Open Question and Assumption surfaces read completion from their mutations. The Open Questions browser journey verifies create, answer and close persistence.
 

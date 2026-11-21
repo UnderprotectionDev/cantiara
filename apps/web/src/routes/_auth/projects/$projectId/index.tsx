@@ -21,7 +21,6 @@ import ProjectUpdatesSurface from "@/features/project-updates/ui/components/proj
 import ReleaseEvidencePackSurface from "@/features/release-evidence/ui/components/release-evidence-pack-surface";
 import { smartCollectionInsightSearchSchema } from "@/features/smart-collections/lib/smart-collection-insights";
 import { smartCollectionWorkPrefillFromSearch } from "@/features/smart-collections/lib/smart-collection-work-prefill";
-import { testReviewLocationSchema } from "@/features/test-review/lib/test-review-location";
 import TrashSurface from "@/features/trash/ui/components/trash-surface";
 import ValueChainSurface from "@/features/value-chain/ui/components/value-chain-surface";
 
@@ -40,7 +39,6 @@ const projectViewSearch = z.object({
   flow: optionalRouteId,
   tag: optionalRouteId,
   insights: smartCollectionInsightSearchSchema.optional().catch(undefined),
-  testReview: testReviewLocationSchema.optional().catch(undefined),
   shareRoot: z.string().trim().min(1).max(512).optional().catch(undefined),
   validationStatus: validationRecordSchema.shape.status
     .optional()

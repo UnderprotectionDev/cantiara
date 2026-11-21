@@ -77,13 +77,14 @@ function RoadmapCanvasSession({
   const session = useRoadmapSession();
   const flow = useReactFlow<RoadmapNode>();
   const canvasState = useCreateStore<{
-    ready: boolean;
     highlight: string | null;
+    placement: "pending" | "failed" | "ready";
   }>({
-    ready: false,
     highlight: null,
+    placement: "pending",
   });
-  const { ready, highlight } = useSelector(canvasState, (value) => value);
+  const { placement, highlight } = useSelector(canvasState);
+  const ready = placement === "ready";
   const active = useRef<boolean>(false);
   useLayoutEffect(() => {
     active.current = true;
@@ -148,6 +149,14 @@ function RoadmapCanvasSession({
     records,
     nodes: nodes.map((node) => ({ id: node.id, ...node.position })),
   };
+  function reportPlacement(placed: boolean) {
+    if (active.current) {
+      canvasState.setState((value) => ({
+        ...value,
+        placement: placed ? "ready" : "failed",
+      }));
+    }
+  }
   useEffect(() => {
     if (!(ready && onReady)) {
       return;
@@ -218,10 +227,21 @@ function RoadmapCanvasSession({
           Zoom out
         </Button>
         <Button
-          disabled={!ready}
-          onClick={() =>
-            flow.fitView({ duration: 0, padding: "8.333333333333334%" })
-          }
+          disabled={placement === "pending"}
+          onClick={async () => {
+            if (!ready) {
+              canvasState.setState((value) => ({
+                ...value,
+                placement: "pending",
+              }));
+            }
+            const placed = await flow
+              .fitView({ duration: 0, padding: "8.333333333333334%" })
+              .catch(() => false);
+            if (!ready) {
+              reportPlacement(placed);
+            }
+          }}
           type="button"
           variant="outline"
         >
@@ -261,15 +281,14 @@ function RoadmapCanvasSession({
                     { duration: 0 },
                   );
                   if (!neutral) {
+                    reportPlacement(false);
                     return;
                   }
                 }
               }
-              if (active.current) {
-                canvasState.setState((value) => ({ ...value, ready: true }));
-              }
+              reportPlacement(true);
             } catch {
-              // A failed initial placement cannot register a ready tour adapter.
+              reportPlacement(false);
             }
           }}
           onMoveEnd={(_event, viewport) =>

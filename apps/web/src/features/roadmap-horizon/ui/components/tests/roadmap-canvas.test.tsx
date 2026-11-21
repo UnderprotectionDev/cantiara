@@ -153,3 +153,41 @@ test("Roadmap falls back to a neutral viewport when the first fit fails", async 
     vi.unstubAllGlobals();
   }
 });
+
+test("Fit View can recover after both initial Roadmap placements fail", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  placement.fitView
+    .mockReset()
+    .mockResolvedValueOnce(false)
+    .mockResolvedValue(true);
+  placement.setViewport.mockReset().mockResolvedValue(false);
+  const ready = vi.fn();
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () =>
+      root.render(
+        <RoadmapCanvas
+          milestones={[]}
+          onReady={ready}
+          origins={[]}
+          projectId="project-1"
+          view={null}
+          works={[datedWork]}
+        />,
+      ),
+    );
+    expect(ready).not.toHaveBeenCalled();
+    const fit = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent === "Fit View",
+    );
+    expect(fit?.disabled).toBe(false);
+    await act(async () => fit?.click());
+    expect(ready).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  }
+});

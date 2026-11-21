@@ -15,11 +15,6 @@ const hoisted = vi.hoisted(() => ({
   previewReviewClose: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => vi.fn(),
-  useSearch: () => undefined,
-}));
-
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({
   runOnlineOnlyWrite: (write: () => Promise<unknown>) => write(),
 }));

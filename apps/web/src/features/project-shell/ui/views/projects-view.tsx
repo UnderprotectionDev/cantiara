@@ -76,14 +76,10 @@ export default function ProjectsView({
   accountId,
   selectedModule,
   selectedSavedList,
-  editingSavedList,
-  onEditSavedList,
 }: {
   accountId?: string;
   selectedModule?: WorkspaceOverviewModuleId;
   selectedSavedList?: string;
-  editingSavedList?: string;
-  onEditSavedList?: (id?: string) => void;
 }) {
   const projects = useQuery(projectsQueryOptions());
   const overviewOptions = workspaceOverviewQueryOptions(accountId);
@@ -231,12 +227,10 @@ export default function ProjectsView({
           disabled={saveWorkspaceOverview.isPending}
         >
           <WorkspaceOverviewView
-            editingSavedList={editingSavedList}
             formattingPreferences={
               accountPreferences.data ?? DEFAULT_ACCOUNT_PREFERENCES
             }
             model={workspaceOverview.data}
-            onEditSavedList={onEditSavedList}
             onPresentationChange={handlePresentationChange}
             selectedModule={selectedModule}
             selectedSavedList={selectedSavedList}

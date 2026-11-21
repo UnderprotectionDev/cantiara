@@ -100,3 +100,26 @@ test("clearing the date drops the typed time instead of restoring it", () => {
     value: "2026-10-10T14:00",
   });
 });
+
+test("a new controlled value clears the previous time draft", () => {
+  const onChange = vi.fn();
+  const input = mount("", onChange);
+  type(input, "08:30");
+  expect(input.value).toBe("08:30");
+  act(() =>
+    root?.render(
+      <DateTimePicker
+        ariaLabel="When"
+        onChange={onChange}
+        value="2026-10-11T14:00"
+      />,
+    ),
+  );
+  expect(input.value).toBe("14:00");
+  act(() =>
+    root?.render(
+      <DateTimePicker ariaLabel="When" onChange={onChange} value="" />,
+    ),
+  );
+  expect(input.value).toBe("");
+});
