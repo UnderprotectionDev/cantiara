@@ -1,9 +1,45 @@
+// @vitest-environment happy-dom
+
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { ProductionIncidentDetail as Detail } from "@cantiara/api/production-incidents";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
+import { orpc } from "@/utils/orpc";
 import { ProductionIncidentDetail } from "../production-incident-detail";
+import { ProductionIncidentSurface } from "../production-incident-surface";
+
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+const rpc = vi.hoisted(() => ({ load: vi.fn(), write: vi.fn() }));
+
+vi.mock("@/utils/orpc", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/utils/orpc")>();
+  const procedure = actual.orpc.productionIncidentDetail;
+  return {
+    ...actual,
+    client: { updateProjectSourceRecord: rpc.write },
+    orpc: new Proxy(actual.orpc, {
+      get(target, key) {
+        if (key !== "productionIncidentDetail") {
+          return Reflect.get(target, key);
+        }
+        return {
+          key: procedure.key,
+          queryKey: procedure.queryKey,
+          queryOptions: (
+            ...args: Parameters<typeof procedure.queryOptions>
+          ) => ({
+            ...procedure.queryOptions(...args),
+            queryFn: rpc.load,
+          }),
+        };
+      },
+    }),
+  };
+});
 
 const FORBIDDEN_COPY =
   /on-call|status page|downtime|\bTTR\b|\bTTD\b|\bTTI\b|reliability/i;
@@ -15,6 +51,7 @@ vi.mock("@/components/app-link", () => ({
 }));
 
 const noop = async () => undefined;
+const isNotSaving = () => false;
 const actions = {
   onAddLink: noop,
   onChangeStatus: noop,
@@ -102,6 +139,7 @@ function render(value: Detail) {
         actions={actions}
         detail={value}
         formatting={DEFAULT_ACCOUNT_PREFERENCES}
+        isSaving={isNotSaving}
         projectId="project-1"
       />
     </QueryClientProvider>,
@@ -202,4 +240,87 @@ describe("Production Incident detail", () => {
     expect(html).toContain("Unavailable record");
     expect(html).not.toContain("TK-1");
   });
+});
+
+test("an in-flight incident edit stays open and a rejected save can be retried", async () => {
+  const value = detail();
+  const { id: incidentId, projectId } = value.incident;
+  const queryClient = new QueryClient();
+  const request = Promise.withResolvers<typeof value.incident>();
+  rpc.write
+    .mockImplementationOnce(() => request.promise)
+    .mockResolvedValueOnce(value.incident);
+  rpc.load.mockResolvedValue(value);
+  queryClient.setQueryData(
+    orpc.productionIncidentDetail.queryKey({
+      input: { incidentId, projectId },
+    }),
+    value,
+  );
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  function button(label: string, parent: ParentNode = host) {
+    return Array.from(parent.querySelectorAll("button")).find(
+      (candidate) => candidate.textContent?.trim() === label,
+    );
+  }
+  const dialog = () =>
+    document.body.querySelector<HTMLElement>('[role="dialog"]');
+  try {
+    await act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <ProductionIncidentSurface
+            formatting={DEFAULT_ACCOUNT_PREFERENCES}
+            incidentId={incidentId}
+            projectId={projectId}
+          />
+        </QueryClientProvider>,
+      );
+    });
+    await act(() => button("Edit incident")?.click());
+    expect(dialog()).not.toBeNull();
+    const title = dialog()?.querySelector<HTMLInputElement>(
+      'input[name="title"]',
+    );
+    if (!title) {
+      throw new Error("The incident edit form has no title field.");
+    }
+    await act(() => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(title, "Updated outage");
+      title.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(() => button("Save changes", document.body)?.click());
+    expect(rpc.write).toHaveBeenCalledTimes(1);
+    await act(() => {
+      dialog()?.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+      );
+    });
+    expect(dialog()).not.toBeNull();
+    await act(() => button("Cancel", document.body)?.click());
+    expect(dialog()).not.toBeNull();
+
+    await act(() => request.reject(new Error("Connection interrupted.")));
+    await vi.waitFor(() =>
+      expect(dialog()?.textContent).toContain(
+        "Production Incident could not be saved.",
+      ),
+    );
+    expect(title.value).toBe("Updated outage");
+    await act(() => button("Save changes", document.body)?.click());
+    await vi.waitFor(() => expect(dialog()).toBeNull());
+    expect(rpc.write).toHaveBeenCalledTimes(2);
+    expect(rpc.write.mock.calls[1]).toEqual(rpc.write.mock.calls[0]);
+  } finally {
+    await act(() => root.unmount());
+    host.remove();
+    queryClient.clear();
+    rpc.load.mockReset();
+    rpc.write.mockReset();
+  }
 });

@@ -59,7 +59,7 @@ export function ProductionIncidentDetail({
   formatting,
   projectId,
   savedMessage,
-  savePending = false,
+  isSaving,
 }: {
   actions: ProductionIncidentActions;
   detail: Detail;
@@ -67,7 +67,7 @@ export function ProductionIncidentDetail({
   formatting: AccountPreferences;
   projectId: string;
   savedMessage?: string;
-  savePending?: boolean;
+  isSaving: () => boolean;
 }) {
   const { incident, readOnly } = detail;
   const [dialogHandle] = useState(createDialogHandle);
@@ -113,7 +113,7 @@ export function ProductionIncidentDetail({
                   onOpenChange={(open, event) => {
                     if (
                       !open &&
-                      savePending &&
+                      isSaving() &&
                       event.reason !== "imperative-action"
                     ) {
                       event.cancel();
@@ -134,7 +134,7 @@ export function ProductionIncidentDetail({
                       )}
                       mode="edit"
                       onCancel={() => {
-                        if (!savePending) {
+                        if (!isSaving()) {
                           dialogHandle.close();
                         }
                       }}

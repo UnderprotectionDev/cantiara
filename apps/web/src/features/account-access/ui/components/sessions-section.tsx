@@ -21,8 +21,13 @@ export default function SessionsSection({
   controller: AccountSessionsController;
   formattingPreferences: Parameters<typeof formatAccountDateTime>[1];
 }) {
-  const { otherSessionCount, revokeOtherSessions, revokeSession, sessions } =
-    controller;
+  const {
+    isRevoking,
+    otherSessionCount,
+    revokeOtherSessions,
+    revokeSession,
+    sessions,
+  } = controller;
   const [revokeHandle] = useState(createAlertDialogHandle<RevokeTarget>);
   const headingId = useId();
   const pending = revokeSession.isPending || revokeOtherSessions.isPending;
@@ -134,6 +139,7 @@ export default function SessionsSection({
       <RevokeConfirmation
         handle={revokeHandle}
         headingId={headingId}
+        isRevoking={isRevoking}
         revokeOtherSessions={revokeOtherSessions}
         revokeSession={revokeSession}
       />

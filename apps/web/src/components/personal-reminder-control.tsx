@@ -18,7 +18,10 @@ import {
 } from "@cantiara/ui/components/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type Dispatch, type SetStateAction, useState } from "react";
-import { PersonalReminderForm } from "@/components/personal-reminder-form";
+import {
+  PersonalReminderForm,
+  type ReminderRetry,
+} from "@/components/personal-reminder-form";
 import { accountDateTimeFormatter } from "@/features/account-preferences/lib/account-preferences-format";
 import { client, orpc } from "@/utils/orpc";
 
@@ -40,8 +43,6 @@ interface PersonalReminderControlProps {
   sourceTitle: string;
 }
 
-type ReminderRetry = { fingerprint: string; key: string } | null;
-
 const reminderActions = ["Remind me", "Review Later"] as const;
 
 export default function PersonalReminderControl({
@@ -49,7 +50,7 @@ export default function PersonalReminderControl({
   ...source
 }: PersonalReminderControlProps) {
   const [handle] = useState(createDialogHandle<PersonalReminderAction>);
-  const [retry, setRetry] = useState<ReminderRetry>(null);
+  const [retry, setRetry] = useState<ReminderRetry | null>(null);
   return (
     <>
       <div className="flex flex-wrap gap-2">
@@ -94,8 +95,8 @@ function PersonalReminderDialog({
   sourceTitle,
 }: PersonalReminderControlProps & {
   action: PersonalReminderAction;
-  retry: ReminderRetry;
-  setRetry: Dispatch<SetStateAction<ReminderRetry>>;
+  retry: ReminderRetry | null;
+  setRetry: Dispatch<SetStateAction<ReminderRetry | null>>;
 }) {
   const queryClient = useQueryClient();
   const source = { sourceRecordId, sourceRecordType };

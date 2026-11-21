@@ -27,6 +27,11 @@ type CreateReminderInput = ReturnType<
   typeof createPersonalReminderInputSchema.parse
 >;
 
+export interface ReminderRetry {
+  fingerprint: string;
+  key: string;
+}
+
 export function PersonalReminderForm({
   action,
   children,
@@ -44,8 +49,8 @@ export function PersonalReminderForm({
   onCreate: (input: CreateReminderInput) => void;
   createdKey?: string;
   pending: boolean;
-  retry: { fingerprint: string; key: string } | null;
-  onRetry: (retry: { fingerprint: string; key: string }) => void;
+  retry: ReminderRetry | null;
+  onRetry: (retry: ReminderRetry) => void;
   sectionOptions: readonly Pick<DocumentSection, "heading" | "id">[];
   sourceRecordId: string;
   sourceRecordType: PersonalReminderSourceType;

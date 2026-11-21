@@ -5,12 +5,11 @@ import type {
 } from "@cantiara/api/record-actions";
 import { recordActionStepsNeedRuntimeInputs } from "@cantiara/api/record-actions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { commandVariables } from "@/lib/command-variables";
 import { fetchCurrentWork } from "@/lib/fetch-current-work";
-import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -33,11 +32,15 @@ function mutationErrorMessage(error: unknown) {
 export function useRecordActionRunner(
   projectId: string,
   active: ActiveRecordAction,
-  popupId?: string,
+  popupId: string,
 ) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
-  const previewId = useId();
+  const previewSessionId = useId();
+  const previewMutationKey = useMemo(
+    () => [...orpc.previewRecordAction.mutationKey(), previewSessionId],
+    [previewSessionId],
+  );
   const [runVersion, setRunVersion] = useState(0);
   const needsRuntimeInput = recordActionStepsNeedRuntimeInputs(
     active.action.steps,
@@ -129,8 +132,7 @@ export function useRecordActionRunner(
   }
 
   const previewMutation = useMutation({
-    meta: { popupId: previewId },
-    mutationKey: orpc.previewRecordAction.mutationKey(),
+    mutationKey: previewMutationKey,
     mutationFn: (input: PreviewRecordActionInput) =>
       client.previewRecordAction(input),
   });
@@ -184,7 +186,9 @@ export function useRecordActionRunner(
     if (
       previewMutation.status !== "idle" ||
       runVersion > 0 ||
-      isPopupCommandPending(queryClient, previewId) ||
+      queryClient
+        .getMutationCache()
+        .find({ mutationKey: previewMutationKey }) ||
       needsRuntimeInput ||
       connection === "offline"
     ) {
@@ -199,7 +203,7 @@ export function useRecordActionRunner(
     active,
     connection,
     needsRuntimeInput,
-    previewId,
+    previewMutationKey,
     previewMutation.status,
     previewRun,
     queryClient,

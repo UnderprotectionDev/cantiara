@@ -10,8 +10,7 @@ import {
   AlertDialogTitle,
   type createAlertDialogHandle,
 } from "@cantiara/ui/components/alert-dialog";
-import { useQueryClient } from "@tanstack/react-query";
-import { orpc } from "@/utils/orpc";
+import { useEffect } from "react";
 import type { AccountSessionsController } from "../../hooks/use-account-sessions";
 
 export type RevokeTarget = { device: string; sessionAlias: string } | "others";
@@ -19,38 +18,32 @@ export type RevokeTarget = { device: string; sessionAlias: string } | "others";
 export default function RevokeConfirmation({
   handle,
   headingId,
+  isRevoking,
   revokeOtherSessions,
   revokeSession,
-}: Pick<AccountSessionsController, "revokeOtherSessions" | "revokeSession"> & {
+}: Pick<
+  AccountSessionsController,
+  "isRevoking" | "revokeOtherSessions" | "revokeSession"
+> & {
   handle: ReturnType<typeof createAlertDialogHandle<RevokeTarget>>;
   headingId: string;
 }) {
-  const queryClient = useQueryClient();
-  function isRevoking() {
-    return (
-      queryClient.isMutating({
-        mutationKey: orpc.revokeSession.mutationKey(),
-      }) > 0 ||
-      queryClient.isMutating({
-        mutationKey: orpc.revokeOtherSessions.mutationKey(),
-      }) > 0
-    );
-  }
   const pending = revokeSession.isPending || revokeOtherSessions.isPending;
+  const revoked = revokeSession.isSuccess || revokeOtherSessions.isSuccess;
+  useEffect(() => {
+    if (revoked && handle.isOpen) {
+      handle.close();
+    }
+  }, [handle, revoked]);
 
-  async function confirm(target: RevokeTarget) {
+  function confirm(target: RevokeTarget) {
     if (isRevoking()) {
       return;
     }
-    try {
-      if (target === "others") {
-        await revokeOtherSessions.mutateAsync();
-      } else {
-        await revokeSession.mutateAsync(target.sessionAlias);
-      }
-      handle.close();
-    } catch {
-      // The mutation exposes the failure to the open confirmation.
+    if (target === "others") {
+      revokeOtherSessions.mutate();
+    } else {
+      revokeSession.mutate(target.sessionAlias);
     }
   }
 
@@ -75,7 +68,7 @@ export default function RevokeConfirmation({
         return (
           <AlertDialogContent
             finalFocus={() =>
-              mutation.isSuccess ? document.getElementById(headingId) : true
+              revoked ? (document.getElementById(headingId) ?? true) : true
             }
           >
             <AlertDialogHeader>
