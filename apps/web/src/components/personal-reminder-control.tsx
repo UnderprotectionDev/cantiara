@@ -8,14 +8,16 @@ import type {
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { type RefObject, useRef, useState } from "react";
 import { PersonalReminderForm } from "@/components/personal-reminder-form";
 import { accountDateTimeFormatter } from "@/features/account-preferences/lib/account-preferences-format";
 import { client, orpc } from "@/utils/orpc";
@@ -30,32 +32,74 @@ function reminderStatusVariant(status: string) {
   return status === "Planned" ? "secondary" : "outline";
 }
 
-export default function PersonalReminderControl({
-  compact = false,
-  sectionOptions = [],
-  sourceRecordId,
-  sourceRecordType,
-  sourceTitle,
-}: {
+interface PersonalReminderControlProps {
   compact?: boolean;
   sectionOptions?: readonly Pick<DocumentSection, "heading" | "id">[];
   sourceRecordId: string;
   sourceRecordType: PersonalReminderSourceType;
   sourceTitle: string;
+}
+
+const reminderActions = ["Remind me", "Review Later"] as const;
+
+export default function PersonalReminderControl({
+  compact = false,
+  ...source
+}: PersonalReminderControlProps) {
+  const [handle] = useState(createDialogHandle<PersonalReminderAction>);
+  const retry = useRef<{ fingerprint: string; key: string } | null>(null);
+  return (
+    <>
+      <div className="flex flex-wrap gap-2">
+        {reminderActions.map((action) => (
+          <DialogTrigger
+            handle={handle}
+            key={action}
+            payload={action}
+            render={
+              <Button size={compact ? "sm" : "default"} variant="outline" />
+            }
+          >
+            {action}
+          </DialogTrigger>
+        ))}
+      </div>
+      <Dialog handle={handle}>
+        {({ payload }) =>
+          payload ? (
+            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+              <PersonalReminderDialog
+                {...source}
+                action={payload}
+                retry={retry}
+              />
+            </DialogContent>
+          ) : null
+        }
+      </Dialog>
+    </>
+  );
+}
+
+function PersonalReminderDialog({
+  action,
+  retry,
+  sectionOptions = [],
+  sourceRecordId,
+  sourceRecordType,
+  sourceTitle,
+}: PersonalReminderControlProps & {
+  action: PersonalReminderAction;
+  retry: RefObject<{ fingerprint: string; key: string } | null>;
 }) {
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [action, setAction] = useState<PersonalReminderAction>("Review Later");
-  const retry = useRef<{ fingerprint: string; key: string } | null>(null);
   const source = { sourceRecordId, sourceRecordType };
   const remindersQuery = useQuery({
     ...orpc.personalReminders.queryOptions({ input: source }),
-    enabled: open,
   });
 
   const preferences = useQuery({
     ...orpc.accountPreferences.queryOptions(),
-    enabled: open,
   });
   const formatDateTime = accountDateTimeFormatter(preferences.data);
 
@@ -93,140 +137,98 @@ export default function PersonalReminderControl({
   const failure = create.error ?? cancel.error;
   const error = failure ? reminderErrorMessage(failure) : null;
 
-  function openFor(nextAction: PersonalReminderAction) {
-    setAction(nextAction);
-    create.reset();
-    cancel.reset();
-    setOpen(true);
-  }
-
   const pending = create.isPending || cancel.isPending;
   return (
     <>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          disabled={pending}
-          onClick={() => openFor("Remind me")}
-          size={compact ? "sm" : "default"}
-          type="button"
-          variant="outline"
-        >
-          Remind me
-        </Button>
-        <Button
-          disabled={pending}
-          onClick={() => openFor("Review Later")}
-          size={compact ? "sm" : "default"}
-          type="button"
-          variant="outline"
-        >
-          Review Later
-        </Button>
-      </div>
-      <Dialog
-        onOpenChange={(nextOpen) => {
-          setOpen(nextOpen);
-          if (nextOpen) {
-            create.reset();
-            cancel.reset();
-          }
+      <DialogHeader>
+        <DialogTitle>{action}</DialogTitle>
+        <DialogDescription>
+          Choose when to return to {sourceTitle}. This reminder leaves the
+          source status and planning unchanged.
+        </DialogDescription>
+      </DialogHeader>
+      <PersonalReminderForm
+        action={action}
+        createdKey={
+          create.isSuccess ? create.variables.clientIdempotencyKey : undefined
+        }
+        onCreate={(input) => {
+          cancel.reset();
+          create.mutate(input);
         }}
-        open={open}
+        pending={pending}
+        retry={retry}
+        sectionOptions={sectionOptions}
+        sourceRecordId={sourceRecordId}
+        sourceRecordType={sourceRecordType}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{action}</DialogTitle>
-            <DialogDescription>
-              Choose when to return to {sourceTitle}. This reminder leaves the
-              source status and planning unchanged.
-            </DialogDescription>
-          </DialogHeader>
-          <PersonalReminderForm
-            action={action}
-            createdKey={
-              create.isSuccess
-                ? create.variables.clientIdempotencyKey
-                : undefined
-            }
-            onCreate={(input) => {
-              cancel.reset();
-              create.mutate(input);
-            }}
-            pending={pending}
-            retry={retry}
-            sectionOptions={sectionOptions}
-            sourceRecordId={sourceRecordId}
-            sourceRecordType={sourceRecordType}
-          >
-            {error ? (
-              <p className="text-sm text-destructive" role="alert">
-                {error}
-              </p>
-            ) : null}
-            {remindersQuery.isError ? (
-              <p className="text-sm text-destructive" role="alert">
-                Reminder history is unavailable. Try loading it again.
-              </p>
-            ) : null}
-            <section aria-label="Reminder history" className="space-y-2">
-              <h3 className="text-sm font-medium">History</h3>
-              {remindersQuery.status === "pending" ? (
-                <p className="text-sm text-muted-foreground" role="status">
-                  Loading reminders…
-                </p>
-              ) : null}
-              {remindersQuery.data?.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No reminders.</p>
-              ) : null}
-              <ul className="space-y-2">
-                {remindersQuery.data?.map((reminder) => (
-                  <li
-                    className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-border/70 p-3"
-                    key={reminder.id}
+        {error ? (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {remindersQuery.isError ? (
+          <p className="text-sm text-destructive" role="alert">
+            Reminder history is unavailable. Try loading it again.
+          </p>
+        ) : null}
+        <section aria-label="Reminder history" className="space-y-2">
+          <h3 className="text-sm font-medium">History</h3>
+          {remindersQuery.status === "pending" ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              Loading reminders…
+            </p>
+          ) : null}
+          {remindersQuery.data?.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No reminders.</p>
+          ) : null}
+          <ul className="space-y-2">
+            {remindersQuery.data?.map((reminder) => (
+              <li
+                className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-border/70 p-3"
+                key={reminder.id}
+              >
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={reminderStatusVariant(reminder.status)}>
+                      {reminder.status}
+                    </Badge>
+                    <span className="text-xs">{reminder.action}</span>
+                    <time
+                      className="text-xs text-muted-foreground"
+                      dateTime={reminder.fireAt}
+                    >
+                      {formatDateTime(reminder.fireAt)}
+                    </time>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {reminder.condition}
+                  </p>
+                  {reminder.fireNote ? (
+                    <p className="text-xs text-muted-foreground">
+                      {reminder.fireNote}
+                    </p>
+                  ) : null}
+                </div>
+                {reminder.status === "Planned" ? (
+                  <Button
+                    disabled={pending}
+                    onClick={() => {
+                      create.reset();
+                      cancel.mutate({ ...source, reminderId: reminder.id });
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="outline"
                   >
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant={reminderStatusVariant(reminder.status)}>
-                          {reminder.status}
-                        </Badge>
-                        <span className="text-xs">{reminder.action}</span>
-                        <time
-                          className="text-xs text-muted-foreground"
-                          dateTime={reminder.fireAt}
-                        >
-                          {formatDateTime(reminder.fireAt)}
-                        </time>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {reminder.condition}
-                      </p>
-                      {reminder.fireNote ? (
-                        <p className="text-xs text-muted-foreground">
-                          {reminder.fireNote}
-                        </p>
-                      ) : null}
-                    </div>
-                    {reminder.status === "Planned" ? (
-                      <Button
-                        disabled={pending}
-                        onClick={() => {
-                          create.reset();
-                          cancel.mutate({ ...source, reminderId: reminder.id });
-                        }}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        Cancel
-                      </Button>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </PersonalReminderForm>
-        </DialogContent>
-      </Dialog>
+                    Cancel
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      </PersonalReminderForm>
     </>
   );
 }

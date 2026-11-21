@@ -55,6 +55,8 @@ Kurucu Proje bazında yeniden kullanılabilir İş şablonları oluşturur. Şab
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Work Templates seam opens `Duplicate Work` from the source Work and checks the permitted preview fields in `work-duplicate-action.test.tsx`. The `work-templates.e2e.ts` journey confirms the copy and reads both independent Works.
+
 - **Create from template retry (#544).** The Work Template editor test observes failure without losing the title, the same submitted command on Retry, the created Work confirmation, and invalidation for the affected Project.
 
 - **What a good test is.** Tests observe Work Templates through its public interface: define, instantiate, edit template after instantiate, one-off copy, and the negative payload exclusions. They assert independent identity and non-rewrite of history — not storage shape of skeleton JSON.

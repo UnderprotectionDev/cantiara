@@ -2,6 +2,7 @@
 import type { DocumentEvidenceTargetType } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  type createDialogHandle,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -19,18 +20,14 @@ import type { client } from "@/utils/orpc";
 import { pinDocumentEvidenceFormSchema } from "../../lib/document-conversion-form";
 
 export default function DocumentEvidenceDialog({
-  setPinEvidenceOpen,
-  pinEvidenceOpen,
+  pinEvidenceHandle,
   selectedTextRange,
   form,
   pinEvidenceKey,
   recordReferenceOptions,
   pinEvidence,
 }: {
-  setPinEvidenceOpen: import("react").Dispatch<
-    import("react").SetStateAction<boolean>
-  >;
-  pinEvidenceOpen: boolean;
+  pinEvidenceHandle: ReturnType<typeof createDialogHandle>;
   selectedTextRange: { end: number; start: number } | null;
   form: {
     getFieldValue: (name: "body") => string;
@@ -50,10 +47,16 @@ export default function DocumentEvidenceDialog({
 }) {
   return (
     <Dialog
-      onOpenChange={(open) => {
-        setPinEvidenceOpen(open);
+      handle={pinEvidenceHandle}
+      onOpenChange={(open, event) => {
+        if (
+          !open &&
+          pinEvidence.isPending &&
+          event.reason !== "imperative-action"
+        ) {
+          event.cancel();
+        }
       }}
-      open={pinEvidenceOpen}
     >
       <DialogContent>
         <DialogHeader>
@@ -67,7 +70,11 @@ export default function DocumentEvidenceDialog({
           </DialogDescription>
         </DialogHeader>
         <DocumentEvidenceForm
-          onCancel={() => setPinEvidenceOpen(false)}
+          onCancel={() => {
+            if (!pinEvidence.isPending) {
+              pinEvidenceHandle.close();
+            }
+          }}
           pinEvidence={pinEvidence}
           pinEvidenceKey={pinEvidenceKey}
           recordReferenceOptions={recordReferenceOptions}

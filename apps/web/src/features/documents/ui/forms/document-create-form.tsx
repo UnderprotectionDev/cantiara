@@ -4,7 +4,10 @@ import { type Document, documentTypeSchema } from "@cantiara/api/documents";
 import type { StarterSkeletonSelection } from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  type createDialogHandle,
   Dialog,
+  type DialogActions,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -41,16 +44,15 @@ export type DocumentStarterSkeletonSelection = Extract<
 export default function DocumentCreateForm({
   documentStarterSkeletons,
   onCreated,
-  onOpenChange,
-  open: createOpen,
+  handle,
   projectId,
 }: {
   documentStarterSkeletons: readonly DocumentStarterSkeletonSelection[];
   onCreated: (created: Document) => Promise<void>;
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
+  handle: ReturnType<typeof createDialogHandle>;
   projectId: string | null;
 }) {
+  const dialogActions = useRef<DialogActions | null>(null);
   const pendingCreate = useRef<{
     clientIdempotencyKey: string;
     projectId: string | null;
@@ -114,8 +116,7 @@ export default function DocumentCreateForm({
       ) {
         pendingCreate.current = null;
       }
-      form.setErrorMap({ onSubmit: undefined });
-      form.reset();
+      dialogActions.current?.close();
       await onCreated(created);
     },
   });
@@ -157,14 +158,20 @@ export default function DocumentCreateForm({
 
   return (
     <Dialog
-      onOpenChange={(open) => {
-        onOpenChange(open);
+      actionsRef={dialogActions}
+      handle={handle}
+      onOpenChange={(open, event) => {
+        if (!open && create.isPending && event.reason !== "imperative-action") {
+          event.cancel();
+        }
+      }}
+      onOpenChangeComplete={(open) => {
         if (!open) {
+          pendingCreate.current = null;
           form.reset();
           create.reset();
         }
       }}
-      open={createOpen}
     >
       <DialogContent className="rounded-xl p-6 sm:max-w-md">
         <DialogHeader>
@@ -269,13 +276,12 @@ export default function DocumentCreateForm({
             </p>
           ) : null}
           <DialogFooter>
-            <Button
-              onClick={() => onOpenChange(false)}
-              type="button"
-              variant="outline"
+            <DialogClose
+              disabled={create.isPending}
+              render={<Button variant="outline" />}
             >
               Cancel
-            </Button>
+            </DialogClose>
             <form.Subscribe
               selector={(state) => ({
                 skeleton: state.values.skeleton,

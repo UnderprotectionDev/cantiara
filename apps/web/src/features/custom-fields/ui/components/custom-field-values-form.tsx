@@ -25,13 +25,14 @@ import {
 } from "@cantiara/ui/components/native-select";
 import {
   Popover,
+  type PopoverActions,
   PopoverContent,
   PopoverDescription,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
-import { useState } from "react";
+import { useRef } from "react";
 
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import {
@@ -109,7 +110,7 @@ function DateValueInput({
   label: string;
   onCommit: (value: ParsedCustomFieldValuePayload | null) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const popoverActions = useRef<PopoverActions | null>(null);
   const currentDate = current?.kind === "date" ? parseISO(current.date) : null;
   const selectedDate =
     currentDate && !Number.isNaN(currentDate.getTime())
@@ -117,7 +118,7 @@ function DateValueInput({
       : undefined;
 
   return (
-    <Popover onOpenChange={setOpen} open={open}>
+    <Popover actionsRef={popoverActions}>
       <PopoverTrigger
         disabled={disabled}
         render={
@@ -147,7 +148,7 @@ function DateValueInput({
             onCommit(
               date ? { date: format(date, "yyyy-MM-dd"), kind: "date" } : null,
             );
-            setOpen(false);
+            popoverActions.current?.close();
           }}
           selected={selectedDate}
         />
@@ -156,7 +157,7 @@ function DateValueInput({
             className="w-full"
             onClick={() => {
               onCommit(null);
-              setOpen(false);
+              popoverActions.current?.close();
             }}
             size="xs"
             type="button"

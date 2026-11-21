@@ -46,8 +46,9 @@ function mount(onRemove: () => Promise<unknown>) {
   });
 }
 
-const button = (name: string) =>
-  [...(host?.querySelectorAll("button") ?? [])].find((el) =>
+const dialog = () => document.querySelector("[role=alertdialog]");
+const button = (name: string, scope: ParentNode | null = host) =>
+  [...(scope?.querySelectorAll("button") ?? [])].find((el) =>
     el.textContent?.includes(name),
   );
 
@@ -57,9 +58,11 @@ describe("Revoke / Unpublish control", () => {
     mount(onRemove);
     act(() => button("Revoke / Unpublish")?.click());
     expect(onRemove).not.toHaveBeenCalled();
-    expect(host?.textContent).toContain("410 Gone");
-    expect(host?.textContent).toContain("not promised gone");
-    await act(() => Promise.resolve(button("Revoke / Unpublish")?.click()));
+    expect(dialog()?.textContent).toContain("410 Gone");
+    expect(dialog()?.textContent).toContain("not promised gone");
+    await act(() =>
+      Promise.resolve(button("Revoke / Unpublish", dialog())?.click()),
+    );
     expect(onRemove).toHaveBeenCalledTimes(1);
   });
 
@@ -67,12 +70,14 @@ describe("Revoke / Unpublish control", () => {
     const onRemove = vi.fn(() => Promise.reject(new Error("offline")));
     mount(onRemove);
     act(() => button("Revoke / Unpublish")?.click());
-    act(() => button("Cancel")?.click());
+    act(() => button("Cancel", dialog())?.click());
     expect(onRemove).not.toHaveBeenCalled();
     act(() => button("Revoke / Unpublish")?.click());
-    await act(() => Promise.resolve(button("Revoke / Unpublish")?.click()));
+    await act(() =>
+      Promise.resolve(button("Revoke / Unpublish", dialog())?.click()),
+    );
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
-    expect(host?.querySelector("[role=alert]")?.textContent).toContain(
+    expect(dialog()?.querySelector("[role=alert]")?.textContent).toContain(
       "Try again",
     );
   });

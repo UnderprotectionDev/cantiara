@@ -1,5 +1,10 @@
 import type { EvidenceFlowSourceType } from "@cantiara/api/document-evidence";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { orpc } from "@/utils/orpc";
@@ -15,28 +20,19 @@ export default function EvidenceFlowPanel({
   recordId: string;
   type: "Work" | "Decision" | "Assumption";
 }) {
-  const [expanded, setExpanded] = useState(false);
-  function toggleExpanded() {
-    setExpanded((open) => !open);
-  }
   return (
-    <div className="space-y-2">
-      <Button
-        aria-expanded={expanded}
-        onClick={toggleExpanded}
-        type="button"
-        variant="outline"
-      >
+    <Collapsible className="space-y-2">
+      <CollapsibleTrigger render={<Button variant="outline" />}>
         Evidence Flow
-      </Button>
-      {expanded ? (
+      </CollapsibleTrigger>
+      <CollapsibleContent>
         <EvidenceFlowQuery
           projectId={projectId}
           recordId={recordId}
           type={type}
         />
-      ) : null}
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

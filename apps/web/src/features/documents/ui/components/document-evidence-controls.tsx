@@ -2,8 +2,9 @@
 import type { DocumentEvidenceBinding } from "@cantiara/api/document-evidence";
 import type { Document } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
+import { createDialogHandle, Dialog } from "@cantiara/ui/components/dialog";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { AppLink } from "@/components/app-link";
 import {
   projectSourceRecordHash,
@@ -46,7 +47,10 @@ export function EvidenceRow({
   binding: DocumentEvidenceBinding;
   /** Role and Founder interpretation editor; omitted in read-only presentations. */
   editor?: ReactNode;
-  onRebind: (binding: DocumentEvidenceBinding) => void;
+  onRebind: (
+    binding: DocumentEvidenceBinding,
+    trigger: HTMLButtonElement,
+  ) => void;
 }) {
   const href = targetHref(binding.target);
   return (
@@ -77,7 +81,7 @@ export function EvidenceRow({
           Newer version exists · Version {binding.currentRevision}.{" "}
           {binding.readOnly ? null : (
             <Button
-              onClick={() => onRebind(binding)}
+              onClick={(event) => onRebind(binding, event.currentTarget)}
               type="button"
               variant="outline"
             >
@@ -97,11 +101,25 @@ export default function DocumentEvidenceControls({
   range,
   record,
 }: Props) {
-  const [dialog, setDialog] = useState<{
-    mode: Mode;
-    rebind: DocumentEvidenceBinding | null;
-  } | null>(null);
-  const [rebindRange, setRebindRange] = useState<Range | null>(null);
+  const [handle] = useState(
+    createDialogHandle<{
+      mode: Mode;
+      range: Range;
+      rebind: DocumentEvidenceBinding | null;
+      record: Document;
+    }>,
+  );
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  function open(
+    mode: Mode,
+    rebind: DocumentEvidenceBinding | null,
+    trigger: HTMLButtonElement,
+  ) {
+    if (canPin && range && range.end > range.start) {
+      triggerRef.current = trigger;
+      handle.openWithPayload({ mode, range, rebind, record });
+    }
+  }
   const { projectId } = record;
   const bindings = useQuery({
     ...orpc.documentEvidenceBindings.queryOptions({
@@ -114,14 +132,13 @@ export default function DocumentEvidenceControls({
   }
   const selected = range && range.end > range.start ? range : null;
   const enabled = canPin && selected !== null;
-  const active = dialog?.rebind ? rebindRange : selected;
   return (
     <section aria-label="Document evidence" className="space-y-2">
       <h4 className="font-medium">Version-pinned evidence</h4>
       <div className="flex flex-wrap gap-2">
         <Button
           disabled={!enabled}
-          onClick={() => setDialog({ mode: "bind", rebind: null })}
+          onClick={(event) => open("bind", null, event.currentTarget)}
           type="button"
           variant="outline"
         >
@@ -129,7 +146,7 @@ export default function DocumentEvidenceControls({
         </Button>
         <Button
           disabled={!enabled}
-          onClick={() => setDialog({ mode: "create", rebind: null })}
+          onClick={(event) => open("create", null, event.currentTarget)}
           type="button"
           variant="outline"
         >
@@ -149,14 +166,7 @@ export default function DocumentEvidenceControls({
               )
             }
             key={`${binding.id}:${binding.revision}`}
-            onRebind={(value) => {
-              // A rebind pins the currently selected saved text; the old pin is never moved.
-              if (!enabled) {
-                return;
-              }
-              setRebindRange(selected);
-              setDialog({ mode: "bind", rebind: value });
-            }}
+            onRebind={(value, trigger) => open("bind", value, trigger)}
           />
         ))}
       </ul>
@@ -164,15 +174,17 @@ export default function DocumentEvidenceControls({
       !enabled ? (
         <p>Select saved text in the latest version to rebind.</p>
       ) : null}
-      {dialog && active ? (
-        <DocumentEvidenceForm
-          mode={dialog.mode}
-          onClose={() => setDialog(null)}
-          range={active}
-          rebind={dialog.rebind}
-          record={record}
-        />
-      ) : null}
+      <Dialog handle={handle}>
+        {({ payload }) =>
+          payload ? (
+            <DocumentEvidenceForm
+              {...payload}
+              finalFocus={triggerRef}
+              onClose={() => handle.close()}
+            />
+          ) : null
+        }
+      </Dialog>
     </section>
   );
 }

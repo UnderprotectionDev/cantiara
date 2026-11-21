@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: The disclosure handler binds to one gap.
+
 import {
   VALUE_CHAIN_CHOOSE_EXISTING_LABEL,
   VALUE_CHAIN_FILL_GAP_LABEL,
@@ -17,7 +18,11 @@ import {
   valueChainBoundByLabel,
 } from "@cantiara/api/value-chain";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { AppLink } from "@/components/app-link";
 import {
   valueChainGapActions,
@@ -74,54 +79,35 @@ function NodeTitle({
  * writes: the relation or record exists only after the founder saves it there.
  */
 function GapRow({ gap, projectId }: { gap: ValueChainGap; projectId: string }) {
-  const [open, setOpen] = useState(false);
-  function toggle() {
-    setOpen((value) => !value);
-  }
   const actions = valueChainGapActions(projectId, gap);
-  const panelId =
-    `value-chain-gap-${gap.from.type}-${gap.from.id}-${gap.missing}`
-      .replaceAll(" ", "-")
-      .toLowerCase();
   return (
-    <li className="space-y-2 text-sm">
+    <Collapsible render={<li className="space-y-2 text-sm" />}>
       <p>{gap.label}</p>
-      <Button
-        aria-controls={panelId}
-        aria-expanded={open}
-        onClick={toggle}
-        type="button"
-        variant="outline"
-      >
+      <CollapsibleTrigger render={<Button variant="outline" />}>
         {VALUE_CHAIN_FILL_GAP_LABEL}
-      </Button>
-      {open ? (
-        <div
-          className="space-y-2 rounded-md border border-border/60 p-3"
-          id={panelId}
-        >
-          {actions ? (
-            <div className="flex flex-wrap gap-4">
-              <AppLink
-                className="underline underline-offset-2"
-                href={actions.choose}
-              >
-                {VALUE_CHAIN_CHOOSE_EXISTING_LABEL}
-              </AppLink>
-              <AppLink
-                className="underline underline-offset-2"
-                href={actions.start}
-              >
-                {VALUE_CHAIN_START_NEW_LABEL}
-              </AppLink>
-            </div>
-          ) : (
-            <p role="alert">{VALUE_CHAIN_OPEN_FAILED}</p>
-          )}
-          <p className="text-muted-foreground">{VALUE_CHAIN_GAP_NOTE}</p>
-        </div>
-      ) : null}
-    </li>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-2 rounded-md border border-border/60 p-3">
+        {actions ? (
+          <div className="flex flex-wrap gap-4">
+            <AppLink
+              className="underline underline-offset-2"
+              href={actions.choose}
+            >
+              {VALUE_CHAIN_CHOOSE_EXISTING_LABEL}
+            </AppLink>
+            <AppLink
+              className="underline underline-offset-2"
+              href={actions.start}
+            >
+              {VALUE_CHAIN_START_NEW_LABEL}
+            </AppLink>
+          </div>
+        ) : (
+          <p role="alert">{VALUE_CHAIN_OPEN_FAILED}</p>
+        )}
+        <p className="text-muted-foreground">{VALUE_CHAIN_GAP_NOTE}</p>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

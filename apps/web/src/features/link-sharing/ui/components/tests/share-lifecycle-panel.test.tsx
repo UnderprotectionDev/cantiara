@@ -96,8 +96,9 @@ function PanelWithMutation(props: Props) {
   );
 }
 
+const dialog = () => document.querySelector('[role="alertdialog"]');
 const button = (name: string) =>
-  [...(host?.querySelectorAll("button") ?? [])].find(
+  [...((dialog() ?? host)?.querySelectorAll("button") ?? [])].find(
     (entry) => entry.textContent === name,
   );
 const buttonNames = () =>
@@ -149,12 +150,14 @@ describe("Share lifecycle panel", () => {
     const props = mount();
     await click("Revoke");
     expect(props.onRevoke).not.toHaveBeenCalled();
-    const group = host?.querySelector("fieldset");
+    const group = dialog();
     expect(group?.textContent).toContain("Revoke is permanent");
     expect(group?.textContent).toContain("never work again");
-    expect(document.activeElement?.textContent).toBe("Revoke this link?");
+    await vi.waitFor(() =>
+      expect(document.activeElement?.textContent).toBe("Revoke this link?"),
+    );
     await click("Cancel");
-    expect(host?.querySelector("fieldset")).toBeNull();
+    await vi.waitFor(() => expect(dialog()).toBeNull());
     await click("Revoke");
     await click("Revoke");
     expect(props.onRevoke).toHaveBeenCalledTimes(1);
@@ -177,15 +180,13 @@ describe("Share lifecycle panel", () => {
     const props = mount({ surface: EXPIRED });
     await click("Reopen the same link");
     expect(props.onReopen).not.toHaveBeenCalled();
-    const group = host?.querySelector("fieldset");
+    const group = dialog();
     expect(group?.textContent).toContain("every old holder");
     const confirm = button("Reopen the same link");
     expect(confirm?.disabled).toBe(true);
     await click("Reopen the same link");
     expect(props.onReopen).not.toHaveBeenCalled();
-    const acknowledge = host?.querySelector<HTMLElement>(
-      "label[for='share-confirm-acknowledge']",
-    );
+    const acknowledge = dialog()?.querySelector<HTMLElement>("label");
     await act(async () => {
       acknowledge?.click();
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -209,11 +210,11 @@ describe("Share lifecycle panel", () => {
     await click("Revoke");
     await click("Revoke");
     await vi.waitFor(() => {
-      expect(host?.querySelector('[role="alert"]')?.textContent).toBe(
+      expect(dialog()?.querySelector('[role="alert"]')?.textContent).toBe(
         "Too many share changes. Try again later.",
       );
     });
-    expect(host?.querySelector("fieldset")).not.toBeNull();
+    expect(dialog()).not.toBeNull();
   });
 
   test("a failed action says so and keeps the confirmation open", async () => {
@@ -223,10 +224,10 @@ describe("Share lifecycle panel", () => {
     await click("Revoke");
     await click("Revoke");
     await vi.waitFor(() => {
-      expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
+      expect(dialog()?.querySelector('[role="alert"]')?.textContent).toContain(
         "did not work",
       );
     });
-    expect(host?.querySelector("fieldset")).not.toBeNull();
+    expect(dialog()).not.toBeNull();
   });
 });

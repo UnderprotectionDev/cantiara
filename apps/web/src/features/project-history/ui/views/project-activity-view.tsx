@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: The disclosure trigger derives its label from Base UI open state.
 import {
   PROJECT_ACTIVITY_LABEL,
   PROJECT_ACTIVITY_OPEN_SOURCE_LABEL,
@@ -10,7 +11,11 @@ import {
   type ProjectActivityRow,
 } from "@cantiara/api/project-activity";
 import { Button } from "@cantiara/ui/components/button";
-import { useCallback, useId, useState } from "react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { AppLink } from "@/components/app-link";
 import {
   type ProjectActivityFilters,
@@ -106,12 +111,13 @@ function ActivityCluster({
   cluster: ProjectActivityCluster;
   projectId: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const listId = useId();
-  const toggle = useCallback(() => setOpen((value) => !value), []);
   const actor = activityActorText(cluster.actor);
   return (
-    <li className="space-y-2 rounded-md border border-border/60 p-3">
+    <Collapsible
+      render={
+        <li className="space-y-2 rounded-md border border-border/60 p-3" />
+      }
+    >
       <p className="font-medium">
         {`${cluster.rows.length} field changes · ${cluster.source.recordType} · ${cluster.source.label}`}
       </p>
@@ -122,28 +128,24 @@ function ActivityCluster({
         <time dateTime={cluster.to}>{activityTimeText(cluster.to)}</time>
         {` · ${cluster.fieldNames.join(", ") || "fields not shown"}`}
       </p>
-      <Button
-        aria-controls={listId}
-        aria-expanded={open}
-        onClick={toggle}
-        type="button"
-        variant="outline"
-      >
-        {open ? "Hide each change" : "Show each change"}
-      </Button>
-      <div id={listId}>
-        {open ? (
-          <ol
-            aria-label={`Each change in ${cluster.rows.length} field changes`}
-            className="space-y-2"
-          >
-            {cluster.rows.map((row) => (
-              <ActivityRow key={row.id} projectId={projectId} row={row} />
-            ))}
-          </ol>
-        ) : null}
-      </div>
-    </li>
+      <CollapsibleTrigger
+        render={(props, { open }) => (
+          <Button {...props} variant="outline">
+            {open ? "Hide each change" : "Show each change"}
+          </Button>
+        )}
+      />
+      <CollapsibleContent>
+        <ol
+          aria-label={`Each change in ${cluster.rows.length} field changes`}
+          className="space-y-2"
+        >
+          {cluster.rows.map((row) => (
+            <ActivityRow key={row.id} projectId={projectId} row={row} />
+          ))}
+        </ol>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

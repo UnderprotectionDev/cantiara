@@ -17,9 +17,6 @@ export function useRecordActionRuntimeInputForm(
   const form = useForm({
     defaultValues: EMPTY_RUNTIME_INPUT_DRAFT,
     onSubmit: ({ value }) => {
-      if (!runner.active) {
-        return;
-      }
       const parsed = recordActionRuntimeInputsFormSchema(
         runner.active.action,
       ).safeParse(value);

@@ -58,6 +58,8 @@ Kurucu Hesap kapsamındaki Hatırlatma kaydıyla desteklenen kaynağa kişisel z
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The browser reminder seam opens the `Remind me` trigger, writes a reminder, and sees `Planned` in `History`. The open action is the dialog payload.
+
 - **What a good test is.** Tests observe Personal Reminders through its public interface: create/cancel/reschedule, fire, condition evaluation, Document section bind through stable ids, missing-target handling, which signal id fired, and whether the source record’s life or planning membership changed. They also prove that Project Release `Review Later` uses the same call and default condition. They do not assert pg-boss internals, Drizzle row shapes, or the notification center’s grouping UI. Expected values are product rules (Hesap scope, three lives, section id, suppress-with-reason, no source write, one id per fire, no `due-date` from this module).
 - **Seam (one).** Personal Reminders — the product-facing reminder interface used by record actions, the shell’s due Review Later list, and Project Release callers (including a future `Reassess impact` date choice). Scheduler and signal append are adapters behind that interface. Playwright for keyboard set/open/dismiss is the same seam through the UI.
 - **Modules under test.** Personal Reminders only. Notification center, Daily Focus, Unified Calendar, `Target date` field, Yeniden görünme tarihi, and Work lifecycle are counterparts: “this write did not happen” / “this Hatırlatma signal id was emitted, the center is not built here” / “a due `Target date` did not mint a Hatırlatma or `due-date` here”.

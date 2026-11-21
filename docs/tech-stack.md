@@ -65,7 +65,7 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: başk
 | Teknoloji | Amaç |
 | --- | --- |
 | shadcn/ui | Uygulama bileşenleri; varyantlar `class-variance-authority`, sınıf birleştirme `cn`, animasyon sınıfları `tw-animate-css` ile |
-| Base UI | Erişilebilir bileşen temeli |
+| Base UI | Erişilebilir bileşen temeli ve [açılır pencere yaşam döngüsü](#açılır-pencere-yaşam-döngüsü) |
 | cmdk | shadcn/ui Command bileşeninin komut arama ve klavye gezinme primitive'i |
 | Embla Carousel | shadcn/ui Carousel bileşeninin kaydırma ve gezinme motoru |
 | input-otp | shadcn/ui Input OTP bileşeninin tek kullanımlık kod giriş primitive'i |
@@ -87,6 +87,12 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: başk
 | React DayPicker | Tarih seçimi |
 | date-fns | Tarih işlemleri |
 
+
+## Açılır pencere yaşam döngüsü
+
+Base UI 1.9, `packages/ui/src/components/{dialog,alert-dialog,sheet,popover}.tsx` bileşenlerinde açılma, kapanma ve odak dönüşünü yönetir. Başarılı komut pencereyi `actionsRef.close()` veya pencerenin handle'ı ile kapatır. Reddedilen komut açık formun taslağını ve tekrar gönderilecek içeriği korur. Kapatma düğmesi Base UI Close kullanır. Birden fazla düğmenin açtığı pencerede bileşen ömürlü `createHandle` eylem veya kayıt kimliğini taşır. Çıkışta açan kontrol kaldırılmışsa yaşayan bir yüzey başlığı odak hedefi olabilir.
+
+Account Access örneği `apps/web/src/features/account-access/ui/components/revoke-confirmation.tsx`, paylaşılan Sheet örneği `apps/web/src/features/record-discovery/ui/components/context-record-preview.tsx`. Davranış, [Account Access](specs/01-account-access/spec.md#testing-decisions) ve [Record Discovery](specs/33-record-discovery/spec.md#testing-decisions) Playwright seam'lerinde doğrulanır. TanStack Query sunucu yazmasının durumunu, TanStack Form gönderim taslağını taşır.
 
 ## Ortak taze okuma ve form gönderimi
 

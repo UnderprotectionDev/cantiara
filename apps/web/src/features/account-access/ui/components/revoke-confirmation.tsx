@@ -1,55 +1,109 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Confirmation handlers close over the active trigger payload and mutation observers.
 import {
   AlertDialog,
+  AlertDialogAction,
+  type AlertDialogActions,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
+  type createAlertDialogHandle,
 } from "@cantiara/ui/components/alert-dialog";
-import { Button } from "@cantiara/ui/components/button";
-import { useCallback } from "react";
+import { type RefObject, useRef } from "react";
+import type { AccountSessionsController } from "../../hooks/use-account-sessions";
+
+export type RevokeTarget = { device: string; sessionAlias: string } | "others";
 
 export default function RevokeConfirmation({
-  description,
-  disabled,
-  label,
-  onConfirm,
-  targetSessionAlias,
-  title,
-}: {
-  description: string;
-  disabled: boolean;
-  label: "Revoke Other Sessions" | "Revoke Session";
-  onConfirm: (targetSessionAlias: string) => void;
-  targetSessionAlias: string;
-  title: string;
+  handle,
+  heading,
+  revokeOtherSessions,
+  revokeSession,
+}: Pick<AccountSessionsController, "revokeOtherSessions" | "revokeSession"> & {
+  handle: ReturnType<typeof createAlertDialogHandle<RevokeTarget>>;
+  heading: RefObject<HTMLHeadingElement | null>;
 }) {
-  const handleConfirm = useCallback(() => {
-    onConfirm(targetSessionAlias);
-  }, [onConfirm, targetSessionAlias]);
+  const actions = useRef<AlertDialogActions | null>(null);
+  const submitting = useRef<boolean>(false);
+  const revoked = useRef<boolean>(false);
+  const pending = revokeSession.isPending || revokeOtherSessions.isPending;
+
+  async function confirm(target: RevokeTarget) {
+    if (submitting.current) {
+      return;
+    }
+    submitting.current = true;
+    try {
+      if (target === "others") {
+        await revokeOtherSessions.mutateAsync();
+      } else {
+        await revokeSession.mutateAsync(target.sessionAlias);
+      }
+      revoked.current = true;
+      actions.current?.close();
+    } catch {
+      // The mutation exposes the failure to the open confirmation.
+    } finally {
+      submitting.current = false;
+    }
+  }
 
   return (
-    <AlertDialog>
-      <AlertDialogTrigger
-        disabled={disabled}
-        render={<Button size="sm" variant="destructive" />}
-      >
-        {label}
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogCancel onClick={handleConfirm} variant="destructive">
-            {label}
-          </AlertDialogCancel>
-        </AlertDialogFooter>
-      </AlertDialogContent>
+    <AlertDialog
+      actionsRef={actions}
+      handle={handle}
+      onOpenChange={(open, event) => {
+        if (open) {
+          revoked.current = false;
+          revokeSession.reset();
+          revokeOtherSessions.reset();
+        } else if (submitting.current && !revoked.current) {
+          event.cancel();
+        }
+      }}
+    >
+      {({ payload }) => {
+        if (!payload) {
+          return null;
+        }
+        const others = payload === "others";
+        const mutation = others ? revokeOtherSessions : revokeSession;
+        return (
+          <AlertDialogContent
+            finalFocus={() => (revoked.current ? heading.current : true)}
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {others ? "Revoke other sessions?" : "Revoke this session?"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {others
+                  ? "Every session except this one will lose access immediately."
+                  : `${payload.device} will lose access immediately.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {mutation.isError ? (
+              <p className="text-sm text-destructive" role="alert">
+                {others
+                  ? "Other sessions could not be revoked. Try again."
+                  : "Session could not be revoked. Try again."}
+              </p>
+            ) : null}
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={pending}
+                onClick={() => confirm(payload)}
+                variant="destructive"
+              >
+                {others ? "Revoke Other Sessions" : "Revoke Session"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        );
+      }}
     </AlertDialog>
   );
 }

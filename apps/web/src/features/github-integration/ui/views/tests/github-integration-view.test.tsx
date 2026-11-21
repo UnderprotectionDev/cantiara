@@ -202,7 +202,7 @@ async function mount(
 }
 
 function buttonNamed(name: string) {
-  const match = [...(host?.querySelectorAll("button") ?? [])].find(
+  const match = [...document.body.querySelectorAll("button")].find(
     (button) => button.textContent === name,
   );
   if (!match) {
@@ -255,7 +255,7 @@ test("lists a renamed link once with its earlier name and exact action labels", 
     await settle();
   });
   expect(actions.loadPreview).toHaveBeenCalledWith("Disconnect", "link-1");
-  expect(host?.textContent).toContain(
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
     "Affects new-co/site: 2 Issues and 1 Pull requests.",
   );
   expect(actions.onDisconnect).not.toHaveBeenCalled();
@@ -443,15 +443,15 @@ test("the Reconnect preview takes focus and can be cancelled from the keyboard",
     buttonNamed("Reconnect").click();
     await settle();
   });
-  const heading = host?.querySelector("h5");
+  const heading = document.querySelector('[role="dialog"] h5');
   expect(heading?.textContent).toBe("Reconnect preview");
-  expect(document.activeElement).toBe(heading);
+  await vi.waitFor(() => expect(document.activeElement).toBe(heading));
   expect(buttonNamed("Reconnect").getAttribute("aria-expanded")).toBe("true");
   await act(async () => {
     buttonNamed("Cancel").click();
     await settle();
   });
-  expect(host?.querySelector("h5")).toBeNull();
+  expect(document.querySelector('[role="dialog"] h5')).toBeNull();
   expect(actions.onReconnect).not.toHaveBeenCalled();
 });
 
@@ -463,12 +463,16 @@ test("cancelling the preview returns focus to the trigger button", async () => {
     trigger.click();
     await settle();
   });
-  expect(document.activeElement).toBe(host?.querySelector("h5"));
+  expect(document.activeElement).toBe(
+    document.querySelector('[role="dialog"] h5'),
+  );
   await act(async () => {
     buttonNamed("Cancel").click();
     await settle();
   });
-  expect(document.activeElement).toBe(buttonNamed("Disconnect"));
+  await vi.waitFor(() =>
+    expect(document.activeElement).toBe(buttonNamed("Disconnect")),
+  );
 });
 
 test("a record search is capped by the input and a longer value shows no message and does not search", async () => {

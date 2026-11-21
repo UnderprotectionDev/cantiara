@@ -7,7 +7,7 @@ import {
 import type { Document } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import {
-  Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -22,7 +22,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type SubmitEvent, useRef, useState } from "react";
+import { type RefObject, type SubmitEvent, useRef, useState } from "react";
 import { fetchFresh } from "@/lib/fetch-fresh";
 import { client, orpc } from "@/utils/orpc";
 import { documentEvidenceFormSchema } from "../../lib/document-evidence-form";
@@ -87,12 +87,14 @@ function evidenceRequest(
   };
 }
 export default function DocumentEvidenceForm({
+  finalFocus,
   mode,
   onClose,
   range,
   rebind,
   record,
 }: {
+  finalFocus: RefObject<HTMLButtonElement | null>;
   mode: Mode;
   onClose: () => void;
   range: Range;
@@ -230,146 +232,133 @@ export default function DocumentEvidenceForm({
     heading = "Convert to new record and bind";
   }
   return (
-    <Dialog onOpenChange={(open) => !open && onClose()} open>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{heading}</DialogTitle>
-          <DialogDescription>
-            Version {record.revision} · Range {range.start}–{range.end}. This
-            creates no AI summary and exactly one{" "}
-            {mode === "create" ? "new record" : "evidence relation"}.
-          </DialogDescription>
-        </DialogHeader>
-        <form className="grid gap-4" onSubmit={submit}>
-          {rebind ? null : (
-            <div className="space-y-2">
-              <Label htmlFor="document-evidence-type">Record type</Label>
-              <form.Field name="type">
-                {(field) => (
-                  <NativeSelect
-                    id="document-evidence-type"
-                    name={field.name}
-                    onChange={(event) => {
-                      field.handleChange(event.target.value as TargetType);
-                      form.setFieldValue("targetId", "");
-                      changed();
-                    }}
-                    value={field.state.value}
-                  >
-                    {DOCUMENT_EVIDENCE_TARGET_TYPES.map((value) => (
-                      <NativeSelectOption key={value} value={value}>
-                        {value}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                )}
-              </form.Field>
-              {mode === "bind" ? (
-                <>
-                  <Label htmlFor="document-evidence-record">
-                    Existing record
-                  </Label>
-                  <form.Field name="targetId">
-                    {(field) => (
-                      <NativeSelect
-                        id="document-evidence-record"
-                        name={field.name}
-                        onChange={(event) => {
-                          field.handleChange(event.target.value);
-                          changed();
-                        }}
-                        value={field.state.value}
-                      >
-                        <NativeSelectOption value="">
-                          Choose a record
-                        </NativeSelectOption>
-                        {candidates.map((target) => (
-                          <NativeSelectOption
-                            key={target.recordId}
-                            value={target.recordId}
-                          >
-                            {target.title}
-                          </NativeSelectOption>
-                        ))}
-                      </NativeSelect>
-                    )}
-                  </form.Field>
-                </>
-              ) : (
-                <>
-                  <Label htmlFor="document-evidence-title">Title</Label>
-                  <form.Field name="title">
-                    {(field) => (
-                      <Input
-                        id="document-evidence-title"
-                        maxLength={255}
-                        name={field.name}
-                        onChange={(event) => {
-                          field.handleChange(event.target.value);
-                          changed();
-                        }}
-                        value={field.state.value}
-                      />
-                    )}
-                  </form.Field>
-                  {type === "Work" ? (
-                    <>
-                      <Label htmlFor="document-evidence-work-type">
-                        Work type
-                      </Label>
-                      <form.Field name="workType">
-                        {(field) => (
-                          <NativeSelect
-                            id="document-evidence-work-type"
-                            name={field.name}
-                            onChange={(event) => {
-                              field.handleChange(
-                                event.target.value as WorkType,
-                              );
-                              changed();
-                            }}
-                            value={field.state.value}
-                          >
-                            {(
-                              [
-                                "Task",
-                                "Bug",
-                                "Research",
-                                "Improvement",
-                              ] as const
-                            ).map((value) => (
-                              <NativeSelectOption key={value} value={value}>
-                                {value}
-                              </NativeSelectOption>
-                            ))}
-                          </NativeSelect>
-                        )}
-                      </form.Field>
-                    </>
-                  ) : null}
-                </>
+    <DialogContent finalFocus={finalFocus}>
+      <DialogHeader>
+        <DialogTitle>{heading}</DialogTitle>
+        <DialogDescription>
+          Version {record.revision} · Range {range.start}–{range.end}. This
+          creates no AI summary and exactly one{" "}
+          {mode === "create" ? "new record" : "evidence relation"}.
+        </DialogDescription>
+      </DialogHeader>
+      <form className="grid gap-4" onSubmit={submit}>
+        {rebind ? null : (
+          <div className="space-y-2">
+            <Label htmlFor="document-evidence-type">Record type</Label>
+            <form.Field name="type">
+              {(field) => (
+                <NativeSelect
+                  id="document-evidence-type"
+                  name={field.name}
+                  onChange={(event) => {
+                    field.handleChange(event.target.value as TargetType);
+                    form.setFieldValue("targetId", "");
+                    changed();
+                  }}
+                  value={field.state.value}
+                >
+                  {DOCUMENT_EVIDENCE_TARGET_TYPES.map((value) => (
+                    <NativeSelectOption key={value} value={value}>
+                      {value}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
               )}
-            </div>
-          )}
-          {plan ? <EvidencePreview plan={plan} /> : null}
-          {error ? <p role="alert">{error}</p> : null}
-          <DialogFooter>
-            <Button onClick={onClose} type="button" variant="outline">
-              Cancel
-            </Button>
-            <Button
-              disabled={!ready || pending}
-              type="submit"
-              variant="outline"
-            >
-              Preview
-            </Button>
-            <Button disabled={!plan || pending} onClick={confirm} type="button">
-              Confirm
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            </form.Field>
+            {mode === "bind" ? (
+              <>
+                <Label htmlFor="document-evidence-record">
+                  Existing record
+                </Label>
+                <form.Field name="targetId">
+                  {(field) => (
+                    <NativeSelect
+                      id="document-evidence-record"
+                      name={field.name}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                        changed();
+                      }}
+                      value={field.state.value}
+                    >
+                      <NativeSelectOption value="">
+                        Choose a record
+                      </NativeSelectOption>
+                      {candidates.map((target) => (
+                        <NativeSelectOption
+                          key={target.recordId}
+                          value={target.recordId}
+                        >
+                          {target.title}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  )}
+                </form.Field>
+              </>
+            ) : (
+              <>
+                <Label htmlFor="document-evidence-title">Title</Label>
+                <form.Field name="title">
+                  {(field) => (
+                    <Input
+                      id="document-evidence-title"
+                      maxLength={255}
+                      name={field.name}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                        changed();
+                      }}
+                      value={field.state.value}
+                    />
+                  )}
+                </form.Field>
+                {type === "Work" ? (
+                  <>
+                    <Label htmlFor="document-evidence-work-type">
+                      Work type
+                    </Label>
+                    <form.Field name="workType">
+                      {(field) => (
+                        <NativeSelect
+                          id="document-evidence-work-type"
+                          name={field.name}
+                          onChange={(event) => {
+                            field.handleChange(event.target.value as WorkType);
+                            changed();
+                          }}
+                          value={field.state.value}
+                        >
+                          {(
+                            ["Task", "Bug", "Research", "Improvement"] as const
+                          ).map((value) => (
+                            <NativeSelectOption key={value} value={value}>
+                              {value}
+                            </NativeSelectOption>
+                          ))}
+                        </NativeSelect>
+                      )}
+                    </form.Field>
+                  </>
+                ) : null}
+              </>
+            )}
+          </div>
+        )}
+        {plan ? <EvidencePreview plan={plan} /> : null}
+        {error ? <p role="alert">{error}</p> : null}
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>
+            Cancel
+          </DialogClose>
+          <Button disabled={!ready || pending} type="submit" variant="outline">
+            Preview
+          </Button>
+          <Button disabled={!plan || pending} onClick={confirm} type="button">
+            Confirm
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   );
 }

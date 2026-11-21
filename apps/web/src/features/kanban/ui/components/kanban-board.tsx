@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Column controls render from Base UI state and the column label.
 import {
   PROTECTED_WORK_STATUS_OPTIONS,
   type WorkStatusLabel,
@@ -6,6 +7,11 @@ import { workContextSourceText } from "@cantiara/api/work-context";
 import type { WorkProfile, WorkStatus } from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import {
   NativeSelect,
   NativeSelectOption,
@@ -18,7 +24,6 @@ import {
   type ComponentProps,
   useCallback,
   useMemo,
-  useState,
 } from "react";
 import { getWorkStatusLabel } from "@/components/work-status-form";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
@@ -54,20 +59,6 @@ export default function KanbanBoard({
   workStatusLabels: readonly WorkStatusLabel[];
   works: readonly WorkProfile[];
 }) {
-  const [collapsedStatuses, setCollapsedStatuses] = useState<Set<WorkStatus>>(
-    () => new Set(),
-  );
-  const toggleCollapsedStatus = useCallback((status: WorkStatus) => {
-    setCollapsedStatuses((current) => {
-      const next = new Set(current);
-      if (next.has(status)) {
-        next.delete(status);
-      } else {
-        next.add(status);
-      }
-      return next;
-    });
-  }, []);
   const worksByStatus = useMemo(() => {
     const grouped = new Map<WorkStatus, WorkProfile[]>(
       PROTECTED_WORK_STATUS_OPTIONS.map((status) => [status, []]),
@@ -124,13 +115,11 @@ export default function KanbanBoard({
 
             return (
               <KanbanColumn
-                collapsed={collapsedStatuses.has(status)}
                 disabled={disabled}
                 key={status}
                 label={label}
                 limit={softWipLimits[status]}
                 onStatusAction={onStatusAction}
-                onToggleCollapsed={toggleCollapsedStatus}
                 projectId={projectId}
                 status={status}
                 statusWorks={statusWorks}
@@ -145,23 +134,19 @@ export default function KanbanBoard({
 }
 
 function KanbanColumn({
-  collapsed,
   disabled,
   label,
   limit,
   onStatusAction,
-  onToggleCollapsed,
   projectId,
   status,
   statusWorks,
   workStatusLabels,
 }: {
-  collapsed: boolean;
   disabled: boolean;
   label: string;
   limit: number | null;
   onStatusAction: (work: WorkProfile, targetStatus: WorkStatus) => void;
-  onToggleCollapsed: (status: WorkStatus) => void;
   projectId: string;
   status: (typeof PROTECTED_WORK_STATUS_OPTIONS)[number];
   statusWorks: readonly WorkProfile[];
@@ -185,23 +170,15 @@ function KanbanColumn({
     disabled,
     id: statusDropId(status),
   });
-  const handleToggleCollapsed = useCallback(
-    () => onToggleCollapsed(status),
-    [onToggleCollapsed, status],
-  );
-
   return (
-    <section
+    <Collapsible
       aria-labelledby={`kanban-column-heading-${statusSlug(status)}`}
-      className={`min-h-44 space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3 transition-colors motion-reduce:transition-none ${collapsed ? "w-40 min-w-0 flex-none" : "min-w-48 flex-1"} ${droppable.isDropTarget ? "border-primary/70 bg-primary/5 ring-2 ring-primary/30" : ""}`}
+      className={`group/column min-h-44 space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3 transition-colors motion-reduce:transition-none data-open:min-w-48 data-open:flex-1 data-closed:w-40 data-closed:min-w-0 data-closed:flex-none ${droppable.isDropTarget ? "border-primary/70 bg-primary/5 ring-2 ring-primary/30" : ""}`}
       data-kanban-column={status}
-      ref={droppable.ref}
+      defaultOpen
+      render={<section ref={droppable.ref} />}
     >
-      <header
-        className={
-          collapsed ? "space-y-2" : "flex items-center justify-between gap-2"
-        }
-      >
+      <header className="group-data-open/column:flex group-data-open/column:items-center group-data-open/column:justify-between group-data-open/column:gap-2 group-data-closed/column:space-y-2">
         <h4
           className="text-sm font-semibold"
           id={`kanban-column-heading-${statusSlug(status)}`}
@@ -218,27 +195,28 @@ function KanbanColumn({
               Over limit
             </span>
           ) : null}
-          <Button
-            aria-controls={`kanban-column-list-${statusSlug(status)}`}
-            aria-expanded={!collapsed}
-            aria-label={`${collapsed ? "Expand" : "Collapse"} ${label}`}
-            onClick={handleToggleCollapsed}
-            size="xs"
-            type="button"
-            variant="ghost"
-          >
-            {collapsed ? "Expand" : "Collapse"}
-          </Button>
+          <CollapsibleTrigger
+            render={(props, { open }) => (
+              <Button
+                {...props}
+                aria-label={`${open ? "Collapse" : "Expand"} ${label}`}
+                size="xs"
+                variant="ghost"
+              >
+                {open ? "Collapse" : "Expand"}
+              </Button>
+            )}
+          />
         </div>
       </header>
       {hasOpenBlocker ? (
         <p className="text-xs text-muted-foreground">Open blocker</p>
       ) : null}
-      <ul
+      <CollapsibleContent
         aria-label={`${label} Work`}
         className="space-y-2"
-        hidden={collapsed}
-        id={`kanban-column-list-${statusSlug(status)}`}
+        keepMounted
+        render={<ul />}
       >
         {statusWorks.map((work) => (
           <li key={work.id}>
@@ -251,8 +229,8 @@ function KanbanColumn({
             />
           </li>
         ))}
-      </ul>
-    </section>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

@@ -4,14 +4,16 @@ import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import {
   Dialog,
+  type DialogActions,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { client, orpc } from "@/utils/orpc";
 import { useProjectReleaseCommand } from "../../hooks/use-project-release-command";
 import { projectReleasesHref } from "../../lib/project-release-planning-form";
@@ -33,7 +35,7 @@ export function ProjectReleasesSurface({
   );
   const run = useProjectReleaseCommand(projectId);
   const navigate = useNavigate();
-  const [creating, setCreating] = useState(false);
+  const dialogActions = useRef<DialogActions | null>(null);
   // One id per create attempt, so a retried create cannot make a second release.
   const releaseId = useRef<string | null>(null);
 
@@ -54,7 +56,7 @@ export function ProjectReleasesSurface({
       async () => {
         if (releaseId.current === id) {
           releaseId.current = null;
-          setCreating(false);
+          dialogActions.current?.close();
           await navigate({ href: projectReleasesHref(projectId, id) });
         }
       },
@@ -63,7 +65,6 @@ export function ProjectReleasesSurface({
 
   function cancelCreate() {
     releaseId.current = null;
-    setCreating(false);
   }
 
   if (overview.status === "pending") {
@@ -86,35 +87,41 @@ export function ProjectReleasesSurface({
     );
   }
   return (
-    <>
+    <Dialog
+      actionsRef={dialogActions}
+      onOpenChange={(open, event) => {
+        if (open || event.reason === "imperative-action") {
+          return;
+        }
+
+        cancelCreate();
+      }}
+    >
       <ProjectReleaseList
         createControl={
-          <Button onClick={() => setCreating(true)} type="button">
+          <DialogTrigger render={<Button />}>
             Create Project Release
-          </Button>
+          </DialogTrigger>
         }
         formatting={formatting}
         overview={overview.data}
         projectId={projectId}
       />
-      <Dialog
-        onOpenChange={(open) => {
-          if (!open) {
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create Project Release</DialogTitle>
+          <DialogDescription>
+            One Project Release belongs to this Project only.
+          </DialogDescription>
+        </DialogHeader>
+        <ProjectReleaseCreateForm
+          onCancel={() => {
             cancelCreate();
-          }
-        }}
-        open={creating}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Project Release</DialogTitle>
-            <DialogDescription>
-              One Project Release belongs to this Project only.
-            </DialogDescription>
-          </DialogHeader>
-          <ProjectReleaseCreateForm onCancel={cancelCreate} onCreate={create} />
-        </DialogContent>
-      </Dialog>
-    </>
+            dialogActions.current?.close();
+          }}
+          onCreate={create}
+        />
+      </DialogContent>
+    </Dialog>
   );
 }

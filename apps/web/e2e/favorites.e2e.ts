@@ -243,12 +243,7 @@ test("the shell opens Favorites and its original source without writing membersh
     name: "Favorites Source Project",
     exact: true,
   });
-  await expect(
-    preview.getByRole("heading", {
-      name: "Favorites Source Project",
-      exact: true,
-    }),
-  ).toBeVisible();
+  await expect(preview).toBeVisible();
   expect(page.url()).toBe(sourceUrl);
   await preview
     .getByRole("link", { name: "Open full page", exact: true })
@@ -350,6 +345,7 @@ test("Favorites opens every supported source and shows broken targets without pr
     await expect(preview.locator("section").first()).toContainText(title);
     expect(page.url()).toBe(sourceUrl);
     await page.keyboard.press("Escape");
+    await expect(preview).toBeHidden();
   }
   await page.getByRole("button", { name: "Personal", exact: true }).click();
   await page.getByRole("tab", { name: "Favorites", exact: true }).click();

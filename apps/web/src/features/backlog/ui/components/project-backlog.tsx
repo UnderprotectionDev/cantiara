@@ -19,6 +19,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import {
   Popover,
+  type PopoverActions,
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
@@ -43,7 +44,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ExportListAction } from "@/components/export-list-action";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import {
@@ -77,11 +78,12 @@ function BacklogCard({
   work: BacklogWork;
 }) {
   const queryClient = useQueryClient();
-  const [dateOpen, setDateOpen] = useState(false);
+  const popoverActions = useRef<PopoverActions | null>(null);
   const saveReappearDate = usePreparedMutation(
     orpc.updateWorkReappearDate.mutationOptions({
       mutationFn: (input) => client.updateWorkReappearDate(input),
       onSuccess: async () => {
+        popoverActions.current?.close();
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: orpc.projectBacklog.queryOptions({ input: { projectId } })
@@ -152,7 +154,18 @@ function BacklogCard({
         </div>
       ) : null}
       <div className="mr-3 flex items-center gap-2 text-xs">
-        <Popover onOpenChange={setDateOpen} open={dateOpen}>
+        <Popover
+          actionsRef={popoverActions}
+          onOpenChange={(open, event) => {
+            if (
+              !open &&
+              saveReappearDate.isPending &&
+              event.reason !== "imperative-action"
+            ) {
+              event.cancel();
+            }
+          }}
+        >
           <PopoverTrigger
             disabled={saveReappearDate.isPending}
             render={
@@ -176,11 +189,10 @@ function BacklogCard({
               defaultMonth={selectedDate}
               mode="single"
               onSelect={(date) => {
-                if (!date) {
+                if (!date || saveReappearDate.isPending) {
                   return;
                 }
                 const value = format(date, "yyyy-MM-dd");
-                setDateOpen(false);
                 saveReappearDate.mutate(value);
               }}
               selected={selectedDate}

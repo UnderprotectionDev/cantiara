@@ -8,13 +8,17 @@ import {
 } from "@cantiara/api/product-gaps";
 import { Alert } from "@cantiara/ui/components/alert";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { orpc } from "@/utils/orpc";
 import { useProductGapLinkTargets } from "../../hooks/use-product-gap-link-targets";
 import {
@@ -151,43 +155,51 @@ export function ToolEscapesPanel({
   onCloseEscape?: CloseEscape;
   record: ProductGapRecord;
 }) {
-  const [opened, setOpened] = useState(false);
+  const label = `${record.escapeCount} ${TOOL_ESCAPE_LABEL}${record.escapeCount === 1 ? "" : "s"}`;
+  return (
+    <Collapsible className="space-y-2 text-sm">
+      <CollapsibleTrigger
+        aria-label={`Open ${label} of ${record.title}`}
+        disabled={record.escapeCount === 0}
+        render={<Button size="sm" variant="outline" />}
+      >
+        {label}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <EscapeDrillDown
+          filter={filter}
+          formatDateTime={formatDateTime}
+          loadEscapes={loadEscapes}
+          loadTargets={loadTargets}
+          onCloseEscape={onCloseEscape}
+          record={record}
+        />
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function EscapeDrillDown({
+  filter,
+  formatDateTime,
+  loadEscapes,
+  loadTargets,
+  onCloseEscape,
+  record,
+}: Parameters<typeof ToolEscapesPanel>[0]) {
   const escapes = useQuery({
     ...orpc.productGapEscapes.queryOptions({
       input: { ...toListFilter(filter), gapId: record.id },
     }),
-    enabled: opened,
     queryFn: () => loadEscapes(record, filter),
   });
-  const events = opened ? (escapes.data ?? null) : null;
+  const events = escapes.data ?? null;
   const error = escapes.isError
     ? errorText(escapes.error, `${TOOL_ESCAPE_LABEL}s could not be loaded.`)
     : undefined;
 
-  async function open() {
-    if (opened) {
-      await escapes.refetch();
-      return;
-    }
-    setOpened(true);
-  }
-
-  const label = `${record.escapeCount} ${TOOL_ESCAPE_LABEL}${record.escapeCount === 1 ? "" : "s"}`;
   return (
-    <div className="space-y-2 text-sm">
-      <Button
-        aria-expanded={events !== null}
-        aria-label={`Open ${label} of ${record.title}`}
-        disabled={record.escapeCount === 0}
-        onClick={() => {
-          open().catch(() => undefined);
-        }}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        {label}
-      </Button>
+    <>
       {error ? <Alert variant="destructive">{error}</Alert> : null}
       {events ? (
         <ul
@@ -224,7 +236,7 @@ export function ToolEscapesPanel({
                   loadTargets={loadTargets}
                   onClose={async (closing, values, impact) => {
                     await onCloseEscape(closing, values, impact);
-                    await open();
+                    await escapes.refetch();
                   }}
                 />
               ) : null}
@@ -232,6 +244,6 @@ export function ToolEscapesPanel({
           ))}
         </ul>
       ) : null}
-    </div>
+    </>
   );
 }

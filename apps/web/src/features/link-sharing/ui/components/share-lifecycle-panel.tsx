@@ -9,16 +9,23 @@ import {
   SET_EXPIRY_LABEL,
   type ShareSurfaceSummary,
 } from "@cantiara/api/link-sharing";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+  createAlertDialogHandle,
+} from "@cantiara/ui/components/alert-dialog";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useSelector } from "@tanstack/react-store";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type RefObject, useId, useRef, useState } from "react";
 import { submitForm } from "@/lib/submit-form";
 import type { ShareLifecycleFeedback } from "../../hooks/use-share-access";
-import {
-  useShareConfirmationForm,
-  useShareReopenForm,
-} from "../../hooks/use-share-lifecycle-confirmation";
+import { useShareConfirmationForm } from "../../hooks/use-share-lifecycle-confirmation";
 import { linkSharingRefusalMessage } from "../../lib/link-sharing-refusal";
 import {
   defaultNewExpiry,
@@ -27,7 +34,9 @@ import {
 } from "../../lib/share-lifecycle";
 import { ShareExpiryForm } from "../forms/share-expiry-form";
 
-type Confirming = "reopen" | "revoke" | null;
+type Confirmation =
+  | { action: "reopen"; expiresAt: string | null }
+  | { action: "revoke" };
 
 function successMessage(feedback: ShareLifecycleFeedback | null) {
   if (feedback?.status !== "success") {
@@ -68,11 +77,8 @@ export function ShareLifecyclePanel({
   surface: Pick<ShareSurfaceSummary, "expiresAt" | "state">;
   timeZone: string;
 }) {
-  const [confirmation, setConfirming] = useState<Confirming>(null);
-  const confirming =
-    feedback?.action === confirmation && feedback.status === "success"
-      ? null
-      : confirmation;
+  const [handle] = useState(createAlertDialogHandle<Confirmation>);
+  const confirmationHeading = useRef<HTMLHeadingElement>(null);
   const status = successMessage(feedback);
   const error =
     feedback?.status === "error"
@@ -85,7 +91,7 @@ export function ShareLifecyclePanel({
   async function confirm(work: () => Promise<unknown>) {
     try {
       await work();
-      setConfirming(null);
+      handle.close();
     } catch {
       // The mutation observer shows the refusal while confirmation stays open.
     }
@@ -102,13 +108,21 @@ export function ShareLifecyclePanel({
           : `${expiryLabel(surface.expiresAt, timeZone)}.`}
       </p>
       {expired ? (
-        <ExpiredActions
-          confirming={confirming === "reopen"}
-          onCancel={() => setConfirming(null)}
-          onConfirmReopen={(expiresAt) => confirm(() => onReopen(expiresAt))}
-          onReshare={(expiresAt) => onReshare(expiresAt).catch(() => undefined)}
-          onStartReopen={() => setConfirming("reopen")}
-          pending={pending}
+        <ShareExpiryForm
+          actions={[
+            { id: "reshare", label: RESHARE_LABEL, variant: "default" },
+            { id: "reopen", label: REOPEN_LABEL },
+          ]}
+          disabled={pending}
+          initial={defaultNewExpiry(timeZone)}
+          legend="New expiry (optional)"
+          onSubmit={async (action, expiresAt) => {
+            if (action === "reopen") {
+              handle.openWithPayload({ action, expiresAt });
+            } else {
+              await onReshare(expiresAt);
+            }
+          }}
           timeZone={timeZone}
         />
       ) : (
@@ -133,26 +147,51 @@ export function ShareLifecyclePanel({
         />
       )}
       <div className="space-y-2 border-t pt-4">
-        {confirming === "revoke" ? (
-          <ConfirmGroup
-            confirmLabel={REVOKE_LABEL}
-            description="Revoke is permanent. This link and its token never work again, every open visit ends, and nothing can reopen it. Sharing again makes a new link."
-            heading="Revoke this link?"
-            onCancel={() => setConfirming(null)}
-            onConfirm={() => confirm(onRevoke)}
-            pending={pending}
-          />
-        ) : (
-          <Button
-            disabled={pending}
-            onClick={() => setConfirming("revoke")}
-            type="button"
-            variant="destructive"
-          >
-            {REVOKE_LABEL}
-          </Button>
-        )}
+        <AlertDialogTrigger
+          disabled={pending}
+          handle={handle}
+          payload={{ action: "revoke" }}
+          render={<Button variant="destructive" />}
+        >
+          {REVOKE_LABEL}
+        </AlertDialogTrigger>
       </div>
+      <AlertDialog
+        handle={handle}
+        onOpenChange={(open, event) => {
+          if (!open && pending && event.reason !== "imperative-action") {
+            event.cancel();
+          }
+        }}
+      >
+        {({ payload }) => {
+          if (!payload) {
+            return null;
+          }
+          const reopen = payload.action === "reopen";
+          return (
+            <AlertDialogContent initialFocus={confirmationHeading}>
+              <ConfirmGroup
+                acknowledge={reopen}
+                confirmLabel={reopen ? REOPEN_LABEL : REVOKE_LABEL}
+                description={
+                  reopen
+                    ? "Reopening makes this exact link work again for every old holder, including people you shared it with before. If you only want to share again, use Reshare with a new link instead."
+                    : "Revoke is permanent. This link and its token never work again, every open visit ends, and nothing can reopen it. Sharing again makes a new link."
+                }
+                error={feedback?.action === payload.action ? error : null}
+                heading={reopen ? "Reopen the same link?" : "Revoke this link?"}
+                headingRef={confirmationHeading}
+                key={payload.action}
+                onConfirm={() =>
+                  confirm(reopen ? () => onReopen(payload.expiresAt) : onRevoke)
+                }
+                pending={pending}
+              />
+            </AlertDialogContent>
+          );
+        }}
+      </AlertDialog>
       {status ? <p role="status">{status}</p> : null}
       {error ? (
         <p className="text-sm text-destructive" role="alert">
@@ -163,116 +202,60 @@ export function ShareLifecyclePanel({
   );
 }
 
-function ExpiredActions({
-  confirming,
-  onCancel,
-  onConfirmReopen,
-  onReshare,
-  onStartReopen,
-  pending,
-  timeZone,
-}: {
-  confirming: boolean;
-  onCancel: () => void;
-  onConfirmReopen: (expiresAt: string | null) => Promise<unknown>;
-  onReshare: (expiresAt: string | null) => Promise<unknown>;
-  onStartReopen: () => void;
-  pending: boolean;
-  timeZone: string;
-}) {
-  const reopen = useShareReopenForm();
-  if (confirming) {
-    return (
-      <ConfirmGroup
-        acknowledge="I understand that everyone who ever received this link can open it again."
-        confirmLabel={REOPEN_LABEL}
-        description="Reopening makes this exact link work again for every old holder, including people you shared it with before. If you only want to share again, use Reshare with a new link instead."
-        heading="Reopen the same link?"
-        onCancel={onCancel}
-        onConfirm={() => onConfirmReopen(reopen.getFieldValue("expiry"))}
-        pending={pending}
-      />
-    );
-  }
-  return (
-    <ShareExpiryForm
-      actions={[
-        { id: "reshare", label: RESHARE_LABEL, variant: "default" },
-        { id: "reopen", label: REOPEN_LABEL },
-      ]}
-      disabled={pending}
-      initial={defaultNewExpiry(timeZone)}
-      legend="New expiry (optional)"
-      onSubmit={(id, expiresAt) => {
-        if (id === "reopen") {
-          reopen.setFieldValue("expiry", expiresAt);
-          onStartReopen();
-          return Promise.resolve();
-        }
-        return onReshare(expiresAt);
-      }}
-      timeZone={timeZone}
-    />
-  );
-}
-
 function ConfirmGroup({
   acknowledge,
   confirmLabel,
   description,
+  error,
   heading,
-  onCancel,
+  headingRef,
   onConfirm,
   pending,
 }: {
-  acknowledge?: string;
+  acknowledge: boolean;
   confirmLabel: string;
-  description: ReactNode;
+  description: string;
+  error: string | null;
   heading: string;
-  onCancel: () => void;
+  headingRef: RefObject<HTMLHeadingElement | null>;
   onConfirm: () => Promise<unknown>;
   pending: boolean;
 }) {
-  const headingRef = useRef<HTMLHeadingElement>(null);
-  const form = useShareConfirmationForm(Boolean(acknowledge), onConfirm);
+  const acknowledgeId = useId();
+  const form = useShareConfirmationForm(acknowledge, onConfirm);
   const acknowledged = useSelector(
     form.store,
     (state) => state.values.acknowledged,
   );
   const submitting = useSelector(form.store, (state) => state.isSubmitting);
-  useEffect(() => {
-    headingRef.current?.focus();
-  }, []);
   return (
-    <fieldset
-      aria-labelledby="share-confirm-heading"
-      className="space-y-3 rounded-md border p-3"
-    >
-      <h5
-        className="text-sm font-medium"
-        id="share-confirm-heading"
-        ref={headingRef}
-        tabIndex={-1}
-      >
+    <>
+      <AlertDialogTitle ref={headingRef} tabIndex={-1}>
         {heading}
-      </h5>
-      <p className="text-sm">{description}</p>
+      </AlertDialogTitle>
+      <AlertDialogDescription>{description}</AlertDialogDescription>
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
       {acknowledge ? (
         <label
           className="inline-flex items-start gap-2 text-sm"
-          htmlFor="share-confirm-acknowledge"
+          htmlFor={acknowledgeId}
         >
           <Checkbox
             checked={acknowledged}
-            id="share-confirm-acknowledge"
+            id={acknowledgeId}
             onCheckedChange={(checked) =>
               form.setFieldValue("acknowledged", checked === true)
             }
           />
-          {acknowledge}
+          I understand that everyone who ever received this link can open it
+          again.
         </label>
       ) : null}
-      <div className="flex flex-wrap gap-2">
+      <AlertDialogFooter>
         <Button
           disabled={!acknowledged || pending || submitting}
           onClick={() => submitForm(form).catch(() => undefined)}
@@ -281,10 +264,10 @@ function ConfirmGroup({
         >
           {confirmLabel}
         </Button>
-        <Button onClick={onCancel} type="button" variant="outline">
+        <AlertDialogCancel disabled={pending || submitting}>
           Cancel
-        </Button>
-      </div>
-    </fieldset>
+        </AlertDialogCancel>
+      </AlertDialogFooter>
+    </>
   );
 }

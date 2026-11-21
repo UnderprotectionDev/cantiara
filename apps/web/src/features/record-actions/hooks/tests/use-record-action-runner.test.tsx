@@ -105,7 +105,7 @@ test("a Record Action Retry reuses its command and refreshes the affected surfac
   const invalidate = vi.spyOn(cache, "invalidateQueries");
   let runner: ReturnType<typeof useRecordActionRunner> | undefined;
   function Probe() {
-    runner = useRecordActionRunner("p1");
+    runner = useRecordActionRunner("p1", { action, work });
     return null;
   }
   const root = createRoot(document.createElement("div"));
@@ -116,7 +116,6 @@ test("a Record Action Retry reuses its command and refreshes the affected surfac
       </QueryClientProvider>,
     ),
   );
-  await act(async () => runner?.start(action, work));
   await vi.waitFor(() => expect(runner?.preview).toEqual(preview));
   await act(async () => runner?.apply());
   await vi.waitFor(() => expect(runner?.applyError).toBe(true));

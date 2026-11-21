@@ -8,7 +8,9 @@ import {
 } from "@cantiara/api/return-visual-tour";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
+  type DialogActions,
   DialogContent,
   DialogDescription,
   DialogTitle,
@@ -43,6 +45,7 @@ function VisualTourSession({
   onClose: (remainingId?: string) => void;
   driver: RefObject<ReturnType<typeof createReturnVisualTour> | null>;
 }) {
+  const [openingChanges] = useState(() => changes);
   const session = useRoadmapSession();
   const [view] = useState(() => session?.state.view ?? null);
   const [state, setState] = useState<ReturnVisualTourState>({
@@ -59,13 +62,13 @@ function VisualTourSession({
       if (driver.current) {
         return;
       }
-      const tour = createReturnVisualTour(changes, canvas);
+      const tour = createReturnVisualTour(openingChanges, canvas);
       driver.current = tour;
       const pending = tour.start();
       setState({ ...tour.state });
       pending.then(() => setState({ ...tour.state }));
     },
-    [changes, driver],
+    [openingChanges, driver],
   );
   const next = () => {
     const tour = driver.current;
@@ -106,10 +109,8 @@ export default function VisualChangesTour({
   projectId: string;
   preferences: AccountPreferences;
 }) {
-  const [activeChanges, setActiveChanges] = useState<SinceLastLooked | null>(
-    null,
-  );
-  const [open, setOpen] = useState(false);
+  const [handle] = useState(createDialogHandle<SinceLastLooked>);
+  const actions = useRef<DialogActions | null>(null);
   const remaining = useRef<string | null>(null);
   const driver = useRef<ReturnType<typeof createReturnVisualTour> | null>(null);
   useEffect(
@@ -118,64 +119,66 @@ export default function VisualChangesTour({
     },
     [],
   );
-  const finish = useCallback((remainingId?: string) => {
-    remaining.current = remainingId ?? null;
+  const restoreViewport = useCallback(() => {
     const tour = driver.current;
-    setOpen(false);
-    if (!tour) {
-      setActiveChanges(null);
-      return;
-    }
-    tour.close().then(() => {
+    tour?.close().then(() => {
       if (tour.state.restoration === "failed") {
         toast.error("The Roadmap viewport could not be restored or fitted.");
       }
-      if (driver.current === tour) {
-        setActiveChanges(null);
-      }
     });
   }, []);
-  const openChanged = (nextOpen: boolean) => {
-    if (nextOpen) {
-      driver.current = null;
-      setActiveChanges(changes);
-      setOpen(true);
-    } else {
-      finish();
-    }
-  };
+  const finish = useCallback((remainingId?: string) => {
+    remaining.current = remainingId ?? null;
+    actions.current?.close();
+  }, []);
   return (
-    <Dialog
-      onOpenChange={openChanged}
-      onOpenChangeComplete={(nextOpen) => {
-        if (!nextOpen && remaining.current) {
-          const element = document.getElementById(
-            returnEventElementId(remaining.current),
-          );
-          remaining.current = null;
-          element?.focus();
-          element?.scrollIntoView({ block: "center", behavior: "auto" });
-        }
-      }}
-      open={open}
-    >
-      <DialogTrigger render={<Button type="button" variant="outline" />}>
+    <>
+      <DialogTrigger
+        handle={handle}
+        payload={changes}
+        render={<Button type="button" variant="outline" />}
+      >
         Tour the visual changes
       </DialogTrigger>
-      <DialogContent
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-4xl"
-        showCloseButton={false}
+      <Dialog
+        actionsRef={actions}
+        handle={handle}
+        onOpenChange={(open) => {
+          if (open) {
+            driver.current = null;
+            remaining.current = null;
+          } else {
+            restoreViewport();
+          }
+        }}
+        onOpenChangeComplete={(nextOpen) => {
+          if (!nextOpen && remaining.current) {
+            const element = document.getElementById(
+              returnEventElementId(remaining.current),
+            );
+            remaining.current = null;
+            element?.focus();
+            element?.scrollIntoView({ block: "center", behavior: "auto" });
+          }
+        }}
       >
-        {activeChanges !== null && (
-          <VisualTourSession
-            changes={activeChanges}
-            driver={driver}
-            onClose={finish}
-            preferences={preferences}
-            projectId={projectId}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
+        {({ payload }) =>
+          payload ? (
+            <DialogContent
+              className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-4xl"
+              showCloseButton={false}
+            >
+              <VisualTourSession
+                changes={payload}
+                driver={driver}
+                onClose={finish}
+                preferences={preferences}
+                projectId={projectId}
+              />
+            </DialogContent>
+          ) : null
+        }
+      </Dialog>
+    </>
   );
 }

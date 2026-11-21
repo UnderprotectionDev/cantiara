@@ -83,10 +83,7 @@ describe("Project source record detail", () => {
       sourceId: "incident/1",
       sourceType: "Production Incident",
     });
-    expect(mocks.reminderInput).toHaveBeenCalledWith({
-      sourceRecordId: "incident/1",
-      sourceRecordType: "Production Incident",
-    });
+    expect(mocks.reminderInput).not.toHaveBeenCalled();
     expect(html).toContain("Queue delay");
     expect(html).toContain("Resolved");
     expect(html).toContain("Requests were delayed.");

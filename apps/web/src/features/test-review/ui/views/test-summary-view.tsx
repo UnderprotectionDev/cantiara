@@ -15,7 +15,12 @@ import {
   type TestSummaryRecord,
   type TestSummarySection,
 } from "@cantiara/api/test-review-summary";
-import { useId, useState } from "react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
+import { useId } from "react";
 import { AppLink } from "@/components/app-link";
 import {
   projectSourceRecordHash,
@@ -129,49 +134,40 @@ function SectionRow({
   projectId: string;
   section: TestSummarySection;
 }) {
-  const [open, setOpen] = useState(false);
-  const panelId = useId();
   const count = section.records.length;
   return (
-    <li className="rounded-md border border-border/70 px-3 py-2">
-      <button
-        aria-controls={panelId}
-        aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 text-left text-sm"
-        onClick={() => setOpen((value) => !value)}
-        type="button"
-      >
+    <Collapsible
+      render={<li className="rounded-md border border-border/70 px-3 py-2" />}
+    >
+      <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 text-left text-sm">
         <span className="font-medium">{section.label}</span>
         <span className="tabular-nums">{count}</span>
-      </button>
-      {open ? (
-        <section
-          aria-label={`${section.label} records`}
-          className="mt-2 space-y-2 text-sm"
-          id={panelId}
-        >
-          <p className="text-xs text-muted-foreground">
-            Filters:{" "}
-            {section.filters
-              .map((filter) => `${filter.label}: ${filter.value}`)
-              .join("; ")}
-          </p>
-          {count === 0 ? (
-            <p className="text-muted-foreground">No records.</p>
-          ) : (
-            <ul className="divide-y divide-border/60">
-              {section.records.map((record) => (
-                <RecordRow
-                  key={`${record.kind}:${record.id}`}
-                  projectId={projectId}
-                  record={record}
-                />
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
-    </li>
+      </CollapsibleTrigger>
+      <CollapsibleContent
+        aria-label={`${section.label} records`}
+        render={<section className="mt-2 space-y-2 text-sm" />}
+      >
+        <p className="text-xs text-muted-foreground">
+          Filters:{" "}
+          {section.filters
+            .map((filter) => `${filter.label}: ${filter.value}`)
+            .join("; ")}
+        </p>
+        {count === 0 ? (
+          <p className="text-muted-foreground">No records.</p>
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {section.records.map((record) => (
+              <RecordRow
+                key={`${record.kind}:${record.id}`}
+                projectId={projectId}
+                record={record}
+              />
+            ))}
+          </ul>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

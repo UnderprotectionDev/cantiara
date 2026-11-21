@@ -5,12 +5,10 @@ import {
   type FeedbackRecord,
   type FeedbackStatus,
 } from "@cantiara/api/feedback";
-import { Button } from "@cantiara/ui/components/button";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useState } from "react";
 import {
   type ConfirmConvert,
   ConvertToWorkDialog,
@@ -69,7 +67,6 @@ function FeedbackRow({
   identityWrite?: FeedbackWriteState;
   statusWrite?: FeedbackWriteState;
 }) {
-  const [converting, setConverting] = useState(false);
   const disableWrite =
     readOnly || statusWrite?.isPending || identityWrite?.isPending;
   let error: string | undefined;
@@ -207,22 +204,12 @@ function FeedbackRow({
         </section>
       ) : null}
       {readOnly ? null : (
-        <Button
-          onClick={() => setConverting(true)}
-          type="button"
-          variant="outline"
-        >
-          Convert to Work
-        </Button>
-      )}
-      {converting ? (
         <ConvertToWorkDialog
-          onClose={() => setConverting(false)}
           onConfirm={onConfirmConvert(record)}
           onPreview={onPreviewConvert(record)}
           record={record}
         />
-      ) : null}
+      )}
     </li>
   );
 }

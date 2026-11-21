@@ -1,6 +1,7 @@
 import { Button } from "@cantiara/ui/components/button";
 import {
   Sheet,
+  type SheetActions,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -9,7 +10,7 @@ import {
 } from "@cantiara/ui/components/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@cantiara/ui/components/tabs";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useRef, useState } from "react";
 import {
   isPersonalShellSurface,
   PERSONAL_SHELL_FULL_PAGE_PATHS,
@@ -21,8 +22,7 @@ import {
 /**
  * Opens Daily Focus, Favorites, Notification Center and Look again in one
  * temporary panel above the current route. It owns no membership, no read
- * state and no persisted position: open state and surface live in component
- * state only, so a new session starts closed.
+ * state and no persisted position. Base UI owns the panel lifecycle.
  */
 export default function PersonalShell({
   renderSurface,
@@ -32,18 +32,18 @@ export default function PersonalShell({
     close: () => void,
   ) => ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const sheetActions = useRef<SheetActions | null>(null);
   const [surface, setSurface] = useState<PersonalShellSurface>(
     PERSONAL_SHELL_INITIAL_SURFACE,
   );
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => sheetActions.current?.close(), []);
   const selectSurface = useCallback((value: unknown) => {
     if (isPersonalShellSurface(value)) {
       setSurface(value);
     }
   }, []);
   return (
-    <Sheet onOpenChange={setOpen} open={open}>
+    <Sheet actionsRef={sheetActions}>
       <SheetTrigger render={<Button className="min-h-11" variant="ghost" />}>
         Personal
       </SheetTrigger>

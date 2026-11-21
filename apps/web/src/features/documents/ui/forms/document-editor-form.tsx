@@ -7,6 +7,7 @@ import {
   documentTypeSchema,
 } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
+import { createDialogHandle } from "@cantiara/ui/components/dialog";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
 import {
@@ -178,9 +179,9 @@ export default function DocumentEditor({
     end: number;
     start: number;
   } | null>(null);
-  const [pinEvidenceOpen, setPinEvidenceOpen] = useState(false);
-  const [bulkConversionOpen, setBulkConversionOpen] = useState(false);
-  const [recordConversionOpen, setRecordConversionOpen] = useState(false);
+  const [pinEvidenceHandle] = useState(createDialogHandle);
+  const [bulkConversionHandle] = useState(createDialogHandle);
+  const [recordConversionHandle] = useState(createDialogHandle);
   const [conversionSelection, setConversionSelection] = useState<{
     start: number;
     end: number;
@@ -493,7 +494,7 @@ export default function DocumentEditor({
         pinEvidenceKey.current === input.clientIdempotencyKey
       ) {
         pinEvidenceKey.current = null;
-        setPinEvidenceOpen(false);
+        pinEvidenceHandle.close();
       }
       await queryClient.invalidateQueries({ queryKey: orpc.usageLinks.key() });
     },
@@ -555,7 +556,7 @@ export default function DocumentEditor({
       }
       const { clientIdempotencyKey, projectId } = input.command;
       if (recordConversionKey.current === clientIdempotencyKey) {
-        setRecordConversionOpen(false);
+        recordConversionHandle.close();
         recordConversionKey.current = null;
         recordConversionId.current = null;
       }
@@ -676,7 +677,7 @@ export default function DocumentEditor({
         return;
       }
       if (bulkConversionKey.current === input.clientIdempotencyKey) {
-        setBulkConversionOpen(false);
+        bulkConversionHandle.close();
         bulkConversionKey.current = null;
       }
       await Promise.all([
@@ -1091,6 +1092,7 @@ export default function DocumentEditor({
                   {(field) => (
                     <DocumentMarkdownEditor
                       availableSections={availableSections}
+                      bulkConversionHandle={bulkConversionHandle}
                       bulkRows={bulkRows}
                       collectionViews={collectionViews}
                       diagrams={diagrams}
@@ -1098,8 +1100,10 @@ export default function DocumentEditor({
                       diagramViews={diagramViews}
                       documentsForSections={documentsForSections}
                       field={field}
+                      pinEvidenceHandle={pinEvidenceHandle}
                       pinEvidenceKey={pinEvidenceKey}
                       record={record}
+                      recordConversionHandle={recordConversionHandle}
                       recordConversionId={recordConversionId}
                       recordConversionKey={recordConversionKey}
                       recordReferenceChoice={recordReferenceChoice}
@@ -1110,10 +1114,7 @@ export default function DocumentEditor({
                       sectionSourceDocument={sectionSourceDocument}
                       selectedDiagramId={selectedDiagramId}
                       selectedTextRange={selectedTextRange}
-                      setBulkConversionOpen={setBulkConversionOpen}
                       setConversionWarning={setConversionWarning}
-                      setPinEvidenceOpen={setPinEvidenceOpen}
-                      setRecordConversionOpen={setRecordConversionOpen}
                       setRecordReferenceChoice={setRecordReferenceChoice}
                       setSectionDocumentId={setSectionDocumentId}
                       setSectionId={setSectionId}
@@ -1178,30 +1179,27 @@ export default function DocumentEditor({
         convertSelectedText={convertSelectedText}
         form={form}
         record={record}
+        recordConversionHandle={recordConversionHandle}
         recordConversionId={recordConversionId}
         recordConversionKey={recordConversionKey}
-        recordConversionOpen={recordConversionOpen}
         revision={revision}
         selectedTextRange={selectedTextRange}
-        setRecordConversionOpen={setRecordConversionOpen}
       />
       <DocumentBulkConversionDialog
+        bulkConversionHandle={bulkConversionHandle}
         bulkConversionKey={bulkConversionKey}
-        bulkConversionOpen={bulkConversionOpen}
         bulkRows={bulkRows}
         convertListToWork={convertListToWork}
         record={record}
         revision={revision}
-        setBulkConversionOpen={setBulkConversionOpen}
       />
       <DocumentEvidenceDialog
         form={form}
         pinEvidence={pinEvidence}
+        pinEvidenceHandle={pinEvidenceHandle}
         pinEvidenceKey={pinEvidenceKey}
-        pinEvidenceOpen={pinEvidenceOpen}
         recordReferenceOptions={recordReferenceOptions}
         selectedTextRange={selectedTextRange}
-        setPinEvidenceOpen={setPinEvidenceOpen}
       />
       <DocumentWorkActionDialog
         actionWork={actionWork}

@@ -39,9 +39,12 @@ test("revokes a session through the keyboard-accessible Account journey", async 
     page.getByRole("heading", { name: "Sessions", level: 1 }),
   ).toBeVisible();
   const activeSessions = page.getByRole("region", {
+    includeHidden: true,
     name: "Active sessions",
   });
-  const sessionItems = activeSessions.getByRole("listitem");
+  const sessionItems = activeSessions.getByRole("listitem", {
+    includeHidden: true,
+  });
   await expect(sessionItems).toHaveCount(2);
   await expect(page.getByText("Current", { exact: true })).toBeVisible();
 
@@ -70,9 +73,26 @@ test("revokes a session through the keyboard-accessible Account journey", async 
   await expect(
     dialog.getByText("Firefox on Linux will lose access immediately."),
   ).toBeVisible();
-  await dialog.getByRole("button", { name: "Revoke Session" }).focus();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(revokeSession).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await page.route("**/rpc/revokeSession", (route) => route.abort("failed"), {
+    times: 1,
+  });
+  const confirm = dialog.getByRole("button", { name: "Revoke Session" });
+  await confirm.click();
+  await expect(dialog.getByRole("alert")).toBeVisible();
+  await expect(dialog).toBeVisible();
+  await expect(sessionItems).toHaveCount(2);
+
+  await confirm.focus();
   await page.keyboard.press("Enter");
 
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Sessions", level: 1 }),
+  ).toBeFocused();
   await expect(otherSession).toHaveCount(0);
   await expect(sessionItems).toHaveCount(1);
   await expect(page.getByText("Firefox on macOS")).toBeVisible();

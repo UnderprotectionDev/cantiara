@@ -5,8 +5,7 @@ import type {
 } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
 import {
-  Dialog,
-  DialogContent,
+  DialogClose,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -93,26 +92,27 @@ export function RebindDialog({
     }
   }
   return (
-    <Dialog onOpenChange={(open) => !open && onClose()} open>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Rebind</DialogTitle>
-          <DialogDescription>
-            Move the bind of {bind.record.title ?? "this record"} to the current
-            version of the node. Nothing moves until you confirm.
-          </DialogDescription>
-        </DialogHeader>
-        {plan ? <RebindPreview plan={plan} /> : null}
-        {error ? <p role="alert">{error}</p> : null}
-        <DialogFooter>
-          <Button onClick={onClose} type="button" variant="outline">
-            Cancel
-          </Button>
-          <Button disabled={!plan || pending} onClick={confirm} type="button">
-            Confirm
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <>
+      <DialogHeader>
+        <DialogTitle>Rebind</DialogTitle>
+        <DialogDescription>
+          Move the bind of {bind.record.title ?? "this record"} to the current
+          version of the node. Nothing moves until you confirm.
+        </DialogDescription>
+      </DialogHeader>
+      {plan ? <RebindPreview plan={plan} /> : null}
+      {error ? <p role="alert">{error}</p> : null}
+      <DialogFooter>
+        <DialogClose
+          disabled={Boolean(write?.isPending)}
+          render={<Button variant="outline" />}
+        >
+          Cancel
+        </DialogClose>
+        <Button disabled={!plan || pending} onClick={confirm} type="button">
+          Confirm
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

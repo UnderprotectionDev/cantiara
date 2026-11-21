@@ -17,6 +17,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
   Dialog,
+  type DialogActions,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -37,6 +38,7 @@ import {
   useCallback,
   useId,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -732,13 +734,13 @@ function RecordTableSurface({
 
 export default function DocumentDiscovery() {
   const { session } = useRouteContext({ from: "/_auth" });
-  const [open, setOpen] = useState(false);
-  const close = useCallback(() => setOpen(false), []);
+  const dialogActions = useRef<DialogActions | null>(null);
+  const close = useCallback(() => dialogActions.current?.close(), []);
   const [currentProjectId] = useMatches().flatMap((match) =>
     "projectId" in match.params ? [match.params.projectId] : [],
   );
   return (
-    <Dialog onOpenChange={setOpen} open={open}>
+    <Dialog actionsRef={dialogActions}>
       <DialogTrigger render={<Button variant="ghost" />}>Search</DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>

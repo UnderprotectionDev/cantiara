@@ -5,6 +5,10 @@ import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { StarterSkeletonSelection } from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
+import {
+  createDialogHandle,
+  DialogTrigger,
+} from "@cantiara/ui/components/dialog";
 import { Label } from "@cantiara/ui/components/label";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -49,7 +53,7 @@ export default function DocumentsSurface({
   const [selectedId, setSelectedId] = useState<string | null>(
     selectedDocumentId ?? null,
   );
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createHandle] = useState(createDialogHandle);
   const selected =
     documents.data?.find((item) => item.id === selectedId) ??
     (selectedId === selectedDocumentId
@@ -92,9 +96,9 @@ export default function DocumentsSurface({
           />
           Archived
         </Label>
-        <Button onClick={() => setCreateOpen(true)} type="button">
+        <DialogTrigger handle={createHandle} render={<Button />}>
           Create Document
-        </Button>
+        </DialogTrigger>
       </header>
       <DocumentTemplatesSurface
         onCreated={async (created) => {
@@ -116,8 +120,8 @@ export default function DocumentsSurface({
       />
       <DocumentCreateForm
         documentStarterSkeletons={documentStarterSkeletons}
+        handle={createHandle}
         onCreated={async (created) => {
-          setCreateOpen(false);
           setArchived(false);
           setSelectedId(created.id);
           if (projectId === null) {
@@ -132,8 +136,6 @@ export default function DocumentsSurface({
             ...invalidateSmartCollectionMembership(queryClient),
           ]);
         }}
-        onOpenChange={setCreateOpen}
-        open={createOpen}
         projectId={projectId}
       />
       {documents.isError ? (

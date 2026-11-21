@@ -4,12 +4,13 @@ import { Calendar } from "@cantiara/ui/components/calendar";
 import { Input } from "@cantiara/ui/components/input";
 import {
   Popover,
+  type PopoverActions,
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
 import { format, isValid, parse } from "date-fns";
 import { CalendarDays } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 const DATE_FORMAT = "yyyy-MM-dd";
 const DEFAULT_TIME = "00:00";
@@ -55,13 +56,13 @@ function DatePicker({
   required,
   value,
 }: DatePickerProps) {
-  const [open, setOpen] = useState(false);
+  const popoverActions = useRef<PopoverActions | null>(null);
   const selected = parseDateValue(value);
   const minDate = min ? parseDateValue(min) : undefined;
   const triggerText = selected ? format(selected, "PP") : placeholder;
 
   return (
-    <Popover onOpenChange={setOpen} open={open}>
+    <Popover actionsRef={popoverActions}>
       <PopoverTrigger
         render={
           <Button
@@ -87,7 +88,7 @@ function DatePicker({
             // Re-picking the selected day keeps it (like a native date field);
             // clearing is the explicit Clear action.
             onChange(date ? format(date, DATE_FORMAT) : value);
-            setOpen(false);
+            popoverActions.current?.close();
           }}
           selected={selected}
         />
@@ -97,7 +98,7 @@ function DatePicker({
             disabled={disabled}
             onClick={() => {
               onChange("");
-              setOpen(false);
+              popoverActions.current?.close();
             }}
             size="xs"
             type="button"

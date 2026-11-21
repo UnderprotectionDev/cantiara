@@ -58,6 +58,8 @@ Kanban İşleri korunan `Not Started`, `In Progress`, `In Review`, `Blocked` ve 
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Kanban browser seam verifies per-column collapse and checks `Close` and Escape return focus to the Work's `Open source record` button. The full-page link opens the same Work.
+
 - **What a good test is.** Tests observe Kanban through its public interface: five columns in protected order with `In Review` between `In Progress` and `Blocked`, column move among the four open columns (including into and out of `In Review`), closure-step on `Closed`, reopen to any open column including `In Review`, soft WIP/focus overflow still movable, shared in-progress count and focus warning in Board and List, List scan of the same Work, collapse, saved-view sort, elapsed current-status duration, and future Reappear date backgrounding with no independent rank. They do not assert CSS grid internals or Drizzle column maps. Expected values are product rules (status written only by column move or explicit action; Closed does not skip closure; WIP does not block; a future Reappear date does not change status).
 - **Seam (one).** Kanban — the planning surface that presents Work by workflow status (board columns and the same-scan `List`). Work lifecycle is the status/closure counterpart behind that interface; Backlog, Daily Focus, Calendar, Table View, and Smart Collection are not this module.
 - **Modules under test.** Kanban only. Work create/identity, Backlog rank, Daily Focus membership, Unified Calendar, Table View, bulk edit, and GitHub are out except as counterparts (“status did not change”, “rank did not write”, “list row is the same Work”).

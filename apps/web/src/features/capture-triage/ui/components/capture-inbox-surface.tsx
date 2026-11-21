@@ -9,12 +9,14 @@ import type {
 import { Button } from "@cantiara/ui/components/button";
 import {
   Dialog,
+  type DialogActions,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@cantiara/ui/components/dialog";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { useCaptureInboxUndo } from "@/features/capture-triage/hooks/use-capture-inbox";
@@ -320,7 +322,6 @@ function CaptureInboxListView({
   formattingPreferences,
   groups,
   items,
-  onOpenCaptureComposer,
   onStartSequentialTriage,
   onToggleBulkView,
   onUndoPreview,
@@ -332,7 +333,6 @@ function CaptureInboxListView({
   formattingPreferences: AccountPreferences;
   groups: CaptureInboxGroup[];
   items: CaptureInboxItem[];
-  onOpenCaptureComposer: () => void;
   onStartSequentialTriage: () => void;
   onToggleBulkView: () => void;
   onUndoPreview: (mergeId: string) => void;
@@ -410,13 +410,9 @@ function CaptureInboxListView({
               )}
             </span>
           ) : null}
-          <Button
-            className="min-h-11"
-            onClick={onOpenCaptureComposer}
-            type="button"
-          >
+          <DialogTrigger render={<Button className="min-h-11" />}>
             New capture
-          </Button>
+          </DialogTrigger>
           {groups.length > 0 && triageAvailable ? (
             <Button
               className="min-h-11"
@@ -455,7 +451,7 @@ export default function CaptureInboxSurface({
   formattingPreferences: AccountPreferences;
   inbox: CaptureInboxSnapshot;
 }) {
-  const [captureComposerOpen, setCaptureComposerOpen] = useState(false);
+  const composerActions = useRef<DialogActions | null>(null);
   const [viewMode, setViewMode] = useState<"inbox" | "bulk">("inbox");
   const [sequentialTriageState, setSequentialTriageState] =
     useState<SequentialTriageState>({ mode: "list" });
@@ -518,7 +514,7 @@ export default function CaptureInboxSurface({
   const inSequentialTriage = sequentialTriageState.mode !== "list";
 
   return (
-    <>
+    <Dialog actionsRef={composerActions}>
       {undoPreview ? (
         <CaptureUndoPreviewPanel
           formattingPreferences={formattingPreferences}
@@ -529,22 +525,20 @@ export default function CaptureInboxSurface({
         />
       ) : null}
 
-      <Dialog onOpenChange={setCaptureComposerOpen} open={captureComposerOpen}>
-        <DialogContent className="max-h-[calc(100svh-2rem)] max-w-xl overflow-y-auto p-5 sm:p-6">
-          <DialogHeader className="pr-8">
-            <DialogTitle className="text-lg">New capture</DialogTitle>
-            <DialogDescription>
-              Save keeps a Capture in the Inbox; Create Bug creates a Bug Work
-              directly when a Project is set.
-            </DialogDescription>
-          </DialogHeader>
-          <CaptureInboxForm
-            accountId={accountId}
-            onSaved={() => setCaptureComposerOpen(false)}
-            showHeader={false}
-          />
-        </DialogContent>
-      </Dialog>
+      <DialogContent className="max-h-[calc(100svh-2rem)] max-w-xl overflow-y-auto p-5 sm:p-6">
+        <DialogHeader className="pr-8">
+          <DialogTitle className="text-lg">New capture</DialogTitle>
+          <DialogDescription>
+            Save keeps a Capture in the Inbox; Create Bug creates a Bug Work
+            directly when a Project is set.
+          </DialogDescription>
+        </DialogHeader>
+        <CaptureInboxForm
+          accountId={accountId}
+          onSaved={() => composerActions.current?.close()}
+          showHeader={false}
+        />
+      </DialogContent>
 
       {inSequentialTriage ? (
         <SequentialTriageSurface
@@ -568,7 +562,6 @@ export default function CaptureInboxSurface({
           formattingPreferences={formattingPreferences}
           groups={groups}
           items={items}
-          onOpenCaptureComposer={() => setCaptureComposerOpen(true)}
           onStartSequentialTriage={startSequentialTriage}
           onToggleBulkView={() =>
             setViewMode((current) => (current === "bulk" ? "inbox" : "bulk"))
@@ -578,6 +571,6 @@ export default function CaptureInboxSurface({
           viewMode={viewMode}
         />
       )}
-    </>
+    </Dialog>
   );
 }

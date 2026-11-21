@@ -13,6 +13,7 @@ export function GitHubLinkPreviewPanel({
   linkId,
   onCancel,
   onConfirm,
+  pending = false,
   preview,
 }: {
   action: GitHubLinkPreview["action"];
@@ -20,6 +21,7 @@ export function GitHubLinkPreviewPanel({
   linkId: string;
   onCancel: () => void;
   onConfirm: () => void;
+  pending?: boolean;
   preview: GitHubLinkPreview | undefined;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
@@ -53,14 +55,19 @@ export function GitHubLinkPreviewPanel({
       ) : null}
       <div className="flex flex-wrap gap-2">
         <Button
-          disabled={!preview}
+          disabled={!preview || pending}
           onClick={onConfirm}
           type="button"
           variant={action === "Disconnect" ? "destructive" : "default"}
         >
           {`Confirm ${action}`}
         </Button>
-        <Button onClick={onCancel} type="button" variant="outline">
+        <Button
+          disabled={pending}
+          onClick={onCancel}
+          type="button"
+          variant="outline"
+        >
           Cancel
         </Button>
       </div>

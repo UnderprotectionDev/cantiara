@@ -16,7 +16,13 @@ import type {
   UserFlowWorkType,
 } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
-import { type ReactNode, useCallback, useState } from "react";
+import {
+  createDialogHandle,
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@cantiara/ui/components/dialog";
+import { type ReactNode, useState } from "react";
 import { AppLink } from "@/components/app-link";
 import type { PlaceNodeDraft } from "../../lib/place-node-draft";
 import { RebindDialog } from "../components/rebind-dialog";
@@ -152,16 +158,8 @@ export function UserFlowDetail({
   screens: ScreenOption[];
   tools?: UserFlowDetailTools;
 }) {
-  const [converting, setConverting] = useState<UserFlowNodeView | null>(null);
-  const [rebinding, setRebinding] = useState<UserFlowBindView | null>(null);
-  const rebindingId = rebinding?.id;
-  const previewRebind = useCallback(
-    () =>
-      tools && rebindingId
-        ? tools.onPreviewRebind(rebindingId)
-        : Promise.reject(new Error("No bind")),
-    [rebindingId, tools],
-  );
+  const [convertHandle] = useState(createDialogHandle<UserFlowNodeView>);
+  const [rebindHandle] = useState(createDialogHandle<UserFlowBindView>);
 
   return (
     <section aria-label={`User Flow ${flow.title}`} className="space-y-4">
@@ -177,18 +175,15 @@ export function UserFlowDetail({
               actions={
                 tools ? (
                   <div className="space-y-2 pt-1">
-                    <Button
+                    <DialogTrigger
                       disabled={readOnly}
-                      onClick={() => {
-                        tools.resetConvert?.();
-                        setConverting(node);
-                      }}
-                      size="sm"
-                      type="button"
-                      variant="outline"
+                      handle={convertHandle}
+                      onClick={() => tools.resetConvert?.()}
+                      payload={node}
+                      render={<Button size="sm" variant="outline" />}
                     >
                       Convert and Bind
-                    </Button>
+                    </DialogTrigger>
                     {node.screen ? null : (
                       <PromoteToScreenForm
                         disabled={readOnly}
@@ -210,11 +205,9 @@ export function UserFlowDetail({
         <>
           <BindList
             binds={tools.binds}
-            onRebind={(bind) => {
-              tools.resetRebind?.();
-              setRebinding(bind);
-            }}
+            onRebind={tools.resetRebind}
             readOnly={readOnly}
+            rebindHandle={rebindHandle}
           />
           <LiveCardList
             cards={flow.cards}
@@ -240,38 +233,76 @@ export function UserFlowDetail({
         onPlaceNode={onPlaceNode}
         screens={screens}
       />
-      {tools && converting ? (
-        <ConvertAndBindDialog
-          node={converting}
-          onClose={() => setConverting(null)}
-          onConfirm={(plan, identity) =>
-            tools.onConvertConfirm(converting.id, plan, identity)
-          }
-          onPreview={(target, workType) =>
-            tools.onConvertPreview(converting.id, target, workType)
-          }
-          resetWrite={tools.resetConvert}
-          write={
-            tools.convertWrite?.nodeId === converting.id
-              ? tools.convertWrite
-              : undefined
-          }
-        />
-      ) : null}
-      {tools && rebinding ? (
-        <RebindDialog
-          bind={rebinding}
-          flowId={flow.id}
-          onClose={() => setRebinding(null)}
-          onConfirm={(plan) => tools.onRebind(rebinding.id, plan)}
-          onPreview={previewRebind}
-          projectId={flow.projectId}
-          write={
-            tools.rebindWrite?.bindId === rebinding.id
-              ? tools.rebindWrite
-              : undefined
-          }
-        />
+      {tools ? (
+        <>
+          <Dialog
+            handle={convertHandle}
+            onOpenChange={(open, event) => {
+              if (
+                !open &&
+                tools.convertWrite?.isPending &&
+                event.reason !== "imperative-action"
+              ) {
+                event.cancel();
+              }
+            }}
+          >
+            {({ payload: converting }) =>
+              converting ? (
+                <DialogContent>
+                  <ConvertAndBindDialog
+                    node={converting}
+                    onClose={() => convertHandle.close()}
+                    onConfirm={(plan, identity) =>
+                      tools.onConvertConfirm(converting.id, plan, identity)
+                    }
+                    onPreview={(target, workType) =>
+                      tools.onConvertPreview(converting.id, target, workType)
+                    }
+                    resetWrite={tools.resetConvert}
+                    write={
+                      tools.convertWrite?.nodeId === converting.id
+                        ? tools.convertWrite
+                        : undefined
+                    }
+                  />
+                </DialogContent>
+              ) : null
+            }
+          </Dialog>
+          <Dialog
+            handle={rebindHandle}
+            onOpenChange={(open, event) => {
+              if (
+                !open &&
+                tools.rebindWrite?.isPending &&
+                event.reason !== "imperative-action"
+              ) {
+                event.cancel();
+              }
+            }}
+          >
+            {({ payload: rebinding }) =>
+              rebinding ? (
+                <DialogContent>
+                  <RebindDialog
+                    bind={rebinding}
+                    flowId={flow.id}
+                    onClose={() => rebindHandle.close()}
+                    onConfirm={(plan) => tools.onRebind(rebinding.id, plan)}
+                    onPreview={() => tools.onPreviewRebind(rebinding.id)}
+                    projectId={flow.projectId}
+                    write={
+                      tools.rebindWrite?.bindId === rebinding.id
+                        ? tools.rebindWrite
+                        : undefined
+                    }
+                  />
+                </DialogContent>
+              ) : null
+            }
+          </Dialog>
+        </>
       ) : null}
     </section>
   );

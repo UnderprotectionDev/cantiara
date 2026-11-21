@@ -16,8 +16,7 @@ export function useAccountSessions() {
     },
   });
   const revokeOtherSessions = useMutation({
-    mutationFn: (_targetSessionAlias: string) =>
-      runOnlineOnlyWrite(() => client.revokeOtherSessions()),
+    mutationFn: () => runOnlineOnlyWrite(() => client.revokeOtherSessions()),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orpc.sessions.key() });
       toast.success("Other sessions revoked.");

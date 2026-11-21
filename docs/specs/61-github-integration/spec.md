@@ -43,6 +43,8 @@ Kurucu GitHub App installation'ı ile (Better Auth login OAuth'undan ayrı) kara
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The repository link seam opens the `Reconnect` or `Disconnect` preview from its link control, checks the exact link passed to preview and confirm, and verifies Cancel returns focus.
+
 - The GitHub Integration seam verifies that Repository, triage, lifecycle preview, and record search reads are scoped to the full Project input.
 
 - **What a good test is.** GitHub Integration with App/webhook/API test doubles: signature, <10s ACK, duplicate delivery, out-of-order events, reconcile, permission allow-list, login-revoke vs App-uninstall, archive/trash/tombstone, head SHA checks, role mapping, unlinked open-PR signal, card has no review/merge/write command, Work status unchanged.

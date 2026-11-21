@@ -4,13 +4,14 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import {
   Popover,
+  type PopoverActions,
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
 import { useForm, useSelector } from "@tanstack/react-form";
 import type { useEditor } from "@tiptap/react";
 import { Link2, Unlink2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { submitForm } from "@/lib/submit-form";
 import { documentLinkFormSchema } from "../../lib/document-insert-form";
 import FieldErrors from "../components/document-field-errors";
@@ -23,7 +24,7 @@ export function DocumentLinkPopover({
   active: boolean;
   editor: Editor;
 }) {
-  const [open, setOpen] = useState(false);
+  const popoverActions = useRef<PopoverActions | null>(null);
   const linkSelection = useRef<Editor["state"]["selection"] | null>(null);
 
   const linkForm = useForm({
@@ -50,7 +51,7 @@ export function DocumentLinkPopover({
       }
       chain.extendMarkRange("link").setLink({ href: parsed.data.url }).run();
       linkSelection.current = null;
-      setOpen(false);
+      popoverActions.current?.close();
     },
   });
   const error = useSelector(
@@ -58,7 +59,7 @@ export function DocumentLinkPopover({
     (state): string | undefined => state.errorMap.onSubmit,
   );
   return (
-    <Popover onOpenChange={setOpen} open={open}>
+    <Popover actionsRef={popoverActions}>
       <PopoverTrigger
         aria-label="Link"
         aria-pressed={active}
@@ -107,7 +108,7 @@ export function DocumentLinkPopover({
               <Button
                 onClick={() => {
                   editor.chain().focus().unsetLink().run();
-                  setOpen(false);
+                  popoverActions.current?.close();
                 }}
                 size="sm"
                 type="button"

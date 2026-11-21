@@ -32,6 +32,8 @@ Kurucu Proje ana kaydı Üretim Olayını `Open`, `Watching`, veya `Resolved` il
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Production Incident follow-up seam checks the same reviewed plan and Work identity after a failed `Create follow-up work` confirmation.
+
 - The incident follow-up seam verifies that the read-only preview is scoped to the incident and its selected Work input.
 
 - **What a good test is.** Tests observe Production Incidents through create, bind Bug/PR/Release/Risk/Karar, and previewed follow-up Work. They go red if an S1 alarm double or Sentry event mints the record, if follow-up Work is created without preview, or if the type is a Bug. They do not assert pager adapters.

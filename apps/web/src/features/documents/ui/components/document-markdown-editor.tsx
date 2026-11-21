@@ -2,6 +2,10 @@
 import type { Document } from "@cantiara/api/documents";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  type createDialogHandle,
+  DialogTrigger,
+} from "@cantiara/ui/components/dialog";
 import { Label } from "@cantiara/ui/components/label";
 import {
   NativeSelect,
@@ -36,12 +40,12 @@ export default function DocumentMarkdownEditor({
   selectedTextRange,
   pinEvidenceKey,
   savedBody,
-  setPinEvidenceOpen,
+  pinEvidenceHandle,
   recordConversionKey,
   recordConversionId,
-  setRecordConversionOpen,
+  recordConversionHandle,
   bulkRows,
-  setBulkConversionOpen,
+  bulkConversionHandle,
 }: {
   field: { state: { value: string }; handleChange: (value: string) => void };
   works: import("@tanstack/react-query").UseQueryResult<WorkProfile[], Error>;
@@ -94,18 +98,12 @@ export default function DocumentMarkdownEditor({
   selectedTextRange: { end: number; start: number } | null;
   pinEvidenceKey: import("react").RefObject<string | null>;
   savedBody: string;
-  setPinEvidenceOpen: import("react").Dispatch<
-    import("react").SetStateAction<boolean>
-  >;
+  pinEvidenceHandle: ReturnType<typeof createDialogHandle>;
   recordConversionKey: import("react").RefObject<string | null>;
   recordConversionId: import("react").RefObject<string | null>;
-  setRecordConversionOpen: import("react").Dispatch<
-    import("react").SetStateAction<boolean>
-  >;
+  recordConversionHandle: ReturnType<typeof createDialogHandle>;
   bulkRows: DocumentListRow[];
-  setBulkConversionOpen: import("react").Dispatch<
-    import("react").SetStateAction<boolean>
-  >;
+  bulkConversionHandle: ReturnType<typeof createDialogHandle>;
 }) {
   return (
     <div className="space-y-2">
@@ -343,52 +341,47 @@ export default function DocumentMarkdownEditor({
         }}
         value={field.state.value}
       />
-      <Button
+      <DialogTrigger
         disabled={
           !selectedTextRange ||
           selectedTextRange.end <= selectedTextRange.start ||
           field.state.value !== savedBody
         }
-        onClick={() => setPinEvidenceOpen(true)}
-        type="button"
-        variant="outline"
+        handle={pinEvidenceHandle}
+        render={<Button variant="outline" />}
       >
         Version-pinned evidence
-      </Button>
-      <Button
+      </DialogTrigger>
+      <DialogTrigger
         disabled={
           record.projectId === null ||
           !selectedTextRange ||
           selectedTextRange.end <= selectedTextRange.start ||
           field.state.value !== savedBody
         }
+        handle={recordConversionHandle}
         onClick={() => {
           if (!selectedTextRange) {
             return;
           }
           recordConversionKey.current = null;
           recordConversionId.current = null;
-          setRecordConversionOpen(true);
         }}
-        type="button"
-        variant="outline"
+        render={<Button variant="outline" />}
       >
         Convert to record
-      </Button>
-      <Button
+      </DialogTrigger>
+      <DialogTrigger
         disabled={
           record.projectId === null ||
           bulkRows.length === 0 ||
           field.state.value !== savedBody
         }
-        onClick={() => {
-          setBulkConversionOpen(true);
-        }}
-        type="button"
-        variant="outline"
+        handle={bulkConversionHandle}
+        render={<Button variant="outline" />}
       >
         Convert in bulk
-      </Button>
+      </DialogTrigger>
     </div>
   );
 }

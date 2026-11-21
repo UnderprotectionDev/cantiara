@@ -1,3 +1,4 @@
+import { createDialogHandle } from "@cantiara/ui/components/dialog";
 // @vitest-environment happy-dom
 
 import type {
@@ -188,7 +189,11 @@ test("the outline offers Convert and Bind on every node and Promote to Screen on
 
 test("binds show the immutable Origin Location and Rebind only when a newer version has the node", () => {
   const html = renderToStaticMarkup(
-    <BindList binds={[bind]} onRebind={ignore} readOnly={false} />,
+    <BindList
+      binds={[bind]}
+      readOnly={false}
+      rebindHandle={createDialogHandle()}
+    />,
   );
   expect(html).toContain("Origin Location: User Flow f1");
   expect(html).toContain("version 2");
@@ -198,8 +203,8 @@ test("binds show the immutable Origin Location and Rebind only when a newer vers
   const current = renderToStaticMarkup(
     <BindList
       binds={[{ ...bind, rebindAvailable: false }]}
-      onRebind={ignore}
       readOnly={false}
+      rebindHandle={createDialogHandle()}
     />,
   );
   expect(current).not.toContain("Rebind");

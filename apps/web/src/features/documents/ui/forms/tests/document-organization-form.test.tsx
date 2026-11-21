@@ -15,7 +15,7 @@ vi.mock("@/utils/orpc", async (load) => ({
   },
 }));
 
-import DocumentOrganizationForm from "../document-organization-form";
+import DocumentOrganizationControls from "../../components/document-organization-controls";
 
 test("previews an archive change, then applies it with one save identity", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -33,7 +33,6 @@ test("previews an archive change, then applies it with one save identity", async
     reason: null,
   });
   rpc.organize.mockResolvedValue({ id: "doc" });
-  const onClose = vi.fn();
   const onCommitted = vi.fn(async () => undefined);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -54,16 +53,16 @@ test("previews an archive change, then applies it with one save identity", async
     await act(async () =>
       root.render(
         <QueryClientProvider client={queryClient}>
-          <DocumentOrganizationForm
-            action="archive"
+          <DocumentOrganizationControls
+            disabled={false}
             documents={[]}
-            onClose={onClose}
             onCommitted={onCommitted}
             record={{ id: "doc", revision: 3 } as Document}
           />
         </QueryClientProvider>,
       ),
     );
+    await act(async () => button("Archive").click());
     await act(async () => {
       button("Preview").click();
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -84,7 +83,9 @@ test("previews an archive change, then applies it with one save identity", async
       }),
     );
     expect(onCommitted).toHaveBeenCalledWith({ id: "doc" });
-    expect(onClose).toHaveBeenCalled();
+    await vi.waitFor(() =>
+      expect(document.querySelector("[role=dialog]")).toBeNull(),
+    );
   } finally {
     await act(async () => root.unmount());
     host.remove();

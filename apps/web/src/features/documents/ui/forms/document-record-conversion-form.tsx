@@ -2,6 +2,7 @@
 import type { Document } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  type createDialogHandle,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -32,22 +33,18 @@ const DOCUMENT_CONVERSION_CONTENT_FIELDS = {
 } as const;
 
 export default function DocumentRecordConversionDialog({
-  setRecordConversionOpen,
+  recordConversionHandle,
   recordConversionKey,
   recordConversionId,
-  recordConversionOpen,
   record,
   revision,
   selectedTextRange,
   form,
   convertSelectedText,
 }: {
-  setRecordConversionOpen: import("react").Dispatch<
-    import("react").SetStateAction<boolean>
-  >;
+  recordConversionHandle: ReturnType<typeof createDialogHandle>;
   recordConversionKey: import("react").RefObject<string | null>;
   recordConversionId: import("react").RefObject<string | null>;
-  recordConversionOpen: boolean;
   record: Document;
   revision: number;
   selectedTextRange: { end: number; start: number } | null;
@@ -72,14 +69,21 @@ export default function DocumentRecordConversionDialog({
     : "";
   return (
     <Dialog
-      onOpenChange={(open: boolean) => {
-        setRecordConversionOpen(open);
+      handle={recordConversionHandle}
+      onOpenChange={(open, event) => {
+        if (
+          !open &&
+          convertSelectedText.isPending &&
+          event.reason !== "imperative-action"
+        ) {
+          event.cancel();
+          return;
+        }
         if (!open) {
           recordConversionKey.current = null;
           recordConversionId.current = null;
         }
       }}
-      open={recordConversionOpen}
     >
       <DialogContent>
         <DialogHeader>
@@ -92,7 +96,11 @@ export default function DocumentRecordConversionDialog({
         <DocumentRecordConversionForm
           convertSelectedText={convertSelectedText}
           initialTitle={titleFromSelectedText(selectedText)}
-          onCancel={() => setRecordConversionOpen(false)}
+          onCancel={() => {
+            if (!convertSelectedText.isPending) {
+              recordConversionHandle.close();
+            }
+          }}
           record={record}
           recordConversionId={recordConversionId}
           recordConversionKey={recordConversionKey}
