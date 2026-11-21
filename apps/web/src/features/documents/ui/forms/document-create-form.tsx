@@ -6,7 +6,6 @@ import { Button } from "@cantiara/ui/components/button";
 import {
   type createDialogHandle,
   Dialog,
-  type DialogActions,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -52,7 +51,6 @@ export default function DocumentCreateForm({
   handle: ReturnType<typeof createDialogHandle>;
   projectId: string | null;
 }) {
-  const dialogActions = useRef<DialogActions | null>(null);
   const pendingCreate = useRef<{
     clientIdempotencyKey: string;
     projectId: string | null;
@@ -116,7 +114,7 @@ export default function DocumentCreateForm({
       ) {
         pendingCreate.current = null;
       }
-      dialogActions.current?.close();
+      handle.close();
       await onCreated(created);
     },
   });
@@ -158,7 +156,6 @@ export default function DocumentCreateForm({
 
   return (
     <Dialog
-      actionsRef={dialogActions}
       handle={handle}
       onOpenChange={(open, event) => {
         if (!open && create.isPending && event.reason !== "imperative-action") {

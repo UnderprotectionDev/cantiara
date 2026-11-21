@@ -8,6 +8,7 @@ export function useAccountSessions() {
   const queryClient = useQueryClient();
   const sessions = useQuery(orpc.sessions.queryOptions());
   const revokeSession = useMutation({
+    mutationKey: orpc.revokeSession.mutationKey(),
     mutationFn: (sessionId: string) =>
       runOnlineOnlyWrite(() => client.revokeSession({ sessionId })),
     onSuccess: async () => {
@@ -16,6 +17,7 @@ export function useAccountSessions() {
     },
   });
   const revokeOtherSessions = useMutation({
+    mutationKey: orpc.revokeOtherSessions.mutationKey(),
     mutationFn: () => runOnlineOnlyWrite(() => client.revokeOtherSessions()),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orpc.sessions.key() });

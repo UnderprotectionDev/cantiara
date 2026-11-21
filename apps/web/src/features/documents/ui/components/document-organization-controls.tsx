@@ -6,7 +6,9 @@ import {
   Dialog,
   DialogTrigger,
 } from "@cantiara/ui/components/dialog";
-import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useId, useState } from "react";
+import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
 import DocumentOrganizationForm from "../forms/document-organization-form";
 
 export default function DocumentOrganizationControls({
@@ -21,7 +23,8 @@ export default function DocumentOrganizationControls({
   onCommitted: (document: Document) => Promise<void>;
 }) {
   const [handle] = useState(createDialogHandle<"hierarchy" | "archive">);
-  const submitting = useRef<boolean>(false);
+  const popupId = useId();
+  const queryClient = useQueryClient();
   const archiveLabel = record.archivedAt ? "Unarchive" : "Archive";
   function close() {
     if (handle.isOpen) {
@@ -69,7 +72,7 @@ export default function DocumentOrganizationControls({
         onOpenChange={(open, event) => {
           if (
             !open &&
-            submitting.current &&
+            isPopupCommandPending(queryClient, popupId) &&
             event.reason !== "imperative-action"
           ) {
             event.cancel();
@@ -84,8 +87,8 @@ export default function DocumentOrganizationControls({
               key={payload}
               onClose={close}
               onCommitted={onCommitted}
+              popupId={popupId}
               record={record}
-              submitting={submitting}
             />
           ) : null
         }

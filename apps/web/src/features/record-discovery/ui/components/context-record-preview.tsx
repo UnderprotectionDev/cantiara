@@ -1,4 +1,4 @@
-// biome-ignore-all lint/performance/noJsxPropsBind: The Base UI lifecycle callback records the opening control for nested previews.
+// biome-ignore-all lint/performance/noJsxPropsBind: The Base UI render prop forwards the current preview and its focus target.
 import type { ProjectSourceType } from "@cantiara/api/project-source-records";
 import { Button } from "@cantiara/ui/components/button";
 import {
@@ -19,7 +19,7 @@ import {
   Suspense,
   useCallback,
   useContext,
-  useRef,
+  useId,
   useState,
 } from "react";
 import { AppLink } from "@/components/app-link";
@@ -64,8 +64,12 @@ export type SourceRecordPreviewTarget =
       viewId: string;
     };
 
+type SourceRecordPreviewPayload = SourceRecordPreviewTarget & {
+  returnFocusId?: string;
+};
+
 interface SourceRecordPreviewContextValue {
-  handle: ReturnType<typeof createSheetHandle<SourceRecordPreviewTarget>>;
+  handle: ReturnType<typeof createSheetHandle<SourceRecordPreviewPayload>>;
   openSourceRecord: (target: SourceRecordPreviewTarget) => void;
 }
 
@@ -125,6 +129,7 @@ export function OpenSourceRecordButton({
   className?: string;
   target: SourceRecordPreviewTarget;
 }) {
+  const returnFocusId = useId();
   const preview = useContext(SourceRecordPreviewContext);
   if (!preview) {
     throw new Error(
@@ -136,7 +141,8 @@ export function OpenSourceRecordButton({
       aria-label={`Open source record: ${target.label}`}
       className={className}
       handle={preview.handle}
-      payload={target}
+      id={returnFocusId}
+      payload={{ ...target, returnFocusId }}
       render={<Button variant="link" />}
     >
       Open source record
@@ -149,36 +155,32 @@ export function ContextRecordPreviewProvider({
 }: {
   children: ReactNode;
 }) {
-  const [handle] = useState(createSheetHandle<SourceRecordPreviewTarget>);
-  const openingControl = useRef<HTMLElement | null>(null);
+  const [handle] = useState(createSheetHandle<SourceRecordPreviewPayload>);
   const openSourceRecord = useCallback(
     (target: SourceRecordPreviewTarget) => handle.openWithPayload(target),
     [handle],
   );
   const closePreview = useCallback(() => handle.close(), [handle]);
-  const restoreFocus = useCallback(() => {
-    const element = openingControl.current;
-    return element?.isConnected ? element : true;
-  }, []);
 
   return (
     <SourceRecordPreviewContext.Provider value={{ handle, openSourceRecord }}>
       {children}
-      <Sheet
-        handle={handle}
-        onOpenChange={(open, event) => {
-          if (open && !handle.isOpen) {
-            openingControl.current =
-              event.trigger instanceof HTMLElement ? event.trigger : null;
-          }
-        }}
-      >
+      <Sheet handle={handle}>
         {({ payload }) =>
           payload ? (
             <ContextRecordPreviewPanel
-              finalFocus={restoreFocus}
+              finalFocus={() =>
+                payload.returnFocusId
+                  ? (document.getElementById(payload.returnFocusId) ?? true)
+                  : true
+              }
               onClose={closePreview}
-              onOpenSourceRecord={openSourceRecord}
+              onOpenSourceRecord={(target) =>
+                handle.openWithPayload({
+                  ...target,
+                  returnFocusId: payload.returnFocusId,
+                })
+              }
               record={payload}
             />
           ) : null

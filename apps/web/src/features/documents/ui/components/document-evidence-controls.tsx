@@ -4,7 +4,7 @@ import type { Document } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import { createDialogHandle, Dialog } from "@cantiara/ui/components/dialog";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { AppLink } from "@/components/app-link";
 import {
   projectSourceRecordHash,
@@ -107,17 +107,16 @@ export default function DocumentEvidenceControls({
       range: Range;
       rebind: DocumentEvidenceBinding | null;
       record: Document;
+      trigger: HTMLButtonElement;
     }>,
   );
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
   function open(
     mode: Mode,
     rebind: DocumentEvidenceBinding | null,
     trigger: HTMLButtonElement,
   ) {
     if (canPin && range && range.end > range.start) {
-      triggerRef.current = trigger;
-      handle.openWithPayload({ mode, range, rebind, record });
+      handle.openWithPayload({ mode, range, rebind, record, trigger });
     }
   }
   const { projectId } = record;
@@ -179,7 +178,9 @@ export default function DocumentEvidenceControls({
           payload ? (
             <DocumentEvidenceForm
               {...payload}
-              finalFocus={triggerRef}
+              finalFocus={() =>
+                payload.trigger.isConnected ? payload.trigger : true
+              }
               onClose={() => handle.close()}
             />
           ) : null

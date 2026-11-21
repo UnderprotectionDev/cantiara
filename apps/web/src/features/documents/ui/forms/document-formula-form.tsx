@@ -7,15 +7,15 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import {
+  createPopoverHandle,
   Popover,
-  type PopoverActions,
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
 import { useForm, useSelector } from "@tanstack/react-form";
 import type { useEditor } from "@tiptap/react";
 import { Sigma } from "lucide-react";
-import { useRef } from "react";
+import { useState } from "react";
 import { submitForm } from "@/lib/submit-form";
 import { documentFormulaFormSchema } from "../../lib/document-insert-form";
 import FieldErrors from "../components/document-field-errors";
@@ -23,7 +23,7 @@ import FieldErrors from "../components/document-field-errors";
 type Editor = NonNullable<ReturnType<typeof useEditor>>;
 
 export function DocumentFormulaPopover({ editor }: { editor: Editor }) {
-  const popoverActions = useRef<PopoverActions | null>(null);
+  const [popoverHandle] = useState(createPopoverHandle);
 
   const formulaForm = useForm({
     defaultValues: { latex: "", placement: "inline" },
@@ -45,7 +45,7 @@ export function DocumentFormulaPopover({ editor }: { editor: Editor }) {
       } else {
         editor.chain().focus().insertInlineMath({ latex }).run();
       }
-      popoverActions.current?.close();
+      popoverHandle.close();
       formulaForm.reset();
     },
   });
@@ -54,7 +54,7 @@ export function DocumentFormulaPopover({ editor }: { editor: Editor }) {
     (state): string | undefined => state.errorMap.onSubmit,
   );
   return (
-    <Popover actionsRef={popoverActions}>
+    <Popover handle={popoverHandle}>
       <PopoverTrigger
         aria-label="Insert formula"
         className="inline-flex size-10 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring"

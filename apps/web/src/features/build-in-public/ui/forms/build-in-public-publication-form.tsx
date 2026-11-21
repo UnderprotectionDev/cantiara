@@ -7,18 +7,18 @@ import type {
 } from "@cantiara/api/build-in-public-publication";
 import {
   AlertDialog,
-  type AlertDialogActions,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogTitle,
   AlertDialogTrigger,
+  createAlertDialogHandle,
 } from "@cantiara/ui/components/alert-dialog";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useRef } from "react";
+import { type SubmitEvent, useState } from "react";
 import { parseEnableIndexing } from "../../lib/build-in-public-publication-form";
 
 import { BuildInPublicSlugForm } from "./build-in-public-slug-form";
@@ -53,13 +53,13 @@ export function BuildInPublicPublicationPanel({
   publication,
   slugPreview = null,
 }: BuildInPublicPublicationPanelProps) {
-  const unpublishActions = useRef<AlertDialogActions | null>(null);
+  const [unpublishHandle] = useState(createAlertDialogHandle);
   const unpublishForm = useForm({
     defaultValues: {},
     onSubmit: async ({ formApi }) => {
       try {
         await onUnpublish();
-        unpublishActions.current?.close();
+        unpublishHandle.close();
       } catch {
         formApi.setErrorMap({
           onSubmit: {
@@ -183,7 +183,7 @@ export function BuildInPublicPublicationPanel({
           publish gets a new address.
         </p>
         <AlertDialog
-          actionsRef={unpublishActions}
+          handle={unpublishHandle}
           onOpenChange={(open, event) => {
             if (open) {
               unpublishForm.reset();

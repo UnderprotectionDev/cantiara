@@ -2,13 +2,13 @@
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createPopoverHandle,
   Popover,
-  type PopoverActions,
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useState } from "react";
 
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { client, orpc } from "@/utils/orpc";
@@ -17,13 +17,13 @@ import WorkDuplicateForm from "../forms/work-duplicate-form";
 export default function WorkDuplicateAction({ work }: { work: WorkProfile }) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
-  const popup = useRef<PopoverActions | null>(null);
+  const [popupHandle] = useState(createPopoverHandle);
   const duplicate = useMutation(
     orpc.duplicateWork.mutationOptions({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.duplicateWork(input),
       onSuccess: async (created) => {
-        popup.current?.close();
+        popupHandle.close();
         await queryClient.invalidateQueries({
           queryKey: orpc.projectWorks.queryKey({
             input: { projectId: created.projectId },
@@ -44,7 +44,7 @@ export default function WorkDuplicateAction({ work }: { work: WorkProfile }) {
   return (
     <div className="flex flex-col items-start gap-2">
       <Popover
-        actionsRef={popup}
+        handle={popupHandle}
         onOpenChange={(open, event) => {
           if (open) {
             duplicate.reset();

@@ -8,8 +8,8 @@ import {
 } from "@cantiara/api/spec-change-review-follow-up";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
-  type DialogActions,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -24,8 +24,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useId, useRef, useState } from "react";
+import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
 import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 
@@ -117,14 +118,19 @@ interface SpecFollowUpDialogProps {
 }
 
 export function SpecFollowUpDialog(props: SpecFollowUpDialogProps) {
-  const actions = useRef<DialogActions | null>(null);
-  const busy = useRef<boolean>(false);
+  const [actionsHandle] = useState(createDialogHandle);
+  const popupId = useId();
+  const queryClient = useQueryClient();
 
   return (
     <Dialog
-      actionsRef={actions}
+      handle={actionsHandle}
       onOpenChange={(open, event) => {
-        if (!open && busy.current && event.reason !== "imperative-action") {
+        if (
+          !open &&
+          isPopupCommandPending(queryClient, popupId) &&
+          event.reason !== "imperative-action"
+        ) {
           event.cancel();
         }
       }}
@@ -135,8 +141,8 @@ export function SpecFollowUpDialog(props: SpecFollowUpDialogProps) {
       <DialogContent>
         <SpecFollowUpContent
           {...props}
-          busy={busy}
-          onClose={() => actions.current?.close()}
+          onClose={() => actionsHandle.close()}
+          popupId={popupId}
         />
       </DialogContent>
     </Dialog>
@@ -144,7 +150,7 @@ export function SpecFollowUpDialog(props: SpecFollowUpDialogProps) {
 }
 
 function SpecFollowUpContent({
-  busy,
+  popupId,
   candidate,
   name,
   onClose,
@@ -152,7 +158,7 @@ function SpecFollowUpContent({
   onPreview,
   reviewId,
 }: SpecFollowUpDialogProps & {
-  busy: RefObject<boolean>;
+  popupId: string;
   onClose: () => void;
 }) {
   const form = useForm({
@@ -205,7 +211,7 @@ function SpecFollowUpContent({
     retry: false,
   });
   const commit = useMutation({
-    meta: { onlineWrite: true },
+    meta: { onlineWrite: true, popupId },
     mutationFn: (command: Parameters<ConfirmFollowUp>) => onConfirm(...command),
     onSuccess: (_, [, , confirmed]) => {
       if (mounted.current && identity.current === confirmed) {
@@ -227,13 +233,6 @@ function SpecFollowUpContent({
     error =
       "The Work could not be created. If the review changed, preview again.";
   }
-
-  useLayoutEffect(() => {
-    busy.current = commit.isPending || submitting;
-    return () => {
-      busy.current = false;
-    };
-  }, [busy, commit.isPending, submitting]);
 
   return (
     <>

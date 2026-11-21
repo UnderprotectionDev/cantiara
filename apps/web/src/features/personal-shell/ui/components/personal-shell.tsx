@@ -1,7 +1,7 @@
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createSheetHandle,
   Sheet,
-  type SheetActions,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -10,7 +10,7 @@ import {
 } from "@cantiara/ui/components/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@cantiara/ui/components/tabs";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useCallback, useRef, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import {
   isPersonalShellSurface,
   PERSONAL_SHELL_FULL_PAGE_PATHS,
@@ -32,18 +32,18 @@ export default function PersonalShell({
     close: () => void,
   ) => ReactNode;
 }) {
-  const sheetActions = useRef<SheetActions | null>(null);
+  const [sheetHandle] = useState(createSheetHandle);
   const [surface, setSurface] = useState<PersonalShellSurface>(
     PERSONAL_SHELL_INITIAL_SURFACE,
   );
-  const close = useCallback(() => sheetActions.current?.close(), []);
+  const close = useCallback(() => sheetHandle.close(), [sheetHandle]);
   const selectSurface = useCallback((value: unknown) => {
     if (isPersonalShellSurface(value)) {
       setSurface(value);
     }
   }, []);
   return (
-    <Sheet actionsRef={sheetActions}>
+    <Sheet handle={sheetHandle}>
       <SheetTrigger render={<Button className="min-h-11" variant="ghost" />}>
         Personal
       </SheetTrigger>

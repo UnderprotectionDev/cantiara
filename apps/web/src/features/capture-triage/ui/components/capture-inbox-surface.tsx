@@ -8,15 +8,15 @@ import type {
 } from "@cantiara/api/capture-triage";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
-  type DialogActions,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@cantiara/ui/components/dialog";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { useCaptureInboxUndo } from "@/features/capture-triage/hooks/use-capture-inbox";
@@ -451,7 +451,7 @@ export default function CaptureInboxSurface({
   formattingPreferences: AccountPreferences;
   inbox: CaptureInboxSnapshot;
 }) {
-  const composerActions = useRef<DialogActions | null>(null);
+  const [composerHandle] = useState(createDialogHandle);
   const [viewMode, setViewMode] = useState<"inbox" | "bulk">("inbox");
   const [sequentialTriageState, setSequentialTriageState] =
     useState<SequentialTriageState>({ mode: "list" });
@@ -514,7 +514,7 @@ export default function CaptureInboxSurface({
   const inSequentialTriage = sequentialTriageState.mode !== "list";
 
   return (
-    <Dialog actionsRef={composerActions}>
+    <Dialog handle={composerHandle}>
       {undoPreview ? (
         <CaptureUndoPreviewPanel
           formattingPreferences={formattingPreferences}
@@ -535,7 +535,7 @@ export default function CaptureInboxSurface({
         </DialogHeader>
         <CaptureInboxForm
           accountId={accountId}
-          onSaved={() => composerActions.current?.close()}
+          onSaved={() => composerHandle.close()}
           showHeader={false}
         />
       </DialogContent>

@@ -40,6 +40,7 @@ interface TemplateDialogTarget {
   mode: TemplateMode;
   preview?: { sourceDocumentId: string; sourceRevision: number };
   template?: TemplateChoice;
+  triggerId: string;
 }
 const templateDialogTitles: Record<TemplateMode, string> = {
   add: "Add Document Template",
@@ -141,6 +142,7 @@ export default function DocumentTemplatesSurface({
 }) {
   const queryClient = useQueryClient();
   const identifier = useId();
+  const convertTriggerId = `${identifier}-convert`;
   const options = orpc.documentTemplates.queryOptions({ input: { projectId } });
   const templates = useQuery(options);
   const [selection, setSelection] = useState<string>(personalReviewTemplate.id);
@@ -149,7 +151,6 @@ export default function DocumentTemplatesSurface({
       ? personalReviewTemplate
       : templates.data?.find(({ id }) => id === selection);
   const [handle] = useState(createDialogHandle<TemplateDialogTarget>);
-  const sourceControl = useRef<HTMLButtonElement | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const pending = useRef<{ key: string } | null>(null);
 
@@ -259,6 +260,7 @@ export default function DocumentTemplatesSurface({
     onSuccess: (result) => {
       open({
         mode: "convert",
+        triggerId: convertTriggerId,
         preview: {
           sourceDocumentId: result.sourceDocumentId,
           sourceRevision: result.sourceRevision,
@@ -309,9 +311,13 @@ export default function DocumentTemplatesSurface({
         </div>
         <Button
           disabled={!selected || conversion.isPending}
+          id={`${identifier}-apply`}
           onClick={(event) => {
-            sourceControl.current = event.currentTarget;
-            open({ mode: "apply", template: selected });
+            open({
+              mode: "apply",
+              template: selected,
+              triggerId: event.currentTarget.id,
+            });
           }}
           type="button"
         >
@@ -319,9 +325,13 @@ export default function DocumentTemplatesSurface({
         </Button>
         <Button
           disabled={!selected || conversion.isPending}
+          id={`${identifier}-edit`}
           onClick={(event) => {
-            sourceControl.current = event.currentTarget;
-            open({ mode: "edit", template: selected });
+            open({
+              mode: "edit",
+              template: selected,
+              triggerId: event.currentTarget.id,
+            });
           }}
           type="button"
           variant="outline"
@@ -330,9 +340,9 @@ export default function DocumentTemplatesSurface({
         </Button>
         <Button
           disabled={conversion.isPending}
+          id={`${identifier}-add`}
           onClick={(event) => {
-            sourceControl.current = event.currentTarget;
-            open({ mode: "add" });
+            open({ mode: "add", triggerId: event.currentTarget.id });
           }}
           type="button"
           variant="outline"
@@ -342,10 +352,8 @@ export default function DocumentTemplatesSurface({
         {source ? (
           <Button
             disabled={conversion.isPending}
-            onClick={(event) => {
-              sourceControl.current = event.currentTarget;
-              conversion.mutate(source.id);
-            }}
+            id={convertTriggerId}
+            onClick={() => conversion.mutate(source.id)}
             type="button"
             variant="outline"
           >
@@ -392,7 +400,9 @@ export default function DocumentTemplatesSurface({
           return (
             <DialogContent
               className="max-h-[85vh] overflow-y-auto rounded-xl p-6 sm:max-w-2xl"
-              finalFocus={sourceControl}
+              finalFocus={() =>
+                document.getElementById(payload.triggerId) ?? true
+              }
             >
               <DialogHeader>
                 <DialogTitle>{title}</DialogTitle>

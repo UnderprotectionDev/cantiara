@@ -49,7 +49,7 @@ Evrensel Arama yetkili ana kayıtları kapalı eşitlik-bozucu sırayla bulur; e
 
 ## Testing Decisions
 
-- **Shared source preview (#546).** The Kanban browser seam in `apps/web/e2e/kanban.e2e.ts` opens the Work from the Board, verifies that Escape and `Close` return focus to its opening control, then follows the full-page link for the same Work. The shared preview uses a shell-scoped Sheet handle for the opened target.
+- **Shared source preview (#546).** The Kanban browser seam in `apps/web/e2e/kanban.e2e.ts` opens the Work from the Board, verifies that Escape and `Close` return focus to its opening control, then follows the full-page link for the same Work. The shared preview uses a shell-scoped Sheet handle whose payload carries the opened target and preserves the original trigger across nested previews.
 
 - **#545.** The web Record Table seam checks blur-based cell saves and Paste review through the same validation and confirmation path. Rejected writes keep their edits for retry.
 

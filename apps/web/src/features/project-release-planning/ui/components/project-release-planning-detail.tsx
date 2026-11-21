@@ -14,13 +14,13 @@ import {
 import { PROJECT_RELEASE_HYPOTHESIS_FIELDS } from "@cantiara/api/project-source-records";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
-  type DialogActions,
   DialogContent,
   DialogTitle,
   DialogTrigger,
 } from "@cantiara/ui/components/dialog";
-import { useRef } from "react";
+import { useState } from "react";
 import { AppLink } from "@/components/app-link";
 import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
 import {
@@ -56,6 +56,7 @@ export function ProjectReleasePlanningDetail({
   projectId,
   savedMessage,
   statusError,
+  hypothesisPending = false,
   statusPending,
   resetStatus,
 }: {
@@ -65,6 +66,7 @@ export function ProjectReleasePlanningDetail({
   projectId: string;
   savedMessage?: string;
   statusError?: boolean;
+  hypothesisPending?: boolean;
   statusPending?: boolean;
   resetStatus?: () => void;
 }) {
@@ -144,6 +146,7 @@ export function ProjectReleasePlanningDetail({
             linksReadOnly={planningReadOnly}
             readOnly={readOnly}
             release={release}
+            saving={hypothesisPending}
           />
         </div>
         <div className="space-y-8">
@@ -266,6 +269,7 @@ function HypothesisSection({
   linksReadOnly,
   readOnly,
   release,
+  saving,
 }: {
   actions: ProjectReleasePlanningActions;
   audience: ProjectReleaseAudienceLink[];
@@ -274,9 +278,9 @@ function HypothesisSection({
   linksReadOnly: boolean;
   readOnly: boolean;
   release: Detail["release"];
+  saving: boolean;
 }) {
-  const dialogActions = useRef<DialogActions | null>(null);
-  const saving = useRef<boolean>(false);
+  const [dialogHandle] = useState(createDialogHandle);
   return (
     <section aria-label="Access and outcome hypothesis" className="space-y-4">
       <div className="space-y-1">
@@ -330,13 +334,9 @@ function HypothesisSection({
       {readOnly ? null : (
         <div className="space-y-4">
           <Dialog
-            actionsRef={dialogActions}
+            handle={dialogHandle}
             onOpenChange={(open, event) => {
-              if (
-                !open &&
-                saving.current &&
-                event.reason !== "imperative-action"
-              ) {
+              if (!open && saving && event.reason !== "imperative-action") {
                 event.cancel();
               }
             }}
@@ -348,18 +348,13 @@ function HypothesisSection({
               <DialogTitle>Edit hypothesis</DialogTitle>
               <ProjectReleaseHypothesisForm
                 onCancel={() => {
-                  if (!saving.current) {
-                    dialogActions.current?.close();
+                  if (!saving) {
+                    dialogHandle.close();
                   }
                 }}
                 onSave={async (hypothesis) => {
-                  saving.current = true;
-                  try {
-                    await actions.onSaveHypothesis(hypothesis);
-                    dialogActions.current?.close();
-                  } finally {
-                    saving.current = false;
-                  }
+                  await actions.onSaveHypothesis(hypothesis);
+                  dialogHandle.close();
                 }}
                 release={release}
               />

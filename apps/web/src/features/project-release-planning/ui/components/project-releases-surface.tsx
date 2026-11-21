@@ -3,8 +3,8 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
-  type DialogActions,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -13,7 +13,7 @@ import {
 } from "@cantiara/ui/components/dialog";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { client, orpc } from "@/utils/orpc";
 import { useProjectReleaseCommand } from "../../hooks/use-project-release-command";
 import { projectReleasesHref } from "../../lib/project-release-planning-form";
@@ -35,7 +35,7 @@ export function ProjectReleasesSurface({
   );
   const run = useProjectReleaseCommand(projectId);
   const navigate = useNavigate();
-  const dialogActions = useRef<DialogActions | null>(null);
+  const [dialogHandle] = useState(createDialogHandle);
   // One id per create attempt, so a retried create cannot make a second release.
   const releaseId = useRef<string | null>(null);
 
@@ -56,7 +56,7 @@ export function ProjectReleasesSurface({
       async () => {
         if (releaseId.current === id) {
           releaseId.current = null;
-          dialogActions.current?.close();
+          dialogHandle.close();
           await navigate({ href: projectReleasesHref(projectId, id) });
         }
       },
@@ -88,7 +88,7 @@ export function ProjectReleasesSurface({
   }
   return (
     <Dialog
-      actionsRef={dialogActions}
+      handle={dialogHandle}
       onOpenChange={(open, event) => {
         if (open || event.reason === "imperative-action") {
           return;
@@ -117,7 +117,7 @@ export function ProjectReleasesSurface({
         <ProjectReleaseCreateForm
           onCancel={() => {
             cancelCreate();
-            dialogActions.current?.close();
+            dialogHandle.close();
           }}
           onCreate={create}
         />

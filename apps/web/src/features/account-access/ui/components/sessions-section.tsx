@@ -5,7 +5,7 @@ import {
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
 import { Monitor, ShieldCheck } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   formatAccountDateTime,
   formatAccountNumber,
@@ -24,7 +24,7 @@ export default function SessionsSection({
   const { otherSessionCount, revokeOtherSessions, revokeSession, sessions } =
     controller;
   const [revokeHandle] = useState(createAlertDialogHandle<RevokeTarget>);
-  const heading = useRef<HTMLHeadingElement>(null);
+  const headingId = useId();
   const pending = revokeSession.isPending || revokeOtherSessions.isPending;
   const activeSessionCount = useMemo(
     () => sessions.data?.length ?? 0,
@@ -39,7 +39,7 @@ export default function SessionsSection({
             <ShieldCheck aria-hidden="true" className="size-5" />
             <h1
               className="text-2xl font-semibold tracking-tight"
-              ref={heading}
+              id={headingId}
               tabIndex={-1}
             >
               Sessions
@@ -133,7 +133,7 @@ export default function SessionsSection({
       </section>
       <RevokeConfirmation
         handle={revokeHandle}
-        heading={heading}
+        headingId={headingId}
         revokeOtherSessions={revokeOtherSessions}
         revokeSession={revokeSession}
       />

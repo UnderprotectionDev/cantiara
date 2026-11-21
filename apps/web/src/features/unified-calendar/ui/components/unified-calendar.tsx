@@ -3,8 +3,8 @@ import type { WorkDateField, WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Calendar } from "@cantiara/ui/components/calendar";
 import {
+  createPopoverHandle,
   Popover,
-  type PopoverActions,
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
@@ -40,7 +40,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { CalendarDays, GripVertical } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
 
@@ -247,7 +247,7 @@ function CalendarDateControl({
   view: CalendarView;
   work: CalendarWork;
 }) {
-  const popoverActions = useRef<PopoverActions | null>(null);
+  const [popoverHandle] = useState(createPopoverHandle);
   const dragData: CalendarDateDrag = {
     baseRevision: work.revision,
     dateField,
@@ -264,10 +264,10 @@ function CalendarDateControl({
       }
       const nextDate = format(date, "yyyy-MM-dd");
       if (nextDate === oldDate) {
-        popoverActions.current?.close();
+        popoverHandle.close();
         return;
       }
-      popoverActions.current?.close();
+      popoverHandle.close();
       onDatePreview?.(
         {
           baseRevision: work.revision,
@@ -285,6 +285,7 @@ function CalendarDateControl({
       label,
       oldDate,
       onDatePreview,
+      popoverHandle,
       work.id,
       work.revision,
       work.title,
@@ -300,7 +301,7 @@ function CalendarDateControl({
 
   if (view === "Day" || view === "Agenda") {
     return (
-      <Popover actionsRef={popoverActions}>
+      <Popover handle={popoverHandle}>
         <PopoverTrigger
           disabled={disabled || !onDateChange}
           render={

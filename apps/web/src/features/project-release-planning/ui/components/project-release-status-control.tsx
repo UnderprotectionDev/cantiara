@@ -10,7 +10,6 @@ import {
 } from "@cantiara/api/project-release-planning";
 import {
   AlertDialog,
-  type AlertDialogActions,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -21,7 +20,7 @@ import {
   createAlertDialogHandle,
 } from "@cantiara/ui/components/alert-dialog";
 import { Button } from "@cantiara/ui/components/button";
-import { useRef, useState } from "react";
+import { useId, useState } from "react";
 import { projectReleaseStatusChangeCopy } from "../../lib/project-release-planning-form";
 
 type TerminalStatus = (typeof PROJECT_RELEASE_TERMINAL_STATUSES)[number];
@@ -53,10 +52,7 @@ export function ProjectReleaseStatusControl({
   resetStatus?: () => void;
 }) {
   const [handle] = useState(createAlertDialogHandle<TerminalStatus>);
-  const actions = useRef<AlertDialogActions | null>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
-  const committed = useRef<boolean>(false);
-  const openingControl = useRef<HTMLElement | null>(null);
+  const headingId = useId();
   const error = failed
     ? "Status could not be changed. Reload and try again."
     : null;
@@ -66,13 +62,12 @@ export function ProjectReleaseStatusControl({
 
   async function confirm(next: TerminalStatus) {
     await onChangeStatus(next);
-    committed.current = true;
-    actions.current?.close();
+    handle.close();
   }
 
   return (
     <section aria-label="Status" className="space-y-3">
-      <h3 className="text-lg font-medium" ref={heading} tabIndex={-1}>
+      <h3 className="text-lg font-medium" id={headingId} tabIndex={-1}>
         Status
       </h3>
       {editable ? (
@@ -145,13 +140,9 @@ export function ProjectReleaseStatusControl({
         </p>
       ) : null}
       <AlertDialog
-        actionsRef={actions}
         handle={handle}
         onOpenChange={(open, event) => {
           if (open) {
-            committed.current = false;
-            openingControl.current =
-              event.trigger instanceof HTMLElement ? event.trigger : null;
             resetStatus?.();
           } else if (saving && event.reason !== "imperative-action") {
             event.cancel();
@@ -166,9 +157,9 @@ export function ProjectReleaseStatusControl({
           return (
             <AlertDialogContent
               finalFocus={() =>
-                committed.current || !openingControl.current?.isConnected
-                  ? heading.current
-                  : openingControl.current
+                isTerminalProjectReleaseStatus(status)
+                  ? document.getElementById(headingId)
+                  : true
               }
             >
               <AlertDialogHeader>

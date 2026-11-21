@@ -22,15 +22,10 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  type RefObject,
-  type SubmitEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type SubmitEvent, useId, useRef, useState } from "react";
 import type { z } from "zod";
+import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
 
 import { client, orpc } from "@/utils/orpc";
 import { documentExportFormSchema } from "../../lib/document-export-form";
@@ -62,7 +57,8 @@ export default function DocumentTransferForm({
   ...formProps
 }: DocumentTransferFormProps) {
   const [handle] = useState(createDialogHandle<TransferAction>);
-  const busy = useRef<boolean>(false);
+  const popupId = useId();
+  const queryClient = useQueryClient();
   return (
     <>
       <div className="flex flex-wrap gap-2">
@@ -81,7 +77,11 @@ export default function DocumentTransferForm({
       <Dialog
         handle={handle}
         onOpenChange={(open, event) => {
-          if (!open && busy.current && event.reason !== "imperative-action") {
+          if (
+            !open &&
+            isPopupCommandPending(queryClient, popupId) &&
+            event.reason !== "imperative-action"
+          ) {
             event.cancel();
           }
         }}
@@ -92,12 +92,12 @@ export default function DocumentTransferForm({
               <DocumentTransferContent
                 {...formProps}
                 action={payload}
-                busyRef={busy}
                 onClose={() => {
                   if (handle.isOpen) {
                     handle.close();
                   }
                 }}
+                popupId={popupId}
               />
             </DialogContent>
           ) : null
@@ -109,14 +109,14 @@ export default function DocumentTransferForm({
 
 function DocumentTransferContent({
   action,
-  busyRef,
+  popupId,
   documents,
   onClose,
   onCommitted,
   record,
 }: Omit<DocumentTransferFormProps, "disabled"> & {
   action: TransferAction;
-  busyRef: RefObject<boolean>;
+  popupId: string;
   onClose: () => void;
 }) {
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -204,6 +204,7 @@ function DocumentTransferContent({
     };
   }
   const inspect = useMutation({
+    meta: { popupId },
     gcTime: 0,
     mutationFn: async (
       request:
@@ -232,6 +233,7 @@ function DocumentTransferContent({
   const exportPreview =
     inspect.data?.kind === "export" ? inspect.data.snapshot : null;
   const cancelPreview = useMutation({
+    meta: { popupId },
     mutationKey: orpc.previewDocumentTransfer.mutationKey(),
     mutationFn: async (input: DocumentTransferInput) => {
       const result = await client.previewDocumentTransfer(input);
@@ -243,7 +245,7 @@ function DocumentTransferContent({
   });
   const apply = useMutation(
     orpc.transferDocument.mutationOptions({
-      meta: { onlineWrite: true },
+      meta: { onlineWrite: true, popupId },
       mutationFn: (input) => client.transferDocument(input),
       onSuccess: async (saved, input) => {
         await onCommitted(saved);
@@ -277,6 +279,7 @@ function DocumentTransferContent({
       }
     });
   const download = useMutation({
+    meta: { popupId },
     gcTime: 0,
     mutationFn: () => {
       if (!exportPreview) {
@@ -325,12 +328,6 @@ function DocumentTransferContent({
     validationError ??
     (apply.error ?? cancelPreview.error ?? inspect.error ?? download.error)
       ?.message;
-  useLayoutEffect(() => {
-    busyRef.current = busy;
-    return () => {
-      busyRef.current = false;
-    };
-  }, [busy, busyRef]);
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();

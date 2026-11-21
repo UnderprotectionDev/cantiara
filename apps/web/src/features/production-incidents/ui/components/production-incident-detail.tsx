@@ -11,13 +11,13 @@ import {
 import { PRODUCTION_INCIDENT_STATUS_OPTIONS } from "@cantiara/api/project-source-records";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
-  type DialogActions,
   DialogContent,
   DialogTitle,
   DialogTrigger,
 } from "@cantiara/ui/components/dialog";
-import { useRef } from "react";
+import { useState } from "react";
 import { AppLink } from "@/components/app-link";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
@@ -59,6 +59,7 @@ export function ProductionIncidentDetail({
   formatting,
   projectId,
   savedMessage,
+  savePending = false,
 }: {
   actions: ProductionIncidentActions;
   detail: Detail;
@@ -66,10 +67,10 @@ export function ProductionIncidentDetail({
   formatting: AccountPreferences;
   projectId: string;
   savedMessage?: string;
+  savePending?: boolean;
 }) {
   const { incident, readOnly } = detail;
-  const dialogActions = useRef<DialogActions | null>(null);
-  const saving = useRef<boolean>(false);
+  const [dialogHandle] = useState(createDialogHandle);
   const attached = attachedProductionIncidentLinks(detail.links);
   const unlinked = detail.candidates.filter(
     (candidate) =>
@@ -108,11 +109,11 @@ export function ProductionIncidentDetail({
               <h3 className="text-lg font-medium">Record</h3>
               {readOnly ? null : (
                 <Dialog
-                  actionsRef={dialogActions}
+                  handle={dialogHandle}
                   onOpenChange={(open, event) => {
                     if (
                       !open &&
-                      saving.current &&
+                      savePending &&
                       event.reason !== "imperative-action"
                     ) {
                       event.cancel();
@@ -133,18 +134,13 @@ export function ProductionIncidentDetail({
                       )}
                       mode="edit"
                       onCancel={() => {
-                        if (!saving.current) {
-                          dialogActions.current?.close();
+                        if (!savePending) {
+                          dialogHandle.close();
                         }
                       }}
                       onSubmit={async (values) => {
-                        saving.current = true;
-                        try {
-                          await actions.onSave(values);
-                          dialogActions.current?.close();
-                        } finally {
-                          saving.current = false;
-                        }
+                        await actions.onSave(values);
+                        dialogHandle.close();
                       }}
                       timeZone={formatting.timeZone}
                     />

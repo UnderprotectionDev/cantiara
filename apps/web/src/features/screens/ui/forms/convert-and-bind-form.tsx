@@ -9,8 +9,8 @@ import {
 } from "@cantiara/api/screen-origins";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
-  type DialogActions,
   DialogContent,
   DialogTitle,
   DialogTrigger,
@@ -22,7 +22,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useState } from "react";
 import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import { convertAndBindFormSchema } from "../../lib/screen-forms";
@@ -57,7 +57,7 @@ export function ConvertAndBindPanel({
   actions: ConvertAndBindActions;
   blockId: string;
 }) {
-  const dialogActions = useRef<DialogActions | null>(null);
+  const [dialogHandle] = useState(createDialogHandle);
   const preview = useMutation({
     meta: { retryInSurface: true },
     mutationFn: (request: ConvertPreviewRequest) => actions.preview(request),
@@ -105,7 +105,7 @@ export function ConvertAndBindPanel({
               },
         );
         formApi.reset();
-        dialogActions.current?.close();
+        dialogHandle.close();
         preview.reset();
         return;
       }
@@ -126,13 +126,13 @@ export function ConvertAndBindPanel({
 
   function close() {
     if (!confirm.isPending) {
-      dialogActions.current?.close();
+      dialogHandle.close();
     }
   }
 
   return (
     <Dialog
-      actionsRef={dialogActions}
+      handle={dialogHandle}
       onOpenChange={(open, event) => {
         if (open) {
           confirm.reset();

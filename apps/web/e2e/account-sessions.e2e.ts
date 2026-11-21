@@ -77,11 +77,24 @@ test("revokes a session through the keyboard-accessible Account journey", async 
   await expect(revokeSession).toBeFocused();
 
   await page.keyboard.press("Enter");
-  await page.route("**/rpc/revokeSession", (route) => route.abort("failed"), {
-    times: 1,
-  });
+  const failedRequest = Promise.withResolvers<void>();
+  await page.route(
+    "**/rpc/revokeSession",
+    async (route) => {
+      await failedRequest.promise;
+      await route.abort("failed");
+    },
+    { times: 1 },
+  );
   const confirm = dialog.getByRole("button", { name: "Revoke Session" });
   await confirm.click();
+  try {
+    await expect(confirm).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeVisible();
+  } finally {
+    failedRequest.resolve();
+  }
   await expect(dialog.getByRole("alert")).toBeVisible();
   await expect(dialog).toBeVisible();
   await expect(sessionItems).toHaveCount(2);

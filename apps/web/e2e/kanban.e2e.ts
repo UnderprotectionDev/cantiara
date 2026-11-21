@@ -157,7 +157,9 @@ test("moves Work through Board with explicit close and reopen steps", async ({
     (url) => `${url.pathname}${url.hash}` === sourceHref,
   );
   await expect(
-    page.getByRole("heading", { name: title, exact: true }),
+    page
+      .getByRole("region", { name: "Work record" })
+      .getByRole("heading", { name: title, exact: true }),
   ).toBeVisible();
   await page
     .getByRole("navigation", { name: "Project navigation" })

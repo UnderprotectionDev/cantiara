@@ -29,13 +29,10 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import {
-  type RefObject,
-  type SubmitEvent,
-  useLayoutEffect,
-  useRef,
-} from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { type SubmitEvent, useId } from "react";
 import { DatePicker } from "@/components/date-picker";
+import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
 import {
   type RecordActionRunnerState,
   useRecordActionRunner,
@@ -608,12 +605,13 @@ export function RecordActionRunDialog({
   handle: ReturnType<typeof createDialogHandle<RecordActionDialogPayload>>;
   projectId: string;
 }) {
-  const busy = useRef<boolean>(false);
+  const popupId = useId();
+  const queryClient = useQueryClient();
   return (
     <Dialog
       handle={handle}
       onOpenChange={(open, event) => {
-        if (!open && busy.current) {
+        if (!open && isPopupCommandPending(queryClient, popupId)) {
           event.cancel();
         }
       }}
@@ -629,9 +627,9 @@ export function RecordActionRunDialog({
             showCloseButton={false}
           >
             <RecordActionRunContent
-              busy={busy}
               key={`${payload.action.id}:${payload.work.id}`}
               openingAction={payload}
+              popupId={popupId}
               projectId={projectId}
             />
           </DialogContent>
@@ -642,15 +640,15 @@ export function RecordActionRunDialog({
 }
 
 function RecordActionRunContent({
-  busy,
+  popupId,
   openingAction,
   projectId,
 }: {
-  busy: RefObject<boolean>;
+  popupId: string;
   openingAction: ActiveRecordAction;
   projectId: string;
 }) {
-  const runner = useRecordActionRunner(projectId, openingAction);
+  const runner = useRecordActionRunner(projectId, openingAction, popupId);
   const runtimeInputForm = useRecordActionRuntimeInputForm(runner);
   const {
     active,
@@ -669,13 +667,6 @@ function RecordActionRunContent({
       ? runner.applyResult.receipt.current
       : null;
   const statusMessage = actionStatusMessage(runner, active.action.name);
-
-  useLayoutEffect(() => {
-    busy.current = isFinalizing || isPreparingUndo;
-    return () => {
-      busy.current = false;
-    };
-  }, [busy, isFinalizing, isPreparingUndo]);
 
   return (
     <>

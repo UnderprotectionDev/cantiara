@@ -2,7 +2,6 @@
 import {
   AlertDialog,
   AlertDialogAction,
-  type AlertDialogActions,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -11,55 +10,58 @@ import {
   AlertDialogTitle,
   type createAlertDialogHandle,
 } from "@cantiara/ui/components/alert-dialog";
-import { type RefObject, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { orpc } from "@/utils/orpc";
 import type { AccountSessionsController } from "../../hooks/use-account-sessions";
 
 export type RevokeTarget = { device: string; sessionAlias: string } | "others";
 
 export default function RevokeConfirmation({
   handle,
-  heading,
+  headingId,
   revokeOtherSessions,
   revokeSession,
 }: Pick<AccountSessionsController, "revokeOtherSessions" | "revokeSession"> & {
   handle: ReturnType<typeof createAlertDialogHandle<RevokeTarget>>;
-  heading: RefObject<HTMLHeadingElement | null>;
+  headingId: string;
 }) {
-  const actions = useRef<AlertDialogActions | null>(null);
-  const submitting = useRef<boolean>(false);
-  const revoked = useRef<boolean>(false);
+  const queryClient = useQueryClient();
+  function isRevoking() {
+    return (
+      queryClient.isMutating({
+        mutationKey: orpc.revokeSession.mutationKey(),
+      }) > 0 ||
+      queryClient.isMutating({
+        mutationKey: orpc.revokeOtherSessions.mutationKey(),
+      }) > 0
+    );
+  }
   const pending = revokeSession.isPending || revokeOtherSessions.isPending;
 
   async function confirm(target: RevokeTarget) {
-    if (submitting.current) {
+    if (isRevoking()) {
       return;
     }
-    submitting.current = true;
     try {
       if (target === "others") {
         await revokeOtherSessions.mutateAsync();
       } else {
         await revokeSession.mutateAsync(target.sessionAlias);
       }
-      revoked.current = true;
-      actions.current?.close();
+      handle.close();
     } catch {
       // The mutation exposes the failure to the open confirmation.
-    } finally {
-      submitting.current = false;
     }
   }
 
   return (
     <AlertDialog
-      actionsRef={actions}
       handle={handle}
       onOpenChange={(open, event) => {
         if (open) {
-          revoked.current = false;
           revokeSession.reset();
           revokeOtherSessions.reset();
-        } else if (submitting.current && !revoked.current) {
+        } else if (event.reason !== "imperative-action" && isRevoking()) {
           event.cancel();
         }
       }}
@@ -72,7 +74,9 @@ export default function RevokeConfirmation({
         const mutation = others ? revokeOtherSessions : revokeSession;
         return (
           <AlertDialogContent
-            finalFocus={() => (revoked.current ? heading.current : true)}
+            finalFocus={() =>
+              mutation.isSuccess ? document.getElementById(headingId) : true
+            }
           >
             <AlertDialogHeader>
               <AlertDialogTitle>

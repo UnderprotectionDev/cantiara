@@ -3,16 +3,16 @@ import { REVOKE_UNPUBLISH_LABEL } from "@cantiara/api/external-surface-managemen
 import {
   AlertDialog,
   AlertDialogAction,
-  type AlertDialogActions,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogTitle,
   AlertDialogTrigger,
+  createAlertDialogHandle,
 } from "@cantiara/ui/components/alert-dialog";
 import { Button } from "@cantiara/ui/components/button";
-import { useRef } from "react";
+import { useState } from "react";
 import { useRemoveExternalSurface } from "../../hooks/use-remove-external-surface";
 
 /** Confirms the permanent removal of one Dış yüzey. */
@@ -23,13 +23,13 @@ export function RemoveSurfaceControl({
   surfaceId: string;
   sourceTitle: string;
 }) {
-  const actions = useRef<AlertDialogActions | null>(null);
+  const [actionsHandle] = useState(createAlertDialogHandle);
   const remove = useRemoveExternalSurface();
 
   async function confirm() {
     try {
       await remove.mutateAsync({ surfaceId });
-      actions.current?.close();
+      actionsHandle.close();
     } catch {
       // The removal mutation exposes the failure for another confirmation.
     }
@@ -37,7 +37,7 @@ export function RemoveSurfaceControl({
 
   return (
     <AlertDialog
-      actionsRef={actions}
+      handle={actionsHandle}
       onOpenChange={(open, event) => {
         if (open) {
           remove.reset();

@@ -6,8 +6,8 @@ import type {
 } from "@cantiara/api/feedback";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
-  type DialogActions,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -15,7 +15,8 @@ import {
   DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
 import { invalidateSmartCollectionMembership, orpc } from "@/utils/orpc";
 import { ConvertToWorkForm } from "../forms/convert-to-work-form";
 
@@ -78,14 +79,19 @@ interface ConvertToWorkDialogProps {
 }
 
 export function ConvertToWorkDialog(props: ConvertToWorkDialogProps) {
-  const actions = useRef<DialogActions | null>(null);
-  const busy = useRef<boolean>(false);
+  const [actionsHandle] = useState(createDialogHandle);
+  const popupId = useId();
+  const queryClient = useQueryClient();
 
   return (
     <Dialog
-      actionsRef={actions}
+      handle={actionsHandle}
       onOpenChange={(open, event) => {
-        if (!open && busy.current && event.reason !== "imperative-action") {
+        if (
+          !open &&
+          isPopupCommandPending(queryClient, popupId) &&
+          event.reason !== "imperative-action"
+        ) {
           event.cancel();
         }
       }}
@@ -96,8 +102,8 @@ export function ConvertToWorkDialog(props: ConvertToWorkDialogProps) {
       <DialogContent>
         <ConvertToWorkContent
           {...props}
-          busy={busy}
-          onClose={() => actions.current?.close()}
+          onClose={() => actionsHandle.close()}
+          popupId={popupId}
         />
       </DialogContent>
     </Dialog>
@@ -105,13 +111,13 @@ export function ConvertToWorkDialog(props: ConvertToWorkDialogProps) {
 }
 
 function ConvertToWorkContent({
-  busy,
+  popupId,
   onClose,
   onConfirm,
   onPreview,
   record,
 }: ConvertToWorkDialogProps & {
-  busy: RefObject<boolean>;
+  popupId: string;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -123,12 +129,13 @@ function ConvertToWorkContent({
     [],
   );
   const inspect = useMutation({
+    meta: { popupId },
     mutationKey: orpc.previewFeedbackWork.mutationKey(),
     mutationFn: onPreview,
   });
   const convert = useMutation({
     mutationKey: orpc.convertFeedbackToWork.mutationKey(),
-    meta: { onlineWrite: true },
+    meta: { onlineWrite: true, popupId },
     mutationFn: ({
       plan: submitted,
       identity,
@@ -184,13 +191,6 @@ function ConvertToWorkContent({
         .catch(() => undefined);
     }
   }
-
-  useLayoutEffect(() => {
-    busy.current = pending;
-    return () => {
-      busy.current = false;
-    };
-  }, [busy, pending]);
 
   return (
     <>

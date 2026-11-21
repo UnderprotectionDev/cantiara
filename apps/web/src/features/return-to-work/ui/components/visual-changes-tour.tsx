@@ -10,15 +10,16 @@ import { Button } from "@cantiara/ui/components/button";
 import {
   createDialogHandle,
   Dialog,
-  type DialogActions,
   DialogContent,
   DialogDescription,
   DialogTitle,
+  DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import {
   type RefObject,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -110,8 +111,7 @@ export default function VisualChangesTour({
   preferences: AccountPreferences;
 }) {
   const [handle] = useState(createDialogHandle<SinceLastLooked>);
-  const actions = useRef<DialogActions | null>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
+  const triggerId = useId();
   const isOpen = useCallback(() => handle.isOpen, [handle]);
   const remaining = useRef<string | null>(null);
   const driver = useRef<ReturnType<typeof createReturnVisualTour> | null>(null);
@@ -129,23 +129,24 @@ export default function VisualChangesTour({
       }
     });
   }, []);
-  const finish = useCallback((remainingId?: string) => {
-    remaining.current = remainingId ?? null;
-    actions.current?.close();
-  }, []);
+  const finish = useCallback(
+    (remainingId?: string) => {
+      remaining.current = remainingId ?? null;
+      handle.close();
+    },
+    [handle],
+  );
   return (
     <>
-      <Button
-        aria-haspopup="dialog"
-        onClick={() => handle.openWithPayload(changes)}
-        ref={trigger}
-        type="button"
-        variant="outline"
+      <DialogTrigger
+        handle={handle}
+        id={triggerId}
+        payload={changes}
+        render={<Button variant="outline" />}
       >
         Tour the visual changes
-      </Button>
+      </DialogTrigger>
       <Dialog
-        actionsRef={actions}
         handle={handle}
         onOpenChange={(open) => {
           if (open) {
@@ -160,7 +161,7 @@ export default function VisualChangesTour({
             const element = document.getElementById(
               returnEventElementId(remaining.current),
             );
-            (element ?? trigger.current)?.focus();
+            (element ?? document.getElementById(triggerId))?.focus();
             element?.scrollIntoView({ block: "center", behavior: "auto" });
           }
         }}
@@ -169,7 +170,7 @@ export default function VisualChangesTour({
           payload ? (
             <DialogContent
               className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-4xl"
-              finalFocus={() => (remaining.current ? false : trigger.current)}
+              finalFocus={() => !remaining.current}
               showCloseButton={false}
             >
               <VisualTourSession

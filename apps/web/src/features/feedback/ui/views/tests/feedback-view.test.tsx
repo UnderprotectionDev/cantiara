@@ -5,6 +5,7 @@ import {
   type FeedbackRecord,
   type FeedbackWorkOrigin,
 } from "@cantiara/api/feedback";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { ConvertToWorkPreview } from "../../components/convert-to-work-dialog";
@@ -45,19 +46,21 @@ const origin: FeedbackWorkOrigin = {
 
 function render(overrides: { readOnly?: boolean; records?: FeedbackRecord[] }) {
   return renderToStaticMarkup(
-    <FeedbackView
-      attachmentOptions={[{ id: "a1", name: "screenshot.png" }]}
-      companyOptions={[{ id: "co1", name: "Acme" }]}
-      contactOptions={[{ id: "c1", name: "Ada" }]}
-      onConfirmConvert={confirmConvert}
-      onCreate={noop}
-      onPreviewConvert={previewConvert}
-      onSaveEvidence={saveEvidence}
-      onSetIdentity={noop}
-      onSetStatus={noop}
-      readOnly={overrides.readOnly ?? false}
-      records={overrides.records ?? [record]}
-    />,
+    <QueryClientProvider client={new QueryClient()}>
+      <FeedbackView
+        attachmentOptions={[{ id: "a1", name: "screenshot.png" }]}
+        companyOptions={[{ id: "co1", name: "Acme" }]}
+        contactOptions={[{ id: "c1", name: "Ada" }]}
+        onConfirmConvert={confirmConvert}
+        onCreate={noop}
+        onPreviewConvert={previewConvert}
+        onSaveEvidence={saveEvidence}
+        onSetIdentity={noop}
+        onSetStatus={noop}
+        readOnly={overrides.readOnly ?? false}
+        records={overrides.records ?? [record]}
+      />
+    </QueryClientProvider>,
   );
 }
 

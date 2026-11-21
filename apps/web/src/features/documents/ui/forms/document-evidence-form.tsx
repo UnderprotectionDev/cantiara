@@ -22,7 +22,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type RefObject, type SubmitEvent, useRef, useState } from "react";
+import { type SubmitEvent, useRef, useState } from "react";
 import { fetchFresh } from "@/lib/fetch-fresh";
 import { client, orpc } from "@/utils/orpc";
 import { documentEvidenceFormSchema } from "../../lib/document-evidence-form";
@@ -94,7 +94,7 @@ export default function DocumentEvidenceForm({
   rebind,
   record,
 }: {
-  finalFocus: RefObject<HTMLButtonElement | null>;
+  finalFocus: () => HTMLElement | boolean;
   mode: Mode;
   onClose: () => void;
   range: Range;

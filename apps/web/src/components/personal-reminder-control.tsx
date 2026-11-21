@@ -17,7 +17,7 @@ import {
   DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type RefObject, useRef, useState } from "react";
+import { type Dispatch, type SetStateAction, useState } from "react";
 import { PersonalReminderForm } from "@/components/personal-reminder-form";
 import { accountDateTimeFormatter } from "@/features/account-preferences/lib/account-preferences-format";
 import { client, orpc } from "@/utils/orpc";
@@ -40,6 +40,8 @@ interface PersonalReminderControlProps {
   sourceTitle: string;
 }
 
+type ReminderRetry = { fingerprint: string; key: string } | null;
+
 const reminderActions = ["Remind me", "Review Later"] as const;
 
 export default function PersonalReminderControl({
@@ -47,7 +49,7 @@ export default function PersonalReminderControl({
   ...source
 }: PersonalReminderControlProps) {
   const [handle] = useState(createDialogHandle<PersonalReminderAction>);
-  const retry = useRef<{ fingerprint: string; key: string } | null>(null);
+  const [retry, setRetry] = useState<ReminderRetry>(null);
   return (
     <>
       <div className="flex flex-wrap gap-2">
@@ -72,6 +74,7 @@ export default function PersonalReminderControl({
                 {...source}
                 action={payload}
                 retry={retry}
+                setRetry={setRetry}
               />
             </DialogContent>
           ) : null
@@ -84,13 +87,15 @@ export default function PersonalReminderControl({
 function PersonalReminderDialog({
   action,
   retry,
+  setRetry,
   sectionOptions = [],
   sourceRecordId,
   sourceRecordType,
   sourceTitle,
 }: PersonalReminderControlProps & {
   action: PersonalReminderAction;
-  retry: RefObject<{ fingerprint: string; key: string } | null>;
+  retry: ReminderRetry;
+  setRetry: Dispatch<SetStateAction<ReminderRetry>>;
 }) {
   const queryClient = useQueryClient();
   const source = { sourceRecordId, sourceRecordType };
@@ -114,9 +119,9 @@ function PersonalReminderDialog({
       meta: { onlineWrite: true },
       mutationFn: (input) => client.createPersonalReminder(input),
       onSuccess: async (_, input) => {
-        if (retry.current?.key === input.clientIdempotencyKey) {
-          retry.current = null;
-        }
+        setRetry((previous) =>
+          previous?.key === input.clientIdempotencyKey ? null : previous,
+        );
         await refresh({
           sourceRecordId: input.sourceRecordId,
           sourceRecordType: input.sourceRecordType,
@@ -156,6 +161,7 @@ function PersonalReminderDialog({
           cancel.reset();
           create.mutate(input);
         }}
+        onRetry={setRetry}
         pending={pending}
         retry={retry}
         sectionOptions={sectionOptions}

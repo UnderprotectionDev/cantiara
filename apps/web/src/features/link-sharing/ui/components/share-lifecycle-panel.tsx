@@ -22,7 +22,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useSelector } from "@tanstack/react-store";
-import { type RefObject, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { submitForm } from "@/lib/submit-form";
 import type { ShareLifecycleFeedback } from "../../hooks/use-share-access";
 import { useShareConfirmationForm } from "../../hooks/use-share-lifecycle-confirmation";
@@ -78,7 +78,7 @@ export function ShareLifecyclePanel({
   timeZone: string;
 }) {
   const [handle] = useState(createAlertDialogHandle<Confirmation>);
-  const confirmationHeading = useRef<HTMLHeadingElement>(null);
+  const confirmationHeadingId = useId();
   const status = successMessage(feedback);
   const error =
     feedback?.status === "error"
@@ -170,7 +170,11 @@ export function ShareLifecyclePanel({
           }
           const reopen = payload.action === "reopen";
           return (
-            <AlertDialogContent initialFocus={confirmationHeading}>
+            <AlertDialogContent
+              initialFocus={() =>
+                document.getElementById(confirmationHeadingId)
+              }
+            >
               <ConfirmGroup
                 acknowledge={reopen}
                 confirmLabel={reopen ? REOPEN_LABEL : REVOKE_LABEL}
@@ -181,7 +185,7 @@ export function ShareLifecyclePanel({
                 }
                 error={feedback?.action === payload.action ? error : null}
                 heading={reopen ? "Reopen the same link?" : "Revoke this link?"}
-                headingRef={confirmationHeading}
+                headingId={confirmationHeadingId}
                 key={payload.action}
                 onConfirm={() =>
                   confirm(reopen ? () => onReopen(payload.expiresAt) : onRevoke)
@@ -208,7 +212,7 @@ function ConfirmGroup({
   description,
   error,
   heading,
-  headingRef,
+  headingId,
   onConfirm,
   pending,
 }: {
@@ -217,7 +221,7 @@ function ConfirmGroup({
   description: string;
   error: string | null;
   heading: string;
-  headingRef: RefObject<HTMLHeadingElement | null>;
+  headingId: string;
   onConfirm: () => Promise<unknown>;
   pending: boolean;
 }) {
@@ -230,7 +234,7 @@ function ConfirmGroup({
   const submitting = useSelector(form.store, (state) => state.isSubmitting);
   return (
     <>
-      <AlertDialogTitle ref={headingRef} tabIndex={-1}>
+      <AlertDialogTitle id={headingId} tabIndex={-1}>
         {heading}
       </AlertDialogTitle>
       <AlertDialogDescription>{description}</AlertDialogDescription>

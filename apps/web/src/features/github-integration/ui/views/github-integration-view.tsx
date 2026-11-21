@@ -35,9 +35,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@cantiara/ui/components/dialog";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector } from "@tanstack/react-store";
-import { useRef, useState } from "react";
+import { useId, useState } from "react";
+import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
 import { orpc } from "@/utils/orpc";
 import { useGitHubRecordSearchForm } from "../../hooks/use-github-record-search-form";
 import { errorText } from "../../lib/github-error-text";
@@ -252,6 +253,7 @@ function TriageResults({
 function LinkItem({
   actions,
   error,
+  isWriting,
   resetWrite,
   formattingPreferences,
   link,
@@ -261,6 +263,7 @@ function LinkItem({
 }: {
   actions: GitHubIntegrationActions;
   error: { kind: RepositoryLinkAction; cause: unknown } | null;
+  isWriting: () => boolean;
   resetWrite: () => void;
   formattingPreferences: AccountPreferences;
   link: GitHubRepositoryLink;
@@ -271,8 +274,7 @@ function LinkItem({
   const nameId = `github-link-${link.id}`;
   const available = linkActionsFor(link.connection);
   const [handle] = useState(createDialogHandle<RepositoryLinkAction>);
-  const trigger = useRef<HTMLElement | null>(null);
-  const repository = useRef<HTMLAnchorElement>(null);
+  const repositoryId = `github-repository-${link.id}`;
 
   function send(command: GitHubCommand) {
     run(command).catch(() => undefined);
@@ -283,7 +285,7 @@ function LinkItem({
         <a
           className="underline"
           href={link.htmlUrl}
-          ref={repository}
+          id={repositoryId}
           rel="noreferrer"
           target="_blank"
         >{`${link.owner}/${link.name}`}</a>
@@ -347,9 +349,7 @@ function LinkItem({
         onOpenChange={(open, event) => {
           if (open) {
             resetWrite();
-            trigger.current =
-              event.trigger instanceof HTMLElement ? event.trigger : null;
-          } else if (saving && event.reason !== "imperative-action") {
+          } else if (event.reason !== "imperative-action" && isWriting()) {
             event.cancel();
           }
         }}
@@ -358,9 +358,13 @@ function LinkItem({
           payload ? (
             <DialogContent
               finalFocus={() =>
-                trigger.current?.isConnected
-                  ? trigger.current
-                  : repository.current
+                (
+                  payload === "reconnect"
+                    ? available.canReconnect
+                    : available.canDisconnect
+                )
+                  ? true
+                  : document.getElementById(repositoryId)
               }
             >
               <DialogTitle className="sr-only">
@@ -376,6 +380,7 @@ function LinkItem({
                       )
                     : null
                 }
+                isWriting={isWriting}
                 linkId={link.id}
                 loadPreview={actions.loadPreview}
                 onClose={() => handle.close()}
@@ -405,6 +410,7 @@ function LinkItem({
 function LinkActionPreview({
   action,
   failure,
+  isWriting,
   linkId,
   loadPreview,
   onClose,
@@ -414,6 +420,7 @@ function LinkActionPreview({
 }: {
   action: GitHubLinkPreview["action"];
   failure: string | null;
+  isWriting: () => boolean;
   linkId: string;
   loadPreview: GitHubIntegrationActions["loadPreview"];
   onClose: () => void;
@@ -429,19 +436,15 @@ function LinkActionPreview({
       : orpc.previewGitHubReconnect
     ).queryKey({ input: { linkId, projectId } }),
   });
-  const submitting = useRef<boolean>(false);
   async function confirm() {
-    if (submitting.current) {
+    if (isWriting()) {
       return;
     }
-    submitting.current = true;
     try {
       await onConfirm();
       onClose();
     } catch {
       // The shared mutation observer renders this command's error in the dialog.
-    } finally {
-      submitting.current = false;
     }
   }
   return (
@@ -539,8 +542,10 @@ export function GitHubIntegrationView({
   overview: GitHubOverview;
   projectId: string;
 }) {
+  const popupId = useId();
+  const queryClient = useQueryClient();
   const write = useMutation({
-    meta: { onlineWrite: true, retryInSurface: true },
+    meta: { onlineWrite: true, popupId, retryInSurface: true },
     mutationFn: (command: GitHubCommand) => sendGitHubCommand(actions, command),
     onSuccess: (_, command) => {
       if (command.kind !== "install") {
@@ -631,6 +636,7 @@ export function GitHubIntegrationView({
                     : null
                 }
                 formattingPreferences={formattingPreferences}
+                isWriting={() => isPopupCommandPending(queryClient, popupId)}
                 key={link.id}
                 link={link}
                 projectId={projectId}

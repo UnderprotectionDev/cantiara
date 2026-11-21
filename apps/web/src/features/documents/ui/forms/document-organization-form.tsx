@@ -22,7 +22,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { type RefObject, useRef } from "react";
+import { useRef } from "react";
 import { commandVariables } from "@/lib/command-variables";
 import { submitForm } from "@/lib/submit-form";
 import { client, orpc } from "@/utils/orpc";
@@ -63,14 +63,14 @@ export default function DocumentOrganizationForm({
   onClose,
   onCommitted,
   record,
-  submitting,
+  popupId,
 }: {
   action: "hierarchy" | "archive";
   documents: Document[];
   onClose: () => void;
   onCommitted: (document: Document) => Promise<void>;
   record: Document;
-  submitting: RefObject<boolean>;
+  popupId: string;
 }) {
   const archived = Boolean(record.archivedAt);
   const archiveLabel = archived ? "Unarchive" : "Archive";
@@ -78,12 +78,13 @@ export default function DocumentOrganizationForm({
   const otherDocuments = documents.filter(({ id }) => id !== record.id);
   const inspect = useMutation(
     orpc.previewDocumentOrganization.mutationOptions({
+      meta: { popupId },
       mutationFn: (input) => client.previewDocumentOrganization(input),
     }),
   );
   const apply = useMutation(
     orpc.organizeDocument.mutationOptions({
-      meta: { onlineWrite: true },
+      meta: { onlineWrite: true, popupId },
       mutationFn: (input) => client.organizeDocument(input),
       onSuccess: async (saved) => {
         await onCommitted(saved);
@@ -140,13 +141,8 @@ export default function DocumentOrganizationForm({
     },
   });
   const pending = inspect.isPending || apply.isPending;
-  async function submit(intent: "preview" | "apply") {
-    submitting.current = true;
-    try {
-      await submitForm(form, { action: intent });
-    } finally {
-      submitting.current = false;
-    }
+  function submit(intent: "preview" | "apply") {
+    return submitForm(form, { action: intent });
   }
   function invalidatePreview() {
     inspect.reset();

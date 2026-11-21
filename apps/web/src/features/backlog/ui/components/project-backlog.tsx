@@ -18,8 +18,8 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import {
+  createPopoverHandle,
   Popover,
-  type PopoverActions,
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
@@ -44,7 +44,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ExportListAction } from "@/components/export-list-action";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import {
@@ -78,12 +78,12 @@ function BacklogCard({
   work: BacklogWork;
 }) {
   const queryClient = useQueryClient();
-  const popoverActions = useRef<PopoverActions | null>(null);
+  const [popoverHandle] = useState(createPopoverHandle);
   const saveReappearDate = usePreparedMutation(
     orpc.updateWorkReappearDate.mutationOptions({
       mutationFn: (input) => client.updateWorkReappearDate(input),
       onSuccess: async () => {
-        popoverActions.current?.close();
+        popoverHandle.close();
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: orpc.projectBacklog.queryOptions({ input: { projectId } })
@@ -155,7 +155,7 @@ function BacklogCard({
       ) : null}
       <div className="mr-3 flex items-center gap-2 text-xs">
         <Popover
-          actionsRef={popoverActions}
+          handle={popoverHandle}
           onOpenChange={(open, event) => {
             if (
               !open &&

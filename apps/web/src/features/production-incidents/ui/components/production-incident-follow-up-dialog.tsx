@@ -6,8 +6,8 @@ import type {
 } from "@cantiara/api/production-incidents";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
-  type DialogActions,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -55,7 +55,7 @@ export function ProductionIncidentFollowUpDialog({
   incident: Pick<ProductionIncidentRecord, "title">;
   projectId: string;
 }) {
-  const dialogActions = useRef<DialogActions | null>(null);
+  const [dialogHandle] = useState(createDialogHandle);
   const [reviewVisible, setReviewVisible] = useState(false);
   const queryClient = useQueryClient();
   const active = useRef<FollowUpIdentity | null>(null);
@@ -89,7 +89,7 @@ export function ProductionIncidentFollowUpDialog({
       if (
         active.current?.clientIdempotencyKey === identity.clientIdempotencyKey
       ) {
-        dialogActions.current?.close();
+        dialogHandle.close();
       }
     },
   });
@@ -134,7 +134,7 @@ export function ProductionIncidentFollowUpDialog({
 
   return (
     <Dialog
-      actionsRef={dialogActions}
+      handle={dialogHandle}
       onOpenChange={(open, event) => {
         if (open) {
           back();
@@ -178,7 +178,7 @@ export function ProductionIncidentFollowUpDialog({
               }
               onCancel={() => {
                 if (!confirming) {
-                  dialogActions.current?.close();
+                  dialogHandle.close();
                 }
               }}
               onPreview={async (next) => {

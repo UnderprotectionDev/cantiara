@@ -3,8 +3,8 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
-  type DialogActions,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -13,7 +13,7 @@ import {
 } from "@cantiara/ui/components/dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 import {
@@ -36,7 +36,7 @@ export function ProductionIncidentsSurface({
   );
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const dialogActions = useRef<DialogActions | null>(null);
+  const [dialogHandle] = useState(createDialogHandle);
   // One id per create attempt, so a retried create cannot make a second incident.
   const incidentId = useRef<string | null>(null);
 
@@ -47,7 +47,7 @@ export function ProductionIncidentsSurface({
         await refreshProductionIncident(queryClient, input.projectId, input.id);
         if (incidentId.current === input.id) {
           incidentId.current = null;
-          dialogActions.current?.close();
+          dialogHandle.close();
           await navigate({
             href: productionIncidentsHref(input.projectId, input.id),
           }).catch(() => undefined);
@@ -92,7 +92,7 @@ export function ProductionIncidentsSurface({
   }
   return (
     <Dialog
-      actionsRef={dialogActions}
+      handle={dialogHandle}
       onOpenChange={(open, event) => {
         if (open || event.reason === "imperative-action") {
           return;
@@ -125,7 +125,7 @@ export function ProductionIncidentsSurface({
           mode="create"
           onCancel={() => {
             dismissCreate();
-            dialogActions.current?.close();
+            dialogHandle.close();
           }}
           onSubmit={create.mutateAsync}
           timeZone={formatting.timeZone}

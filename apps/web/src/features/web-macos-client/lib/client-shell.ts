@@ -15,6 +15,7 @@ declare module "@tanstack/react-query" {
   interface Register {
     mutationMeta: {
       onlineWrite?: boolean;
+      popupId?: string;
       presentsSupportFailure?: boolean;
       privateInput?: boolean;
       retryInSurface?: boolean;
