@@ -20,6 +20,8 @@ async function openAllWorkRoadmap(page: Page) {
   await expect(page).toHaveURL(
     (url) => url.searchParams.get("roadmapView") === "all",
   );
+  // Wait for the selected view to replace the previous candidate disclosure.
+  await expect(page.locator("#roadmap-view-type")).toBeVisible();
 }
 
 test("refreshes a Roadmap horizon selection after another tab changes it", async ({
