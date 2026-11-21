@@ -14,7 +14,7 @@ import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
-  createDialogHandle,
+  type createDialogHandle,
   Dialog,
   DialogClose,
   DialogContent,
@@ -22,7 +22,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
@@ -30,7 +29,6 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useQuery } from "@tanstack/react-query";
 import {
   type RefObject,
   type SubmitEvent,
@@ -39,12 +37,14 @@ import {
 } from "react";
 import { DatePicker } from "@/components/date-picker";
 import {
-  type ActiveRecordAction,
   type RecordActionRunnerState,
   useRecordActionRunner,
 } from "../../hooks/use-record-action-runner";
 import { useRecordActionRuntimeInputForm } from "../../hooks/use-record-action-runtime-input-form";
-import { recordActionListOptions } from "../../hooks/use-record-actions";
+import type {
+  ActiveRecordAction,
+  RecordActionDialogPayload,
+} from "../../lib/record-action-run";
 import { recordActionRuntimeInputsFormSchema } from "../../lib/record-action-runtime-inputs";
 
 function RuntimeCustomFieldControl({
@@ -157,12 +157,6 @@ function RuntimeCustomFieldControl({
   return null;
 }
 
-export const createRecordActionHandle = createDialogHandle<ActiveRecordAction>;
-
-export function useRecordActionList(projectId: string) {
-  return useQuery(recordActionListOptions(projectId));
-}
-
 export function RecordActionButtons({
   actions,
   disabled,
@@ -171,7 +165,7 @@ export function RecordActionButtons({
 }: {
   actions: readonly RecordAction[];
   disabled: boolean;
-  handle: ReturnType<typeof createDialogHandle<ActiveRecordAction>>;
+  handle: ReturnType<typeof createDialogHandle<RecordActionDialogPayload>>;
   work: WorkProfile;
 }) {
   if (actions.length === 0) {
@@ -185,15 +179,23 @@ export function RecordActionButtons({
     >
       <legend className="sr-only">Record Actions for {work.key}</legend>
       {actions.map((action) => (
-        <DialogTrigger
+        <Button
+          aria-haspopup="dialog"
           disabled={disabled}
-          handle={handle}
           key={action.id}
-          payload={{ action, work }}
-          render={<Button size="xs" variant="outline" />}
+          onClick={(event) =>
+            handle.openWithPayload({
+              action,
+              trigger: event.currentTarget,
+              work,
+            })
+          }
+          size="xs"
+          type="button"
+          variant="outline"
         >
           {action.name}
-        </DialogTrigger>
+        </Button>
       ))}
     </fieldset>
   );
@@ -603,7 +605,7 @@ export function RecordActionRunDialog({
   handle,
   projectId,
 }: {
-  handle: ReturnType<typeof createDialogHandle<ActiveRecordAction>>;
+  handle: ReturnType<typeof createDialogHandle<RecordActionDialogPayload>>;
   projectId: string;
 }) {
   const busy = useRef<boolean>(false);
@@ -621,6 +623,9 @@ export function RecordActionRunDialog({
           <DialogContent
             aria-label={`Preview ${payload.action.name}`}
             className="max-h-[min(80vh,40rem)] overflow-y-auto sm:max-w-lg"
+            finalFocus={() =>
+              payload.trigger.isConnected ? payload.trigger : true
+            }
             showCloseButton={false}
           >
             <RecordActionRunContent

@@ -1,11 +1,9 @@
 import type {
   PreviewRecordActionInput,
-  RecordAction,
   RecordActionRuntimeInputs,
   UndoRecordActionInput,
 } from "@cantiara/api/record-actions";
 import { recordActionStepsNeedRuntimeInputs } from "@cantiara/api/record-actions";
-import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -18,15 +16,12 @@ import {
   orpc,
 } from "@/utils/orpc";
 
+import type { ActiveRecordAction } from "../lib/record-action-run";
+
 type RecordActionRefreshContext = Pick<
   Parameters<typeof client.applyRecordAction>[0],
   "focusDate" | "runtimeInputs"
 >;
-
-export interface ActiveRecordAction {
-  action: RecordAction;
-  work: WorkProfile;
-}
 
 function mutationErrorMessage(error: unknown) {
   return error instanceof Error && error.message
@@ -36,11 +31,10 @@ function mutationErrorMessage(error: unknown) {
 
 export function useRecordActionRunner(
   projectId: string,
-  openingAction: ActiveRecordAction,
+  active: ActiveRecordAction,
 ) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
-  const [active] = useState(() => openingAction);
   const [runVersion, setRunVersion] = useState(0);
   const needsRuntimeInput = recordActionStepsNeedRuntimeInputs(
     active.action.steps,

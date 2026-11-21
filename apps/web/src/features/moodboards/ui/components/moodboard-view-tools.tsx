@@ -153,8 +153,12 @@ export function VisualViewTools({
         <VisualCropForm
           idPrefix={idPrefix}
           onApply={(view) => {
-            save(view);
-            setCropOpen(false);
+            api.setVisualView.mutate(
+              { itemId: item.id, moodboard, view },
+              {
+                onSuccess: () => setCropOpen(false),
+              },
+            );
           }}
           open={cropOpen}
           view={item.view}

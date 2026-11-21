@@ -53,10 +53,12 @@ import {
 } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import PriorityMetricValuesForm from "@/features/priority-metrics/ui/components/priority-metric-values-form";
 import {
-  createRecordActionHandle,
+  type RecordActionDialogPayload,
+  recordActionListOptions,
+} from "@/features/record-actions/lib/record-action-run";
+import {
   RecordActionButtons,
   RecordActionRunDialog,
-  useRecordActionList,
 } from "@/features/record-actions/ui/components/record-action-runner";
 import WorkRelations from "@/features/relations/ui/components/work-relations";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
@@ -115,8 +117,10 @@ export default function ProjectWorkList({
     accountId,
     preferences: completionEffectsPreferences,
   });
-  const [recordActionHandle] = useState(createRecordActionHandle);
-  const recordActions = useRecordActionList(projectId);
+  const [recordActionHandle] = useState(
+    createDialogHandle<RecordActionDialogPayload>,
+  );
+  const recordActions = useQuery(recordActionListOptions(projectId));
   const allProjectWorksQuery = useQuery(
     orpc.projectWorks.queryOptions({
       input: { archived: "all", projectId },

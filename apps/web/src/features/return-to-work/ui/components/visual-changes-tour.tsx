@@ -14,7 +14,6 @@ import {
   DialogContent,
   DialogDescription,
   DialogTitle,
-  DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import {
   type RefObject,
@@ -34,18 +33,19 @@ export function returnEventElementId(id: string) {
 
 function VisualTourSession({
   changes,
+  isOpen,
   projectId,
   preferences,
   onClose,
   driver,
 }: {
   changes: SinceLastLooked;
+  isOpen: () => boolean;
   projectId: string;
   preferences: AccountPreferences;
   onClose: (remainingId?: string) => void;
   driver: RefObject<ReturnType<typeof createReturnVisualTour> | null>;
 }) {
-  const [openingChanges] = useState(() => changes);
   const session = useRoadmapSession();
   const [view] = useState(() => session?.state.view ?? null);
   const [state, setState] = useState<ReturnVisualTourState>({
@@ -59,16 +59,16 @@ function VisualTourSession({
   });
   const ready = useCallback(
     (canvas: ReturnCanvasViewport) => {
-      if (driver.current) {
+      if (driver.current || !isOpen()) {
         return;
       }
-      const tour = createReturnVisualTour(openingChanges, canvas);
+      const tour = createReturnVisualTour(changes, canvas);
       driver.current = tour;
       const pending = tour.start();
       setState({ ...tour.state });
       pending.then(() => setState({ ...tour.state }));
     },
-    [openingChanges, driver],
+    [changes, driver, isOpen],
   );
   const next = () => {
     const tour = driver.current;
@@ -111,6 +111,8 @@ export default function VisualChangesTour({
 }) {
   const [handle] = useState(createDialogHandle<SinceLastLooked>);
   const actions = useRef<DialogActions | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const isOpen = useCallback(() => handle.isOpen, [handle]);
   const remaining = useRef<string | null>(null);
   const driver = useRef<ReturnType<typeof createReturnVisualTour> | null>(null);
   useEffect(
@@ -133,13 +135,15 @@ export default function VisualChangesTour({
   }, []);
   return (
     <>
-      <DialogTrigger
-        handle={handle}
-        payload={changes}
-        render={<Button type="button" variant="outline" />}
+      <Button
+        aria-haspopup="dialog"
+        onClick={() => handle.openWithPayload(changes)}
+        ref={trigger}
+        type="button"
+        variant="outline"
       >
         Tour the visual changes
-      </DialogTrigger>
+      </Button>
       <Dialog
         actionsRef={actions}
         handle={handle}
@@ -156,8 +160,7 @@ export default function VisualChangesTour({
             const element = document.getElementById(
               returnEventElementId(remaining.current),
             );
-            remaining.current = null;
-            element?.focus();
+            (element ?? trigger.current)?.focus();
             element?.scrollIntoView({ block: "center", behavior: "auto" });
           }
         }}
@@ -166,11 +169,13 @@ export default function VisualChangesTour({
           payload ? (
             <DialogContent
               className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-4xl"
+              finalFocus={() => (remaining.current ? false : trigger.current)}
               showCloseButton={false}
             >
               <VisualTourSession
                 changes={payload}
                 driver={driver}
+                isOpen={isOpen}
                 onClose={finish}
                 preferences={preferences}
                 projectId={projectId}

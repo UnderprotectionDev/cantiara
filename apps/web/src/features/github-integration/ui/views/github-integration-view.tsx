@@ -83,6 +83,12 @@ type GitHubCommand =
   | { kind: "install" }
   | { kind: "disconnect" | "reconnect" | "skip" | "sync"; linkId: string };
 
+type RepositoryLinkAction = "reconnect" | "disconnect";
+const repositoryActionLabels = {
+  reconnect: "Reconnect",
+  disconnect: "Disconnect",
+} as const;
+
 async function sendGitHubCommand(
   actions: GitHubIntegrationActions,
   command: GitHubCommand,
@@ -254,7 +260,7 @@ function LinkItem({
   saving,
 }: {
   actions: GitHubIntegrationActions;
-  error: { action: "Reconnect" | "Disconnect"; message: string } | null;
+  error: { kind: RepositoryLinkAction; cause: unknown } | null;
   resetWrite: () => void;
   formattingPreferences: AccountPreferences;
   link: GitHubRepositoryLink;
@@ -264,7 +270,7 @@ function LinkItem({
 }) {
   const nameId = `github-link-${link.id}`;
   const available = linkActionsFor(link.connection);
-  const [handle] = useState(createDialogHandle<GitHubLinkPreview["action"]>);
+  const [handle] = useState(createDialogHandle<RepositoryLinkAction>);
   const trigger = useRef<HTMLElement | null>(null);
   const repository = useRef<HTMLAnchorElement>(null);
 
@@ -318,7 +324,7 @@ function LinkItem({
             aria-describedby={nameId}
             disabled={saving}
             handle={handle}
-            payload="Reconnect"
+            payload="reconnect"
             render={<Button />}
           >
             {GITHUB_RECONNECT_LABEL}
@@ -329,7 +335,7 @@ function LinkItem({
             aria-describedby={nameId}
             disabled={saving}
             handle={handle}
-            payload="Disconnect"
+            payload="disconnect"
             render={<Button variant="outline" />}
           >
             {GITHUB_DISCONNECT_LABEL}
@@ -357,16 +363,25 @@ function LinkItem({
                   : repository.current
               }
             >
-              <DialogTitle className="sr-only">{payload} preview</DialogTitle>
+              <DialogTitle className="sr-only">
+                {repositoryActionLabels[payload]} preview
+              </DialogTitle>
               <LinkActionPreview
-                action={payload}
-                failure={error?.action === payload ? error.message : null}
+                action={repositoryActionLabels[payload]}
+                failure={
+                  error?.kind === payload
+                    ? errorText(
+                        error.cause,
+                        "The GitHub action did not finish.",
+                      )
+                    : null
+                }
                 linkId={link.id}
                 loadPreview={actions.loadPreview}
                 onClose={() => handle.close()}
                 onConfirm={() =>
                   run({
-                    kind: payload === "Disconnect" ? "disconnect" : "reconnect",
+                    kind: payload,
                     linkId: link.id,
                   })
                 }
@@ -609,17 +624,10 @@ export function GitHubIntegrationView({
               <LinkItem
                 actions={actions}
                 error={
-                  failedLinkAction?.linkId === link.id
-                    ? {
-                        action:
-                          failedLinkAction.kind === "reconnect"
-                            ? "Reconnect"
-                            : "Disconnect",
-                        message: errorText(
-                          write.error,
-                          "The GitHub action did not finish.",
-                        ),
-                      }
+                  failedLinkAction?.linkId === link.id &&
+                  (failedLinkAction.kind === "reconnect" ||
+                    failedLinkAction.kind === "disconnect")
+                    ? { kind: failedLinkAction.kind, cause: write.error }
                     : null
                 }
                 formattingPreferences={formattingPreferences}

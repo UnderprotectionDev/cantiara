@@ -24,7 +24,9 @@ export default function DocumentOrganizationControls({
   const submitting = useRef<boolean>(false);
   const archiveLabel = record.archivedAt ? "Unarchive" : "Archive";
   function close() {
-    handle.close();
+    if (handle.isOpen) {
+      handle.close();
+    }
   }
   const parent = documents.find(({ id }) => id === record.parentDocumentId);
   return (
