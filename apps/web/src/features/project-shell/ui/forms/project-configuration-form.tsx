@@ -46,7 +46,6 @@ import {
   projectAreaAvailabilityLabel,
 } from "@/features/project-shell/ui/components/project-area-availability";
 import WorkTemplateEditor from "@/features/work-templates/ui/components/work-template-editor";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
 
 function submitConfigurationChange(
   change: ProjectShellConfigurationChange,
@@ -117,7 +116,7 @@ export default function ProjectConfigurationForm({
   const { error, mutation } = useProjectConfiguration(projectId, baseRevision);
   const { error: enableError, mutation: enableProjectArea } =
     useProjectAreaEnable(projectId, baseRevision);
-  const [restorePreviewOpen, setRestorePreviewOpen] = useCollapsibleState();
+  const [restorePreviewOpen, setRestorePreviewOpen] = useState(false);
   const defaultPinnedAreas =
     getStarterConfigurationDefinition(starterConfiguration).extraPinnedAreas;
   const requestEnableProjectArea = useCallback(
@@ -158,7 +157,7 @@ export default function ProjectConfigurationForm({
       { kind: "restore-default-navigation" },
       { onSuccess: () => setRestorePreviewOpen(false) },
     );
-  }, [mutation, setRestorePreviewOpen]);
+  }, [mutation]);
   const projectAreasNavigationPreview: ProjectAreasNavigationPreview = {
     defaultPinnedAreas,
     onRestoreDefaultNavigation: requestRestoreDefaultNavigation,

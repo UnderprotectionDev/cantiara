@@ -24,10 +24,13 @@ test("keeps Sequential triage focused until a confirmed exit", async ({
   ).toBeVisible();
   const savedCaptures = page.getByRole("region", { name: "Saved captures" });
 
+  const newCapture = page.getByRole("button", {
+    name: "New capture",
+    exact: true,
+  });
+
   async function openComposer() {
-    await page
-      .getByRole("button", { name: "New capture", exact: true })
-      .click();
+    await newCapture.click();
     const composer = page.getByRole("dialog");
     await composer
       .getByRole("heading", { name: "New capture", exact: true })
@@ -43,17 +46,41 @@ test("keeps Sequential triage focused until a confirmed exit", async ({
     return composer;
   }
 
-  async function saveCapture(content: string) {
+  async function saveCapture(content: string, rejectFirst = false) {
     const composer = await openComposer();
-    await composer.getByLabel("Capture", { exact: true }).fill(content);
-    await composer.getByRole("button", { name: "Save", exact: true }).click();
+    const draft = composer.getByLabel("Capture", { exact: true });
+    const save = composer.getByRole("button", { name: "Save", exact: true });
+    await draft.fill(content);
+    if (rejectFirst) {
+      await page.route(
+        "**/rpc/createCapture",
+        (route) => route.abort("failed"),
+        {
+          times: 1,
+        },
+      );
+      await save.click();
+      await expect(composer).toContainText("Capture could not be saved.");
+      await expect(draft).toHaveValue(content);
+    }
+    await save.click();
     await composer.waitFor({ state: "hidden" });
+    await expect(newCapture).toBeFocused();
     await expect(
       savedCaptures.getByText(content, { exact: true }),
     ).toBeVisible();
   }
 
-  await saveCapture("Convert this capture");
+  const escaped = await openComposer();
+  await page.keyboard.press("Escape");
+  await expect(escaped).toBeHidden();
+  await expect(newCapture).toBeFocused();
+  const closed = await openComposer();
+  await closed.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(closed).toBeHidden();
+  await expect(newCapture).toBeFocused();
+
+  await saveCapture("Convert this capture", true);
   await saveCapture("Attach this capture");
   await saveCapture("Delete this capture");
 

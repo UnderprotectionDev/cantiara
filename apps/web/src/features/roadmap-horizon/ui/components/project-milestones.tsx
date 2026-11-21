@@ -11,8 +11,8 @@ import {
 } from "@cantiara/ui/components/collapsible";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import {
   client,
@@ -52,7 +52,7 @@ function MilestoneCard({
   works: WorkProfile[];
 }) {
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useCollapsibleState();
+  const [editing, setEditing] = useState(false);
   const relationsQuery = useQuery(
     orpc.relations.queryOptions({
       input: { recordId: milestone.id, recordType: "Milestone" },

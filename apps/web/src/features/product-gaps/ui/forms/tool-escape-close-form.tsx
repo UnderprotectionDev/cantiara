@@ -19,9 +19,8 @@ import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { submitForm } from "@/lib/submit-form";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
 import {
   type CloseFormValues,
   closeImpact,
@@ -67,7 +66,7 @@ export function ToolEscapeCloseForm({
   onClose: CloseEscape;
 }) {
   const id = useId();
-  const [open, setOpen] = useCollapsibleState();
+  const [open, setOpen] = useState(false);
 
   const form = useForm({
     defaultValues: EMPTY_CLOSE_FORM,

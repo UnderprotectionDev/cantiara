@@ -65,7 +65,7 @@ Kurucu Özellik, Bug, Görev, Araştırma ve İyileştirmeyi değişmez Proje an
 
 ## Testing Decisions
 
-- **Popup lifecycle (#546).** The Work list uses a detached Base UI trigger for `Bulk Edit`. The browser bulk editing seam covers continuing to display the operation while it is applying or finalizing.
+- **Popup lifecycle (#546).** The Work list uses a detached Base UI trigger for `Bulk Edit`. The browser bulk editing seam checks that Escape and `Cancel` return focus to `Bulk Edit`, that the operation stays visible while applying or finalizing, and that a failed row remains visible in the results. A new preview and apply can successfully retry the same selected Work.
 
 - The Work Recreate seam verifies that changing the destination clears the old preview and receipt, and retrying a failed confirmation keeps the same identity for the same selection.
 

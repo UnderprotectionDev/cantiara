@@ -29,6 +29,7 @@ import {
   testGapRecordHash,
   workRecordHref,
 } from "@/features/project-shell/lib/project-shell-navigation";
+import { popupReturnFocus } from "@/lib/popup-return-focus";
 
 const SourceRecordPreviewContent = lazy(
   () => import("./context-record-preview-content"),
@@ -169,11 +170,7 @@ export function ContextRecordPreviewProvider({
         {({ payload }) =>
           payload ? (
             <ContextRecordPreviewPanel
-              finalFocus={() =>
-                payload.returnFocusId
-                  ? (document.getElementById(payload.returnFocusId) ?? true)
-                  : true
-              }
+              finalFocus={() => popupReturnFocus(payload.returnFocusId)}
               onClose={closePreview}
               onOpenSourceRecord={(target) =>
                 handle.openWithPayload({
@@ -190,6 +187,7 @@ export function ContextRecordPreviewProvider({
   );
 }
 
+/** Render inside a Sheet root. ContextRecordPreviewProvider owns the shared root. */
 export function ContextRecordPreviewPanel({
   finalFocus,
   onClose,

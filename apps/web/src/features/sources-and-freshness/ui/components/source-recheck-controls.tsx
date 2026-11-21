@@ -10,8 +10,7 @@ import {
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
+import { useRef, useState } from "react";
 import { client, orpc } from "@/utils/orpc";
 import { SourceCheckCompare } from "./source-check-compare";
 
@@ -48,7 +47,7 @@ export function SourceRecheckControls({
       },
     }),
   );
-  const [open, setOpen] = useCollapsibleState();
+  const [open, setOpen] = useState(false);
   const recheckAttempt = useRef<{ fingerprint: string; id: string } | null>(
     null,
   );

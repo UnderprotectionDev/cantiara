@@ -11,7 +11,7 @@ import {
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
 import { Link } from "@tanstack/react-router";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
+import { useState } from "react";
 import {
   useArchivedProjects,
   useArchivePreview,
@@ -29,7 +29,7 @@ export default function ProjectArchiveControl({
   projectId: string;
 }) {
   const archived = useArchivedProjects();
-  const [previewing, setPreviewing] = useCollapsibleState();
+  const [previewing, setPreviewing] = useState(false);
   const preview = useArchivePreview(projectId, previewing);
   const transition = useRetirementTransition();
 

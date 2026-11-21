@@ -27,8 +27,8 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useRef, useState } from "react";
-
 import { commandVariables } from "@/lib/command-variables";
+import { popupReturnFocus } from "@/lib/popup-return-focus";
 import { client, orpc } from "@/utils/orpc";
 import {
   createDocumentFromTemplateFormSchema,
@@ -400,9 +400,7 @@ export default function DocumentTemplatesSurface({
           return (
             <DialogContent
               className="max-h-[85vh] overflow-y-auto rounded-xl p-6 sm:max-w-2xl"
-              finalFocus={() =>
-                document.getElementById(payload.triggerId) ?? true
-              }
+              finalFocus={() => popupReturnFocus(payload.triggerId)}
             >
               <DialogHeader>
                 <DialogTitle>{title}</DialogTitle>

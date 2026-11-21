@@ -24,13 +24,13 @@ export default function SessionsSection({
   const {
     isRevoking,
     otherSessionCount,
+    revocationPending,
     revokeOtherSessions,
     revokeSession,
     sessions,
   } = controller;
   const [revokeHandle] = useState(createAlertDialogHandle<RevokeTarget>);
   const headingId = useId();
-  const pending = revokeSession.isPending || revokeOtherSessions.isPending;
   const activeSessionCount = useMemo(
     () => sessions.data?.length ?? 0,
     [sessions.data],
@@ -56,7 +56,7 @@ export default function SessionsSection({
           </p>
         </div>
         <AlertDialogTrigger
-          disabled={otherSessionCount === 0 || pending}
+          disabled={otherSessionCount === 0 || revocationPending}
           handle={revokeHandle}
           payload="others"
           render={<Button size="sm" variant="destructive" />}
@@ -120,7 +120,7 @@ export default function SessionsSection({
                 </div>
                 {productSession.current ? null : (
                   <AlertDialogTrigger
-                    disabled={pending}
+                    disabled={revocationPending}
                     handle={revokeHandle}
                     payload={{
                       device: productSession.device,
@@ -140,6 +140,7 @@ export default function SessionsSection({
         handle={revokeHandle}
         headingId={headingId}
         isRevoking={isRevoking}
+        revocationPending={revocationPending}
         revokeOtherSessions={revokeOtherSessions}
         revokeSession={revokeSession}
       />

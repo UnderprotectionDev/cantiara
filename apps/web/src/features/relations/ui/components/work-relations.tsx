@@ -21,7 +21,6 @@ import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-
 import { commandVariables } from "@/lib/command-variables";
 import { fetchFresh } from "@/lib/fetch-fresh";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
 import { client, orpc } from "@/utils/orpc";
 import { CreateRelationForm } from "../forms/create-relation-form";
 import { ResolveBlockerForm } from "../forms/resolve-blocker-form";
@@ -700,7 +699,7 @@ function BlockerActions({
   onResolve: (note?: string) => Promise<unknown>;
   relation: RelationView;
 }) {
-  const [isResolving, setIsResolving] = useCollapsibleState();
+  const [isResolving, setIsResolving] = useState(false);
 
   if (relation.kind !== "Blocks") {
     return null;

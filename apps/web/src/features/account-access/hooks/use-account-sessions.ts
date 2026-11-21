@@ -41,6 +41,7 @@ export function useAccountSessions() {
   return {
     isRevoking,
     otherSessionCount,
+    revocationPending: revokeSession.isPending || revokeOtherSessions.isPending,
     revokeOtherSessions,
     revokeSession,
     sessions,

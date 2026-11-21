@@ -14,7 +14,6 @@ import {
 } from "@cantiara/ui/components/collapsible";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
 import { client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 import EvidenceSelection from "../forms/source-evidence-selection-form";
@@ -95,7 +94,7 @@ export function SourceEvidenceControls({
   preferences,
   readOnly,
 }: EvidenceProps) {
-  const [open, setOpen] = useCollapsibleState();
+  const [open, setOpen] = useState(false);
   const [editor, setEditor] = useState<{ use?: SourceEvidenceUse } | null>(
     null,
   );

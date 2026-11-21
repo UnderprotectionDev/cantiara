@@ -23,7 +23,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { fetchFresh } from "@/lib/fetch-fresh";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -89,7 +88,7 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
       ),
     [projectsQuery.data, work.projectId],
   );
-  const [open, setOpen] = useCollapsibleState();
+  const [open, setOpen] = useState(false);
   const inspect = useMutation({
     meta: { presentsSupportFailure: true },
     mutationFn: (input: Parameters<typeof client.workRecreatePreview>[0]) =>

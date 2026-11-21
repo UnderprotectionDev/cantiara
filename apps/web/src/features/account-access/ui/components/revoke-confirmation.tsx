@@ -11,6 +11,7 @@ import {
   type createAlertDialogHandle,
 } from "@cantiara/ui/components/alert-dialog";
 import { useEffect } from "react";
+import { popupReturnFocus } from "@/lib/popup-return-focus";
 import type { AccountSessionsController } from "../../hooks/use-account-sessions";
 
 export type RevokeTarget = { device: string; sessionAlias: string } | "others";
@@ -19,16 +20,16 @@ export default function RevokeConfirmation({
   handle,
   headingId,
   isRevoking,
+  revocationPending,
   revokeOtherSessions,
   revokeSession,
 }: Pick<
   AccountSessionsController,
-  "isRevoking" | "revokeOtherSessions" | "revokeSession"
+  "isRevoking" | "revocationPending" | "revokeOtherSessions" | "revokeSession"
 > & {
   handle: ReturnType<typeof createAlertDialogHandle<RevokeTarget>>;
   headingId: string;
 }) {
-  const pending = revokeSession.isPending || revokeOtherSessions.isPending;
   const revoked = revokeSession.isSuccess || revokeOtherSessions.isSuccess;
   useEffect(() => {
     if (revoked && handle.isOpen) {
@@ -67,9 +68,7 @@ export default function RevokeConfirmation({
         const mutation = others ? revokeOtherSessions : revokeSession;
         return (
           <AlertDialogContent
-            finalFocus={() =>
-              revoked ? (document.getElementById(headingId) ?? true) : true
-            }
+            finalFocus={() => popupReturnFocus(revoked ? headingId : undefined)}
           >
             <AlertDialogHeader>
               <AlertDialogTitle>
@@ -89,9 +88,11 @@ export default function RevokeConfirmation({
               </p>
             ) : null}
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+              <AlertDialogCancel disabled={revocationPending}>
+                Cancel
+              </AlertDialogCancel>
               <AlertDialogAction
-                disabled={pending}
+                disabled={revocationPending}
                 onClick={() => confirm(payload)}
                 variant="destructive"
               >

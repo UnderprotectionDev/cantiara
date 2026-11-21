@@ -4,12 +4,13 @@ import type { Document } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import { createDialogHandle, Dialog } from "@cantiara/ui/components/dialog";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { AppLink } from "@/components/app-link";
 import {
   projectSourceRecordHash,
   workRecordHref,
 } from "@/features/project-shell/lib/project-shell-navigation";
+import { popupReturnFocus } from "@/lib/popup-return-focus";
 import { orpc } from "@/utils/orpc";
 import DocumentEvidenceForm from "../forms/document-evidence-form";
 import DocumentEvidenceRoleForm from "../forms/document-evidence-role-form";
@@ -47,11 +48,9 @@ export function EvidenceRow({
   binding: DocumentEvidenceBinding;
   /** Role and Founder interpretation editor; omitted in read-only presentations. */
   editor?: ReactNode;
-  onRebind: (
-    binding: DocumentEvidenceBinding,
-    trigger: HTMLButtonElement,
-  ) => void;
+  onRebind: (binding: DocumentEvidenceBinding, returnFocusId: string) => void;
 }) {
+  const returnFocusId = useId();
   const href = targetHref(binding.target);
   return (
     <li className="space-y-1 rounded-lg border p-3">
@@ -81,7 +80,8 @@ export function EvidenceRow({
           Newer version exists · Version {binding.currentRevision}.{" "}
           {binding.readOnly ? null : (
             <Button
-              onClick={(event) => onRebind(binding, event.currentTarget)}
+              id={returnFocusId}
+              onClick={() => onRebind(binding, returnFocusId)}
               type="button"
               variant="outline"
             >
@@ -101,22 +101,23 @@ export default function DocumentEvidenceControls({
   range,
   record,
 }: Props) {
+  const controlId = useId();
   const [handle] = useState(
     createDialogHandle<{
       mode: Mode;
       range: Range;
       rebind: DocumentEvidenceBinding | null;
       record: Document;
-      trigger: HTMLButtonElement;
+      returnFocusId: string;
     }>,
   );
   function open(
     mode: Mode,
     rebind: DocumentEvidenceBinding | null,
-    trigger: HTMLButtonElement,
+    returnFocusId: string,
   ) {
     if (canPin && range && range.end > range.start) {
-      handle.openWithPayload({ mode, range, rebind, record, trigger });
+      handle.openWithPayload({ mode, range, rebind, record, returnFocusId });
     }
   }
   const { projectId } = record;
@@ -137,7 +138,8 @@ export default function DocumentEvidenceControls({
       <div className="flex flex-wrap gap-2">
         <Button
           disabled={!enabled}
-          onClick={(event) => open("bind", null, event.currentTarget)}
+          id={`${controlId}-bind`}
+          onClick={(event) => open("bind", null, event.currentTarget.id)}
           type="button"
           variant="outline"
         >
@@ -145,7 +147,8 @@ export default function DocumentEvidenceControls({
         </Button>
         <Button
           disabled={!enabled}
-          onClick={(event) => open("create", null, event.currentTarget)}
+          id={`${controlId}-create`}
+          onClick={(event) => open("create", null, event.currentTarget.id)}
           type="button"
           variant="outline"
         >
@@ -165,7 +168,9 @@ export default function DocumentEvidenceControls({
               )
             }
             key={`${binding.id}:${binding.revision}`}
-            onRebind={(value, trigger) => open("bind", value, trigger)}
+            onRebind={(value, returnFocusId) =>
+              open("bind", value, returnFocusId)
+            }
           />
         ))}
       </ul>
@@ -178,9 +183,7 @@ export default function DocumentEvidenceControls({
           payload ? (
             <DocumentEvidenceForm
               {...payload}
-              finalFocus={() =>
-                payload.trigger.isConnected ? payload.trigger : true
-              }
+              finalFocus={() => popupReturnFocus(payload.returnFocusId)}
               onClose={() => handle.close()}
             />
           ) : null

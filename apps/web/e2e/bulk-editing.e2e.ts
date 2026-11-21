@@ -68,8 +68,14 @@ test("previews and applies a status change only to selected Work", async ({
   await expect(unselectedWork).toBeVisible({ timeout: 30_000 });
 
   await selectedWork.getByRole("checkbox").check();
-  await page.getByRole("button", { name: "Bulk Edit" }).click();
+  const bulkEditTrigger = page.getByRole("button", { name: "Bulk Edit" });
+  await bulkEditTrigger.click();
   const bulkEdit = page.getByRole("dialog", { name: "Bulk Edit" });
+  await expect(bulkEdit).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(bulkEdit).toBeHidden();
+  await expect(bulkEditTrigger).toBeFocused();
+  await bulkEditTrigger.click();
   await bulkEdit
     .getByRole("combobox", { name: "Status" })
     .selectOption("In Progress");
@@ -109,7 +115,7 @@ test("previews and applies a status change only to selected Work", async ({
 
   const changedWork = workListItem(page, "Selected Work");
   await changedWork.getByRole("checkbox").check();
-  await page.getByRole("button", { name: "Bulk Edit" }).click();
+  await bulkEditTrigger.click();
   const undoDialog = page.getByRole("dialog", { name: "Bulk Edit" });
   await undoDialog
     .getByRole("combobox", { name: "Status" })
@@ -141,8 +147,10 @@ test("previews and applies a status change only to selected Work", async ({
   await expect(undoResults).toContainText("Undone");
 
   await undoDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(undoDialog).toBeHidden();
+  await expect(bulkEditTrigger).toBeFocused();
   await page.route("**/rpc/updateWorkStatus", (route) => route.abort("failed"));
-  await page.getByRole("button", { name: "Bulk Edit" }).click();
+  await bulkEditTrigger.click();
   const failedDialog = page.getByRole("dialog", { name: "Bulk Edit" });
   await failedDialog
     .getByRole("combobox", { name: "Status" })
@@ -159,7 +167,24 @@ test("previews and applies a status change only to selected Work", async ({
   await expect(failedResults).toContainText("Failed");
   await expect(failedResults).toContainText("Support reference unavailable.");
   await expect(failedResults).not.toContainText("Failed to fetch");
+  await expect(workStatusControl(changedWork)).toHaveValue("In Progress");
   await page.unroute("**/rpc/updateWorkStatus");
+
+  await failedDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(bulkEditTrigger).toBeFocused();
+  await bulkEditTrigger.click();
+  await bulkEdit
+    .getByRole("combobox", { name: "Status" })
+    .selectOption("Blocked");
+  await bulkEdit.getByRole("button", { name: "Preview", exact: true }).click();
+  await bulkEdit.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(
+    bulkEdit.getByRole("list", { name: "Bulk Edit results" }),
+  ).toContainText("Succeeded");
+  await expect(workStatusControl(changedWork)).toHaveValue("Blocked");
+  await expect(
+    workStatusControl(workListItem(page, "Unselected Work")),
+  ).toHaveValue("Not Started");
 });
 
 test("shows a stale Work conflict without hiding other selected results", async ({

@@ -8,7 +8,7 @@ export interface ActiveRecordAction {
 }
 
 export interface RecordActionDialogPayload extends ActiveRecordAction {
-  trigger: HTMLButtonElement;
+  returnFocusId: string;
 }
 
 export function recordActionListOptions(projectId: string) {

@@ -14,7 +14,7 @@ import {
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
+import { useState } from "react";
 import { orpc } from "@/utils/orpc";
 import { errorText } from "../../lib/error-text";
 import {
@@ -149,7 +149,7 @@ function HandoffItem({
   ) => Promise<unknown>;
   readOnly: boolean;
 }) {
-  const [editing, setEditing] = useCollapsibleState();
+  const [editing, setEditing] = useState(false);
   const filled = CONTEXT_LABELS.filter(
     ([key]) => handoff.buildContext[key] !== null,
   );

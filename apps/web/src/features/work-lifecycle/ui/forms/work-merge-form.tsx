@@ -23,7 +23,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type SubmitEvent, useRef, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { commandVariables } from "@/lib/command-variables";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -90,7 +89,7 @@ export default function WorkMergeForm({
   );
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useCollapsibleState();
+  const [open, setOpen] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const inspect = useMutation({
     mutationKey: orpc.workMergePreview.mutationKey(),

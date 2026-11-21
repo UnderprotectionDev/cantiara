@@ -601,11 +601,12 @@ test("Not needed asks for a rationale and an optional Decision and selects no Se
   });
 });
 
-test("a refused closure is announced and keeps the form", async () => {
-  mount({
-    gaps: [record],
-    onClose: vi.fn().mockRejectedValue(new Error("Test Gap changed.")),
-  });
+test("a refused closure keeps the draft and can be retried", async () => {
+  const onClose = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("Test Gap changed."))
+    .mockResolvedValueOnce(undefined);
+  mount({ gaps: [record], onClose });
   await openClose();
   chooseOutcome("Not needed");
   type("Rationale", "No.");
@@ -614,7 +615,16 @@ test("a refused closure is announced and keeps the form", async () => {
   expect(document.querySelector('[role="alert"]')?.textContent).toBe(
     "Test Gap changed.",
   );
-  expect(document.querySelector('form[aria-label^="Close "]')).not.toBeNull();
+  const closeForm = 'form[aria-label^="Close "]';
+  expect(
+    document.querySelector<HTMLTextAreaElement>(
+      `${closeForm} textarea[name="rationale"]`,
+    )?.value,
+  ).toBe("No.");
+  await submitClose();
+  expect(onClose).toHaveBeenCalledTimes(2);
+  expect(onClose.mock.calls[1]).toEqual(onClose.mock.calls[0]);
+  expect(document.querySelector(closeForm)).toBeNull();
 });
 
 test("a closed Gap shows its closure history and offers neither planning nor closing", () => {

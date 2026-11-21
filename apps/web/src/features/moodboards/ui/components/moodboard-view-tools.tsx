@@ -18,7 +18,6 @@ import {
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
 import { useEffect, useRef, useState } from "react";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
 import VisualCropForm from "../forms/visual-crop-form";
@@ -107,7 +106,7 @@ export function VisualViewTools({
   item: MoodboardVisual;
   moodboard: Moodboard;
 }) {
-  const [cropOpen, setCropOpen] = useCollapsibleState();
+  const [cropOpen, setCropOpen] = useState(false);
   const idPrefix = `moodboard-crop-${item.id}`;
 
   function save(view: VisualView) {

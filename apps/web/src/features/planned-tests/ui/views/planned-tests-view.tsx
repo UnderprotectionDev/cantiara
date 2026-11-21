@@ -11,8 +11,7 @@ import {
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
+import { useEffect, useRef, useState } from "react";
 import { orpc } from "@/utils/orpc";
 import {
   type CaseFormValues,
@@ -82,7 +81,7 @@ function CaseItem({
   readOnly: boolean;
   record: PlannedTestCaseRecord;
 }) {
-  const [editing, setEditing] = useCollapsibleState();
+  const [editing, setEditing] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const queryClient = useQueryClient();
   const createVersion = useMutation({

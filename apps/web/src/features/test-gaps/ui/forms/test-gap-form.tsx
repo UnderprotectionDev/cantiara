@@ -30,9 +30,8 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type SubmitEvent, useId, useRef } from "react";
+import { type SubmitEvent, useId, useRef, useState } from "react";
 import { submitForm } from "@/lib/submit-form";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
 import { orpc } from "@/utils/orpc";
 import {
   type CloseFormValues,
@@ -477,7 +476,7 @@ export function CloseForm({
   sessionTests: SessionTestRecord[];
 }) {
   const id = useId();
-  const [open, setOpen] = useCollapsibleState();
+  const [open, setOpen] = useState(false);
 
   const form = useForm({
     defaultValues: EMPTY_CLOSE_FORM,

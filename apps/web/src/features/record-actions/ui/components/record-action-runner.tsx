@@ -33,6 +33,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type SubmitEvent, useId } from "react";
 import { DatePicker } from "@/components/date-picker";
 import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
+import { popupReturnFocus } from "@/lib/popup-return-focus";
 import {
   type RecordActionRunnerState,
   useRecordActionRunner,
@@ -165,6 +166,7 @@ export function RecordActionButtons({
   handle: ReturnType<typeof createDialogHandle<RecordActionDialogPayload>>;
   work: WorkProfile;
 }) {
+  const triggerId = useId();
   if (actions.length === 0) {
     return null;
   }
@@ -179,11 +181,12 @@ export function RecordActionButtons({
         <Button
           aria-haspopup="dialog"
           disabled={disabled}
+          id={`${triggerId}-${action.id}`}
           key={action.id}
           onClick={(event) =>
             handle.openWithPayload({
               action,
-              trigger: event.currentTarget,
+              returnFocusId: event.currentTarget.id,
               work,
             })
           }
@@ -621,9 +624,7 @@ export function RecordActionRunDialog({
           <DialogContent
             aria-label={`Preview ${payload.action.name}`}
             className="max-h-[min(80vh,40rem)] overflow-y-auto sm:max-w-lg"
-            finalFocus={() =>
-              payload.trigger.isConnected ? payload.trigger : true
-            }
+            finalFocus={() => popupReturnFocus(payload.returnFocusId)}
             showCloseButton={false}
           >
             <RecordActionRunContent

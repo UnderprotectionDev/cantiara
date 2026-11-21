@@ -10,9 +10,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
 import { useSecurityRedaction } from "../../hooks/use-security-redaction";
 import {
   type SecurityRedactionCalls,
@@ -36,12 +35,12 @@ export function SecurityRedactionPanel({
 }) {
   const live = useSecurityRedaction(scope);
   const flow = useSecurityRedactionFlow(calls ?? live);
-  const [open, setOpen] = useCollapsibleState();
+  const [open, setOpen] = useState(false);
   const { cancel } = flow;
   const close = useCallback(() => {
     cancel();
     setOpen(false);
-  }, [cancel, setOpen]);
+  }, [cancel]);
 
   return (
     <Collapsible

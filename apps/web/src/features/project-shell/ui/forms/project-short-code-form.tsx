@@ -13,9 +13,8 @@ import {
 import { Input } from "@cantiara/ui/components/input";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { Check, LockKeyhole, Pencil, Save } from "lucide-react";
-import { type SubmitEvent, useEffect } from "react";
+import { type SubmitEvent, useEffect, useState } from "react";
 import { submitForm } from "@/lib/submit-form";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
 
 import { useProjectShortCode } from "../../hooks/use-project-short-code";
 
@@ -24,7 +23,7 @@ export default function ProjectShortCodeForm({
 }: {
   project: ProjectProfile;
 }) {
-  const [isEditing, setIsEditing] = useCollapsibleState();
+  const [isEditing, setIsEditing] = useState(false);
 
   const { clearError, error, isPending, isSuccess, saveShortCode } =
     useProjectShortCode(project);

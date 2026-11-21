@@ -21,7 +21,6 @@ import { useState } from "react";
 import { useExternalExecutionHandoffs } from "@/features/external-handoffs/hooks/use-external-handoffs";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { writeTextToClipboard } from "@/lib/clipboard";
-import { useCollapsibleState } from "@/lib/use-collapsible-state";
 import { errorMessage } from "../../lib/error-message";
 import { CancelHandoffForm } from "../forms/cancel-handoff-form";
 import {
@@ -230,7 +229,7 @@ export default function ExternalExecutionHandoffPanel({
   work: WorkProfile;
 }) {
   const connection = useClientShellConnection();
-  const [expanded, setExpanded] = useCollapsibleState(defaultExpanded);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [copiedHandoffId, setCopiedHandoffId] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const {

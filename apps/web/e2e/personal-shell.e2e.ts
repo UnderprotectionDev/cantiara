@@ -53,7 +53,8 @@ test("a reload ends the Active Working Set and the panel starts closed again", a
   expect(await page.getByRole("dialog").count()).toBe(0);
 
   // A new session starts closed on Daily Focus; nothing is restored.
-  await page.getByRole("button", { name: "Personal", exact: true }).click();
+  const personal = page.getByRole("button", { name: "Personal", exact: true });
+  await personal.click();
   const panel = page.getByRole("dialog");
   await expect(panel).toContainText("Daily Focus");
   await expect(
@@ -61,4 +62,10 @@ test("a reload ends the Active Working Set and the panel starts closed again", a
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(panel).toHaveCount(0);
+  await expect(personal).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await panel.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(personal).toBeFocused();
 });
