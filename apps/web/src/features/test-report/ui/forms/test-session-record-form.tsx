@@ -17,6 +17,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
+import { useCreateStore } from "@tanstack/react-store";
 import type { SubmitEvent } from "react";
 import { DateTimePicker } from "@/components/date-picker";
 import { submitForm } from "@/lib/submit-form";
@@ -38,6 +39,8 @@ export default function TestSessionRecordForm({
 }: {
   onRecord: RecordTestSession;
 }) {
+  const reportSession = useCreateStore(0);
+  const reportSessionKey = useSelector(reportSession);
   const form = useForm({
     defaultValues: EMPTY_TEST_SESSION_FORM,
     onSubmit: async ({ value }) => {
@@ -57,6 +60,7 @@ export default function TestSessionRecordForm({
       try {
         await onRecord(value);
         form.reset();
+        reportSession.setState((current) => current + 1);
       } catch (caught) {
         form.setErrorMap({
           onSubmit: {
@@ -155,6 +159,7 @@ export default function TestSessionRecordForm({
               ariaLabel="Reported at"
               disabled={pending}
               id="test-session-reported-at"
+              key={reportSessionKey}
               onChange={field.handleChange}
               value={field.state.value}
             />

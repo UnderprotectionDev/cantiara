@@ -337,6 +337,19 @@ test("the Test Result editor closes when its session or edit access changes", as
   expect(actions.recordEvent).not.toHaveBeenCalled();
 });
 
+test("changing the Test Result target starts an empty Correction form", async () => {
+  await mount(actionsMock());
+  await click(byLabel("Correction for Login works"));
+  const reason = () =>
+    document.querySelector<HTMLTextAreaElement>("#test-review-event-reason");
+  typeInto(reason(), "Specific to the Login result");
+  expect(reason()?.value).toBe("Specific to the Login result");
+
+  await click(byLabel("Correction for Logout works"));
+  expect(reason()?.value).toBe("");
+  expect(byText("Record Correction").disabled).toBe(true);
+});
+
 function typeInto(element: HTMLElement | null, value: string) {
   const setter = Object.getOwnPropertyDescriptor(
     element instanceof HTMLSelectElement

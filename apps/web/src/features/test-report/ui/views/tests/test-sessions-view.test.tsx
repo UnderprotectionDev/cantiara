@@ -100,6 +100,13 @@ function setValue(id: string, value: string) {
   if (!control) {
     throw new Error(`No control ${id}`);
   }
+  setControlValue(control, value);
+}
+
+function setControlValue(
+  control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
+  value: string,
+) {
   const prototype = Object.getPrototypeOf(control);
   const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
   act(() => {
@@ -185,6 +192,14 @@ test("records nothing until Save and then sends the filled form once", async () 
   setValue("test-session-executor-name", "Me");
   setValue("test-session-test-0-title", "Login works");
   setValue("test-session-test-0-result", "failed");
+  const reportedTime = () =>
+    document.querySelector<HTMLInputElement>('[aria-label="Reported at time"]');
+  const time = reportedTime();
+  if (!time) {
+    throw new Error("No Reported at time control");
+  }
+  setControlValue(time, "13:20");
+  expect(time.value).toBe("13:20");
   expect(onRecord).not.toHaveBeenCalled();
   await submit("Record Test Session");
   expect(onRecord).toHaveBeenCalledTimes(1);
@@ -193,6 +208,7 @@ test("records nothing until Save and then sends the filled form once", async () 
     executorType: "user",
     tests: [{ result: "failed", title: "Login works" }],
   });
+  expect(reportedTime()?.value).toBe("");
 });
 
 test("adds and removes Session Test rows with labelled controls", () => {

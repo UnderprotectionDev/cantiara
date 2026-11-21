@@ -21,11 +21,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useMutation } from "@tanstack/react-query";
-import {
-  useCreateStore,
-  useSelector,
-  useSelector as useStoreSelector,
-} from "@tanstack/react-store";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { useState } from "react";
 import { accountDateTimeFormatter } from "@/features/account-preferences/lib/account-preferences-format";
 import { orpc } from "@/utils/orpc";
@@ -412,7 +408,7 @@ function SessionReview({
   );
   const selected = useSelector(bulk.store, (state) => state.values.selected);
   const panelSession = useCreateStore<Panel | null>(null);
-  const panel = useStoreSelector(panelSession);
+  const panel = useSelector(panelSession);
   function setPanel(next: Panel | null) {
     panelSession.setState(() => next);
   }
@@ -641,6 +637,7 @@ function SessionReview({
       {panel?.kind === "event" ? (
         <TestResultEventForm
           eventId={panel.eventId}
+          key={JSON.stringify([panel.mode, panel.eventId, panel.sessionTestId])}
           kind={panel.mode}
           onCancel={() => setPanel(null)}
           onConfirm={(draft) =>

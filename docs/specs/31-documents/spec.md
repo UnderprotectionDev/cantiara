@@ -70,7 +70,7 @@ Belge Proje veya Kişisel Wiki kapsamında, yalnız veritabanında yaşayan sür
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** The Documents browser seam observes the selected Document in the fragment and Archived in route search. Creation opens the new record. Back, Forward and a direct link restore the selected Document. The local template selector clears a removed template. The editor reads the saved body and base revision from its edit session. Mermaid displays results for the current source only. The Document preview seam checks valid KaTeX output and invalid formula feedback.
+- **Client state ownership (#547).** The Documents browser seam observes the selected Document in the fragment and Archived in route search. Creation opens the new record. Back, Forward and a direct link restore the selected Document. The local template selector clears a removed template. The editor reads the saved body and base revision from its edit session. The organization browser seam saves content after a metadata-only revision and reloads it. Mermaid displays results for the current source only. The Document preview seam checks valid KaTeX output and invalid formula feedback.
 
 - **Popup lifecycle (#546).** The Document organization seam opens the Archive action from its own trigger and checks that a rejected write stays open and a retry preserves the selected action, base revision, and command identity. The form lives within the dialog's open lifetime.
 

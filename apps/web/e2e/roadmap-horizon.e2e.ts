@@ -17,6 +17,9 @@ async function openAllWorkRoadmap(page: Page) {
     .getByRole("link", { name: "Roadmap", exact: true })
     .click();
   await page.locator("#roadmap-view").selectOption("all");
+  await expect(page).toHaveURL(
+    (url) => url.searchParams.get("roadmapView") === "all",
+  );
 }
 
 test("refreshes a Roadmap horizon selection after another tab changes it", async ({

@@ -63,7 +63,7 @@ Kurucu Test Oturumu incelemesi ile her Oturum Testi incelemesini bağımsız tam
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** The Test Result event editor and the Close and bulk command previews belong to the mounted Test Session review and reset on a session or edit-access change. The Test Review view seam exercises opening and confirming these actions and resetting an open editor.
+- **Client state ownership (#547).** The Test Result event editor and the Close and bulk command previews belong to the mounted Test Session review and reset on a session or edit-access change. The event editor also resets when its command or target changes. The Test Review view seam exercises opening and confirming these actions and resetting an open editor.
 
 - **Review command replay (#544).** The review-state and result-event seams verify replay after a saved response is lost, no repeated history entry, conflict for changed input under the same key, and preservation of a later review state.
 

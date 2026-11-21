@@ -158,7 +158,10 @@ export function onDateTimeDateChange(
   return { draftTime: typedTime, value: `${nextDate}T${time}` };
 }
 
-/** Date-time picker: shared DatePicker plus a time input, value as `yyyy-MM-ddTHH:mm`. */
+/**
+ * Shared date and time controls. Key the picker by the form session when a
+ * reset can publish the same value while a time-only draft is still open.
+ */
 function DateTimePicker({
   "aria-describedby": ariaDescribedBy,
   ariaLabel,
