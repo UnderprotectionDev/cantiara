@@ -12,6 +12,11 @@ const rpc = vi.hoisted(() => ({
   undoTagRename: vi.fn(),
 }));
 
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
+  useSearch: () => "",
+}));
+
 vi.mock("@/utils/orpc", async (importActual) => {
   const actual = await importActual<typeof import("@/utils/orpc")>();
   return { ...actual, client: rpc };

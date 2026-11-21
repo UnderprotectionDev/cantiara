@@ -3,14 +3,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import FocusPeriodsView from "@/features/focus-period/ui/views/focus-periods-view";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
 
+import { optionalRouteId } from "@/lib/optional-route-id";
+
 export const Route = createFileRoute("/_auth/focus-periods")({
   validateSearch: (search): { period?: string } => ({
-    period:
-      typeof search.period === "string" &&
-      search.period.length <= 255 &&
-      search.period.length > 0
-        ? search.period
-        : undefined,
+    period: optionalRouteId.parse(search.period),
   }),
   component: FocusPeriodsRoute,
 });

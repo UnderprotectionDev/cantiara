@@ -171,7 +171,9 @@ function WorkContextSession({
     relationsQuery.isError,
     relationsQuery.isPending,
   ]);
-  const clipboard = useClipboardFeedback<void>(copyCommand);
+  const clipboard = useClipboardFeedback<void>(
+    `${copyCommandRegistrationKey}:${work.revision}`,
+  );
   const copyState = clipboard.feedback.status;
   const copyError =
     clipboard.feedback.status === "failed" ? clipboard.feedback.message : null;

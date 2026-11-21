@@ -3,7 +3,8 @@ import type {
   WorkClosureResult,
   WorkOpenStatus,
 } from "@cantiara/api/work-lifecycle";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useCallback, useEffect, useRef } from "react";
 import { client } from "@/utils/orpc";
 import {
   COMPLETION_EFFECT_CLIENT_WAIT_MS,
@@ -75,9 +76,10 @@ export default function useUserInitiatedWorkSuccess({
   accountId?: string;
   preferences: CompletionEffectsPreferences | null;
 }) {
-  const [feedbackByWorkId, setFeedbackByWorkId] = useState<
-    Record<string, WorkCompletionFeedbackState>
-  >({});
+  const feedback = useCreateStore<Record<string, WorkCompletionFeedbackState>>(
+    {},
+  );
+  const feedbackByWorkId = useSelector(feedback);
   const prefersReducedMotion = useRef(false);
   const mountedLifetime = useRef({});
   const noticeTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -96,12 +98,12 @@ export default function useUserInitiatedWorkSuccess({
         current: WorkCompletionFeedbackState,
       ) => WorkCompletionFeedbackState,
     ) => {
-      setFeedbackByWorkId((current) => ({
+      feedback.setState((current) => ({
         ...current,
         [workId]: update(current[workId] ?? EMPTY_FEEDBACK),
       }));
     },
-    [],
+    [feedback],
   );
 
   const stopEffect = useCallback(

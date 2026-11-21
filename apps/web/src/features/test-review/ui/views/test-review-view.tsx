@@ -21,13 +21,18 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useMutation } from "@tanstack/react-query";
-import { useSelector } from "@tanstack/react-store";
+import {
+  useCreateStore,
+  useSelector,
+  useSelector as useStoreSelector,
+} from "@tanstack/react-store";
 import { useState } from "react";
 import { accountDateTimeFormatter } from "@/features/account-preferences/lib/account-preferences-format";
 import { orpc } from "@/utils/orpc";
 import { useBulkReviewForm } from "../../hooks/use-bulk-review-form";
 import { usePanelFocus } from "../../hooks/use-panel-focus";
 import type { TestResultEventDraft } from "../../lib/test-review-forms";
+import type { TestReviewLocation } from "../../lib/test-review-location";
 import { errorText } from "../../lib/test-review-panel";
 import {
   type TestReviewSignalActions,
@@ -365,15 +370,36 @@ function ResultChain({
   );
 }
 
+type EventPanel = { kind: "event" } & Omit<TestReviewLocation, "sessionId">;
 type Panel =
-  | {
-      eventId: string | null;
-      kind: "event";
-      mode: TestResultEventKind;
-      sessionTestId: string | null;
-    }
+  | EventPanel
   | { kind: "close"; preview: TestReviewClosePreview }
   | { ids: string[]; kind: "bulk"; preview: TestReviewBulkPreview };
+
+function locatedPanel(
+  location: TestReviewLocation | undefined,
+  session: TestReviewSession,
+  events: TestResultEvent[],
+  readOnly: boolean,
+): EventPanel | null {
+  if (readOnly || location?.sessionId !== session.id) {
+    return null;
+  }
+  if (
+    location.sessionTestId &&
+    !session.items.some(({ id }) => id === location.sessionTestId)
+  ) {
+    return null;
+  }
+  if (
+    location.eventId &&
+    (location.mode !== "Redaction" ||
+      !events.some(({ id }) => id === location.eventId))
+  ) {
+    return null;
+  }
+  return { kind: "event", ...location };
+}
 
 function reviewFeedbackError(previewError: unknown, writeError: unknown) {
   if (previewError) {
@@ -384,6 +410,32 @@ function reviewFeedbackError(previewError: unknown, writeError: unknown) {
   }
 }
 
+function useReviewPanel(
+  location: TestReviewLocation | undefined,
+  onLocationChange: ((location?: TestReviewLocation) => void) | undefined,
+  session: TestReviewSession,
+  resultEvents: TestResultEvent[],
+  readOnly: boolean,
+) {
+  const sessionPanel = useCreateStore<Panel | null>(null);
+  const localPanel = useStoreSelector(sessionPanel);
+  const eventPanel = locatedPanel(location, session, resultEvents, readOnly);
+  const panel = eventPanel ?? localPanel;
+  function setPanel(next: Panel | null) {
+    if (onLocationChange && next?.kind === "event") {
+      const { eventId, mode, sessionTestId } = next;
+      sessionPanel.setState(() => null);
+      onLocationChange({ sessionId: session.id, eventId, mode, sessionTestId });
+      return;
+    }
+    sessionPanel.setState(() => next);
+    if (location?.sessionId === session.id) {
+      onLocationChange?.();
+    }
+  }
+  return { panel, setPanel };
+}
+
 function SessionReview({
   actions,
   preferences,
@@ -391,6 +443,8 @@ function SessionReview({
   resultEvents,
   session,
   writeState,
+  location,
+  onLocationChange,
 }: {
   actions: TestReviewActions;
   preferences?: AccountPreferences;
@@ -398,6 +452,8 @@ function SessionReview({
   resultEvents: TestResultEvent[];
   session: TestReviewSession;
   writeState?: SessionReviewWriteState;
+  location?: TestReviewLocation;
+  onLocationChange?: (location?: TestReviewLocation) => void;
 }) {
   const bulk = useBulkReviewForm((ids) =>
     openPanel(async () => ({
@@ -407,7 +463,13 @@ function SessionReview({
     })),
   );
   const selected = useSelector(bulk.store, (state) => state.values.selected);
-  const [panel, setPanel] = useState<Panel | null>(null);
+  const { panel, setPanel } = useReviewPanel(
+    location,
+    onLocationChange,
+    session,
+    resultEvents,
+    readOnly,
+  );
   const [noticeLabel, setNoticeLabel] = useState("Review saved.");
   const [feedbackAfter, setFeedbackAfter] = useState(0);
   const inspectClose = useMutation({
@@ -633,6 +695,7 @@ function SessionReview({
       {panel?.kind === "event" ? (
         <TestResultEventForm
           eventId={panel.eventId}
+          key={JSON.stringify([panel.mode, panel.eventId, panel.sessionTestId])}
           kind={panel.mode}
           onCancel={() => setPanel(null)}
           onConfirm={(draft) =>
@@ -744,6 +807,8 @@ export function TestReviewView({
   sessions,
   signals,
   writeForSession,
+  location,
+  onLocationChange,
 }: {
   actions: TestReviewActions;
   events: TestReviewEvent[];
@@ -752,6 +817,8 @@ export function TestReviewView({
   resultEvents: TestResultEvent[];
   sessions: TestReviewSession[];
   signals?: { actions: TestReviewSignalActions; data: TestReviewSignalData };
+  location?: TestReviewLocation;
+  onLocationChange?: (location?: TestReviewLocation) => void;
   writeForSession?: (sessionId: string) => SessionReviewWriteState | undefined;
 }) {
   return (
@@ -777,6 +844,8 @@ export function TestReviewView({
             <SessionReview
               actions={actions}
               key={session.id}
+              location={location}
+              onLocationChange={onLocationChange}
               preferences={preferences}
               readOnly={readOnly}
               resultEvents={resultEvents.filter(

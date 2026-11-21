@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // biome-ignore-all lint/suspicious/useAwait: React act exposes asynchronous event boundaries.
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
@@ -30,16 +30,21 @@ afterEach(() => {
   container.remove();
 });
 
-async function createList(onChange: () => Promise<unknown>) {
-  await act(async () =>
-    root.render(
-      <SavedProjectLists
-        formattingPreferences={DEFAULT_ACCOUNT_PREFERENCES}
-        lists={[]}
-        onChange={onChange}
-      />,
-    ),
+function SavedListLocation({ onChange }: { onChange: () => Promise<unknown> }) {
+  const [editingId, selectEditor] = useState<string>();
+  return (
+    <SavedProjectLists
+      editingId={editingId}
+      formattingPreferences={DEFAULT_ACCOUNT_PREFERENCES}
+      lists={[]}
+      onChange={onChange}
+      onEditingChange={selectEditor}
+    />
   );
+}
+
+async function createList(onChange: () => Promise<unknown>) {
+  await act(async () => root.render(<SavedListLocation onChange={onChange} />));
   await act(async () =>
     [...container.querySelectorAll("button")]
       .find((button) => button.textContent?.includes("New list"))

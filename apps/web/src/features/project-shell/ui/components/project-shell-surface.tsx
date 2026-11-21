@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Configuration rows and controls close over their current stage, status, or area.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { ProjectProfile } from "@cantiara/api/project-shell";
 import {
@@ -22,6 +23,7 @@ import {
   useNavigate,
   useSearch,
 } from "@tanstack/react-router";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
 import {
   type ComponentProps,
@@ -30,7 +32,6 @@ import {
   type ReactNode,
   Suspense,
   useEffect,
-  useState,
 } from "react";
 import type { WorkStatusActionRequest } from "@/components/work-status-form";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
@@ -557,13 +558,26 @@ function ProjectShellContent({
   });
   const navigate = useNavigate();
   const configurationMode = activeHash === CONFIGURATION_MODE_HASH;
-  const [showExplanation, setShowExplanation] = useState(
-    () => !isProjectShellExplanationDismissed(projectId),
+  const initialPresentation: {
+    explanation: boolean;
+    configurationHost: ConfigurationHost | null;
+  } = {
+    explanation: !isProjectShellExplanationDismissed(projectId),
+    configurationHost: configurationMode ? "Project areas" : null,
+  };
+  const shellPresentation = useCreateStore(
+    initialPresentation,
+    ({ setState }) => ({
+      setShowExplanation: (next: boolean) =>
+        setState((state) => ({ ...state, explanation: next })),
+      setConfigurationHost: (next: ConfigurationHost | null) =>
+        setState((state) => ({ ...state, configurationHost: next })),
+    }),
   );
-  const [configurationHost, setConfigurationHost] =
-    useState<ConfigurationHost | null>(() =>
-      configurationMode ? "Project areas" : null,
-    );
+  const { explanation: showExplanation, configurationHost } =
+    useSelector(shellPresentation);
+  const { setShowExplanation, setConfigurationHost } =
+    shellPresentation.actions;
   const dailyAction = dailyActionFromHash(activeHash);
   const sourceRecordRoute = projectSourceRecordFromHash(activeHash);
   const documentRoute = documentRecordFromHash(activeHash);
@@ -589,11 +603,11 @@ function ProjectShellContent({
 
   useEffect(() => {
     setShowExplanation(!isProjectShellExplanationDismissed(projectId));
-  }, [projectId]);
+  }, [projectId, setShowExplanation]);
 
   useEffect(() => {
     setConfigurationHost(configurationMode ? "Project areas" : null);
-  }, [configurationMode]);
+  }, [configurationMode, setConfigurationHost]);
 
   useEffect(() => {
     if (!activeHash || typeof window === "undefined") {
@@ -937,7 +951,7 @@ function ProjectWorkSurface({
 }) {
   const navigate = useNavigate();
   const selectedWorkView = useSearch({
-    strict: false,
+    from: "/_auth/projects/$projectId/",
     select: (search) => search.workView ?? "Board",
   });
   function selectWorkView(view: "Board" | "List") {
@@ -950,8 +964,8 @@ function ProjectWorkSurface({
       to: ".",
     }).catch(() => undefined);
   }
-  const [statusActionRequest, setStatusActionRequest] =
-    useState<WorkStatusActionRequest | null>(null);
+  const statusAction = useCreateStore<WorkStatusActionRequest | null>(null);
+  const statusActionRequest = useSelector(statusAction);
   const showSourceWork =
     isWorkRecordHash(activeHash) || isWorkRelationsHash(activeHash);
   const sourceWorkId = workRecordIdFromHash(activeHash);
@@ -960,7 +974,7 @@ function ProjectWorkSurface({
     status: WorkStatus;
     workId: string;
   }) {
-    setStatusActionRequest({ ...input, id: crypto.randomUUID() });
+    statusAction.setState(() => ({ ...input, id: crypto.randomUUID() }));
     navigate({
       hash: workRecordHash(input.workId),
       params: { projectId },
@@ -969,7 +983,7 @@ function ProjectWorkSurface({
   }
 
   function handleStatusActionRequest(requestId: string) {
-    setStatusActionRequest((current) =>
+    statusAction.setState((current) =>
       current?.id === requestId ? null : current,
     );
   }

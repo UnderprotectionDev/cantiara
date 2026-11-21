@@ -4,11 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import SchemaArtifactsView from "@/features/schema-artifacts/ui/views/schema-artifacts-view";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
 
-function optionalId(input: unknown) {
-  return typeof input === "string" && input.length > 0 && input.length <= 255
-    ? input
-    : undefined;
-}
+import { optionalRouteId } from "@/lib/optional-route-id";
 
 export const Route = createFileRoute(
   "/_auth/projects/$projectId/schema-artifacts",
@@ -21,10 +17,10 @@ export const Route = createFileRoute(
     sourceId?: string;
     targetId?: string;
   } => ({
-    diagramId: optionalId(search.diagramId),
-    versionId: optionalId(search.versionId),
-    sourceId: optionalId(search.sourceId),
-    targetId: optionalId(search.targetId),
+    diagramId: optionalRouteId.parse(search.diagramId),
+    versionId: optionalRouteId.parse(search.versionId),
+    sourceId: optionalRouteId.parse(search.sourceId),
+    targetId: optionalRouteId.parse(search.targetId),
   }),
   component: RouteComponent,
 });

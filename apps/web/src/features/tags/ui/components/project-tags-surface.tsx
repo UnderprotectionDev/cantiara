@@ -68,7 +68,7 @@ export default function ProjectTagsSurface({
   projectId: string;
 }) {
   const filterTagId = useSearch({
-    strict: false,
+    from: "/_auth/projects/$projectId/",
     select: (search) => search.tag ?? "",
   });
   const navigate = useNavigate();

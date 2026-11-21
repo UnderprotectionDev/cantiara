@@ -2,6 +2,7 @@
 
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { commandVariables } from "@/lib/command-variables";
 import { fetchFresh } from "@/lib/fetch-fresh";
 import {
@@ -9,6 +10,7 @@ import {
   invalidateSmartCollectionMembership,
   orpc,
 } from "@/utils/orpc";
+import type { TestReviewLocation } from "../../lib/test-review-location";
 import { followUpWorkId } from "../../lib/test-review-panel";
 import {
   type TestReviewActions,
@@ -115,6 +117,18 @@ export default function TestReviewSurface({
       onSuccess: () => refresh(),
     }),
   );
+  const location = useSearch({
+    from: "/_auth/projects/$projectId/",
+    select: (search) => search.testReview,
+  });
+  const navigate = useNavigate();
+  function onLocationChange(next?: TestReviewLocation) {
+    navigate({
+      hash: true,
+      search: (current) => ({ ...current, testReview: next }),
+      to: ".",
+    }).catch(() => undefined);
+  }
   const queryClient = useQueryClient();
   const options = orpc.projectTestReview.queryOptions({ input: { projectId } });
   const review = useQuery(options);
@@ -300,6 +314,8 @@ export default function TestReviewSurface({
     <TestReviewView
       actions={actions}
       events={review.data.events}
+      location={location}
+      onLocationChange={onLocationChange}
       preferences={preferences.data}
       readOnly={review.data.readOnly}
       resultEvents={review.data.resultEvents}

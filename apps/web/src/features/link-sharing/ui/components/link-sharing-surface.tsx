@@ -21,12 +21,26 @@ function rootOf(key: string, roots: readonly ShareRoot[]): ShareRoot | null {
  * Loads the Project's shareable main records and the exact closed-world
  * preview of the chosen one, and approves the founder's selection.
  */
-export default function LinkSharingSurface({
-  projectId,
-}: {
+interface LinkSharingSurfaceProps {
+  onSelectRoot: (key: string) => void;
   projectId: string;
-}) {
-  const [selectedKey, setSelectedKey] = useState("");
+  selectedKey?: string;
+}
+
+export default function LinkSharingSurface(props: LinkSharingSurfaceProps) {
+  return (
+    <LinkSharingScope
+      {...props}
+      key={JSON.stringify([props.projectId, props.selectedKey])}
+    />
+  );
+}
+
+function LinkSharingScope({
+  projectId,
+  selectedKey = "",
+  onSelectRoot,
+}: LinkSharingSurfaceProps) {
   const roots = useQuery(
     orpc.shareRoots.queryOptions({ input: { projectId } }),
   );
@@ -103,10 +117,7 @@ export default function LinkSharingSurface({
           surfaceId: preview.data.surface?.surfaceId,
         });
       }}
-      onSelectRoot={(key) => {
-        access.resetFeedback();
-        setSelectedKey(key);
-      }}
+      onSelectRoot={onSelectRoot}
       preview={preview.data}
       previewError={preview.isError}
       previewLoading={root !== null && preview.isPending}

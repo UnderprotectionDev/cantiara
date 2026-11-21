@@ -60,6 +60,8 @@ Kurucu tek Çalışma Alanındaki Projeleri ve kişisel dikkati dağılmış lis
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Projects route owns the saved-list editor’s New or existing list identity. Cancel and successful save close the editor through the route. The saved-list seam exercises success and failure.
+
 - The Projects view seam rejects a presentation save after the optimistic layout is visible, checks rollback, then accepts a repeat intent and verifies that only the current account overview is refreshed.
 
 - **What a good test is.** Tests observe Workspace Overview through its public interface: the Projects list precedes the Workspace overview on the Workspace home and remains available before its error message when overview data cannot load; `/` reaches the protected Workspace route and an unauthenticated visitor reaches Account Access; the four source modules are visible before a keyboard-operable, collapsed `Customize overview` disclosure opens layout, live-block, and saved-list controls; drill-down to exact sets, layout show/hide/reorder, live blocks, and named cross-Project lists. They assert derivation from source records and the absence of Portfolio membership, health scores, and Wiki-as-Project — not widget tree snapshots.

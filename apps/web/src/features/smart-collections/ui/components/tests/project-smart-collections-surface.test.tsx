@@ -10,6 +10,8 @@ import { orpc } from "@/utils/orpc";
 import ProjectSmartCollectionsSurface from "../project-smart-collections-surface";
 
 vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
+  useSearch: () => [],
   useLinkProps: () => ({ href: "/projects/project-1#create" }),
 }));
 

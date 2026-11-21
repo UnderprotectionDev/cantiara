@@ -527,8 +527,16 @@ test("creates Work with a Project key, type, and protected start status", async 
   await closedWork
     .getByRole("combobox", { name: "Status for PAY-1" })
     .selectOption("In Progress");
-  await expect(closedWork.getByLabel("Reopen PAY-1")).toBeVisible();
-  await closedWork.getByRole("button", { name: "Confirm reopen" }).click();
+  const reopen = closedWork.getByRole("dialog", { name: "Reopen PAY-1" });
+  await expect(reopen.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await reopen.getByRole("button", { name: "Cancel" }).press("Escape");
+  await expect(reopen).toBeHidden();
+  const reopenedStatus = closedWork.getByRole("combobox", {
+    name: "Status for PAY-1",
+  });
+  await expect(reopenedStatus).toHaveValue("Closed");
+  await reopenedStatus.selectOption("In Progress");
+  await reopen.getByRole("button", { name: "Confirm reopen" }).click();
   await expect(closedWork.getByLabel("Reopen PAY-1")).toBeHidden({
     timeout: 15_000,
   });

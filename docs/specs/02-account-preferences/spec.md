@@ -52,6 +52,8 @@ Hesap profil tercihleri locale, saat dilimi, tarih biçimi, haftanın ilk günü
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** Account Preferences reads the Client Shell connection and derives its suggested locale and time zone from the browser.
+
 - **Query write lifecycle (#544).** The header Appearance control and the Account Preferences form both submit through the Client Shell Query write policy. The shared Client Shell test verifies that a required desktop update blocks a Query write before RPC.
 
 - **What a good test is.** Tests observe Account Preferences through its public interface: read defaults, show first-login suggestion without applying it, save locale/time zone/date format/first day/appearance, format a known timestamp and number, move a week boundary, refuse to rewrite stored timestamps, keys, statuses, or field values, keep English UI copy under a non-English locale, and apply Light/Dark from the Hesap record rather than a device key. They do not assert Drizzle row shapes, `localStorage` internals, or date-fns locale-pack file names. Expected values are product rules (`en-GB` / `Europe/Istanbul` / `Monday`, suggestion-not-applied, no UI translation).

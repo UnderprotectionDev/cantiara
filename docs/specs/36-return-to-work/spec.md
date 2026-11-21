@@ -59,6 +59,8 @@ Kurucu ara verdiği Proje veya İşe dönerken bağlamı kaybetmek istemez. Bug�
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The visual tour snapshots the mounted Roadmap view. An asynchronous tour result only publishes while the same tour is active.
+
 - **What a good test is.** Tests observe Return to Work through its public interface: card set and why-shown, next-step read/write, last-visit mark, event groups, tour skip/restore, long-status candidates. They do not assert tab/filter/scroll restore (those must stay unrestored), canvas persistence internals, or Smart Collection engine internals beyond membership of the prepared reason.
 - **Seam (one).** Return to Work — the product-facing summary for a Project or Work context. Last-visit store, event read model, and tour driver are adapters. Canvas move/restore is called through the canvas’s public viewport API, not copied.
 - **Modules under test.** Return to Work only. Reminders, Daily Focus, Active Working Set, notification center, and canvas session persistence are counterparts.

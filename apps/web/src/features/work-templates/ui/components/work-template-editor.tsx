@@ -7,7 +7,7 @@ import {
 } from "@cantiara/api/work-templates";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { useSelector } from "@tanstack/react-store";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { format } from "date-fns";
 import { useMemo, useState } from "react";
 import {
@@ -55,7 +55,14 @@ export default function WorkTemplateEditor({
   );
   const selection = useWorkTemplateSelectionForm();
   const editing = useSelector(selection.store, (state) => state.values.editing);
-  const [instantiating, setInstantiating] = useState<WorkTemplate | null>(null);
+  const instantiatingSession = useCreateStore(
+    null as WorkTemplate | null,
+    ({ setState }) => ({
+      setInstantiating: (next: WorkTemplate | null) => setState(() => next),
+    }),
+  );
+  const instantiating = useSelector(instantiatingSession);
+  const { setInstantiating } = instantiatingSession.actions;
   const [validationError, setValidationError] = useState<string | null>(null);
   const templates = useWorkTemplates(projectId, {
     onCreatedWork: () => {

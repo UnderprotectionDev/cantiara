@@ -12,6 +12,7 @@ import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, test, vi } from "vitest";
 import { createWireframeEditor } from "../../../engine/editor";
+import { CanvasTextOverlay } from "../canvas-text-overlay";
 import { stageSizeFor, WireframePane } from "../wireframe-pane";
 import WireframeSurface from "../wireframe-surface";
 
@@ -602,4 +603,54 @@ test("a failed autosave presents one Client Shell failure per streak and flags u
   expect(save).toHaveBeenCalledTimes(3);
   expect(markUnsavedChanges).toHaveBeenLastCalledWith(false);
   await act(async () => root.unmount());
+});
+
+test("Wireframe overlay commits once on Enter or cancels on Escape", () => {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  const onCommit = vi.fn();
+  const onCancel = vi.fn();
+  function render(id: string) {
+    act(() =>
+      root.render(
+        <CanvasTextOverlay
+          bounds={{ height: 20, width: 100, x: 0, y: 0 }}
+          initialValue="Original"
+          key={id}
+          onCancel={onCancel}
+          onCommit={onCommit}
+        />,
+      ),
+    );
+    const field = host.querySelector("textarea");
+    if (!field) {
+      throw new Error("Edit canvas text is unavailable.");
+    }
+    return field;
+  }
+  try {
+    const field = render("first");
+    field.value = "Updated title";
+    act(() => {
+      field.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }),
+      );
+      field.blur();
+    });
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith("Updated title");
+    const next = render("second");
+    next.value = "Discarded";
+    act(() => {
+      next.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+      );
+      next.blur();
+    });
+    expect(onCancel).toHaveBeenCalledOnce();
+    expect(onCommit).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+  }
 });

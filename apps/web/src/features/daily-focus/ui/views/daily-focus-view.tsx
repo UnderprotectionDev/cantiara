@@ -5,7 +5,8 @@ import { accountLocalDate } from "@cantiara/api/backlog";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useEffect, useMemo, useRef } from "react";
 import { DatePicker } from "@/components/date-picker";
 import {
   projectSourceRecordHash,
@@ -239,9 +240,8 @@ function DailyFocusDayView({
   const dailyFocus = useQuery(
     orpc.dailyFocusDay.queryOptions({ input: { focusDate } }),
   );
-  const [rejectedCandidateIdsByDay, setRejectedCandidateIdsByDay] = useState<
-    Record<string, string[]>
-  >({});
+  const rejectedCandidates = useCreateStore<Record<string, string[]>>({});
+  const rejectedCandidateIdsByDay = useSelector(rejectedCandidates);
   const rejectedCandidateIds = new Set(
     rejectedCandidateIdsByDay[focusDate] ?? [],
   );
@@ -470,7 +470,7 @@ function DailyFocusDayView({
                   </Button>
                   <Button
                     onClick={() =>
-                      setRejectedCandidateIdsByDay((current) => ({
+                      rejectedCandidates.setState((current) => ({
                         ...current,
                         [focusDate]: [
                           ...new Set([

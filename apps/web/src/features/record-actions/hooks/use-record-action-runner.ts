@@ -5,7 +5,8 @@ import type {
 } from "@cantiara/api/record-actions";
 import { recordActionStepsNeedRuntimeInputs } from "@cantiara/api/record-actions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useEffect, useId, useMemo } from "react";
 
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { commandVariables } from "@/lib/command-variables";
@@ -41,7 +42,8 @@ export function useRecordActionRunner(
     () => [...orpc.previewRecordAction.mutationKey(), previewSessionId],
     [previewSessionId],
   );
-  const [runVersion, setRunVersion] = useState(0);
+  const runSession = useCreateStore(0);
+  const runVersion = useSelector(runSession);
   const needsRuntimeInput = recordActionStepsNeedRuntimeInputs(
     active.action.steps,
   );
@@ -219,7 +221,7 @@ export function useRecordActionRunner(
     ) {
       return;
     }
-    setRunVersion((current) => current + 1);
+    runSession.setState((current) => current + 1);
     resetRun();
     if (!needsRuntimeInput) {
       previewRun({

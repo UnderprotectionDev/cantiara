@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Outline rows bind their own item and section to each action.
+
 import {
   buildOutlineSections,
   dropWithinSection,
@@ -32,8 +33,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { observeElementRect, useVirtualizer } from "@tanstack/react-virtual";
-import { type KeyboardEvent, type ReactNode, useRef, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useRef } from "react";
 
 /** Above this many rows the outline virtualizes and drops pointer dragging. */
 export const OUTLINE_VIRTUALIZE_THRESHOLD = 150;
@@ -280,7 +282,17 @@ function SortableItemRow(props: Omit<ItemRowProps, "dragHandle">) {
 }
 
 function useOutlineModel(props: MoodboardOutlineProps) {
-  const [inspectedId, setInspectedId] = useState<string | null>(null);
+  const inspectedIdSession = useCreateStore(
+    null as string | null,
+    ({ setState }) => ({
+      setInspectedId: (next: import("react").SetStateAction<string | null>) =>
+        setState((current) =>
+          typeof next === "function" ? next(current) : next,
+        ),
+    }),
+  );
+  const inspectedId = useSelector(inspectedIdSession);
+  const { setInspectedId } = inspectedIdSession.actions;
   const sectionList = buildOutlineSections(props.moodboard, props.collapsed);
   const rows = flattenOutline(sectionList);
   const indexes = new Map(rows.map((row, index) => [rowKey(row), index]));

@@ -21,7 +21,6 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
 } from "react";
 import {
   Circle,
@@ -639,8 +638,20 @@ export function FileAttachmentMarkup({
   projectId?: string;
   versionId: string;
 }) {
-  const [tool, setTool] = useState<FileAttachmentMarkingTool>("pen");
-  const [locationOpen, setLocationOpen] = useState(false);
+  const markup = useCreateStore<{
+    tool: FileAttachmentMarkingTool;
+    locationOpen: boolean;
+  }>({
+    tool: "pen",
+    locationOpen: false,
+  });
+  const { tool, locationOpen } = useSelector(markup);
+  const setTool = useCallback(
+    (next: FileAttachmentMarkingTool) => {
+      markup.setState((state) => ({ ...state, tool: next }));
+    },
+    [markup],
+  );
   const initialPage = page ?? (pageCount ? 1 : undefined);
   const geometry = useLocationFieldsForm({
     kind: "point",
@@ -663,7 +674,7 @@ export function FileAttachmentMarkup({
         setTool(candidate as FileAttachmentMarkingTool);
       }
     },
-    [],
+    [setTool],
   );
   const handleUndo = useCallback(() => {
     if (!(undoTarget && onUndoMarking)) {
@@ -672,11 +683,14 @@ export function FileAttachmentMarkup({
     Promise.resolve(onUndoMarking(undoTarget)).catch(() => undefined);
   }, [onUndoMarking, undoTarget]);
   const toggleLocation = useCallback(() => {
-    setLocationOpen((current) => !current);
-  }, []);
+    markup.setState((state) => ({
+      ...state,
+      locationOpen: !state.locationOpen,
+    }));
+  }, [markup]);
   const closeLocation = useCallback(() => {
-    setLocationOpen(false);
-  }, []);
+    markup.setState((state) => ({ ...state, locationOpen: false }));
+  }, [markup]);
   const handleLocationSelect = useCallback(
     (nextLocation: FileAttachmentLocation) => {
       geometry.reset(locationFields(nextLocation), { keepDefaultValues: true });

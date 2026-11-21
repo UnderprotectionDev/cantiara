@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Roadmap controls bind to the selected Work and view.
+
 import type {
   RoadmapBlocker,
   RoadmapOriginLink,
@@ -12,7 +13,8 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { type RefObject, useEffect, useRef } from "react";
 import { orpc } from "@/utils/orpc";
 import RoadmapViewEditor from "../forms/roadmap-view-form";
 import ProjectMilestones from "./project-milestones";
@@ -182,7 +184,7 @@ function RoadmapContent({
 
 export default function ProjectRoadmap({ projectId }: { projectId: string }) {
   const selection = useSearch({
-    strict: false,
+    from: "/_auth/projects/$projectId/",
     select: (search) => search.roadmapView ?? "direction",
   });
   const navigate = useNavigate();
@@ -196,7 +198,11 @@ export default function ProjectRoadmap({ projectId }: { projectId: string }) {
       to: ".",
     }).catch(() => undefined);
   };
-  const [presentationMode, setPresentationMode] = useState(false);
+  const presentationModeSession = useCreateStore(false, ({ setState }) => ({
+    setPresentationMode: (next: boolean) => setState(() => next),
+  }));
+  const presentationMode = useSelector(presentationModeSession);
+  const { setPresentationMode } = presentationModeSession.actions;
   const roadmapRef = useRef<HTMLElement>(null);
   const presentationButtonRef = useRef<HTMLButtonElement>(null);
   const exitPresentationButtonRef = useRef<HTMLButtonElement>(null);

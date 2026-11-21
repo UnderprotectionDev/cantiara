@@ -32,6 +32,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useQuery } from "@tanstack/react-query";
 import { useMatches, useRouteContext } from "@tanstack/react-router";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   type ChangeEvent,
   type ReactNode,
@@ -255,13 +256,23 @@ export function DecisionStatusFilter({
 }
 
 function useDecisionStatus() {
-  const [status, setStatus] = useState<DecisionStatus>("Valid");
-  const changeStatus = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
-    const result = decisionLifeSchema.safeParse(event.target.value);
-    if (result.success) {
-      setStatus(result.data);
-    }
-  }, []);
+  const statusSession = useCreateStore(
+    "Valid" as DecisionStatus,
+    ({ setState }) => ({
+      setStatus: (next: DecisionStatus) => setState(() => next),
+    }),
+  );
+  const status = useSelector(statusSession);
+  const { setStatus } = statusSession.actions;
+  const changeStatus = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      const result = decisionLifeSchema.safeParse(event.target.value);
+      if (result.success) {
+        setStatus(result.data);
+      }
+    },
+    [setStatus],
+  );
   return { status, changeStatus };
 }
 
@@ -456,28 +467,66 @@ function DiscoverySurface({
   currentProjectId?: string;
   onOpenSource: () => void;
 }) {
-  const [view, setView] = useState<DiscoveryView>("Search");
-  const [query, setQuery] = useState("");
-  const [scope, setScope] = useState<RecordDiscoveryScope>({ kind: "all" });
-  const [archived, setArchived] = useState(false);
-  const [tableRecordType, setTableRecordType] =
-    useState<RecordTableType>("Work");
-  const [tableProjectId, setTableProjectId] = useState(currentProjectId ?? "");
-  const changeView = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
-    setView(parseDiscoveryView(event.target.value));
-  }, []);
+  const initialDiscovery: {
+    view: DiscoveryView;
+    query: string;
+    scope: RecordDiscoveryScope;
+    archived: boolean;
+    tableRecordType: RecordTableType;
+    tableProjectId: string;
+  } = {
+    view: "Search",
+    query: "",
+    scope: { kind: "all" },
+    archived: false,
+    tableRecordType: "Work",
+    tableProjectId: currentProjectId ?? "",
+  };
+  const discovery = useCreateStore(initialDiscovery, ({ setState }) => ({
+    setView: (next: DiscoveryView) =>
+      setState((state) => ({ ...state, view: next })),
+    setQuery: (next: string) =>
+      setState((state) => ({ ...state, query: next })),
+    setScope: (next: RecordDiscoveryScope) =>
+      setState((state) => ({ ...state, scope: next })),
+    setArchived: (next: boolean) =>
+      setState((state) => ({ ...state, archived: next })),
+    setTableRecordType: (next: RecordTableType) =>
+      setState((state) => ({ ...state, tableRecordType: next })),
+    setTableProjectId: (next: string) =>
+      setState((state) => ({ ...state, tableProjectId: next })),
+  }));
+  const { view, query, scope, archived, tableRecordType, tableProjectId } =
+    useSelector(discovery);
+  const {
+    setView,
+    setQuery,
+    setScope,
+    setArchived,
+    setTableRecordType,
+    setTableProjectId,
+  } = discovery.actions;
+  const changeView = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      setView(parseDiscoveryView(event.target.value));
+    },
+    [setView],
+  );
   const changeQuery = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value),
-    [],
+    [setQuery],
   );
   const changeScope = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) =>
       setScope(parseDiscoveryScope(event.target.value)),
-    [],
+    [setScope],
   );
-  const changeArchived = useCallback((checked: boolean) => {
-    setArchived(checked);
-  }, []);
+  const changeArchived = useCallback(
+    (checked: boolean) => {
+      setArchived(checked);
+    },
+    [setArchived],
+  );
   let content: ReactNode;
   if (view === "Search") {
     content = (
@@ -600,22 +649,38 @@ function RecordIndexSurface({
   scope: RecordDiscoveryScope;
 }) {
   const { status, changeStatus } = useDecisionStatus();
-  const [type, setType] = useState("");
-  const [folder, setFolder] = useState("");
+  const initialDocumentFilters: {
+    type: string;
+    folder: string;
+  } = {
+    type: "",
+    folder: "",
+  };
+  const documentFilters = useCreateStore(
+    initialDocumentFilters,
+    ({ setState }) => ({
+      setType: (next: string) =>
+        setState((state) => ({ ...state, type: next })),
+      setFolder: (next: string) =>
+        setState((state) => ({ ...state, folder: next })),
+    }),
+  );
+  const { type, folder } = useSelector(documentFilters);
+  const { setType, setFolder } = documentFilters.actions;
   const changeType = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => setType(event.target.value),
-    [],
+    [setType],
   );
   const changeFolder = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => setFolder(event.target.value),
-    [],
+    [setFolder],
   );
   const changeScope = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => {
       onChangeScope(event);
       setFolder("");
     },
-    [onChangeScope],
+    [onChangeScope, setFolder],
   );
   const indexInput = discoveryIndexInput(
     index,

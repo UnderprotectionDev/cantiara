@@ -21,14 +21,9 @@ import {
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, CircleExclamationPoint, Globe2, WifiOff } from "lucide-react";
-import {
-  type ChangeEvent,
-  type SubmitEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ChangeEvent, type SubmitEvent, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { STALE_BASE_REVISION_MESSAGE } from "@/lib/mutation-messages";
 import { submitForm } from "@/lib/submit-form";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
@@ -107,29 +102,6 @@ function saveStatusDescription(
 function previewValues(values: AccountPreferences): AccountPreferences {
   const parsed = accountPreferencesSchema.safeParse(values);
   return parsed.success ? parsed.data : DEFAULT_ACCOUNT_PREFERENCES;
-}
-
-function getOnlineState() {
-  return typeof navigator === "undefined" || navigator.onLine !== false;
-}
-
-function useOnlineState() {
-  const [isOnline, setIsOnline] = useState(getOnlineState);
-
-  useEffect(() => {
-    function updateOnlineState() {
-      setIsOnline(getOnlineState());
-    }
-
-    window.addEventListener("online", updateOnlineState);
-    window.addEventListener("offline", updateOnlineState);
-    return () => {
-      window.removeEventListener("online", updateOnlineState);
-      window.removeEventListener("offline", updateOnlineState);
-    };
-  }, []);
-
-  return isOnline;
 }
 
 function AccountPreferencesSaveStatus({
@@ -246,7 +218,7 @@ export default function AccountPreferencesForm({
   snapshot: AccountPreferencesSnapshot;
 }) {
   const queryClient = useQueryClient();
-  const isOnline = useOnlineState();
+  const isOnline = useClientShellConnection() !== "offline";
   const formBaseRevision = useRef(snapshot.revision);
   const latestSavedAt = useRef<string | null>(null);
   const pendingSave = useRef<{
@@ -254,12 +226,7 @@ export default function AccountPreferencesForm({
     clientIdempotencyKey: string;
     values: string;
   } | null>(null);
-  const [suggestion, setSuggestion] = useState(() =>
-    getBrowserPreferenceSuggestion({
-      locale: DEFAULT_ACCOUNT_PREFERENCES.locale,
-      timeZone: DEFAULT_ACCOUNT_PREFERENCES.timeZone,
-    }),
-  );
+  const suggestion = getBrowserPreferenceSuggestion();
   const savePreferences = useMutation({
     meta: { onlineWrite: true },
     mutationKey: orpc.saveAccountPreferences.mutationKey(),
@@ -327,10 +294,6 @@ export default function AccountPreferencesForm({
     form.store,
     (state): string | undefined => state.errorMap.onSubmit,
   );
-
-  useEffect(() => {
-    setSuggestion(getBrowserPreferenceSuggestion());
-  }, []);
 
   useEffect(() => {
     const values = formValues(snapshot);

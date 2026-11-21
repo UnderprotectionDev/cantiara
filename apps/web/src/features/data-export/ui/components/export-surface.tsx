@@ -1,6 +1,7 @@
 import { EXPORT_LABEL } from "@cantiara/api/data-export";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useEffect } from "react";
 import { orpc } from "@/utils/orpc";
 import {
   useExportPreview,
@@ -16,9 +17,21 @@ export default function ExportSurface() {
   const preview = useExportPreview();
   const produce = useExportProduce();
   // A list screen's exact view, handed over once for this visit.
-  const [handoff] = useState(takeExportHandoff);
+  const exportSession = useCreateStore<
+    ReturnType<typeof takeExportHandoff> | undefined
+  >(undefined);
+  const handoff = useSelector(exportSession);
+  useEffect(() => {
+    if (exportSession.get() === undefined) {
+      exportSession.setState(() => takeExportHandoff());
+    }
+  }, [exportSession]);
 
-  if (catalog.status === "pending" || projects.isPending) {
+  if (
+    catalog.status === "pending" ||
+    projects.isPending ||
+    handoff === undefined
+  ) {
     return <p role="status">Loading {EXPORT_LABEL}…</p>;
   }
   if (catalog.isError || projects.isError || !catalog.data || !projects.data) {

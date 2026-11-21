@@ -11,7 +11,7 @@ import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
-import { type Ref, useCallback, useId, useImperativeHandle } from "react";
+import { type Ref, useId, useImperativeHandle } from "react";
 import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import type { RelationDraft } from "../../lib/planned-test-form";
@@ -41,12 +41,11 @@ export function PlannedTestRelationsField({
   value: RelationDraft[];
 }) {
   const statusId = useId();
-  const messageStore = useCreateStore("");
-  const message = useSelector(messageStore, (text) => text);
-  const setMessage = useCallback(
-    (text: string) => messageStore.setState(() => text),
-    [messageStore],
-  );
+  const announcement = useCreateStore("", ({ setState }) => ({
+    setMessage: (text: string) => setState(() => text),
+  }));
+  const message = useSelector(announcement);
+  const { setMessage } = announcement.actions;
   const picker = useForm({
     defaultValues: {
       targetType: "Work" as PlannedTestRelationTargetType,

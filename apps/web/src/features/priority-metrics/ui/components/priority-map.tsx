@@ -17,7 +17,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { AppLink } from "@/components/app-link";
 import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { priorityMetricItemsForWork } from "@/features/priority-metrics/hooks/use-priority-metrics";
@@ -44,11 +44,27 @@ interface WorkPlacement {
 }
 
 export default function PriorityMap({ projectId }: { projectId: string }) {
-  const [horizontalMetricId, setHorizontalMetricId] = useState<string | null>(
-    null,
-  );
-  const [verticalMetricId, setVerticalMetricId] = useState<string | null>(null);
-  const [showEvidenceSignals, setShowEvidenceSignals] = useState(false);
+  const initialMapSession: {
+    horizontalMetricId: string | null;
+    verticalMetricId: string | null;
+    showEvidenceSignals: boolean;
+  } = {
+    horizontalMetricId: null,
+    verticalMetricId: null,
+    showEvidenceSignals: false,
+  };
+  const mapSession = useCreateStore(initialMapSession, ({ setState }) => ({
+    setHorizontalMetricId: (next: string | null) =>
+      setState((state) => ({ ...state, horizontalMetricId: next })),
+    setVerticalMetricId: (next: string | null) =>
+      setState((state) => ({ ...state, verticalMetricId: next })),
+    setShowEvidenceSignals: (next: boolean) =>
+      setState((state) => ({ ...state, showEvidenceSignals: next })),
+  }));
+  const { horizontalMetricId, verticalMetricId, showEvidenceSignals } =
+    useSelector(mapSession);
+  const { setHorizontalMetricId, setVerticalMetricId, setShowEvidenceSignals } =
+    mapSession.actions;
   const workQuery = useQuery(
     orpc.projectWorks.queryOptions({
       input: { archived: false, projectId },

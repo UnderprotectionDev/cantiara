@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Toolbar handlers close over the editor state of this canvas.
+
 import {
   resolveUserFlowViewport,
   type ScreenOption,
@@ -18,6 +19,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { LiteDebouncer } from "@tanstack/pacer-lite";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   type Edge,
   type Node,
@@ -35,7 +37,6 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
 } from "react";
 
 import { useReconcileFlowNodes } from "@/lib/use-reconcile-flow-nodes";
@@ -230,11 +231,30 @@ function Editor({
 }: CanvasProps) {
   const reactFlow = useReactFlow();
   const frameRef = useRef<HTMLElement>(null);
-  const [collapsed, setCollapsed] = useState<string[]>(
-    () => initialViewport?.collapsed ?? [],
+  const initialEditor = useMemo(
+    () => createEditor(toEditorDocument(flow)),
+    [flow],
   );
-  const collapsedRef = useRef(collapsed);
-  collapsedRef.current = collapsed;
+  const canvas = useCreateStore(
+    {
+      collapsed: initialViewport?.collapsed ?? [],
+      editor: initialEditor,
+      snap: false,
+    },
+    ({ setState }) => ({
+      setCollapsed: (next: string[]) =>
+        setState((state) => ({ ...state, collapsed: next })),
+      setEditor: (next: import("react").SetStateAction<EditorState>) =>
+        setState((state) => ({
+          ...state,
+          editor: typeof next === "function" ? next(state.editor) : next,
+        })),
+      setSnap: (next: boolean) =>
+        setState((state) => ({ ...state, snap: next })),
+    }),
+  );
+  const { collapsed, editor, snap } = useSelector(canvas);
+  const { setCollapsed, setEditor, setSnap } = canvas.actions;
   const onViewportChangeRef = useRef(onViewportChange);
   onViewportChangeRef.current = onViewportChange;
   const viewportDebouncer = useMemo(
@@ -260,18 +280,14 @@ function Editor({
           x: (width / 2 - viewport.x) / viewport.zoom,
           y: (height / 2 - viewport.y) / viewport.zoom,
         },
-        collapsed: nextCollapsed ?? collapsedRef.current,
+        collapsed: nextCollapsed ?? canvas.get().collapsed,
         zoom: viewport.zoom,
       });
     },
-    [viewportDebouncer],
+    [canvas, viewportDebouncer],
   );
 
   useEffect(() => () => viewportDebouncer.flush(), [viewportDebouncer]);
-  const [editor, setEditor] = useState<EditorState>(() =>
-    createEditor(toEditorDocument(flow)),
-  );
-  const [snap, setSnap] = useState(false);
   let error: string | null = null;
   if (saveError) {
     error =
@@ -297,13 +313,21 @@ function Editor({
   }, [flow.nodes]);
 
   // Removing a card edits this flow document only; the source record is untouched.
-  const removeLiveCard = useCallback((cardId: string) => {
-    setEditor((state) => removeCard(state, cardId));
-  }, []);
+  const removeLiveCard = useCallback(
+    (cardId: string) => {
+      setEditor((state) => removeCard(state, cardId));
+    },
+    [setEditor],
+  );
 
-  const activate = useCallback((id: string, additive: boolean) => {
-    setEditor((state) => select(state, [id], additive ? "toggle" : "replace"));
-  }, []);
+  const activate = useCallback(
+    (id: string, additive: boolean) => {
+      setEditor((state) =>
+        select(state, [id], additive ? "toggle" : "replace"),
+      );
+    },
+    [setEditor],
+  );
 
   const cardViews = useMemo(
     () => new Map(flow.cards.map((card) => [card.id, card])),
@@ -397,7 +421,7 @@ function Editor({
         });
       }
     },
-    [applyNodeChanges],
+    [applyNodeChanges, setEditor],
   );
 
   const onNodeDragStop = useCallback(
@@ -426,7 +450,7 @@ function Editor({
         ),
       );
     },
-    [snap],
+    [snap, setEditor],
   );
 
   function apply(change: (state: EditorState) => EditorState) {
@@ -435,7 +459,7 @@ function Editor({
 
   // `Fit View` returns to the neutral view: every Section expanded, all visible content fitted.
   function fitNeutral() {
-    collapsedRef.current = [];
+    canvas.get().collapsed = [];
     setCollapsed([]);
     window.requestAnimationFrame(() => {
       // React Flow 13 reads padding as a per-side margin; v12's default 0.1 is (1 - 1/1.1) / 2.
@@ -447,8 +471,8 @@ function Editor({
   }
 
   function toggleSection(sectionId: string) {
-    const next = toggleCollapsed(collapsedRef.current, sectionId);
-    collapsedRef.current = next;
+    const next = toggleCollapsed(canvas.get().collapsed, sectionId);
+    canvas.get().collapsed = next;
     setCollapsed(next);
     rememberViewport(reactFlow.getViewport(), next);
   }
@@ -483,8 +507,8 @@ function Editor({
         .catch(() => undefined);
       return;
     }
-    if (collapsedRef.current.join() !== resolution.collapsed.join()) {
-      collapsedRef.current = resolution.collapsed;
+    if (canvas.get().collapsed.join() !== resolution.collapsed.join()) {
+      canvas.get().collapsed = resolution.collapsed;
       setCollapsed(resolution.collapsed);
     }
     instance

@@ -1,3 +1,7 @@
+import { evidenceFlowSourceTypeSchema } from "@cantiara/api/document-evidence";
+import { feedbackStatusSchema } from "@cantiara/api/feedback";
+import { feedRowKindSchema, feedSortSchema } from "@cantiara/api/feedback-feed";
+import { validationRecordSchema } from "@cantiara/api/project-source-records";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { z } from "zod";
@@ -15,28 +19,47 @@ import ProjectArchiveControl from "@/features/project-retirement/ui/components/p
 import ProjectShellView from "@/features/project-shell/ui/views/project-shell-view";
 import ProjectUpdatesSurface from "@/features/project-updates/ui/components/project-updates-surface";
 import ReleaseEvidencePackSurface from "@/features/release-evidence/ui/components/release-evidence-pack-surface";
+import { smartCollectionInsightSearchSchema } from "@/features/smart-collections/lib/smart-collection-insights";
 import { smartCollectionWorkPrefillFromSearch } from "@/features/smart-collections/lib/smart-collection-work-prefill";
+import { testReviewLocationSchema } from "@/features/test-review/lib/test-review-location";
 import TrashSurface from "@/features/trash/ui/components/trash-surface";
 import ValueChainSurface from "@/features/value-chain/ui/components/value-chain-surface";
+
+import { optionalRouteId } from "@/lib/optional-route-id";
 
 const projectViewSearch = z.object({
   backlogSort: z
     .enum(["Priority", "Date", "Field"])
     .optional()
     .catch(undefined),
-  backlogMetricId: z
-    .string()
-    .trim()
-    .min(1)
-    .max(255)
+  backlogMetricId: optionalRouteId,
+  backlogField: z.enum(["Title", "Status"]).optional().catch(undefined),
+  roadmapView: optionalRouteId,
+  activity: projectActivityFiltersSchema.optional().catch(undefined),
+  review: optionalRouteId,
+  flow: optionalRouteId,
+  tag: optionalRouteId,
+  insights: smartCollectionInsightSearchSchema.optional().catch(undefined),
+  testReview: testReviewLocationSchema.optional().catch(undefined),
+  shareRoot: z.string().trim().min(1).max(512).optional().catch(undefined),
+  validationStatus: validationRecordSchema.shape.status
     .optional()
     .catch(undefined),
-  backlogField: z.enum(["Title", "Status"]).optional().catch(undefined),
-  roadmapView: z.string().trim().min(1).max(255).optional().catch(undefined),
-  activity: projectActivityFiltersSchema.optional().catch(undefined),
-  review: z.string().trim().min(1).max(255).optional().catch(undefined),
-  flow: z.string().trim().min(1).max(255).optional().catch(undefined),
-  tag: z.string().trim().min(1).max(255).optional().catch(undefined),
+  feed: z
+    .object({
+      sort: feedSortSchema.optional().catch(undefined),
+      sourceType: feedRowKindSchema.optional().catch(undefined),
+      status: feedbackStatusSchema.optional().catch(undefined),
+    })
+    .optional()
+    .catch(undefined),
+  evidence: z
+    .object({
+      subjectId: optionalRouteId,
+      sourceType: evidenceFlowSourceTypeSchema,
+    })
+    .optional()
+    .catch(undefined),
   workArchived: z.boolean().optional().catch(undefined),
   workView: z.literal("List").optional().catch(undefined),
 });
@@ -63,6 +86,17 @@ export const Route = createFileRoute("/_auth/projects/$projectId/")({
 
 function RouteComponent() {
   const { projectId } = Route.useParams();
+  const shareRoot = Route.useSearch({ select: (search) => search.shareRoot });
+  const navigate = Route.useNavigate();
+  const selectShareRoot = useCallback(
+    (key: string) => {
+      navigate({
+        hash: true,
+        search: (current) => ({ ...current, shareRoot: key || undefined }),
+      }).catch(() => undefined);
+    },
+    [navigate],
+  );
   const { session } = Route.useRouteContext();
   const releaseEvidenceArea = useCallback(
     (releaseId: string) => (
@@ -103,7 +137,12 @@ function RouteComponent() {
         <GitHubIntegrationSurface key={projectId} projectId={projectId} />
       }
       linkSharingArea={
-        <LinkSharingSurface key={projectId} projectId={projectId} />
+        <LinkSharingSurface
+          key={projectId}
+          onSelectRoot={selectShareRoot}
+          projectId={projectId}
+          selectedKey={shareRoot}
+        />
       }
       productionArea={ProductionIncidentsView}
       projectHistoryArea={

@@ -4,7 +4,11 @@ import type {
 } from "@cantiara/api/web-capture";
 import { useSelector } from "@tanstack/react-form";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCreateStore,
+  useSelector as useStoreSelector,
+} from "@tanstack/react-store";
+import { useEffect, useMemo, useRef } from "react";
 import { useWebCaptureInboxSearch } from "../../hooks/use-web-capture-inbox-search";
 
 import {
@@ -60,15 +64,34 @@ function sendErrorMessage(error: unknown) {
 
 export function WebCaptureView() {
   const browser = useMemo(() => getWebCaptureBrowser(), []);
-  const [link, setLink] = useState<StoredWebCaptureLink | null>(null);
-  const [draft, setDraft] = useState<WebCaptureDraft | null>(null);
+  const initial: {
+    link: StoredWebCaptureLink | null;
+    draft: WebCaptureDraft | null;
+    localError: string | null;
+    isReading: boolean;
+  } = { link: null, draft: null, localError: null, isReading: true };
+  const capture = useCreateStore(initial, ({ setState }) => ({
+    setLink: (
+      next: import("react").SetStateAction<StoredWebCaptureLink | null>,
+    ) =>
+      setState((state) => ({
+        ...state,
+        link: typeof next === "function" ? next(state.link) : next,
+      })),
+    setDraft: (next: WebCaptureDraft | null) =>
+      setState((state) => ({ ...state, draft: next })),
+    setLocalError: (next: string | null) =>
+      setState((state) => ({ ...state, localError: next })),
+    setIsReading: (next: boolean) =>
+      setState((state) => ({ ...state, isReading: next })),
+  }));
+  const { link, draft, localError, isReading } = useStoreSelector(capture);
+  const { setLink, setDraft, setLocalError, setIsReading } = capture.actions;
   const searchForm = useWebCaptureInboxSearch();
   const targetSearch = useSelector(
     searchForm.store,
     (state) => state.values.targetSearch,
   );
-  const [localError, setLocalError] = useState<string | null>(null);
-  const [isReading, setIsReading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -94,7 +117,7 @@ export function WebCaptureView() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [setIsReading, setLink, setLocalError]);
 
   const search = targetSearch.trim();
   const targetQuery = useQuery({
@@ -117,7 +140,7 @@ export function WebCaptureView() {
         "This browser needs to be paired again before it can read Inbox targets.",
       );
     }
-  }, [link, targetQuery.error]);
+  }, [link, setLink, setLocalError, targetQuery.error]);
 
   const pairingInput = useRef<WebCapturePairingInput | null>(null);
   const pair = useMutation({

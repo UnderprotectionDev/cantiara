@@ -260,7 +260,7 @@ function savedPresentationDetail(
 }
 
 export default function ProjectBacklog({ projectId }: { projectId: string }) {
-  const search = useSearch({ strict: false });
+  const search = useSearch({ from: "/_auth/projects/$projectId/" });
   const presentation = search.backlogSort ?? "Manual order";
   const priorityMetricId = search.backlogMetricId ?? "";
   const field = search.backlogField ?? "Title";

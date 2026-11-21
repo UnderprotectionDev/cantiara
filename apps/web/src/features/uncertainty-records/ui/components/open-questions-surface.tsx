@@ -3,7 +3,8 @@
 import type { DocumentEvidenceSelection } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useRef } from "react";
 import { AppLink } from "@/components/app-link";
 import { projectSourceRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { client, orpc } from "@/utils/orpc";
@@ -49,9 +50,15 @@ export default function OpenQuestionsSurface({
     }),
     enabled: Boolean(selectedId),
   });
-  const [editing, setEditing] = useState<"create" | "answer" | undefined>(
-    undefined,
+  const editingSession = useCreateStore(
+    undefined as "create" | "answer" | undefined,
+    ({ setState }) => ({
+      setEditing: (next: "create" | "answer" | undefined) =>
+        setState(() => next),
+    }),
   );
+  const editing = useSelector(editingSession);
+  const { setEditing } = editingSession.actions;
   const saved =
     createProjectSourceRecordMutation.isSuccess ||
     transitionProjectSourceRecordMutation.isSuccess;
@@ -338,7 +345,7 @@ function OpenQuestionEditing({
   ) => Promise<void>;
   projectId: string;
 }) {
-  return editing !== undefined && !locked ? (
+  return editing && !locked ? (
     <QuestionEditorSurface
       key={`${editing}:${selected?.id ?? "new"}`}
       onCancel={cancel}

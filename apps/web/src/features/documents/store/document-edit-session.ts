@@ -20,6 +20,7 @@ interface DocumentEditState {
   lastSavedAt: string;
   offline: boolean;
   pending: boolean;
+  savedBody: string;
 }
 
 interface DocumentEditSessionOptions {
@@ -66,6 +67,7 @@ export function createDocumentEditSession({
   let pendingKey: string | null = null;
   const store = createStore<DocumentEditState>({
     buffer: saved,
+    savedBody: saved.body,
     baseRevision: record.revision,
     conflictDraft: null,
     dirty: false,
@@ -108,6 +110,7 @@ export function createDocumentEditSession({
     pendingKey = null;
     update({
       buffer: saved,
+      savedBody: saved.body,
       baseRevision: document.revision,
       conflictDraft: null,
       dirty: false,

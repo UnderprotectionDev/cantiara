@@ -8,6 +8,7 @@ import RoadmapCanvas from "../roadmap-canvas";
 
 const placement = vi.hoisted(() => ({
   fitView: vi.fn<() => Promise<boolean>>(),
+  setViewport: vi.fn<() => Promise<boolean>>(),
 }));
 
 vi.mock("@xyflow/react", () => ({
@@ -112,6 +113,39 @@ test("Return to Work waits for the initial Roadmap viewport and ignores an unmou
     await act(async () => first.resolve(true));
     expect(ready).not.toHaveBeenCalled();
     await act(async () => second.resolve(true));
+    expect(ready).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  }
+});
+
+test("Roadmap falls back to a neutral viewport when the first fit fails", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  placement.fitView.mockReset().mockResolvedValue(false);
+  placement.setViewport.mockReset().mockResolvedValue(true);
+  const ready = vi.fn();
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () =>
+      root.render(
+        <RoadmapCanvas
+          milestones={[]}
+          onReady={ready}
+          origins={[]}
+          projectId="project-1"
+          view={null}
+          works={[datedWork]}
+        />,
+      ),
+    );
+    expect(placement.setViewport).toHaveBeenCalledWith(
+      { x: 0, y: 0, zoom: 1 },
+      { duration: 0 },
+    );
     expect(ready).toHaveBeenCalledOnce();
   } finally {
     act(() => root.unmount());

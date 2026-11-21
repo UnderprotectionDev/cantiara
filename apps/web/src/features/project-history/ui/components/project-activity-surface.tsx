@@ -59,7 +59,7 @@ export default function ProjectActivitySurface({
   projectId: string;
 }) {
   const filters = useSearch({
-    strict: false,
+    from: "/_auth/projects/$projectId/",
     select: (search) => search.activity ?? NO_PROJECT_ACTIVITY_FILTERS,
   });
   const navigate = useNavigate();

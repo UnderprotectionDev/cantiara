@@ -1,9 +1,11 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind the current Decision selection and preview.
+
 import type { DecisionSupersessionSelection } from "@cantiara/api/decision-supersession";
 import { Button } from "@cantiara/ui/components/button";
 import { ORPCError } from "@orpc/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useRef } from "react";
 import { client, orpc } from "@/utils/orpc";
 import { SupersessionSelectionForm } from "../forms/supersession-selection-form";
 import {
@@ -24,7 +26,15 @@ export default function DecisionSupersessionControls({
   const graph = useQuery(
     orpc.decisionSupersessionGraph.queryOptions({ input: { projectId } }),
   );
-  const [selection, setSelection] = useState<DecisionSupersessionSelection>();
+  const selectionSession = useCreateStore(
+    undefined as DecisionSupersessionSelection | undefined,
+    ({ setState }) => ({
+      setSelection: (next: DecisionSupersessionSelection | undefined) =>
+        setState(() => next),
+    }),
+  );
+  const selection = useSelector(selectionSession);
+  const { setSelection } = selectionSession.actions;
   const previewKey = useRef<string | null>(null);
   const preview = useMutation(
     orpc.previewDecisionSupersession.mutationOptions({

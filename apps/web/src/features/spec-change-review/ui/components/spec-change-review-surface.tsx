@@ -23,7 +23,7 @@ export default function SpecChangeReviewSurface({
   projectId: string;
 }) {
   const selectedId = useSearch({
-    strict: false,
+    from: "/_auth/projects/$projectId/",
     select: (search) => search.review,
   });
   const navigate = useNavigate();

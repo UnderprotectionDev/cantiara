@@ -3,7 +3,7 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { ArchivedProjectEntry } from "@cantiara/api/project-retirement";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { orpc } from "@/utils/orpc";
 import {
   useArchivedProjects,
@@ -20,7 +20,14 @@ export default function ArchiveSurface() {
   const archived = useArchivedProjects();
   const transition = useRetirementTransition();
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
-  const [deleting, setDeleting] = useState<ArchivedProjectEntry | null>(null);
+  const deletingSession = useCreateStore(
+    null as ArchivedProjectEntry | null,
+    ({ setState }) => ({
+      setDeleting: (next: ArchivedProjectEntry | null) => setState(() => next),
+    }),
+  );
+  const deleting = useSelector(deletingSession);
+  const { setDeleting } = deletingSession.actions;
   const preview = useDeletePreview(deleting?.project.id ?? null);
   const remove = useDeleteProject();
   const restore = useRestoreToArchive();

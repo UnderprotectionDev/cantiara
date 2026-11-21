@@ -13,6 +13,7 @@ import {
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { useRef, useState } from "react";
 import { client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
@@ -95,9 +96,15 @@ export function SourceEvidenceControls({
   readOnly,
 }: EvidenceProps) {
   const [open, setOpen] = useState(false);
-  const [editor, setEditor] = useState<{ use?: SourceEvidenceUse } | null>(
-    null,
+  const editorSession = useCreateStore(
+    null as { use?: SourceEvidenceUse } | null,
+    ({ setState }) => ({
+      setEditor: (next: { use?: SourceEvidenceUse } | null) =>
+        setState(() => next),
+    }),
   );
+  const editor = useSelector(editorSession);
+  const { setEditor } = editorSession.actions;
   const command = useRef<{
     fingerprint: string;
     id: string;
@@ -264,9 +271,7 @@ function SourceEvidenceUses({
   readOnly: boolean;
   source: SourceRecord;
   editor: { use?: SourceEvidenceUse } | null;
-  setEditor: import("react").Dispatch<
-    import("react").SetStateAction<{ use?: SourceEvidenceUse } | null>
-  >;
+  setEditor: (next: { use?: SourceEvidenceUse } | null) => void;
 }) {
   // The uses query can report a newer Source revision before the Source record
   // prop refreshes; a review sent now would carry the stale expectedSourceRevision.

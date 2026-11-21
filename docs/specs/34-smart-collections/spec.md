@@ -51,7 +51,7 @@ Akıllı Koleksiyon üyeliği yalnız kayıt koşullarından canlı türetilir; 
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** Active membership drag reads the current dnd-kit operation. The resulting drop preview belongs to the current Project and selected View. A new drag clears it. The Smart Collections component and membership preview journeys cover the target and simulated field changes.
+- **Client state ownership (#547).** The Project URL carries applied insight filters by View. Active membership drag reads the current dnd-kit operation. The resulting drop preview belongs to the current Project and selected View. A new drag clears it. The Smart Collections component and membership preview journeys cover the target and simulated field changes.
 
 - **Popup lifecycle (#546).** The Work collection surface seam selects `Records` and `Insights`; clearing insight slices returns to `Records` through the same single-selection control.
 

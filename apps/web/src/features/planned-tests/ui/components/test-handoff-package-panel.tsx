@@ -9,7 +9,10 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { writeTextToClipboard } from "@/lib/clipboard";
-import { useClipboardFeedback } from "@/lib/use-clipboard-feedback";
+import {
+  clipboardFeedbackMessage,
+  useClipboardFeedback,
+} from "@/lib/use-clipboard-feedback";
 import { orpc } from "@/utils/orpc";
 import { errorText } from "../../lib/error-text";
 import { downloadPackageText } from "../../lib/test-handoff-form";
@@ -42,9 +45,7 @@ function PackageCopies({
 }) {
   const base = `test-handoff-${handoff.id}-package-${record.packageVersion}`;
   const clipboard = useClipboardFeedback<string>(base);
-  const { feedback } = clipboard;
-  const failure = feedback.status === "failed" ? feedback.message : "";
-  const message = feedback.status === "copied" ? feedback.value : failure;
+  const message = clipboardFeedbackMessage(clipboard.feedback);
   function copy(text: string, label: string) {
     return clipboard.copy(
       () => writeTextToClipboard(text),

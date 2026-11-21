@@ -17,6 +17,8 @@ vi.mock("@/components/favorite-control", () => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
+  useSearch: () => [],
   useLinkProps: () => ({ href: "/projects/project-1#create" }),
 }));
 

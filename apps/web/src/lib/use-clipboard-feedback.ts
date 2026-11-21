@@ -40,3 +40,14 @@ export function useClipboardFeedback<T>(scope: unknown) {
   }
   return { copy, feedback };
 }
+
+export function clipboardFeedbackMessage(feedback: CopyFeedback<string>) {
+  switch (feedback.status) {
+    case "copied":
+      return feedback.value;
+    case "failed":
+      return feedback.message;
+    default:
+      return "";
+  }
+}

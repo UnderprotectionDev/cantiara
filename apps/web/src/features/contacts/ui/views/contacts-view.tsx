@@ -14,6 +14,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { useState } from "react";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { client, orpc } from "@/utils/orpc";
@@ -139,10 +140,21 @@ export default function ContactsView({
       client.setContactCompany(input),
     onSuccess: refresh,
   });
-  const [mergePair, setMergePair] = useState<{
-    retiredId: string;
-    survivorId: string;
-  } | null>(null);
+  const initialMerge: {
+    mergePair: { retiredId: string; survivorId: string } | null;
+    undoRetiredId: string | null;
+  } = {
+    mergePair: null,
+    undoRetiredId: null,
+  };
+  const mergeSession = useCreateStore(initialMerge, ({ setState }) => ({
+    setMergePair: (next: typeof initialMerge.mergePair) =>
+      setState(() => ({ mergePair: next, undoRetiredId: null })),
+    setUndoRetiredId: (next: string | null) =>
+      setState(() => ({ mergePair: null, undoRetiredId: next })),
+  }));
+  const { mergePair, undoRetiredId } = useSelector(mergeSession);
+  const { setMergePair, setUndoRetiredId } = mergeSession.actions;
   const mergePreview = useQuery({
     ...orpc.contactMergePreview.queryOptions({
       input: mergePair ?? { retiredId: "", survivorId: "" },
@@ -160,7 +172,6 @@ export default function ContactsView({
       await refresh();
     },
   });
-  const [undoRetiredId, setUndoRetiredId] = useState<string | null>(null);
   const undoPreview = useQuery({
     ...orpc.contactMergeUndoPreview.queryOptions({
       input: { retiredId: undoRetiredId ?? "" },

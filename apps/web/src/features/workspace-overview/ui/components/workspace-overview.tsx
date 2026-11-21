@@ -449,8 +449,10 @@ function settle(save: unknown) {
 }
 
 export interface WorkspaceOverviewViewProps {
+  editingSavedList?: string;
   formattingPreferences?: AccountPreferences;
   model: WorkspaceOverviewModel;
+  onEditSavedList?: (id?: string) => void;
   /** Resolves after the presentation is saved; the caller reports failures. */
   onPresentationChange?: (
     presentation: WorkspaceOverviewPresentation,
@@ -465,6 +467,8 @@ export default function WorkspaceOverviewView({
   onPresentationChange,
   selectedModule,
   selectedSavedList,
+  editingSavedList,
+  onEditSavedList,
 }: WorkspaceOverviewViewProps) {
   const layout = normalizeWorkspaceOverviewLayout(model.layout);
   const { liveBlockSources } = model;
@@ -520,12 +524,14 @@ export default function WorkspaceOverviewView({
   }
 
   let selectedContent: ReactNode = null;
-  if (selectedSavedList) {
+  if (selectedSavedList || editingSavedList) {
     selectedContent = (
       <SavedProjectLists
+        editingId={editingSavedList}
         formattingPreferences={formattingPreferences}
         lists={model.savedLists}
         onChange={changeSavedLists}
+        onEditingChange={onEditSavedList}
         selectedListId={selectedSavedList}
       />
     );
@@ -561,7 +567,7 @@ export default function WorkspaceOverviewView({
       {selectedContent}
 
       {selectedSavedList || selectedSourceModule ? null : (
-        <>
+        <div hidden={Boolean(editingSavedList)}>
           {visibleModules.length > 0 ? (
             <div className="grid items-start gap-x-8 gap-y-9 lg:grid-cols-2">
               {visibleModules.map((module) => (
@@ -602,10 +608,11 @@ export default function WorkspaceOverviewView({
                 formattingPreferences={formattingPreferences}
                 lists={model.savedLists}
                 onChange={changeSavedLists}
+                onEditingChange={onEditSavedList}
               />
             </div>
           </details>
-        </>
+        </div>
       )}
     </section>
   );

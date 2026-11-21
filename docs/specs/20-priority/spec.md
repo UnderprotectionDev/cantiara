@@ -54,6 +54,8 @@ Kurucu Proje içinde isteğe bağlı öncelik ölçütleri tanımlar: ad, kısa 
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Priority Map and Priority criteria editor keep axis, evidence and edit choices in their respective surfaces.
+
 - **Permanent deletion confirmation (#544).** The Priority metric editor test cancels an outstanding GitHub identity confirmation, then retries a failed deletion with a fresh grant and the same command identity. Only the current confirmation can authorize submission. The grant, typed Project name and raw failure do not reach the Query mutation cache or its callbacks.
 - **What a good test is.** Tests observe Prioritization through its public interface: criterion CRUD and ranks, independent identities when Project structure copies definitions, same-key copy retries returning the prior result and changed-payload conflicts through Mutation Contract, exact English editor and confirmation labels, map placement including Unevaluated, the default-off context-only evidence signal, an explicit axis-value edit, session scope add/remove, session order versus Backlog, Backlog reorder persistence, and negatives (no score, no auto-fill Evidence strength, no implicit sync or map-position writes). They do not assert numeric rollups that the product must not have.
 - **Seam (one).** Prioritization — the product-facing criteria, map, and session interface. Backlog and Daily Focus are counterparts. Playwright for günlük planlama comparison is this seam through the UI.

@@ -18,13 +18,13 @@ import {
   useDroppable,
 } from "@dnd-kit/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLinkProps } from "@tanstack/react-router";
+import { useLinkProps, useNavigate, useSearch } from "@tanstack/react-router";
 import {
   useSelector as useCollectionPanelSelector,
   useCreateStore,
 } from "@tanstack/react-store";
 import { GripVertical } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { ExportListAction } from "@/components/export-list-action";
 import FavoriteControl from "@/components/favorite-control";
 import {
@@ -289,8 +289,10 @@ function CollectionMembers({
 
 function MembershipFieldChangePreview({
   preview,
+  onClose,
 }: {
   preview: SmartCollectionMembershipPreview;
+  onClose?: () => void;
 }) {
   return (
     <div
@@ -310,6 +312,11 @@ function MembershipFieldChangePreview({
       <p className="text-xs text-muted-foreground">
         No membership is written by this preview.
       </p>
+      {onClose ? (
+        <Button onClick={onClose} size="sm" type="button" variant="outline">
+          Close preview
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -446,18 +453,54 @@ function collectionExportHandoff(
   };
 }
 
+const EMPTY_INSIGHT_SLICES: SmartCollectionInsightSelection[] = [];
+
+function useCollectionInsightFilters(viewId: string) {
+  const slices = useSearch({
+    from: "/_auth/projects/$projectId/",
+    select: (search) => search.insights?.[viewId] ?? EMPTY_INSIGHT_SLICES,
+  });
+  const navigate = useNavigate();
+  function setSlices(
+    update: (
+      value: SmartCollectionInsightSelection[],
+    ) => SmartCollectionInsightSelection[],
+  ) {
+    navigate({
+      hash: true,
+      search: (current) => {
+        const insights = { ...current.insights };
+        const next = update(insights[viewId] ?? EMPTY_INSIGHT_SLICES);
+        if (next.length) {
+          insights[viewId] = next;
+        } else {
+          delete insights[viewId];
+        }
+        return {
+          ...current,
+          insights: Object.keys(insights).length ? insights : undefined,
+        };
+      },
+      to: ".",
+    }).catch(() => undefined);
+  }
+  return { slices, setSlices };
+}
+
 function CollectionViewCard({
   preview: droppedPreview,
+  closePreview,
   view,
 }: {
   preview: SmartCollectionMembershipPreview | null;
+  closePreview: () => void;
   view: SmartCollectionViewSource;
 }) {
   const panel = useCreateStore<"records" | "insights">("records");
   const activePanel = useCollectionPanelSelector(panel);
-  const [selectedSlices, setSelectedSlices] = useState<
-    SmartCollectionInsightSelection[]
-  >([]);
+  const { slices: selectedSlices, setSlices } = useCollectionInsightFilters(
+    view.id,
+  );
   const droppable = useDroppable({
     accept: SMART_COLLECTION_DRAG_TYPE,
     id: collectionViewDropId(view.id),
@@ -481,12 +524,12 @@ function CollectionViewCard({
       )
     : undefined;
   const selectSlice = (selection: SmartCollectionInsightSelection) => {
-    setSelectedSlices((current) =>
+    setSlices((current) =>
       toggleSmartCollectionInsightSelection(current, selection),
     );
   };
   const showAllRecords = () => {
-    setSelectedSlices([]);
+    setSlices(() => []);
     panel.setState(() => "records");
   };
 
@@ -540,7 +583,10 @@ function CollectionViewCard({
         </ToggleGroup>
       ) : null}
       {preview?.viewId === view.id ? (
-        <MembershipFieldChangePreview preview={preview} />
+        <MembershipFieldChangePreview
+          onClose={operation.source ? undefined : closePreview}
+          preview={preview}
+        />
       ) : null}
       <CollectionViewContent
         activePanel={activePanel}
@@ -556,13 +602,26 @@ function CollectionViewCard({
   );
 }
 
-export default function ProjectSmartCollectionsSurface({
-  projectId,
-  selectedViewId,
-}: {
+interface ProjectSmartCollectionsProps {
   projectId: string;
   selectedViewId?: string;
-}) {
+}
+
+export default function ProjectSmartCollectionsSurface(
+  props: ProjectSmartCollectionsProps,
+) {
+  return (
+    <SmartCollectionsSession
+      {...props}
+      key={JSON.stringify([props.projectId, props.selectedViewId])}
+    />
+  );
+}
+
+function SmartCollectionsSession({
+  projectId,
+  selectedViewId,
+}: ProjectSmartCollectionsProps) {
   const membership = useCreateStore<SmartCollectionMembershipPreview | null>(
     null,
   );
@@ -574,11 +633,6 @@ export default function ProjectSmartCollectionsSurface({
     input: { projectId },
   });
   const views = useQuery(options);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Changing Project or View ends the membership preview.
-  useEffect(() => {
-    membership.setState(() => null);
-  }, [membership, projectId, selectedViewId]);
 
   const visible = selectedViewId
     ? views.data?.filter(({ id }) => id === selectedViewId)
@@ -594,7 +648,6 @@ export default function ProjectSmartCollectionsSurface({
         <p role="alert">Smart Collection is unavailable.</p>
       ) : null}
       <DragDropProvider
-        key={JSON.stringify([projectId, selectedViewId])}
         onDragEnd={(event) => {
           membership.setState(() =>
             event.canceled
@@ -607,6 +660,7 @@ export default function ProjectSmartCollectionsSurface({
         <div className="grid gap-3 md:grid-cols-2">
           {visible?.map((view) => (
             <CollectionViewCard
+              closePreview={() => membership.setState(() => null)}
               key={view.id}
               preview={membershipPreview}
               view={view}

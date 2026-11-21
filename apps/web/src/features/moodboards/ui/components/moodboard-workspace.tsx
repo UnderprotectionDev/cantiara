@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: The workspace binds Moodboard-scoped handlers to the board and outline.
+
 import type { OutlineSourceTarget } from "@cantiara/api/moodboard-outline";
 import {
   type PersonalViewport,
@@ -6,7 +7,8 @@ import {
   toggleCollapsed,
 } from "@cantiara/api/moodboard-viewport";
 import type { Moodboard } from "@cantiara/api/moodboards";
-import { type ReactNode, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import type { ReactNode } from "react";
 import type { useMoodboards } from "../../hooks/use-moodboards";
 import { usePersonalMoodboardView } from "../../hooks/use-personal-moodboard-view";
 import { MoodboardBoard } from "./moodboard-board";
@@ -29,11 +31,26 @@ export function MoodboardWorkspace({
   onOpenSource: (target: OutlineSourceTarget, itemId: string) => void;
 }) {
   const personal = usePersonalMoodboardView(moodboard.id);
-  const [viewport, setViewport] = useState<PersonalViewport | null | undefined>(
-    undefined,
-  );
-  const [collapsedChoice, setCollapsedChoice] = useState<string[] | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const initialBoardSession: {
+    viewport: PersonalViewport | null | undefined;
+    collapsedChoice: string[] | null;
+    selectedId: string | null;
+  } = {
+    viewport: undefined,
+    collapsedChoice: null,
+    selectedId: null,
+  };
+  const boardSession = useCreateStore(initialBoardSession, ({ setState }) => ({
+    setViewport: (next: PersonalViewport | null | undefined) =>
+      setState((state) => ({ ...state, viewport: next })),
+    setCollapsedChoice: (next: string[] | null) =>
+      setState((state) => ({ ...state, collapsedChoice: next })),
+    setSelectedId: (next: string | null) =>
+      setState((state) => ({ ...state, selectedId: next })),
+  }));
+  const { viewport, collapsedChoice, selectedId } = useSelector(boardSession);
+  const { setViewport, setCollapsedChoice, setSelectedId } =
+    boardSession.actions;
   const savedViewport =
     viewport === undefined ? personal.view.viewport : viewport;
   const collapsed = pruneCollapsed(

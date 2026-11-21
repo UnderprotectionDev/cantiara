@@ -13,7 +13,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 
 import { isTauriRuntime } from "@/features/account-access/lib/tauri-session";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
@@ -179,10 +179,21 @@ function MoodboardCard({
   api: MoodboardsApi;
   moodboard: Moodboard;
 }) {
-  const [sampleTarget, setSampleTarget] = useState<
-    ((hex: string) => void) | null
-  >(null);
-  const [presenting, setPresenting] = useState(false);
+  const initialBoardTools: {
+    sampleTarget: ((hex: string) => void) | null;
+    presenting: boolean;
+  } = {
+    sampleTarget: null,
+    presenting: false,
+  };
+  const boardTools = useCreateStore(initialBoardTools, ({ setState }) => ({
+    setSampleTarget: (next: ((hex: string) => void) | null) =>
+      setState((state) => ({ ...state, sampleTarget: next })),
+    setPresenting: (next: boolean) =>
+      setState((state) => ({ ...state, presenting: next })),
+  }));
+  const { sampleTarget, presenting } = useSelector(boardTools);
+  const { setSampleTarget, setPresenting } = boardTools.actions;
   const visuals = moodboard.items.filter(
     (item): item is MoodboardVisual => item.kind === "Visual",
   );
@@ -268,7 +279,7 @@ function MoodboardCard({
             <AddColorSwatchForm
               api={api}
               moodboard={moodboard}
-              onStartSampling={(apply) => setSampleTarget(() => apply)}
+              onStartSampling={(apply) => setSampleTarget(apply)}
             />
           </div>
         }

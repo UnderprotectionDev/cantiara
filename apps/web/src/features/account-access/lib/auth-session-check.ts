@@ -6,6 +6,7 @@ import {
   type SupportWriteOutcome,
 } from "@cantiara/api/support-reference";
 import { redirect } from "@tanstack/react-router";
+import { createStore, useSelector } from "@tanstack/react-store";
 import { isOfflineTransportFailure } from "@/features/web-macos-client/lib/support-reference";
 import { defaultClientShell } from "@/features/web-macos-client/store/client-shell";
 import { authClient } from "@/lib/auth-client";
@@ -94,14 +95,19 @@ export class SessionCheckError extends Error {
   }
 }
 
-let sessionCheckRetryConsumed = false;
+const sessionRetry = createStore<boolean>(false);
 
-export function isSessionCheckRetryConsumed() {
-  return sessionCheckRetryConsumed;
+export function useSessionCheckRetryConsumed() {
+  return useSelector(sessionRetry);
 }
 
 export function consumeSessionCheckRetry() {
-  sessionCheckRetryConsumed = true;
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: The route and successful loader update this external store.
+  if (sessionRetry.get()) {
+    return false;
+  }
+  sessionRetry.setState(() => true);
+  return true;
 }
 
 export async function requireSession() {
@@ -120,7 +126,7 @@ export async function requireSession() {
   if (session.error) {
     throw new SessionCheckError(session.error);
   }
-  sessionCheckRetryConsumed = false;
+  sessionRetry.setState(() => false);
   if (!session.data) {
     throw redirect({
       to: "/login",

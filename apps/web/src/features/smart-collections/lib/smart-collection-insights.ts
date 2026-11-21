@@ -3,25 +3,40 @@ import {
   type SmartCollectionViewSource,
 } from "@cantiara/api/smart-collections";
 import { parseISO } from "date-fns";
+import { z } from "zod";
 
 type CollectionWork = SmartCollectionViewSource["works"][number];
 
 const WORK_INSIGHT_STATUS_OPTIONS: readonly string[] =
   SMART_COLLECTION_STATUS_OPTIONS.Work ?? [];
 
-export type SmartCollectionInsightElapsedDaysBucket =
-  | "0–7 days"
-  | "8–30 days"
-  | "31+ days";
+const elapsedDaysBucketSchema = z.enum(["0–7 days", "8–30 days", "31+ days"]);
+export type SmartCollectionInsightElapsedDaysBucket = z.infer<
+  typeof elapsedDaysBucketSchema
+>;
 
-export type SmartCollectionInsightSelection =
-  | { dimension: "status"; value: string }
-  | { dimension: "effort"; value: string | null }
-  | { dimension: "age"; value: SmartCollectionInsightElapsedDaysBucket }
-  | {
-      dimension: "timeInStatus";
-      value: SmartCollectionInsightElapsedDaysBucket;
-    };
+const insightSelectionSchema = z.discriminatedUnion("dimension", [
+  z.object({
+    dimension: z.literal("status"),
+    value: z.string().min(1).max(80),
+  }),
+  z.object({
+    dimension: z.literal("effort"),
+    value: z.string().min(1).max(80).nullable(),
+  }),
+  z.object({ dimension: z.literal("age"), value: elapsedDaysBucketSchema }),
+  z.object({
+    dimension: z.literal("timeInStatus"),
+    value: elapsedDaysBucketSchema,
+  }),
+]);
+export type SmartCollectionInsightSelection = z.infer<
+  typeof insightSelectionSchema
+>;
+export const smartCollectionInsightSearchSchema = z.record(
+  z.string().min(1).max(255),
+  z.array(insightSelectionSchema).max(4),
+);
 
 export type SmartCollectionInsightSlice = SmartCollectionInsightSelection & {
   count: number;
@@ -103,8 +118,8 @@ function getStatusSlices(
       counts.set(selection.value, 0);
     }
   }
-  return [...counts.keys()]
-    .sort((left, right) => {
+  return [...counts.entries()]
+    .sort(([left], [right]) => {
       const leftIndex = WORK_INSIGHT_STATUS_OPTIONS.indexOf(left);
       const rightIndex = WORK_INSIGHT_STATUS_OPTIONS.indexOf(right);
       if (leftIndex === -1 && rightIndex === -1) {
@@ -118,8 +133,8 @@ function getStatusSlices(
       }
       return leftIndex - rightIndex;
     })
-    .map((value) => ({
-      count: counts.get(value) ?? 0,
+    .map(([value, count]) => ({
+      count,
       dimension: "status" as const,
       label: value,
       value,

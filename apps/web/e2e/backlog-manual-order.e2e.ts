@@ -101,13 +101,6 @@ test("Backlog drag persists its own order across alternate presentations and a s
       await page
         .getByLabel("Field to sort by")
         .selectOption({ label: "Status" });
-      await page.reload();
-      await expect(page.getByLabel("Backlog sort")).toHaveValue("Field");
-      await expect(page.getByLabel("Field to sort by")).toHaveValue("Status");
-      await page.goBack();
-      await expect(page.getByLabel("Field to sort by")).toHaveValue("Title");
-      await page.goForward();
-      await expect(page.getByLabel("Field to sort by")).toHaveValue("Status");
     }
     await page
       .getByLabel("Backlog sort")
@@ -201,4 +194,32 @@ test("Backlog drag persists its own order across alternate presentations and a s
   await expect(items).toHaveText([/Alpha Work/, /Beta Work/]);
   await page.reload();
   await expect(items).toHaveText([/Alpha Work/, /Beta Work/]);
+});
+
+test("Backlog sort follows a deep link and browser history", async ({
+  context,
+  page,
+  request,
+}) => {
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=scope-tree`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = await response.json();
+  await context.addCookies([setup.cookie]);
+  await page.goto(
+    `/projects/${setup.projectId}?backlogSort=Field&backlogField=Status#backlog`,
+  );
+  const sort = page.getByLabel("Backlog sort");
+  const field = page.getByLabel("Field to sort by");
+  await expect(sort).toHaveValue("Field");
+  await expect(field).toHaveValue("Status");
+  await field.selectOption("Title");
+  await expect(page).toHaveURL(/backlogField=Title/);
+  await page.reload();
+  await expect(field).toHaveValue("Title");
+  await page.goBack();
+  await expect(field).toHaveValue("Status");
+  await page.goForward();
+  await expect(field).toHaveValue("Title");
 });

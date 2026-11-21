@@ -68,6 +68,8 @@ Kurucu yalnız GitHub ile girer. Değişmez GitHub kullanıcı kimliği Hesaba b
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Account Access route observes Router loading and a single session-check retry allowance. The Client Shell failure journeys cover network failure, a failed session response and the one-Retry bound.
+
 - **Session confirmation (#546).** The Account Access browser seam in `apps/web/e2e/account-sessions.e2e.ts` verifies Escape and Cancel return focus to the opening control, Escape leaves an in-flight revoke open, a rejected revoke leaves the same confirmation and target open for retry, and a successful revoke closes and moves focus to the `Sessions` heading.
 
 - **Web sign-in retry evidence (#544).** The Account Access view test retries a failed `Continue with GitHub` request and observes `Waiting for GitHub` without retaining the OAuth redirect in Query.

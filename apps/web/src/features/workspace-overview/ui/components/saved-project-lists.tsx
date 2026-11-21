@@ -26,7 +26,7 @@ import {
   useTable,
 } from "@tanstack/react-table";
 import { ArrowLeft, Pencil, Plus } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo } from "react";
 import { AppLink } from "@/components/app-link";
 import {
   formatAccountDate,
@@ -289,16 +289,23 @@ export default function SavedProjectLists({
   lists,
   onChange,
   selectedListId,
+  editingId,
+  onEditingChange,
 }: {
   formattingPreferences: AccountPreferences;
   lists: readonly WorkspaceOverviewSavedList[];
   /** Resolves after the lists are saved. */
   onChange: (lists: readonly WorkspaceOverviewSavedListDefinition[]) => unknown;
   selectedListId?: string;
+  editingId?: string;
+  onEditingChange?: (id?: string) => void;
 }) {
-  const [editing, setEditing] = useState<
-    WorkspaceOverviewSavedListDefinition | "new" | null
-  >(null);
+  const editing =
+    editingId === "new"
+      ? "new"
+      : workspaceOverviewSavedListDefinitions(lists).find(
+          ({ id }) => id === editingId,
+        );
   const selectedList = lists.find((list) => list.id === selectedListId);
 
   async function saveList(definition: WorkspaceOverviewSavedListDefinition) {
@@ -309,14 +316,15 @@ export default function SavedProjectLists({
     ];
     // A failed save rejects here, so the editor keeps the typed definition.
     await onChange(next);
-    setEditing(null);
+    onEditingChange?.();
   }
 
   if (editing) {
     return (
       <SavedListEditor
         definition={editing === "new" ? undefined : editing}
-        onCancel={() => setEditing(null)}
+        key={editingId}
+        onCancel={() => onEditingChange?.()}
         onSave={saveList}
       />
     );
@@ -327,13 +335,7 @@ export default function SavedProjectLists({
       <SavedListDetail
         formattingPreferences={formattingPreferences}
         list={selectedList}
-        onEdit={() =>
-          setEditing(
-            workspaceOverviewSavedListDefinitions(lists).find(
-              (item) => item.id === selectedList.id,
-            ) ?? null,
-          )
-        }
+        onEdit={() => onEditingChange?.(selectedList.id)}
       />
     );
   }
@@ -357,7 +359,7 @@ export default function SavedProjectLists({
           </p>
         </div>
         <Button
-          onClick={() => setEditing("new")}
+          onClick={() => onEditingChange?.("new")}
           type="button"
           variant="outline"
         >
@@ -388,7 +390,7 @@ export default function SavedProjectLists({
                 </div>
                 <Button
                   aria-label={`Edit saved list: ${list.name}`}
-                  onClick={() => setEditing(list)}
+                  onClick={() => onEditingChange?.(list.id)}
                   size="icon-xs"
                   type="button"
                   variant="ghost"

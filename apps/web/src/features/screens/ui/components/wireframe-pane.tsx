@@ -220,7 +220,11 @@ export function WireframePane({
     }
   }
 
-  const [editing, setEditing] = useState<string | null>(null);
+  const textEdit = useCreateStore(null as string | null, ({ setState }) => ({
+    setEditing: (next: string | null) => setState(() => next),
+  }));
+  const editing = useSelector(textEdit);
+  const { setEditing } = textEdit.actions;
   const placed = useRef(0);
   const editingBlock = state.document.blocks.find(({ id }) => id === editing);
 
@@ -241,7 +245,7 @@ export function WireframePane({
       }
       setEditing(blockId);
     },
-    [editor, readOnly],
+    [editor, readOnly, setEditing],
   );
 
   function commitText(value: string) {

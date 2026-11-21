@@ -99,7 +99,7 @@ export default function ProjectWorkList({
 }) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
   const archived = useSearch({
-    strict: false,
+    from: "/_auth/projects/$projectId/",
     select: (search) => search.workArchived,
   });
   const navigate = useNavigate();

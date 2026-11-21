@@ -8,6 +8,12 @@ import { expect, test, vi } from "vitest";
 import ValidationRecordsSurface from "../../components/validation-records-surface";
 import { ValidationRecordsView } from "../validation-records-view";
 
+vi.mock("@tanstack/react-router", async (importActual) => ({
+  ...(await importActual<typeof import("@tanstack/react-router")>()),
+  useNavigate: () => vi.fn(),
+  useSearch: () => "Active",
+}));
+
 vi.mock("@/components/app-link", () => ({
   AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
     <a {...props} href={href} />
@@ -109,6 +115,7 @@ test("Validation Record detail navigation ignores the previous list status filte
     onSave: save,
     onTransition: save,
     readOnly: false,
+    onStatusFilterChange: vi.fn(),
     records: [record, { ...record, id: "v2", status: "Archived" as const }],
   };
   try {
@@ -121,8 +128,15 @@ test("Validation Record detail navigation ignores the previous list status filte
       status.value = "Archived";
       status.dispatchEvent(new Event("change", { bubbles: true }));
     });
+    expect(props.onStatusFilterChange).toHaveBeenCalledWith("Archived");
     await act(async () =>
-      root.render(<ValidationRecordsView {...props} selectedId="v1" />),
+      root.render(
+        <ValidationRecordsView
+          {...props}
+          selectedId="v1"
+          statusFilter="Archived"
+        />,
+      ),
     );
     expect(host.querySelector("article")?.textContent).toContain(
       "Four need CSV",
@@ -132,12 +146,20 @@ test("Validation Record detail navigation ignores the previous list status filte
       "#source-validation-record-v1",
     );
     await act(async () =>
-      root.render(<ValidationRecordsView {...props} selectedId="v2" />),
+      root.render(
+        <ValidationRecordsView
+          {...props}
+          selectedId="v2"
+          statusFilter="Archived"
+        />,
+      ),
     );
     expect(host.querySelector("article a")?.getAttribute("href")).toBe(
       "#source-validation-record-v2",
     );
-    await act(async () => root.render(<ValidationRecordsView {...props} />));
+    await act(async () =>
+      root.render(<ValidationRecordsView {...props} statusFilter="Archived" />),
+    );
     expect(host.querySelector("select")?.value).toBe("Archived");
     expect(host.querySelectorAll("article")).toHaveLength(1);
   } finally {

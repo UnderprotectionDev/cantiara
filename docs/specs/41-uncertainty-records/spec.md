@@ -46,6 +46,8 @@ Varsayım ve Açık Soru ayrı Proje ana kayıtlarıdır. Varsayım `Open`, `Con
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** Open Question and Assumption edit choices live in the current panel session.
+
 - **Write completion (#544).** The Open Question and Assumption surfaces read completion from their mutations. The Open Questions browser journey verifies create, answer and close persistence.
 
 - **What a good test is.** Tests observe Uncertainty Records through create, distinct types, transitions, optional evidence visibility, and counterparts: no auto Work/Risk/Decision, no Based on, no review queue route.

@@ -418,22 +418,25 @@ function MediaPreviewContent({
     },
     [],
   );
-  const loopPreference = useCreateStore(false);
-  const loop = useSelector(loopPreference, (value) => value);
-  const [speed, setSpeed] = useState(playback?.speeds[1] ?? 1);
+  const playbackSession = useCreateStore({
+    loop: false,
+    speed: playback?.speeds[1] ?? 1,
+  });
+  const { loop, speed } = useSelector(playbackSession);
   const handleSpeedChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
-      setSpeed(Number(event.currentTarget.value));
+      const next = Number(event.currentTarget.value);
+      playbackSession.setState((state) => ({ ...state, speed: next }));
     },
-    [],
+    [playbackSession],
   );
   const loopId = useId();
   const speedId = useId();
   const handleLoopChange = useCallback(
     (checked: boolean) => {
-      loopPreference.setState(() => checked);
+      playbackSession.setState((state) => ({ ...state, loop: checked }));
     },
-    [loopPreference],
+    [playbackSession],
   );
   const handleFullscreen = useCallback(() => {
     player.requestFullscreen().catch(() => undefined);

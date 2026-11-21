@@ -739,6 +739,7 @@ function Canvas({
           </Button>
         ))}
         <Button
+          disabled={layoutPending}
           onClick={startPreview}
           size="sm"
           type="button"
@@ -785,6 +786,7 @@ function Canvas({
             Apply Auto-layout
           </Button>
           <Button
+            disabled={layoutPending}
             onClick={() =>
               layout.setState((value) => ({ ...value, preview: null }))
             }

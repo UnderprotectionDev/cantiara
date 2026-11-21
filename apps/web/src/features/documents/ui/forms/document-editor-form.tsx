@@ -39,7 +39,6 @@ import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import {
   type SetStateAction,
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -97,6 +96,14 @@ import DocumentEvidenceDialog from "./document-version-evidence-form";
 
 const lowlight = createLowlight(common);
 
+interface DocumentEditorPresentation {
+  conversionWarning: boolean;
+  previewBody: string;
+  selectedTextRange: { end: number; start: number } | null;
+  selectedVersion: number | null;
+  view: DocumentView;
+}
+
 export default function DocumentEditor({
   accountFormattingPreferences,
   record,
@@ -127,19 +134,29 @@ export default function DocumentEditor({
   const editing = useSyncExternalStore(editSession.subscribe, editSession.get);
   const [revision, setRevision] = useState(record.revision);
 
-  const presentation = useCreateStore<{
-    view: DocumentView;
-    conversionWarning: boolean;
-    selectedVersion: number | null;
-    previewBody: string;
-    selectedTextRange: { end: number; start: number } | null;
-  }>({
+  const initialPresentation: DocumentEditorPresentation = {
     view: targetSectionId ? "preview" : "write",
     conversionWarning: false,
     selectedVersion: null,
     previewBody: record.body,
     selectedTextRange: null,
-  });
+  };
+  const presentation = useCreateStore(initialPresentation, ({ setState }) => ({
+    setView: (next: SetStateAction<DocumentView>) =>
+      setState((state) => ({
+        ...state,
+        view: typeof next === "function" ? next(state.view) : next,
+      })),
+    setConversionWarning: (next: boolean) =>
+      setState((state) => ({ ...state, conversionWarning: next })),
+    setPreviewBody: (next: string) =>
+      setState((state) => ({ ...state, previewBody: next })),
+    setSelectedVersion: (next: number | null) =>
+      setState((state) => ({ ...state, selectedVersion: next })),
+    setSelectedTextRange: (
+      next: DocumentEditorPresentation["selectedTextRange"],
+    ) => setState((state) => ({ ...state, selectedTextRange: next })),
+  }));
   const {
     view,
     conversionWarning,
@@ -147,39 +164,13 @@ export default function DocumentEditor({
     previewBody,
     selectedTextRange,
   } = useStoreSelector(presentation);
-  const setView = useCallback(
-    (next: SetStateAction<DocumentView>) => {
-      presentation.setState((state) => ({
-        ...state,
-        view: typeof next === "function" ? next(state.view) : next,
-      }));
-    },
-    [presentation],
-  );
-  const setConversionWarning = useCallback(
-    (next: boolean) => {
-      presentation.setState((state) => ({ ...state, conversionWarning: next }));
-    },
-    [presentation],
-  );
-  const setSelectedVersion = useCallback(
-    (next: number | null) => {
-      presentation.setState((state) => ({ ...state, selectedVersion: next }));
-    },
-    [presentation],
-  );
-  const setPreviewBody = useCallback(
-    (next: string) => {
-      presentation.setState((state) => ({ ...state, previewBody: next }));
-    },
-    [presentation],
-  );
-  const setSelectedTextRange = useCallback(
-    (next: { end: number; start: number } | null) => {
-      presentation.setState((state) => ({ ...state, selectedTextRange: next }));
-    },
-    [presentation],
-  );
+  const {
+    setView,
+    setConversionWarning,
+    setSelectedVersion,
+    setPreviewBody,
+    setSelectedTextRange,
+  } = presentation.actions;
 
   const versionOptions = orpc.documentVersions.queryOptions({
     input: { documentId: record.id },
@@ -196,7 +187,7 @@ export default function DocumentEditor({
   });
   const selectedSnapshot =
     selectedVersion === record.revision ? record : selectedVersionQuery.data;
-  const [savedBody, setSavedBody] = useState(record.body);
+  const { savedBody } = editing;
   const insertForm = useForm({
     defaultValues: {
       selectedDiagramId: "",
@@ -433,7 +424,6 @@ export default function DocumentEditor({
       return;
     }
     setRevision(editing.baseRevision);
-    setSavedBody(editing.buffer.body);
     form.setFieldValue("title", editing.buffer.title);
     form.setFieldValue("type", editing.buffer.type);
     form.setFieldValue("body", editing.buffer.body);
@@ -469,7 +459,6 @@ export default function DocumentEditor({
     form.setErrorMap({ onSubmit: undefined });
     setRevision(record.revision);
     setPreviewBody(record.body);
-    setSavedBody(record.body);
     form.reset({
       title: record.title,
       type: record.type,

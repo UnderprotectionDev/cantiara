@@ -22,7 +22,7 @@ import {
   ReactFlowProvider,
   useReactFlow,
 } from "@xyflow/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { autoPosition } from "../../lib/technical-diagram-edit";
 import "@xyflow/react/dist/style.css";
 
@@ -126,7 +126,14 @@ function Canvas({
       reactFlow.fitView({ duration: 0, padding: "4.545454545454546%" });
     }
   }, [openingSnapshot, reactFlow]);
-  const [collapsed, setCollapsed] = useState(opening.collapsed);
+  const collapsedSession = useCreateStore(
+    opening.collapsed,
+    ({ setState }) => ({
+      setCollapsed: (next: string[]) => setState(() => next),
+    }),
+  );
+  const collapsed = useSelector(collapsedSession);
+  const { setCollapsed } = collapsedSession.actions;
   const hidden = useMemo(
     () => hiddenDiagramNodeIds(groups, collapsed),
     [groups, collapsed],

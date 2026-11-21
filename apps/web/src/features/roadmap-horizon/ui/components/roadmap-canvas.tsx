@@ -255,8 +255,14 @@ function RoadmapCanvasSession({
                   duration: 0,
                   padding: "8.333333333333334%",
                 });
-                if (!placed) {
-                  return;
+                if (!placed && active.current) {
+                  const neutral = await instance.setViewport(
+                    { x: 0, y: 0, zoom: 1 },
+                    { duration: 0 },
+                  );
+                  if (!neutral) {
+                    return;
+                  }
                 }
               }
               if (active.current) {

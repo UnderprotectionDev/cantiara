@@ -7,7 +7,8 @@ import type {
   AssumptionsContext,
 } from "@cantiara/api/uncertainty-records";
 import { Button } from "@cantiara/ui/components/button";
-import { type ReactNode, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import type { ReactNode } from "react";
 import { AppLink } from "@/components/app-link";
 import { projectSourceRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import {
@@ -87,9 +88,14 @@ export function ProjectAssumptionsView({
   onStartEditing?: () => void;
   savedMessage?: string;
 }) {
-  const [editing, setEditing] = useState<AssumptionEditing | undefined>(
-    undefined,
+  const editingSession = useCreateStore(
+    undefined as AssumptionEditing | undefined,
+    ({ setState }) => ({
+      setEditing: (next: AssumptionEditing | undefined) => setState(() => next),
+    }),
   );
+  const editing = useSelector(editingSession);
+  const { setEditing } = editingSession.actions;
   const selected = context.records.find((record) => record.id === selectedId);
   const evidence = context.evidence.filter(
     (entry) => entry.assumptionId === selectedId,

@@ -23,6 +23,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   type ComponentType,
   type SubmitEvent,
@@ -631,9 +632,14 @@ function StagesConfiguration({
       }
     },
   });
-  const [pendingStageRemovalId, setPendingStageRemovalId] = useState<
-    string | null
-  >(null);
+  const pendingStageRemovalIdSession = useCreateStore(
+    null as string | null,
+    ({ setState }) => ({
+      setPendingStageRemovalId: (next: string | null) => setState(() => next),
+    }),
+  );
+  const pendingStageRemovalId = useSelector(pendingStageRemovalIdSession);
+  const { setPendingStageRemovalId } = pendingStageRemovalIdSession.actions;
 
   function reorderStage(stageId: string, direction: -1 | 1) {
     const currentIndex = configuration.preparedStages.findIndex(

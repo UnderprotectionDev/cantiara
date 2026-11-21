@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Capture cards own handlers that close over their current layout and item state.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type {
   CaptureBulkSenseMaking,
@@ -16,6 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@cantiara/ui/components/dialog";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { useCallback, useState } from "react";
 
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
@@ -452,17 +454,29 @@ export default function CaptureInboxSurface({
   inbox: CaptureInboxSnapshot;
 }) {
   const [composerHandle] = useState(createDialogHandle);
-  const [viewMode, setViewMode] = useState<"inbox" | "bulk">("inbox");
-  const [sequentialTriageState, setSequentialTriageState] =
-    useState<SequentialTriageState>({ mode: "list" });
-  const [sequentialItems, setSequentialItems] = useState<
-    readonly CaptureInboxItem[]
-  >([]);
-  const restoreSequentialItem = useCallback((itemId: string) => {
-    setSequentialTriageState((state) =>
-      restoreSequentialTriageItem(state, itemId),
-    );
-  }, []);
+  const inboxSession = useCreateStore<{
+    viewMode: "inbox" | "bulk";
+    sequentialTriageState: SequentialTriageState;
+    openingItems: readonly CaptureInboxItem[];
+  }>({
+    viewMode: "inbox",
+    sequentialTriageState: { mode: "list" },
+    openingItems: [],
+  });
+  const { viewMode, sequentialTriageState, openingItems } =
+    useSelector(inboxSession);
+  const restoreSequentialItem = useCallback(
+    (itemId: string) => {
+      inboxSession.setState((state) => ({
+        ...state,
+        sequentialTriageState: restoreSequentialTriageItem(
+          state.sequentialTriageState,
+          itemId,
+        ),
+      }));
+    },
+    [inboxSession],
+  );
   const {
     cancelUndo,
     confirmUndo,
@@ -476,32 +490,40 @@ export default function CaptureInboxSurface({
   const orderedItemIds = orderedItems.map((item) => item.id);
   const sequentialItem =
     sequentialTriageState.mode === "focused"
-      ? sequentialItems[sequentialTriageState.itemIndex]
+      ? (orderedItems.find(({ id }) => id === sequentialTriageState.itemId) ??
+        openingItems[sequentialTriageState.itemIndex])
       : null;
   const sequentialItemIndex =
     sequentialTriageState.mode === "focused"
       ? sequentialTriageState.itemIndex
       : -1;
   const startSequentialTriage = () => {
-    setSequentialItems(orderedItems);
-    setSequentialTriageState(beginSequentialTriage(orderedItemIds));
+    inboxSession.setState((state) => ({
+      ...state,
+      openingItems: orderedItems,
+      sequentialTriageState: beginSequentialTriage(orderedItemIds),
+    }));
   };
-  const previousSequentialTriageItem = () => {
-    setSequentialTriageState((state) =>
-      moveToPreviousSequentialTriageItem(state),
-    );
-  };
-  const nextSequentialTriageItem = () => {
-    setSequentialTriageState((state) => moveToNextSequentialTriageItem(state));
-  };
-  const advanceSequentialTriage = () => {
-    setSequentialTriageState((state) =>
-      advanceSequentialTriageAfterExit(state),
-    );
-  };
+  function moveThroughTriage(
+    move: (state: SequentialTriageState) => SequentialTriageState,
+  ) {
+    inboxSession.setState((state) => ({
+      ...state,
+      sequentialTriageState: move(state.sequentialTriageState),
+    }));
+  }
+  const previousSequentialTriageItem = () =>
+    moveThroughTriage(moveToPreviousSequentialTriageItem);
+  const nextSequentialTriageItem = () =>
+    moveThroughTriage(moveToNextSequentialTriageItem);
+  const advanceSequentialTriage = () =>
+    moveThroughTriage(advanceSequentialTriageAfterExit);
   const backToCaptureInboxList = () => {
-    setSequentialItems([]);
-    setSequentialTriageState(leaveSequentialTriage());
+    inboxSession.setState((state) => ({
+      ...state,
+      openingItems: [],
+      sequentialTriageState: leaveSequentialTriage(),
+    }));
   };
   const sequentialItemResolved =
     sequentialTriageState.mode === "focused" &&
@@ -564,7 +586,10 @@ export default function CaptureInboxSurface({
           items={items}
           onStartSequentialTriage={startSequentialTriage}
           onToggleBulkView={() =>
-            setViewMode((current) => (current === "bulk" ? "inbox" : "bulk"))
+            inboxSession.setState((state) => ({
+              ...state,
+              viewMode: state.viewMode === "bulk" ? "inbox" : "bulk",
+            }))
           }
           onUndoPreview={showUndoPreview}
           triageAvailable={triageAvailable}
