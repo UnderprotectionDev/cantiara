@@ -82,7 +82,6 @@ function PopoverDescription({
 }
 
 const createPopoverHandle = PopoverPrimitive.createHandle;
-type PopoverActions = PopoverPrimitive.Root.Actions;
 
 function PopoverClose(props: PopoverPrimitive.Close.Props) {
   return <PopoverPrimitive.Close data-slot="popover-close" {...props} />;
@@ -91,7 +90,6 @@ function PopoverClose(props: PopoverPrimitive.Close.Props) {
 export {
   createPopoverHandle,
   Popover,
-  type PopoverActions,
   PopoverClose,
   PopoverContent,
   PopoverDescription,

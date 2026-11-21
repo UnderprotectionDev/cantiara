@@ -120,12 +120,10 @@ function SheetDescription({
 }
 
 const createSheetHandle = SheetPrimitive.createHandle;
-type SheetActions = SheetPrimitive.Root.Actions;
 
 export {
   createSheetHandle,
   Sheet,
-  type SheetActions,
   SheetClose,
   SheetContent,
   SheetDescription,

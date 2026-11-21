@@ -173,12 +173,10 @@ function AlertDialogCancel({
 }
 
 const createAlertDialogHandle = AlertDialogPrimitive.createHandle;
-type AlertDialogActions = AlertDialogPrimitive.Root.Actions;
 
 export {
   AlertDialog,
   AlertDialogAction,
-  type AlertDialogActions,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,

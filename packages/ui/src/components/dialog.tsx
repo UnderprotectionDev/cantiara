@@ -140,12 +140,10 @@ function DialogDescription({
 }
 
 const createDialogHandle = DialogPrimitive.createHandle;
-type DialogActions = DialogPrimitive.Root.Actions;
 
 export {
   createDialogHandle,
   Dialog,
-  type DialogActions,
   DialogClose,
   DialogContent,
   DialogDescription,
