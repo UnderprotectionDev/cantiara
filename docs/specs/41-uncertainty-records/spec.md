@@ -46,7 +46,7 @@ Varsayım ve Açık Soru ayrı Proje ana kayıtlarıdır. Varsayım `Open`, `Con
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** Open Question and Assumption edit choices live in the current panel session. The Open Question editor seam checks that typed text survives a failed write and that a conflict requires reopening even after more typing. TanStack Query owns the write error and its conflict lock. The Open Question editor test checks that the lock and explanation survive further typing. The Open Question view checks that a late conflict from a previous record cannot lock the current editor. The Assumption browser journey cancels and reopens after a conflict against an older Document version.
+- **Client state ownership (#547).** Open Question and Assumption edit choices live in the current panel session. The Open Question editor seam checks that typed text survives a failed write and that a conflict requires reopening even after more typing. TanStack Query owns the write error and its conflict lock. The Open Question editor test checks that the lock and explanation survive further typing. The Open Question view checks that a late conflict from a previous record cannot lock the current editor. The Assumption panel keeps unlinked Create drafts across selection changes, resets record edits, and ignores completion from a previous record. The Assumption browser journey cancels and reopens after a conflict against an older Document version.
 
 - **Write completion (#544).** The Open Question and Assumption surfaces read completion from their mutations. The Open Questions browser journey verifies create, answer and close persistence.
 

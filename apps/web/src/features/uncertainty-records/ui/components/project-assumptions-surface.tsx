@@ -191,12 +191,7 @@ export default function ProjectAssumptionsSurface({
         context={records.data}
         documents={documents.data ?? []}
         documentsPending={documents.isPending}
-        key={JSON.stringify([
-          projectId,
-          selectedId,
-          records.data.readOnly,
-          records.data.records.some(({ id }) => id === selectedId),
-        ])}
+        key={String(records.data.readOnly)}
         onSave={save}
         onStartEditing={startEditing}
         onTransition={transition}
@@ -204,11 +199,11 @@ export default function ProjectAssumptionsSurface({
         renderEvidenceFlow={renderEvidenceFlow}
         savedMessage={saved ? "Assumption saved." : undefined}
         selectedId={selectedId}
-        writeError={
-          createProjectSourceRecordMutation.error ??
-          updateProjectSourceRecordMutation.error ??
-          transitionProjectSourceRecordMutation.error
-        }
+        writeErrors={{
+          create: createProjectSourceRecordMutation.error,
+          edit: updateProjectSourceRecordMutation.error,
+          transition: transitionProjectSourceRecordMutation.error,
+        }}
       />
     </div>
   );

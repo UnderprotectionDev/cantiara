@@ -12,9 +12,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { ORPCError } from "@orpc/client";
 import { useForm, useSelector } from "@tanstack/react-form";
 import type { SubmitEvent } from "react";
+import { isWriteConflict } from "@/lib/mutation-messages";
 import { submitForm } from "@/lib/submit-form";
 
 import { assumptionFormSchema } from "../../lib/uncertainty-record-form";
@@ -56,8 +56,7 @@ export function AssumptionEditor({
   onCancel: () => void;
   writeError?: unknown;
 }) {
-  const conflict =
-    writeError instanceof ORPCError && writeError.code === "CONFLICT";
+  const conflict = isWriteConflict(writeError);
   const outcome = life === "Confirmed" || life === "Refuted";
   // Keep each editing session pinned to the versions it offered; a stale choice must conflict at commit.
   const form = useForm({

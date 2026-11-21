@@ -262,9 +262,11 @@ test("Assumption outcome keeps the Document version offered when editing starts"
   ).toBeVisible();
   await expect(detail.getByText("Open", { exact: true })).toBeVisible();
   await expect(evidence).toHaveValue(documentId ?? "");
-  await assumptions
-    .getByLabel("Rationale (optional)", { exact: true })
-    .fill("Keep the conflicting draft.");
+  const rationale = assumptions.getByLabel("Rationale (optional)", {
+    exact: true,
+  });
+  await rationale.fill("Keep the conflicting draft.");
+  await expect(rationale).toHaveValue("Keep the conflicting draft.");
   await expect(
     assumptions.getByRole("button", { name: "Save", exact: true }),
   ).toBeDisabled();

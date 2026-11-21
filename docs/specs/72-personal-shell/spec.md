@@ -47,7 +47,7 @@ Kişisel erişim kabuğu Günlük Odak, Favoriler, Bildirim Merkezi ve Yeniden b
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** The Personal Shell remembers its panel and day while the current Account shell stays mounted. The Personal Shell seam covers reopening the panel and fresh navigation without restoring its previous session.
+- **Client state ownership (#547).** The Personal Shell remembers its panel and day while the current Account shell stays mounted. The Personal Shell seam covers reopening the panel and fresh navigation without restoring its previous session. The component test checks retention after Escape and reopening within the same session.
 
 - **Popup lifecycle (#546).** The `personal-shell.e2e.ts` journey checks that the temporary Sheet opens from `Personal`, Escape and `Close` return focus to `Personal`, and a new application session starts closed.
 

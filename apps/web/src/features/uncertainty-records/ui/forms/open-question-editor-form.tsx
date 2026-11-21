@@ -12,9 +12,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { ORPCError } from "@orpc/client";
 import { useForm, useSelector } from "@tanstack/react-form";
 import type { SubmitEvent } from "react";
+import { isWriteConflict } from "@/lib/mutation-messages";
 import { submitForm } from "@/lib/submit-form";
 
 import {
@@ -51,8 +51,7 @@ export function OpenQuestionEditor({
   onCancel: () => void;
   writeError?: unknown;
 }) {
-  const conflict =
-    writeError instanceof ORPCError && writeError.code === "CONFLICT";
+  const conflict = isWriteConflict(writeError);
   // Pin the offered versions for this editing session; a stale selection conflicts at commit.
   const form = useForm({
     defaultValues: {

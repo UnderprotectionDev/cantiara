@@ -82,7 +82,7 @@ function OpenQuestionsSession({
     (item): item is OpenQuestionRecord =>
       item.sourceType === "Open Question" && item.id === selectedId,
   );
-  const locked = readOnly || records.data?.readOnly;
+  const locked = readOnly || records.data?.readOnly === true;
   useLayoutEffect(() => {
     if (locked || (editing === "answer" && !selected)) {
       pendingWrite.current = null;
@@ -246,7 +246,7 @@ function OpenQuestionsSession({
       <OpenQuestionEditing
         cancel={cancel}
         editing={editing}
-        locked={locked === true}
+        locked={locked}
         projectId={projectId}
         save={save}
         selected={selected}

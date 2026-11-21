@@ -134,3 +134,58 @@ test("Markup clears an unfinished gesture when the tool, page, or file version c
     vi.unstubAllGlobals();
   }
 });
+
+test("Markup remeasures a replaced preview and detaches the old media listener", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  function render(image: string) {
+    return act(async () => {
+      root.render(
+        <MarkupSurface
+          attachmentId="attachment-1"
+          markings={[]}
+          tool="pen"
+          versionId="version-1"
+        >
+          <img alt="Preview" height={100} key={image} width={100} />
+        </MarkupSurface>,
+      );
+      await Promise.resolve();
+    });
+  }
+  function load(image: HTMLImageElement, width: number, height: number) {
+    Object.defineProperties(image, {
+      naturalWidth: { configurable: true, value: width },
+      naturalHeight: { configurable: true, value: height },
+    });
+    act(() => image.dispatchEvent(new Event("load")));
+  }
+  const stage = () => host.querySelector<HTMLElement>("[data-stage-width]");
+  try {
+    await render("wide");
+    const wide = host.querySelector("img");
+    if (!wide) {
+      throw new Error("No first attachment preview");
+    }
+    load(wide, 1000, 500);
+    expect(stage()?.dataset.stageHeight).toBe("500");
+
+    await render("tall");
+    const tall = host.querySelector("img");
+    if (!tall) {
+      throw new Error("No replacement attachment preview");
+    }
+    expect(tall).not.toBe(wide);
+    load(tall, 300, 600);
+    expect(stage()?.dataset.stageWidth).toBe("360");
+    expect(stage()?.dataset.stageHeight).toBe("720");
+    load(wide, 1200, 300);
+    expect(stage()?.dataset.stageWidth).toBe("360");
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  }
+});

@@ -117,6 +117,17 @@ describe("Personal Shell", () => {
     await act(async () => tab("Favorites")?.click());
     expect(localStorage.length).toBe(0);
     expect(sessionStorage.length).toBe(0);
+    await act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+      );
+      return Promise.resolve();
+    });
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    await act(async () => button("Personal")?.click());
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+      "Surface: Favorites",
+    );
     act(() => root?.unmount());
     host?.remove();
     mount();

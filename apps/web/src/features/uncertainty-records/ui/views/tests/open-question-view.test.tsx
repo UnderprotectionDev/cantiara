@@ -134,20 +134,22 @@ test("a stale Answered conflict cannot lock a different Open Question", async ()
   const { projectId } = record;
   const first = { ...record, life: "Open" as const, answer: "", rationale: "" };
   const second = { ...first, id: "question-2", title: "Second Open Question" };
-  queryClient.setQueryData(
+  const openQuestions = { readOnly: false, records: [first, second] };
+  queryClient.setQueryData<typeof openQuestions>(
     orpc.openQuestions.queryOptions({ input: { projectId } }).queryKey,
-    { readOnly: false, records: [first, second] },
+    openQuestions,
   );
   queryClient.setQueryData(
     orpc.documents.queryOptions({ input: { projectId } }).queryKey,
     [],
   );
+  const questionContext = { evidence: [], readOnly: false };
   for (const question of [first, second]) {
-    queryClient.setQueryData(
+    queryClient.setQueryData<typeof questionContext>(
       orpc.openQuestionContext.queryOptions({
         input: { sourceId: question.id, sourceType: "Open Question" },
       }).queryKey,
-      { evidence: [], readOnly: false },
+      questionContext,
     );
   }
   function render(selectedId: string) {
@@ -183,6 +185,11 @@ test("a stale Answered conflict cannot lock a different Open Question", async ()
       expect.objectContaining({ sourceId: first.id, answer: "First draft" }),
     ),
   );
+  expect(
+    [...testHost.querySelectorAll("button")].find(
+      (item) => item.textContent?.trim() === "Cancel",
+    )?.disabled,
+  ).toBe(true);
 
   render(second.id);
   expect(testHost.querySelector("#question-answer")).toBeNull();

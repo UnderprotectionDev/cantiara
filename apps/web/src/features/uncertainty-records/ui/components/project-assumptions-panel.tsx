@@ -8,7 +8,7 @@ import type {
 } from "@cantiara/api/uncertainty-records";
 import { Button } from "@cantiara/ui/components/button";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
-import type { ReactNode } from "react";
+import { type ReactNode, useLayoutEffect } from "react";
 import { AppLink } from "@/components/app-link";
 import { projectSourceRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import {
@@ -75,7 +75,7 @@ export function ProjectAssumptionsView({
   onStartEditing,
   renderEvidenceFlow,
   savedMessage,
-  writeError,
+  writeErrors,
 }: {
   context: AssumptionsContext;
   renderEvidenceFlow?: (recordId: string) => ReactNode;
@@ -91,7 +91,7 @@ export function ProjectAssumptionsView({
   ) => Promise<unknown>;
   onStartEditing?: () => void;
   savedMessage?: string;
-  writeError?: unknown;
+  writeErrors?: Partial<Record<AssumptionEditing["kind"], unknown>>;
 }) {
   const editingSession = useCreateStore(
     undefined as AssumptionEditing | undefined,
@@ -99,9 +99,17 @@ export function ProjectAssumptionsView({
       setEditing: (next: AssumptionEditing | undefined) => setState(() => next),
     }),
   );
-  const editing = useSelector(editingSession);
+  const active = useSelector(editingSession);
   const { setEditing } = editingSession.actions;
   const selected = context.records.find((record) => record.id === selectedId);
+  // Create is Project-scoped. Edits and transitions belong to one selected record.
+  const changingRecord = active?.record && active.record.id !== selected?.id;
+  const editing = changingRecord ? undefined : active;
+  useLayoutEffect(() => {
+    if (changingRecord) {
+      setEditing(undefined);
+    }
+  }, [changingRecord, setEditing]);
   const evidence = context.evidence.filter(
     (entry) => entry.assumptionId === selectedId,
   );
@@ -114,7 +122,10 @@ export function ProjectAssumptionsView({
     setEditing({ kind, record, life });
   }
   async function save(draft: AssumptionDraft, record?: AssumptionRecord) {
-    if (editing?.life && record) {
+    if (!editing || editingSession.get() !== editing) {
+      return;
+    }
+    if (editing.life && record) {
       await onTransition(editing.life, draft, record);
     } else {
       await onSave(draft, record);
@@ -141,7 +152,7 @@ export function ProjectAssumptionsView({
           editing={editing}
           onCancel={() => setEditing(undefined)}
           onSave={save}
-          writeError={writeError}
+          writeError={writeErrors?.[editing.kind]}
         />
       ) : null}
       {context.records.length === 0 ? (
