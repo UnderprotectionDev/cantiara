@@ -2,6 +2,11 @@
 
 import type { FocusPeriodRecord } from "@cantiara/api/focus-period";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { isDefinedError, ORPCError } from "@orpc/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -256,7 +261,6 @@ function PeriodDetail({
     conflictMessage?: string,
   ) => Promise<void>;
 }) {
-  const [showCloseReview, setShowCloseReview] = useState(false);
   const open = isOpenPeriod(period);
   const stillOpen = period.members.filter((item) => item.status !== "Closed");
   const unavailableWorkIds = new Set(
@@ -274,7 +278,11 @@ function PeriodDetail({
     (item) => item.id !== period.id && isOpenPeriod(item),
   );
   return (
-    <section aria-label={period.purpose} className="space-y-5">
+    <Collapsible
+      aria-label={period.purpose}
+      className="space-y-5"
+      render={<section />}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">{period.purpose}</h2>
@@ -284,9 +292,7 @@ function PeriodDetail({
         </div>
         <div className="flex gap-2">
           {period.status === "Active" ? (
-            <Button onClick={() => setShowCloseReview(true)} type="button">
-              Close
-            </Button>
+            <CollapsibleTrigger render={<Button />}>Close</CollapsibleTrigger>
           ) : null}
           {open ? (
             <Button
@@ -299,10 +305,11 @@ function PeriodDetail({
           ) : null}
         </div>
       </div>
-      {showCloseReview && period.status === "Active" ? (
-        <section
+      {period.status === "Active" ? (
+        <CollapsibleContent
           aria-label="Still-open Work"
           className="space-y-3 rounded-md border p-4"
+          render={<section />}
         >
           <h3 className="font-semibold">Still-open Work</h3>
           {stillOpen.length ? (
@@ -327,15 +334,11 @@ function PeriodDetail({
             >
               Close
             </Button>
-            <Button
-              onClick={() => setShowCloseReview(false)}
-              type="button"
-              variant="outline"
-            >
+            <CollapsibleTrigger render={<Button variant="outline" />}>
               Keep period open
-            </Button>
+            </CollapsibleTrigger>
           </div>
-        </section>
+        </CollapsibleContent>
       ) : null}
       <PeriodLeftoverDecisions
         act={act}
@@ -399,7 +402,7 @@ function PeriodDetail({
         </>
       ) : null}
       <FocusPeriodDependencies dependencies={period.dependencies} />
-    </section>
+    </Collapsible>
   );
 }
 

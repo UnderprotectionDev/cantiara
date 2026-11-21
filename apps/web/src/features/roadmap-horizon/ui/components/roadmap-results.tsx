@@ -11,6 +11,11 @@ import {
 } from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { useEffect, useState } from "react";
 import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
@@ -211,25 +216,23 @@ function CandidatePlacement({
   if (!candidate) {
     return null;
   }
-  if (editing) {
-    return (
-      <RoadmapPlacementEditor
-        onCancel={() => setEditing(false)}
-        onPlaced={() => setEditing(false)}
-        work={work}
-      />
-    );
-  }
   return (
-    <Button
-      className="mt-3"
-      onClick={() => setEditing(true)}
-      size="sm"
-      type="button"
-      variant="outline"
-    >
-      Place on plan
-    </Button>
+    <Collapsible onOpenChange={setEditing} open={editing}>
+      {editing ? null : (
+        <CollapsibleTrigger
+          render={<Button className="mt-3" size="sm" variant="outline" />}
+        >
+          Place on plan
+        </CollapsibleTrigger>
+      )}
+      <CollapsibleContent>
+        <RoadmapPlacementEditor
+          onCancel={() => setEditing(false)}
+          onPlaced={() => setEditing(false)}
+          work={work}
+        />
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

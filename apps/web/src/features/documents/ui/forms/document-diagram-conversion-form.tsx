@@ -2,8 +2,7 @@
 import type { Document } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import {
-  Dialog,
-  DialogContent,
+  DialogClose,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -22,7 +21,6 @@ import { convertMermaidDiagramFormSchema } from "../../lib/document-conversion-f
 import { matchesDiagramConversionPreview } from "../../lib/document-editor-markdown";
 
 export default function DocumentDiagramConversionDialog({
-  setConversionSelection,
   conversionKey,
   setOriginalBlockOutcome,
   conversionSelection,
@@ -33,16 +31,13 @@ export default function DocumentDiagramConversionDialog({
   record,
   convertDiagram,
 }: {
-  setConversionSelection: import("react").Dispatch<
-    import("react").SetStateAction<{ start: number; end: number } | null>
-  >;
   conversionKey: import("react").RefObject<string | null>;
   setOriginalBlockOutcome: import("react").Dispatch<
     import("react").SetStateAction<
       "Keep independent" | "Replace with live reference"
     >
   >;
-  conversionSelection: { start: number; end: number } | null;
+  conversionSelection: { start: number; end: number };
   conversionTitle: string;
   setConversionTitle: import("react").Dispatch<
     import("react").SetStateAction<string>
@@ -94,156 +89,144 @@ export default function DocumentDiagramConversionDialog({
     originalBlockOutcome,
   );
   return (
-    <Dialog
-      onOpenChange={(open) => {
-        if (!open) {
-          setConversionSelection(null);
-          conversionKey.current = null;
-          setOriginalBlockOutcome("Keep independent");
-        }
-      }}
-      open={conversionSelection !== null}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Convert to Technical Diagram</DialogTitle>
-          <DialogDescription>Imported Independent Copy</DialogDescription>
-        </DialogHeader>
-        <form
-          aria-label="Convert to Technical Diagram"
-          className="space-y-2"
-          id="convert-diagram-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            form.handleSubmit().catch(() => undefined);
-          }}
-        >
-          <form.Field
-            listeners={{
-              onChange: ({ value }) => {
-                if (value !== conversionTitle) {
-                  conversionKey.current = null;
-                }
-                setConversionTitle(value);
-              },
-            }}
-            name="title"
-          >
-            {(field) => (
-              <>
-                <Label htmlFor="converted-diagram-title">Title</Label>
-                <Input
-                  id="converted-diagram-title"
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  value={field.state.value}
-                />
-              </>
-            )}
-          </form.Field>
-          <form.Field
-            listeners={{
-              onChange: ({ value }) => {
+    <>
+      <DialogHeader>
+        <DialogTitle>Convert to Technical Diagram</DialogTitle>
+        <DialogDescription>Imported Independent Copy</DialogDescription>
+      </DialogHeader>
+      <form
+        aria-label="Convert to Technical Diagram"
+        className="space-y-2"
+        id="convert-diagram-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          form.handleSubmit().catch(() => undefined);
+        }}
+      >
+        <form.Field
+          listeners={{
+            onChange: ({ value }) => {
+              if (value !== conversionTitle) {
                 conversionKey.current = null;
-                setOriginalBlockOutcome(value);
-              },
-            }}
-            name="originalBlock"
-          >
-            {(field) => (
-              <>
-                <Label htmlFor="converted-diagram-original-block">
-                  Original Mermaid block
-                </Label>
-                <NativeSelect
-                  id="converted-diagram-original-block"
-                  onChange={(event) =>
-                    field.handleChange(
-                      event.target.value as
-                        | "Keep independent"
-                        | "Replace with live reference",
-                    )
-                  }
-                  value={field.state.value}
-                >
-                  <NativeSelectOption value="Keep independent">
-                    Keep independent
-                  </NativeSelectOption>
-                  <NativeSelectOption value="Replace with live reference">
-                    Replace with live reference
-                  </NativeSelectOption>
-                </NativeSelect>
-              </>
-            )}
-          </form.Field>
-          {conversionPreview.data &&
-          !conversionPreview.isFetching &&
-          previewMatchesSelection ? (
-            <section aria-label="Conversion preview" className="text-sm">
-              <p>
-                Document: {record.title} · Version:{" "}
-                {conversionPreview.data.documentRevision}
-              </p>
-              <p>Technical Architecture · Imported Independent Copy</p>
-              <p>
-                Mermaid block: line {conversionPreview.data.source.blockLine} ·
-                offsets {conversionPreview.data.blockStart}–
-                {conversionPreview.data.blockEnd}
-              </p>
-              <p>{conversionPreview.data.originRelation}</p>
-              <p>
-                Original Mermaid block: {conversionPreview.data.originalBlock}.{" "}
-                {conversionPreview.data.blockEffect}
-              </p>
-              <p>No live round-trip: later edits never sync back.</p>
-              <p>
-                {conversionPreview.data.model.nodes.length} nodes ·{" "}
-                {conversionPreview.data.model.links.length} links
-              </p>
-              {conversionPreview.data.unparseableLines.length > 0 ? (
-                <div>
-                  <p>Unparseable items (left out of the diagram)</p>
-                  <ul className="list-inside list-disc">
-                    {conversionPreview.data.unparseableLines.map((line) => (
-                      <li key={`${line.line}-${line.text}`}>
-                        Line {line.line}: {line.text || line.reason} —{" "}
-                        {line.reason}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </section>
-          ) : null}
-          {conversionPreview.isError ? (
-            <p role="alert">{conversionPreview.error.message}</p>
-          ) : null}
-          {convertDiagram.isError ? (
-            <p role="alert">{convertDiagram.error?.message}</p>
-          ) : null}
-        </form>
-        <DialogFooter>
-          <Button
-            onClick={() => setConversionSelection(null)}
-            type="button"
-            variant="outline"
-          >
-            Cancel
-          </Button>
-          <Button
-            disabled={
-              !conversionPreview.data?.canConvert ||
-              conversionPreview.isFetching ||
-              !previewMatchesSelection ||
-              convertDiagram.isPending
-            }
-            form="convert-diagram-form"
-            type="submit"
-          >
-            Convert to Technical Diagram
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+              }
+              setConversionTitle(value);
+            },
+          }}
+          name="title"
+        >
+          {(field) => (
+            <>
+              <Label htmlFor="converted-diagram-title">Title</Label>
+              <Input
+                id="converted-diagram-title"
+                onChange={(event) => field.handleChange(event.target.value)}
+                value={field.state.value}
+              />
+            </>
+          )}
+        </form.Field>
+        <form.Field
+          listeners={{
+            onChange: ({ value }) => {
+              conversionKey.current = null;
+              setOriginalBlockOutcome(value);
+            },
+          }}
+          name="originalBlock"
+        >
+          {(field) => (
+            <>
+              <Label htmlFor="converted-diagram-original-block">
+                Original Mermaid block
+              </Label>
+              <NativeSelect
+                id="converted-diagram-original-block"
+                onChange={(event) =>
+                  field.handleChange(
+                    event.target.value as
+                      | "Keep independent"
+                      | "Replace with live reference",
+                  )
+                }
+                value={field.state.value}
+              >
+                <NativeSelectOption value="Keep independent">
+                  Keep independent
+                </NativeSelectOption>
+                <NativeSelectOption value="Replace with live reference">
+                  Replace with live reference
+                </NativeSelectOption>
+              </NativeSelect>
+            </>
+          )}
+        </form.Field>
+        {conversionPreview.data &&
+        !conversionPreview.isFetching &&
+        previewMatchesSelection ? (
+          <section aria-label="Conversion preview" className="text-sm">
+            <p>
+              Document: {record.title} · Version:{" "}
+              {conversionPreview.data.documentRevision}
+            </p>
+            <p>Technical Architecture · Imported Independent Copy</p>
+            <p>
+              Mermaid block: line {conversionPreview.data.source.blockLine} ·
+              offsets {conversionPreview.data.blockStart}–
+              {conversionPreview.data.blockEnd}
+            </p>
+            <p>{conversionPreview.data.originRelation}</p>
+            <p>
+              Original Mermaid block: {conversionPreview.data.originalBlock}.{" "}
+              {conversionPreview.data.blockEffect}
+            </p>
+            <p>No live round-trip: later edits never sync back.</p>
+            <p>
+              {conversionPreview.data.model.nodes.length} nodes ·{" "}
+              {conversionPreview.data.model.links.length} links
+            </p>
+            {conversionPreview.data.unparseableLines.length > 0 ? (
+              <div>
+                <p>Unparseable items (left out of the diagram)</p>
+                <ul className="list-inside list-disc">
+                  {conversionPreview.data.unparseableLines.map((line) => (
+                    <li key={`${line.line}-${line.text}`}>
+                      Line {line.line}: {line.text || line.reason} —{" "}
+                      {line.reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+        {conversionPreview.isError ? (
+          <p role="alert">{conversionPreview.error.message}</p>
+        ) : null}
+        {convertDiagram.isError ? (
+          <p role="alert">{convertDiagram.error?.message}</p>
+        ) : null}
+      </form>
+      <DialogFooter>
+        <DialogClose
+          disabled={convertDiagram.isPending}
+          render={<Button variant="outline" />}
+        >
+          Cancel
+        </DialogClose>
+        <Button
+          disabled={
+            !conversionPreview.data?.canConvert ||
+            conversionPreview.isFetching ||
+            !previewMatchesSelection ||
+            convertDiagram.isPending
+          }
+          form="convert-diagram-form"
+          type="submit"
+        >
+          Convert to Technical Diagram
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

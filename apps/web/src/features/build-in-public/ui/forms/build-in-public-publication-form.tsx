@@ -5,6 +5,16 @@ import type {
   BuildInPublicPublication,
   BuildInPublicSlugPreview,
 } from "@cantiara/api/build-in-public-publication";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+  createAlertDialogHandle,
+} from "@cantiara/ui/components/alert-dialog";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { useForm, useSelector } from "@tanstack/react-form";
@@ -23,7 +33,7 @@ interface BuildInPublicPublicationPanelProps {
     confirmRedirect: boolean;
     slug: string;
   }) => Promise<unknown>;
-  onUnpublish: () => void;
+  onUnpublish: () => unknown;
   publication: BuildInPublicPublication;
   /** The redirect shown before the slug change is applied. */
   slugPreview?: BuildInPublicSlugPreview | null;
@@ -43,7 +53,27 @@ export function BuildInPublicPublicationPanel({
   publication,
   slugPreview = null,
 }: BuildInPublicPublicationPanelProps) {
-  const [confirmUnpublish, setConfirmUnpublish] = useState(false);
+  const [unpublishHandle] = useState(createAlertDialogHandle);
+  const unpublishForm = useForm({
+    defaultValues: {},
+    onSubmit: async ({ formApi }) => {
+      try {
+        await onUnpublish();
+        unpublishHandle.close();
+      } catch {
+        formApi.setErrorMap({
+          onSubmit: {
+            form: "The page could not be unpublished. Try again.",
+            fields: {},
+          },
+        });
+      }
+    },
+  });
+  const unpublishing = useSelector(
+    unpublishForm.store,
+    (state) => state.isSubmitting,
+  );
   const indexingForm = useForm({
     defaultValues: { acknowledged: false },
     onSubmit: async ({ value }) => {
@@ -152,19 +182,53 @@ export function BuildInPublicPublicationPanel({
           Unpublish ends this address for good: it answers 410 Gone, and a later
           publish gets a new address.
         </p>
-        {confirmUnpublish ? (
-          <Button onClick={onUnpublish} type="button" variant="destructive">
-            {`Confirm ${BUILD_IN_PUBLIC_UI_LABELS.unpublish}`}
-          </Button>
-        ) : (
-          <Button
-            onClick={() => setConfirmUnpublish(true)}
-            type="button"
-            variant="outline"
-          >
+        <AlertDialog
+          handle={unpublishHandle}
+          onOpenChange={(open, event) => {
+            if (open) {
+              unpublishForm.reset();
+            } else if (unpublishing && event.reason !== "imperative-action") {
+              event.cancel();
+            }
+          }}
+        >
+          <AlertDialogTrigger render={<Button variant="outline" />}>
             {BUILD_IN_PUBLIC_UI_LABELS.unpublish}
-          </Button>
-        )}
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogTitle>
+              {BUILD_IN_PUBLIC_UI_LABELS.unpublish}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This address will answer 410 Gone. A later publish gets a new
+              address.
+            </AlertDialogDescription>
+            <unpublishForm.Subscribe
+              selector={(state) => state.errorMap.onSubmit}
+            >
+              {(message) =>
+                typeof message === "string" ? (
+                  <p role="alert">{message}</p>
+                ) : null
+              }
+            </unpublishForm.Subscribe>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={unpublishing}>
+                Cancel
+              </AlertDialogCancel>
+              <Button
+                disabled={unpublishing}
+                onClick={() =>
+                  unpublishForm.handleSubmit().catch(() => undefined)
+                }
+                type="button"
+                variant="destructive"
+              >
+                {`Confirm ${BUILD_IN_PUBLIC_UI_LABELS.unpublish}`}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </section>
   );

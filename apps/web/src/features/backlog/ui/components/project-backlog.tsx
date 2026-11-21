@@ -18,6 +18,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import {
+  createPopoverHandle,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -77,11 +78,12 @@ function BacklogCard({
   work: BacklogWork;
 }) {
   const queryClient = useQueryClient();
-  const [dateOpen, setDateOpen] = useState(false);
+  const [popoverHandle] = useState(createPopoverHandle);
   const saveReappearDate = usePreparedMutation(
     orpc.updateWorkReappearDate.mutationOptions({
       mutationFn: (input) => client.updateWorkReappearDate(input),
       onSuccess: async () => {
+        popoverHandle.close();
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: orpc.projectBacklog.queryOptions({ input: { projectId } })
@@ -152,7 +154,18 @@ function BacklogCard({
         </div>
       ) : null}
       <div className="mr-3 flex items-center gap-2 text-xs">
-        <Popover onOpenChange={setDateOpen} open={dateOpen}>
+        <Popover
+          handle={popoverHandle}
+          onOpenChange={(open, event) => {
+            if (
+              !open &&
+              saveReappearDate.isPending &&
+              event.reason !== "imperative-action"
+            ) {
+              event.cancel();
+            }
+          }}
+        >
           <PopoverTrigger
             disabled={saveReappearDate.isPending}
             render={
@@ -176,11 +189,10 @@ function BacklogCard({
               defaultMonth={selectedDate}
               mode="single"
               onSelect={(date) => {
-                if (!date) {
+                if (!date || saveReappearDate.isPending) {
                   return;
                 }
                 const value = format(date, "yyyy-MM-dd");
-                setDateOpen(false);
                 saveReappearDate.mutate(value);
               }}
               selected={selectedDate}

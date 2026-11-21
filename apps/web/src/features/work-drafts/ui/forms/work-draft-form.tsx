@@ -36,6 +36,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import {
+  createPopoverHandle,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -195,7 +196,7 @@ function CustomFieldDateInput({
   onChange: (value: string | null) => void;
   value: string | null;
 }) {
-  const [open, setOpen] = useState(false);
+  const [popoverHandle] = useState(createPopoverHandle);
   const selectedDate = value ? parseISO(value) : undefined;
   const validSelectedDate =
     selectedDate && !Number.isNaN(selectedDate.getTime())
@@ -204,7 +205,7 @@ function CustomFieldDateInput({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Popover onOpenChange={setOpen} open={open}>
+      <Popover handle={popoverHandle}>
         <PopoverTrigger
           disabled={disabled}
           render={
@@ -229,7 +230,7 @@ function CustomFieldDateInput({
             mode="single"
             onSelect={(date) => {
               onChange(date ? format(date, "yyyy-MM-dd") : null);
-              setOpen(false);
+              popoverHandle.close();
             }}
             selected={validSelectedDate}
           />

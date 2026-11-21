@@ -15,7 +15,7 @@ vi.mock("@/utils/orpc", async (load) => ({
   },
 }));
 
-import DocumentOrganizationForm from "../document-organization-form";
+import DocumentOrganizationControls from "../../components/document-organization-controls";
 
 test("previews an archive change, then applies it with one save identity", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -32,8 +32,9 @@ test("previews an archive change, then applies it with one save identity", async
     descendants: [],
     reason: null,
   });
-  rpc.organize.mockResolvedValue({ id: "doc" });
-  const onClose = vi.fn();
+  rpc.organize
+    .mockRejectedValueOnce(new Error("Connection interrupted"))
+    .mockResolvedValue({ id: "doc" });
   const onCommitted = vi.fn(async () => undefined);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -54,16 +55,16 @@ test("previews an archive change, then applies it with one save identity", async
     await act(async () =>
       root.render(
         <QueryClientProvider client={queryClient}>
-          <DocumentOrganizationForm
-            action="archive"
+          <DocumentOrganizationControls
+            disabled={false}
             documents={[]}
-            onClose={onClose}
             onCommitted={onCommitted}
             record={{ id: "doc", revision: 3 } as Document}
           />
         </QueryClientProvider>,
       ),
     );
+    await act(async () => button("Archive").click());
     await act(async () => {
       button("Preview").click();
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -83,8 +84,18 @@ test("previews an archive change, then applies it with one save identity", async
         documentId: "doc",
       }),
     );
+    await vi.waitFor(() =>
+      expect(
+        document.querySelector('[role="dialog"] [role="alert"]')?.textContent,
+      ).toBe("Connection interrupted"),
+    );
+    await act(async () => button("Apply").click());
+    expect(rpc.organize).toHaveBeenCalledTimes(2);
+    expect(rpc.organize.mock.calls[1]).toEqual(rpc.organize.mock.calls[0]);
     expect(onCommitted).toHaveBeenCalledWith({ id: "doc" });
-    expect(onClose).toHaveBeenCalled();
+    await vi.waitFor(() =>
+      expect(document.querySelector("[role=dialog]")).toBeNull(),
+    );
   } finally {
     await act(async () => root.unmount());
     host.remove();

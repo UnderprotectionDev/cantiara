@@ -3,6 +3,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Calendar } from "@cantiara/ui/components/calendar";
 import { Input } from "@cantiara/ui/components/input";
 import {
+  createPopoverHandle,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -55,13 +56,13 @@ function DatePicker({
   required,
   value,
 }: DatePickerProps) {
-  const [open, setOpen] = useState(false);
+  const [popoverHandle] = useState(createPopoverHandle);
   const selected = parseDateValue(value);
   const minDate = min ? parseDateValue(min) : undefined;
   const triggerText = selected ? format(selected, "PP") : placeholder;
 
   return (
-    <Popover onOpenChange={setOpen} open={open}>
+    <Popover handle={popoverHandle}>
       <PopoverTrigger
         render={
           <Button
@@ -87,7 +88,7 @@ function DatePicker({
             // Re-picking the selected day keeps it (like a native date field);
             // clearing is the explicit Clear action.
             onChange(date ? format(date, DATE_FORMAT) : value);
-            setOpen(false);
+            popoverHandle.close();
           }}
           selected={selected}
         />
@@ -97,7 +98,7 @@ function DatePicker({
             disabled={disabled}
             onClick={() => {
               onChange("");
-              setOpen(false);
+              popoverHandle.close();
             }}
             size="xs"
             type="button"

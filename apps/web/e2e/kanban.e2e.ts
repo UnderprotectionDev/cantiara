@@ -87,12 +87,26 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   await page.getByRole("button", { name: "Board", exact: true }).click();
   await expect(initialCard).toBeVisible();
   const sourceViewUrl = page.url();
-  await initialCard
-    .getByRole("button", { name: OPEN_SOURCE_RECORD_BUTTON_NAME })
-    .click();
+  const sourceTrigger = initialCard.getByRole("button", {
+    name: OPEN_SOURCE_RECORD_BUTTON_NAME,
+  });
+  await sourceTrigger.focus();
+  await page.keyboard.press("Enter");
   const boardPreview = page.getByRole("dialog");
   await expect(boardPreview).toBeVisible();
   await expect(page).toHaveURL(sourceViewUrl);
+  await page.keyboard.press("Escape");
+  await expect(boardPreview).toBeHidden();
+  await expect(sourceTrigger).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await boardPreview
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await expect(boardPreview).toBeHidden();
+  await expect(sourceTrigger).toBeFocused();
+
+  await page.keyboard.press("Enter");
   const fullPageLink = boardPreview.getByRole("link", {
     exact: true,
     name: "Open full page",
@@ -105,8 +119,11 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   await expect(page).toHaveURL(
     (url) => `${url.pathname}${url.hash}` === sourceHref,
   );
+  await expect(boardPreview).toBeHidden();
   await expect(
-    page.getByRole("heading", { name: title, exact: true }),
+    page
+      .getByRole("list", { name: "Work list" })
+      .getByRole("heading", { name: title, exact: true }),
   ).toBeVisible();
 
   await openBoard(page);
@@ -140,8 +157,11 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   await expect(page).toHaveURL(
     (url) => `${url.pathname}${url.hash}` === sourceHref,
   );
+  await expect(listPreview).toBeHidden();
   await expect(
-    page.getByRole("heading", { name: title, exact: true }),
+    page
+      .getByRole("list", { name: "Work list" })
+      .getByRole("heading", { name: title, exact: true }),
   ).toBeVisible();
   await page
     .getByRole("navigation", { name: "Project navigation" })

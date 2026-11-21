@@ -4,11 +4,11 @@ import { cn } from "cn";
 import { XIcon } from "lucide-react";
 import type * as React from "react";
 
-function Sheet({ ...props }: SheetPrimitive.Root.Props) {
+function Sheet<Payload>(props: SheetPrimitive.Root.Props<Payload>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;
 }
 
-function SheetTrigger({ ...props }: SheetPrimitive.Trigger.Props) {
+function SheetTrigger<Payload>(props: SheetPrimitive.Trigger.Props<Payload>) {
   return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />;
 }
 
@@ -119,7 +119,10 @@ function SheetDescription({
   );
 }
 
+const createSheetHandle = SheetPrimitive.createHandle;
+
 export {
+  createSheetHandle,
   Sheet,
   SheetClose,
   SheetContent,

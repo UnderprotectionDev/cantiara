@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected Test Handoff and form fields.
+
 import {
   type PlannedTestCaseRecord,
   SESSION_TEST_LABEL,
@@ -7,6 +8,11 @@ import {
   type TestHandoffState,
 } from "@cantiara/api/planned-tests";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { orpc } from "@/utils/orpc";
@@ -281,32 +287,31 @@ function HandoffItem({
             handoff={handoff}
             onLink={onLink}
           />
-          {handoff.editable && !editing ? (
-            <Button
-              onClick={() => setEditing(true)}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              {`Edit ${handoff.title}`}
-            </Button>
-          ) : null}
-          {editing ? (
-            <HandoffForm
-              cases={cases}
-              idPrefix={`test-handoff-${handoff.id}-edit`}
-              initial={formFromHandoff(handoff)}
-              label={`Edit ${TEST_HANDOFF_LABEL}`}
-              loadContextTargets={loadContextTargets}
-              onCancel={() => setEditing(false)}
-              onSubmit={async (values) => {
-                await onUpdate(handoff, values);
-                setEditing(false);
-              }}
-              projectId={projectId}
-              submitLabel="Save changes"
-            />
-          ) : null}
+          <Collapsible onOpenChange={setEditing} open={editing}>
+            {handoff.editable && !editing ? (
+              <CollapsibleTrigger
+                render={<Button size="sm" variant="outline" />}
+              >
+                {`Edit ${handoff.title}`}
+              </CollapsibleTrigger>
+            ) : null}
+            <CollapsibleContent>
+              <HandoffForm
+                cases={cases}
+                idPrefix={`test-handoff-${handoff.id}-edit`}
+                initial={formFromHandoff(handoff)}
+                label={`Edit ${TEST_HANDOFF_LABEL}`}
+                loadContextTargets={loadContextTargets}
+                onCancel={() => setEditing(false)}
+                onSubmit={async (values) => {
+                  await onUpdate(handoff, values);
+                  setEditing(false);
+                }}
+                projectId={projectId}
+                submitLabel="Save changes"
+              />
+            </CollapsibleContent>
+          </Collapsible>
         </>
       )}
       <TestHandoffPackagePanel

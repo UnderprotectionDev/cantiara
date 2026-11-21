@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Explicit per-use commands capture the displayed pin and version.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type {
   SourceEvidencePlan,
@@ -6,6 +7,11 @@ import type {
 } from "@cantiara/api/source-evidence";
 import type { SourceRecord } from "@cantiara/api/sources-and-freshness";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { client, orpc } from "@/utils/orpc";
@@ -195,32 +201,36 @@ export function SourceEvidenceControls({
   const message = reviewEvidence.isSuccess ? reviewMessage : bindMessage;
   const unavailable = uses.isError || uses.data === null;
   return (
-    <div aria-busy={pending} className="space-y-3">
-      <Button
-        aria-expanded={open}
+    <Collapsible
+      aria-busy={pending}
+      className="space-y-3"
+      onOpenChange={setOpen}
+      open={open}
+    >
+      <CollapsibleTrigger
         disabled={pending}
-        onClick={() => setOpen(!open)}
-        type="button"
-        variant="outline"
+        render={<Button variant="outline" />}
       >
         Version-pinned evidence
-      </Button>
-      <SourceEvidenceUses
-        begin={begin}
-        editor={editor}
-        error={error}
-        message={message}
-        open={open}
-        pending={pending}
-        preferences={preferences}
-        readOnly={readOnly}
-        save={save}
-        setEditor={setEditor}
-        source={source}
-        unavailable={unavailable}
-        uses={uses}
-      />
-    </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <SourceEvidenceUses
+          begin={begin}
+          editor={editor}
+          error={error}
+          message={message}
+          open={open}
+          pending={pending}
+          preferences={preferences}
+          readOnly={readOnly}
+          save={save}
+          setEditor={setEditor}
+          source={source}
+          unavailable={unavailable}
+          uses={uses}
+        />
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

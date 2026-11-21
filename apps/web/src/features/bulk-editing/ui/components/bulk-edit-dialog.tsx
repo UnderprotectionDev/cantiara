@@ -11,7 +11,9 @@ import type {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
+  type createDialogHandle,
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -653,43 +655,17 @@ function BulkEditProgressSection({
   );
 }
 
-function closeBulkEditDialog(
-  nextOpen: boolean,
-  operation: BulkEditOperation | undefined,
-  onOpenChange: (open: boolean) => void,
-  resetForm: () => void,
-) {
-  if (nextOpen) {
-    onOpenChange(true);
-    return;
-  }
-  if (operation?.phase === "applying") {
-    cancelBulkEditOperation(operation.id);
-    return;
-  }
-  if (operation && operation.phase !== "complete") {
-    return;
-  }
-  if (operation) {
-    removeBulkEditOperation(operation.id);
-  }
-  resetForm();
-  onOpenChange(false);
-}
-
 export default function BulkEditDialog({
   archived,
   onCloseOutcome,
-  onOpenChange,
-  open,
+  handle,
   projectId,
   selectedWorks,
   workStatusLabels,
 }: {
   archived: boolean;
   onCloseOutcome: (outcome: UserInitiatedWorkCloseOutcome) => void;
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
+  handle: ReturnType<typeof createDialogHandle>;
   projectId: string;
   selectedWorks: readonly WorkProfile[];
   workStatusLabels: readonly WorkStatusLabel[];
@@ -785,10 +761,6 @@ export default function BulkEditDialog({
     applyMutation.reset();
   }
 
-  function handleOpenChange(nextOpen: boolean) {
-    closeBulkEditDialog(nextOpen, operation, onOpenChange, resetForm);
-  }
-
   async function buildPreview(values: BulkEditStatusFormInput) {
     if (selectedWorks.length === 0) {
       return;
@@ -825,8 +797,24 @@ export default function BulkEditDialog({
 
   return (
     <Dialog
-      onOpenChange={handleOpenChange}
-      open={open || operation !== undefined}
+      defaultOpen={operation !== undefined}
+      handle={handle}
+      onOpenChange={(open, event) => {
+        if (open) {
+          return;
+        }
+        if (operation?.phase === "applying") {
+          cancelBulkEditOperation(operation.id);
+        }
+        if (operation && operation.phase !== "complete") {
+          event.cancel();
+          return;
+        }
+        if (operation) {
+          removeBulkEditOperation(operation.id);
+        }
+        resetForm();
+      }}
     >
       <DialogContent
         className="max-h-[85vh] max-w-2xl overflow-y-auto"
@@ -879,7 +867,6 @@ export default function BulkEditDialog({
           changedRecords={changedRecords}
           connection={connection}
           displayedPreview={displayedPreview}
-          handleOpenChange={handleOpenChange}
           hasWarnings={hasWarnings}
           isPreviewing={isPreviewing}
           operation={operation}
@@ -893,7 +880,6 @@ export default function BulkEditDialog({
 
 function BulkEditDialogActions({
   operation,
-  handleOpenChange,
   connection,
   isPreviewing,
   targetStatus,
@@ -904,7 +890,6 @@ function BulkEditDialogActions({
   hasWarnings,
 }: {
   operation: BulkEditOperation | undefined;
-  handleOpenChange: (nextOpen: boolean) => void;
   connection: import("@/features/web-macos-client/store/client-shell").ClientConnectionState;
   isPreviewing: boolean;
   targetStatus: "" | "Not Started" | "In Progress" | "Blocked" | "Closed";
@@ -916,14 +901,12 @@ function BulkEditDialogActions({
 }) {
   return (
     <DialogFooter>
-      <Button
+      <DialogClose
         disabled={operation?.phase === "finalizing"}
-        onClick={() => handleOpenChange(false)}
-        type="button"
-        variant="outline"
+        render={<Button variant="outline" />}
       >
         {operation?.phase === "finalizing" ? "Finalizing" : "Cancel"}
-      </Button>
+      </DialogClose>
       <Button
         disabled={
           connection === "offline" ||

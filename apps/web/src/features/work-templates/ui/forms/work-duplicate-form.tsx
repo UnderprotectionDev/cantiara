@@ -7,6 +7,7 @@ import {
 } from "@cantiara/api/work-templates";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
+import { PopoverClose } from "@cantiara/ui/components/popover";
 import { useForm } from "@tanstack/react-form";
 import { type SubmitEvent, useEffect } from "react";
 import { commandVariables } from "@/lib/command-variables";
@@ -16,7 +17,6 @@ export default function WorkDuplicateForm({
   preview,
   work,
   pending,
-  setOpen,
 }: {
   duplicate: import("@tanstack/react-query").UseMutationResult<
     WorkProfile,
@@ -30,7 +30,6 @@ export default function WorkDuplicateForm({
   >;
   work: WorkProfile;
   pending: boolean;
-  setOpen: import("react").Dispatch<import("react").SetStateAction<boolean>>;
 }) {
   const previewDefinitionIds = preview.data?.customFields.map(
     (field) => field.definitionId,
@@ -179,15 +178,12 @@ export default function WorkDuplicateForm({
             <Button disabled={pending} size="xs" type="submit">
               Duplicate Work
             </Button>
-            <Button
+            <PopoverClose
               disabled={pending}
-              onClick={() => setOpen(false)}
-              size="xs"
-              type="button"
-              variant="ghost"
+              render={<Button size="xs" variant="ghost" />}
             >
               Cancel
-            </Button>
+            </PopoverClose>
           </div>
         </>
       ) : null}

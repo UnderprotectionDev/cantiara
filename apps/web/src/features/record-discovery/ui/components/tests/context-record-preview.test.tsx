@@ -23,7 +23,9 @@ vi.mock("@/components/app-link", () => ({
 
 const noop = () => undefined;
 
-vi.mock("@cantiara/ui/components/sheet", async () => {
+vi.mock("@cantiara/ui/components/sheet", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@cantiara/ui/components/sheet")>();
   const React = await import("react");
   const MockContainer = ({
     children,
@@ -34,8 +36,7 @@ vi.mock("@cantiara/ui/components/sheet", async () => {
   }) => React.createElement("div", { className }, children);
 
   return {
-    Sheet: ({ children, open }: { children?: ReactNode; open?: boolean }) =>
-      open ? React.createElement("div", { "data-open": true }, children) : null,
+    ...original,
     SheetContent: MockContainer,
     SheetDescription: MockContainer,
     SheetFooter: MockContainer,

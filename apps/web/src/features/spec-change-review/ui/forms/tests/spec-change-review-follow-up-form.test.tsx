@@ -2,6 +2,7 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Test props are inline stubs.
 
 import type { SpecChangeReviewCandidate } from "@cantiara/api/spec-change-review-candidates";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { SpecChangeReviewCandidates } from "../../components/spec-change-review-candidates";
@@ -38,7 +39,9 @@ const handlers = {
 
 test("Create Follow-up Work is offered per accessible candidate, never bulk", () => {
   const html = renderToStaticMarkup(
-    <SpecChangeReviewCandidates candidates={[candidate({})]} {...handlers} />,
+    <QueryClientProvider client={new QueryClient()}>
+      <SpecChangeReviewCandidates candidates={[candidate({})]} {...handlers} />
+    </QueryClientProvider>,
   );
 
   expect(html).toContain("Create Follow-up Work</button>");

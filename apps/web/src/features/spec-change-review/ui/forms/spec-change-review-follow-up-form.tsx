@@ -8,12 +8,15 @@ import {
 } from "@cantiara/api/spec-change-review-follow-up";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import { Label } from "@cantiara/ui/components/label";
 import {
@@ -21,8 +24,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useId, useRef, useState } from "react";
+import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
 import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 
@@ -105,20 +109,57 @@ export function SpecFollowUpPreview({
   );
 }
 
-export function SpecFollowUpDialog({
+interface SpecFollowUpDialogProps {
+  candidate: SpecChangeReviewCandidate;
+  name: string;
+  onConfirm: ConfirmFollowUp;
+  onPreview: PreviewFollowUp;
+  reviewId: string;
+}
+
+export function SpecFollowUpDialog(props: SpecFollowUpDialogProps) {
+  const [actionsHandle] = useState(createDialogHandle);
+  const popupId = useId();
+  const queryClient = useQueryClient();
+
+  return (
+    <Dialog
+      handle={actionsHandle}
+      onOpenChange={(open, event) => {
+        if (
+          !open &&
+          isPopupCommandPending(queryClient, popupId) &&
+          event.reason !== "imperative-action"
+        ) {
+          event.cancel();
+        }
+      }}
+    >
+      <DialogTrigger render={<Button variant="outline" />}>
+        Create Follow-up Work
+      </DialogTrigger>
+      <DialogContent>
+        <SpecFollowUpContent
+          {...props}
+          onClose={() => actionsHandle.close()}
+          popupId={popupId}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SpecFollowUpContent({
+  popupId,
   candidate,
   name,
   onClose,
   onConfirm,
   onPreview,
   reviewId,
-}: {
-  candidate: SpecChangeReviewCandidate;
-  name: string;
+}: SpecFollowUpDialogProps & {
+  popupId: string;
   onClose: () => void;
-  onConfirm: ConfirmFollowUp;
-  onPreview: PreviewFollowUp;
-  reviewId: string;
 }) {
   const form = useForm({
     defaultValues: { workType: "Task" as SpecFollowUpWorkType },
@@ -170,7 +211,7 @@ export function SpecFollowUpDialog({
     retry: false,
   });
   const commit = useMutation({
-    meta: { onlineWrite: true },
+    meta: { onlineWrite: true, popupId },
     mutationFn: (command: Parameters<ConfirmFollowUp>) => onConfirm(...command),
     onSuccess: (_, [, , confirmed]) => {
       if (mounted.current && identity.current === confirmed) {
@@ -194,62 +235,63 @@ export function SpecFollowUpDialog({
   }
 
   return (
-    <Dialog onOpenChange={(open) => !open && onClose()} open>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create Follow-up Work</DialogTitle>
-          <DialogDescription>
-            {name}. This creates exactly one Work and does not change the review
-            status.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          className="space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            if (!pending) {
-              submitForm(form).catch(() => undefined);
-            }
-          }}
-        >
-          <div className="space-y-2">
-            <Label htmlFor="spec-follow-up-work-type">Work type</Label>
-            <NativeSelect
-              disabled={pending}
-              id="spec-follow-up-work-type"
-              onChange={(event) => {
-                identity.current = null;
-                commit.reset();
-                form.setFieldValue(
-                  "workType",
-                  event.target.value as SpecFollowUpWorkType,
-                );
-              }}
-              value={workType}
-            >
-              {SPEC_FOLLOW_UP_WORK_TYPES.map((value) => (
-                <NativeSelectOption key={value} value={value}>
-                  {value}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-          <p aria-live="polite" role="status">
-            {pending && !preview ? "Loading preview…" : ""}
-          </p>
-          {preview ? <SpecFollowUpPreview preview={preview} /> : null}
-          {error ? <p role="alert">{error}</p> : null}
-          <DialogFooter>
-            <Button onClick={onClose} type="button" variant="outline">
-              Cancel
-            </Button>
-            <Button disabled={!preview || pending} type="submit">
-              Confirm
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <>
+      <DialogHeader>
+        <DialogTitle>Create Follow-up Work</DialogTitle>
+        <DialogDescription>
+          {name}. This creates exactly one Work and does not change the review
+          status.
+        </DialogDescription>
+      </DialogHeader>
+      <form
+        className="space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!pending) {
+            submitForm(form).catch(() => undefined);
+          }
+        }}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="spec-follow-up-work-type">Work type</Label>
+          <NativeSelect
+            disabled={pending}
+            id="spec-follow-up-work-type"
+            onChange={(event) => {
+              identity.current = null;
+              commit.reset();
+              form.setFieldValue(
+                "workType",
+                event.target.value as SpecFollowUpWorkType,
+              );
+            }}
+            value={workType}
+          >
+            {SPEC_FOLLOW_UP_WORK_TYPES.map((value) => (
+              <NativeSelectOption key={value} value={value}>
+                {value}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </div>
+        <p aria-live="polite" role="status">
+          {pending && !preview ? "Loading preview…" : ""}
+        </p>
+        {preview ? <SpecFollowUpPreview preview={preview} /> : null}
+        {error ? <p role="alert">{error}</p> : null}
+        <DialogFooter>
+          <DialogClose
+            disabled={commit.isPending || submitting}
+            render={<Button variant="outline" />}
+          >
+            Cancel
+          </DialogClose>
+          <Button disabled={!preview || pending} type="submit">
+            Confirm
+          </Button>
+        </DialogFooter>
+      </form>
+    </>
   );
 }

@@ -3,6 +3,7 @@ import type { WorkDateField, WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Calendar } from "@cantiara/ui/components/calendar";
 import {
+  createPopoverHandle,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -246,7 +247,7 @@ function CalendarDateControl({
   view: CalendarView;
   work: CalendarWork;
 }) {
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [popoverHandle] = useState(createPopoverHandle);
   const dragData: CalendarDateDrag = {
     baseRevision: work.revision,
     dateField,
@@ -263,10 +264,10 @@ function CalendarDateControl({
       }
       const nextDate = format(date, "yyyy-MM-dd");
       if (nextDate === oldDate) {
-        setDatePickerOpen(false);
+        popoverHandle.close();
         return;
       }
-      setDatePickerOpen(false);
+      popoverHandle.close();
       onDatePreview?.(
         {
           baseRevision: work.revision,
@@ -284,6 +285,7 @@ function CalendarDateControl({
       label,
       oldDate,
       onDatePreview,
+      popoverHandle,
       work.id,
       work.revision,
       work.title,
@@ -299,7 +301,7 @@ function CalendarDateControl({
 
   if (view === "Day" || view === "Agenda") {
     return (
-      <Popover onOpenChange={setDatePickerOpen} open={datePickerOpen}>
+      <Popover handle={popoverHandle}>
         <PopoverTrigger
           disabled={disabled || !onDateChange}
           render={

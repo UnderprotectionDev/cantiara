@@ -15,7 +15,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type ReactNode, type RefObject, useEffect } from "react";
+import { type ReactNode, useEffect } from "react";
 import { DateTimePicker } from "@/components/date-picker";
 import {
   defaultFireAt,
@@ -27,10 +27,16 @@ type CreateReminderInput = ReturnType<
   typeof createPersonalReminderInputSchema.parse
 >;
 
+export interface ReminderRetry {
+  fingerprint: string;
+  key: string;
+}
+
 export function PersonalReminderForm({
   action,
   children,
   onCreate,
+  onRetry,
   createdKey,
   pending,
   retry,
@@ -43,7 +49,8 @@ export function PersonalReminderForm({
   onCreate: (input: CreateReminderInput) => void;
   createdKey?: string;
   pending: boolean;
-  retry: RefObject<{ fingerprint: string; key: string } | null>;
+  retry: ReminderRetry | null;
+  onRetry: (retry: ReminderRetry) => void;
   sectionOptions: readonly Pick<DocumentSection, "heading" | "id">[];
   sourceRecordId: string;
   sourceRecordType: PersonalReminderSourceType;
@@ -91,9 +98,7 @@ export function PersonalReminderForm({
         sourceRecordType,
       });
       const clientIdempotencyKey =
-        retry.current?.fingerprint === fingerprint
-          ? retry.current.key
-          : crypto.randomUUID();
+        retry?.fingerprint === fingerprint ? retry.key : crypto.randomUUID();
       const parsed = createPersonalReminderInputSchema.safeParse({
         action,
         clientIdempotencyKey,
@@ -112,7 +117,7 @@ export function PersonalReminderForm({
         });
         return;
       }
-      retry.current = { fingerprint, key: clientIdempotencyKey };
+      onRetry({ fingerprint, key: clientIdempotencyKey });
       onCreate(parsed.data);
     },
   });

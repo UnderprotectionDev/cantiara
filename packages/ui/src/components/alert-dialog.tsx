@@ -5,11 +5,13 @@ import { Button } from "@cantiara/ui/components/button";
 import { cn } from "cn";
 import type * as React from "react";
 
-function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
+function AlertDialog<Payload>(props: AlertDialogPrimitive.Root.Props<Payload>) {
   return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />;
 }
 
-function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {
+function AlertDialogTrigger<Payload>(
+  props: AlertDialogPrimitive.Trigger.Props<Payload>,
+) {
   return (
     <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props} />
   );
@@ -170,6 +172,8 @@ function AlertDialogCancel({
   );
 }
 
+const createAlertDialogHandle = AlertDialogPrimitive.createHandle;
+
 export {
   AlertDialog,
   AlertDialogAction,
@@ -183,4 +187,5 @@ export {
   AlertDialogPortal,
   AlertDialogTitle,
   AlertDialogTrigger,
+  createAlertDialogHandle,
 };

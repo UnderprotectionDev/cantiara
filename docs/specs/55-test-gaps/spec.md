@@ -48,6 +48,8 @@ Kurucu Test Açığını Özellik/İş/spec bölümü/Risk/Proje Sürümü gibi 
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Test Gap seam opens `Close Test Gap`, loads the available decisions, and submits the selected outcome from the inline panel. A failed write keeps the rationale and selection for a retry, and a successful retry closes the panel.
+
 - **#545.** The web test-gaps-view.test.tsx seam checks the support relation announcement and duplicate validation while preserving the filed title and rationale after a refused write.
 
 - The Test Gaps seam verifies the current planning write’s receipt or refusal, retains the filing fields after a failed create, and scopes target reads to their Project.

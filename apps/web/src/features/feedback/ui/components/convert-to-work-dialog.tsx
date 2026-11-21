@@ -4,15 +4,19 @@ import type {
   FeedbackWorkPlan,
   FeedbackWorkType,
 } from "@cantiara/api/feedback";
+import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
 import { invalidateSmartCollectionMembership, orpc } from "@/utils/orpc";
 import { ConvertToWorkForm } from "../forms/convert-to-work-form";
 
@@ -68,16 +72,53 @@ export function ConvertToWorkPreview({ plan }: { plan: FeedbackWorkPlan }) {
   );
 }
 
-export function ConvertToWorkDialog({
+interface ConvertToWorkDialogProps {
+  onConfirm: ConfirmConvert;
+  onPreview: PreviewConvert;
+  record: FeedbackRecord;
+}
+
+export function ConvertToWorkDialog(props: ConvertToWorkDialogProps) {
+  const [actionsHandle] = useState(createDialogHandle);
+  const popupId = useId();
+  const queryClient = useQueryClient();
+
+  return (
+    <Dialog
+      handle={actionsHandle}
+      onOpenChange={(open, event) => {
+        if (
+          !open &&
+          isPopupCommandPending(queryClient, popupId) &&
+          event.reason !== "imperative-action"
+        ) {
+          event.cancel();
+        }
+      }}
+    >
+      <DialogTrigger render={<Button variant="outline" />}>
+        Convert to Work
+      </DialogTrigger>
+      <DialogContent>
+        <ConvertToWorkContent
+          {...props}
+          onClose={() => actionsHandle.close()}
+          popupId={popupId}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConvertToWorkContent({
+  popupId,
   onClose,
   onConfirm,
   onPreview,
   record,
-}: {
+}: ConvertToWorkDialogProps & {
+  popupId: string;
   onClose: () => void;
-  onConfirm: ConfirmConvert;
-  onPreview: PreviewConvert;
-  record: FeedbackRecord;
 }) {
   const queryClient = useQueryClient();
   const active = useRef<ConvertCommandIdentity | null>(null);
@@ -88,12 +129,13 @@ export function ConvertToWorkDialog({
     [],
   );
   const inspect = useMutation({
+    meta: { popupId },
     mutationKey: orpc.previewFeedbackWork.mutationKey(),
     mutationFn: onPreview,
   });
   const convert = useMutation({
     mutationKey: orpc.convertFeedbackToWork.mutationKey(),
-    meta: { onlineWrite: true },
+    meta: { onlineWrite: true, popupId },
     mutationFn: ({
       plan: submitted,
       identity,
@@ -151,28 +193,30 @@ export function ConvertToWorkDialog({
   }
 
   return (
-    <Dialog onOpenChange={(open) => !open && onClose()} open>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Convert to Work</DialogTitle>
-          <DialogDescription>
-            {record.title}. This creates no AI summary, exactly one Work, and
-            does not delete or archive the Feedback.
-          </DialogDescription>
-        </DialogHeader>
-        <ConvertToWorkForm
-          canConfirm={plan !== undefined}
-          onClose={onClose}
-          onConfirm={confirm}
-          onPreview={preview}
-          onWorkTypeChange={reset}
-          pending={pending}
-          recordId={record.id}
-        >
-          {plan ? <ConvertToWorkPreview plan={plan} /> : null}
-          {error ? <p role="alert">{error}</p> : null}
-        </ConvertToWorkForm>
-      </DialogContent>
-    </Dialog>
+    <>
+      <DialogHeader>
+        <DialogTitle>Convert to Work</DialogTitle>
+        <DialogDescription>
+          {record.title}. This creates no AI summary, exactly one Work, and does
+          not delete or archive the Feedback.
+        </DialogDescription>
+      </DialogHeader>
+      <ConvertToWorkForm
+        canConfirm={plan !== undefined}
+        onClose={() => {
+          if (!pending) {
+            onClose();
+          }
+        }}
+        onConfirm={confirm}
+        onPreview={preview}
+        onWorkTypeChange={reset}
+        pending={pending}
+        recordId={record.id}
+      >
+        {plan ? <ConvertToWorkPreview plan={plan} /> : null}
+        {error ? <p role="alert">{error}</p> : null}
+      </ConvertToWorkForm>
+    </>
   );
 }

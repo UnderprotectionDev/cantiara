@@ -7,7 +7,12 @@ import {
   type ExportPreview,
 } from "@cantiara/api/data-export";
 import { Button } from "@cantiara/ui/components/button";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
+import { type ReactNode, useEffect, useMemo, useRef } from "react";
 
 function Section({ children, title }: { children: ReactNode; title: string }) {
   return (
@@ -57,19 +62,15 @@ function ExportOnlyNotice() {
  * the founder opens it, so a 10,000-row preview article stays light.
  */
 function RecordsSection({ records }: { records: ExportPreview["records"] }) {
-  const [open, setOpen] = useState(false);
   return (
     <Section title="Records">
-      <details
-        className="text-sm"
-        onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}
-      >
-        <summary>
+      <Collapsible className="text-sm">
+        <CollapsibleTrigger className="text-left underline underline-offset-2">
           {records.length === 1
             ? "1 record leaves in this file. Open the list to review it."
             : `${records.length} records leave in this file. Open the list to review each one.`}
-        </summary>
-        {open ? (
+        </CollapsibleTrigger>
+        <CollapsibleContent>
           <ul
             aria-label="Records in this file"
             className="max-h-48 space-y-1 overflow-y-auto pt-2"
@@ -78,8 +79,8 @@ function RecordsSection({ records }: { records: ExportPreview["records"] }) {
               <li key={record.id}>{record.label || record.id}</li>
             ))}
           </ul>
-        ) : null}
-      </details>
+        </CollapsibleContent>
+      </Collapsible>
     </Section>
   );
 }

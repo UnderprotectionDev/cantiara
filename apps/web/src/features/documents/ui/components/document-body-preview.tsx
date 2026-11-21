@@ -2,19 +2,20 @@
 import type { Document } from "@cantiara/api/documents";
 import type { client } from "@/utils/orpc";
 import DocumentPreview from "./document-preview";
+import type { DocumentWorkAction } from "./document-work-action-dialog";
 
 export default function DocumentBodyPreview({
   documentReferences,
   liveOtherBlocks,
   liveWorkBlocks,
-  setWorkAction,
+  openWorkAction,
   record,
   previewBody,
   savedBody,
   conversionKey,
   setConversionTitle,
   setOriginalBlockOutcome,
-  setConversionSelection,
+  openDiagramConversion,
   body,
   targetSectionId,
 }: {
@@ -33,13 +34,7 @@ export default function DocumentBodyPreview({
     }[],
     Error
   >;
-  setWorkAction: import("react").Dispatch<
-    import("react").SetStateAction<{
-      id: string;
-      kind: "status" | "close";
-      requestId: string;
-    } | null>
-  >;
+  openWorkAction: (action: DocumentWorkAction) => void;
   record: Document;
   previewBody: string;
   savedBody: string;
@@ -52,9 +47,7 @@ export default function DocumentBodyPreview({
       "Keep independent" | "Replace with live reference"
     >
   >;
-  setConversionSelection: import("react").Dispatch<
-    import("react").SetStateAction<{ start: number; end: number } | null>
-  >;
+  openDiagramConversion: (range: { start: number; end: number }) => void;
   body: string;
   targetSectionId: string | undefined;
 }) {
@@ -73,7 +66,7 @@ export default function DocumentBodyPreview({
           liveWorkBlocks.isPending ? undefined : (liveWorkBlocks.data ?? [])
         }
         onLiveWorkAction={(id, kind) =>
-          setWorkAction({
+          openWorkAction({
             id,
             kind,
             requestId: crypto.randomUUID(),
@@ -85,7 +78,7 @@ export default function DocumentBodyPreview({
                 conversionKey.current = null;
                 setConversionTitle(record.title);
                 setOriginalBlockOutcome("Keep independent");
-                setConversionSelection({ start, end });
+                openDiagramConversion({ start, end });
               }
             : undefined
         }

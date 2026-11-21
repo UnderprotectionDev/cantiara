@@ -5,6 +5,11 @@ import {
   SECURITY_REDACTION_LOCATOR_LABELS,
 } from "@cantiara/api/security-redaction";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { useCallback, useState } from "react";
 import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
 import { useSecurityRedaction } from "../../hooks/use-security-redaction";
@@ -36,11 +41,21 @@ export function SecurityRedactionPanel({
     cancel();
     setOpen(false);
   }, [cancel]);
-  const openReview = useCallback(() => setOpen(true), []);
 
   return (
-    <section aria-label={REDACT_LABEL} className="space-y-3">
-      {open ? (
+    <Collapsible
+      aria-label={REDACT_LABEL}
+      className="space-y-3"
+      onOpenChange={setOpen}
+      open={open}
+      render={<section />}
+    >
+      {open ? null : (
+        <CollapsibleTrigger render={<Button variant="outline" />}>
+          {REDACT_LABEL}
+        </CollapsibleTrigger>
+      )}
+      <CollapsibleContent>
         <RedactForm
           busy={flow.busy}
           error={flow.error}
@@ -52,11 +67,7 @@ export function SecurityRedactionPanel({
           onSubmit={flow.redact}
           preview={flow.review?.preview ?? null}
         />
-      ) : (
-        <Button onClick={openReview} type="button" variant="outline">
-          {REDACT_LABEL}
-        </Button>
-      )}
+      </CollapsibleContent>
       {flow.support ? <SupportReferenceNotice failure={flow.support} /> : null}
       {flow.result ? (
         <p role="status">
@@ -78,6 +89,6 @@ export function SecurityRedactionPanel({
             : ""}
         </p>
       ) : null}
-    </section>
+    </Collapsible>
   );
 }

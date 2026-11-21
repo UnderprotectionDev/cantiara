@@ -6,6 +6,10 @@ import type {
   UserFlowCardView,
 } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  type createDialogHandle,
+  DialogTrigger,
+} from "@cantiara/ui/components/dialog";
 import { AppLink } from "@/components/app-link";
 import { presentSupportReferenceFailure } from "@/features/web-macos-client/ui/components/support-reference";
 
@@ -108,9 +112,11 @@ export function BindList({
   binds,
   onRebind,
   readOnly,
+  rebindHandle,
 }: {
   binds: UserFlowBindView[];
-  onRebind?: (bind: UserFlowBindView) => void;
+  onRebind?: () => void;
+  rebindHandle?: ReturnType<typeof createDialogHandle<UserFlowBindView>>;
   readOnly: boolean;
 }) {
   if (binds.length === 0) {
@@ -133,16 +139,16 @@ export function BindList({
           <p className="text-xs text-muted-foreground">
             Bound to version {bind.boundVersion}
           </p>
-          {bind.rebindAvailable && onRebind ? (
-            <Button
+          {bind.rebindAvailable && rebindHandle ? (
+            <DialogTrigger
               disabled={readOnly}
-              onClick={() => onRebind(bind)}
-              size="sm"
-              type="button"
-              variant="outline"
+              handle={rebindHandle}
+              onClick={onRebind}
+              payload={bind}
+              render={<Button size="sm" variant="outline" />}
             >
               Rebind
-            </Button>
+            </DialogTrigger>
           ) : null}
         </li>
       ))}

@@ -10,6 +10,11 @@ import {
 } from "@cantiara/api/product-gaps";
 import { Alert } from "@cantiara/ui/components/alert";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
@@ -93,177 +98,184 @@ export function ToolEscapeCloseForm({
   );
   const message = succeeded && !error ? "Tool Escape closed." : undefined;
 
-  if (!open) {
-    return (
-      <Button
-        aria-label={`${TOOL_ESCAPE_CLOSE_LABEL} ${event.tool}, ${event.intendedJob}`}
-        onClick={() => setOpen(true)}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        {TOOL_ESCAPE_CLOSE_LABEL}
-      </Button>
-    );
-  }
-
   return (
-    <form
-      aria-label={`${TOOL_ESCAPE_CLOSE_LABEL} form for ${event.intendedJob}`}
-      className="grid gap-3 rounded-md border border-border/70 p-3"
-      onSubmit={(submitted) => {
-        submitted.preventDefault();
-        submitForm(form).catch(() => undefined);
-      }}
-    >
-      <form.Field name="impact">
-        {(field) => (
-          <Field className="gap-1">
-            <FieldLabel htmlFor={`${id}-impact`}>
-              What the escape held
-            </FieldLabel>
-            <NativeSelect
-              id={`${id}-impact`}
-              onBlur={field.handleBlur}
-              onChange={(changed) =>
-                field.handleChange(
-                  changed.target.value as typeof field.state.value,
-                )
-              }
-              value={field.state.value}
-            >
-              <option value="">Choose</option>
-              {TOOL_ESCAPE_IMPACTS.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </NativeSelect>
-          </Field>
-        )}
-      </form.Field>
-      <p className="text-muted-foreground">
-        Choosing Never held parallel truth closes without proof, and only you
-        judge it. A high-impact close needs all four: the same workflow
-        succeeded on the current candidate, the truth is back in product
-        records, the external copy is no longer a parallel source, and the
-        evidence names those records. A note or a screenshot does not close it.
-      </p>
-      <form.Field name="build">
-        {(field) => (
-          <Field className="gap-1">
-            <FieldLabel htmlFor={`${id}-build`}>Candidate build</FieldLabel>
-            <Input
-              id={`${id}-build`}
-              onBlur={field.handleBlur}
-              onChange={(changed) => field.handleChange(changed.target.value)}
-              value={field.state.value}
-            />
-          </Field>
-        )}
-      </form.Field>
-      <form.Field name="runRef">
-        {(field) => (
-          <Field className="gap-1">
-            <FieldLabel htmlFor={`${id}-run`}>Workflow run</FieldLabel>
-            <Input
-              id={`${id}-run`}
-              onBlur={field.handleBlur}
-              onChange={(changed) => field.handleChange(changed.target.value)}
-              value={field.state.value}
-            />
-          </Field>
-        )}
-      </form.Field>
-      <form.Field name="restoreMethod">
-        {(field) => (
-          <Field className="gap-1">
-            <FieldLabel htmlFor={`${id}-method`}>
-              How the truth returned
-            </FieldLabel>
-            <NativeSelect
-              id={`${id}-method`}
-              onBlur={field.handleBlur}
-              onChange={(changed) =>
-                field.handleChange(
-                  changed.target.value as typeof field.state.value,
-                )
-              }
-              value={field.state.value}
-            >
-              <option value="">Choose</option>
-              {TOOL_ESCAPE_RESTORE_METHODS.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </NativeSelect>
-          </Field>
-        )}
-      </form.Field>
-      <form.Field name="restored">
-        {(field) => (
-          <ProductGapLinksField
-            idPrefix={`${id}-restored`}
-            legend="Restored product records"
-            loadTargets={loadTargets}
-            onChange={field.handleChange}
-            value={field.state.value}
-          />
-        )}
-      </form.Field>
-      <form.Field name="externalCopyState">
-        {(field) => (
-          <Field className="gap-1">
-            <FieldLabel htmlFor={`${id}-copy-state`}>External copy</FieldLabel>
-            <NativeSelect
-              id={`${id}-copy-state`}
-              onBlur={field.handleBlur}
-              onChange={(changed) =>
-                field.handleChange(
-                  changed.target.value as typeof field.state.value,
-                )
-              }
-              value={field.state.value}
-            >
-              <option value="">Choose</option>
-              {EXTERNAL_COPY_STATES.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </NativeSelect>
-          </Field>
-        )}
-      </form.Field>
-      <form.Field name="externalCopyHow">
-        {(field) => (
-          <Field className="gap-1">
-            <FieldLabel htmlFor={`${id}-copy-how`}>
-              How the external copy was closed
-            </FieldLabel>
-            <Input
-              id={`${id}-copy-how`}
-              onBlur={field.handleBlur}
-              onChange={(changed) => field.handleChange(changed.target.value)}
-              value={field.state.value}
-            />
-          </Field>
-        )}
-      </form.Field>
-      <form.Subscribe selector={(state) => state.isSubmitting}>
-        {(pending) => (
-          <div>
-            <Button disabled={pending} size="sm" type="submit">
-              {TOOL_ESCAPE_CLOSE_LABEL}
-            </Button>
-          </div>
-        )}
-      </form.Subscribe>
-      {error ? <Alert variant="destructive">{error}</Alert> : null}
-      <p aria-live="polite" className="text-muted-foreground" role="status">
-        {message}
-      </p>
-    </form>
+    <Collapsible onOpenChange={setOpen} open={open}>
+      {open ? null : (
+        <CollapsibleTrigger
+          aria-label={`${TOOL_ESCAPE_CLOSE_LABEL} ${event.tool}, ${event.intendedJob}`}
+          render={<Button size="sm" variant="outline" />}
+        >
+          {TOOL_ESCAPE_CLOSE_LABEL}
+        </CollapsibleTrigger>
+      )}
+      <CollapsibleContent>
+        <form
+          aria-label={`${TOOL_ESCAPE_CLOSE_LABEL} form for ${event.intendedJob}`}
+          className="grid gap-3 rounded-md border border-border/70 p-3"
+          onSubmit={(submitted) => {
+            submitted.preventDefault();
+            submitForm(form).catch(() => undefined);
+          }}
+        >
+          <form.Field name="impact">
+            {(field) => (
+              <Field className="gap-1">
+                <FieldLabel htmlFor={`${id}-impact`}>
+                  What the escape held
+                </FieldLabel>
+                <NativeSelect
+                  id={`${id}-impact`}
+                  onBlur={field.handleBlur}
+                  onChange={(changed) =>
+                    field.handleChange(
+                      changed.target.value as typeof field.state.value,
+                    )
+                  }
+                  value={field.state.value}
+                >
+                  <option value="">Choose</option>
+                  {TOOL_ESCAPE_IMPACTS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+            )}
+          </form.Field>
+          <p className="text-muted-foreground">
+            Choosing Never held parallel truth closes without proof, and only
+            you judge it. A high-impact close needs all four: the same workflow
+            succeeded on the current candidate, the truth is back in product
+            records, the external copy is no longer a parallel source, and the
+            evidence names those records. A note or a screenshot does not close
+            it.
+          </p>
+          <form.Field name="build">
+            {(field) => (
+              <Field className="gap-1">
+                <FieldLabel htmlFor={`${id}-build`}>Candidate build</FieldLabel>
+                <Input
+                  id={`${id}-build`}
+                  onBlur={field.handleBlur}
+                  onChange={(changed) =>
+                    field.handleChange(changed.target.value)
+                  }
+                  value={field.state.value}
+                />
+              </Field>
+            )}
+          </form.Field>
+          <form.Field name="runRef">
+            {(field) => (
+              <Field className="gap-1">
+                <FieldLabel htmlFor={`${id}-run`}>Workflow run</FieldLabel>
+                <Input
+                  id={`${id}-run`}
+                  onBlur={field.handleBlur}
+                  onChange={(changed) =>
+                    field.handleChange(changed.target.value)
+                  }
+                  value={field.state.value}
+                />
+              </Field>
+            )}
+          </form.Field>
+          <form.Field name="restoreMethod">
+            {(field) => (
+              <Field className="gap-1">
+                <FieldLabel htmlFor={`${id}-method`}>
+                  How the truth returned
+                </FieldLabel>
+                <NativeSelect
+                  id={`${id}-method`}
+                  onBlur={field.handleBlur}
+                  onChange={(changed) =>
+                    field.handleChange(
+                      changed.target.value as typeof field.state.value,
+                    )
+                  }
+                  value={field.state.value}
+                >
+                  <option value="">Choose</option>
+                  {TOOL_ESCAPE_RESTORE_METHODS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+            )}
+          </form.Field>
+          <form.Field name="restored">
+            {(field) => (
+              <ProductGapLinksField
+                idPrefix={`${id}-restored`}
+                legend="Restored product records"
+                loadTargets={loadTargets}
+                onChange={field.handleChange}
+                value={field.state.value}
+              />
+            )}
+          </form.Field>
+          <form.Field name="externalCopyState">
+            {(field) => (
+              <Field className="gap-1">
+                <FieldLabel htmlFor={`${id}-copy-state`}>
+                  External copy
+                </FieldLabel>
+                <NativeSelect
+                  id={`${id}-copy-state`}
+                  onBlur={field.handleBlur}
+                  onChange={(changed) =>
+                    field.handleChange(
+                      changed.target.value as typeof field.state.value,
+                    )
+                  }
+                  value={field.state.value}
+                >
+                  <option value="">Choose</option>
+                  {EXTERNAL_COPY_STATES.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+            )}
+          </form.Field>
+          <form.Field name="externalCopyHow">
+            {(field) => (
+              <Field className="gap-1">
+                <FieldLabel htmlFor={`${id}-copy-how`}>
+                  How the external copy was closed
+                </FieldLabel>
+                <Input
+                  id={`${id}-copy-how`}
+                  onBlur={field.handleBlur}
+                  onChange={(changed) =>
+                    field.handleChange(changed.target.value)
+                  }
+                  value={field.state.value}
+                />
+              </Field>
+            )}
+          </form.Field>
+          <form.Subscribe selector={(state) => state.isSubmitting}>
+            {(pending) => (
+              <div>
+                <Button disabled={pending} size="sm" type="submit">
+                  {TOOL_ESCAPE_CLOSE_LABEL}
+                </Button>
+              </div>
+            )}
+          </form.Subscribe>
+          {error ? <Alert variant="destructive">{error}</Alert> : null}
+          <p aria-live="polite" className="text-muted-foreground" role="status">
+            {message}
+          </p>
+        </form>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

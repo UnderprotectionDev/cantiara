@@ -4,6 +4,11 @@ import type { RelationPreview, RelationView } from "@cantiara/api/relations";
 import type { Milestone } from "@cantiara/api/roadmap-horizon";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -141,67 +146,64 @@ function MilestoneCard({
       className="grid gap-4 rounded-lg border bg-card p-4"
       id={milestone.id}
     >
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="grid gap-1">
-          <p className="text-xs text-muted-foreground">
-            Milestone · {milestone.status}
-          </p>
-          <h3 className="font-medium">{milestone.title}</h3>
-          {milestone.targetDate ? (
-            <p className="text-sm text-muted-foreground">
-              Target date · {milestone.targetDate}
+      <Collapsible onOpenChange={setEditing} open={editing}>
+        <header className="flex flex-wrap items-start justify-between gap-3">
+          <div className="grid gap-1">
+            <p className="text-xs text-muted-foreground">
+              Milestone · {milestone.status}
             </p>
-          ) : null}
-          {milestone.description ? (
-            <p className="text-sm text-muted-foreground">
-              {milestone.description}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={() => setEditing(true)}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            Edit
-          </Button>
-          {milestone.status === "Planned" ? (
-            <>
-              <Button
-                disabled={statusMutation.isPending}
-                onClick={() => statusMutation.mutate("Reached")}
-                size="sm"
-                type="button"
-              >
-                Reach
-              </Button>
-              <Button
-                disabled={statusMutation.isPending}
-                onClick={() => statusMutation.mutate("Abandoned")}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Abandon
-              </Button>
-            </>
-          ) : null}
-        </div>
-      </header>
+            <h3 className="font-medium">{milestone.title}</h3>
+            {milestone.targetDate ? (
+              <p className="text-sm text-muted-foreground">
+                Target date · {milestone.targetDate}
+              </p>
+            ) : null}
+            {milestone.description ? (
+              <p className="text-sm text-muted-foreground">
+                {milestone.description}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <CollapsibleTrigger render={<Button size="sm" variant="outline" />}>
+              Edit
+            </CollapsibleTrigger>
+            {milestone.status === "Planned" ? (
+              <>
+                <Button
+                  disabled={statusMutation.isPending}
+                  onClick={() => statusMutation.mutate("Reached")}
+                  size="sm"
+                  type="button"
+                >
+                  Reach
+                </Button>
+                <Button
+                  disabled={statusMutation.isPending}
+                  onClick={() => statusMutation.mutate("Abandoned")}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Abandon
+                </Button>
+              </>
+            ) : null}
+          </div>
+        </header>
 
-      {editing ? (
-        <MilestoneEditor
-          className="grid gap-3 border-t pt-4"
-          error={updateMutation.isError}
-          initialValues={milestoneDraft(milestone)}
-          onCancel={() => setEditing(false)}
-          onSave={(draft) => updateMutation.mutateAsync(draft)}
-          prefix={`milestone-edit-${milestone.id}`}
-          submitLabel="Save"
-        />
-      ) : null}
+        <CollapsibleContent>
+          <MilestoneEditor
+            className="grid gap-3 border-t pt-4"
+            error={updateMutation.isError}
+            initialValues={milestoneDraft(milestone)}
+            onCancel={() => setEditing(false)}
+            onSave={(draft) => updateMutation.mutateAsync(draft)}
+            prefix={`milestone-edit-${milestone.id}`}
+            submitLabel="Save"
+          />
+        </CollapsibleContent>
+      </Collapsible>
       {statusMutation.isError ? (
         <p className="text-sm text-destructive" role="alert">
           This action could not be completed.

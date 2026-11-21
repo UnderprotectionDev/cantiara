@@ -8,6 +8,11 @@ import type {
 } from "@cantiara/api/relations";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLinkProps } from "@tanstack/react-router";
 import { useState } from "react";
@@ -715,29 +720,29 @@ function BlockerActions({
   if (relation.blockingStatus !== "Active") {
     return null;
   }
-  if (!isResolving) {
-    return (
-      <Button
-        disabled={disabled}
-        onClick={() => setIsResolving(true)}
-        size="xs"
-        type="button"
-        variant="outline"
-      >
-        Mark blocker resolved
-      </Button>
-    );
-  }
+
   return (
-    <ResolveBlockerForm
-      disabled={disabled}
-      onCancel={() => setIsResolving(false)}
-      onResolve={async (note) => {
-        await onResolve(note);
-        setIsResolving(false);
-      }}
-      relationId={relation.id}
-    />
+    <Collapsible onOpenChange={setIsResolving} open={isResolving}>
+      {isResolving ? null : (
+        <CollapsibleTrigger
+          disabled={disabled}
+          render={<Button size="xs" variant="outline" />}
+        >
+          Mark blocker resolved
+        </CollapsibleTrigger>
+      )}
+      <CollapsibleContent>
+        <ResolveBlockerForm
+          disabled={disabled}
+          onCancel={() => setIsResolving(false)}
+          onResolve={async (note) => {
+            await onResolve(note);
+            setIsResolving(false);
+          }}
+          relationId={relation.id}
+        />
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

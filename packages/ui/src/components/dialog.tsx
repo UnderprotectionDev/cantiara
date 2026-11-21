@@ -4,11 +4,11 @@ import { cn } from "cn";
 import { XIcon } from "lucide-react";
 import type * as React from "react";
 
-function Dialog({ ...props }: DialogPrimitive.Root.Props) {
+function Dialog<Payload>(props: DialogPrimitive.Root.Props<Payload>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }
 
-function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
+function DialogTrigger<Payload>(props: DialogPrimitive.Trigger.Props<Payload>) {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
 }
 
@@ -139,7 +139,10 @@ function DialogDescription({
   );
 }
 
+const createDialogHandle = DialogPrimitive.createHandle;
+
 export {
+  createDialogHandle,
   Dialog,
   DialogClose,
   DialogContent,

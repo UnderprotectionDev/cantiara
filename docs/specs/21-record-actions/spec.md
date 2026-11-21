@@ -55,6 +55,8 @@ Kurucu kapalı adım kataloğundan tek hedef kayıt üzerinde çalışan adland�
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Work list opens the shared Record Action preview with the selected action and Work as its dialog payload. The runner seam checks that opening previews once when a connection becomes available, a reconnect does not repeat that preview, and Start again explicitly requests a new preview. The Record Action runner retry test checks that a rejected write retries the same preview command. The browser seam checks preview, apply and Undo.
+
 - **#545.** The Record Action editor seam checks creation and editing through Project Configuration Mode. Form retains the selected action identity and its base revision with the draft.
 
 - The Record Action seam verifies that Undo prepares the current Work revision, keeps the same prepared command on write retry and displays a preparation failure through its observer.

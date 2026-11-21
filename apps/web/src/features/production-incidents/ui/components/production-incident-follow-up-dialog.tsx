@@ -6,11 +6,13 @@ import type {
 } from "@cantiara/api/production-incidents";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import { ORPCError } from "@orpc/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -53,7 +55,7 @@ export function ProductionIncidentFollowUpDialog({
   incident: Pick<ProductionIncidentRecord, "title">;
   projectId: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [dialogHandle] = useState(createDialogHandle);
   const [reviewVisible, setReviewVisible] = useState(false);
   const queryClient = useQueryClient();
   const active = useRef<FollowUpIdentity | null>(null);
@@ -87,7 +89,7 @@ export function ProductionIncidentFollowUpDialog({
       if (
         active.current?.clientIdempotencyKey === identity.clientIdempotencyKey
       ) {
-        close();
+        dialogHandle.close();
       }
     },
   });
@@ -108,7 +110,6 @@ export function ProductionIncidentFollowUpDialog({
   }
 
   function close() {
-    setOpen(false);
     active.current = null;
     inspect.reset();
   }
@@ -132,66 +133,64 @@ export function ProductionIncidentFollowUpDialog({
   }
 
   return (
-    <>
-      <Button
-        onClick={() => {
+    <Dialog
+      handle={dialogHandle}
+      onOpenChange={(open, event) => {
+        if (open) {
           back();
           inspect.reset();
-          setOpen(true);
-        }}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
+        } else if (confirming && event.reason !== "imperative-action") {
+          event.cancel();
+        } else {
+          close();
+        }
+      }}
+    >
+      <DialogTrigger render={<Button size="sm" variant="outline" />}>
         Create follow-up work
-      </Button>
+      </DialogTrigger>
       {create.isSuccess ? <p role="status">Follow-up work created.</p> : null}
-      <Dialog
-        onOpenChange={(next) => {
-          if (!(next || confirming)) {
-            close();
-          }
-        }}
-        open={open}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create follow-up work</DialogTitle>
-            <DialogDescription>
-              Review the Work and relations before anything is created.
-            </DialogDescription>
-          </DialogHeader>
-          {preview ? (
-            <ProductionIncidentFollowUpPreviewView
-              confirming={confirming}
-              error={error}
-              onBack={back}
-              onConfirm={confirm}
-              preview={preview}
-            />
-          ) : (
-            <>
-              {error ? (
-                <p className="text-sm text-destructive" role="alert">
-                  {error}
-                </p>
-              ) : null}
-              <ProductionIncidentFollowUpForm
-                draft={
-                  inspect.variables ?? productionIncidentFollowUpDraft(incident)
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create follow-up work</DialogTitle>
+          <DialogDescription>
+            Review the Work and relations before anything is created.
+          </DialogDescription>
+        </DialogHeader>
+        {preview ? (
+          <ProductionIncidentFollowUpPreviewView
+            confirming={confirming}
+            error={error}
+            onBack={back}
+            onConfirm={confirm}
+            preview={preview}
+          />
+        ) : (
+          <>
+            {error ? (
+              <p className="text-sm text-destructive" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <ProductionIncidentFollowUpForm
+              draft={
+                inspect.variables ?? productionIncidentFollowUpDraft(incident)
+              }
+              onCancel={() => {
+                if (!confirming) {
+                  dialogHandle.close();
                 }
-                onCancel={close}
-                onPreview={async (next) => {
-                  active.current = null;
-                  create.reset();
-                  setReviewVisible(true);
-                  await inspect.mutateAsync(next);
-                }}
-              />
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
+              }}
+              onPreview={async (next) => {
+                active.current = null;
+                create.reset();
+                setReviewVisible(true);
+                await inspect.mutateAsync(next);
+              }}
+            />
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

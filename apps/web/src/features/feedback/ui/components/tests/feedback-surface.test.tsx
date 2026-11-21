@@ -26,7 +26,6 @@ vi.mock("../../views/feedback-view", async () => {
     id: "feedback-1",
     title: "Improve checkout",
   } as FeedbackRecord;
-  const close = () => undefined;
   return {
     FeedbackView: (
       props: Pick<
@@ -37,7 +36,6 @@ vi.mock("../../views/feedback-view", async () => {
       >,
     ) => (
       <ConvertToWorkDialog
-        onClose={close}
         onConfirm={props.onConfirmConvert(record)}
         onPreview={props.onPreviewConvert(record)}
         record={record}
@@ -100,6 +98,7 @@ describe("Feedback surface", () => {
         (entry) => entry.textContent === label,
       );
     }
+    await act(async () => button("Convert to Work")?.click());
     await act(async () => button("Preview")?.click());
     await vi.waitFor(() => expect(button("Confirm")?.disabled).toBe(false));
     await act(async () => button("Confirm")?.click());

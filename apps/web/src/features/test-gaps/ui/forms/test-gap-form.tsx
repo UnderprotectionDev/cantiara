@@ -12,6 +12,11 @@ import {
 } from "@cantiara/api/test-gaps";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { Input } from "@cantiara/ui/components/input";
 import {
   NativeSelect,
@@ -512,178 +517,183 @@ export function CloseForm({
     event.stopPropagation();
     submitForm(form).catch(() => undefined);
   }
-  if (!open) {
-    return (
-      <Button
-        aria-label={`Close ${record.title}`}
-        onClick={() => setOpen(true)}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        Close Test Gap
-      </Button>
-    );
-  }
+
   return (
-    <form
-      aria-label={`Close ${record.title}`}
-      className="space-y-3 rounded-md border border-border/70 p-3 text-sm"
-      onSubmit={submit}
-    >
-      {error ? (
-        <p className="text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <form.Subscribe
-        selector={(state) => ({
-          outcome: state.values.outcome,
-          pending: state.isSubmitting,
-          selectedCount: state.values.sessionTestIds.length,
-        })}
-      >
-        {({ outcome, pending, selectedCount }) => {
-          const met = outcome === "Met by result";
-          return (
-            <>
-              <form.Field name="outcome">
-                {(field) => (
-                  <fieldset className="space-y-1">
-                    <legend>Close as</legend>
-                    <RadioGroup
-                      disabled={pending}
-                      name={`${id}-outcome`}
-                      onValueChange={(value) =>
-                        field.handleChange(value as CloseFormValues["outcome"])
-                      }
-                      value={field.state.value}
+    <Collapsible onOpenChange={setOpen} open={open}>
+      {open ? null : (
+        <CollapsibleTrigger
+          aria-label={`Close ${record.title}`}
+          render={<Button size="sm" variant="outline" />}
+        >
+          Close Test Gap
+        </CollapsibleTrigger>
+      )}
+      <CollapsibleContent>
+        <form
+          aria-label={`Close ${record.title}`}
+          className="space-y-3 rounded-md border border-border/70 p-3 text-sm"
+          onSubmit={submit}
+        >
+          {error ? (
+            <p className="text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <form.Subscribe
+            selector={(state) => ({
+              outcome: state.values.outcome,
+              pending: state.isSubmitting,
+              selectedCount: state.values.sessionTestIds.length,
+            })}
+          >
+            {({ outcome, pending, selectedCount }) => {
+              const met = outcome === "Met by result";
+              return (
+                <>
+                  <form.Field name="outcome">
+                    {(field) => (
+                      <fieldset className="space-y-1">
+                        <legend>Close as</legend>
+                        <RadioGroup
+                          disabled={pending}
+                          name={`${id}-outcome`}
+                          onValueChange={(value) =>
+                            field.handleChange(
+                              value as CloseFormValues["outcome"],
+                            )
+                          }
+                          value={field.state.value}
+                        >
+                          {(["Met by result", "Not needed"] as const).map(
+                            (item) => (
+                              <label
+                                className="flex items-center gap-2"
+                                htmlFor={`${id}-${item}`}
+                                key={item}
+                              >
+                                <RadioGroupItem
+                                  id={`${id}-${item}`}
+                                  value={item}
+                                />
+                                {item}
+                              </label>
+                            ),
+                          )}
+                        </RadioGroup>
+                      </fieldset>
+                    )}
+                  </form.Field>
+                  {met ? (
+                    <form.Field name="sessionTestIds">
+                      {(field) => (
+                        <fieldset className="space-y-1">
+                          <legend>Session Tests that meet this Test Gap</legend>
+                          {sessionTests.length === 0 ? (
+                            <p className="text-muted-foreground">
+                              This Project has no Session Tests to select yet.
+                            </p>
+                          ) : (
+                            sessionTests.map((item) => (
+                              <label
+                                className="flex items-center gap-2"
+                                htmlFor={`${id}-st-${item.id}`}
+                                key={item.id}
+                              >
+                                <Checkbox
+                                  checked={field.state.value.includes(item.id)}
+                                  disabled={pending}
+                                  id={`${id}-st-${item.id}`}
+                                  onCheckedChange={(checked) =>
+                                    field.handleChange(
+                                      checked
+                                        ? [...field.state.value, item.id]
+                                        : field.state.value.filter(
+                                            (selected) => selected !== item.id,
+                                          ),
+                                    )
+                                  }
+                                />
+                                {item.title}
+                              </label>
+                            ))
+                          )}
+                        </fieldset>
+                      )}
+                    </form.Field>
+                  ) : (
+                    <form.Field name="decisionId">
+                      {(field) => (
+                        <div className="grid gap-1">
+                          <label htmlFor={`${id}-decision`}>
+                            Decision (optional)
+                          </label>
+                          <NativeSelect
+                            disabled={pending}
+                            id={`${id}-decision`}
+                            name={field.name}
+                            onChange={(event) =>
+                              field.handleChange(event.target.value)
+                            }
+                            value={field.state.value}
+                          >
+                            <NativeSelectOption value="">
+                              No Decision
+                            </NativeSelectOption>
+                            {decisions.map((item) => (
+                              <NativeSelectOption
+                                key={item.targetId}
+                                value={item.targetId}
+                              >
+                                {item.label}
+                              </NativeSelectOption>
+                            ))}
+                          </NativeSelect>
+                        </div>
+                      )}
+                    </form.Field>
+                  )}
+                  <form.Field name="rationale">
+                    {(field) => (
+                      <div className="grid gap-1">
+                        <label htmlFor={`${id}-rationale`}>
+                          {met ? "Rationale (optional)" : "Rationale"}
+                        </label>
+                        <Textarea
+                          disabled={pending}
+                          id={`${id}-rationale`}
+                          name={field.name}
+                          onChange={(event) =>
+                            field.handleChange(event.target.value)
+                          }
+                          required={!met}
+                          rows={3}
+                          value={field.state.value}
+                        />
+                      </div>
+                    )}
+                  </form.Field>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      disabled={pending || (met && selectedCount === 0)}
+                      type="submit"
                     >
-                      {(["Met by result", "Not needed"] as const).map(
-                        (item) => (
-                          <label
-                            className="flex items-center gap-2"
-                            htmlFor={`${id}-${item}`}
-                            key={item}
-                          >
-                            <RadioGroupItem id={`${id}-${item}`} value={item} />
-                            {item}
-                          </label>
-                        ),
-                      )}
-                    </RadioGroup>
-                  </fieldset>
-                )}
-              </form.Field>
-              {met ? (
-                <form.Field name="sessionTestIds">
-                  {(field) => (
-                    <fieldset className="space-y-1">
-                      <legend>Session Tests that meet this Test Gap</legend>
-                      {sessionTests.length === 0 ? (
-                        <p className="text-muted-foreground">
-                          This Project has no Session Tests to select yet.
-                        </p>
-                      ) : (
-                        sessionTests.map((item) => (
-                          <label
-                            className="flex items-center gap-2"
-                            htmlFor={`${id}-st-${item.id}`}
-                            key={item.id}
-                          >
-                            <Checkbox
-                              checked={field.state.value.includes(item.id)}
-                              disabled={pending}
-                              id={`${id}-st-${item.id}`}
-                              onCheckedChange={(checked) =>
-                                field.handleChange(
-                                  checked
-                                    ? [...field.state.value, item.id]
-                                    : field.state.value.filter(
-                                        (selected) => selected !== item.id,
-                                      ),
-                                )
-                              }
-                            />
-                            {item.title}
-                          </label>
-                        ))
-                      )}
-                    </fieldset>
-                  )}
-                </form.Field>
-              ) : (
-                <form.Field name="decisionId">
-                  {(field) => (
-                    <div className="grid gap-1">
-                      <label htmlFor={`${id}-decision`}>
-                        Decision (optional)
-                      </label>
-                      <NativeSelect
-                        disabled={pending}
-                        id={`${id}-decision`}
-                        name={field.name}
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        value={field.state.value}
-                      >
-                        <NativeSelectOption value="">
-                          No Decision
-                        </NativeSelectOption>
-                        {decisions.map((item) => (
-                          <NativeSelectOption
-                            key={item.targetId}
-                            value={item.targetId}
-                          >
-                            {item.label}
-                          </NativeSelectOption>
-                        ))}
-                      </NativeSelect>
-                    </div>
-                  )}
-                </form.Field>
-              )}
-              <form.Field name="rationale">
-                {(field) => (
-                  <div className="grid gap-1">
-                    <label htmlFor={`${id}-rationale`}>
-                      {met ? "Rationale (optional)" : "Rationale"}
-                    </label>
-                    <Textarea
+                      {`Mark as ${outcome}`}
+                    </Button>
+                    <Button
                       disabled={pending}
-                      id={`${id}-rationale`}
-                      name={field.name}
-                      onChange={(event) =>
-                        field.handleChange(event.target.value)
-                      }
-                      required={!met}
-                      rows={3}
-                      value={field.state.value}
-                    />
+                      onClick={() => setOpen(false)}
+                      type="button"
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
                   </div>
-                )}
-              </form.Field>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  disabled={pending || (met && selectedCount === 0)}
-                  type="submit"
-                >
-                  {`Mark as ${outcome}`}
-                </Button>
-                <Button
-                  disabled={pending}
-                  onClick={() => setOpen(false)}
-                  type="button"
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </>
-          );
-        }}
-      </form.Subscribe>
-    </form>
+                </>
+              );
+            }}
+          </form.Subscribe>
+        </form>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

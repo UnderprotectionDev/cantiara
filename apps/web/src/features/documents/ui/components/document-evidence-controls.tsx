@@ -2,13 +2,15 @@
 import type { DocumentEvidenceBinding } from "@cantiara/api/document-evidence";
 import type { Document } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
+import { createDialogHandle, Dialog } from "@cantiara/ui/components/dialog";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { AppLink } from "@/components/app-link";
 import {
   projectSourceRecordHash,
   workRecordHref,
 } from "@/features/project-shell/lib/project-shell-navigation";
+import { popupReturnFocus } from "@/lib/popup-return-focus";
 import { orpc } from "@/utils/orpc";
 import DocumentEvidenceForm from "../forms/document-evidence-form";
 import DocumentEvidenceRoleForm from "../forms/document-evidence-role-form";
@@ -46,8 +48,9 @@ export function EvidenceRow({
   binding: DocumentEvidenceBinding;
   /** Role and Founder interpretation editor; omitted in read-only presentations. */
   editor?: ReactNode;
-  onRebind: (binding: DocumentEvidenceBinding) => void;
+  onRebind: (binding: DocumentEvidenceBinding, returnFocusId: string) => void;
 }) {
+  const returnFocusId = useId();
   const href = targetHref(binding.target);
   return (
     <li className="space-y-1 rounded-lg border p-3">
@@ -77,7 +80,8 @@ export function EvidenceRow({
           Newer version exists · Version {binding.currentRevision}.{" "}
           {binding.readOnly ? null : (
             <Button
-              onClick={() => onRebind(binding)}
+              id={returnFocusId}
+              onClick={() => onRebind(binding, returnFocusId)}
               type="button"
               variant="outline"
             >
@@ -97,11 +101,25 @@ export default function DocumentEvidenceControls({
   range,
   record,
 }: Props) {
-  const [dialog, setDialog] = useState<{
-    mode: Mode;
-    rebind: DocumentEvidenceBinding | null;
-  } | null>(null);
-  const [rebindRange, setRebindRange] = useState<Range | null>(null);
+  const controlId = useId();
+  const [handle] = useState(
+    createDialogHandle<{
+      mode: Mode;
+      range: Range;
+      rebind: DocumentEvidenceBinding | null;
+      record: Document;
+      returnFocusId: string;
+    }>,
+  );
+  function open(
+    mode: Mode,
+    rebind: DocumentEvidenceBinding | null,
+    returnFocusId: string,
+  ) {
+    if (canPin && range && range.end > range.start) {
+      handle.openWithPayload({ mode, range, rebind, record, returnFocusId });
+    }
+  }
   const { projectId } = record;
   const bindings = useQuery({
     ...orpc.documentEvidenceBindings.queryOptions({
@@ -114,14 +132,14 @@ export default function DocumentEvidenceControls({
   }
   const selected = range && range.end > range.start ? range : null;
   const enabled = canPin && selected !== null;
-  const active = dialog?.rebind ? rebindRange : selected;
   return (
     <section aria-label="Document evidence" className="space-y-2">
       <h4 className="font-medium">Version-pinned evidence</h4>
       <div className="flex flex-wrap gap-2">
         <Button
           disabled={!enabled}
-          onClick={() => setDialog({ mode: "bind", rebind: null })}
+          id={`${controlId}-bind`}
+          onClick={(event) => open("bind", null, event.currentTarget.id)}
           type="button"
           variant="outline"
         >
@@ -129,7 +147,8 @@ export default function DocumentEvidenceControls({
         </Button>
         <Button
           disabled={!enabled}
-          onClick={() => setDialog({ mode: "create", rebind: null })}
+          id={`${controlId}-create`}
+          onClick={(event) => open("create", null, event.currentTarget.id)}
           type="button"
           variant="outline"
         >
@@ -149,14 +168,9 @@ export default function DocumentEvidenceControls({
               )
             }
             key={`${binding.id}:${binding.revision}`}
-            onRebind={(value) => {
-              // A rebind pins the currently selected saved text; the old pin is never moved.
-              if (!enabled) {
-                return;
-              }
-              setRebindRange(selected);
-              setDialog({ mode: "bind", rebind: value });
-            }}
+            onRebind={(value, returnFocusId) =>
+              open("bind", value, returnFocusId)
+            }
           />
         ))}
       </ul>
@@ -164,15 +178,17 @@ export default function DocumentEvidenceControls({
       !enabled ? (
         <p>Select saved text in the latest version to rebind.</p>
       ) : null}
-      {dialog && active ? (
-        <DocumentEvidenceForm
-          mode={dialog.mode}
-          onClose={() => setDialog(null)}
-          range={active}
-          rebind={dialog.rebind}
-          record={record}
-        />
-      ) : null}
+      <Dialog handle={handle}>
+        {({ payload }) =>
+          payload ? (
+            <DocumentEvidenceForm
+              {...payload}
+              finalFocus={() => popupReturnFocus(payload.returnFocusId)}
+              onClose={() => handle.close()}
+            />
+          ) : null
+        }
+      </Dialog>
     </section>
   );
 }

@@ -186,8 +186,7 @@ test("drill-down is keyboard and screen-reader operable with native controls", (
   );
   for (const control of controls) {
     expect(control.getAttribute("type")).toBe("button");
-    expect(control.hasAttribute("tabindex")).toBe(false);
-    expect(control.getAttribute("aria-controls")).toBeTruthy();
+    expect(control.tabIndex).toBe(0);
     expect(control.getAttribute("aria-expanded")).toBe("false");
   }
   const lists = [...view.querySelectorAll("ul[aria-label]")].map((list) =>

@@ -1,12 +1,17 @@
+import {
+  AlertDialogTrigger,
+  createAlertDialogHandle,
+} from "@cantiara/ui/components/alert-dialog";
 import { Badge } from "@cantiara/ui/components/badge";
+import { Button } from "@cantiara/ui/components/button";
 import { Monitor, ShieldCheck } from "lucide-react";
-import { useMemo } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   formatAccountDateTime,
   formatAccountNumber,
 } from "@/features/account-preferences/lib/account-preferences-format";
 import type { AccountSessionsController } from "../../hooks/use-account-sessions";
-import RevokeConfirmation from "./revoke-confirmation";
+import RevokeConfirmation, { type RevokeTarget } from "./revoke-confirmation";
 import SessionsSkeleton from "./sessions-skeleton";
 
 export default function SessionsSection({
@@ -16,8 +21,16 @@ export default function SessionsSection({
   controller: AccountSessionsController;
   formattingPreferences: Parameters<typeof formatAccountDateTime>[1];
 }) {
-  const { otherSessionCount, revokeOtherSessions, revokeSession, sessions } =
-    controller;
+  const {
+    isRevoking,
+    otherSessionCount,
+    revocationPending,
+    revokeOtherSessions,
+    revokeSession,
+    sessions,
+  } = controller;
+  const [revokeHandle] = useState(createAlertDialogHandle<RevokeTarget>);
+  const headingId = useId();
   const activeSessionCount = useMemo(
     () => sessions.data?.length ?? 0,
     [sessions.data],
@@ -29,21 +42,27 @@ export default function SessionsSection({
         <div className="max-w-xl space-y-2">
           <div className="flex items-center gap-2">
             <ShieldCheck aria-hidden="true" className="size-5" />
-            <h1 className="text-2xl font-semibold tracking-tight">Sessions</h1>
+            <h1
+              className="text-2xl font-semibold tracking-tight"
+              id={headingId}
+              tabIndex={-1}
+            >
+              Sessions
+            </h1>
           </div>
           <p className="text-sm/6 text-pretty text-muted-foreground">
             Review the devices signed in to your Account and revoke access you
             no longer recognize.
           </p>
         </div>
-        <RevokeConfirmation
-          description="Every session except this one will lose access immediately."
-          disabled={otherSessionCount === 0 || revokeOtherSessions.isPending}
-          label="Revoke Other Sessions"
-          onConfirm={revokeOtherSessions.mutate}
-          targetSessionAlias=""
-          title="Revoke other sessions?"
-        />
+        <AlertDialogTrigger
+          disabled={otherSessionCount === 0 || revocationPending}
+          handle={revokeHandle}
+          payload="others"
+          render={<Button size="sm" variant="destructive" />}
+        >
+          Revoke Other Sessions
+        </AlertDialogTrigger>
       </header>
 
       <section aria-labelledby="active-sessions-heading" className="pt-9">
@@ -100,20 +119,31 @@ export default function SessionsSection({
                   </div>
                 </div>
                 {productSession.current ? null : (
-                  <RevokeConfirmation
-                    description={`${productSession.device} will lose access immediately.`}
-                    disabled={revokeSession.isPending}
-                    label="Revoke Session"
-                    onConfirm={revokeSession.mutate}
-                    targetSessionAlias={productSession.id}
-                    title="Revoke this session?"
-                  />
+                  <AlertDialogTrigger
+                    disabled={revocationPending}
+                    handle={revokeHandle}
+                    payload={{
+                      device: productSession.device,
+                      sessionAlias: productSession.id,
+                    }}
+                    render={<Button size="sm" variant="destructive" />}
+                  >
+                    Revoke Session
+                  </AlertDialogTrigger>
                 )}
               </li>
             ))}
           </ul>
         ) : null}
       </section>
+      <RevokeConfirmation
+        handle={revokeHandle}
+        headingId={headingId}
+        isRevoking={isRevoking}
+        revocationPending={revocationPending}
+        revokeOtherSessions={revokeOtherSessions}
+        revokeSession={revokeSession}
+      />
     </>
   );
 }

@@ -7,7 +7,7 @@ import {
 } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import {
-  Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -63,12 +63,14 @@ export default function DocumentOrganizationForm({
   onClose,
   onCommitted,
   record,
+  popupId,
 }: {
-  action: "hierarchy" | "archive" | null;
+  action: "hierarchy" | "archive";
   documents: Document[];
   onClose: () => void;
   onCommitted: (document: Document) => Promise<void>;
   record: Document;
+  popupId: string;
 }) {
   const archived = Boolean(record.archivedAt);
   const archiveLabel = archived ? "Unarchive" : "Archive";
@@ -76,12 +78,13 @@ export default function DocumentOrganizationForm({
   const otherDocuments = documents.filter(({ id }) => id !== record.id);
   const inspect = useMutation(
     orpc.previewDocumentOrganization.mutationOptions({
+      meta: { popupId },
       mutationFn: (input) => client.previewDocumentOrganization(input),
     }),
   );
   const apply = useMutation(
     orpc.organizeDocument.mutationOptions({
-      meta: { onlineWrite: true },
+      meta: { onlineWrite: true, popupId },
       mutationFn: (input) => client.organizeDocument(input),
       onSuccess: async (saved) => {
         await onCommitted(saved);
@@ -138,10 +141,8 @@ export default function DocumentOrganizationForm({
     },
   });
   const pending = inspect.isPending || apply.isPending;
-  function changeOpen(openState: boolean) {
-    if (!(openState || pending)) {
-      onClose();
-    }
+  function submit(intent: "preview" | "apply") {
+    return submitForm(form, { action: intent });
   }
   function invalidatePreview() {
     inspect.reset();
@@ -149,129 +150,120 @@ export default function DocumentOrganizationForm({
     form.setErrorMap({ onSubmit: undefined });
   }
   return (
-    <Dialog onOpenChange={changeOpen} open={action !== null}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{label}</DialogTitle>
-          <DialogDescription>
-            Preview changes in the same Project. Document identity, content, and
-            child links are preserved.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          className="space-y-4"
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            submitForm(form).catch(() => undefined);
-          }}
-        >
-          <fieldset className="space-y-3" disabled={pending}>
-            {action === "hierarchy" ? (
-              <>
-                <form.Field name="folder">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label htmlFor="document-folder">Folder</Label>
-                      <Input
-                        id="document-folder"
-                        list="document-folder-options"
-                        maxLength={255}
-                        name={field.name}
-                        onChange={(event) => {
-                          field.handleChange(event.target.value);
-                          invalidatePreview();
-                        }}
-                        value={field.state.value}
-                      />
-                      <datalist id="document-folder-options">
-                        {[
-                          ...new Set(
-                            otherDocuments.flatMap((item) =>
-                              item.folder ? [item.folder] : [],
-                            ),
+    <DialogContent showCloseButton={!pending}>
+      <DialogHeader>
+        <DialogTitle>{label}</DialogTitle>
+        <DialogDescription>
+          Preview changes in the same Project. Document identity, content, and
+          child links are preserved.
+        </DialogDescription>
+      </DialogHeader>
+      <form
+        className="space-y-4"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          submit("preview").catch(() => undefined);
+        }}
+      >
+        <fieldset className="space-y-3" disabled={pending}>
+          {action === "hierarchy" ? (
+            <>
+              <form.Field name="folder">
+                {(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor="document-folder">Folder</Label>
+                    <Input
+                      id="document-folder"
+                      list="document-folder-options"
+                      maxLength={255}
+                      name={field.name}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                        invalidatePreview();
+                      }}
+                      value={field.state.value}
+                    />
+                    <datalist id="document-folder-options">
+                      {[
+                        ...new Set(
+                          otherDocuments.flatMap((item) =>
+                            item.folder ? [item.folder] : [],
                           ),
-                        ].map((name) => (
-                          <option key={name} value={name} />
-                        ))}
-                      </datalist>
-                    </div>
-                  )}
-                </form.Field>
-                <form.Field name="parentDocumentId">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label htmlFor="document-parent">Parent Document</Label>
-                      <NativeSelect
-                        id="document-parent"
-                        name={field.name}
-                        onChange={(event) => {
-                          field.handleChange(event.target.value);
-                          invalidatePreview();
-                        }}
-                        value={field.state.value}
-                      >
-                        <NativeSelectOption value="">
-                          No Parent Document
+                        ),
+                      ].map((name) => (
+                        <option key={name} value={name} />
+                      ))}
+                    </datalist>
+                  </div>
+                )}
+              </form.Field>
+              <form.Field name="parentDocumentId">
+                {(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor="document-parent">Parent Document</Label>
+                    <NativeSelect
+                      id="document-parent"
+                      name={field.name}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                        invalidatePreview();
+                      }}
+                      value={field.state.value}
+                    >
+                      <NativeSelectOption value="">
+                        No Parent Document
+                      </NativeSelectOption>
+                      {otherDocuments.map((item) => (
+                        <NativeSelectOption key={item.id} value={item.id}>
+                          {item.title}
                         </NativeSelectOption>
-                        {otherDocuments.map((item) => (
-                          <NativeSelectOption key={item.id} value={item.id}>
-                            {item.title}
-                          </NativeSelectOption>
-                        ))}
-                      </NativeSelect>
-                    </div>
-                  )}
-                </form.Field>
-              </>
-            ) : (
-              <p>
-                {archived
-                  ? "The Document will return to normal navigation."
-                  : "The Document will leave normal navigation and remain available through Archived."}
-              </p>
-            )}
-            <Button type="submit" variant="outline">
-              Preview
-            </Button>
-          </fieldset>
-          {preview ? (
-            <DocumentOrganizationPreview
-              hierarchy={action === "hierarchy"}
-              preview={preview}
-            />
-          ) : null}
-          <form.Subscribe
-            selector={(state): unknown => state.errorMap.onSubmit}
-          >
-            {(validationError) => {
-              const message =
-                typeof validationError === "string" ? validationError : error;
-              return message ? <p role="alert">{message}</p> : null;
+                      ))}
+                    </NativeSelect>
+                  </div>
+                )}
+              </form.Field>
+            </>
+          ) : (
+            <p>
+              {archived
+                ? "The Document will return to normal navigation."
+                : "The Document will leave normal navigation and remain available through Archived."}
+            </p>
+          )}
+          <Button type="submit" variant="outline">
+            Preview
+          </Button>
+        </fieldset>
+        {preview ? (
+          <DocumentOrganizationPreview
+            hierarchy={action === "hierarchy"}
+            preview={preview}
+          />
+        ) : null}
+        <form.Subscribe selector={(state): unknown => state.errorMap.onSubmit}>
+          {(validationError) => {
+            const message =
+              typeof validationError === "string" ? validationError : error;
+            return message ? <p role="alert">{message}</p> : null;
+          }}
+        </form.Subscribe>
+        <DialogFooter>
+          <DialogClose disabled={pending} render={<Button variant="outline" />}>
+            Cancel
+          </DialogClose>
+          <Button
+            disabled={!preview?.allowed || pending}
+            onClick={() => {
+              submit("apply").catch(() => undefined);
             }}
-          </form.Subscribe>
-          <DialogFooter>
-            <Button
-              disabled={pending}
-              onClick={onClose}
-              type="button"
-              variant="outline"
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={!preview?.allowed || pending}
-              onClick={() => {
-                submitForm(form, { action: "apply" }).catch(() => undefined);
-              }}
-              type="button"
-            >
-              Apply
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            type="button"
+          >
+            Apply
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   );
 }

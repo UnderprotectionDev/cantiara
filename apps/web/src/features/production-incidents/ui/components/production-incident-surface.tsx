@@ -3,7 +3,9 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useId } from "react";
 import { fetchFresh } from "@/lib/fetch-fresh";
+import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 import { refreshProductionIncident } from "../../lib/refresh-production-incident";
@@ -27,6 +29,7 @@ export function ProductionIncidentSurface({
     }),
   );
   const queryClient = useQueryClient();
+  const editPopupId = useId();
   const refresh = () =>
     refreshProductionIncident(queryClient, projectId, incidentId);
   const writeLink = usePreparedMutation(
@@ -58,6 +61,7 @@ export function ProductionIncidentSurface({
   );
   const writeIncident = usePreparedMutation(
     orpc.updateProjectSourceRecord.mutationOptions({
+      meta: { popupId: editPopupId },
       mutationFn: (input) => client.updateProjectSourceRecord(input),
       onSettled: refresh,
     }),
@@ -192,6 +196,7 @@ export function ProductionIncidentSurface({
       detail={current}
       errorMessage={errorMessage}
       formatting={formatting}
+      isSaving={() => isPopupCommandPending(queryClient, editPopupId)}
       projectId={projectId}
       savedMessage={savedMessage}
     />

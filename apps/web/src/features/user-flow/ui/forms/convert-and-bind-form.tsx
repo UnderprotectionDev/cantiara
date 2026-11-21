@@ -10,8 +10,7 @@ import {
 } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
 import {
-  Dialog,
-  DialogContent,
+  DialogClose,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -192,102 +191,101 @@ export function ConvertAndBindDialog({
     await onConfirm(plan, identity.current);
   }
   return (
-    <Dialog onOpenChange={(open) => !open && onClose()} open>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Convert and Bind</DialogTitle>
-          <DialogDescription>
-            {node.kind} node. This creates exactly one Work, Decision, Risk or
-            Open Question, never a Screen, and the node stays where it is.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          className="space-y-2"
-          id={`convert-and-bind-form-${node.id}`}
-          onSubmit={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            submitForm(form).catch(() => undefined);
-          }}
+    <>
+      <DialogHeader>
+        <DialogTitle>Convert and Bind</DialogTitle>
+        <DialogDescription>
+          {node.kind} node. This creates exactly one Work, Decision, Risk or
+          Open Question, never a Screen, and the node stays where it is.
+        </DialogDescription>
+      </DialogHeader>
+      <form
+        className="space-y-2"
+        id={`convert-and-bind-form-${node.id}`}
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          submitForm(form).catch(() => undefined);
+        }}
+      >
+        <Label htmlFor={`convert-target-${node.id}`}>Record type</Label>
+        <form.Field name="target">
+          {(field) => (
+            <NativeSelect
+              disabled={busy}
+              id={`convert-target-${node.id}`}
+              onChange={(event) =>
+                field.handleChange(event.target.value as UserFlowConvertTarget)
+              }
+              value={field.state.value}
+            >
+              {USER_FLOW_CONVERT_TARGETS.map((value) => (
+                <NativeSelectOption key={value} value={value}>
+                  {value}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          )}
+        </form.Field>
+        <form.Subscribe selector={(state) => state.values.target}>
+          {(target) =>
+            target === "Work" ? (
+              <div className="space-y-2">
+                <Label htmlFor={`convert-work-type-${node.id}`}>
+                  Work type
+                </Label>
+                <form.Field name="workType">
+                  {(field) => (
+                    <NativeSelect
+                      disabled={busy}
+                      id={`convert-work-type-${node.id}`}
+                      onChange={(event) =>
+                        field.handleChange(
+                          event.target.value as UserFlowWorkType,
+                        )
+                      }
+                      value={field.state.value}
+                    >
+                      {USER_FLOW_WORK_TYPES.map((value) => (
+                        <NativeSelectOption key={value} value={value}>
+                          {value}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  )}
+                </form.Field>
+              </div>
+            ) : null
+          }
+        </form.Subscribe>
+      </form>
+      {plan ? <ConvertAndBindPreview plan={plan} /> : null}
+      {message ? <p role="alert">{message}</p> : null}
+      <DialogFooter>
+        <DialogClose
+          disabled={Boolean(write?.isPending)}
+          render={<Button variant="outline" />}
         >
-          <Label htmlFor={`convert-target-${node.id}`}>Record type</Label>
-          <form.Field name="target">
-            {(field) => (
-              <NativeSelect
-                disabled={busy}
-                id={`convert-target-${node.id}`}
-                onChange={(event) =>
-                  field.handleChange(
-                    event.target.value as UserFlowConvertTarget,
-                  )
-                }
-                value={field.state.value}
-              >
-                {USER_FLOW_CONVERT_TARGETS.map((value) => (
-                  <NativeSelectOption key={value} value={value}>
-                    {value}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            )}
-          </form.Field>
-          <form.Subscribe selector={(state) => state.values.target}>
-            {(target) =>
-              target === "Work" ? (
-                <div className="space-y-2">
-                  <Label htmlFor={`convert-work-type-${node.id}`}>
-                    Work type
-                  </Label>
-                  <form.Field name="workType">
-                    {(field) => (
-                      <NativeSelect
-                        disabled={busy}
-                        id={`convert-work-type-${node.id}`}
-                        onChange={(event) =>
-                          field.handleChange(
-                            event.target.value as UserFlowWorkType,
-                          )
-                        }
-                        value={field.state.value}
-                      >
-                        {USER_FLOW_WORK_TYPES.map((value) => (
-                          <NativeSelectOption key={value} value={value}>
-                            {value}
-                          </NativeSelectOption>
-                        ))}
-                      </NativeSelect>
-                    )}
-                  </form.Field>
-                </div>
-              ) : null
-            }
-          </form.Subscribe>
-        </form>
-        {plan ? <ConvertAndBindPreview plan={plan} /> : null}
-        {message ? <p role="alert">{message}</p> : null}
-        <DialogFooter>
-          <Button onClick={onClose} type="button" variant="outline">
-            Cancel
-          </Button>
-          <Button
-            disabled={busy}
-            form={`convert-and-bind-form-${node.id}`}
-            type="submit"
-            variant="outline"
-          >
-            Preview
-          </Button>
-          <Button
-            disabled={!plan || busy}
-            onClick={() =>
-              submitForm(form, { action: "confirm" }).catch(() => undefined)
-            }
-            type="button"
-          >
-            Confirm
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          Cancel
+        </DialogClose>
+        <Button
+          disabled={busy}
+          form={`convert-and-bind-form-${node.id}`}
+          type="submit"
+          variant="outline"
+        >
+          Preview
+        </Button>
+        <Button
+          disabled={!plan || busy}
+          onClick={() =>
+            submitForm(form, { action: "confirm" }).catch(() => undefined)
+          }
+          type="button"
+        >
+          Confirm
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

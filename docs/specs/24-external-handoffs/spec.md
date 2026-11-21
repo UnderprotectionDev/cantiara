@@ -59,6 +59,8 @@ Her kesin gidiş İşe ait, bağımsız yaşayamayan tarihsel bir Dış yürütm
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The External Execution Handoff panel seam covers `Start Handoff`, the open history and the explicit write. The active disclosure controls when the history query is enabled.
+
 - **#545.** The web external-execution-handoff.test.tsx seam checks that a rejected Work history write leaves the successful Clipboard announcement visible and presents the write failure separately.
 
 - The Work Handoff seam keeps Start and Reconcile failures associated with their active commands and verifies that rejecting a preview clears that handoff’s review.

@@ -23,14 +23,22 @@ import {
   type GitHubTriagePreview,
 } from "@cantiara/api/github-integration";
 import { Button } from "@cantiara/ui/components/button";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useSelector } from "@tanstack/react-store";
 import {
-  type MouseEvent as ReactMouseEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
+import {
+  createDialogHandle,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@cantiara/ui/components/dialog";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSelector } from "@tanstack/react-store";
+import { useId, useState } from "react";
+import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
 import { orpc } from "@/utils/orpc";
 import { useGitHubRecordSearchForm } from "../../hooks/use-github-record-search-form";
 import { errorText } from "../../lib/github-error-text";
@@ -75,6 +83,12 @@ export interface GitHubIntegrationActions {
 type GitHubCommand =
   | { kind: "install" }
   | { kind: "disconnect" | "reconnect" | "skip" | "sync"; linkId: string };
+
+type RepositoryLinkAction = "reconnect" | "disconnect";
+const repositoryActionLabels = {
+  reconnect: "Reconnect",
+  disconnect: "Disconnect",
+} as const;
 
 async function sendGitHubCommand(
   actions: GitHubIntegrationActions,
@@ -141,15 +155,6 @@ function TriagePanel({
   loadTriage: GitHubIntegrationActions["loadTriage"];
   onSkip: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const preview = useQuery({
-    enabled: open,
-    gcTime: 0,
-    queryFn: () => loadTriage(link.id),
-    queryKey: orpc.gitHubTriagePreview.queryKey({
-      input: { linkId: link.id, projectId },
-    }),
-  });
   const headingId = `github-triage-${link.id}`;
   if (link.triage === "Skipped") {
     return (
@@ -159,7 +164,11 @@ function TriagePanel({
     );
   }
   return (
-    <section aria-labelledby={headingId} className="space-y-2 text-sm">
+    <Collapsible
+      aria-labelledby={headingId}
+      className="space-y-2 text-sm"
+      render={<section />}
+    >
       <h4 className="font-medium" id={headingId}>
         {GITHUB_TRIAGE_LABEL}
       </h4>
@@ -168,27 +177,52 @@ function TriagePanel({
         status or lands on a planning surface.
       </p>
       <div className="flex flex-wrap gap-2">
-        <Button
-          aria-expanded={open}
-          onClick={() => setOpen((current) => !current)}
-          type="button"
-          variant="outline"
-        >
-          {open ? "Hide triage preview" : "Show triage preview"}
-        </Button>
+        <CollapsibleTrigger
+          render={(props, { open }) => (
+            <Button {...props} variant="outline">
+              {open ? "Hide triage preview" : "Show triage preview"}
+            </Button>
+          )}
+        />
         <Button onClick={onSkip} type="button" variant="outline">
           {GITHUB_SKIP_TRIAGE_LABEL}
         </Button>
       </div>
-      {open && preview.isPending ? (
-        <p role="status">Loading triage preview…</p>
-      ) : null}
-      {open && preview.isError ? (
+      <CollapsibleContent>
+        <TriageResults
+          link={link}
+          loadTriage={loadTriage}
+          projectId={projectId}
+        />
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function TriageResults({
+  link,
+  loadTriage,
+  projectId,
+}: Pick<
+  Parameters<typeof TriagePanel>[0],
+  "link" | "loadTriage" | "projectId"
+>) {
+  const preview = useQuery({
+    gcTime: 0,
+    queryFn: () => loadTriage(link.id),
+    queryKey: orpc.gitHubTriagePreview.queryKey({
+      input: { linkId: link.id, projectId },
+    }),
+  });
+  return (
+    <>
+      {preview.isPending ? <p role="status">Loading triage preview…</p> : null}
+      {preview.isError ? (
         <p className="text-destructive" role="alert">
           The triage preview is unavailable.
         </p>
       ) : null}
-      {open && preview.data ? (
+      {preview.data ? (
         <div className="space-y-3">
           {preview.data.groups.length === 0 ? (
             <p className="text-muted-foreground">No Issues to triage.</p>
@@ -212,67 +246,46 @@ function TriagePanel({
           ))}
         </div>
       ) : null}
-    </section>
+    </>
   );
 }
 
 function LinkItem({
   actions,
+  error,
+  isWriting,
+  resetWrite,
   formattingPreferences,
   link,
   projectId,
   run,
+  saving,
 }: {
   actions: GitHubIntegrationActions;
+  error: { kind: RepositoryLinkAction; cause: unknown } | null;
+  isWriting: () => boolean;
+  resetWrite: () => void;
   formattingPreferences: AccountPreferences;
   link: GitHubRepositoryLink;
   projectId: string;
-  run: (command: GitHubCommand) => void;
+  run: (command: GitHubCommand) => Promise<string>;
+  saving: boolean;
 }) {
   const nameId = `github-link-${link.id}`;
   const available = linkActionsFor(link.connection);
-  const [pending, setPending] = useState<GitHubLinkPreview["action"]>();
-  const previewTriggerRef = useRef<HTMLButtonElement>(null);
-  const previousPendingRef = useRef<GitHubLinkPreview["action"]>(undefined);
-  useEffect(() => {
-    const previousPending = previousPendingRef.current;
-    previousPendingRef.current = pending;
-    if (previousPending !== undefined && pending === undefined) {
-      previewTriggerRef.current?.focus();
-    }
-  }, [pending]);
-  const openPreview =
-    (action: "Reconnect" | "Disconnect") =>
-    (event: ReactMouseEvent<HTMLButtonElement>) => {
-      previewTriggerRef.current = event.currentTarget;
-      setPending(action);
-    };
-  const preview = useQuery({
-    enabled: pending !== undefined,
-    gcTime: 0,
-    queryFn: () => actions.loadPreview(pending ?? "Reconnect", link.id),
-    queryKey: (pending === "Disconnect"
-      ? orpc.previewGitHubDisconnect
-      : orpc.previewGitHubReconnect
-    ).queryKey({
-      input: { linkId: link.id, projectId },
-    }),
-  });
-  const confirm = () => {
-    const action = pending;
-    setPending(undefined);
-    if (action === "Disconnect") {
-      run({ kind: "disconnect", linkId: link.id });
-    } else if (action === "Reconnect") {
-      run({ kind: "reconnect", linkId: link.id });
-    }
-  };
+  const [handle] = useState(createDialogHandle<RepositoryLinkAction>);
+  const repositoryId = `github-repository-${link.id}`;
+
+  function send(command: GitHubCommand) {
+    run(command).catch(() => undefined);
+  }
   return (
     <li className="space-y-2 rounded-lg border border-border/70 p-4 text-sm">
       <h4 className="font-medium" id={nameId}>
         <a
           className="underline"
           href={link.htmlUrl}
+          id={repositoryId}
           rel="noreferrer"
           target="_blank"
         >{`${link.owner}/${link.name}`}</a>
@@ -301,7 +314,7 @@ function LinkItem({
         {available.canSyncNow ? (
           <Button
             aria-describedby={nameId}
-            onClick={() => run({ kind: "sync", linkId: link.id })}
+            onClick={() => send({ kind: "sync", linkId: link.id })}
             type="button"
             variant="outline"
           >
@@ -309,44 +322,148 @@ function LinkItem({
           </Button>
         ) : null}
         {available.canReconnect ? (
-          <Button
+          <DialogTrigger
             aria-describedby={nameId}
-            aria-expanded={pending === "Reconnect"}
-            onClick={openPreview("Reconnect")}
-            type="button"
+            disabled={saving}
+            handle={handle}
+            payload="reconnect"
+            render={<Button />}
           >
             {GITHUB_RECONNECT_LABEL}
-          </Button>
+          </DialogTrigger>
         ) : null}
         {available.canDisconnect ? (
-          <Button
+          <DialogTrigger
             aria-describedby={nameId}
-            aria-expanded={pending === "Disconnect"}
-            onClick={openPreview("Disconnect")}
-            type="button"
-            variant="outline"
+            disabled={saving}
+            handle={handle}
+            payload="disconnect"
+            render={<Button variant="outline" />}
           >
             {GITHUB_DISCONNECT_LABEL}
-          </Button>
+          </DialogTrigger>
         ) : null}
       </div>
-      {pending ? (
-        <GitHubLinkPreviewPanel
-          action={pending}
-          error={preview.isError}
-          linkId={link.id}
-          onCancel={() => setPending(undefined)}
-          onConfirm={confirm}
-          preview={preview.data}
-        />
-      ) : null}
+      <Dialog
+        handle={handle}
+        onOpenChange={(open, event) => {
+          if (open) {
+            resetWrite();
+          } else if (event.reason !== "imperative-action" && isWriting()) {
+            event.cancel();
+          }
+        }}
+      >
+        {({ payload }) =>
+          payload ? (
+            <DialogContent
+              finalFocus={() =>
+                (
+                  payload === "reconnect"
+                    ? available.canReconnect
+                    : available.canDisconnect
+                )
+                  ? true
+                  : document.getElementById(repositoryId)
+              }
+            >
+              <DialogTitle className="sr-only">
+                {repositoryActionLabels[payload]} preview
+              </DialogTitle>
+              <LinkActionPreview
+                action={repositoryActionLabels[payload]}
+                failure={
+                  error?.kind === payload
+                    ? errorText(
+                        error.cause,
+                        "The GitHub action did not finish.",
+                      )
+                    : null
+                }
+                isWriting={isWriting}
+                linkId={link.id}
+                loadPreview={actions.loadPreview}
+                onClose={() => handle.close()}
+                onConfirm={() =>
+                  run({
+                    kind: payload,
+                    linkId: link.id,
+                  })
+                }
+                projectId={projectId}
+                saving={saving}
+              />
+            </DialogContent>
+          ) : null
+        }
+      </Dialog>
       <TriagePanel
         link={link}
         loadTriage={actions.loadTriage}
-        onSkip={() => run({ kind: "skip", linkId: link.id })}
+        onSkip={() => send({ kind: "skip", linkId: link.id })}
         projectId={projectId}
       />
     </li>
+  );
+}
+
+function LinkActionPreview({
+  action,
+  failure,
+  isWriting,
+  linkId,
+  loadPreview,
+  onClose,
+  onConfirm,
+  projectId,
+  saving,
+}: {
+  action: GitHubLinkPreview["action"];
+  failure: string | null;
+  isWriting: () => boolean;
+  linkId: string;
+  loadPreview: GitHubIntegrationActions["loadPreview"];
+  onClose: () => void;
+  onConfirm: () => Promise<string>;
+  projectId: string;
+  saving: boolean;
+}) {
+  const preview = useQuery({
+    gcTime: 0,
+    queryFn: () => loadPreview(action, linkId),
+    queryKey: (action === "Disconnect"
+      ? orpc.previewGitHubDisconnect
+      : orpc.previewGitHubReconnect
+    ).queryKey({ input: { linkId, projectId } }),
+  });
+  async function confirm() {
+    if (isWriting()) {
+      return;
+    }
+    try {
+      await onConfirm();
+      onClose();
+    } catch {
+      // The shared mutation observer renders this command's error in the dialog.
+    }
+  }
+  return (
+    <>
+      <GitHubLinkPreviewPanel
+        action={action}
+        error={preview.isError}
+        linkId={linkId}
+        onCancel={onClose}
+        onConfirm={confirm}
+        pending={saving}
+        preview={preview.data}
+      />
+      {failure ? (
+        <p className="text-destructive" role="alert">
+          {failure}
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -425,8 +542,10 @@ export function GitHubIntegrationView({
   overview: GitHubOverview;
   projectId: string;
 }) {
+  const popupId = useId();
+  const queryClient = useQueryClient();
   const write = useMutation({
-    meta: { onlineWrite: true, retryInSurface: true },
+    meta: { onlineWrite: true, popupId, retryInSurface: true },
     mutationFn: (command: GitHubCommand) => sendGitHubCommand(actions, command),
     onSuccess: (_, command) => {
       if (command.kind !== "install") {
@@ -434,8 +553,13 @@ export function GitHubIntegrationView({
       }
     },
   });
+  const failedCommand = write.isError ? write.variables : undefined;
+  const failedLinkAction =
+    failedCommand?.kind === "reconnect" || failedCommand?.kind === "disconnect"
+      ? failedCommand
+      : null;
   let notice: GitHubNoticeState | undefined;
-  if (write.isError) {
+  if (write.isError && !failedLinkAction) {
     notice = {
       kind: "alert",
       text: errorText(write.error, "The GitHub action did not finish."),
@@ -504,11 +628,21 @@ export function GitHubIntegrationView({
             {links.map((link) => (
               <LinkItem
                 actions={actions}
+                error={
+                  failedLinkAction?.linkId === link.id &&
+                  (failedLinkAction.kind === "reconnect" ||
+                    failedLinkAction.kind === "disconnect")
+                    ? { kind: failedLinkAction.kind, cause: write.error }
+                    : null
+                }
                 formattingPreferences={formattingPreferences}
+                isWriting={() => isPopupCommandPending(queryClient, popupId)}
                 key={link.id}
                 link={link}
                 projectId={projectId}
-                run={write.mutate}
+                resetWrite={write.reset}
+                run={write.mutateAsync}
+                saving={write.isPending}
               />
             ))}
           </ul>

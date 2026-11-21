@@ -1,5 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createSheetHandle,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -21,8 +22,7 @@ import {
 /**
  * Opens Daily Focus, Favorites, Notification Center and Look again in one
  * temporary panel above the current route. It owns no membership, no read
- * state and no persisted position: open state and surface live in component
- * state only, so a new session starts closed.
+ * state and no persisted position. Base UI owns the panel lifecycle.
  */
 export default function PersonalShell({
   renderSurface,
@@ -32,18 +32,18 @@ export default function PersonalShell({
     close: () => void,
   ) => ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [sheetHandle] = useState(createSheetHandle);
   const [surface, setSurface] = useState<PersonalShellSurface>(
     PERSONAL_SHELL_INITIAL_SURFACE,
   );
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => sheetHandle.close(), [sheetHandle]);
   const selectSurface = useCallback((value: unknown) => {
     if (isPersonalShellSurface(value)) {
       setSurface(value);
     }
   }, []);
   return (
-    <Sheet onOpenChange={setOpen} open={open}>
+    <Sheet handle={sheetHandle}>
       <SheetTrigger render={<Button className="min-h-11" variant="ghost" />}>
         Personal
       </SheetTrigger>

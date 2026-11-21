@@ -1,9 +1,5 @@
 import { useForm } from "@tanstack/react-form";
 
-export function useShareReopenForm() {
-  return useForm({ defaultValues: { expiry: null as string | null } });
-}
-
 export function useShareConfirmationForm(
   requireAcknowledgment: boolean,
   onConfirm: () => Promise<unknown>,

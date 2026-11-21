@@ -93,12 +93,12 @@ test("Unpublish asks first, is a named dialog, and Cancel unpublishes nothing", 
   expect(onUnpublish).not.toHaveBeenCalled();
 });
 
-test("confirming Unpublish calls it once", () => {
+test("confirming Unpublish calls it once", async () => {
   const { onUnpublish } = render();
 
   act(() => buttonIn(document.body, "Unpublish").click());
   const surface = dialog() as Element;
-  act(() => buttonIn(surface, "Unpublish").click());
+  await act(async () => buttonIn(surface, "Unpublish").click());
 
   expect(onUnpublish).toHaveBeenCalledTimes(1);
 });

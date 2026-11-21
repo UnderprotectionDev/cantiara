@@ -65,7 +65,7 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: başk
 | Teknoloji | Amaç |
 | --- | --- |
 | shadcn/ui | Uygulama bileşenleri; varyantlar `class-variance-authority`, sınıf birleştirme `cn`, animasyon sınıfları `tw-animate-css` ile |
-| Base UI | Erişilebilir bileşen temeli |
+| Base UI | Erişilebilir bileşen temeli ve [açılır pencere yaşam döngüsü](#açılır-pencere-yaşam-döngüsü) |
 | cmdk | shadcn/ui Command bileşeninin komut arama ve klavye gezinme primitive'i |
 | Embla Carousel | shadcn/ui Carousel bileşeninin kaydırma ve gezinme motoru |
 | input-otp | shadcn/ui Input OTP bileşeninin tek kullanımlık kod giriş primitive'i |
@@ -76,7 +76,7 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: başk
 | Geist Sans + Geist Mono (Variable) | Üretim UI tipografisi: Geist Sans arayüz metni, Geist Mono ID, sayı ve veri; OFL-1.1, henüz uygulamaya paketlenmedi (DESIGN.md Known Gaps) |
 | Sonner | Uygulama toast bildirimleri (`sonner`); `@cantiara/ui` Sonner sarmalayıcısını sağlar, ayrı bir toast sistemi eklenmez |
 | TanStack Query | Sunucu verisi ve önbellek. Olay içi taze okumada [Ortak taze okuma ve form gönderimi](#ortak-taze-okuma-ve-form-gönderimi) uygulanır |
-| TanStack Store | Bileşenler arasında paylaşılan istemci, inspector, toolbar ve Wireframe editör oturumu durumu |
+| TanStack Store | Bileşenler arasında paylaşılan istemci, inspector, toolbar ve Wireframe editör oturumu durumu. |
 | TanStack Form | Form state'i ve submission yaşam döngüsü; bağlayıcıdır: gönderilen her form `useForm` ile yazılır ve form state'i ham `useState` ile tutulmaz. Doğrulama `onSubmit` içinde Zod `safeParse` ile yapılır; `packages/api` input şeması varsa o, yoksa feature `lib/` form şeması kullanılır (örnek `apps/web/src/features/project-shell/hooks/use-project-create-form.ts`). Kontroller `@cantiara/ui` bileşenleridir: metin, `file` ve `color` için `Input`, çok satır için `Textarea`, seçim için `NativeSelect` veya `Select`, onay için `Checkbox`, tekli seçim için `RadioGroup`. Kural muafiyetsizdir; en yakın örnek bu satırla çelişirse satır kazanır |
 | Browser Clipboard API | Secure-context metin kopyalama; `apps/web/src/lib/clipboard.ts` üzerinden çalışır ve arka planda clipboard izlemez; başka dosya `navigator.clipboard` kullanmaz |
 | Zod | Şema/form doğrulama ile sürümlü `WireframeDocument` doğrulaması ve migration sınırları |
@@ -87,6 +87,12 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: başk
 | React DayPicker | Tarih seçimi |
 | date-fns | Tarih işlemleri |
 
+
+## Açılır pencere yaşam döngüsü
+
+Base UI 1.9, `packages/ui/src/components/{dialog,alert-dialog,sheet,popover}.tsx` bileşenlerinde açılma, kapanma ve odak dönüşünü yönetir. Kullanıcı kapatması Base UI Close ile, başarılı asenkron komutun kapanışı pencerenin handle'ı ile yapılır. Devam eden komutun kapatma kontrolü aynı TanStack Query mutation durumundan okunur. Komut gözlemcisi pencere içeriğindeyse [isPopupCommandPending](../apps/web/src/lib/is-popup-command-pending.ts) ilgili mutation durumunu pencere kimliğiyle okur. Açan kontrolü Base UI Trigger sahiplenir. Programatik açılış veya özel odak dönüşünde hedefin DOM kimliği [popupReturnFocus](../apps/web/src/lib/popup-return-focus.ts) ile çözülür. Paylaşılan payload gerekirse bu kimliği taşır. Reddedilen komut açık formun taslağını ve tekrar gönderilecek içeriği korur. Birden fazla düğmenin açtığı pencerede bileşen ömürlü `createHandle` eylem veya kayıt kimliğini taşır. Çıkışta açan kontrol kaldırılmışsa yaşayan bir yüzey başlığı odak hedefi olabilir.
+
+Account Access örneği `apps/web/src/features/account-access/ui/components/revoke-confirmation.tsx`, paylaşılan Sheet örneği `apps/web/src/features/record-discovery/ui/components/context-record-preview.tsx`. Davranış, [Account Access](specs/01-account-access/spec.md#testing-decisions) ve [Record Discovery](specs/33-record-discovery/spec.md#testing-decisions) Playwright seam'lerinde doğrulanır. TanStack Query sunucu yazmasının durumunu, TanStack Form gönderim taslağını taşır. Satır içi Collapsible panelini komut başarısında veya ayrı bir Cancel kontrolünden kapatmak gerektiğinde, panelin sahibi Base UI Root'u yerel React durumu ile kontrol eder.
 
 ## Ortak taze okuma ve form gönderimi
 

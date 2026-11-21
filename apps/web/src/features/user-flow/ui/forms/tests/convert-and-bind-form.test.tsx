@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { Dialog, DialogContent } from "@cantiara/ui/components/dialog";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -17,12 +18,16 @@ test("Preview submits the chosen record type through the form", async () => {
   await act(async () =>
     root.render(
       <QueryClientProvider client={new QueryClient()}>
-        <ConvertAndBindDialog
-          node={{ id: "n1", kind: "Step" } as never}
-          onClose={vi.fn()}
-          onConfirm={vi.fn()}
-          onPreview={onPreview}
-        />
+        <Dialog defaultOpen>
+          <DialogContent>
+            <ConvertAndBindDialog
+              node={{ id: "n1", kind: "Step" } as never}
+              onClose={vi.fn()}
+              onConfirm={vi.fn()}
+              onPreview={onPreview}
+            />
+          </DialogContent>
+        </Dialog>
       </QueryClientProvider>,
     ),
   );

@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected Screen and form field.
+
 import {
   SCREEN_LIFECYCLE_ACTION_LABELS,
   type ScreenLifecycle,
@@ -6,7 +7,12 @@ import {
   type ScreenRecord,
 } from "@cantiara/api/screens";
 import { Button } from "@cantiara/ui/components/button";
-import { type ReactNode, useState } from "react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
+import type { ReactNode } from "react";
 import type { ScreenTemplateActions } from "../../lib/screen-template-actions";
 import type { CreateScreen } from "../forms/create-screen-form";
 import { CreateScreenForm } from "../forms/create-screen-form";
@@ -53,7 +59,6 @@ function ScreenItem({
   screen: ScreenRecord;
   templates?: ScreenTemplateActions;
 }) {
-  const [wireframeOpen, setWireframeOpen] = useState(false);
   return (
     <li
       className="space-y-2 rounded-lg border border-border/70 p-4"
@@ -100,18 +105,16 @@ function ScreenItem({
         <SaveAsTemplate actions={templates} screen={screen} />
       ) : null}
       {renderWireframe && screen.lifecycle !== "In Trash" ? (
-        <div className="space-y-3">
-          <Button
-            aria-expanded={wireframeOpen}
-            onClick={() => setWireframeOpen((open) => !open)}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            {wireframeOpen ? "Close Wireframe" : "Open Wireframe"}
-          </Button>
-          {wireframeOpen ? renderWireframe(screen) : null}
-        </div>
+        <Collapsible className="space-y-3">
+          <CollapsibleTrigger
+            render={(props, { open }) => (
+              <Button {...props} size="sm" variant="outline">
+                {open ? "Close Wireframe" : "Open Wireframe"}
+              </Button>
+            )}
+          />
+          <CollapsibleContent>{renderWireframe(screen)}</CollapsibleContent>
+        </Collapsible>
       ) : null}
     </li>
   );

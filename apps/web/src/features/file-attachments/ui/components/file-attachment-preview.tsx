@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: The preview trigger uses Base UI open state for its variant.
 import type {
   FileAttachment,
   FileAttachmentLocationBindInput,
@@ -10,6 +11,11 @@ import type {
 import { FILE_ATTACHMENT_UI_LABELS } from "@cantiara/api/file-attachments";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import {
   NativeSelect,
   NativeSelectOption,
@@ -787,13 +793,8 @@ export function FileAttachmentPreviewCard({
 }: {
   attachment: FileAttachment;
 }) {
-  const [open, setOpen] = useState(false);
-  const handleToggle = useCallback(() => {
-    setOpen((current) => !current);
-  }, []);
-
   return (
-    <li className="space-y-3 p-4 sm:p-5">
+    <Collapsible render={<li className="space-y-3 p-4 sm:p-5" />}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-medium">{attachment.name}</h3>
@@ -802,18 +803,22 @@ export function FileAttachmentPreviewCard({
             {attachment.currentVersion.number}
           </p>
         </div>
-        <Button
-          aria-expanded={open}
-          onClick={handleToggle}
-          size="sm"
-          type="button"
-          variant={open ? "secondary" : "outline"}
-        >
-          {FILE_ATTACHMENT_UI_LABELS.preview}
-        </Button>
+        <CollapsibleTrigger
+          render={(props, { open }) => (
+            <Button
+              {...props}
+              size="sm"
+              variant={open ? "secondary" : "outline"}
+            >
+              {FILE_ATTACHMENT_UI_LABELS.preview}
+            </Button>
+          )}
+        />
       </div>
-      <FileAttachmentPreviewPanel attachment={attachment} open={open} />
-    </li>
+      <CollapsibleContent>
+        <FileAttachmentPreviewPanel attachment={attachment} open />
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

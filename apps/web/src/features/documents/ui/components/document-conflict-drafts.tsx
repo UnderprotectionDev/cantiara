@@ -3,6 +3,7 @@
 import type { Document, DocumentConflictDraft } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -102,10 +103,12 @@ export default function DocumentConflictDrafts({
   );
   const drafts = useQuery(draftOptions);
   const current = useQuery(currentOptions);
-  const [independentSeed, setIndependentSeed] = useState<{
-    initial: ConflictResultValues;
-    result: ConflictResultValues;
-  } | null>(null);
+  const [independentHandle] = useState(
+    createDialogHandle<{
+      initial: ConflictResultValues;
+      result: ConflictResultValues;
+    }>,
+  );
 
   const rejectedDraftId = rejected?.id ?? null;
   useEffect(() => {
@@ -143,7 +146,9 @@ export default function DocumentConflictDrafts({
       ),
     onSuccess: async (document) => {
       compare.reset();
-      setIndependentSeed(null);
+      if (independentHandle.isOpen) {
+        independentHandle.close();
+      }
       onResolved(document);
       await queryClient.invalidateQueries({ queryKey: draftOptions.queryKey });
       await queryClient.invalidateQueries({
@@ -225,7 +230,7 @@ export default function DocumentConflictDrafts({
   }
   function openIndependent(result: ConflictResultValues) {
     if (comparison) {
-      setIndependentSeed({
+      independentHandle.openWithPayload({
         initial: {
           title: comparison.draft.title,
           body: comparison.draft.body,
@@ -236,17 +241,7 @@ export default function DocumentConflictDrafts({
     }
   }
   function closeIndependent() {
-    setIndependentSeed(null);
-  }
-  function changeIndependentOpen(open: boolean) {
-    if (!(open || resolve.isPending)) {
-      closeIndependent();
-    }
-  }
-  function createIndependent(independent: ConflictResultValues) {
-    if (independentSeed) {
-      resolveDraft("Create Document", independentSeed.result, independent);
-    }
+    independentHandle.close();
   }
   const changes = comparison
     ? diffLines(comparison.current.body, comparison.draft.body)
@@ -352,27 +347,39 @@ export default function DocumentConflictDrafts({
         </div>
       ) : null}
       <Dialog
-        onOpenChange={changeIndependentOpen}
-        open={independentSeed !== null}
+        handle={independentHandle}
+        onOpenChange={(open, event) => {
+          if (
+            !open &&
+            resolve.isPending &&
+            event.reason !== "imperative-action"
+          ) {
+            event.cancel();
+          }
+        }}
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Document</DialogTitle>
-            <DialogDescription>
-              Choose a title and keep all or selected rejected text. The new
-              Document stays in the same scope with a Conflict Draft origin.
-            </DialogDescription>
-          </DialogHeader>
-          {independentSeed ? (
-            <DocumentConflictIndependentForm
-              disabled={disabled || resolve.isPending}
-              error={error}
-              initial={independentSeed.initial}
-              onCancel={closeIndependent}
-              onSubmit={createIndependent}
-            />
-          ) : null}
-        </DialogContent>
+        {({ payload }) =>
+          payload ? (
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create Document</DialogTitle>
+                <DialogDescription>
+                  Choose a title and keep all or selected rejected text. The new
+                  Document stays in the same scope with a Conflict Draft origin.
+                </DialogDescription>
+              </DialogHeader>
+              <DocumentConflictIndependentForm
+                disabled={disabled || resolve.isPending}
+                error={error}
+                initial={payload.initial}
+                onCancel={closeIndependent}
+                onSubmit={(independent) =>
+                  resolveDraft("Create Document", payload.result, independent)
+                }
+              />
+            </DialogContent>
+          ) : null
+        }
       </Dialog>
     </section>
   );

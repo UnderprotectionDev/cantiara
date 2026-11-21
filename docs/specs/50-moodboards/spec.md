@@ -48,6 +48,8 @@ Kurucu Moodboard'u Proje tasarım ana kaydı (Tasarım type `Moodboard`) olarak 
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Moodboard view tools seam opens `Crop` inline and tests a submitted view change through the existing visual view write.
+
 - **Query write lifecycle (#544).** The personal view Query write retains the Moodboard it was scheduled for when it flushes, uses the Client Shell online and update gate, and offers no delayed Support Retry that could overwrite a newer position. The Snapshot form submits the selected items to a read-only Query and clears its observer when that scope changes.
 
 - **What a good test is.** Tests observe Moodboards through the public interface: add reference with origin+caption, swatch does not write theme/completion, crop/rotate does not mutate attachment bytes or other views, snapshot does not mutate sources, viewport restore, outline tasks, 500/750 scene does not crash. Not Konva JSON equality.

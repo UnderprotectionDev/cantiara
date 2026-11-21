@@ -13,6 +13,10 @@ import {
 } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
+  DialogTrigger,
+} from "@cantiara/ui/components/dialog";
+import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
@@ -48,7 +52,10 @@ import {
   usePriorityMetricProjectValues,
 } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import PriorityMetricValuesForm from "@/features/priority-metrics/ui/components/priority-metric-values-form";
-import { useRecordActionRunner } from "@/features/record-actions/hooks/use-record-action-runner";
+import {
+  type RecordActionDialogPayload,
+  recordActionListOptions,
+} from "@/features/record-actions/lib/record-action-run";
 import {
   RecordActionButtons,
   RecordActionRunDialog,
@@ -94,7 +101,7 @@ export default function ProjectWorkList({
   const handledWorkHash = useRef<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const bulkWorkSelection = useBulkWorkSelection();
-  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
+  const [bulkEditHandle] = useState(createDialogHandle);
   const connection = useClientShellConnection();
   const query = useQuery(
     orpc.projectWorks.queryOptions({
@@ -110,7 +117,10 @@ export default function ProjectWorkList({
     accountId,
     preferences: completionEffectsPreferences,
   });
-  const recordActionRunner = useRecordActionRunner(projectId);
+  const [recordActionHandle] = useState(
+    createDialogHandle<RecordActionDialogPayload>,
+  );
+  const recordActions = useQuery(recordActionListOptions(projectId));
   const allProjectWorksQuery = useQuery(
     orpc.projectWorks.queryOptions({
       input: { archived: "all", projectId },
@@ -183,9 +193,8 @@ export default function ProjectWorkList({
         <div className="flex flex-wrap items-center gap-3">
           <BulkEditSelectionControls
             archived={showArchived}
+            handle={bulkEditHandle}
             onCloseOutcome={completionFeedback.handleCloseOutcome}
-            onOpenChange={setIsBulkEditOpen}
-            open={isBulkEditOpen}
             projectId={projectId}
             selection={bulkWorkSelection}
             workItems={query.data}
@@ -195,7 +204,7 @@ export default function ProjectWorkList({
             aria-pressed={showArchived}
             onClick={() => {
               bulkWorkSelection.clearSelection();
-              setIsBulkEditOpen(false);
+              bulkEditHandle.close();
               setShowArchived((current) => !current);
             }}
             size="sm"
@@ -206,7 +215,7 @@ export default function ProjectWorkList({
           </Button>
         </div>
       </div>
-      {recordActionRunner.actionsError ? (
+      {recordActions.isError ? (
         <p className="text-sm text-destructive" role="alert">
           Record Actions could not be loaded. Try loading this page again.
         </p>
@@ -358,15 +367,11 @@ export default function ProjectWorkList({
                     workStatusLabels={workStatusLabels}
                   />
                   <RecordActionButtons
-                    actions={recordActionRunner.actions}
+                    actions={recordActions.data ?? []}
                     disabled={
-                      connection === "offline" ||
-                      work.archivedAt !== null ||
-                      recordActionRunner.isPreviewing ||
-                      recordActionRunner.isApplying ||
-                      recordActionRunner.isUndoing
+                      connection === "offline" || work.archivedAt !== null
                     }
-                    onStart={recordActionRunner.start}
+                    handle={recordActionHandle}
                     work={work}
                   />
                 </div>
@@ -386,7 +391,10 @@ export default function ProjectWorkList({
           ))}
         </ul>
       )}
-      <RecordActionRunDialog runner={recordActionRunner} />
+      <RecordActionRunDialog
+        handle={recordActionHandle}
+        projectId={projectId}
+      />
     </div>
   );
 }
@@ -394,8 +402,7 @@ export default function ProjectWorkList({
 function BulkEditSelectionControls({
   archived,
   onCloseOutcome,
-  onOpenChange,
-  open,
+  handle,
   projectId,
   selection,
   workItems,
@@ -403,8 +410,7 @@ function BulkEditSelectionControls({
 }: {
   archived: boolean;
   onCloseOutcome: (outcome: UserInitiatedWorkCloseOutcome) => void;
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
+  handle: ReturnType<typeof createDialogHandle>;
   projectId: string;
   selection: ReturnType<typeof useBulkWorkSelection>;
   workItems: readonly WorkProfile[];
@@ -427,9 +433,9 @@ function BulkEditSelectionControls({
           <span className="text-xs text-muted-foreground">
             {selectedWorks.length} selected
           </span>
-          <Button onClick={() => onOpenChange(true)} size="sm" type="button">
+          <DialogTrigger handle={handle} render={<Button size="sm" />}>
             Bulk Edit
-          </Button>
+          </DialogTrigger>
         </div>
       ) : null}
       <ExportListAction
@@ -450,9 +456,8 @@ function BulkEditSelectionControls({
       />
       <BulkEditDialog
         archived={archived}
+        handle={handle}
         onCloseOutcome={onCloseOutcome}
-        onOpenChange={onOpenChange}
-        open={open}
         projectId={projectId}
         selectedWorks={selectedWorks}
         workStatusLabels={workStatusLabels}

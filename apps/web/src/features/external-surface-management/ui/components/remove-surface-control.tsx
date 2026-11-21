@@ -1,14 +1,21 @@
-// biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to this surface's state.
-
+// biome-ignore-all lint/performance/noJsxPropsBind: The dismissal guard observes this surface's mutation.
 import { REVOKE_UNPUBLISH_LABEL } from "@cantiara/api/external-surface-management";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+  createAlertDialogHandle,
+} from "@cantiara/ui/components/alert-dialog";
 import { Button } from "@cantiara/ui/components/button";
 import { useState } from "react";
 import { useRemoveExternalSurface } from "../../hooks/use-remove-external-surface";
 
-/**
- * `Revoke / Unpublish` of one existing Dış yüzey. Removal is terminal: it says
- * so before it runs and promises nothing about copies a third party holds.
- */
+/** Confirms the permanent removal of one Dış yüzey. */
 export function RemoveSurfaceControl({
   surfaceId,
   sourceTitle,
@@ -16,58 +23,60 @@ export function RemoveSurfaceControl({
   surfaceId: string;
   sourceTitle: string;
 }) {
-  const [confirming, setConfirming] = useState(false);
+  const [actionsHandle] = useState(createAlertDialogHandle);
   const remove = useRemoveExternalSurface();
 
   async function confirm() {
     try {
       await remove.mutateAsync({ surfaceId });
-      setConfirming(false);
+      actionsHandle.close();
     } catch {
       // The removal mutation exposes the failure for another confirmation.
     }
   }
 
-  if (!confirming) {
-    return (
-      <Button
-        aria-label={`${REVOKE_UNPUBLISH_LABEL}: ${sourceTitle}`}
-        onClick={() => {
+  return (
+    <AlertDialog
+      handle={actionsHandle}
+      onOpenChange={(open, event) => {
+        if (open) {
           remove.reset();
-          setConfirming(true);
-        }}
-        type="button"
-        variant="destructive"
+        } else if (remove.isPending && event.reason !== "imperative-action") {
+          event.cancel();
+        }
+      }}
+    >
+      <AlertDialogTrigger
+        aria-label={`${REVOKE_UNPUBLISH_LABEL}: ${sourceTitle}`}
+        render={<Button variant="destructive" />}
       >
         {REVOKE_UNPUBLISH_LABEL}
-      </Button>
-    );
-  }
-  return (
-    <fieldset className="space-y-2" disabled={remove.isPending}>
-      <legend className="sr-only">Confirm removal</legend>
-      <p className="text-sm">
-        This is permanent. The old URL will answer 410 Gone, is never reused,
-        and nothing reopens it. Copies other sites already hold are not promised
-        gone.
-      </p>
-      <div className="flex gap-2">
-        <Button onClick={confirm} type="button" variant="destructive">
-          {REVOKE_UNPUBLISH_LABEL}
-        </Button>
-        <Button
-          onClick={() => setConfirming(false)}
-          type="button"
-          variant="outline"
-        >
-          Cancel
-        </Button>
-      </div>
-      {remove.isError ? (
-        <p className="text-sm text-destructive" role="alert">
-          That did not work. Try again.
-        </p>
-      ) : null}
-    </fieldset>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogTitle>Confirm removal</AlertDialogTitle>
+        <AlertDialogDescription>
+          This is permanent. The old URL will answer 410 Gone, is never reused,
+          and nothing reopens it. Copies other sites already hold are not
+          promised gone.
+        </AlertDialogDescription>
+        {remove.isError ? (
+          <p className="text-sm text-destructive" role="alert">
+            That did not work. Try again.
+          </p>
+        ) : null}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={remove.isPending}>
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            disabled={remove.isPending}
+            onClick={confirm}
+            variant="destructive"
+          >
+            {REVOKE_UNPUBLISH_LABEL}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

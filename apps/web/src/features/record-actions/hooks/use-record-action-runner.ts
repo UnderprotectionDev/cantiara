@@ -1,13 +1,11 @@
 import type {
   PreviewRecordActionInput,
-  RecordAction,
   RecordActionRuntimeInputs,
   UndoRecordActionInput,
 } from "@cantiara/api/record-actions";
 import { recordActionStepsNeedRuntimeInputs } from "@cantiara/api/record-actions";
-import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { commandVariables } from "@/lib/command-variables";
@@ -18,15 +16,12 @@ import {
   orpc,
 } from "@/utils/orpc";
 
+import type { ActiveRecordAction } from "../lib/record-action-run";
+
 type RecordActionRefreshContext = Pick<
   Parameters<typeof client.applyRecordAction>[0],
   "focusDate" | "runtimeInputs"
 >;
-
-interface ActiveRecordAction {
-  action: RecordAction;
-  work: WorkProfile;
-}
 
 function mutationErrorMessage(error: unknown) {
   return error instanceof Error && error.message
@@ -34,26 +29,31 @@ function mutationErrorMessage(error: unknown) {
     : "Record Action could not be completed. Try again.";
 }
 
-export function useRecordActionRunner(projectId: string) {
+export function useRecordActionRunner(
+  projectId: string,
+  active: ActiveRecordAction,
+  popupId: string,
+) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
-  const actionsQuery = useQuery(
-    orpc.recordActions.queryOptions({ input: { projectId } }),
+  const previewSessionId = useId();
+  const previewMutationKey = useMemo(
+    () => [...orpc.previewRecordAction.mutationKey(), previewSessionId],
+    [previewSessionId],
   );
-  const [active, setActive] = useState<ActiveRecordAction | null>(null);
   const [runVersion, setRunVersion] = useState(0);
-  const needsRuntimeInput = active
-    ? recordActionStepsNeedRuntimeInputs(active.action.steps)
-    : false;
+  const needsRuntimeInput = recordActionStepsNeedRuntimeInputs(
+    active.action.steps,
+  );
   const needsRuntimeFieldInput = Boolean(
-    active?.action.steps.some(
+    active.action.steps.some(
       (step) =>
         step.kind === "custom-field-value" &&
         step.value.kind === "runtime-input",
     ),
   );
   const needsRuntimeRelationInput = Boolean(
-    active?.action.steps.some((step) => step.kind === "related-work"),
+    active.action.steps.some((step) => step.kind === "related-work"),
   );
   const runtimeCustomFieldsQueryOptions = orpc.customFields.queryOptions({
     input: { projectId },
@@ -132,13 +132,13 @@ export function useRecordActionRunner(projectId: string) {
   }
 
   const previewMutation = useMutation({
-    mutationKey: orpc.previewRecordAction.mutationKey(),
+    mutationKey: previewMutationKey,
     mutationFn: (input: PreviewRecordActionInput) =>
       client.previewRecordAction(input),
   });
   const applyMutation = useMutation(
     orpc.applyRecordAction.mutationOptions({
-      meta: { onlineWrite: true },
+      meta: { onlineWrite: true, popupId },
       mutationFn: (input) => client.applyRecordAction(input),
       onSuccess: async (result, command) => {
         if (result.status === "committed") {
@@ -149,7 +149,7 @@ export function useRecordActionRunner(projectId: string) {
   );
   const undoMutation = useMutation({
     mutationKey: orpc.undoRecordAction.mutationKey(),
-    meta: { onlineWrite: true },
+    meta: { onlineWrite: true, popupId },
     mutationFn: ({
       command,
     }: {
@@ -161,7 +161,7 @@ export function useRecordActionRunner(projectId: string) {
     },
   });
   const prepareUndo = useMutation({
-    meta: { presentsSupportFailure: true },
+    meta: { presentsSupportFailure: true, popupId },
     mutationFn: (workId: string) => fetchCurrentWork(queryClient, workId),
   });
   const isPreparingUndo = prepareUndo.isPending;
@@ -181,30 +181,57 @@ export function useRecordActionRunner(projectId: string) {
     applyMutation.reset();
     undoMutation.reset();
   }
-  function start(action: RecordAction, work: WorkProfile) {
+  const previewRun = previewMutation.mutate;
+  useEffect(() => {
+    if (
+      previewMutation.status !== "idle" ||
+      runVersion > 0 ||
+      queryClient
+        .getMutationCache()
+        .find({ mutationKey: previewMutationKey }) ||
+      needsRuntimeInput ||
+      connection === "offline"
+    ) {
+      return;
+    }
+    previewRun({
+      actionId: active.action.id,
+      runtimeInputs: { customFieldValues: {}, relations: {} },
+      workId: active.work.id,
+    });
+  }, [
+    active,
+    connection,
+    needsRuntimeInput,
+    previewMutationKey,
+    previewMutation.status,
+    previewRun,
+    queryClient,
+    runVersion,
+  ]);
+
+  function startAgain() {
     if (
       connection === "offline" ||
-      work.archivedAt !== null ||
+      active.work.archivedAt !== null ||
       isPreparingUndo ||
       undoMutation.isPending
     ) {
       return;
     }
-    setActive({ action, work });
     setRunVersion((current) => current + 1);
     resetRun();
-    if (!recordActionStepsNeedRuntimeInputs(action.steps)) {
-      previewMutation.mutate({
-        actionId: action.id,
+    if (!needsRuntimeInput) {
+      previewRun({
+        actionId: active.action.id,
         runtimeInputs: { customFieldValues: {}, relations: {} },
-        workId: work.id,
+        workId: active.work.id,
       });
     }
   }
 
   function previewWithInputs(runtimeInputs: RecordActionRuntimeInputs) {
     if (
-      !active ||
       connection === "offline" ||
       previewMutation.isPending ||
       isPreparingUndo ||
@@ -234,7 +261,7 @@ export function useRecordActionRunner(projectId: string) {
 
   function apply() {
     if (
-      !(active && preview) ||
+      !preview ||
       connection === "offline" ||
       active.work.archivedAt !== null ||
       applyMutation.isPending
@@ -263,7 +290,6 @@ export function useRecordActionRunner(projectId: string) {
 
   async function undo() {
     if (
-      !active ||
       applyResult?.status !== "committed" ||
       connection === "offline" ||
       active.work.archivedAt !== null ||
@@ -299,22 +325,11 @@ export function useRecordActionRunner(projectId: string) {
     });
   }
 
-  function close() {
-    if (applyMutation.isPending || undoMutation.isPending || isPreparingUndo) {
-      return;
-    }
-    setActive(null);
-    resetRun();
-  }
-
   return {
-    actions: actionsQuery.data ?? [],
-    actionsError: actionsQuery.isError,
     active,
     apply,
     applyError: applyMutation.isError,
     applyResult,
-    close,
     changeInputs,
     error,
     isApplying: applyMutation.isPending,
@@ -334,7 +349,7 @@ export function useRecordActionRunner(projectId: string) {
     runtimeWorks: runtimeWorksQuery.data ?? [],
     runtimeWorksError: runtimeWorksQuery.isError,
     runtimeWorksPending: runtimeWorksQuery.isPending,
-    start,
+    startAgain,
     undo,
     undoError: undoMutation.isError,
     undoReceipt,

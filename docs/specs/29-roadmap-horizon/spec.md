@@ -57,6 +57,8 @@ Roadmap ufuk ve görünüm gruplarını anlatı olarak sunar. `Now`, `Next` veya
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Roadmap web seams exercise `Place on plan` and Milestone `Edit` in their existing inline controls. Cancel and successful writes fold the editing panel.
+
 - **Named view submission (#545).** `roadmap-view-form.test.tsx` verifies that repeated `Save named view` submissions while a write is pending send one write and report one saved view.
 
 - **What a good test is.** Tests observe Roadmap Horizon through its public interface: horizon/filter writes that must not touch status/priority/Backlog order, Milestone reach/abandon without closing Work, `Not now` trail without status write, blocker badge opening sources, unplanned-candidate confirm, Presentation Mode without a second copy. They do not assert canvas internals. Expected values are product rules (placement is not status; Milestone ≠ Focus Period ≠ Project Release; Presentation Mode is a mode).

@@ -14,7 +14,9 @@ import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
+  type createDialogHandle,
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -27,10 +29,20 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import type { SubmitEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { type SubmitEvent, useId } from "react";
 import { DatePicker } from "@/components/date-picker";
-import type { RecordActionRunnerState } from "../../hooks/use-record-action-runner";
+import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
+import { popupReturnFocus } from "@/lib/popup-return-focus";
+import {
+  type RecordActionRunnerState,
+  useRecordActionRunner,
+} from "../../hooks/use-record-action-runner";
 import { useRecordActionRuntimeInputForm } from "../../hooks/use-record-action-runtime-input-form";
+import type {
+  ActiveRecordAction,
+  RecordActionDialogPayload,
+} from "../../lib/record-action-run";
 import { recordActionRuntimeInputsFormSchema } from "../../lib/record-action-runtime-inputs";
 
 function RuntimeCustomFieldControl({
@@ -146,14 +158,15 @@ function RuntimeCustomFieldControl({
 export function RecordActionButtons({
   actions,
   disabled,
-  onStart,
+  handle,
   work,
 }: {
   actions: readonly RecordAction[];
   disabled: boolean;
-  onStart: (action: RecordAction, work: WorkProfile) => void;
+  handle: ReturnType<typeof createDialogHandle<RecordActionDialogPayload>>;
   work: WorkProfile;
 }) {
+  const triggerId = useId();
   if (actions.length === 0) {
     return null;
   }
@@ -166,9 +179,17 @@ export function RecordActionButtons({
       <legend className="sr-only">Record Actions for {work.key}</legend>
       {actions.map((action) => (
         <Button
+          aria-haspopup="dialog"
           disabled={disabled}
+          id={`${triggerId}-${action.id}`}
           key={action.id}
-          onClick={() => onStart(action, work)}
+          onClick={(event) =>
+            handle.openWithPayload({
+              action,
+              returnFocusId: event.currentTarget.id,
+              work,
+            })
+          }
           size="xs"
           type="button"
           variant="outline"
@@ -548,7 +569,7 @@ function RecordActionRunDialogFooter({
       {isRolledBack ? (
         <Button
           disabled={isFinalizing}
-          onClick={() => runner.start(active.action, active.work)}
+          onClick={runner.startAgain}
           type="button"
         >
           Start again
@@ -561,9 +582,7 @@ function RecordActionRunDialogFooter({
         runner={runner}
       />
       {isFinalizing || isCommitted || isRolledBack ? null : (
-        <Button onClick={runner.close} type="button" variant="outline">
-          Cancel
-        </Button>
+        <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
       )}
       {canApply ? (
         <Button
@@ -577,20 +596,60 @@ function RecordActionRunDialogFooter({
           {runner.applyError ? "Retry" : "Apply"}
         </Button>
       ) : null}
-      {canClose ? (
-        <Button onClick={runner.close} type="button">
-          Close
-        </Button>
-      ) : null}
+      {canClose ? <DialogClose render={<Button />}>Close</DialogClose> : null}
     </DialogFooter>
   );
 }
 
 export function RecordActionRunDialog({
-  runner,
+  handle,
+  projectId,
 }: {
-  runner: RecordActionRunnerState;
+  handle: ReturnType<typeof createDialogHandle<RecordActionDialogPayload>>;
+  projectId: string;
 }) {
+  const popupId = useId();
+  const queryClient = useQueryClient();
+  return (
+    <Dialog
+      handle={handle}
+      onOpenChange={(open, event) => {
+        if (!open && isPopupCommandPending(queryClient, popupId)) {
+          event.cancel();
+        }
+      }}
+    >
+      {({ payload }) =>
+        payload ? (
+          <DialogContent
+            aria-label={`Preview ${payload.action.name}`}
+            className="max-h-[min(80vh,40rem)] overflow-y-auto sm:max-w-lg"
+            finalFocus={() => popupReturnFocus(payload.returnFocusId)}
+            showCloseButton={false}
+          >
+            <RecordActionRunContent
+              key={`${payload.action.id}:${payload.work.id}`}
+              openingAction={payload}
+              popupId={popupId}
+              projectId={projectId}
+            />
+          </DialogContent>
+        ) : null
+      }
+    </Dialog>
+  );
+}
+
+function RecordActionRunContent({
+  popupId,
+  openingAction,
+  projectId,
+}: {
+  popupId: string;
+  openingAction: ActiveRecordAction;
+  projectId: string;
+}) {
+  const runner = useRecordActionRunner(projectId, openingAction, popupId);
   const runtimeInputForm = useRecordActionRuntimeInputForm(runner);
   const {
     active,
@@ -601,10 +660,6 @@ export function RecordActionRunDialog({
     isUndoing,
     preview,
   } = runner;
-  if (!active) {
-    return null;
-  }
-
   const isFinalizing = isApplying || (isUndoing && !isPreparingUndo);
   const isCommitted = runner.applyResult?.status === "committed";
   const currentValue =
@@ -615,45 +670,32 @@ export function RecordActionRunDialog({
   const statusMessage = actionStatusMessage(runner, active.action.name);
 
   return (
-    <Dialog
-      onOpenChange={(open) => {
-        if (!(open || isFinalizing || isPreparingUndo)) {
-          runner.close();
-        }
-      }}
-      open
-    >
-      <DialogContent
-        aria-label={`Preview ${active.action.name}`}
-        className="max-h-[min(80vh,40rem)] overflow-y-auto sm:max-w-lg"
-        showCloseButton={!(isFinalizing || isPreparingUndo || isCommitted)}
-      >
-        <DialogHeader>
-          <DialogTitle>Preview {active.action.name}</DialogTitle>
-          <DialogDescription>
-            {active.work.key} · {active.work.title}
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle>Preview {active.action.name}</DialogTitle>
+        <DialogDescription>
+          {active.work.key} · {active.work.title}
+        </DialogDescription>
+      </DialogHeader>
 
-        <RecordActionPreviewContent
-          active={active}
-          currentValue={currentValue}
-          error={error}
-          isFinalizing={isFinalizing}
-          isPreviewing={isPreviewing}
-          preview={preview}
-          runner={runner}
-          runtimeInputForm={runtimeInputForm}
-          statusMessage={statusMessage}
-        />
-        <RecordActionRunDialogFooter
-          active={active}
-          isCommitted={isCommitted}
-          isFinalizing={isFinalizing || isPreparingUndo}
-          runner={runner}
-        />
-      </DialogContent>
-    </Dialog>
+      <RecordActionPreviewContent
+        active={active}
+        currentValue={currentValue}
+        error={error}
+        isFinalizing={isFinalizing}
+        isPreviewing={isPreviewing}
+        preview={preview}
+        runner={runner}
+        runtimeInputForm={runtimeInputForm}
+        statusMessage={statusMessage}
+      />
+      <RecordActionRunDialogFooter
+        active={active}
+        isCommitted={isCommitted}
+        isFinalizing={isFinalizing || isPreparingUndo}
+        runner={runner}
+      />
+    </>
   );
 }
 

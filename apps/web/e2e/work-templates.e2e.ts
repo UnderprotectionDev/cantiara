@@ -175,7 +175,7 @@ test("defines, previews, edits, and trashes a Project Work Template", async ({
   await createdWork
     .getByRole("button", { name: "Duplicate Work", exact: true })
     .click();
-  const duplicateForm = createdWork.getByRole("form", {
+  const duplicateForm = page.getByRole("form", {
     name: "Duplicate Work",
   });
   await expect(duplicateForm.getByText("Release audience")).toBeVisible();

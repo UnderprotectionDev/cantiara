@@ -1,8 +1,9 @@
+// @vitest-environment happy-dom
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import type { DuplicateWorkPreview } from "@cantiara/api/work-templates";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { describe, expect, test } from "vitest";
 
 import { createClientShell } from "@/features/web-macos-client/store/client-shell";
@@ -55,8 +56,11 @@ const preview: DuplicateWorkPreview = {
 };
 
 describe("Work duplicate action", () => {
-  test("offers a one-off copy preview without living-record payload", () => {
-    const queryClient = new QueryClient();
+  test("offers a one-off copy preview without living-record payload", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
+    });
     queryClient.setQueryData(
       orpc.previewDuplicateWork.queryOptions({
         input: { sourceWorkId: "work-1" },
@@ -64,30 +68,37 @@ describe("Work duplicate action", () => {
       preview,
     );
 
-    const html = renderToStaticMarkup(
-      createElement(
-        QueryClientProvider,
-        { client: queryClient },
-        createElement(
-          ClientShellProvider,
-          { shell: createClientShell() },
-          createElement(WorkDuplicateAction, {
-            defaultOpen: true,
-            work,
-          }),
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      await act(async () =>
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <ClientShellProvider shell={createClientShell()}>
+              <WorkDuplicateAction work={work} />
+            </ClientShellProvider>
+          </QueryClientProvider>,
         ),
-      ),
-    );
-
-    expect(html).toContain("Duplicate Work");
-    expect(html).toContain("Release audience");
-    expect(html).toContain("Prepare the October release");
-    for (const forbidden of [
-      "Current status",
-      "Closure result",
-      "In Progress",
-    ]) {
-      expect(html).not.toContain(forbidden);
+      );
+      const trigger = host.querySelector("button");
+      expect(trigger?.textContent).toBe("Duplicate Work");
+      await act(async () => trigger?.click());
+      const previewForm = document.querySelector(
+        'form[aria-label="Duplicate Work"]',
+      );
+      expect(previewForm?.textContent).toContain("Release audience");
+      expect(previewForm?.textContent).toContain("Prepare the October release");
+      for (const forbidden of [
+        "Current status",
+        "Closure result",
+        "In Progress",
+      ]) {
+        expect(previewForm?.textContent).not.toContain(forbidden);
+      }
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
     }
   });
 });

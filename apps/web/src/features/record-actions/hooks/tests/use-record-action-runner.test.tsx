@@ -6,18 +6,19 @@ import type {
 } from "@cantiara/api/record-actions";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, test, vi } from "vitest";
 
 const rpc = vi.hoisted(() => ({
   applyRecordAction: vi.fn(),
+  connection: "online",
   previewRecordAction: vi.fn(),
   undoRecordAction: vi.fn(),
   work: vi.fn(),
 }));
 vi.mock("@/features/web-macos-client/hooks/use-client-shell", () => ({
-  useClientShellConnection: () => "online",
+  useClientShellConnection: () => rpc.connection,
 }));
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({
   runOnlineOnlyWrite: (write: () => Promise<unknown>) => write(),
@@ -105,7 +106,11 @@ test("a Record Action Retry reuses its command and refreshes the affected surfac
   const invalidate = vi.spyOn(cache, "invalidateQueries");
   let runner: ReturnType<typeof useRecordActionRunner> | undefined;
   function Probe() {
-    runner = useRecordActionRunner("p1");
+    runner = useRecordActionRunner(
+      "p1",
+      { action, work },
+      "record-action-popup",
+    );
     return null;
   }
   const root = createRoot(document.createElement("div"));
@@ -116,7 +121,6 @@ test("a Record Action Retry reuses its command and refreshes the affected surfac
       </QueryClientProvider>,
     ),
   );
-  await act(async () => runner?.start(action, work));
   await vi.waitFor(() => expect(runner?.preview).toEqual(preview));
   await act(async () => runner?.apply());
   await vi.waitFor(() => expect(runner?.applyError).toBe(true));
@@ -148,4 +152,58 @@ test("a Record Action Retry reuses its command and refreshes the affected surfac
     { recordId: "w2", recordType: "Work" },
   ]);
   act(() => root.unmount());
+});
+
+test("opening a Record Action previews once across Strict Mode and reconnects", async () => {
+  rpc.connection = "offline";
+  rpc.previewRecordAction.mockClear().mockResolvedValue(preview);
+  const cache = new QueryClient();
+  let runner: ReturnType<typeof useRecordActionRunner> | undefined;
+  function Probe() {
+    runner = useRecordActionRunner(
+      "p1",
+      { action, work },
+      "record-action-popup",
+    );
+    return null;
+  }
+  const root = createRoot(document.createElement("div"));
+  async function render() {
+    await act(async () => {
+      root.render(
+        <StrictMode>
+          <QueryClientProvider client={cache}>
+            <Probe />
+          </QueryClientProvider>
+        </StrictMode>,
+      );
+    });
+  }
+  try {
+    await render();
+    expect(rpc.previewRecordAction).not.toHaveBeenCalled();
+    rpc.connection = "online";
+    await render();
+    await vi.waitFor(() => expect(runner?.preview).toEqual(preview));
+    expect(rpc.previewRecordAction).toHaveBeenCalledTimes(1);
+
+    rpc.connection = "offline";
+    await render();
+    rpc.connection = "online";
+    await render();
+    expect(rpc.previewRecordAction).toHaveBeenCalledTimes(1);
+
+    await act(async () => runner?.startAgain());
+    await vi.waitFor(() => expect(runner?.preview).toEqual(preview));
+    expect(rpc.previewRecordAction).toHaveBeenCalledTimes(2);
+
+    await act(async () => root.render(null));
+    await render();
+    await vi.waitFor(() => expect(runner?.preview).toEqual(preview));
+    expect(rpc.previewRecordAction).toHaveBeenCalledTimes(3);
+  } finally {
+    rpc.connection = "online";
+    act(() => root.unmount());
+    cache.clear();
+  }
 });

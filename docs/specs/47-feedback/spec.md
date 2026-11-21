@@ -68,6 +68,8 @@ Kurucu Geri Bildirimi ayrı uzman ana kayıt olarak tutar: özgün mesaj, kanal,
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Feedback surface retry test opens `Convert to Work` from its trigger and observes that a second confirmation submits the same command after a rejected write.
+
 - The Feedback seam verifies that status and identity failures are displayed on the owning Feedback record.
 
 - **What a good test is.** Tests observe Feedback through the public record-and-feed interface: create Feedback with original message/channel/time, optional Contact, convert-to-Work preview/commit, status independence from Work, niteliği vs original, Feed listing the same ids, Feed sort not writing status. They do not assert Drizzle shapes. Expected values are product rules (record remains after convert, unknown sender allowed, no social actions).

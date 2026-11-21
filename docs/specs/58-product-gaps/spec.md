@@ -42,6 +42,8 @@ Kurucu açık `Record Product Gap` eylemiyle Çalışma Alanı ana kaydı Ürün
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Dogfooding Summary and Tool Escape seams open the count disclosure and its one-event close form. Closing the event refreshes the displayed drill-down.
+
 - **#545.** The web product-gaps-board.test.tsx seam checks add and remove announcements, inline duplicate validation, and submission of the selected related records.
 
 - The Product Gap board seam verifies the owning write state and that the same follow-up plan retains its command identity after failure.

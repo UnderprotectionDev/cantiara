@@ -8,12 +8,15 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
+  createDialogHandle,
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { type SubmitEvent, useState } from "react";
@@ -28,7 +31,7 @@ interface WikiPublicationPanelProps {
     acknowledgeThirdPartyCopies: boolean;
     enabled: boolean;
   }) => unknown;
-  onUnpublish: () => void;
+  onUnpublish: () => unknown;
   publication: WikiPublication;
   /** Absolute public URL; the panel never builds one from a Project. */
   publicUrl: string | null;
@@ -47,8 +50,28 @@ export function WikiPublicationPanel({
   publication,
   publicUrl,
 }: WikiPublicationPanelProps) {
-  const [unpublishOpen, setUnpublishOpen] = useState(false);
-  const [indexingOpen, setIndexingOpen] = useState(false);
+  const [unpublishHandle] = useState(createDialogHandle);
+  const [indexingHandle] = useState(createDialogHandle);
+  const unpublishForm = useForm({
+    defaultValues: {},
+    onSubmit: async ({ formApi }) => {
+      try {
+        await onUnpublish();
+        unpublishHandle.close();
+      } catch {
+        formApi.setErrorMap({
+          onSubmit: {
+            form: "The page could not be unpublished. Try again.",
+            fields: {},
+          },
+        });
+      }
+    },
+  });
+  const unpublishing = useSelector(
+    unpublishForm.store,
+    (state) => state.isSubmitting,
+  );
   const indexingForm = useForm({
     defaultValues: { acknowledged: false },
     onSubmit: async ({ value }) => {
@@ -62,7 +85,7 @@ export function WikiPublicationPanel({
         // The caller presents the failure; the acknowledgement stays for a retry.
         return;
       }
-      setIndexingOpen(false);
+      indexingHandle.close();
     },
   });
   const acknowledged = useSelector(
@@ -112,29 +135,36 @@ export function WikiPublicationPanel({
             {WIKI_PUBLISHING_UI_LABELS.disableIndexing}
           </Button>
         ) : (
-          <Button
+          <DialogTrigger
             disabled={busy}
-            onClick={() => {
-              indexingForm.reset();
-              setIndexingOpen(true);
-            }}
-            type="button"
-            variant="outline"
+            handle={indexingHandle}
+            render={<Button variant="outline" />}
           >
             {WIKI_PUBLISHING_UI_LABELS.enableIndexing}
-          </Button>
+          </DialogTrigger>
         )}
-        <Button
+        <DialogTrigger
           disabled={busy}
-          onClick={() => setUnpublishOpen(true)}
-          type="button"
-          variant="destructive"
+          handle={unpublishHandle}
+          render={<Button variant="destructive" />}
         >
           {WIKI_PUBLISHING_UI_LABELS.unpublish}
-        </Button>
+        </DialogTrigger>
       </div>
 
-      <Dialog onOpenChange={setUnpublishOpen} open={unpublishOpen}>
+      <Dialog
+        handle={unpublishHandle}
+        onOpenChange={(open, event) => {
+          if (open) {
+            unpublishForm.reset();
+          } else if (
+            (busy || unpublishing) &&
+            event.reason !== "imperative-action"
+          ) {
+            event.cancel();
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{WIKI_PUBLISHING_UI_LABELS.unpublish}</DialogTitle>
@@ -144,20 +174,25 @@ export function WikiPublicationPanel({
               saved cannot be recalled.
             </DialogDescription>
           </DialogHeader>
+          <unpublishForm.Subscribe
+            selector={(state) => state.errorMap.onSubmit}
+          >
+            {(message) =>
+              typeof message === "string" ? <p role="alert">{message}</p> : null
+            }
+          </unpublishForm.Subscribe>
           <DialogFooter>
-            <Button
-              onClick={() => setUnpublishOpen(false)}
-              type="button"
-              variant="outline"
+            <DialogClose
+              disabled={busy || unpublishing}
+              render={<Button variant="outline" />}
             >
               Cancel
-            </Button>
+            </DialogClose>
             <Button
-              disabled={busy}
-              onClick={() => {
-                setUnpublishOpen(false);
-                onUnpublish();
-              }}
+              disabled={busy || unpublishing}
+              onClick={() =>
+                unpublishForm.handleSubmit().catch(() => undefined)
+              }
               type="button"
               variant="destructive"
             >
@@ -167,7 +202,19 @@ export function WikiPublicationPanel({
         </DialogContent>
       </Dialog>
 
-      <Dialog onOpenChange={setIndexingOpen} open={indexingOpen}>
+      <Dialog
+        handle={indexingHandle}
+        onOpenChange={(open, event) => {
+          if (open) {
+            indexingForm.reset();
+          } else if (
+            (busy || indexingForm.state.isSubmitting) &&
+            event.reason !== "imperative-action"
+          ) {
+            event.cancel();
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -201,13 +248,12 @@ export function WikiPublicationPanel({
               </label>
             </div>
             <DialogFooter>
-              <Button
-                onClick={() => setIndexingOpen(false)}
-                type="button"
-                variant="outline"
+              <DialogClose
+                disabled={busy}
+                render={<Button variant="outline" />}
               >
                 Cancel
-              </Button>
+              </DialogClose>
               <Button disabled={!acknowledged || busy} type="submit">
                 {WIKI_PUBLISHING_UI_LABELS.enableIndexing}
               </Button>

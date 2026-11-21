@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { Dialog, DialogContent } from "@cantiara/ui/components/dialog";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, test, vi } from "vitest";
@@ -15,20 +16,23 @@ async function submit(title: string) {
   const root = createRoot(host);
   await act(async () =>
     root.render(
-      <DocumentDiagramConversionDialog
-        {...({
-          conversionKey: { current: null },
-          conversionPreview: { data: undefined, isError: false },
-          conversionSelection: { end: 10, start: 0 },
-          conversionTitle: title,
-          convertDiagram: { isError: false, isPending: false, mutateAsync },
-          originalBlockOutcome: "Keep independent",
-          record: { title: "Doc" },
-          setConversionSelection: vi.fn(),
-          setConversionTitle: vi.fn(),
-          setOriginalBlockOutcome: vi.fn(),
-        } as any)}
-      />,
+      <Dialog defaultOpen>
+        <DialogContent>
+          <DocumentDiagramConversionDialog
+            {...({
+              conversionKey: { current: null },
+              conversionPreview: { data: undefined, isError: false },
+              conversionSelection: { end: 10, start: 0 },
+              conversionTitle: title,
+              convertDiagram: { isError: false, isPending: false, mutateAsync },
+              originalBlockOutcome: "Keep independent",
+              record: { title: "Doc" },
+              setConversionTitle: vi.fn(),
+              setOriginalBlockOutcome: vi.fn(),
+            } as any)}
+          />
+        </DialogContent>
+      </Dialog>,
     ),
   );
   await act(() => {

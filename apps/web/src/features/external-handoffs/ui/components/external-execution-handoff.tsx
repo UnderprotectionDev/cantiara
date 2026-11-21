@@ -12,6 +12,11 @@ import {
 } from "@cantiara/api/external-handoffs";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { useState } from "react";
 import { useExternalExecutionHandoffs } from "@/features/external-handoffs/hooks/use-external-handoffs";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
@@ -262,10 +267,13 @@ export default function ExternalExecutionHandoffPanel({
   }
 
   return (
-    <section
+    <Collapsible
       aria-labelledby={`external-execution-handoff-${work.id}-heading`}
       className="rounded-md border border-border/70 bg-background/45 p-3"
       data-external-execution-handoff="true"
+      onOpenChange={setExpanded}
+      open={expanded}
+      render={<section />}
     >
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -279,23 +287,20 @@ export default function ExternalExecutionHandoffPanel({
             A dated package stays attached to {work.key}.
           </p>
         </div>
-        <Button
+        <CollapsibleTrigger
           disabled={connection === "offline"}
           onClick={() => {
-            setExpanded(true);
             if (!start.isPending) {
               start.reset();
             }
           }}
-          size="xs"
-          type="button"
-          variant="outline"
+          render={<Button size="xs" variant="outline" />}
         >
           {work.archivedAt === null ? "Start Handoff" : "View Handoffs"}
-        </Button>
+        </CollapsibleTrigger>
       </header>
 
-      {expanded ? (
+      <CollapsibleContent>
         <div className="mt-4 space-y-4 border-t border-border/70 pt-4">
           {query.status === "pending" ? (
             <p className="text-xs text-muted-foreground" role="status">
@@ -437,7 +442,7 @@ export default function ExternalExecutionHandoffPanel({
             writeError={start.isError ? errorMessage(start.error) : null}
           />
         </div>
-      ) : null}
-    </section>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

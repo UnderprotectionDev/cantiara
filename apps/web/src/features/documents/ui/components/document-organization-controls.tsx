@@ -1,6 +1,14 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: The close guard reads the current form submission.
 import type { Document } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
+import {
+  createDialogHandle,
+  Dialog,
+  DialogTrigger,
+} from "@cantiara/ui/components/dialog";
+import { useQueryClient } from "@tanstack/react-query";
+import { useId, useState } from "react";
+import { isPopupCommandPending } from "@/lib/is-popup-command-pending";
 import DocumentOrganizationForm from "../forms/document-organization-form";
 
 export default function DocumentOrganizationControls({
@@ -14,42 +22,35 @@ export default function DocumentOrganizationControls({
   disabled: boolean;
   onCommitted: (document: Document) => Promise<void>;
 }) {
-  const [action, setAction] = useState<"hierarchy" | "archive" | null>(null);
-  const [openCount, setOpenCount] = useState(0);
+  const [handle] = useState(createDialogHandle<"hierarchy" | "archive">);
+  const popupId = useId();
+  const queryClient = useQueryClient();
   const archiveLabel = record.archivedAt ? "Unarchive" : "Archive";
-  function open(next: "hierarchy" | "archive") {
-    setOpenCount((count) => count + 1);
-    setAction(next);
-  }
-  function openHierarchy() {
-    open("hierarchy");
-  }
-  function openArchive() {
-    open("archive");
-  }
-  function closeDialog() {
-    setAction(null);
+  function close() {
+    if (handle.isOpen) {
+      handle.close();
+    }
   }
   const parent = documents.find(({ id }) => id === record.parentDocumentId);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Button
+        <DialogTrigger
           disabled={disabled}
-          onClick={openHierarchy}
-          type="button"
-          variant="outline"
+          handle={handle}
+          payload="hierarchy"
+          render={<Button variant="outline" />}
         >
           Organize Document
-        </Button>
-        <Button
+        </DialogTrigger>
+        <DialogTrigger
           disabled={disabled}
-          onClick={openArchive}
-          type="button"
-          variant="outline"
+          handle={handle}
+          payload="archive"
+          render={<Button variant="outline" />}
         >
           {archiveLabel}
-        </Button>
+        </DialogTrigger>
         {record.folder ? (
           <p className="text-sm text-muted-foreground">
             Folder: {record.folder}
@@ -66,14 +67,32 @@ export default function DocumentOrganizationControls({
           Save your changes before organizing or archiving this Document.
         </p>
       ) : null}
-      <DocumentOrganizationForm
-        action={action}
-        documents={documents}
-        key={openCount}
-        onClose={closeDialog}
-        onCommitted={onCommitted}
-        record={record}
-      />
+      <Dialog
+        handle={handle}
+        onOpenChange={(open, event) => {
+          if (
+            !open &&
+            isPopupCommandPending(queryClient, popupId) &&
+            event.reason !== "imperative-action"
+          ) {
+            event.cancel();
+          }
+        }}
+      >
+        {({ payload }) =>
+          payload ? (
+            <DocumentOrganizationForm
+              action={payload}
+              documents={documents}
+              key={payload}
+              onClose={close}
+              onCommitted={onCommitted}
+              popupId={popupId}
+              record={record}
+            />
+          ) : null
+        }
+      </Dialog>
     </div>
   );
 }

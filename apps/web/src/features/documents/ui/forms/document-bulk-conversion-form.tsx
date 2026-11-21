@@ -4,6 +4,7 @@ import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
+  type createDialogHandle,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -20,8 +21,7 @@ import {
 
 export default function DocumentBulkConversionDialog({
   convertListToWork,
-  setBulkConversionOpen,
-  bulkConversionOpen,
+  bulkConversionHandle,
   record,
   revision,
   bulkRows,
@@ -36,10 +36,7 @@ export default function DocumentBulkConversionDialog({
     >,
     "mutateAsync" | "isPending" | "isError" | "error"
   >;
-  setBulkConversionOpen: import("react").Dispatch<
-    import("react").SetStateAction<boolean>
-  >;
-  bulkConversionOpen: boolean;
+  bulkConversionHandle: ReturnType<typeof createDialogHandle>;
   record: Document;
   revision: number;
   bulkRows: DocumentListRow[];
@@ -47,13 +44,16 @@ export default function DocumentBulkConversionDialog({
 }) {
   return (
     <Dialog
-      onOpenChange={(open) => {
-        if (!open && convertListToWork.isPending) {
-          return;
+      handle={bulkConversionHandle}
+      onOpenChange={(open, event) => {
+        if (
+          !open &&
+          convertListToWork.isPending &&
+          event.reason !== "imperative-action"
+        ) {
+          event.cancel();
         }
-        setBulkConversionOpen(open);
       }}
-      open={bulkConversionOpen}
     >
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
@@ -74,7 +74,11 @@ export default function DocumentBulkConversionDialog({
           bulkConversionKey={bulkConversionKey}
           bulkRows={bulkRows}
           convertListToWork={convertListToWork}
-          onCancel={() => setBulkConversionOpen(false)}
+          onCancel={() => {
+            if (!convertListToWork.isPending) {
+              bulkConversionHandle.close();
+            }
+          }}
         />
       </DialogContent>
     </Dialog>

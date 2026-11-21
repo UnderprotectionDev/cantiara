@@ -10,6 +10,11 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
+import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
@@ -181,163 +186,197 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
     form.handleSubmit().catch(() => undefined);
   }
 
-  if (!open) {
-    return (
-      <Button
-        disabled={connection === "offline"}
-        onClick={() => setOpen(true)}
-        size="xs"
-        type="button"
-        variant="outline"
-      >
-        Recreate in another Project
-      </Button>
-    );
-  }
-
   return (
-    <section aria-label={`Recreate ${work.key}`}>
-      <form
-        className="w-full space-y-3 rounded-md border bg-muted/20 p-3 text-left text-xs"
-        noValidate
-        onSubmit={handleSubmit}
-      >
-        <p className="text-sm font-medium">Recreate in another Project</p>
-        {recreatedKey ? (
-          <p role="status">Work {recreatedKey} was recreated.</p>
-        ) : null}
-        {error ? (
-          <p className="text-destructive" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <form.Field name="targetProjectId">
-          {(field) => (
-            <label
-              className="grid gap-1"
-              htmlFor={`recreate-project-${work.id}`}
-            >
-              <span>Project</span>
-              <NativeSelect
-                id={`recreate-project-${work.id}`}
-                name={field.name}
-                onChange={(event) => {
-                  field.handleChange(event.target.value);
-                  inspect.reset();
-                  recreateWorkMutation.reset();
-                  pendingRecreate.current = null;
-                }}
-                value={field.state.value}
+    <Collapsible onOpenChange={setOpen} open={open}>
+      {open ? null : (
+        <CollapsibleTrigger
+          disabled={connection === "offline"}
+          render={<Button size="xs" variant="outline" />}
+        >
+          Recreate in another Project
+        </CollapsibleTrigger>
+      )}
+      <CollapsibleContent>
+        <section aria-label={`Recreate ${work.key}`}>
+          <form
+            className="w-full space-y-3 rounded-md border bg-muted/20 p-3 text-left text-xs"
+            noValidate
+            onSubmit={handleSubmit}
+          >
+            <p className="text-sm font-medium">Recreate in another Project</p>
+            {recreatedKey ? (
+              <p role="status">Work {recreatedKey} was recreated.</p>
+            ) : null}
+            {error ? (
+              <p className="text-destructive" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <form.Field name="targetProjectId">
+              {(field) => (
+                <label
+                  className="grid gap-1"
+                  htmlFor={`recreate-project-${work.id}`}
+                >
+                  <span>Project</span>
+                  <NativeSelect
+                    id={`recreate-project-${work.id}`}
+                    name={field.name}
+                    onChange={(event) => {
+                      field.handleChange(event.target.value);
+                      inspect.reset();
+                      recreateWorkMutation.reset();
+                      pendingRecreate.current = null;
+                    }}
+                    value={field.state.value}
+                  >
+                    {targetProjects.map((project) => (
+                      <NativeSelectOption key={project.id} value={project.id}>
+                        {project.name}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </label>
+              )}
+            </form.Field>
+            {targetProjects.length === 0 ? (
+              <p className="text-muted-foreground">
+                Another active Project is required.
+              </p>
+            ) : null}
+            {preview ? (
+              <section aria-label="Recreate preview" className="space-y-3">
+                <p>
+                  Target Project: <strong>{preview.targetProject.name}</strong>
+                </p>
+                <form.Field name="selectedFields">
+                  {(field) => (
+                    <fieldset className="space-y-2">
+                      <legend className="font-medium">Portable content</legend>
+                      {preview.fields.map((candidate) => (
+                        <label
+                          className="flex items-start gap-2"
+                          htmlFor={`recreate-field-${work.id}-${candidate.key}`}
+                          key={candidate.key}
+                        >
+                          <Checkbox
+                            checked={field.state.value.includes(candidate.key)}
+                            id={`recreate-field-${work.id}-${candidate.key}`}
+                            onCheckedChange={(checked) =>
+                              field.handleChange(
+                                updateSelection(
+                                  field.state.value,
+                                  candidate.key,
+                                  checked,
+                                ),
+                              )
+                            }
+                          />
+                          <span>
+                            <strong>{candidate.label}</strong>:{" "}
+                            {recreateFieldValue(candidate)}
+                          </span>
+                        </label>
+                      ))}
+                    </fieldset>
+                  )}
+                </form.Field>
+                <form.Field name="selectedRelationIds">
+                  {(field) => (
+                    <fieldset className="space-y-2">
+                      <legend className="font-medium">Relations</legend>
+                      {preview.relations.length === 0 ? (
+                        <p className="text-muted-foreground">
+                          No relations yet.
+                        </p>
+                      ) : (
+                        preview.relations.map((relation) => (
+                          <label
+                            className="flex items-start gap-2"
+                            htmlFor={`recreate-relation-${work.id}-${relation.id}`}
+                            key={relation.id}
+                          >
+                            <Checkbox
+                              checked={field.state.value.includes(relation.id)}
+                              disabled={!relation.portable}
+                              id={`recreate-relation-${work.id}-${relation.id}`}
+                              onCheckedChange={(checked) =>
+                                field.handleChange(
+                                  updateSelection(
+                                    field.state.value,
+                                    relation.id,
+                                    checked,
+                                  ),
+                                )
+                              }
+                            />
+                            <span>
+                              <strong>{relation.label}</strong>:{" "}
+                              {relation.targetLabel} (
+                              {relation.targetProjectName})
+                              {relation.nonPortableReason
+                                ? ` — ${relation.nonPortableReason}`
+                                : ""}
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </fieldset>
+                  )}
+                </form.Field>
+                <form.Subscribe
+                  selector={(state) => state.values.selectedFields}
+                >
+                  {(selectedFields) => (
+                    <>
+                      {selectedFields.includes("title") ? null : (
+                        <p className="text-destructive" role="alert">
+                          Title must be selected.
+                        </p>
+                      )}
+                      <div className="flex gap-2">
+                        <Button
+                          disabled={!selectedFields.includes("title")}
+                          size="xs"
+                          type="submit"
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          onClick={() => inspect.reset()}
+                          size="xs"
+                          type="button"
+                          variant="outline"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </form.Subscribe>
+              </section>
+            ) : (
+              <form.Subscribe
+                selector={(state) => ({
+                  isSubmitting: state.isSubmitting,
+                  targetProjectId: state.values.targetProjectId,
+                })}
               >
-                {targetProjects.map((project) => (
-                  <NativeSelectOption key={project.id} value={project.id}>
-                    {project.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </label>
-          )}
-        </form.Field>
-        {targetProjects.length === 0 ? (
-          <p className="text-muted-foreground">
-            Another active Project is required.
-          </p>
-        ) : null}
-        {preview ? (
-          <section aria-label="Recreate preview" className="space-y-3">
-            <p>
-              Target Project: <strong>{preview.targetProject.name}</strong>
-            </p>
-            <form.Field name="selectedFields">
-              {(field) => (
-                <fieldset className="space-y-2">
-                  <legend className="font-medium">Portable content</legend>
-                  {preview.fields.map((candidate) => (
-                    <label
-                      className="flex items-start gap-2"
-                      htmlFor={`recreate-field-${work.id}-${candidate.key}`}
-                      key={candidate.key}
-                    >
-                      <Checkbox
-                        checked={field.state.value.includes(candidate.key)}
-                        id={`recreate-field-${work.id}-${candidate.key}`}
-                        onCheckedChange={(checked) =>
-                          field.handleChange(
-                            updateSelection(
-                              field.state.value,
-                              candidate.key,
-                              checked,
-                            ),
-                          )
-                        }
-                      />
-                      <span>
-                        <strong>{candidate.label}</strong>:{" "}
-                        {recreateFieldValue(candidate)}
-                      </span>
-                    </label>
-                  ))}
-                </fieldset>
-              )}
-            </form.Field>
-            <form.Field name="selectedRelationIds">
-              {(field) => (
-                <fieldset className="space-y-2">
-                  <legend className="font-medium">Relations</legend>
-                  {preview.relations.length === 0 ? (
-                    <p className="text-muted-foreground">No relations yet.</p>
-                  ) : (
-                    preview.relations.map((relation) => (
-                      <label
-                        className="flex items-start gap-2"
-                        htmlFor={`recreate-relation-${work.id}-${relation.id}`}
-                        key={relation.id}
-                      >
-                        <Checkbox
-                          checked={field.state.value.includes(relation.id)}
-                          disabled={!relation.portable}
-                          id={`recreate-relation-${work.id}-${relation.id}`}
-                          onCheckedChange={(checked) =>
-                            field.handleChange(
-                              updateSelection(
-                                field.state.value,
-                                relation.id,
-                                checked,
-                              ),
-                            )
-                          }
-                        />
-                        <span>
-                          <strong>{relation.label}</strong>:{" "}
-                          {relation.targetLabel} ({relation.targetProjectName})
-                          {relation.nonPortableReason
-                            ? ` — ${relation.nonPortableReason}`
-                            : ""}
-                        </span>
-                      </label>
-                    ))
-                  )}
-                </fieldset>
-              )}
-            </form.Field>
-            <form.Subscribe selector={(state) => state.values.selectedFields}>
-              {(selectedFields) => (
-                <>
-                  {selectedFields.includes("title") ? null : (
-                    <p className="text-destructive" role="alert">
-                      Title must be selected.
-                    </p>
-                  )}
+                {({ isSubmitting, targetProjectId }) => (
                   <div className="flex gap-2">
                     <Button
-                      disabled={!selectedFields.includes("title")}
+                      disabled={!targetProjectId || isSubmitting}
                       size="xs"
                       type="submit"
                     >
-                      Confirm
+                      Preview
                     </Button>
                     <Button
-                      onClick={() => inspect.reset()}
+                      onClick={() => {
+                        setOpen(false);
+                        setInvalidRequest(false);
+                        recreateWorkMutation.reset();
+                      }}
                       size="xs"
                       type="button"
                       variant="outline"
@@ -345,43 +384,12 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
                       Cancel
                     </Button>
                   </div>
-                </>
-              )}
-            </form.Subscribe>
-          </section>
-        ) : (
-          <form.Subscribe
-            selector={(state) => ({
-              isSubmitting: state.isSubmitting,
-              targetProjectId: state.values.targetProjectId,
-            })}
-          >
-            {({ isSubmitting, targetProjectId }) => (
-              <div className="flex gap-2">
-                <Button
-                  disabled={!targetProjectId || isSubmitting}
-                  size="xs"
-                  type="submit"
-                >
-                  Preview
-                </Button>
-                <Button
-                  onClick={() => {
-                    setOpen(false);
-                    setInvalidRequest(false);
-                    recreateWorkMutation.reset();
-                  }}
-                  size="xs"
-                  type="button"
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-              </div>
+                )}
+              </form.Subscribe>
             )}
-          </form.Subscribe>
-        )}
-      </form>
-    </section>
+          </form>
+        </section>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

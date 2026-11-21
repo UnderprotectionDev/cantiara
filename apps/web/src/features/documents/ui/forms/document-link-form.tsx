@@ -3,6 +3,7 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import {
+  createPopoverHandle,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -23,7 +24,7 @@ export function DocumentLinkPopover({
   active: boolean;
   editor: Editor;
 }) {
-  const [open, setOpen] = useState(false);
+  const [popoverHandle] = useState(createPopoverHandle);
   const linkSelection = useRef<Editor["state"]["selection"] | null>(null);
 
   const linkForm = useForm({
@@ -50,7 +51,7 @@ export function DocumentLinkPopover({
       }
       chain.extendMarkRange("link").setLink({ href: parsed.data.url }).run();
       linkSelection.current = null;
-      setOpen(false);
+      popoverHandle.close();
     },
   });
   const error = useSelector(
@@ -58,7 +59,7 @@ export function DocumentLinkPopover({
     (state): string | undefined => state.errorMap.onSubmit,
   );
   return (
-    <Popover onOpenChange={setOpen} open={open}>
+    <Popover handle={popoverHandle}>
       <PopoverTrigger
         aria-label="Link"
         aria-pressed={active}
@@ -107,7 +108,7 @@ export function DocumentLinkPopover({
               <Button
                 onClick={() => {
                   editor.chain().focus().unsetLink().run();
-                  setOpen(false);
+                  popoverHandle.close();
                 }}
                 size="sm"
                 type="button"

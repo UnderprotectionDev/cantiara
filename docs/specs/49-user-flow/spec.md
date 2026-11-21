@@ -54,6 +54,8 @@ Kurucu Kullanıcı Akışını Proje kapsamlı tasarım ana kaydı olarak yönet
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The `Convert and Bind` seam confirms the form submits the selected record type and presents a refused preview in the popup. The dialog payload supplies the opening node or bind.
+
 - **#545.** The Convert and Bind web seam checks that Preview and Confirm await their commands and retain the reviewed selection after a refused write.
 
 - The User Flow seam verifies that Rebind and Convert previews are tied to the active selection, that failures leave the current command available, and that Save reflects the version write’s pending and error state.

@@ -48,6 +48,8 @@ Türlenmiş ilişki iki ucu, yönü ve kapalı anlamı ile saklanır. Katalog [s
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Work Relations seam drives the `Mark blocker resolved` inline form and its existing cancel and submit paths.
+
 - The Work Relations seam verifies that Relation previews reset with the selected endpoint, errors come from the current request, and Undo uses the removal receipt and its original retry identity.
 
 - **Uncertainty Document pins.** The existing usage-link transaction validates active destination ownership, same-Project source, exact excerpt and locked Document revision for Assumption/Open Question pins. This specialization is observed at the [Uncertainty Records seam](../41-uncertainty-records/spec.md#testing-decisions) in `uncertainty-records-database.integration.test.ts`; generic pins cannot bypass it.

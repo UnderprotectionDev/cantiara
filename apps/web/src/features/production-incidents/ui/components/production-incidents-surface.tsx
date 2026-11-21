@@ -3,11 +3,13 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -34,7 +36,7 @@ export function ProductionIncidentsSurface({
   );
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [creating, setCreating] = useState(false);
+  const [dialogHandle] = useState(createDialogHandle);
   // One id per create attempt, so a retried create cannot make a second incident.
   const incidentId = useRef<string | null>(null);
 
@@ -45,7 +47,7 @@ export function ProductionIncidentsSurface({
         await refreshProductionIncident(queryClient, input.projectId, input.id);
         if (incidentId.current === input.id) {
           incidentId.current = null;
-          setCreating(false);
+          dialogHandle.close();
           await navigate({
             href: productionIncidentsHref(input.projectId, input.id),
           }).catch(() => undefined);
@@ -67,7 +69,6 @@ export function ProductionIncidentsSurface({
   function dismissCreate() {
     incidentId.current = null;
     create.reset();
-    setCreating(false);
   }
 
   if (overview.status === "pending") {
@@ -90,40 +91,46 @@ export function ProductionIncidentsSurface({
     );
   }
   return (
-    <>
+    <Dialog
+      handle={dialogHandle}
+      onOpenChange={(open, event) => {
+        if (open || event.reason === "imperative-action") {
+          return;
+        }
+        if (create.isPending) {
+          event.cancel();
+          return;
+        }
+        dismissCreate();
+      }}
+    >
       <ProductionIncidentList
         createControl={
-          <Button onClick={() => setCreating(true)} type="button">
+          <DialogTrigger render={<Button />}>
             Record Production Incident
-          </Button>
+          </DialogTrigger>
         }
         formatting={formatting}
         overview={overview.data}
         projectId={projectId}
       />
-      <Dialog
-        onOpenChange={(open) => {
-          if (!(open || create.isPending)) {
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Record Production Incident</DialogTitle>
+          <DialogDescription>
+            One Production Incident belongs to this Project only.
+          </DialogDescription>
+        </DialogHeader>
+        <ProductionIncidentForm
+          mode="create"
+          onCancel={() => {
             dismissCreate();
-          }
-        }}
-        open={creating}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record Production Incident</DialogTitle>
-            <DialogDescription>
-              One Production Incident belongs to this Project only.
-            </DialogDescription>
-          </DialogHeader>
-          <ProductionIncidentForm
-            mode="create"
-            onCancel={dismissCreate}
-            onSubmit={create.mutateAsync}
-            timeZone={formatting.timeZone}
-          />
-        </DialogContent>
-      </Dialog>
-    </>
+            dialogHandle.close();
+          }}
+          onSubmit={create.mutateAsync}
+          timeZone={formatting.timeZone}
+        />
+      </DialogContent>
+    </Dialog>
   );
 }

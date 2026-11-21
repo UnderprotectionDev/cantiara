@@ -294,6 +294,9 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   );
   await preview.getByRole("button", { name: "Close", exact: true }).click();
   await expect(
+    record.getByRole("button", { name: "Start Work", exact: true }),
+  ).toBeFocused();
+  await expect(
     record.getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME }),
   ).toHaveValue("Not Started");
 

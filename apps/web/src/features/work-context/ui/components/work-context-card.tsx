@@ -18,17 +18,16 @@ import {
   workContextSourceText,
 } from "@cantiara/api/work-context";
 import type { WorkProfile, WorkType } from "@cantiara/api/work-lifecycle";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@cantiara/ui/components/accordion";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useLinkProps, useLocation, useNavigate } from "@tanstack/react-router";
-import {
-  type MouseEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getWorkStatusLabel } from "@/components/work-status-form";
 import { useCommandPalette } from "@/features/command-palette/ui/components/command-palette";
 import {
@@ -633,16 +632,7 @@ function PriorityFoundations({
   work: WorkProfile;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
-  const [openCountId, setOpenCountId] = useState<string | null>(null);
   const headingId = `work-context-priority-foundations-${work.id}`;
-  const toggleCount = useCallback((event: MouseEvent<HTMLButtonElement>) => {
-    const { currentTarget } = event;
-    const { countId } = currentTarget.dataset;
-    if (!countId) {
-      return;
-    }
-    setOpenCountId((current) => (current === countId ? null : countId));
-  }, []);
 
   return (
     <section
@@ -678,45 +668,38 @@ function PriorityFoundations({
         </ul>
       ) : null}
       {!(isPending || isError) && foundations.counts.length > 0 ? (
-        <ul className="flex flex-wrap gap-2">
-          {foundations.counts.map((count) => {
-            const isOpen = openCountId === count.id;
-            const listId = `${count.id}-${work.id}`;
-            return (
-              <li key={count.id}>
-                <Button
-                  aria-controls={isOpen ? listId : undefined}
-                  aria-expanded={isOpen}
-                  aria-label={`Show ${count.label} source records (${count.count})`}
-                  className="px-2 text-sm underline-offset-2 hover:underline"
-                  data-count-id={count.id}
-                  onClick={toggleCount}
-                  size="xs"
-                  type="button"
-                  variant="outline"
+        <Accordion className="flex-row flex-wrap gap-2" render={<ul />}>
+          {foundations.counts.map((count) => (
+            <AccordionItem
+              className="not-last:border-b-0"
+              key={count.id}
+              render={<li />}
+              value={count.id}
+            >
+              <AccordionTrigger
+                aria-label={`Show ${count.label} source records (${count.count})`}
+                className="flex-none px-2"
+              >
+                {count.label}: {count.count}
+              </AccordionTrigger>
+              <AccordionContent>
+                <ul
+                  aria-label={`${count.label} source records`}
+                  className="mt-2 space-y-2"
                 >
-                  {count.label}: {count.count}
-                </Button>
-                {isOpen ? (
-                  <ul
-                    aria-label={`${count.label} source records`}
-                    className="mt-2 space-y-2"
-                    id={listId}
-                  >
-                    {count.sources.map((source) => (
-                      <li key={source.id}>
-                        <WorkContextSourceItem
-                          source={source}
-                          workStatusLabels={workStatusLabels}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+                  {count.sources.map((source) => (
+                    <li key={source.id}>
+                      <WorkContextSourceItem
+                        source={source}
+                        workStatusLabels={workStatusLabels}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
       ) : null}
     </section>
   );

@@ -7,7 +7,10 @@ import { client, orpc } from "@/utils/orpc";
 export function useAccountSessions() {
   const queryClient = useQueryClient();
   const sessions = useQuery(orpc.sessions.queryOptions());
+  const revokeSessionKey = orpc.revokeSession.mutationKey();
+  const revokeOtherSessionsKey = orpc.revokeOtherSessions.mutationKey();
   const revokeSession = useMutation({
+    mutationKey: revokeSessionKey,
     mutationFn: (sessionId: string) =>
       runOnlineOnlyWrite(() => client.revokeSession({ sessionId })),
     onSuccess: async () => {
@@ -16,8 +19,8 @@ export function useAccountSessions() {
     },
   });
   const revokeOtherSessions = useMutation({
-    mutationFn: (_targetSessionAlias: string) =>
-      runOnlineOnlyWrite(() => client.revokeOtherSessions()),
+    mutationKey: revokeOtherSessionsKey,
+    mutationFn: () => runOnlineOnlyWrite(() => client.revokeOtherSessions()),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orpc.sessions.key() });
       toast.success("Other sessions revoked.");
@@ -28,8 +31,17 @@ export function useAccountSessions() {
     sessions.data?.filter((productSession) => !productSession.current).length ??
     0;
 
+  function isRevoking() {
+    return (
+      queryClient.isMutating({ mutationKey: revokeSessionKey }) > 0 ||
+      queryClient.isMutating({ mutationKey: revokeOtherSessionsKey }) > 0
+    );
+  }
+
   return {
+    isRevoking,
     otherSessionCount,
+    revocationPending: revokeSession.isPending || revokeOtherSessions.isPending,
     revokeOtherSessions,
     revokeSession,
     sessions,

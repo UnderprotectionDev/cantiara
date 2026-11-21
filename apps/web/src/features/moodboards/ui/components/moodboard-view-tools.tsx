@@ -12,6 +12,11 @@ import {
   type MoodboardVisual,
 } from "@cantiara/api/moodboards";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { useEffect, useRef, useState } from "react";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
@@ -109,15 +114,15 @@ export function VisualViewTools({
   }
 
   return (
-    <div className="space-y-2">
+    <Collapsible
+      className="space-y-2"
+      onOpenChange={setCropOpen}
+      open={cropOpen}
+    >
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          onClick={() => setCropOpen((open) => !open)}
-          type="button"
-          variant="outline"
-        >
+        <CollapsibleTrigger render={<Button variant="outline" />}>
           {MOODBOARD_UI_LABELS.crop}
-        </Button>
+        </CollapsibleTrigger>
         <Button
           disabled={api.setVisualView.isPending}
           onClick={() => save(rotateQuarterTurn(item.view))}
@@ -143,16 +148,22 @@ export function VisualViewTools({
           </span>
         )}
       </div>
-      <VisualCropForm
-        idPrefix={idPrefix}
-        onApply={(view) => {
-          save(view);
-          setCropOpen(false);
-        }}
-        open={cropOpen}
-        view={item.view}
-      />
-    </div>
+      <CollapsibleContent>
+        <VisualCropForm
+          idPrefix={idPrefix}
+          onApply={(view) => {
+            api.setVisualView.mutate(
+              { itemId: item.id, moodboard, view },
+              {
+                onSuccess: () => setCropOpen(false),
+              },
+            );
+          }}
+          open={cropOpen}
+          view={item.view}
+        />
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

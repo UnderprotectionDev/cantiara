@@ -17,6 +17,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector } from "@tanstack/react-store";
@@ -317,11 +318,9 @@ export function initialNotNowDialogMode(
 
 function WorkNotNowDialog({
   activeFromWork,
-  onOpenChange,
   work,
 }: {
   activeFromWork: WorkNotNowTrail | null;
-  onOpenChange: (open: boolean) => void;
   work: WorkProfile;
 }) {
   const canStart = work.status !== "Closed" && work.archivedAt === null;
@@ -462,70 +461,65 @@ function WorkNotNowDialog({
   }
 
   return (
-    <Dialog onOpenChange={onOpenChange} open>
-      <DialogContent className="max-h-[calc(100svh-2rem)] max-w-xl overflow-y-auto p-5 sm:p-6">
-        <DialogHeader>
-          <DialogTitle>Not now</DialogTitle>
-          <DialogDescription>
-            Record a reason and optional re-evaluation condition. Work status,
-            priority, Backlog order, Roadmap horizon, dates, and planning
-            membership stay unchanged.
-          </DialogDescription>
-        </DialogHeader>
-        {mode === "details" ? (
-          <NotNowHistoryPanel
-            activeFromWork={activeFromWork}
-            archived={work.archivedAt !== null}
-            canStart={canStart}
-            connection={connection}
-            currentTrail={currentTrail}
-            history={history}
-            historyError={historyQuery.isError}
-            historyPending={historyQuery.isPending}
-            onReconsider={confirmReconsidering}
-            onReviewLaterHandlingChange={(reviewLaterHandling) =>
-              form.setFieldValue(
-                "draft.reviewLaterHandling",
-                reviewLaterHandling,
-              )
-            }
-            onStartNew={startNewTrail}
-            reconsiderPending={reconsiderNotNow.isPending}
-            reviewLaterHandling={draft.reviewLaterHandling}
-            sources={workContext?.sources ?? []}
-            workContextError={workContextQuery.isError}
-            workId={work.id}
-          />
-        ) : null}
-        {mode === "form" ? (
-          <NotNowEntryForm
-            connection={connection}
-            error={error}
-            form={form}
-            groundOptions={groundOptions}
-            hasActiveTrail={currentTrail !== null}
-            hasHistory={(history?.length ?? 0) > 0}
-            onShowHistory={() => setMode("details")}
-            pending={recordNotNow.isPending}
-            workContextError={workContextQuery.isError}
-            workContextPending={workContextQuery.isPending}
-            workId={work.id}
-          />
-        ) : null}
-        {mode === "preview" && preview ? (
-          <NotNowPreviewPanel
-            connection={connection}
-            currentTrail={currentTrail}
-            error={error}
-            groundOptions={groundOptions}
-            onConfirm={confirmNotNow}
-            onEdit={() => setMode("form")}
-            pending={recordNotNow.isPending}
-            preview={preview}
-          />
-        ) : null}
-      </DialogContent>
-    </Dialog>
+    <>
+      <DialogHeader>
+        <DialogTitle>Not now</DialogTitle>
+        <DialogDescription>
+          Record a reason and optional re-evaluation condition. Work status,
+          priority, Backlog order, Roadmap horizon, dates, and planning
+          membership stay unchanged.
+        </DialogDescription>
+      </DialogHeader>
+      {mode === "details" ? (
+        <NotNowHistoryPanel
+          activeFromWork={activeFromWork}
+          archived={work.archivedAt !== null}
+          canStart={canStart}
+          connection={connection}
+          currentTrail={currentTrail}
+          history={history}
+          historyError={historyQuery.isError}
+          historyPending={historyQuery.isPending}
+          onReconsider={confirmReconsidering}
+          onReviewLaterHandlingChange={(reviewLaterHandling) =>
+            form.setFieldValue("draft.reviewLaterHandling", reviewLaterHandling)
+          }
+          onStartNew={startNewTrail}
+          reconsiderPending={reconsiderNotNow.isPending}
+          reviewLaterHandling={draft.reviewLaterHandling}
+          sources={workContext?.sources ?? []}
+          workContextError={workContextQuery.isError}
+          workId={work.id}
+        />
+      ) : null}
+      {mode === "form" ? (
+        <NotNowEntryForm
+          connection={connection}
+          error={error}
+          form={form}
+          groundOptions={groundOptions}
+          hasActiveTrail={currentTrail !== null}
+          hasHistory={(history?.length ?? 0) > 0}
+          onShowHistory={() => setMode("details")}
+          pending={recordNotNow.isPending}
+          workContextError={workContextQuery.isError}
+          workContextPending={workContextQuery.isPending}
+          workId={work.id}
+        />
+      ) : null}
+      {mode === "preview" && preview ? (
+        <NotNowPreviewPanel
+          connection={connection}
+          currentTrail={currentTrail}
+          error={error}
+          groundOptions={groundOptions}
+          onConfirm={confirmNotNow}
+          onEdit={() => setMode("form")}
+          pending={recordNotNow.isPending}
+          preview={preview}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -544,34 +538,30 @@ export default function WorkNotNowControl({
     activeFromWork !== null,
     (work.notNow?.revision ?? 0) > 0,
   );
-  const [open, setOpen] = useState(false);
 
   if (!shouldShow) {
     return null;
   }
 
   return (
-    <>
-      <Button
-        aria-haspopup="dialog"
+    <Dialog>
+      <DialogTrigger
         aria-label={
           activeFromWork ? `Not now: ${activeFromWork.reason}` : "Not now"
         }
-        className={compact ? "h-6 shrink-0 px-2 text-[11px]" : ""}
-        onClick={() => setOpen(true)}
-        size={compact ? "xs" : "sm"}
-        type="button"
-        variant={activeFromWork ? "secondary" : "outline"}
+        render={
+          <Button
+            className={compact ? "h-6 shrink-0 px-2 text-[11px]" : ""}
+            size={compact ? "xs" : "sm"}
+            variant={activeFromWork ? "secondary" : "outline"}
+          />
+        }
       >
         {activeFromWork ? <Badge variant="outline">Not now</Badge> : "Not now"}
-      </Button>
-      {open ? (
-        <WorkNotNowDialog
-          activeFromWork={activeFromWork}
-          onOpenChange={setOpen}
-          work={work}
-        />
-      ) : null}
-    </>
+      </DialogTrigger>
+      <DialogContent className="max-h-[calc(100svh-2rem)] max-w-xl overflow-y-auto p-5 sm:p-6">
+        <WorkNotNowDialog activeFromWork={activeFromWork} work={work} />
+      </DialogContent>
+    </Dialog>
   );
 }

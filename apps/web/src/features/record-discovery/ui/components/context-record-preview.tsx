@@ -1,12 +1,15 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: The Base UI render prop forwards the current preview and its focus target.
 import type { ProjectSourceType } from "@cantiara/api/project-source-records";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createSheetHandle,
   Sheet,
   SheetContent,
   SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
+  SheetTrigger,
 } from "@cantiara/ui/components/sheet";
 import {
   createContext,
@@ -16,6 +19,7 @@ import {
   Suspense,
   useCallback,
   useContext,
+  useId,
   useState,
 } from "react";
 import { AppLink } from "@/components/app-link";
@@ -25,6 +29,7 @@ import {
   testGapRecordHash,
   workRecordHref,
 } from "@/features/project-shell/lib/project-shell-navigation";
+import { popupReturnFocus } from "@/lib/popup-return-focus";
 
 const SourceRecordPreviewContent = lazy(
   () => import("./context-record-preview-content"),
@@ -60,7 +65,12 @@ export type SourceRecordPreviewTarget =
       viewId: string;
     };
 
+type SourceRecordPreviewPayload = SourceRecordPreviewTarget & {
+  returnFocusId?: string;
+};
+
 interface SourceRecordPreviewContextValue {
+  handle: ReturnType<typeof createSheetHandle<SourceRecordPreviewPayload>>;
   openSourceRecord: (target: SourceRecordPreviewTarget) => void;
 }
 
@@ -120,27 +130,24 @@ export function OpenSourceRecordButton({
   className?: string;
   target: SourceRecordPreviewTarget;
 }) {
+  const returnFocusId = useId();
   const preview = useContext(SourceRecordPreviewContext);
   if (!preview) {
     throw new Error(
       "OpenSourceRecordButton must be rendered inside ContextRecordPreviewProvider.",
     );
   }
-  const handleClick = useCallback(
-    () => preview.openSourceRecord(target),
-    [preview.openSourceRecord, target],
-  );
-
   return (
-    <Button
+    <SheetTrigger
       aria-label={`Open source record: ${target.label}`}
       className={className}
-      onClick={handleClick}
-      type="button"
-      variant="link"
+      handle={preview.handle}
+      id={returnFocusId}
+      payload={{ ...target, returnFocusId }}
+      render={<Button variant="link" />}
     >
       Open source record
-    </Button>
+    </SheetTrigger>
   );
 }
 
@@ -149,88 +156,90 @@ export function ContextRecordPreviewProvider({
 }: {
   children: ReactNode;
 }) {
-  const [record, setRecord] = useState<SourceRecordPreviewTarget | null>(null);
+  const [handle] = useState(createSheetHandle<SourceRecordPreviewPayload>);
   const openSourceRecord = useCallback(
-    (target: SourceRecordPreviewTarget) => setRecord(target),
-    [],
+    (target: SourceRecordPreviewTarget) => handle.openWithPayload(target),
+    [handle],
   );
-  const closePreview = useCallback(() => setRecord(null), []);
+  const closePreview = useCallback(() => handle.close(), [handle]);
 
   return (
-    <SourceRecordPreviewContext.Provider value={{ openSourceRecord }}>
+    <SourceRecordPreviewContext.Provider value={{ handle, openSourceRecord }}>
       {children}
-      <ContextRecordPreviewPanel
-        onClose={closePreview}
-        onOpenSourceRecord={openSourceRecord}
-        record={record}
-      />
+      <Sheet handle={handle}>
+        {({ payload }) =>
+          payload ? (
+            <ContextRecordPreviewPanel
+              finalFocus={() => popupReturnFocus(payload.returnFocusId)}
+              onClose={closePreview}
+              onOpenSourceRecord={(target) =>
+                handle.openWithPayload({
+                  ...target,
+                  returnFocusId: payload.returnFocusId,
+                })
+              }
+              record={payload}
+            />
+          ) : null
+        }
+      </Sheet>
     </SourceRecordPreviewContext.Provider>
   );
 }
 
+/** Render inside a Sheet root. ContextRecordPreviewProvider owns the shared root. */
 export function ContextRecordPreviewPanel({
+  finalFocus,
   onClose,
   onOpenSourceRecord,
   record,
 }: {
+  finalFocus?: () => HTMLElement | boolean;
   onClose: () => void;
   onOpenSourceRecord?: (target: SourceRecordPreviewTarget) => void;
-  record: SourceRecordPreviewTarget | null;
+  record: SourceRecordPreviewTarget;
 }) {
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open) {
-        onClose();
-      }
-    },
-    [onClose],
-  );
   const handleClickCapture = useCallback(
     (event: MouseEvent<HTMLElement>) =>
       closeContextRecordPreviewOnNavigation(event, onClose),
     [onClose],
   );
 
-  if (!record) {
-    return null;
-  }
-
   return (
-    <Sheet onOpenChange={handleOpenChange} open>
-      <SheetContent
-        className="w-full sm:max-w-2xl"
-        onClickCapture={handleClickCapture}
-        side="right"
-      >
-        <SheetHeader className="border-b">
-          <SheetTitle>{record.label}</SheetTitle>
-          <SheetDescription>
-            Temporary preview that keeps the current source view in place.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <Suspense
-            fallback={
-              <p className="text-muted-foreground" role="status">
-                Loading source record…
-              </p>
-            }
-          >
-            <SourceRecordPreviewContent
-              onOpenSourceRecord={onOpenSourceRecord}
-              record={record}
-            />
-          </Suspense>
-        </div>
-        <SheetFooter className="border-t">
-          <AppLink
-            className="inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring"
-            href={sourceRecordPreviewHref(record)}
-          >
-            Open full page
-          </AppLink>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+    <SheetContent
+      className="w-full sm:max-w-2xl"
+      finalFocus={finalFocus}
+      onClickCapture={handleClickCapture}
+      side="right"
+    >
+      <SheetHeader className="border-b">
+        <SheetTitle>{record.label}</SheetTitle>
+        <SheetDescription>
+          Temporary preview that keeps the current source view in place.
+        </SheetDescription>
+      </SheetHeader>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <Suspense
+          fallback={
+            <p className="text-muted-foreground" role="status">
+              Loading source record…
+            </p>
+          }
+        >
+          <SourceRecordPreviewContent
+            onOpenSourceRecord={onOpenSourceRecord}
+            record={record}
+          />
+        </Suspense>
+      </div>
+      <SheetFooter className="border-t">
+        <AppLink
+          className="inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring"
+          href={sourceRecordPreviewHref(record)}
+        >
+          Open full page
+        </AppLink>
+      </SheetFooter>
+    </SheetContent>
   );
 }

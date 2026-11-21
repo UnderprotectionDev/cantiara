@@ -47,6 +47,8 @@ Kişisel erişim kabuğu Günlük Odak, Favoriler, Bildirim Merkezi ve Yeniden b
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The `personal-shell.e2e.ts` journey checks that the temporary Sheet opens from `Personal`, Escape and `Close` return focus to `Personal`, and a new application session starts closed.
+
 - **What a good test is.** Tests observe Personal Shell through its public interface: open each of the four surfaces without losing current context, panel vs full page, Working Set add/reopen/session-end drop, membership non-writes, every popover lists the records after the featured card under `Then`, no panel restore after new session. They do not assert layout coordinates. Expected values are product rules (session-only set, open ≠ membership write).
 - **Seam (one).** Personal Shell — the product-facing personal access interface. Daily Focus, Favorites, Attention Signals, and reminders are collaborators whose membership APIs this suite must not call except as “unchanged” oracles.
 - **Modules under test.** Personal Shell only.

@@ -16,9 +16,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
+  createAlertDialogHandle,
 } from "@cantiara/ui/components/alert-dialog";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { projectReleaseStatusChangeCopy } from "../../lib/project-release-planning-form";
 
 type TerminalStatus = (typeof PROJECT_RELEASE_TERMINAL_STATUSES)[number];
@@ -49,7 +51,8 @@ export function ProjectReleaseStatusControl({
   saving?: boolean;
   resetStatus?: () => void;
 }) {
-  const [confirming, setConfirming] = useState<TerminalStatus | null>(null);
+  const [handle] = useState(createAlertDialogHandle<TerminalStatus>);
+  const headingId = useId();
   const error = failed
     ? "Status could not be changed. Reload and try again."
     : null;
@@ -57,22 +60,16 @@ export function ProjectReleaseStatusControl({
   const targets = projectReleaseStatusTargets(status);
   const editable = !readOnly && targets.length > 0;
 
-  async function change(next: ProjectReleaseStatus) {
+  async function confirm(next: TerminalStatus) {
     await onChangeStatus(next);
-    setConfirming(null);
+    handle.close();
   }
 
-  function review(next: TerminalStatus) {
-    resetStatus?.();
-    setConfirming(next);
-  }
-
-  const copy = confirming
-    ? projectReleaseStatusChangeCopy(confirming, openScope)
-    : null;
   return (
     <section aria-label="Status" className="space-y-3">
-      <h3 className="text-lg font-medium">Status</h3>
+      <h3 className="text-lg font-medium" id={headingId} tabIndex={-1}>
+        Status
+      </h3>
       {editable ? (
         <>
           <fieldset className="flex flex-wrap gap-2">
@@ -84,7 +81,7 @@ export function ProjectReleaseStatusControl({
                 key={free}
                 onClick={() => {
                   if (status !== free) {
-                    change(free).catch(() => undefined);
+                    onChangeStatus(free).catch(() => undefined);
                   }
                 }}
                 size="sm"
@@ -97,16 +94,15 @@ export function ProjectReleaseStatusControl({
           </fieldset>
           <div className="flex flex-wrap gap-2">
             {PROJECT_RELEASE_TERMINAL_STATUSES.map((terminal) => (
-              <Button
+              <AlertDialogTrigger
                 disabled={saving}
+                handle={handle}
                 key={terminal}
-                onClick={() => review(terminal)}
-                size="sm"
-                type="button"
-                variant="outline"
+                payload={terminal}
+                render={<Button size="sm" variant="outline" />}
               >
                 {`Mark ${terminal}`}
-              </Button>
+              </AlertDialogTrigger>
             ))}
           </div>
           {suggestion ? (
@@ -116,15 +112,15 @@ export function ProjectReleaseStatusControl({
             >
               <p>{suggestion.reason}</p>
               <p>{`Mark this Project Release ${suggestion.status}?`}</p>
-              <Button
+              <AlertDialogTrigger
                 disabled={saving}
-                onClick={() => review(suggestion.status)}
-                size="sm"
-                type="button"
-                variant="outline"
+                handle={handle}
+                key={suggestion.status}
+                payload={suggestion.status}
+                render={<Button size="sm" variant="outline" />}
               >
                 Review status change
-              </Button>
+              </AlertDialogTrigger>
             </div>
           ) : null}
         </>
@@ -144,44 +140,60 @@ export function ProjectReleaseStatusControl({
         </p>
       ) : null}
       <AlertDialog
-        onOpenChange={(open) => {
-          if (!(open || saving)) {
-            setConfirming(null);
+        handle={handle}
+        onOpenChange={(open, event) => {
+          if (open) {
+            resetStatus?.();
+          } else if (saving && event.reason !== "imperative-action") {
+            event.cancel();
           }
         }}
-        open={confirming !== null && confirming !== status}
       >
-        {copy && confirming ? (
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{copy.title}</AlertDialogTitle>
-              <AlertDialogDescription>
-                {copy.description}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            {copy.openScope ? (
-              <p className="text-sm text-muted-foreground">{copy.openScope}</p>
-            ) : null}
-            {error ? (
-              <p className="text-sm text-destructive" role="alert">
-                {error}
-              </p>
-            ) : null}
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
-              <Button
-                disabled={saving}
-                onClick={() => {
-                  change(confirming).catch(() => undefined);
-                }}
-                type="button"
-                variant={confirming === "Cancelled" ? "destructive" : "default"}
-              >
-                {copy.action}
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        ) : null}
+        {({ payload }) => {
+          if (!payload) {
+            return null;
+          }
+          const copy = projectReleaseStatusChangeCopy(payload, openScope);
+          return (
+            <AlertDialogContent
+              finalFocus={() =>
+                isTerminalProjectReleaseStatus(status)
+                  ? document.getElementById(headingId)
+                  : true
+              }
+            >
+              <AlertDialogHeader>
+                <AlertDialogTitle>{copy.title}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {copy.description}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {copy.openScope ? (
+                <p className="text-sm text-muted-foreground">
+                  {copy.openScope}
+                </p>
+              ) : null}
+              {error ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
+                <Button
+                  disabled={saving}
+                  onClick={() => {
+                    confirm(payload).catch(() => undefined);
+                  }}
+                  type="button"
+                  variant={payload === "Cancelled" ? "destructive" : "default"}
+                >
+                  {copy.action}
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          );
+        }}
       </AlertDialog>
     </section>
   );

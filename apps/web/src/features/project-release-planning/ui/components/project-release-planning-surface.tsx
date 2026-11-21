@@ -251,6 +251,7 @@ export function ProjectReleasePlanningSurface({
       actions={actions}
       detail={current}
       errorMessage={errorMessage}
+      hypothesisPending={writeHypothesis.isPending}
       projectId={projectId}
       resetStatus={writeStatus.reset}
       savedMessage={savedMessage}

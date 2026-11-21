@@ -6,9 +6,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 
+import { recordActionListOptions } from "../lib/record-action-run";
+
 export function useRecordActions(projectId: string) {
   const queryClient = useQueryClient();
-  const options = orpc.recordActions.queryOptions({ input: { projectId } });
+  const options = recordActionListOptions(projectId);
   const query = useQuery(options);
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: options.queryKey });
