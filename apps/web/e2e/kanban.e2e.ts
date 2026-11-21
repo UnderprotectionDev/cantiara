@@ -119,9 +119,10 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   await expect(page).toHaveURL(
     (url) => `${url.pathname}${url.hash}` === sourceHref,
   );
+  await expect(boardPreview).toBeHidden();
   await expect(
     page
-      .getByRole("region", { name: "Work record" })
+      .getByRole("list", { name: "Work list" })
       .getByRole("heading", { name: title, exact: true }),
   ).toBeVisible();
 
@@ -156,9 +157,10 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   await expect(page).toHaveURL(
     (url) => `${url.pathname}${url.hash}` === sourceHref,
   );
+  await expect(listPreview).toBeHidden();
   await expect(
     page
-      .getByRole("region", { name: "Work record" })
+      .getByRole("list", { name: "Work list" })
       .getByRole("heading", { name: title, exact: true }),
   ).toBeVisible();
   await page
