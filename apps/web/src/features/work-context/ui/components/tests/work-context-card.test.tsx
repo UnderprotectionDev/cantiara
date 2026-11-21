@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+
 import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import type { RelationView } from "@cantiara/api/relations";
 import {
@@ -14,11 +16,16 @@ import {
   createRouter,
   RouterContextProvider,
 } from "@tanstack/react-router";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
+import { writeTextToClipboard } from "@/lib/clipboard";
 import { orpc } from "@/utils/orpc";
 import WorkContextCard from "../work-context-card";
+
+vi.mock("@/lib/clipboard", () => ({ writeTextToClipboard: vi.fn() }));
 
 const workContextRootRoute = createRootRoute({});
 const workContextProjectRoute = createRoute({
@@ -104,6 +111,78 @@ function renderCard(
     </RouterContextProvider>,
   );
 }
+
+test("changing Work type or identity clears expanded context and ignores a late copy", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const pending = Promise.withResolvers<void>();
+  vi.mocked(writeTextToClipboard).mockReturnValueOnce(pending.promise);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
+  });
+  const router = createRouter({
+    history: createMemoryHistory({ initialEntries: ["/projects/project-1"] }),
+    routeTree: workContextRouteTree,
+  });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  function render(profile: WorkProfile) {
+    queryClient.setQueryData(
+      orpc.relations.queryOptions({
+        input: { recordId: profile.id, recordType: "Work" },
+      }).queryKey,
+      [],
+    );
+    queryClient.setQueryData(
+      orpc.workContext.queryOptions({ input: { workId: profile.id } }).queryKey,
+      { priorityValues: {}, relations: [] },
+    );
+    act(() =>
+      root.render(
+        <RouterContextProvider router={router}>
+          <QueryClientProvider client={queryClient}>
+            <WorkContextCard
+              work={profile}
+              workStatusLabels={workStatusLabels}
+            />
+          </QueryClientProvider>
+        </RouterContextProvider>,
+      ),
+    );
+  }
+  function click(label: string) {
+    const button = [...host.querySelectorAll("button")].find(
+      (control) => control.textContent === label,
+    );
+    expect(button?.disabled).toBe(false);
+    act(() => button?.click());
+  }
+  const expanded = () => host.querySelectorAll("section section").length;
+  try {
+    render(work);
+    const initial = expanded();
+    click("Add Context");
+    expect(expanded()).toBeGreaterThan(initial);
+    click("Copy Context as Markdown");
+    expect(writeTextToClipboard).toHaveBeenCalledOnce();
+    const feature = { ...work, type: "Feature" } satisfies WorkProfile;
+    render(feature);
+    expect(expanded()).toBe(initial);
+    await act(async () => pending.resolve());
+    expect(host.textContent).not.toContain("Context copied.");
+
+    click("Add Context");
+    expect(expanded()).toBeGreaterThan(initial);
+    render({ ...feature, id: "work-2", title: "New Work" });
+    expect(expanded()).toBe(initial);
+    expect(host.textContent).toContain("New Work");
+  } finally {
+    act(() => root.unmount());
+    queryClient.clear();
+    host.remove();
+    vi.unstubAllGlobals();
+  }
+});
 
 describe("Work Context Card initial fields", () => {
   test("shows the Project-configured status label instead of the raw semantic status", () => {

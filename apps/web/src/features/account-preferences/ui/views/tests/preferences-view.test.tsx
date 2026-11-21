@@ -4,11 +4,15 @@ import {
 } from "@cantiara/api/account-preferences";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import { accountPreferencesQueryOptions } from "@/utils/orpc";
 
 import PreferencesView from "../preferences-view";
+
+vi.mock("@/features/web-macos-client/hooks/use-client-shell", () => ({
+  useClientShellConnection: () => "online",
+}));
 
 function renderPreferences(data: AccountPreferencesSnapshot) {
   const queryClient = new QueryClient();

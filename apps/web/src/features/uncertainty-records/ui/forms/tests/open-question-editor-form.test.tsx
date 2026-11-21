@@ -1,6 +1,12 @@
 // @vitest-environment happy-dom
 
-import { act } from "react";
+import { ORPCError } from "@orpc/client";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useMutation,
+} from "@tanstack/react-query";
+import { act, type ComponentProps, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, test, vi } from "vitest";
@@ -64,57 +70,91 @@ test("Uncertainty Records answer form requires an answer and offers optional rat
   expect(html).toContain("Cancel");
 });
 
-test("Open Question errors retain entered answer and rationale", async () => {
-  host = document.createElement("div");
-  document.body.append(host);
-  mountedRoot = createRoot(host);
-  const onSave = vi.fn(() => Promise.reject(new Error("Save failed")));
-
-  await act(() => {
-    mountedRoot?.render(
-      <OpenQuestionEditor
-        documents={[]}
-        onCancel={noop}
-        onSave={onSave}
-        record={{ ...record, answer: "", life: "Open", rationale: "" }}
-      />,
+test.each([
+  { code: "INTERNAL_SERVER_ERROR", conflict: false },
+  { code: "CONFLICT", conflict: true },
+])(
+  "Open Question retains entered answer and rationale after $code",
+  async ({ code, conflict }) => {
+    host = document.createElement("div");
+    document.body.append(host);
+    mountedRoot = createRoot(host);
+    const onSave = vi.fn<ComponentProps<typeof OpenQuestionEditor>["onSave"]>(
+      () => Promise.reject(new ORPCError(code)),
     );
-  });
+    const queryClient = new QueryClient();
+    function Editor() {
+      const saveMutation = useMutation({
+        mutationFn: (input: Parameters<typeof onSave>) => onSave(...input),
+      });
+      const { mutateAsync } = saveMutation;
+      const saveDraft = useCallback(
+        (...input: Parameters<typeof onSave>) => mutateAsync(input),
+        [mutateAsync],
+      );
+      return (
+        <OpenQuestionEditor
+          documents={[]}
+          onCancel={noop}
+          onSave={saveDraft}
+          record={{ ...record, answer: "", life: "Open", rationale: "" }}
+          writeError={saveMutation.error}
+        />
+      );
+    }
+    await act(() => {
+      mountedRoot?.render(
+        <QueryClientProvider client={queryClient}>
+          <Editor />
+        </QueryClientProvider>,
+      );
+    });
 
-  const answer = host.querySelector<HTMLTextAreaElement>("#question-answer");
-  const rationale = host.querySelector<HTMLTextAreaElement>(
-    "#question-rationale",
-  );
-  const saveButton = host.querySelector<HTMLButtonElement>(
-    'button[type="submit"]',
-  );
-  if (!answer) {
-    throw new Error("Open Question answer form did not render.");
-  }
-  if (!rationale) {
-    throw new Error("Open Question rationale field did not render.");
-  }
-  if (!saveButton) {
-    throw new Error("Open Question Save button did not render.");
-  }
+    const answer = host.querySelector<HTMLTextAreaElement>("#question-answer");
+    const rationale = host.querySelector<HTMLTextAreaElement>(
+      "#question-rationale",
+    );
+    const saveButton = host.querySelector<HTMLButtonElement>(
+      'button[type="submit"]',
+    );
+    if (!answer) {
+      throw new Error("Open Question answer form did not render.");
+    }
+    if (!rationale) {
+      throw new Error("Open Question rationale field did not render.");
+    }
+    if (!saveButton) {
+      throw new Error("Open Question Save button did not render.");
+    }
 
-  await act(() => {
-    setTextareaValue(answer, "Every other week");
-    setTextareaValue(rationale, "The pilot showed a stable cadence.");
-    saveButton.click();
-  });
+    await act(() => {
+      setTextareaValue(answer, "Every other week");
+      setTextareaValue(rationale, "The pilot showed a stable cadence.");
+      saveButton.click();
+    });
 
-  expect(onSave).toHaveBeenCalledTimes(1);
-  expect(onSave).toHaveBeenCalledWith(
-    expect.objectContaining({
-      answer: "Every other week",
-      rationale: "The pilot showed a stable cadence.",
-    }),
-    expect.objectContaining({ id: record.id }),
-  );
-  expect(host.querySelector('[role="alert"]')?.textContent).toContain(
-    "Your text is kept here.",
-  );
-  expect(answer.value).toBe("Every other week");
-  expect(rationale.value).toBe("The pilot showed a stable cadence.");
-});
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        answer: "Every other week",
+        rationale: "The pilot showed a stable cadence.",
+      }),
+      expect.objectContaining({ id: record.id }),
+    );
+    await vi.waitFor(() => {
+      expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
+        "Your text is kept here.",
+      );
+    });
+    expect(answer.value).toBe("Every other week");
+    expect(rationale.value).toBe("The pilot showed a stable cadence.");
+    expect(saveButton.disabled).toBe(conflict);
+    act(() => setTextareaValue(answer, "Every week"));
+    expect(saveButton.disabled).toBe(conflict);
+    if (conflict) {
+      expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+        "Cancel and reopen before saving.",
+      );
+    }
+  },
+);

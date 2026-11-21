@@ -3,7 +3,8 @@
 import type { DocumentEvidenceSelection } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useLayoutEffect, useRef } from "react";
 import { AppLink } from "@/components/app-link";
 import { projectSourceRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { client, orpc } from "@/utils/orpc";
@@ -14,15 +15,26 @@ import {
 } from "../forms/open-question-editor-form";
 import { OpenQuestionDetail } from "../views/open-question-view";
 
-export default function OpenQuestionsSurface({
+interface OpenQuestionsSurfaceProps {
+  projectId: string;
+  readOnly?: boolean;
+  selectedId?: string;
+}
+
+export default function OpenQuestionsSurface(props: OpenQuestionsSurfaceProps) {
+  return (
+    <OpenQuestionsSession
+      {...props}
+      key={JSON.stringify([props.projectId, props.selectedId, props.readOnly])}
+    />
+  );
+}
+
+function OpenQuestionsSession({
   projectId,
   selectedId,
   readOnly = false,
-}: {
-  projectId: string;
-  selectedId?: string;
-  readOnly?: boolean;
-}) {
+}: OpenQuestionsSurfaceProps) {
   const createProjectSourceRecordMutation = useMutation(
     orpc.createProjectSourceRecord.mutationOptions({
       meta: { onlineWrite: true },
@@ -49,9 +61,15 @@ export default function OpenQuestionsSurface({
     }),
     enabled: Boolean(selectedId),
   });
-  const [editing, setEditing] = useState<"create" | "answer" | undefined>(
-    undefined,
+  const editingSession = useCreateStore(
+    undefined as "create" | "answer" | undefined,
+    ({ setState }) => ({
+      setEditing: (next: "create" | "answer" | undefined) =>
+        setState(() => next),
+    }),
   );
+  const editing = useSelector(editingSession);
+  const { setEditing } = editingSession.actions;
   const saved =
     createProjectSourceRecordMutation.isSuccess ||
     transitionProjectSourceRecordMutation.isSuccess;
@@ -64,6 +82,13 @@ export default function OpenQuestionsSurface({
     (item): item is OpenQuestionRecord =>
       item.sourceType === "Open Question" && item.id === selectedId,
   );
+  const locked = readOnly || records.data?.readOnly === true;
+  useLayoutEffect(() => {
+    if (locked || (editing === "answer" && !selected)) {
+      pendingWrite.current = null;
+      setEditing(undefined);
+    }
+  }, [editing, locked, selected, setEditing]);
   function commandIdentity(payload: unknown, record?: OpenQuestionRecord) {
     const fingerprint = JSON.stringify({
       payload,
@@ -168,7 +193,6 @@ export default function OpenQuestionsSurface({
     transition.life === "No longer applicable" &&
     transition.sourceId === selectedId;
   const questions = records.data.records;
-  const locked = readOnly || records.data.readOnly;
   return (
     <section aria-label="Open Question" className="space-y-5">
       <header className="surface-header flex flex-wrap items-center justify-between gap-3">
@@ -226,6 +250,11 @@ export default function OpenQuestionsSurface({
         projectId={projectId}
         save={save}
         selected={selected}
+        writeError={
+          editing === "create"
+            ? createProjectSourceRecordMutation.error
+            : transitionProjectSourceRecordMutation.error
+        }
       />
     </section>
   );
@@ -280,6 +309,7 @@ function QuestionEditorSurface({
   record,
   onSave,
   onCancel,
+  writeError,
 }: {
   projectId: string;
   record?: OpenQuestionRecord;
@@ -288,6 +318,7 @@ function QuestionEditorSurface({
     record?: OpenQuestionRecord,
   ) => Promise<unknown>;
   onCancel: () => void;
+  writeError?: unknown;
 }) {
   const documents = useQuery({
     ...orpc.documents.queryOptions({ input: { projectId } }),
@@ -315,6 +346,7 @@ function QuestionEditorSurface({
         onCancel={onCancel}
         onSave={onSave}
         record={record}
+        writeError={writeError}
       />
     </>
   );
@@ -327,6 +359,7 @@ function OpenQuestionEditing({
   cancel,
   save,
   projectId,
+  writeError,
 }: {
   editing: "create" | "answer" | undefined;
   locked: boolean;
@@ -337,14 +370,16 @@ function OpenQuestionEditing({
     record?: OpenQuestionRecord,
   ) => Promise<void>;
   projectId: string;
+  writeError: unknown;
 }) {
-  return editing !== undefined && !locked ? (
+  return !locked && (editing === "create" || (editing && selected)) ? (
     <QuestionEditorSurface
-      key={`${editing}:${selected?.id ?? "new"}`}
+      key={editing}
       onCancel={cancel}
       onSave={save}
       projectId={projectId}
       record={editing === "answer" ? selected : undefined}
+      writeError={writeError}
     />
   ) : null;
 }

@@ -14,7 +14,8 @@ import type {
 } from "@cantiara/api/capture-triage";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useCallback } from "react";
 import { toast } from "sonner";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import {
@@ -393,7 +394,12 @@ export function CaptureInboxItemActions({
   const shell = useClientShell();
   const connection = useClientShellConnection();
   const projects = useQuery(projectsQueryOptions());
-  const [mode, setMode] = useState<ActionMode>(null);
+  const initialMode: ActionMode = null;
+  const session = useCreateStore(initialMode as ActionMode, ({ setState }) => ({
+    setMode: (next: ActionMode) => setState(() => next),
+  }));
+  const mode = useSelector(session);
+  const { setMode } = session.actions;
   const conversionForm = useCaptureConversionSetupForm(
     { projectId: captureConversionProjectId(item.projectId), recordType: "" },
     item.id,
@@ -414,7 +420,7 @@ export function CaptureInboxItemActions({
         onTriageExit?.();
       }
     },
-    [accountId, onTriageExit, queryClient],
+    [accountId, onTriageExit, queryClient, setMode],
   );
 
   const previewConversion = useMutation({
@@ -515,6 +521,7 @@ export function CaptureInboxItemActions({
       resetAttachmentPreview,
       resetConversionPreview,
       resetSuggestions,
+      setMode,
     ],
   );
 

@@ -271,7 +271,9 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   await sourceRecord
     .getByRole("button", { name: "Archive", exact: true })
     .click();
-  await expect(sourceRecord).toHaveCount(0);
+  await expect(
+    sourceRecord.getByRole("button", { name: "Unarchive", exact: true }),
+  ).toBeVisible();
   await page.goto("/focus-periods");
   await page.getByRole("button", { name: SOURCE_PERIOD_NAME }).click();
   const unavailableSource = page.getByRole("region", {

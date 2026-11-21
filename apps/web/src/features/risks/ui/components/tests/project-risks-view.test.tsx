@@ -1,3 +1,7 @@
+// @vitest-environment happy-dom
+
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import type { RiskRecord } from "../../../lib/risk-form";
@@ -25,6 +29,56 @@ const record: RiskRecord = {
   updatedAt: "2026-10-09T10:00:00.000Z",
 };
 const save = async () => undefined;
+
+test("the Risk status editor resets after Cancel, record switch, or loss of edit access", () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const second = { ...record, id: "risk-2", title: "Supplier delay" };
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  function render(selectedId: string, readOnly = false) {
+    act(() =>
+      root.render(
+        <ProjectRisksView
+          onSave={save}
+          onTransition={save}
+          projectId="project-1"
+          readOnly={readOnly}
+          records={[record, second]}
+          selectedId={selectedId}
+        />,
+      ),
+    );
+  }
+  function click(label: string) {
+    const button = [...host.querySelectorAll("button")].find(
+      (item) => item.textContent === label,
+    );
+    expect(button).toBeDefined();
+    act(() => button?.click());
+  }
+  const form = () => host.querySelector("form");
+  try {
+    render(record.id);
+    click("Status");
+    expect(form()).not.toBeNull();
+    click("Cancel");
+    expect(form()).toBeNull();
+
+    click("Status");
+    render(second.id);
+    expect(form()).toBeNull();
+    click("Status");
+    render(second.id, true);
+    expect(form()).toBeNull();
+    render(second.id);
+    expect(form()).toBeNull();
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  }
+});
 
 test("Risks keeps Accepted visible with its rationale and offers explicit status changes without scores", () => {
   const html = renderToStaticMarkup(

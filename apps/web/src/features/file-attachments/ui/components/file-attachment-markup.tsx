@@ -13,9 +13,15 @@ import {
   FILE_ATTACHMENT_UI_LABELS,
 } from "@cantiara/api/file-attachments";
 import { Button } from "@cantiara/ui/components/button";
-import { useSelector } from "@tanstack/react-store";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import type { KonvaEventObject } from "konva/lib/Node";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
 import {
   Circle,
   Arrow as KonvaArrow,
@@ -314,64 +320,105 @@ function MarkupSurface({
     width: 1000,
   };
   const surfaceRef = useRef<HTMLDivElement>(null);
-  const [surfaceSize, setSurfaceSize] = useState(fallbackSize);
-  const [media, setMedia] = useState<
-    HTMLCanvasElement | HTMLImageElement | null
-  >(null);
-  const [mediaSize, setMediaSize] = useState<{
+  interface Size {
     height: number;
     width: number;
-  } | null>(null);
-  const [draft, setDraft] = useState<Point[]>([]);
+  }
+  const measurements = useCreateStore<{
+    surfaceSize: Size;
+    mediaSize: Size | null;
+  }>({
+    surfaceSize: fallbackSize,
+    mediaSize: null,
+  });
+  const { surfaceSize, mediaSize } = useSelector(
+    measurements,
+    (value) => value,
+  );
+  const drawing = useCreateStore<Point[]>([]);
+  const draft = useSelector(drawing, (value) => value);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: A changed drawing context cancels the unfinished stroke.
+  useLayoutEffect(() => {
+    drawing.setState(() => []);
+  }, [
+    disabled,
+    drawing,
+    locationKind,
+    page,
+    selectingLocation,
+    tool,
+    versionId,
+  ]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: The media subscription belongs to this page and file version.
   useEffect(() => {
     const surface = surfaceRef.current;
     if (!surface) {
       return;
     }
-    const updateSize = () => {
-      const bounds = surface.getBoundingClientRect();
-      if (bounds.width > 0 && bounds.height > 0) {
-        setSurfaceSize({ height: bounds.height, width: bounds.width });
+    function reportSize() {
+      const bounds = surface?.getBoundingClientRect();
+      if (bounds && bounds.width > 0 && bounds.height > 0) {
+        measurements.setState((state) =>
+          state.surfaceSize.height === bounds.height &&
+          state.surfaceSize.width === bounds.width
+            ? state
+            : {
+                ...state,
+                surfaceSize: { height: bounds.height, width: bounds.width },
+              },
+        );
       }
-    };
-    updateSize();
-    const observer = new ResizeObserver(updateSize);
-    observer.observe(surface);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    setMedia(
-      surfaceRef.current?.querySelector<HTMLCanvasElement | HTMLImageElement>(
-        "img, canvas",
-      ) ?? null,
-    );
-  });
-
-  useEffect(() => {
-    if (!media) {
-      setMediaSize(null);
-      return;
     }
-    const measure = () => {
+    reportSize();
+    const surfaceObserver = new ResizeObserver(reportSize);
+    surfaceObserver.observe(surface);
+    let media: HTMLCanvasElement | HTMLImageElement | null = null;
+    function measureMedia() {
       const width =
-        media instanceof HTMLImageElement ? media.naturalWidth : media.width;
+        media instanceof HTMLImageElement ? media.naturalWidth : media?.width;
       const height =
-        media instanceof HTMLImageElement ? media.naturalHeight : media.height;
-      if (width > 0 && height > 0) {
-        setMediaSize({ height, width });
+        media instanceof HTMLImageElement ? media.naturalHeight : media?.height;
+      const size = width && height ? { height, width } : null;
+      measurements.setState((state) =>
+        state.mediaSize?.width === size?.width &&
+        state.mediaSize?.height === size?.height
+          ? state
+          : { ...state, mediaSize: size },
+      );
+    }
+    const mediaObserver = new ResizeObserver(measureMedia);
+    function subscribeMedia() {
+      const element =
+        surface?.querySelector<HTMLCanvasElement | HTMLImageElement>(
+          "img, canvas",
+        ) ?? null;
+      if (media !== element) {
+        media?.removeEventListener("load", measureMedia);
+        mediaObserver.disconnect();
+        media = element;
+        if (media) {
+          media.addEventListener("load", measureMedia);
+          mediaObserver.observe(media);
+        }
       }
-    };
-    measure();
-    media.addEventListener("load", measure);
-    const observer = new ResizeObserver(measure);
-    observer.observe(media);
+      measureMedia();
+    }
+    subscribeMedia();
+    const observer = new MutationObserver(subscribeMedia);
+    observer.observe(surface, {
+      attributeFilter: ["height", "src", "width"],
+      childList: true,
+      subtree: true,
+    });
     return () => {
-      media.removeEventListener("load", measure);
       observer.disconnect();
+      surfaceObserver.disconnect();
+      mediaObserver.disconnect();
+      media?.removeEventListener("load", measureMedia);
     };
-  }, [media]);
+  }, [measurements, page, versionId]);
 
   // Markings and Bind as origin coordinates are relative to the displayed
   // source visual, so the drawing surface tracks the object-contain content
@@ -407,10 +454,10 @@ function MarkupSurface({
       }
       const point = getPoint(event);
       if (point) {
-        setDraft([point]);
+        drawing.setState(() => [point]);
       }
     },
-    [disabled, getPoint],
+    [disabled, drawing, getPoint],
   );
   const handlePointerMove = useCallback(
     (event: KonvaEventObject<MouseEvent>) => {
@@ -422,32 +469,32 @@ function MarkupSurface({
         return;
       }
       if (selectingLocation) {
-        setDraft((current) => [current[0] ?? point, point]);
+        drawing.setState((current) => [current[0] ?? point, point]);
         return;
       }
-      setDraft((current) =>
+      drawing.setState((current) =>
         tool === "pen" || tool === "highlighter"
           ? [...current, point]
           : [current[0] ?? point, point],
       );
     },
-    [disabled, draft.length, getPoint, selectingLocation, tool],
+    [disabled, draft.length, drawing, getPoint, selectingLocation, tool],
   );
   const handlePointerUp = useCallback(() => {
     if (disabled) {
-      setDraft([]);
+      drawing.setState(() => []);
       return;
     }
     if (selectingLocation) {
       const selectedLocation = locationFromPoints(locationKind, draft, page);
-      setDraft([]);
+      drawing.setState(() => []);
       if (selectedLocation) {
         onSelectLocation?.(selectedLocation);
       }
       return;
     }
     if (draft.length < 2) {
-      setDraft([]);
+      drawing.setState(() => []);
       return;
     }
     const input = markingInputFromDraft(
@@ -457,7 +504,7 @@ function MarkupSurface({
       versionId,
       page,
     );
-    setDraft([]);
+    drawing.setState(() => []);
     if (input) {
       Promise.resolve()
         .then(() => onCreateMarking?.(input))
@@ -467,6 +514,7 @@ function MarkupSurface({
     attachmentId,
     disabled,
     draft,
+    drawing,
     locationKind,
     onCreateMarking,
     onSelectLocation,
@@ -515,6 +563,7 @@ function MarkupSurface({
         <Stage
           height={height}
           onMouseDown={handlePointerDown}
+          onMouseLeave={() => drawing.setState(() => [])}
           onMouseMove={handlePointerMove}
           onMouseUp={handlePointerUp}
           width={width}
@@ -589,8 +638,20 @@ export function FileAttachmentMarkup({
   projectId?: string;
   versionId: string;
 }) {
-  const [tool, setTool] = useState<FileAttachmentMarkingTool>("pen");
-  const [locationOpen, setLocationOpen] = useState(false);
+  const markup = useCreateStore<{
+    tool: FileAttachmentMarkingTool;
+    locationOpen: boolean;
+  }>({
+    tool: "pen",
+    locationOpen: false,
+  });
+  const { tool, locationOpen } = useSelector(markup);
+  const setTool = useCallback(
+    (next: FileAttachmentMarkingTool) => {
+      markup.setState((state) => ({ ...state, tool: next }));
+    },
+    [markup],
+  );
   const initialPage = page ?? (pageCount ? 1 : undefined);
   const geometry = useLocationFieldsForm({
     kind: "point",
@@ -613,7 +674,7 @@ export function FileAttachmentMarkup({
         setTool(candidate as FileAttachmentMarkingTool);
       }
     },
-    [],
+    [setTool],
   );
   const handleUndo = useCallback(() => {
     if (!(undoTarget && onUndoMarking)) {
@@ -622,11 +683,14 @@ export function FileAttachmentMarkup({
     Promise.resolve(onUndoMarking(undoTarget)).catch(() => undefined);
   }, [onUndoMarking, undoTarget]);
   const toggleLocation = useCallback(() => {
-    setLocationOpen((current) => !current);
-  }, []);
+    markup.setState((state) => ({
+      ...state,
+      locationOpen: !state.locationOpen,
+    }));
+  }, [markup]);
   const closeLocation = useCallback(() => {
-    setLocationOpen(false);
-  }, []);
+    markup.setState((state) => ({ ...state, locationOpen: false }));
+  }, [markup]);
   const handleLocationSelect = useCallback(
     (nextLocation: FileAttachmentLocation) => {
       geometry.reset(locationFields(nextLocation), { keepDefaultValues: true });

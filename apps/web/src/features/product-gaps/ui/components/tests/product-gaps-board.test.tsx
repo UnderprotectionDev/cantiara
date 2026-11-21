@@ -320,6 +320,9 @@ test("submits a new Product Gap with its Tool Escape and the chosen records", as
   await click("Add related record");
   await fillEscape();
   await submitForm();
+  expect(document.body.textContent).not.toContain(
+    "Checkout added to related records.",
+  );
 
   expect(onRecord).toHaveBeenCalledWith({
     escape: {

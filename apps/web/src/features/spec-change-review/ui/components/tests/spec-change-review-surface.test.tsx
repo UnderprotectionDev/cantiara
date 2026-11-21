@@ -12,6 +12,11 @@ const hoisted = vi.hoisted(() => ({
   createSpecChangeReviewFollowUp: vi.fn(),
 }));
 
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
+  useSearch: () => "review-1",
+}));
+
 vi.mock("@/utils/orpc", async (importActual) => {
   const actual = await importActual<typeof import("@/utils/orpc")>();
   return {
@@ -75,9 +80,6 @@ test("confirming a follow-up refreshes Work lists and Smart Collection membershi
         <SpecChangeReviewSurface projectId="project-1" />
       </QueryClientProvider>,
     );
-  });
-  await act(() => {
-    hoisted.captured.onSelect?.("review-1");
   });
 
   await act(async () => {

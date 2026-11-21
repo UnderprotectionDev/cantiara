@@ -13,7 +13,8 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
+import { isWriteConflict } from "@/lib/mutation-messages";
 import { submitForm } from "@/lib/submit-form";
 
 import {
@@ -39,6 +40,7 @@ export function OpenQuestionEditor({
   documents,
   onSave,
   onCancel,
+  writeError,
 }: {
   record?: OpenQuestionRecord;
   documents: Document[];
@@ -47,8 +49,9 @@ export function OpenQuestionEditor({
     record?: OpenQuestionRecord,
   ) => Promise<unknown>;
   onCancel: () => void;
+  writeError?: unknown;
 }) {
-  const [conflict, setConflict] = useState(false);
+  const conflict = isWriteConflict(writeError);
   // Pin the offered versions for this editing session; a stale selection conflicts at commit.
   const form = useForm({
     defaultValues: {
@@ -79,52 +82,41 @@ export function OpenQuestionEditor({
       const evidence = evidenceDocuments.find(
         (item) => item.id === value.documentId,
       );
-      try {
-        await onSave(
-          {
-            ...value,
-            ...(evidence
-              ? {
-                  documentEvidence: {
-                    documentId: evidence.id,
-                    documentRevision: evidence.revision,
-                    selectionStart: 0,
-                    selectionEnd: evidence.body.length,
-                    selectedText: evidence.body,
-                  },
-                }
-              : {}),
-          },
-          baseRecord,
-        );
-      } catch (cause) {
-        const stale =
-          typeof cause === "object" &&
-          cause !== null &&
-          "code" in cause &&
-          cause.code === "CONFLICT";
-        setConflict(stale);
-        form.setErrorMap({
-          onSubmit: {
-            form: stale
-              ? "Open Question or evidence changed. Cancel and reopen before saving. Your text is kept here."
-              : "Open Question could not be saved. Retry, or reload to check for changes. Your text is kept here.",
-            fields: {},
-          },
-        });
-      }
+      await onSave(
+        {
+          ...value,
+          ...(evidence
+            ? {
+                documentEvidence: {
+                  documentId: evidence.id,
+                  documentRevision: evidence.revision,
+                  selectionStart: 0,
+                  selectionEnd: evidence.body.length,
+                  selectedText: evidence.body,
+                },
+              }
+            : {}),
+        },
+        baseRecord,
+      );
     },
   });
   const { baseRecord: editingRecord, evidenceDocuments: offeredDocuments } =
     useSelector(form.store, (state) => state.values);
-  const error = useSelector(
+  const validationError = useSelector(
     form.store,
     (state): string | undefined => state.errorMap.onSubmit,
   );
+  const writeMessage = conflict
+    ? "Open Question or evidence changed. Cancel and reopen before saving. Your text is kept here."
+    : "Open Question could not be saved. Retry, or reload to check for changes. Your text is kept here.";
+  const error = validationError ?? (writeError ? writeMessage : undefined);
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    submitForm(form).catch(() => undefined);
+    if (!conflict) {
+      submitForm(form).catch(() => undefined);
+    }
   }
   const fields = editingRecord
     ? ([

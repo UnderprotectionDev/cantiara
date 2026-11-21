@@ -1,5 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
-import { useCallback, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useCallback } from "react";
 import { useProjectActivity } from "../../hooks/use-project-activity";
 import {
   NO_PROJECT_ACTIVITY_FILTERS,
@@ -57,9 +58,24 @@ export default function ProjectActivitySurface({
 }: {
   projectId: string;
 }) {
-  const [filters, setFilters] = useState<ProjectActivityFilters>(
-    NO_PROJECT_ACTIVITY_FILTERS,
-  );
+  const filters = useSearch({
+    from: "/_auth/projects/$projectId/",
+    select: (search) => search.activity ?? NO_PROJECT_ACTIVITY_FILTERS,
+  });
+  const navigate = useNavigate();
+  function setFilters(value: ProjectActivityFilters) {
+    navigate({
+      hash: true,
+      search: (current) => ({
+        ...current,
+        activity:
+          value.eventTypes.length || value.sourceTypes.length
+            ? value
+            : undefined,
+      }),
+      to: ".",
+    }).catch(() => undefined);
+  }
   return (
     <ProjectActivityPages
       filters={filters}

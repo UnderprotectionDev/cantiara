@@ -1,6 +1,10 @@
+// @vitest-environment happy-dom
+
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { ContextRecordPreviewProvider } from "@/features/record-discovery/ui/components/context-record-preview";
@@ -44,8 +48,10 @@ const work = (
   ...overrides,
 });
 
-function renderView(view: "Board" | "List", works: readonly WorkProfile[]) {
-  const queryClient = new QueryClient();
+function kanbanElement(view: "Board" | "List", works: readonly WorkProfile[]) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
+  });
   queryClient.setQueryData(
     orpc.projectWorks.queryOptions({
       input: { archived: false, projectId: "project-1" },
@@ -58,7 +64,7 @@ function renderView(view: "Board" | "List", works: readonly WorkProfile[]) {
       { priorityValues: {}, relations: [] },
     );
   }
-  return renderToStaticMarkup(
+  return (
     <QueryClientProvider client={queryClient}>
       <ContextRecordPreviewProvider>
         <ProjectWorkKanban
@@ -82,13 +88,43 @@ function renderView(view: "Board" | "List", works: readonly WorkProfile[]) {
           ]}
         />
       </ContextRecordPreviewProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+}
+
+function renderView(view: "Board" | "List", works: readonly WorkProfile[]) {
+  return renderToStaticMarkup(kanbanElement(view, works));
 }
 
 afterEach(() => vi.useRealTimers());
 
 describe("Kanban default Work scan", () => {
+  test("a mounted List shows newly eligible Work when the Account day changes", () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-25T20:59:45.000Z"));
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      act(() =>
+        root.render(
+          kanbanElement("List", [
+            work(1, { reappearDate: "2026-09-26", status: "Blocked" }),
+          ]),
+        ),
+      );
+      expect(host.textContent).not.toContain("CAN-1");
+      act(() => vi.advanceTimersByTime(30_000));
+      expect(host.textContent).toContain("CAN-1");
+      expect(host.textContent).toContain("Blocked");
+    } finally {
+      act(() => root.unmount());
+      host.remove();
+      vi.unstubAllGlobals();
+    }
+  });
+
   test.each(["Board", "List"] as const)(
     "%s follows saved sort over source order and backgrounds future or archived Work",
     (view) => {

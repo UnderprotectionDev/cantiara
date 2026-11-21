@@ -16,7 +16,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useSelector } from "@tanstack/react-store";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   type ColumnDef,
   columnFilteringFeature,
@@ -44,7 +44,6 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
 } from "react";
 import { ExportListAction } from "@/components/export-list-action";
 import {
@@ -692,11 +691,27 @@ function RecordTableGrid({
   /** The Projects this table lists; Work can be exported from them. */
   exportProjectIds: readonly string[];
 }) {
-  const [filter, setFilter] = useState("");
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const initialTableSession: {
+    filter: string;
+    sorting: SortingState;
+  } = {
+    filter: "",
+    sorting: [],
+  };
+  const tableSession = useCreateStore(initialTableSession, ({ setState }) => ({
+    setFilter: (next: string) =>
+      setState((state) => ({ ...state, filter: next })),
+    setSorting: (next: import("react").SetStateAction<SortingState>) =>
+      setState((state) => ({
+        ...state,
+        sorting: typeof next === "function" ? next(state.sorting) : next,
+      })),
+  }));
+  const { filter, sorting } = useSelector(tableSession);
+  const { setFilter, setSorting } = tableSession.actions;
   const handleFilterChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => setFilter(event.target.value),
-    [],
+    [setFilter],
   );
   const fields = recordTableFieldsByType[
     recordType

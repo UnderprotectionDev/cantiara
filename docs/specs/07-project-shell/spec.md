@@ -79,6 +79,8 @@ All four install the five protected Work statuses and keep `Overview`, `Work`, `
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Work surface reads the selected Board or List from the Project URL. A plain Project link uses Board. The Kanban browser journey exercises both views.
+
 - **Popup lifecycle (#546).** The Configuration Mode seam covers opening `Restore default navigation` and the Short code edit control. Their inline panels use Base UI Collapsible and stay open while the command needs a retry.
 
 - **Source navigation counterpart.** Project navigation opens `Smart Collection` directly, routes enabled `Technical Diagrams` to its source surface, and lets a Document identity hash open that Document within the `Documents` surface. Named source hashes keep the correct navigation item selected; navigation alone does not create a source record.

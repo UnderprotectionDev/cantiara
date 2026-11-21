@@ -59,6 +59,8 @@ Kurucu Çalışma Alanı kapsamında Contact ve isteğe bağlı Company tutar. C
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The existing Contact URL query selects the Contact. Following a retired identity still resolves to its surviving Contact. Browser navigation can restore an earlier selection.
+
 - The Contacts seam verifies that an Undo Merge receipt and failure follow the active command and that a stale failure triggers a preview refresh.
 
 - **What a good test is.** Tests observe Contact and Company through the public identity-book interface: create/update Contact and Company, optional Company affiliation, duplicate candidate listing, merge preview, merge commit, retired-id resolve, merge undo, and whether related Feedback remains reachable. They do not assert Drizzle row shapes or mock private collaborators. Expected values are product rules (no auto-merge, survivor choice, role/priority unchanged, retired id not searchable), not recomputed implementation.

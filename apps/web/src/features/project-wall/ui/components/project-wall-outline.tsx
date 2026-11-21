@@ -10,8 +10,15 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { observeElementRect, useVirtualizer } from "@tanstack/react-virtual";
-import { type KeyboardEvent, type ReactNode, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { AppLink } from "@/components/app-link";
 
 import {
@@ -55,7 +62,8 @@ export interface ProjectWallOutlineProps {
   onSelectionChange: (cardIds: string[]) => void;
   onToggleGroup: (groupId: string) => void;
   selection: readonly string[];
-  wall: Pick<ProjectWallView, "cards" | "groups" | "links">;
+  wall: Pick<ProjectWallView, "cards" | "groups" | "links"> &
+    Partial<Pick<ProjectWallView, "id">>;
 }
 
 interface RowContext extends ProjectWallOutlineProps {
@@ -455,7 +463,12 @@ function Inspector({
  * and the inspected card are session-only and never persisted.
  */
 export function ProjectWallOutline(props: ProjectWallOutlineProps) {
-  const [inspectedId, setInspectedId] = useState<string | null>(null);
+  const inspectedIdStore = useCreateStore<string | null>(null);
+  const inspectedId = useSelector(inspectedIdStore, (value) => value);
+  const setInspectedId = useCallback(
+    (value: string | null) => inspectedIdStore.setState(() => value),
+    [inspectedIdStore],
+  );
   const context: RowContext = {
     ...props,
     inspectedId,
@@ -466,6 +479,16 @@ export function ProjectWallOutline(props: ProjectWallOutlineProps) {
     props.wall.groups,
     props.collapsed,
   );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Switching walls clears the previous inspector.
+  useLayoutEffect(
+    () => () => inspectedIdStore.setState(() => null),
+    [inspectedIdStore, props.wall.id],
+  );
+  useLayoutEffect(() => {
+    inspectedIdStore.setState((value) =>
+      props.wall.cards.some(({ id }) => id === value) ? value : null,
+    );
+  }, [inspectedIdStore, props.wall.cards]);
   const virtualized = rows.length > OUTLINE_VIRTUALIZE_THRESHOLD;
   const inspected = props.wall.cards.find(({ id }) => id === inspectedId);
   return (

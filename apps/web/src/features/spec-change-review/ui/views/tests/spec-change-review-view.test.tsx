@@ -7,8 +7,10 @@ import {
   type SpecChangeReviewSummary,
 } from "@cantiara/api/spec-change-review";
 import type { SpecChangeReviewCandidate } from "@cantiara/api/spec-change-review-candidates";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 import { SpecChangeReviewView } from "../spec-change-review-view";
 
@@ -96,6 +98,48 @@ test("the diff walk is keyboard operable and screen-reader labelled", () => {
   expect(html).toContain("Goals (Changed)");
   expect(html).toContain("Removed: ");
   expect(html).toContain("Added: ");
+});
+
+test("the Diff walk resets with the review revision pair", () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  const select = () => undefined;
+  function show(data: SpecChangeReviewDetail) {
+    act(() =>
+      root.render(
+        <SpecChangeReviewView
+          detail={data}
+          onSelect={select}
+          reviews={[data.review]}
+          selectedId={data.review.id}
+        />,
+      ),
+    );
+  }
+  const status = () => host.querySelector('[role="status"]')?.textContent;
+  try {
+    show(detail);
+    const original = status();
+    const next = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent === "Next change",
+    );
+    expect(next).toBeDefined();
+    act(() => next?.click());
+    expect(status()).toContain("1 of 1");
+    expect(document.activeElement?.textContent).toBe("Goals (Changed)");
+    show({
+      ...detail,
+      review: { ...review, nextRevision: 3 },
+      next: { ...detail.next, revision: 3 },
+    });
+    expect(status()).toBe(original);
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  }
 });
 
 test("each candidate offers exactly the three states, marked one at a time", () => {

@@ -91,6 +91,25 @@ describe("Technical Diagram canvas", () => {
       .querySelector<HTMLElement>(".react-flow__viewport")
       ?.style.transform.replace(/\s/g, "");
 
+  test("a matching Diagram View refetch preserves the opening viewport", () => {
+    function render(zoom: number, viewId = "v") {
+      act(() =>
+        root.render(
+          <TechnicalDiagramCanvas
+            diagram={{ ...boundary, view: { ...boundary.view, id: viewId } }}
+            savedView={{ center: { x: 50, y: 50 }, collapsed: [], zoom }}
+          />,
+        ),
+      );
+    }
+    render(1.5);
+    expect(viewportTransform()).toContain("scale(1.5)");
+    render(0.75);
+    expect(viewportTransform()).toContain("scale(1.5)");
+    render(0.75, "other-view");
+    expect(viewportTransform()).toContain("scale(0.75)");
+  });
+
   test("restores the saved zoom and collapse, and Fit view returns neutral and expands groups", async () => {
     act(() =>
       root.render(

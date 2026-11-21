@@ -12,9 +12,9 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
-
+import { useRef } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { client, orpc } from "@/utils/orpc";
 
 type DiagramType =
@@ -48,25 +48,23 @@ function pickOption<T extends string>(
 
 export function NewTechnicalDiagramForm({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
   const pendingKey = useRef<string | null>(null);
   const create = useMutation({
     mutationFn: (input: CreateTechnicalDiagramInput) =>
       runOnlineOnlyWrite(() => client.createTechnicalDiagram(input)),
-    onError: (failure) =>
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Technical Diagram could not be created.",
-      ),
     onSuccess: async () => {
       pendingKey.current = null;
-      setError(null);
       await queryClient.invalidateQueries({
         queryKey: orpc.technicalDiagrams.queryKey({ input: { projectId } }),
       });
     },
   });
+  const error = create.isError
+    ? mutationErrorMessage(
+        create.error,
+        "Technical Diagram could not be created.",
+      )
+    : null;
   const form = useForm({
     defaultValues: {
       mode: "Product-authored Model",

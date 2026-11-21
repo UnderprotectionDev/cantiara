@@ -2,7 +2,7 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { ShareScopePreview } from "@cantiara/api/link-sharing";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, test, vi } from "vitest";
 import { orpc } from "@/utils/orpc";
@@ -17,6 +17,17 @@ vi.mock("@/utils/orpc", async (importActual) => {
   const actual = await importActual<typeof import("@/utils/orpc")>();
   return { ...actual, client: { ...actual.client, ...rpc } };
 });
+
+function ShareRootSelection() {
+  const [root, selectRoot] = useState("");
+  return (
+    <LinkSharingSurface
+      onSelectRoot={selectRoot}
+      projectId="p1"
+      selectedKey={root}
+    />
+  );
+}
 
 test.each([
   ["Rotate link", "rotateShareToken", "Active"],
@@ -120,7 +131,7 @@ test.each([
         await Promise.resolve();
         root.render(
           <QueryClientProvider client={queryClient}>
-            <LinkSharingSurface projectId="p1" />
+            <ShareRootSelection />
           </QueryClientProvider>,
         );
       });

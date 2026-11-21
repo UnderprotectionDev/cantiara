@@ -40,6 +40,8 @@ Kurucu Projeyi Arşiv görünümüne alır: salt okunur, hareketsiz; GitHub eşi
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The archive surface keeps the selected deletion target in its local session.
+
 - **Popup lifecycle (#546).** The Project retirement control seam opens the Archive preview before a write, uses the selected Project revision, and preserves the preview during a failed request.
 
 - **What a good test is.** Tests observe Project Retirement: archive stops writes/sync/automation; reducing security actions still work; delete absent until Archive; delete preview has no `Keep approved surface`; group enters Trash as one clock; restore returns Archive without republish or GitHub enable. 77 double for the clock.

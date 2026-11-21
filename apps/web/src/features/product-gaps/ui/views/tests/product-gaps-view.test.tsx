@@ -39,6 +39,10 @@ import { orpc } from "@/utils/orpc";
 import { EMPTY_GAP_FILTER, toListFilter } from "../../../lib/product-gap-form";
 import ProductGapsView from "../product-gaps-view";
 
+function ignoreFilterChange() {
+  /* This test exercises writes. */
+}
+
 (
   globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -71,7 +75,10 @@ describe("Product Gaps view", () => {
     act(() => {
       root?.render(
         <QueryClientProvider client={queryClient}>
-          <ProductGapsView />
+          <ProductGapsView
+            filter={EMPTY_GAP_FILTER}
+            onFilterChange={ignoreFilterChange}
+          />
         </QueryClientProvider>,
       );
     });

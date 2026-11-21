@@ -1,12 +1,30 @@
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { orpc } from "@/utils/orpc";
 import { type FeedQuery, FeedView } from "../views/feed-view";
 
 /** Read-only Feed of the Project's Feedback and long-body Source records. */
 export default function FeedSurface({ projectId }: { projectId: string }) {
-  const [query, setQuery] = useState<FeedQuery>({ sort: "Newest first" });
+  const filters = useSearch({
+    from: "/_auth/projects/$projectId/",
+    select: (search) => search.feed,
+  });
+  const query = { ...filters, sort: filters?.sort ?? "Newest first" };
+  const navigate = useNavigate();
+  function setQuery(next: FeedQuery) {
+    navigate({
+      hash: true,
+      search: (current) => ({
+        ...current,
+        feed:
+          next.sourceType || next.status || next.sort !== "Newest first"
+            ? next
+            : undefined,
+      }),
+      to: ".",
+    }).catch(() => undefined);
+  }
   const feed = useQuery(
     orpc.feedbackFeed.queryOptions({
       input: {

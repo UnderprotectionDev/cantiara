@@ -26,7 +26,8 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useEffect, useId, useRef, useState } from "react";
 import { commandVariables } from "@/lib/command-variables";
 import { popupReturnFocus } from "@/lib/popup-return-focus";
 import { client, orpc } from "@/utils/orpc";
@@ -145,7 +146,19 @@ export default function DocumentTemplatesSurface({
   const convertTriggerId = `${identifier}-convert`;
   const options = orpc.documentTemplates.queryOptions({ input: { projectId } });
   const templates = useQuery(options);
-  const [selection, setSelection] = useState<string>(personalReviewTemplate.id);
+  const selectionStore = useCreateStore<string>(personalReviewTemplate.id);
+  const templateId = useSelector(selectionStore, (value) => value);
+  const selection =
+    templates.data &&
+    templateId !== personalReviewTemplate.id &&
+    !templates.data.some(({ id }) => id === templateId)
+      ? personalReviewTemplate.id
+      : templateId;
+  useEffect(() => {
+    if (selection !== templateId) {
+      selectionStore.setState(() => selection);
+    }
+  }, [selection, selectionStore, templateId]);
   const selected =
     selection === personalReviewTemplate.id
       ? personalReviewTemplate
@@ -167,7 +180,7 @@ export default function DocumentTemplatesSurface({
           }),
         });
         if (pending.current?.key === input.clientIdempotencyKey) {
-          setSelection(result.template.id);
+          selectionStore.setState(() => result.template.id);
         }
       }
       if (pending.current?.key === input.clientIdempotencyKey) {
@@ -294,7 +307,7 @@ export default function DocumentTemplatesSurface({
           <NativeSelect
             id={`${identifier}-selection`}
             onChange={(event) => {
-              setSelection(event.target.value);
+              selectionStore.setState(() => event.target.value);
               save.reset();
             }}
             value={selection}

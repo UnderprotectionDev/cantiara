@@ -30,6 +30,10 @@ function noop() {
   // Presentational test: the handlers are never called.
 }
 
+function ignoreSelection() {
+  // This test renders the resolved Contact.
+}
+
 const confirmDisabledPattern = /disabled=""[^>]*>Confirm Undo Merge/;
 const timestamp = "2026-09-20T09:00:00.000Z";
 
@@ -106,7 +110,10 @@ function renderView(
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
       <RouterContextProvider router={router}>
-        <ContactsView contactId={opened?.contactId} />
+        <ContactsView
+          contactId={opened?.contactId}
+          onSelect={ignoreSelection}
+        />
       </RouterContextProvider>
     </QueryClientProvider>,
   );

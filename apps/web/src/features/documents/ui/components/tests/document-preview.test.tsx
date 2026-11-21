@@ -1,7 +1,16 @@
+// @vitest-environment happy-dom
+
+import mermaid from "mermaid";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 
 import DocumentPreview from "../document-preview";
+
+vi.mock("mermaid", () => ({
+  default: { initialize: vi.fn(), render: vi.fn() },
+}));
 
 vi.mock("@/components/app-link", () => ({
   AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
@@ -10,6 +19,70 @@ vi.mock("@/components/app-link", () => ({
 }));
 
 const ignoreLiveWorkAction = () => undefined;
+
+test("Mermaid discards a superseded error and a render that finishes after closing", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const original =
+    Promise.withResolvers<Awaited<ReturnType<typeof mermaid.render>>>();
+  const current =
+    Promise.withResolvers<Awaited<ReturnType<typeof mermaid.render>>>();
+  const closing =
+    Promise.withResolvers<Awaited<ReturnType<typeof mermaid.render>>>();
+  vi.mocked(mermaid.render)
+    .mockReturnValueOnce(original.promise)
+    .mockReturnValueOnce(current.promise)
+    .mockReturnValueOnce(closing.promise);
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  function render(body?: string) {
+    act(() =>
+      root.render(
+        body ? (
+          <DocumentPreview source={`\`\`\`mermaid\n${body}\n\`\`\``} />
+        ) : null,
+      ),
+    );
+  }
+  try {
+    render("graph TD; A-->B;");
+    render("graph TD; C-->D;");
+    await act(async () =>
+      current.resolve({ diagramType: "flowchart", svg: "<svg>current</svg>" }),
+    );
+    await act(async () => original.reject(new Error("Old diagram failed")));
+    expect(
+      host.querySelector("img[alt='Mermaid diagram']")?.getAttribute("src"),
+    ).toContain("current");
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+
+    render("graph TD; E-->F;");
+    render();
+    await act(async () =>
+      closing.resolve({ diagramType: "flowchart", svg: "<svg>closed</svg>" }),
+    );
+    expect(host.textContent).toBe("");
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  }
+});
+
+test("renders KaTeX output and displays invalid formula errors as text", () => {
+  const valid = renderToStaticMarkup(
+    <DocumentPreview source={"$$\nx^2\n$$"} />,
+  );
+  const invalid = renderToStaticMarkup(
+    <DocumentPreview source={"$$\n\\unknownFormula\n$$"} />,
+  );
+
+  expect(valid).toContain('class="katex"');
+  expect(valid).not.toContain('role="alert"');
+  expect(invalid).toContain('role="alert"');
+  expect(invalid).toContain("Undefined control sequence");
+  expect(invalid).not.toContain('class="katex"');
+});
 
 test("renders CRLF Mermaid fences as Mermaid previews", () => {
   const source = "```mermaid\r\ngraph TD; A-->B;\r\n```\r\n";

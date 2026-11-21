@@ -62,6 +62,8 @@ Bitiriş efekti varsayılan kapalı, Hesap düzeyinde açıkça etkinleştirilen
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Completion Effects preview holds one local phase and stops for a changed motion preference, theme or palette. Its timer is canceled on exit. The Completion Effects preference seam exercises the preview and reduced-motion alternative. The form test changes the theme and palette and unmounts mid-preview, then advances the old timer.
+
 - **What a good test is.** Tests observe Completion Effects through its public interface: settings and exact labels, static samples and Preview (including browsing after a preview starts), trigger matrix, idempotency/multi-tab, Reduce Motion, 1.2s/10s/30s timing, allow-list catalog, performance fallback. They do not assert canvas frame internals or “felt delight.”
 - **Seam (one).** Completion Effects — the product-facing Hesap catalog, trigger, and success-notice interface. Work close is an input event at this seam, not a second module. Playwright for Bitiriş efekti is this seam through the UI (web and Tauri preference parity).
 - **Modules under test.** Completion Effects only. Automation close, GitHub, notification center, and account locale/appearance are counterparts.

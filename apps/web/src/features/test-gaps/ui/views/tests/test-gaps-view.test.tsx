@@ -281,6 +281,9 @@ test("files a Gap with the typed text and the chosen support relation", async ()
     relationPicker?.querySelector('[role="alert"]')?.textContent,
   ).toContain("is already related.");
   await submit("File Test Gap");
+  expect(
+    relationPicker?.querySelector('[role="status"]')?.textContent,
+  ).not.toContain("added to support relations");
 
   expect(onCreate).toHaveBeenCalledWith({
     rationale: "Never tried on mobile.",

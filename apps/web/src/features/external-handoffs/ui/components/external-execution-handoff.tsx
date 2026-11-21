@@ -21,6 +21,7 @@ import { useState } from "react";
 import { useExternalExecutionHandoffs } from "@/features/external-handoffs/hooks/use-external-handoffs";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { writeTextToClipboard } from "@/lib/clipboard";
+import { useClipboardFeedback } from "@/lib/use-clipboard-feedback";
 import { errorMessage } from "../../lib/error-message";
 import { CancelHandoffForm } from "../forms/cancel-handoff-form";
 import {
@@ -230,8 +231,6 @@ export default function ExternalExecutionHandoffPanel({
 }) {
   const connection = useClientShellConnection();
   const [expanded, setExpanded] = useState(defaultExpanded);
-  const [copiedHandoffId, setCopiedHandoffId] = useState<string | null>(null);
-  const [copyError, setCopyError] = useState<string | null>(null);
   const {
     cancel,
     confirmReconcile,
@@ -249,17 +248,25 @@ export default function ExternalExecutionHandoffPanel({
     recordPackageExport.isPending ||
     connection === "offline";
 
+  const clipboard = useClipboardFeedback<string>(
+    JSON.stringify([work.id, query.data?.map((handoff) => handoff.handoffId)]),
+  );
+  const copiedHandoffId =
+    clipboard.feedback.status === "copied" ? clipboard.feedback.value : null;
+  const copyError =
+    clipboard.feedback.status === "failed" ? clipboard.feedback.message : null;
+
   async function copyPackage(handoffId: string, markdown: string) {
     recordPackageExport.reset();
-    setCopyError(null);
-    setCopiedHandoffId(null);
-    try {
-      await writeTextToClipboard(markdown);
-    } catch {
-      setCopyError("Going package could not be copied.");
+    if (
+      !(await clipboard.copy(
+        () => writeTextToClipboard(markdown),
+        handoffId,
+        () => "Going package could not be copied.",
+      ))
+    ) {
       return;
     }
-    setCopiedHandoffId(handoffId);
     recordPackageExport.mutate({
       clientEventId: crypto.randomUUID(),
       handoffId,

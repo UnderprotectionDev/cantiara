@@ -7,7 +7,8 @@ import type {
   AssumptionsContext,
 } from "@cantiara/api/uncertainty-records";
 import { Button } from "@cantiara/ui/components/button";
-import { type ReactNode, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { type ReactNode, useLayoutEffect } from "react";
 import { AppLink } from "@/components/app-link";
 import { projectSourceRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import {
@@ -28,12 +29,14 @@ function AssumptionEditingPanel({
   documentsPending,
   onCancel,
   onSave,
+  writeError,
 }: {
   editing: AssumptionEditing;
   documents?: Document[];
   documentsPending: boolean;
   onCancel: () => void;
   onSave: Save;
+  writeError?: unknown;
 }) {
   const needsEvidenceSnapshot =
     editing.kind === "transition" &&
@@ -56,6 +59,7 @@ function AssumptionEditingPanel({
       onCancel={onCancel}
       onSave={onSave}
       record={editing.record}
+      writeError={writeError}
     />
   );
 }
@@ -71,6 +75,7 @@ export function ProjectAssumptionsView({
   onStartEditing,
   renderEvidenceFlow,
   savedMessage,
+  writeErrors,
 }: {
   context: AssumptionsContext;
   renderEvidenceFlow?: (recordId: string) => ReactNode;
@@ -86,11 +91,25 @@ export function ProjectAssumptionsView({
   ) => Promise<unknown>;
   onStartEditing?: () => void;
   savedMessage?: string;
+  writeErrors?: Partial<Record<AssumptionEditing["kind"], unknown>>;
 }) {
-  const [editing, setEditing] = useState<AssumptionEditing | undefined>(
-    undefined,
+  const editingSession = useCreateStore(
+    undefined as AssumptionEditing | undefined,
+    ({ setState }) => ({
+      setEditing: (next: AssumptionEditing | undefined) => setState(() => next),
+    }),
   );
+  const active = useSelector(editingSession);
+  const { setEditing } = editingSession.actions;
   const selected = context.records.find((record) => record.id === selectedId);
+  // Create is Project-scoped. Edits and transitions belong to one selected record.
+  const changingRecord = active?.record && active.record.id !== selected?.id;
+  const editing = changingRecord ? undefined : active;
+  useLayoutEffect(() => {
+    if (changingRecord) {
+      setEditing(undefined);
+    }
+  }, [changingRecord, setEditing]);
   const evidence = context.evidence.filter(
     (entry) => entry.assumptionId === selectedId,
   );
@@ -103,12 +122,17 @@ export function ProjectAssumptionsView({
     setEditing({ kind, record, life });
   }
   async function save(draft: AssumptionDraft, record?: AssumptionRecord) {
-    if (editing?.life && record) {
+    if (!editing || editingSession.get() !== editing) {
+      return;
+    }
+    if (editing.life && record) {
       await onTransition(editing.life, draft, record);
     } else {
       await onSave(draft, record);
     }
-    setEditing(undefined);
+    editingSession.setState((current) =>
+      current === editing ? undefined : current,
+    );
   }
   return (
     <section aria-label="Assumption" className="space-y-5">
@@ -128,6 +152,7 @@ export function ProjectAssumptionsView({
           editing={editing}
           onCancel={() => setEditing(undefined)}
           onSave={save}
+          writeError={writeErrors?.[editing.kind]}
         />
       ) : null}
       {context.records.length === 0 ? (

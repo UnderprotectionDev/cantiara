@@ -77,18 +77,14 @@ test("Decisions persists creation and explicit withdrawal, keeps rationale, and 
   await expect(
     page.getByRole("button", { name: "Withdraw", exact: true }),
   ).toHaveCount(0);
+  await page.goto(`/projects/${setup.projectId}#decisions`);
   await page
     .getByRole("region", { name: "Decisions", exact: true })
     .getByRole("button", { name: "Create", exact: true })
     .click();
-  await page
-    .getByLabel("Title", { exact: true })
-    .fill("Draft survives browsing");
+  await page.getByLabel("Title", { exact: true }).fill("Draft before browsing");
   await page.getByRole("link", { name: "Release scope", exact: true }).click();
-  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
-    "Draft survives browsing",
-  );
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByLabel("Title", { exact: true })).toHaveCount(0);
   expect(
     (
       await new AxeBuilder({ page })

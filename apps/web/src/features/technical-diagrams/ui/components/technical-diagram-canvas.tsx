@@ -13,6 +13,7 @@ import {
 } from "@cantiara/api/technical-diagram-viewport";
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   type Edge,
   MarkerType,
@@ -21,13 +22,13 @@ import {
   ReactFlowProvider,
   useReactFlow,
 } from "@xyflow/react";
-import { useEffect, useMemo, useRef, useState } from "react";
-
+import { useEffect, useMemo, useRef } from "react";
 import { autoPosition } from "../../lib/technical-diagram-edit";
 import "@xyflow/react/dist/style.css";
 
 interface Props {
-  diagram: Pick<TechnicalDiagramSource, "model" | "title" | "type" | "view">;
+  diagram: Pick<TechnicalDiagramSource, "model" | "title" | "type" | "view"> &
+    Partial<Pick<TechnicalDiagramSource, "id">>;
   /** Reports a dropped node; coordinates are `Diagram View` metadata only. */
   onMove?: (elementId: string, position: { x: number; y: number }) => void;
   /** Moves a record card; only the card position is saved, never the record. */
@@ -75,21 +76,19 @@ function Canvas({
       position: layout[node.id] ?? autoPosition(index),
     })),
   };
-  const [opening] = useState(() =>
-    resolveTechnicalDiagramViewport({
+  const openingSnapshot = useCreateStore(() => ({
+    resolution: resolveTechnicalDiagramViewport({
       content,
       frame: NOMINAL_FRAME,
       saved: savedView,
     }),
-  );
+    content,
+    saved: savedView,
+  }));
+  const opening = useSelector(openingSnapshot, (value) => value.resolution);
   // React Flow paints before the real frame is measured, and the canvas is a
   // fluid-width pane that may not be the nominal 800x320, so the mount re-applies
   // the restore with the measured frame to keep the saved center exact.
-  const expectedRestore = useRef({
-    content,
-    saved: savedView,
-  });
-  const expectedOpening = useRef(opening.mode);
   // The restore is applied once, from mount-time values only: later prop
   // changes are the user's own moves or a refetch, never a surprise re-center.
   useEffect(() => {
@@ -102,7 +101,7 @@ function Canvas({
       return;
     }
     const frame = { height, width };
-    const restore = expectedRestore.current;
+    const restore = openingSnapshot.get();
     const resolution = resolveTechnicalDiagramViewport({
       content: restore.content,
       frame,
@@ -120,14 +119,21 @@ function Canvas({
       });
       return;
     }
-    if (expectedOpening.current === "restore") {
+    if (openingSnapshot.get().resolution.mode === "restore") {
       // The measured frame no longer shows content where the nominal one did;
       // fall back to the fit the plain save would have taken.
       // React Flow 13 reads padding as a per-side margin; v12's default 0.1 is (1 - 1/1.1) / 2.
       reactFlow.fitView({ duration: 0, padding: "4.545454545454546%" });
     }
-  }, [reactFlow]);
-  const [collapsed, setCollapsed] = useState(opening.collapsed);
+  }, [openingSnapshot, reactFlow]);
+  const collapsedSession = useCreateStore(
+    opening.collapsed,
+    ({ setState }) => ({
+      setCollapsed: (next: string[]) => setState(() => next),
+    }),
+  );
+  const collapsed = useSelector(collapsedSession);
+  const { setCollapsed } = collapsedSession.actions;
   const hidden = useMemo(
     () => hiddenDiagramNodeIds(groups, collapsed),
     [groups, collapsed],
@@ -292,7 +298,9 @@ function Canvas({
 
 export function TechnicalDiagramCanvas(props: Props) {
   return (
-    <ReactFlowProvider>
+    <ReactFlowProvider
+      key={JSON.stringify([props.diagram.id, props.diagram.view?.id])}
+    >
       <Canvas {...props} />
     </ReactFlowProvider>
   );

@@ -1,7 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Form controls close over their current metric draft and mutation state.
+
 import type { PriorityMetric } from "@cantiara/api/priority-metrics";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   priorityMetricRevision,
   usePriorityMetrics,
@@ -148,9 +149,26 @@ export default function PriorityMetricEditor({
   const { create, query, restore, trash, update } =
     usePriorityMetrics(projectId);
   const permanentDelete = usePriorityMetricDelete(projectId);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [trashTarget, setTrashTarget] = useState<PriorityMetric | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<PriorityMetric | null>(null);
+  const initialMetricEditor: {
+    editingId: string | null;
+    trashTarget: PriorityMetric | null;
+    deleteTarget: PriorityMetric | null;
+  } = {
+    editingId: null,
+    trashTarget: null,
+    deleteTarget: null,
+  };
+  const metricEditor = useCreateStore(initialMetricEditor, ({ setState }) => ({
+    setEditingId: (next: string | null) =>
+      setState((state) => ({ ...state, editingId: next })),
+    setTrashTarget: (next: PriorityMetric | null) =>
+      setState((state) => ({ ...state, trashTarget: next })),
+    setDeleteTarget: (next: PriorityMetric | null) =>
+      setState((state) => ({ ...state, deleteTarget: next })),
+  }));
+  const { editingId, trashTarget, deleteTarget } = useSelector(metricEditor);
+  const { setEditingId, setTrashTarget, setDeleteTarget } =
+    metricEditor.actions;
   const metrics = query.data ?? [];
   const activeMetrics = metrics.filter((metric) => !metric.trashedAt);
   const trashedMetrics = metrics.filter((metric) => metric.trashedAt);

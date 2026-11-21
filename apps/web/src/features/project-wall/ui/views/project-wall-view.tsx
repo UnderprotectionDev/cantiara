@@ -7,7 +7,8 @@ import type {
   ProjectWallView,
 } from "@cantiara/api/project-wall";
 import { Button } from "@cantiara/ui/components/button";
-import { type ReactNode, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { type ReactNode, useLayoutEffect } from "react";
 import { focusProjectWallGroup } from "../../lib/project-wall-group-focus";
 import {
   type ProjectWallNarrativeActions,
@@ -109,23 +110,33 @@ export function ProjectWallLayout({
       (card) => `${card.sourceType}:${card.source.recordId}`,
     ),
   );
-  const [presenting, setPresenting] = useState(false);
-  // In-wall navigation is view-local state: nothing here is saved.
-  const [opened, setOpened] = useState<{
-    groupId: string;
-    wallId: string;
-  } | null>(null);
-  const openGroupId =
-    selected && opened?.wallId === selected.id ? opened.groupId : null;
+  const wallId = selected?.id ?? null;
+  const navigation = useCreateStore<{
+    presentingWallId: string | null;
+    openedGroupId: string | null;
+    wallId: string | null;
+  }>({ presentingWallId: null, openedGroupId: null, wallId });
+  const current = useSelector(navigation, (value) => value);
+  useLayoutEffect(() => {
+    navigation.setState((value) =>
+      value.wallId === wallId
+        ? value
+        : { presentingWallId: null, openedGroupId: null, wallId },
+    );
+  }, [navigation, wallId]);
+  const openGroupId = current.wallId === wallId ? current.openedGroupId : null;
   const focused =
     selected && openGroupId
       ? focusProjectWallGroup(selected, openGroupId)
       : selected;
-  if (selected && presenting) {
+  if (selected && current.presentingWallId === selected.id) {
     // Presentation Mode hides every editing tool; exit returns to this view.
     return (
       <ProjectWallPresentationView
-        onExit={() => setPresenting(false)}
+        key={selected.id}
+        onExit={() =>
+          navigation.setState((value) => ({ ...value, presentingWallId: null }))
+        }
         wall={selected}
       />
     );
@@ -182,7 +193,12 @@ export function ProjectWallLayout({
               Delete Project Wall
             </Button>
             <Button
-              onClick={() => setPresenting(true)}
+              onClick={() =>
+                navigation.setState((value) => ({
+                  ...value,
+                  presentingWallId: selected.id,
+                }))
+              }
               type="button"
               variant="outline"
             >
@@ -203,8 +219,18 @@ export function ProjectWallLayout({
             never edits the source record; edit content with Open Source Record.
           </p>
           <ProjectWallGroupNav
-            onOpen={(groupId) => setOpened({ groupId, wallId: selected.id })}
-            onShowFullWall={() => setOpened(null)}
+            onOpen={(groupId) =>
+              navigation.setState((value) => ({
+                ...value,
+                openedGroupId: groupId,
+              }))
+            }
+            onShowFullWall={() =>
+              navigation.setState((value) => ({
+                ...value,
+                openedGroupId: null,
+              }))
+            }
             openGroupId={openGroupId}
             wall={selected}
           />

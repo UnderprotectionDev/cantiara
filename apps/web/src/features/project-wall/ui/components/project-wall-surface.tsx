@@ -18,7 +18,8 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useCallback, useMemo, useRef } from "react";
 import { fetchFresh } from "@/lib/fetch-fresh";
 
 import { executeWrite } from "@/utils/execute-write";
@@ -42,7 +43,9 @@ export default function ProjectWallSurface({
   projectId: string;
 }) {
   const queryClient = useQueryClient();
-  const [chosenId, setChosenId] = useState<string | null>(null);
+  const wallSession = useCreateStore<string | null>(null);
+  const chosenId = useSelector(wallSession);
+  const setChosenId = (next: string | null) => wallSession.setState(() => next);
   const listOptions = orpc.projectWalls.queryOptions({ input: { projectId } });
   const walls = useQuery(listOptions);
   const selectedId = chosenId ?? walls.data?.[0]?.id ?? null;

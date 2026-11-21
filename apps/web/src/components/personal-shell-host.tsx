@@ -1,5 +1,6 @@
 import { useRouteContext } from "@tanstack/react-router";
-import { Suspense, useCallback, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { Suspense, useCallback } from "react";
 import NotificationCenterSurface from "@/features/attention-signals/ui/components/notification-center-surface";
 import DailyFocusView from "@/features/daily-focus/ui/views/daily-focus-view";
 import FavoritesList from "@/features/favorites/ui/components/favorites-list";
@@ -11,24 +12,37 @@ import { useOpenSourceRecord } from "@/features/record-discovery/ui/components/c
 /** Composes the four owners' surfaces into the Personal Shell panel. */
 export default function PersonalShellHost() {
   const { session } = useRouteContext({ from: "/_auth" });
+  return (
+    <AccountPersonalShell
+      accountId={session.data.user.id}
+      key={session.data.user.id}
+    />
+  );
+}
+
+function AccountPersonalShell({ accountId }: { accountId: string }) {
   const openSourceRecord = useOpenSourceRecord();
-  const [day, setDay] = useState<string | undefined>();
-  const [view, setView] = useState<"close" | undefined>();
-  const selectDay = useCallback((selected: string) => {
-    setDay(selected);
-    setView(undefined);
-  }, []);
-  const openCloseFocus = useCallback((selected: string) => {
-    setDay(selected);
-    setView("close");
-  }, []);
+  const focus = useCreateStore<{ day?: string; view?: "close" }>({});
+  const { day, view } = useSelector(focus, (value) => value);
+  const selectDay = useCallback(
+    (selected: string) => {
+      focus.setState(() => ({ day: selected }));
+    },
+    [focus],
+  );
+  const openCloseFocus = useCallback(
+    (selected: string) => {
+      focus.setState(() => ({ day: selected, view: "close" }));
+    },
+    [focus],
+  );
   const renderSurface = useCallback(
     (surface: PersonalShellSurface, close: () => void) => {
       switch (surface) {
         case "Daily Focus":
           return (
             <DailyFocusView
-              accountId={session.data.user.id}
+              accountId={accountId}
               day={day}
               onOpenCloseFocus={openCloseFocus}
               onReturnToDailyFocus={selectDay}
@@ -55,14 +69,7 @@ export default function PersonalShellHost() {
           return null;
       }
     },
-    [
-      day,
-      openCloseFocus,
-      openSourceRecord,
-      selectDay,
-      session.data.user.id,
-      view,
-    ],
+    [day, openCloseFocus, openSourceRecord, selectDay, accountId, view],
   );
   return <PersonalShell renderSurface={renderSurface} />;
 }

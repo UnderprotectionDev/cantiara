@@ -56,6 +56,8 @@ Kurucu üç girişten aynı Test Oturumu ve Oturum Testi modeline atomik ve idem
 
 ## Testing Decisions
 
+- **Date-time draft (#547).** After a successful manual Test Session write, the form clears a time entered without a date even when `Reported at` was already empty. The Test Sessions view seam checks the reset.
+
 - **What a good test is.** Tests observe Test Report Acceptance through the public accept interface: three ingresses one model, atomic reject of malformed/partial/unsupported, idempotent receipt, identity_conflict, handoff version mismatch, allow-list, secret fail-closed, MCP receipt-only, alias catalog, limit caps. Expected error codes are the PRD literals. Not Drizzle rows, not MCP SDK internals.
 - **UI labels.** The English labels above are asserted in the Test Sessions view test at the web edge of the same seam; they are not a second behavior seam.
 - **Seam (one).** Test Report Acceptance — the product-facing accept/receipt interface used by the web form, file import, and MCP adapter.

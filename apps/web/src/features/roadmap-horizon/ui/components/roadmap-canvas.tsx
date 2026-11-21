@@ -8,13 +8,15 @@ import type {
 } from "@cantiara/api/roadmap-horizon";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   type Node,
   type NodeProps,
   ReactFlow,
-  type ReactFlowInstance,
+  ReactFlowProvider,
+  useReactFlow,
 } from "@xyflow/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { projectRoadmapWorks } from "../../lib/roadmap-projection";
 import {
   createRoadmapViewport,
@@ -45,7 +47,25 @@ function RoadmapCard({ data }: NodeProps<RoadmapNode>) {
 }
 const NODE_TYPES = { roadmap: RoadmapCard };
 
-export default function RoadmapCanvas({
+interface RoadmapCanvasProps {
+  available?: boolean;
+  milestones: Milestone[];
+  onReady?: (canvas: ReturnCanvasViewport) => void;
+  origins: RoadmapOriginLink[];
+  projectId: string;
+  view: RoadmapView | null;
+  works: WorkProfile[];
+}
+
+export default function RoadmapCanvas(props: RoadmapCanvasProps) {
+  return (
+    <ReactFlowProvider key={props.projectId}>
+      <RoadmapCanvasSession {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+function RoadmapCanvasSession({
   projectId,
   works,
   origins,
@@ -53,18 +73,25 @@ export default function RoadmapCanvas({
   view,
   available = true,
   onReady,
-}: {
-  projectId: string;
-  works: WorkProfile[];
-  origins: RoadmapOriginLink[];
-  milestones: Milestone[];
-  view: RoadmapView | null;
-  available?: boolean;
-  onReady?: (canvas: ReturnCanvasViewport) => void;
-}) {
+}: RoadmapCanvasProps) {
   const session = useRoadmapSession();
-  const [flow, setFlow] = useState<ReactFlowInstance<RoadmapNode> | null>(null);
-  const [highlight, setHighlight] = useState<string | null>(null);
+  const flow = useReactFlow<RoadmapNode>();
+  const canvasState = useCreateStore<{
+    highlight: string | null;
+    placement: "pending" | "failed" | "ready";
+  }>({
+    highlight: null,
+    placement: "pending",
+  });
+  const { placement, highlight } = useSelector(canvasState);
+  const ready = placement === "ready";
+  const active = useRef<boolean>(false);
+  useLayoutEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const records = [
     ...works.map((work) => `Work:${work.id}`),
     ...milestones.map((milestone) => `Milestone:${milestone.id}`),
@@ -122,8 +149,16 @@ export default function RoadmapCanvas({
     records,
     nodes: nodes.map((node) => ({ id: node.id, ...node.position })),
   };
+  function reportPlacement(placed: boolean) {
+    if (active.current) {
+      canvasState.setState((value) => ({
+        ...value,
+        placement: placed ? "ready" : "failed",
+      }));
+    }
+  }
   useEffect(() => {
-    if (!(flow && onReady)) {
+    if (!(ready && onReady)) {
       return;
     }
     onReady(
@@ -131,7 +166,8 @@ export default function RoadmapCanvas({
         projectId,
         readView: () => current.current,
         capture: () => flow.getViewport(),
-        highlight: setHighlight,
+        highlight: (id) =>
+          canvasState.setState((value) => ({ ...value, highlight: id })),
         moveTo: (id, signal) => {
           if (signal.aborted) {
             return Promise.resolve(false);
@@ -170,31 +206,42 @@ export default function RoadmapCanvas({
         },
       }),
     );
-  }, [flow, onReady, projectId, session]);
+  }, [canvasState, flow, onReady, projectId, ready, session]);
   return (
     <section aria-label="Roadmap canvas" className="roadmap-canvas space-y-2">
       <div className="flex flex-wrap gap-2">
         <Button
-          disabled={!flow}
-          onClick={() => flow?.zoomIn({ duration: 0 })}
+          disabled={!ready}
+          onClick={() => flow.zoomIn({ duration: 0 })}
           type="button"
           variant="outline"
         >
           Zoom in
         </Button>
         <Button
-          disabled={!flow}
-          onClick={() => flow?.zoomOut({ duration: 0 })}
+          disabled={!ready}
+          onClick={() => flow.zoomOut({ duration: 0 })}
           type="button"
           variant="outline"
         >
           Zoom out
         </Button>
         <Button
-          disabled={!flow}
-          onClick={() =>
-            flow?.fitView({ duration: 0, padding: "8.333333333333334%" })
-          }
+          disabled={placement === "pending"}
+          onClick={async () => {
+            if (!ready) {
+              canvasState.setState((value) => ({
+                ...value,
+                placement: "pending",
+              }));
+            }
+            const placed = await flow
+              .fitView({ duration: 0, padding: "8.333333333333334%" })
+              .catch(() => false);
+            if (!ready) {
+              reportPlacement(placed);
+            }
+          }}
           type="button"
           variant="outline"
         >
@@ -216,13 +263,33 @@ export default function RoadmapCanvas({
           nodesDraggable={false}
           nodeTypes={NODE_TYPES}
           onInit={async (instance) => {
-            if (!session?.state.viewport && current.current.nodes.length > 0) {
-              await instance.fitView({
-                duration: 0,
-                padding: "8.333333333333334%",
-              });
+            if (!active.current) {
+              return;
             }
-            setFlow(instance);
+            try {
+              if (
+                !session?.state.viewport &&
+                current.current.nodes.length > 0
+              ) {
+                const placed = await instance.fitView({
+                  duration: 0,
+                  padding: "8.333333333333334%",
+                });
+                if (!placed && active.current) {
+                  const neutral = await instance.setViewport(
+                    { x: 0, y: 0, zoom: 1 },
+                    { duration: 0 },
+                  );
+                  if (!neutral) {
+                    reportPlacement(false);
+                    return;
+                  }
+                }
+              }
+              reportPlacement(true);
+            } catch {
+              reportPlacement(false);
+            }
           }}
           onMoveEnd={(_event, viewport) =>
             session?.setState((state) => ({ ...state, viewport }))

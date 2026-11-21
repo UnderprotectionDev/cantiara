@@ -3,9 +3,9 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { ORPCError } from "@orpc/client";
 import { useForm, useSelector } from "@tanstack/react-form";
 import type { SubmitEvent } from "react";
+import { isWriteConflict } from "@/lib/mutation-messages";
 import { submitForm } from "@/lib/submit-form";
 import {
   decisionFormSchema,
@@ -40,8 +40,7 @@ export function DecisionEditor({
   onCancel: () => void;
   writeError?: unknown;
 }) {
-  const conflict =
-    writeError instanceof ORPCError && writeError.code === "CONFLICT";
+  const conflict = isWriteConflict(writeError);
   const writeMessage = conflict
     ? "Decision changed. Cancel and reopen before saving again. Your text is kept here."
     : "Decision could not be saved. Retry, or reload to check for changes. Your text is kept here.";

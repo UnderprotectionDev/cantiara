@@ -7,7 +7,8 @@ import {
 import type { DecisionSupersessionGraph } from "@cantiara/api/decision-supersession";
 import type { ProjectSourceRecord } from "@cantiara/api/project-source-records";
 import { Button } from "@cantiara/ui/components/button";
-import { type ReactNode, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { type ReactNode, useLayoutEffect } from "react";
 import { AppLink } from "@/components/app-link";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { DecisionEditor } from "../forms/decision-editor-form";
@@ -52,22 +53,43 @@ export function ProjectDecisionsView({
   savedMessage?: string;
   writeError?: unknown;
 }) {
-  const [editingMode, setEditing] = useState<
-    "create" | "edit" | "withdraw" | undefined
-  >(undefined);
-  const editing = savedMessage ? undefined : editingMode;
   const selected = decisions.find((record) => record.id === selectedId);
+  const identity = JSON.stringify([
+    projectId,
+    selectedId,
+    selected?.id,
+    readOnly,
+  ]);
+  const session = useCreateStore<{
+    identity: string;
+    mode: "create" | "edit" | "withdraw";
+    recordId?: string;
+  } | null>(null);
+  const active = useSelector(session, (value) => value);
+  const editing = active?.identity === identity ? active : null;
+  useLayoutEffect(() => {
+    session.setState((current) =>
+      current?.identity === identity ? current : null,
+    );
+  }, [identity, session]);
   function start(mode: "create" | "edit" | "withdraw") {
     onStartEditing?.();
-    setEditing(mode);
+    session.setState(() => ({
+      identity,
+      mode,
+      recordId: mode === "create" ? undefined : selected?.id,
+    }));
   }
-  async function save(draft: DecisionDraft, record?: DecisionRecord) {
-    await onSave(draft, record);
-    setEditing(undefined);
-  }
-  async function withdraw(draft: DecisionDraft, record?: DecisionRecord) {
-    await onWithdraw(draft, record);
-    setEditing(undefined);
+  async function submit(draft: DecisionDraft, record?: DecisionRecord) {
+    if (
+      !editing ||
+      session.get() !== editing ||
+      record?.id !== editing.recordId
+    ) {
+      return;
+    }
+    await (editing.mode === "withdraw" ? onWithdraw : onSave)(draft, record);
+    session.setState((current) => (current === editing ? null : current));
   }
   return (
     <section aria-label="Decisions" className="space-y-5">
@@ -82,14 +104,14 @@ export function ProjectDecisionsView({
       {savedMessage ? <p role="status">{savedMessage}</p> : null}
       {editing && !readOnly ? (
         <DecisionEditor
-          key={editing}
+          key={`${editing.mode}:${editing.recordId ?? ""}`}
           onCancel={() => {
             onStartEditing?.();
-            setEditing(undefined);
+            session.setState(() => null);
           }}
-          onSave={editing === "withdraw" ? withdraw : save}
-          record={editing === "create" ? undefined : selected}
-          withdrawing={editing === "withdraw"}
+          onSave={submit}
+          record={editing.recordId ? selected : undefined}
+          withdrawing={editing.mode === "withdraw"}
           writeError={writeError}
         />
       ) : null}

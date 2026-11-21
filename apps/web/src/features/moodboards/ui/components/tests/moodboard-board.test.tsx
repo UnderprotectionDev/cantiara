@@ -9,6 +9,7 @@ import {
   MoodboardBoard,
   type MoodboardBoardProps,
 } from "../moodboard-board";
+import { PresentationView } from "../moodboard-view-tools";
 
 (
   globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
@@ -77,6 +78,45 @@ function read(surface: HTMLElement) {
     zoom: Number(surface.dataset.zoom),
   };
 }
+
+test("Moodboard Presentation clamps a shortened order and reopens at the first item", () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  host = container;
+  root = createRoot(container);
+  const full = board(3);
+  const close = vi.fn();
+  function render(moodboard: Moodboard | null) {
+    act(() =>
+      root?.render(
+        moodboard && <PresentationView moodboard={moodboard} onExit={close} />,
+      ),
+    );
+  }
+  function click(label: string) {
+    const button = [...container.querySelectorAll("button")].find(
+      (item) => item.textContent === label,
+    );
+    expect(button).toBeDefined();
+    act(() => button?.click());
+  }
+  render(full);
+  click("Next");
+  click("Next");
+  expect(container.textContent).toContain("3 of 3");
+
+  render({ ...full, items: full.items.slice(0, 1) });
+  expect(container.textContent).toContain("1 of 1");
+  render(full);
+  expect(container.textContent).toContain("1 of 3");
+
+  click("Next");
+  click("Exit Presentation Mode");
+  expect(close).toHaveBeenCalledOnce();
+  render(null);
+  render(full);
+  expect(container.textContent).toContain("1 of 3");
+});
 
 describe("Moodboard board personal viewport", () => {
   test("restores the saved center and zoom", () => {

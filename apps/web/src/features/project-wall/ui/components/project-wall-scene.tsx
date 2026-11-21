@@ -1,6 +1,7 @@
 import type { ProjectWallView } from "@cantiara/api/project-wall";
 import type { ProjectWallViewport } from "@cantiara/api/project-wall-viewport";
-import { lazy, type ReactNode, Suspense, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { lazy, type ReactNode, Suspense, useCallback } from "react";
 import type { ProjectWallViewGroup } from "../../lib/project-wall-scene";
 import type { ProjectWallCanvasProps } from "./project-wall-canvas";
 import type { ProjectWallCardActions } from "./project-wall-card";
@@ -49,7 +50,12 @@ export function ProjectWallScene({
   saved,
   wall,
 }: ProjectWallSceneProps) {
-  const [selection, setSelection] = useState<string[]>([]);
+  const wallSession = useCreateStore<string[]>([]);
+  const selection = useSelector(wallSession);
+  const setSelection = useCallback(
+    (next: string[]) => wallSession.setState(() => next),
+    [wallSession],
+  );
   const known = new Set(wall.cards.map(({ id }) => id));
   const live = selection.filter((id) => known.has(id));
   const collapsed = wall.groups

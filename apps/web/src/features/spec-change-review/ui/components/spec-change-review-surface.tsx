@@ -1,7 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Retry binds to the queue query.
+
 import { Button } from "@cantiara/ui/components/button";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 
 import {
@@ -21,7 +22,18 @@ export default function SpecChangeReviewSurface({
 }: {
   projectId: string;
 }) {
-  const [selectedId, setSelectedId] = useState<string>();
+  const selectedId = useSearch({
+    from: "/_auth/projects/$projectId/",
+    select: (search) => search.review,
+  });
+  const navigate = useNavigate();
+  function setSelectedId(value: string) {
+    navigate({
+      hash: true,
+      search: (current) => ({ ...current, review: value || undefined }),
+      to: ".",
+    }).catch(() => undefined);
+  }
   const queryClient = useQueryClient();
   const queue = useQuery(
     orpc.projectSpecChangeReviews.queryOptions({ input: { projectId } }),

@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cantiara/ui/components/table";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   type ColumnDef,
   columnVisibilityFeature,
@@ -26,7 +27,7 @@ import {
   useTable,
 } from "@tanstack/react-table";
 import { ArrowLeft, Pencil, Plus } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo } from "react";
 import { AppLink } from "@/components/app-link";
 import {
   formatAccountDate,
@@ -284,21 +285,30 @@ function SavedListDetail({
   );
 }
 
-export default function SavedProjectLists({
-  formattingPreferences,
-  lists,
-  onChange,
-  selectedListId,
-}: {
+interface SavedProjectListsProps {
   formattingPreferences: AccountPreferences;
   lists: readonly WorkspaceOverviewSavedList[];
   /** Resolves after the lists are saved. */
   onChange: (lists: readonly WorkspaceOverviewSavedListDefinition[]) => unknown;
   selectedListId?: string;
-}) {
-  const [editing, setEditing] = useState<
-    WorkspaceOverviewSavedListDefinition | "new" | null
-  >(null);
+}
+
+export default function SavedProjectLists(props: SavedProjectListsProps) {
+  return <SavedProjectListsSession {...props} key={props.selectedListId} />;
+}
+
+function SavedProjectListsSession({
+  formattingPreferences,
+  lists,
+  onChange,
+  selectedListId,
+}: SavedProjectListsProps) {
+  type Editing = { definition?: WorkspaceOverviewSavedListDefinition } | null;
+  const editor = useCreateStore<Editing>(null);
+  const editing = useSelector(editor);
+  function setEditing(next: Editing) {
+    editor.setState(() => next);
+  }
   const selectedList = lists.find((list) => list.id === selectedListId);
 
   async function saveList(definition: WorkspaceOverviewSavedListDefinition) {
@@ -308,14 +318,15 @@ export default function SavedProjectLists({
       definition,
     ];
     // A failed save rejects here, so the editor keeps the typed definition.
+    const pending = editor.get();
     await onChange(next);
-    setEditing(null);
+    editor.setState((current) => (current === pending ? null : current));
   }
 
   if (editing) {
     return (
       <SavedListEditor
-        definition={editing === "new" ? undefined : editing}
+        definition={editing.definition}
         onCancel={() => setEditing(null)}
         onSave={saveList}
       />
@@ -328,11 +339,11 @@ export default function SavedProjectLists({
         formattingPreferences={formattingPreferences}
         list={selectedList}
         onEdit={() =>
-          setEditing(
-            workspaceOverviewSavedListDefinitions(lists).find(
+          setEditing({
+            definition: workspaceOverviewSavedListDefinitions(lists).find(
               (item) => item.id === selectedList.id,
-            ) ?? null,
-          )
+            ),
+          })
         }
       />
     );
@@ -356,11 +367,7 @@ export default function SavedProjectLists({
             Cross-Project views stay live from visible Workspace conditions.
           </p>
         </div>
-        <Button
-          onClick={() => setEditing("new")}
-          type="button"
-          variant="outline"
-        >
+        <Button onClick={() => setEditing({})} type="button" variant="outline">
           <Plus aria-hidden="true" />
           New list
         </Button>
@@ -388,7 +395,7 @@ export default function SavedProjectLists({
                 </div>
                 <Button
                   aria-label={`Edit saved list: ${list.name}`}
-                  onClick={() => setEditing(list)}
+                  onClick={() => setEditing({ definition: list })}
                   size="icon-xs"
                   type="button"
                   variant="ghost"

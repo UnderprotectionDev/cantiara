@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Route callbacks bind navigation to this outlet.
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import ContactsView from "@/features/contacts/ui/views/contacts-view";
@@ -13,9 +14,15 @@ export const Route = createFileRoute("/_auth/contacts")({
 
 function RouteComponent() {
   const { contact } = Route.useSearch();
+  const navigate = Route.useNavigate();
   return (
     <ClientShellContent>
-      <ContactsView contactId={contact} />
+      <ContactsView
+        contactId={contact}
+        onSelect={(id) => {
+          navigate({ search: { contact: id } }).catch(() => undefined);
+        }}
+      />
     </ClientShellContent>
   );
 }

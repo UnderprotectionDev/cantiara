@@ -245,6 +245,25 @@ describe("canvas keyboard and toolbar without a pointer", () => {
     ]);
   });
 
+  test("a failed Undo Auto-layout can be retried", async () => {
+    const onMove = vi
+      .fn()
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    mount(props(cards, { onMove }));
+
+    act(() => button("Preview Auto-layout").click());
+    await act(async () => button("Apply Auto-layout").click());
+    await act(async () => button("Undo Auto-layout").click());
+    expect(button("Undo Auto-layout").disabled).toBe(false);
+
+    await act(async () => button("Undo Auto-layout").click());
+    expect(onMove).toHaveBeenCalledTimes(3);
+    expect(onMove.mock.calls[2]).toEqual(onMove.mock.calls[1]);
+    expect(container.textContent).not.toContain("Undo Auto-layout");
+  });
+
   test("keyboard auto-repeat coalesces nudges into one write", () => {
     vi.useFakeTimers();
     try {
@@ -279,17 +298,17 @@ describe("canvas keyboard and toolbar without a pointer", () => {
     ]);
   });
 
-  test("auto-layout previews first, writes only when applied, and undoes", () => {
-    const canvas = props(cards);
+  test("auto-layout previews first, writes only when applied, and undoes", async () => {
+    const canvas = props(cards, { onMove: vi.fn(async () => true) });
     mount(canvas);
     act(() => button("Preview Auto-layout").click());
     expect(canvas.onMove).not.toHaveBeenCalled();
     expect(container.textContent).toContain("Nothing is saved until you apply");
 
-    act(() => button("Apply Auto-layout").click());
+    await act(async () => button("Apply Auto-layout").click());
     expect(canvas.onMove).toHaveBeenCalledTimes(1);
 
-    act(() => button("Undo Auto-layout").click());
+    await act(async () => button("Undo Auto-layout").click());
     expect(canvas.onMove).toHaveBeenCalledTimes(2);
     const reverted = (canvas.onMove as ReturnType<typeof vi.fn>).mock
       .lastCall?.[0] as Array<{ cardId: string; position: { x: number } }>;

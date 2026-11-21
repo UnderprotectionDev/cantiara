@@ -26,6 +26,10 @@ import {
 } from "@cantiara/ui/components/tabs";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useCreateStore,
+  useSelector as useStoreSelector,
+} from "@tanstack/react-store";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Mathematics } from "@tiptap/extension-mathematics";
 import { TableKit } from "@tiptap/extension-table";
@@ -92,6 +96,14 @@ import DocumentEvidenceDialog from "./document-version-evidence-form";
 
 const lowlight = createLowlight(common);
 
+interface DocumentEditorPresentation {
+  conversionWarning: boolean;
+  previewBody: string;
+  selectedTextRange: { end: number; start: number } | null;
+  selectedVersion: number | null;
+  view: DocumentView;
+}
+
 export default function DocumentEditor({
   accountFormattingPreferences,
   record,
@@ -120,13 +132,46 @@ export default function DocumentEditor({
     }),
   );
   const editing = useSyncExternalStore(editSession.subscribe, editSession.get);
-  const [revision, setRevision] = useState(record.revision);
+  const { baseRevision: revision } = editing;
+  const syncedRevision = useRef(revision);
 
-  const [view, setView] = useState<DocumentView>(() =>
-    targetSectionId ? "preview" : "write",
-  );
-  const [conversionWarning, setConversionWarning] = useState(false);
-  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const initialPresentation: DocumentEditorPresentation = {
+    view: targetSectionId ? "preview" : "write",
+    conversionWarning: false,
+    selectedVersion: null,
+    previewBody: record.body,
+    selectedTextRange: null,
+  };
+  const presentation = useCreateStore(initialPresentation, ({ setState }) => ({
+    setView: (next: SetStateAction<DocumentView>) =>
+      setState((state) => ({
+        ...state,
+        view: typeof next === "function" ? next(state.view) : next,
+      })),
+    setConversionWarning: (next: boolean) =>
+      setState((state) => ({ ...state, conversionWarning: next })),
+    setPreviewBody: (next: string) =>
+      setState((state) => ({ ...state, previewBody: next })),
+    setSelectedVersion: (next: number | null) =>
+      setState((state) => ({ ...state, selectedVersion: next })),
+    setSelectedTextRange: (
+      next: DocumentEditorPresentation["selectedTextRange"],
+    ) => setState((state) => ({ ...state, selectedTextRange: next })),
+  }));
+  const {
+    view,
+    conversionWarning,
+    selectedVersion,
+    previewBody,
+    selectedTextRange,
+  } = useStoreSelector(presentation);
+  const {
+    setView,
+    setConversionWarning,
+    setSelectedVersion,
+    setPreviewBody,
+    setSelectedTextRange,
+  } = presentation.actions;
 
   const versionOptions = orpc.documentVersions.queryOptions({
     input: { documentId: record.id },
@@ -143,8 +188,7 @@ export default function DocumentEditor({
   });
   const selectedSnapshot =
     selectedVersion === record.revision ? record : selectedVersionQuery.data;
-  const [previewBody, setPreviewBody] = useState(record.body);
-  const [savedBody, setSavedBody] = useState(record.body);
+  const savedBody = editing.savedBuffer.body;
   const insertForm = useForm({
     defaultValues: {
       selectedDiagramId: "",
@@ -181,10 +225,6 @@ export default function DocumentEditor({
   const setOriginalBlockOutcome = (
     value: SetStateAction<typeof originalBlockOutcome>,
   ) => insertForm.setFieldValue("originalBlockOutcome", value);
-  const [selectedTextRange, setSelectedTextRange] = useState<{
-    end: number;
-    start: number;
-  } | null>(null);
   const [pinEvidenceHandle] = useState(createDialogHandle);
   const [bulkConversionHandle] = useState(createDialogHandle);
   const [recordConversionHandle] = useState(createDialogHandle);
@@ -199,7 +239,7 @@ export default function DocumentEditor({
     if (targetSectionId) {
       setView("preview");
     }
-  }, [targetSectionId]);
+  }, [setView, targetSectionId]);
   const conversionKey = useRef<string | null>(null);
   const pinEvidenceKey = useRef<string | null>(null);
   const recordConversionKey = useRef<string | null>(null);
@@ -267,7 +307,7 @@ export default function DocumentEditor({
           });
           if (conversionKey.current === input.clientIdempotencyKey) {
             editSession.accept(committed);
-            form.setFieldValue("body", committed.body);
+            form.reset(editSession.get().buffer);
             setPreviewBody(committed.body);
           }
         }
@@ -338,10 +378,11 @@ export default function DocumentEditor({
     }),
   );
   const form = useForm({
-    defaultValues: {
-      title: record.title,
-      type: record.type,
-      body: record.body,
+    defaultValues: editing.savedBuffer,
+    listeners: {
+      onChange: ({ formApi }) => {
+        editSession.edit(formApi.state.values);
+      },
     },
     onSubmit: async ({ value }) => {
       editSession.edit(value);
@@ -365,30 +406,21 @@ export default function DocumentEditor({
   );
   useEffect(() => editSession.connect(), [editSession]);
   useEffect(() => {
-    const subscription = form.store.subscribe(() =>
-      editSession.edit(form.state.values),
-    );
-    return () => subscription.unsubscribe();
-  }, [editSession, form]);
-  useEffect(() => {
     if (editing.dirty || record.revision <= editing.baseRevision) {
       return;
     }
     editSession.accept(record);
-    // Move the form with the session now; otherwise its next change event
-    // would write the previous body back into the accepted buffer.
-    form.reset({ title: record.title, type: record.type, body: record.body });
-    setRevision(record.revision);
+    syncedRevision.current = record.revision;
+    form.reset(editSession.get().buffer);
   }, [editSession, editing.baseRevision, editing.dirty, form, record]);
   useEffect(() => {
-    if (editing.dirty || editing.baseRevision === revision) {
+    // The list refresh can advance the form before this effect runs with
+    // the previous render's edit-session snapshot.
+    if (editing.dirty || revision <= syncedRevision.current) {
       return;
     }
-    setRevision(editing.baseRevision);
-    setSavedBody(editing.buffer.body);
-    form.setFieldValue("title", editing.buffer.title);
-    form.setFieldValue("type", editing.buffer.type);
-    form.setFieldValue("body", editing.buffer.body);
+    syncedRevision.current = revision;
+    form.reset(editing.buffer);
     bulkConversionKey.current = null;
     setSelectedTextRange(null);
     pinEvidenceKey.current = null;
@@ -406,6 +438,7 @@ export default function DocumentEditor({
     editing,
     form,
     revision,
+    setSelectedTextRange,
     queryClient,
     liveWorkOptions.queryKey,
     versionOptions.queryKey,
@@ -417,15 +450,25 @@ export default function DocumentEditor({
       return;
     }
     editSession.accept(record);
+    syncedRevision.current = record.revision;
     form.setErrorMap({ onSubmit: undefined });
-    setRevision(record.revision);
     setPreviewBody(record.body);
-    setSavedBody(record.body);
     form.reset({
       title: record.title,
       type: record.type,
       body: record.body,
     });
+  }
+  function acceptOrganizationResult(saved: Document) {
+    const current = editSession.get();
+    if (
+      saved.id === record.id &&
+      !current.dirty &&
+      saved.revision > current.baseRevision
+    ) {
+      syncedRevision.current = saved.revision;
+      editSession.accept(saved);
+    }
   }
   const evidenceWrite = useMutation({
     mutationKey: orpc.pinDocumentEvidence.mutationKey(),
@@ -715,7 +758,7 @@ export default function DocumentEditor({
       setView((current) => (current === "write" ? "markdown" : current));
       setConversionWarning(true);
     }
-  }, [editor, record.body]);
+  }, [editor, record.body, setConversionWarning, setView]);
 
   useEffect(() => {
     if (!editor || editing.dirty || editing.pending) {
@@ -740,6 +783,8 @@ export default function DocumentEditor({
     editing.dirty,
     editing.pending,
     editing.editable,
+    setConversionWarning,
+    setView,
     view,
   ]);
 
@@ -815,9 +860,7 @@ export default function DocumentEditor({
         documentId={record.id}
         onResolved={(current) => {
           editSession.accept(current);
-          form.setFieldValue("title", current.title);
-          form.setFieldValue("type", current.type);
-          form.setFieldValue("body", current.body);
+          form.reset(editSession.get().buffer);
           form.setErrorMap({ onSubmit: undefined });
           onSaved().catch(() => undefined);
         }}
@@ -944,9 +987,7 @@ export default function DocumentEditor({
                   }
                   documents={documents}
                   onCommitted={async (saved) => {
-                    if (saved.id === record.id) {
-                      setRevision(saved.revision);
-                    }
+                    acceptOrganizationResult(saved);
                     await queryClient.invalidateQueries({
                       queryKey: orpc.documentVersions.key(),
                     });
@@ -970,7 +1011,7 @@ export default function DocumentEditor({
                   }
                   documents={documents}
                   onCommitted={async (saved) => {
-                    setRevision(saved.revision);
+                    acceptOrganizationResult(saved);
                     await queryClient.invalidateQueries({
                       queryKey: versionOptions.queryKey,
                     });

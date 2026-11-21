@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Remove buttons close over their record.
+
 import type {
   ArchitectureModel,
   DataModelModel,
@@ -6,7 +7,7 @@ import type {
 } from "@cantiara/api/technical-diagram-structure";
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 
 import {
   removeArchitectureNode,
@@ -90,7 +91,11 @@ function DataModelEditor({
   onSave: (model: DataModelModel) => unknown;
 }) {
   // The table the column and index forms act on; a transient selection.
-  const [tableId, setTableId] = useState("");
+  const tableIdSession = useCreateStore("", ({ setState }) => ({
+    setTableId: (next: string) => setState(() => next),
+  }));
+  const tableId = useSelector(tableIdSession);
+  const { setTableId } = tableIdSession.actions;
   const tableOptions = [CHOOSE, ...ids(model.tables)];
   const columnsOf = (id: string) => [
     CHOOSE,

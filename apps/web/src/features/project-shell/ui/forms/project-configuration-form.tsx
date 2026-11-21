@@ -23,6 +23,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   type ComponentType,
   type SubmitEvent,
@@ -96,8 +97,6 @@ export default function ProjectConfigurationForm({
   CustomFieldEditor,
   WorkContextLayoutForm,
   RecordActionEditor,
-  configurationHost,
-  onConfigurationHostChange,
   projectId,
   projectName,
   starterConfiguration,
@@ -107,12 +106,15 @@ export default function ProjectConfigurationForm({
   CustomFieldEditor: CustomFieldEditorComponent;
   WorkContextLayoutForm: WorkContextLayoutFormComponent;
   RecordActionEditor: CustomFieldEditorComponent;
-  configurationHost: ConfigurationHost | null;
-  onConfigurationHostChange: (host: ConfigurationHost | null) => void;
   projectId: string;
   projectName: string;
   starterConfiguration: StarterConfiguration;
 }) {
+  const hostStore = useCreateStore<ConfigurationHost | null>("Project areas");
+  const configurationHost = useSelector(hostStore);
+  function onConfigurationHostChange(next: ConfigurationHost | null) {
+    hostStore.setState(() => next);
+  }
   const { error, mutation } = useProjectConfiguration(projectId, baseRevision);
   const { error: enableError, mutation: enableProjectArea } =
     useProjectAreaEnable(projectId, baseRevision);
@@ -631,9 +633,14 @@ function StagesConfiguration({
       }
     },
   });
-  const [pendingStageRemovalId, setPendingStageRemovalId] = useState<
-    string | null
-  >(null);
+  const pendingStageRemovalIdSession = useCreateStore(
+    null as string | null,
+    ({ setState }) => ({
+      setPendingStageRemovalId: (next: string | null) => setState(() => next),
+    }),
+  );
+  const pendingStageRemovalId = useSelector(pendingStageRemovalIdSession);
+  const { setPendingStageRemovalId } = pendingStageRemovalIdSession.actions;
 
   function reorderStage(stageId: string, direction: -1 | 1) {
     const currentIndex = configuration.preparedStages.findIndex(

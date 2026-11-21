@@ -1,7 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the current presentation state.
+
 import { Button } from "@cantiara/ui/components/button";
 import { Dialog, DialogContent } from "@cantiara/ui/components/dialog";
-import { useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { linksOf } from "../../output/links";
 import {
   activateBlock,
@@ -16,20 +17,31 @@ import { renderSvg } from "../../output/svg";
  * the export SVG (no editor, toolbar, inspector or Konva Stage) and only keeps
  * a view state in memory: it never opens editing and never calls a write.
  */
-export function PresentationMode({
-  fontDataUri,
-  onExit,
-  snapshots,
-  startScreenId,
-}: {
+interface PresentationProps {
   fontDataUri?: string;
   onExit: () => void;
   snapshots: readonly WireframeSnapshot[];
   startScreenId: string;
-}) {
-  const [state, setState] = useState<PresentationState | null>(() =>
+}
+
+export function PresentationMode(props: PresentationProps) {
+  const identity = JSON.stringify([
+    props.startScreenId,
+    props.snapshots.map((item) => [item.screenId, item.digest]),
+  ]);
+  return <PresentationSession key={identity} {...props} />;
+}
+
+function PresentationSession({
+  fontDataUri,
+  onExit,
+  snapshots,
+  startScreenId,
+}: PresentationProps) {
+  const presentation = useCreateStore<PresentationState | null>(
     startPresentation(snapshots, startScreenId),
   );
+  const state = useSelector(presentation, (value) => value);
 
   const current = snapshots.find((item) => item.screenId === state?.screenId);
   const links = current ? linksOf(current, snapshots) : [];
@@ -46,7 +58,7 @@ export function PresentationMode({
     : [];
 
   function activate(blockId: string) {
-    setState((previous) =>
+    presentation.setState((previous) =>
       previous ? activateBlock(snapshots, previous, blockId) : previous,
     );
   }

@@ -83,6 +83,15 @@ test("classifies Work records with one Workspace tag dictionary", async ({
   await tagFilter.selectOption(roadmapOptionValue ?? "");
   await expect(recordList.getByText("Prepare launch")).toBeVisible();
   await expect(recordList.getByText("Review launch")).toBeHidden();
+  await expect(page).toHaveURL(
+    (url) => url.searchParams.get("tag") === roadmapOptionValue,
+  );
+  await page.goBack();
+  await expect(tagFilter).toHaveValue("");
+  await expect(recordList.getByText("Review launch")).toBeVisible();
+  await page.goForward();
+  await expect(tagFilter).toHaveValue(roadmapOptionValue ?? "");
+  await expect(recordList.getByText("Review launch")).toBeHidden();
 
   // Rename keeps the same identity, so the selected filter still resolves.
   const renameTag = page.getByRole("combobox", { name: "Tag to rename" });

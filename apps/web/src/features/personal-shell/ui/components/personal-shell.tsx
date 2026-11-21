@@ -10,6 +10,7 @@ import {
 } from "@cantiara/ui/components/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@cantiara/ui/components/tabs";
 import { Link } from "@tanstack/react-router";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { type ReactNode, useCallback, useState } from "react";
 import {
   isPersonalShellSurface,
@@ -33,15 +34,19 @@ export default function PersonalShell({
   ) => ReactNode;
 }) {
   const [sheetHandle] = useState(createSheetHandle);
-  const [surface, setSurface] = useState<PersonalShellSurface>(
+  const navigation = useCreateStore<PersonalShellSurface>(
     PERSONAL_SHELL_INITIAL_SURFACE,
   );
+  const surface = useSelector(navigation, (value) => value);
   const close = useCallback(() => sheetHandle.close(), [sheetHandle]);
-  const selectSurface = useCallback((value: unknown) => {
-    if (isPersonalShellSurface(value)) {
-      setSurface(value);
-    }
-  }, []);
+  const selectSurface = useCallback(
+    (value: unknown) => {
+      if (isPersonalShellSurface(value)) {
+        navigation.setState(() => value);
+      }
+    },
+    [navigation],
+  );
   return (
     <Sheet handle={sheetHandle}>
       <SheetTrigger render={<Button className="min-h-11" variant="ghost" />}>

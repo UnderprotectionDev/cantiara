@@ -158,6 +158,13 @@ test("organizes Documents with a preview and preserves identity through Archive 
   }
   await createDocument("Planning root");
   await createDocument("Release child");
+  const childUrl = page.url();
+  await page.goBack();
+  await expect(editor.getByLabel("Title")).toHaveValue("Planning root");
+  await page.goForward();
+  await expect(editor.getByLabel("Title")).toHaveValue("Release child");
+  await page.goto(childUrl);
+  await expect(editor.getByLabel("Title")).toHaveValue("Release child");
   await editor.getByRole("button", { name: "Organize Document" }).click();
   const organize = page.getByRole("dialog", { name: "Organize Document" });
   await organize.getByLabel("Folder", { exact: true }).fill("Planning");
@@ -177,6 +184,17 @@ test("organizes Documents with a preview and preserves identity through Archive 
   await organize.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(organize).toBeHidden();
   await expect(editor).toContainText("Folder: Planning");
+  const body = "Release notes after organization.";
+  await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
+  const source = editor.getByRole("textbox", { name: "Markdown source" });
+  await source.fill(body);
+  const saved = page.waitForResponse(
+    (result) =>
+      result.request().method() === "POST" &&
+      result.url().endsWith("/rpc/updateDocument"),
+  );
+  await editor.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await saved).ok()).toBe(true);
   await editor.getByRole("button", { name: "Archive", exact: true }).click();
   const archive = page.getByRole("dialog", { name: "Archive", exact: true });
   await archive.getByRole("button", { name: "Preview", exact: true }).click();
@@ -188,7 +206,10 @@ test("organizes Documents with a preview and preserves identity through Archive 
   ).toHaveCount(0);
   await surface
     .getByRole("checkbox", { name: "Archived", exact: true })
-    .check();
+    .click();
+  await expect(
+    surface.getByRole("checkbox", { name: "Archived", exact: true }),
+  ).toBeChecked();
   await surface
     .getByRole("navigation", { name: "Documents" })
     .getByRole("button", { name: "Release child", exact: true })
@@ -203,7 +224,10 @@ test("organizes Documents with a preview and preserves identity through Archive 
   await unarchive.getByRole("button", { name: "Apply", exact: true }).click();
   await surface
     .getByRole("checkbox", { name: "Archived", exact: true })
-    .uncheck();
+    .click();
+  await expect(
+    surface.getByRole("checkbox", { name: "Archived", exact: true }),
+  ).not.toBeChecked();
   await page.reload();
   await surface
     .getByRole("navigation", { name: "Documents" })
@@ -211,13 +235,18 @@ test("organizes Documents with a preview and preserves identity through Archive 
     .click();
   await expect(editor).toContainText("Folder: Planning");
   await expect(editor).toContainText("Parent Document: Planning root");
+  await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
+  await expect(source).toHaveValue(body);
   await page.screenshot({
     path: "../../.context/documents-organization.png",
     fullPage: true,
   });
   await surface
     .getByRole("checkbox", { name: "Archived", exact: true })
-    .check();
+    .click();
+  await expect(
+    surface.getByRole("checkbox", { name: "Archived", exact: true }),
+  ).toBeChecked();
   await createDocument("New active Document");
   await expect(
     surface.getByRole("checkbox", { name: "Archived", exact: true }),
@@ -1025,6 +1054,8 @@ for (const scope of ["Project", "Personal Wiki"]) {
     page,
     request,
   }) => {
+    // The template journey performs a series of writes against shared development data.
+    test.setTimeout(60_000);
     const response = await request.get(
       `${serverUrl}/__e2e/setup?fixture=documents`,
     );
@@ -1246,8 +1277,10 @@ for (const scope of ["Project", "Personal Wiki"]) {
     await applyDialog
       .getByRole("button", { name: "Create from template", exact: true })
       .click();
+    // Observe the new record after the template write and list refresh finish.
     await expect(editor.getByLabel("Title", { exact: true })).toHaveValue(
       "Updated Template Instance",
+      { timeout: 20_000 },
     );
     await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
     await expect(source).toHaveValue("## Saved changes\n");

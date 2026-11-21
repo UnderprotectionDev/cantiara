@@ -16,8 +16,8 @@ import {
 } from "@cantiara/ui/components/field";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
-import { useSelector } from "@tanstack/react-store";
-import { type Ref, useId, useImperativeHandle, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { type Ref, useId, useImperativeHandle } from "react";
 import { submitForm } from "@/lib/submit-form";
 import { useProductGapLinkTargets } from "../../hooks/use-product-gap-link-targets";
 import type { LinkDraft } from "../../lib/product-gap-form";
@@ -48,7 +48,11 @@ export function ProductGapLinksField({
   value: LinkDraft[];
 }) {
   const statusId = useId();
-  const [message, setMessage] = useState("");
+  const announcement = useCreateStore("", ({ setState }) => ({
+    setMessage: (text: string) => setState(() => text),
+  }));
+  const message = useSelector(announcement);
+  const { setMessage } = announcement.actions;
   const picker = useForm({
     defaultValues: {
       targetType: "Project" as ProductGapLinkTargetType,
@@ -68,7 +72,7 @@ export function ProductGapLinksField({
       picker.reset();
       setMessage("");
     },
-    [picker],
+    [picker, setMessage],
   );
   const { targetType, targetId } = useSelector(
     picker.store,

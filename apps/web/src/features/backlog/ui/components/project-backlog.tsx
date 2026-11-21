@@ -41,10 +41,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ExportListAction } from "@/components/export-list-action";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import {
@@ -57,6 +57,7 @@ import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hook
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
+import { useViewClock } from "@/lib/use-view-clock";
 import { client, orpc } from "@/utils/orpc";
 import {
   type BacklogPresentation,
@@ -258,11 +259,36 @@ function savedPresentationDetail(
   return null;
 }
 
+function useBacklogPresentation() {
+  const search = useSearch({ from: "/_auth/projects/$projectId/" });
+  const presentation: BacklogPresentation =
+    search.backlogSort ?? "Manual order";
+  const priorityMetricId = search.backlogMetricId ?? "";
+  const field: BacklogSortField = search.backlogField ?? "Title";
+  const navigate = useNavigate();
+  function showPresentation(
+    sort: BacklogPresentation,
+    metricId?: string,
+    sortField?: BacklogSortField,
+  ) {
+    navigate({
+      hash: "backlog",
+      search: (previousSearch) => ({
+        ...previousSearch,
+        backlogSort: sort === "Manual order" ? undefined : sort,
+        backlogMetricId:
+          sort === "Priority" ? metricId || undefined : undefined,
+        backlogField: sort === "Field" ? sortField : undefined,
+      }),
+      to: ".",
+    }).catch(() => undefined);
+  }
+  return { field, presentation, priorityMetricId, showPresentation };
+}
+
 export default function ProjectBacklog({ projectId }: { projectId: string }) {
-  const [presentation, setPresentation] =
-    useState<BacklogPresentation>("Manual order");
-  const [priorityMetricId, setPriorityMetricId] = useState("");
-  const [field, setField] = useState<BacklogSortField>("Title");
+  const { field, presentation, priorityMetricId, showPresentation } =
+    useBacklogPresentation();
   const queryClient = useQueryClient();
   const query = useQuery(
     orpc.projectBacklog.queryOptions({ input: { projectId } }),
@@ -277,11 +303,7 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
     orpc.projectBacklogPresentation.queryOptions({ input: { projectId } }),
   );
   const preferencesQuery = useQuery(orpc.accountPreferences.queryOptions());
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  const now = useViewClock();
   const priorityQuery = usePriorityMetricProjectValues(projectId).query;
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -444,13 +466,11 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
     if (!saved) {
       return;
     }
-    setPresentation(saved.sort);
-    if (saved.sort === "Priority") {
-      setPriorityMetricId(saved.metricId);
-    }
-    if (saved.sort === "Field") {
-      setField(saved.field);
-    }
+    showPresentation(
+      saved.sort,
+      saved.sort === "Priority" ? saved.metricId : undefined,
+      saved.sort === "Field" ? saved.field : undefined,
+    );
   }
 
   return (
@@ -491,9 +511,9 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
         field={field}
         presentation={presentation}
         priorityMetricId={priorityMetricId}
-        setField={setField}
-        setPresentation={setPresentation}
-        setPriorityMetricId={setPriorityMetricId}
+        setField={(value) => showPresentation("Field", undefined, value)}
+        setPresentation={(value) => showPresentation(value)}
+        setPriorityMetricId={(value) => showPresentation("Priority", value)}
       />{" "}
       <BacklogSavedPresentationControls
         currentSaved={currentSaved}
@@ -634,13 +654,9 @@ function BacklogSortControls({
   setField,
   field,
 }: {
-  setPresentation: import("react").Dispatch<
-    import("react").SetStateAction<BacklogPresentation>
-  >;
+  setPresentation: (value: BacklogPresentation) => void;
   presentation: BacklogPresentation;
-  setPriorityMetricId: import("react").Dispatch<
-    import("react").SetStateAction<string>
-  >;
+  setPriorityMetricId: (value: string) => void;
   priorityMetricId: string;
   enabledMetrics: {
     createdAt: string;
@@ -660,9 +676,7 @@ function BacklogSortControls({
     trashedAt: string | null;
     updatedAt: string;
   }[];
-  setField: import("react").Dispatch<
-    import("react").SetStateAction<BacklogSortField>
-  >;
+  setField: (value: BacklogSortField) => void;
   field: BacklogSortField;
 }) {
   return (

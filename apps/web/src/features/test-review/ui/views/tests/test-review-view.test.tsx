@@ -130,7 +130,11 @@ async function mount(
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  function ReviewProbe() {
+  function ReviewProbe({
+    readOnly,
+    resultEvents,
+    session: current,
+  }: typeof props) {
     const write = useMutation({
       mutationFn: (execute: () => Promise<unknown>) => execute(),
     });
@@ -143,20 +147,25 @@ async function mount(
             write.mutateAsync(() => actions.commitBulk(...args)),
         }}
         events={[]}
-        readOnly={props.readOnly ?? false}
-        resultEvents={props.resultEvents ?? []}
-        sessions={[props.session ?? session]}
+        readOnly={readOnly ?? false}
+        resultEvents={resultEvents ?? []}
+        sessions={[current ?? session]}
         writeForSession={writeForSession}
       />
     );
   }
-  await act(() => {
-    root?.render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ReviewProbe />
-      </QueryClientProvider>,
-    );
-  });
+  const client = new QueryClient();
+  function render(next: typeof props) {
+    return act(() => {
+      root?.render(
+        <QueryClientProvider client={client}>
+          <ReviewProbe {...next} />
+        </QueryClientProvider>,
+      );
+    });
+  }
+  await render(props);
+  return render;
 }
 
 function byLabel(label: string) {
@@ -308,6 +317,37 @@ test("a read-only Project disables every review control", async () => {
   for (const control of document.querySelectorAll("button, input")) {
     expect((control as HTMLButtonElement).disabled).toBe(true);
   }
+});
+
+test("the Test Result editor closes when its session or edit access changes", async () => {
+  const actions = actionsMock();
+  const render = await mount(actions);
+  await click(byLabel("Correction for Login works"));
+  expect(byText("Record Correction")).toBeTruthy();
+
+  const other = { ...session, id: "s2" };
+  await render({ session: other });
+  expect(document.body.textContent).not.toContain("Record Correction");
+
+  await click(byLabel("Correction for Login works"));
+  await render({ readOnly: true, session: other });
+  expect(document.body.textContent).not.toContain("Record Correction");
+  await render({ session: other });
+  expect(document.body.textContent).not.toContain("Record Correction");
+  expect(actions.recordEvent).not.toHaveBeenCalled();
+});
+
+test("changing the Test Result target starts an empty Correction form", async () => {
+  await mount(actionsMock());
+  await click(byLabel("Correction for Login works"));
+  const reason = () =>
+    document.querySelector<HTMLTextAreaElement>("#test-review-event-reason");
+  typeInto(reason(), "Specific to the Login result");
+  expect(reason()?.value).toBe("Specific to the Login result");
+
+  await click(byLabel("Correction for Logout works"));
+  expect(reason()?.value).toBe("");
+  expect(byText("Record Correction").disabled).toBe(true);
 });
 
 function typeInto(element: HTMLElement | null, value: string) {

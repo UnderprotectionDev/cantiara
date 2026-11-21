@@ -31,9 +31,7 @@ export default function DocumentVersionHistory({
   >;
   selectedVersion: number | null;
   record: Document;
-  setSelectedVersion: import("react").Dispatch<
-    import("react").SetStateAction<number | null>
-  >;
+  setSelectedVersion: (value: number | null) => void;
   selectedSnapshot: Document | undefined;
   revision: number;
   restore: { isPending: boolean; mutate: (revision: number) => void };

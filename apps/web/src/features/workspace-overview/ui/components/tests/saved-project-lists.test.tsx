@@ -78,3 +78,25 @@ test("a successful save closes the saved list editor", async () => {
   expect(onChange).toHaveBeenCalledOnce();
   expect(container.querySelector("#saved-list-name")).toBeNull();
 });
+
+test("a late save does not close a reopened saved list editor", async () => {
+  const pending = Promise.withResolvers<void>();
+  const onChange = vi.fn(() => pending.promise);
+  await createList(onChange);
+  expect(onChange).toHaveBeenCalledOnce();
+
+  act(() =>
+    [...container.querySelectorAll("button")]
+      .find((button) => button.textContent === "Cancel")
+      ?.click(),
+  );
+  act(() =>
+    [...container.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("New list"))
+      ?.click(),
+  );
+  expect(container.querySelector("#saved-list-name")).not.toBeNull();
+
+  await act(async () => pending.resolve());
+  expect(container.querySelector("#saved-list-name")).not.toBeNull();
+});

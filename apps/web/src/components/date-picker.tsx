@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Picker state and field handlers close over the current value.
+
 import { Button } from "@cantiara/ui/components/button";
 import { Calendar } from "@cantiara/ui/components/calendar";
 import { Input } from "@cantiara/ui/components/input";
@@ -8,9 +9,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { format, isValid, parse } from "date-fns";
 import { CalendarDays } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 const DATE_FORMAT = "yyyy-MM-dd";
 const DEFAULT_TIME = "00:00";
@@ -156,7 +158,10 @@ export function onDateTimeDateChange(
   return { draftTime: typedTime, value: `${nextDate}T${time}` };
 }
 
-/** Date-time picker: shared DatePicker plus a time input, value as `yyyy-MM-ddTHH:mm`. */
+/**
+ * Shared date and time controls. Key the picker by the form session when a
+ * reset can publish the same value while a time-only draft is still open.
+ */
 function DateTimePicker({
   "aria-describedby": ariaDescribedBy,
   ariaLabel,
@@ -168,7 +173,34 @@ function DateTimePicker({
   value,
 }: DateTimePickerProps) {
   const { date, time } = splitDateTime(value);
-  const [draftTime, setDraftTime] = useState("");
+  const control = useCreateStore({
+    draftTime: "",
+    externalValue: value,
+    lastPublished: value,
+  });
+  const input = useSelector(control, (state) => state);
+  const draftTime =
+    value === input.externalValue || value === input.lastPublished
+      ? input.draftTime
+      : "";
+  useLayoutEffect(() => {
+    control.setState((state) => {
+      if (value === state.externalValue) {
+        return state;
+      }
+      return value === state.lastPublished
+        ? { ...state, externalValue: value }
+        : { draftTime: "", externalValue: value, lastPublished: value };
+    });
+  }, [control, value]);
+  function publish(nextValue: string, nextDraft: string) {
+    control.setState(() => ({
+      draftTime: nextDraft,
+      externalValue: value,
+      lastPublished: nextValue,
+    }));
+    onChange(nextValue);
+  }
   const shownTime = time || draftTime || (date ? DEFAULT_TIME : "");
 
   return (
@@ -183,8 +215,7 @@ function DateTimePicker({
         min={min ? splitDateTime(min).date : undefined}
         onChange={(nextDate) => {
           const change = onDateTimeDateChange(value, nextDate, draftTime);
-          setDraftTime(change.draftTime);
-          onChange(change.value);
+          publish(change.value, change.draftTime);
         }}
         required={required}
         value={date}
@@ -196,9 +227,10 @@ function DateTimePicker({
         disabled={disabled}
         onChange={(event) => {
           const nextTime = event.target.value;
-          setDraftTime(nextTime);
           if (date) {
-            onChange(`${date}T${nextTime || DEFAULT_TIME}`);
+            publish(`${date}T${nextTime || DEFAULT_TIME}`, nextTime);
+          } else {
+            control.setState((state) => ({ ...state, draftTime: nextTime }));
           }
         }}
         type="time"

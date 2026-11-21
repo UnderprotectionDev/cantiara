@@ -53,6 +53,8 @@ Kurucu kesin kaynak veya Belge sürümünü bir iddiaya bağlamak ister. `İlgil
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Evidence Flow source filter applies only to the subject identified in the Project URL. The Collapsible still gates the read.
+
 - **What a good test is.** Tests observe Evidence through bind, pin, role/comment, and Evidence Flow listing. They go red if `İlgili` appears in the flow, if a pin slides to a newer version, if role is inferred, or if Contradicting auto-opens a Decision. Expected roles are the closed catalog, not a classifier score. Ticket 02 locks the role matrix (`Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified`), separate `Founder interpretation` history, target grouping by accessible counts, and share withholding of inaccessible role.
 - **Seam (one).** Evidence — bind, pin, role/comment, flow listing, origin location. Source fetch and session notes are other seams called here.
 - **Modules under test.** Evidence only. Work Context Card, Goals, Sources, and Research Sessions are consumers/counterparts.

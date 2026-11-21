@@ -1,7 +1,30 @@
+// @vitest-environment happy-dom
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
+import { act, type ReactNode, useEffect, useRef } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import RoadmapCanvas from "../roadmap-canvas";
+
+const placement = vi.hoisted(() => ({
+  fitView: vi.fn<() => Promise<boolean>>(),
+  setViewport: vi.fn<() => Promise<boolean>>(),
+}));
+
+vi.mock("@xyflow/react", () => ({
+  ReactFlowProvider: ({ children }: { children: ReactNode }) => children,
+  useReactFlow: () => ({ fitView: placement.fitView }),
+  ReactFlow: ({ onInit }: { onInit: (flow: typeof placement) => void }) => {
+    const initialized = useRef<boolean>(false);
+    useEffect(() => {
+      if (!initialized.current) {
+        initialized.current = true;
+        onInit(placement);
+      }
+    }, [onInit]);
+    return null;
+  },
+}));
 
 const datedWork = {
   archivedAt: null,
@@ -54,4 +77,117 @@ test("Roadmap canvas shows the empty state for an unplanned Work", () => {
     />,
   );
   expect(html).toContain("No planned Work matches this view.");
+});
+
+test("Return to Work waits for the initial Roadmap viewport and ignores an unmounted canvas", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const first = Promise.withResolvers<boolean>();
+  const second = Promise.withResolvers<boolean>();
+  placement.fitView.mockReset();
+  placement.fitView
+    .mockReturnValueOnce(first.promise)
+    .mockReturnValue(second.promise);
+  const ready = vi.fn();
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  function render(projectId: string) {
+    act(() =>
+      root.render(
+        <RoadmapCanvas
+          milestones={[]}
+          onReady={ready}
+          origins={[]}
+          projectId={projectId}
+          view={null}
+          works={[datedWork]}
+        />,
+      ),
+    );
+  }
+  try {
+    render("project-1");
+    expect(placement.fitView).toHaveBeenCalledTimes(1);
+    expect(ready).not.toHaveBeenCalled();
+    render("project-2");
+    await act(async () => first.resolve(true));
+    expect(ready).not.toHaveBeenCalled();
+    await act(async () => second.resolve(true));
+    expect(ready).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  }
+});
+
+test("Roadmap falls back to a neutral viewport when the first fit fails", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  placement.fitView.mockReset().mockResolvedValue(false);
+  placement.setViewport.mockReset().mockResolvedValue(true);
+  const ready = vi.fn();
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () =>
+      root.render(
+        <RoadmapCanvas
+          milestones={[]}
+          onReady={ready}
+          origins={[]}
+          projectId="project-1"
+          view={null}
+          works={[datedWork]}
+        />,
+      ),
+    );
+    expect(placement.setViewport).toHaveBeenCalledWith(
+      { x: 0, y: 0, zoom: 1 },
+      { duration: 0 },
+    );
+    expect(ready).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  }
+});
+
+test("Fit View can recover after both initial Roadmap placements fail", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  placement.fitView
+    .mockReset()
+    .mockResolvedValueOnce(false)
+    .mockResolvedValue(true);
+  placement.setViewport.mockReset().mockResolvedValue(false);
+  const ready = vi.fn();
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () =>
+      root.render(
+        <RoadmapCanvas
+          milestones={[]}
+          onReady={ready}
+          origins={[]}
+          projectId="project-1"
+          view={null}
+          works={[datedWork]}
+        />,
+      ),
+    );
+    expect(ready).not.toHaveBeenCalled();
+    const fit = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent === "Fit View",
+    );
+    expect(fit?.disabled).toBe(false);
+    await act(async () => fit?.click());
+    expect(ready).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  }
 });

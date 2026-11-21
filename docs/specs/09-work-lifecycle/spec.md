@@ -65,6 +65,8 @@ Kurucu Özellik, Bug, Görev, Araştırma ve İyileştirmeyi değişmez Proje an
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Work list reads the Archived filter from the Project URL and follows the linked Work’s archive state when the URL omits the filter. The inline Reopen confirmation is tied to the current Work and revision. Cancel and Escape clear it. A rejected write keeps the target available for retry. The Work lifecycle seam covers reopen, closure history and retry. The browser journey rejects the first Reopen write and confirms that the same target can be retried.
+
 - **Popup lifecycle (#546).** The Work list uses a detached Base UI trigger for `Bulk Edit`. The browser bulk editing seam checks that Escape and `Cancel` return focus to `Bulk Edit`, that the operation stays visible while applying or finalizing, and that a failed row remains visible in the results. A new preview and apply can successfully retry the same selected Work.
 
 - The Work Recreate seam verifies that changing the destination clears the old preview and receipt, and retrying a failed confirmation keeps the same identity for the same selection.

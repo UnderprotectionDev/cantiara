@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Row handlers close over the node they act on.
+
 import type {
   ScreenOption,
   ScreenReferenceView,
@@ -8,7 +9,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 
 import {
   assignSelectionToSection,
@@ -279,7 +280,14 @@ function OutlineItem({
  */
 export function UserFlowOutline(props: OutlineProps) {
   const { collapsed, createId, onChange, screenOptions, state } = props;
-  const [inspectedId, setInspectedId] = useState<string | null>(null);
+  const inspectedIdSession = useCreateStore(
+    null as string | null,
+    ({ setState }) => ({
+      setInspectedId: (next: string | null) => setState(() => next),
+    }),
+  );
+  const inspectedId = useSelector(inspectedIdSession);
+  const { setInspectedId } = inspectedIdSession.actions;
   const rows = buildOutline(state.document, collapsed);
   const groupable = state.document.nodes.some(
     ({ id, kind }) => kind !== "Section" && state.selection.includes(id),

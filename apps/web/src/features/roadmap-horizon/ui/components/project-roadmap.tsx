@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Roadmap controls bind to the selected Work and view.
+
 import type {
   RoadmapBlocker,
   RoadmapOriginLink,
@@ -11,7 +12,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useQuery } from "@tanstack/react-query";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { type RefObject, useEffect, useRef } from "react";
 import { orpc } from "@/utils/orpc";
 import RoadmapViewEditor from "../forms/roadmap-view-form";
 import ProjectMilestones from "./project-milestones";
@@ -180,8 +183,26 @@ function RoadmapContent({
 }
 
 export default function ProjectRoadmap({ projectId }: { projectId: string }) {
-  const [selection, setSelection] = useState<ViewSelection>("direction");
-  const [presentationMode, setPresentationMode] = useState(false);
+  const selection = useSearch({
+    from: "/_auth/projects/$projectId/",
+    select: (search) => search.roadmapView ?? "direction",
+  });
+  const navigate = useNavigate();
+  const setSelection = (value: string) => {
+    navigate({
+      hash: "roadmap",
+      search: (current) => ({
+        ...current,
+        roadmapView: value === "direction" ? undefined : value,
+      }),
+      to: ".",
+    }).catch(() => undefined);
+  };
+  const presentationModeSession = useCreateStore(false, ({ setState }) => ({
+    setPresentationMode: (next: boolean) => setState(() => next),
+  }));
+  const presentationMode = useSelector(presentationModeSession);
+  const { setPresentationMode } = presentationModeSession.actions;
   const roadmapRef = useRef<HTMLElement>(null);
   const presentationButtonRef = useRef<HTMLButtonElement>(null);
   const exitPresentationButtonRef = useRef<HTMLButtonElement>(null);
@@ -322,9 +343,7 @@ function RoadmapPresentation({
   roadmapContent: import("react").JSX.Element;
   enterPresentationMode: () => void;
   presentationButtonRef: RefObject<HTMLButtonElement | null>;
-  setSelection: import("react").Dispatch<
-    import("react").SetStateAction<string>
-  >;
+  setSelection: (value: string) => void;
   views: RoadmapView[];
 }) {
   return presentationMode ? (

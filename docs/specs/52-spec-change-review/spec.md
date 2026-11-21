@@ -50,6 +50,8 @@ Kurucu önceki ve yeni Belge sürümünü değişen bölüm bağlamıyla inceler
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Project URL carries the selected review. Diff walking resets when the review or revision pair changes. The Spec Change Review view seam walks the current diff with the keyboard. The view test moves focus to a changed section and checks that a changed revision pair resets the walk.
+
 - **Popup lifecycle (#546).** The Candidate Follow-up Work seam opens `Create Follow-up Work` from the candidate, reviews the command, and closes after a successful confirmation.
 
 - **What a good test is.** Tests observe Spec Change Review through the public interface: version-backed section diff, candidate set equals recorded-link closure, similarity/AI absent, metadata does not write target Work, follow-up preview creates one Work, new spec version does not clobber prior review pair. Not jsdiff snapshot strings as product truth.

@@ -21,10 +21,17 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { Store } from "@tanstack/react-store";
 import {
+  useCreateStore,
+  useSelector as useStoreSelector,
+} from "@tanstack/react-store";
+import {
+  type KeyboardEvent,
   type SubmitEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -67,25 +74,86 @@ export interface WorkStatusActionRequest {
   workId: string;
 }
 
-export default function WorkStatusForm({
-  completionFeedback,
-  onCloseOutcome,
-  onRequestedStatusActionHandled,
-  requestedStatusAction,
-  work,
-  workStatusLabels,
-}: {
+interface WorkStatusFormProps {
   completionFeedback: WorkCompletionFeedbackState;
   onCloseOutcome: (outcome: UserInitiatedWorkCloseOutcome) => void;
   onRequestedStatusActionHandled: (requestId: string) => void;
   requestedStatusAction: Pick<WorkStatusActionRequest, "id" | "status"> | null;
   work: WorkProfile;
   workStatusLabels: readonly WorkStatusLabel[];
-}) {
+}
+
+export default function WorkStatusForm(props: WorkStatusFormProps) {
+  return <WorkStatusSession {...props} key={props.work.id} />;
+}
+
+function reopenStatusForRevision(
+  confirmation: { revision: number; status: WorkOpenStatus } | null,
+  revision: number,
+) {
+  return confirmation?.revision === revision ? confirmation.status : null;
+}
+
+function useReopenFocus(
+  confirmation: Store<{ revision: number; status: WorkOpenStatus } | null>,
+  revision: number,
+  target: WorkOpenStatus | null,
+) {
+  const reopenCancel = useRef<HTMLButtonElement>(null);
+  const reopenTrigger = useRef<HTMLElement | null>(null);
+  const setReopenTarget = useCallback(
+    (status: WorkOpenStatus | null) => {
+      if (status && document.activeElement instanceof HTMLElement) {
+        reopenTrigger.current = document.activeElement;
+      }
+      confirmation.setState(() => (status ? { revision, status } : null));
+    },
+    [confirmation, revision],
+  );
+  const restoreFocus = useCallback(() => {
+    reopenTrigger.current?.focus();
+    reopenTrigger.current = null;
+  }, []);
+  useLayoutEffect(() => {
+    if (target) {
+      reopenCancel.current?.focus();
+    }
+  }, [target]);
+  return { reopenCancel, setReopenTarget, restoreFocus };
+}
+
+function cancelOnEscape(cancel: () => void) {
+  return (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      cancel();
+    }
+  };
+}
+
+function WorkStatusSession({
+  completionFeedback,
+  onCloseOutcome,
+  onRequestedStatusActionHandled,
+  requestedStatusAction,
+  work,
+  workStatusLabels,
+}: WorkStatusFormProps) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
   const latestWorkRevision = useRef(work.revision);
-  const [reopenTarget, setReopenTarget] = useState<WorkOpenStatus | null>(null);
+  const reopenConfirmation = useCreateStore<{
+    revision: number;
+    status: WorkOpenStatus;
+  } | null>(null);
+  const reopenTarget = useStoreSelector(reopenConfirmation, (value) =>
+    reopenStatusForRevision(value, work.revision),
+  );
+  const { reopenCancel, setReopenTarget, restoreFocus } = useReopenFocus(
+    reopenConfirmation,
+    work.revision,
+    reopenTarget,
+  );
   const [validationError, setValidationError] = useState<string | null>(null);
   const pendingCloseRequest = useRef<{
     fingerprint: string;
@@ -109,8 +177,10 @@ export default function WorkStatusForm({
       return;
     }
     latestWorkRevision.current = work.revision;
-    setReopenTarget(null);
-  }, [work.revision]);
+    reopenConfirmation.setState((value) =>
+      value?.revision === work.revision ? value : null,
+    );
+  }, [reopenConfirmation, work.revision]);
 
   async function refreshWork() {
     await Promise.all([
@@ -268,12 +338,21 @@ export default function WorkStatusForm({
     resetClose();
     resetReopen();
     resetUpdate();
+    restoreFocus();
     setReopenTarget(null);
     setValidationError(null);
     pendingCloseRequest.current = null;
     pendingCloseOpenStatus.current = null;
     closeForm.reset();
-  }, [closeForm, resetClose, resetPreview, resetReopen, resetUpdate]);
+  }, [
+    closeForm,
+    resetClose,
+    resetPreview,
+    resetReopen,
+    resetUpdate,
+    restoreFocus,
+    setReopenTarget,
+  ]);
 
   const handleStatusChange = useCallback(
     (nextStatus: WorkStatus) => {
@@ -319,6 +398,7 @@ export default function WorkStatusForm({
       updateStatus.isError,
       updateStatus.variables,
       updateStatus.mutate,
+      setReopenTarget,
       work.id,
       work.status,
     ],
@@ -516,9 +596,11 @@ export default function WorkStatusForm({
         </form>
       ) : null}
       {reopenTarget ? (
+        // biome-ignore lint/a11y/noNoninteractiveElementInteractions: Escape bubbles from the inline dialog controls.
         <div
           aria-label={`Reopen ${work.key}`}
           className="w-full space-y-3 rounded-md border bg-muted/20 p-3 text-left text-xs"
+          onKeyDown={cancelOnEscape(cancelTransition)}
           role="dialog"
         >
           <p>
@@ -528,6 +610,7 @@ export default function WorkStatusForm({
           <div className="flex flex-wrap justify-end gap-2">
             <Button
               onClick={cancelTransition}
+              ref={reopenCancel}
               size="xs"
               type="button"
               variant="outline"
@@ -555,11 +638,7 @@ function WorkCompletionNotice({
   isPending,
 }: {
   completionFeedback: WorkCompletionFeedbackState;
-  setReopenTarget: import("react").Dispatch<
-    import("react").SetStateAction<
-      "Not Started" | "In Progress" | "Blocked" | null
-    >
-  >;
+  setReopenTarget: (status: WorkOpenStatus | null) => void;
   isPending: boolean;
 }) {
   return completionFeedback.noticeVisible ? (

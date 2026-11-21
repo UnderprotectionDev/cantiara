@@ -43,6 +43,8 @@ Kurucu seçtiği Karar, Risk, Proje Sürümü, Belge, Üretim Olayı ve tamamlan
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The active closure-summary stage and its generated draft identity are local to the composer.
+
 - **#545.** The web closure-summary-view.test.tsx seam checks that a failed Save as Document keeps the draft and replays the same command.
 
 - **Write lifecycle evidence (#544).** The Closure Summary view test retries an interrupted Save as Document with the same payload and command key. The save seam checks that only the affected Project’s Document list is invalidated.

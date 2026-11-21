@@ -6,7 +6,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { AppLink } from "@/components/app-link";
 import { projectSourceRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import type {
@@ -33,6 +33,8 @@ export function ValidationRecordsView({
   saved,
   transitionFailed,
   transitionPending,
+  statusFilter = "Active",
+  onStatusFilterChange,
 }: {
   records: ValidationRecord[];
   counterparts: ProjectSourceRecord[];
@@ -46,16 +48,18 @@ export function ValidationRecordsView({
   saved?: boolean;
   transitionFailed?: boolean;
   transitionPending?: boolean;
+  statusFilter?: ValidationRecord["status"];
+  onStatusFilterChange?: (status: ValidationRecord["status"]) => void;
 }) {
-  const [editing, setEditing] = useState<{ record?: ValidationRecord } | null>(
-    null,
-  );
-  const [status, setStatus] = useState<ValidationRecord["status"]>(
-    records.find((record) => record.id === selectedId)?.status ?? "Active",
-  );
+  const editor = useCreateStore<{ record?: ValidationRecord } | null>(null);
+  const editing = useSelector(editor);
+  function setEditing(record: { record?: ValidationRecord } | null) {
+    editor.setState(() => record);
+  }
   async function save(draft: ValidationDraft, record?: ValidationRecord) {
+    const attempt = editor.get();
     await onSave(draft, record);
-    setEditing(null);
+    editor.setState((current) => (current === attempt ? null : current));
   }
   function transition(
     record: ValidationRecord,
@@ -66,7 +70,7 @@ export function ValidationRecordsView({
   const activeEditor = saved ? null : editing;
   const selected = records.find((record) => record.id === selectedId);
   const visible = records.filter((record) =>
-    selectedId ? record.id === selectedId : record.status === status,
+    selectedId ? record.id === selectedId : record.status === statusFilter,
   );
   return (
     <section aria-label="Validation Record" className="space-y-5">
@@ -94,10 +98,10 @@ export function ValidationRecordsView({
           onChange={(event) => {
             const next = event.target.value;
             if (next === "Active" || next === "Archived" || next === "Trash") {
-              setStatus(next);
+              onStatusFilterChange?.(next);
             }
           }}
-          value={selected?.status ?? status}
+          value={selected?.status ?? statusFilter}
         >
           <NativeSelectOption value="Active">Active</NativeSelectOption>
           <NativeSelectOption value="Archived">Archived</NativeSelectOption>

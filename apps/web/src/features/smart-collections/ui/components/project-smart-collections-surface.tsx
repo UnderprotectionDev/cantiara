@@ -11,21 +11,20 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@cantiara/ui/components/toggle-group";
-import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
+import {
+  DragDropProvider,
+  useDraggable,
+  useDragOperation,
+  useDroppable,
+} from "@dnd-kit/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLinkProps } from "@tanstack/react-router";
+import { useLinkProps, useNavigate, useSearch } from "@tanstack/react-router";
 import {
   useSelector as useCollectionPanelSelector,
   useCreateStore,
 } from "@tanstack/react-store";
 import { GripVertical } from "lucide-react";
-import {
-  type ComponentProps,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import type { ReactNode } from "react";
 import { ExportListAction } from "@/components/export-list-action";
 import FavoriteControl from "@/components/favorite-control";
 import {
@@ -60,13 +59,6 @@ import { SmartCollectionInsights } from "./smart-collection-insights";
 
 const SMART_COLLECTION_DRAG_TYPE = "smart-collection-record";
 
-type DragEndEvent = Parameters<
-  NonNullable<ComponentProps<typeof DragDropProvider>["onDragEnd"]>
->[0];
-type DragOverEvent = Parameters<
-  NonNullable<ComponentProps<typeof DragDropProvider>["onDragOver"]>
->[0];
-
 type SmartCollectionDragRecord = SmartCollectionMembershipPreviewRecord & {
   id: string;
   recordName: string;
@@ -84,14 +76,17 @@ function collectionViewDropId(viewId: string) {
 }
 
 function previewForDragEvent(
-  event: DragOverEvent | DragEndEvent,
+  operation: {
+    source?: { data: unknown } | null;
+    target?: { id: string | number } | null;
+  },
   viewsByDropId: ReadonlyMap<string, SmartCollectionViewSource>,
 ): SmartCollectionMembershipPreview | null {
-  const dragData = event.operation.source?.data as
+  const dragData = operation.source?.data as
     | { smartCollectionRecord?: SmartCollectionDragRecord }
     | undefined;
   const record = dragData?.smartCollectionRecord;
-  const view = viewsByDropId.get(String(event.operation.target?.id ?? ""));
+  const view = viewsByDropId.get(String(operation.target?.id ?? ""));
   if (!(record && view) || record.sourceViewId === view.id) {
     return null;
   }
@@ -294,8 +289,10 @@ function CollectionMembers({
 
 function MembershipFieldChangePreview({
   preview,
+  onClose,
 }: {
   preview: SmartCollectionMembershipPreview;
+  onClose?: () => void;
 }) {
   return (
     <div
@@ -315,6 +312,11 @@ function MembershipFieldChangePreview({
       <p className="text-xs text-muted-foreground">
         No membership is written by this preview.
       </p>
+      {onClose ? (
+        <Button onClick={onClose} size="sm" type="button" variant="outline">
+          Close preview
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -451,22 +453,65 @@ function collectionExportHandoff(
   };
 }
 
+const EMPTY_INSIGHT_SLICES: SmartCollectionInsightSelection[] = [];
+
+function useCollectionInsightFilters(viewId: string) {
+  const slices = useSearch({
+    from: "/_auth/projects/$projectId/",
+    select: (search) => search.insights?.[viewId] ?? EMPTY_INSIGHT_SLICES,
+  });
+  const navigate = useNavigate();
+  function setSlices(
+    update: (
+      value: SmartCollectionInsightSelection[],
+    ) => SmartCollectionInsightSelection[],
+  ) {
+    navigate({
+      hash: true,
+      search: (current) => {
+        const insights = { ...current.insights };
+        const next = update(insights[viewId] ?? EMPTY_INSIGHT_SLICES);
+        if (next.length) {
+          insights[viewId] = next;
+        } else {
+          delete insights[viewId];
+        }
+        return {
+          ...current,
+          insights: Object.keys(insights).length ? insights : undefined,
+        };
+      },
+      to: ".",
+    }).catch(() => undefined);
+  }
+  return { slices, setSlices };
+}
+
 function CollectionViewCard({
-  preview,
+  preview: droppedPreview,
+  closePreview,
   view,
 }: {
   preview: SmartCollectionMembershipPreview | null;
+  closePreview: () => void;
   view: SmartCollectionViewSource;
 }) {
   const panel = useCreateStore<"records" | "insights">("records");
   const activePanel = useCollectionPanelSelector(panel);
-  const [selectedSlices, setSelectedSlices] = useState<
-    SmartCollectionInsightSelection[]
-  >([]);
+  const { slices: selectedSlices, setSlices } = useCollectionInsightFilters(
+    view.id,
+  );
   const droppable = useDroppable({
     accept: SMART_COLLECTION_DRAG_TYPE,
     id: collectionViewDropId(view.id),
   });
+  const operation = useDragOperation();
+  const preview = operation.source
+    ? previewForDragEvent(
+        operation,
+        new Map([[collectionViewDropId(view.id), view]]),
+      )
+    : droppedPreview;
   const showDropTarget = droppable.isDropTarget && preview?.viewId === view.id;
   const isWorkCollection = view.sourceType === "Work";
   const newWorkLinkProps = useLinkProps(newWorkLinkTarget(view));
@@ -479,12 +524,12 @@ function CollectionViewCard({
       )
     : undefined;
   const selectSlice = (selection: SmartCollectionInsightSelection) => {
-    setSelectedSlices((current) =>
+    setSlices((current) =>
       toggleSmartCollectionInsightSelection(current, selection),
     );
   };
   const showAllRecords = () => {
-    setSelectedSlices([]);
+    setSlices(() => []);
     panel.setState(() => "records");
   };
 
@@ -538,7 +583,10 @@ function CollectionViewCard({
         </ToggleGroup>
       ) : null}
       {preview?.viewId === view.id ? (
-        <MembershipFieldChangePreview preview={preview} />
+        <MembershipFieldChangePreview
+          onClose={operation.source ? undefined : closePreview}
+          preview={preview}
+        />
       ) : null}
       <CollectionViewContent
         activePanel={activePanel}
@@ -554,37 +602,37 @@ function CollectionViewCard({
   );
 }
 
-export default function ProjectSmartCollectionsSurface({
-  projectId,
-  selectedViewId,
-}: {
+interface ProjectSmartCollectionsProps {
   projectId: string;
   selectedViewId?: string;
-}) {
-  const [membershipPreview, setMembershipPreview] =
-    useState<SmartCollectionMembershipPreview | null>(null);
-  const previousProjectId = useRef(projectId);
-  const previousSelectedViewId = useRef(selectedViewId);
+}
+
+export default function ProjectSmartCollectionsSurface(
+  props: ProjectSmartCollectionsProps,
+) {
+  return (
+    <SmartCollectionsSession
+      {...props}
+      key={JSON.stringify([props.projectId, props.selectedViewId])}
+    />
+  );
+}
+
+function SmartCollectionsSession({
+  projectId,
+  selectedViewId,
+}: ProjectSmartCollectionsProps) {
+  const membership = useCreateStore<SmartCollectionMembershipPreview | null>(
+    null,
+  );
+  const membershipPreview = useCollectionPanelSelector(
+    membership,
+    (value) => value,
+  );
   const options = orpc.smartCollectionViews.queryOptions({
     input: { projectId },
   });
   const views = useQuery(options);
-
-  useEffect(() => {
-    if (previousProjectId.current === projectId) {
-      return;
-    }
-    previousProjectId.current = projectId;
-    setMembershipPreview(null);
-  }, [projectId]);
-
-  useEffect(() => {
-    if (previousSelectedViewId.current === selectedViewId) {
-      return;
-    }
-    previousSelectedViewId.current = selectedViewId;
-    setMembershipPreview(null);
-  }, [selectedViewId]);
 
   const visible = selectedViewId
     ? views.data?.filter(({ id }) => id === selectedViewId)
@@ -601,17 +649,18 @@ export default function ProjectSmartCollectionsSurface({
       ) : null}
       <DragDropProvider
         onDragEnd={(event) => {
-          setMembershipPreview(
-            event.canceled ? null : previewForDragEvent(event, viewsByDropId),
+          membership.setState(() =>
+            event.canceled
+              ? null
+              : previewForDragEvent(event.operation, viewsByDropId),
           );
         }}
-        onDragOver={(event) => {
-          setMembershipPreview(previewForDragEvent(event, viewsByDropId));
-        }}
+        onDragStart={() => membership.setState(() => null)}
       >
         <div className="grid gap-3 md:grid-cols-2">
           {visible?.map((view) => (
             <CollectionViewCard
+              closePreview={() => membership.setState(() => null)}
               key={view.id}
               preview={membershipPreview}
               view={view}

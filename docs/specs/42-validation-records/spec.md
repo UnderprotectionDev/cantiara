@@ -33,6 +33,8 @@ Deney/Doğrulama Proje ana kaydıdır; yöntem, sonuç ve ilişkili Varsayım/A�
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Project URL carries the Validation Record Status filter. A selected record is visible regardless of that filter. The Validation Record detail test exercises this precedence.
+
 - **What a good test is.** Tests observe Validation Records through create, relate to Assumption/Open Question/Decision, and read method/result. They do not assert Drizzle rows. Expected values: result does not write Assumption or Decision life; the record is not a Test Session, Planned Test Case, or Research Session; it is not a release gate.
 - **Seam (one).** Validation Records — the product-facing Deney/Doğrulama interface. Test and research modules appear only as counterparts.
 - **Modules under test.** Validation Records only.

@@ -20,6 +20,7 @@ import { githubDarkTheme } from "@tanstack/highlight/themes/github-dark";
 import { githubLightTheme } from "@tanstack/highlight/themes/github-light";
 import type { MarkdownExtension } from "@tanstack/markdown";
 import { Markdown } from "@tanstack/markdown/react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import katex from "katex";
 import { AppLink } from "@/components/app-link";
 import "katex/dist/katex.min.css";
@@ -30,8 +31,8 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
-  useState,
 } from "react";
 import type { SourceRecordPreviewTarget } from "@/features/record-discovery/ui/components/context-record-preview";
 import {
@@ -293,33 +294,44 @@ function SourceRecordPreviewLink({
 
 function MermaidPreview({ source }: { source: string }) {
   const id = useId().replaceAll(/[^a-zA-Z0-9]/g, "");
-  const [rendered, setRendered] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const diagram = useCreateStore<{
+    source: string;
+    attempt: number;
+    rendered?: string;
+    error?: string;
+  }>({ source, attempt: 0 });
+  const result = useSelector(diagram, (state) =>
+    state.source === source ? state : null,
+  );
+  const { rendered, error } = result ?? {};
 
   useEffect(() => {
+    const attempt = diagram.get().attempt + 1;
+    diagram.setState(() => ({ source, attempt }));
     let active = true;
-    setRendered(null);
-    setError(null);
     mermaid
-      .render(`documentMermaid${id}`, source)
+      .render(`documentMermaid${id}-${attempt}`, source)
       .then(({ svg }) => {
         if (active) {
-          setRendered(svg);
+          diagram.setState(() => ({ source, attempt, rendered: svg }));
         }
       })
       .catch((failure: unknown) => {
         if (active) {
-          setError(
-            failure instanceof Error
-              ? failure.message
-              : "Diagram could not be rendered.",
-          );
+          diagram.setState(() => ({
+            source,
+            attempt,
+            error:
+              failure instanceof Error
+                ? failure.message
+                : "Diagram could not be rendered.",
+          }));
         }
       });
     return () => {
       active = false;
     };
-  }, [id, source]);
+  }, [diagram, id, source]);
 
   return (
     <div className="space-y-2">
@@ -340,44 +352,44 @@ function MermaidPreview({ source }: { source: string }) {
 }
 
 function useKatexRendering(source: string, displayMode: boolean) {
-  const target = useRef<HTMLSpanElement>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!target.current) {
-      return;
-    }
+  return useMemo(() => {
     try {
-      katex.render(source, target.current, {
+      const html = katex.renderToString(source, {
         displayMode,
         throwOnError: true,
         trust: false,
       });
-      setError(null);
+      return { html, error: null };
     } catch (failure) {
-      target.current.replaceChildren();
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Formula could not be rendered.",
-      );
+      return {
+        html: "",
+        error:
+          failure instanceof Error
+            ? failure.message
+            : "Formula could not be rendered.",
+      };
     }
   }, [displayMode, source]);
-  return { error, target };
+}
+
+function KatexMarkup({ html }: { html: string }) {
+  // biome-ignore lint/security/noDangerouslySetInnerHtml: KaTeX generates this markup with trust disabled.
+  return <span dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 function MathPreview({ source }: { source: string }) {
-  const { error, target } = useKatexRendering(source, true);
+  const { error, html } = useKatexRendering(source, true);
   return (
     <div className="space-y-2">
       {error ? <p role="alert">{error}</p> : null}
-      <span ref={target} />
+      <KatexMarkup html={html} />
       <pre className="overflow-auto text-sm">{`$$${source}$$`}</pre>
     </div>
   );
 }
 
 function InlineMath({ latex }: { latex: string }) {
-  const { error, target } = useKatexRendering(latex, false);
+  const { error, html } = useKatexRendering(latex, false);
   return (
     <span>
       {error ? (
@@ -385,7 +397,7 @@ function InlineMath({ latex }: { latex: string }) {
           {error} ${latex}$
         </span>
       ) : null}
-      <span ref={target} />
+      <KatexMarkup html={html} />
     </span>
   );
 }

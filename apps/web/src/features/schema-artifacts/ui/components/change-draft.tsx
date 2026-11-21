@@ -3,7 +3,7 @@
 import type { SchemaChangePreview } from "@cantiara/api/schema-artifacts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector } from "@tanstack/react-store";
-import { useState } from "react";
+import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { client, orpc } from "@/utils/orpc";
 import { useUpEditForm } from "../../hooks/use-up-edit-form";
@@ -101,18 +101,10 @@ export function ChangeDraft({
   targetVersionId: string;
 }) {
   const queryClient = useQueryClient();
-  const [confirmError, setConfirmError] = useState<string | null>(null);
   const confirm = usePreparedMutation(
     orpc.confirmMigrationArtifact.mutationOptions({
       mutationFn: (input) => client.confirmMigrationArtifact(input),
-      onError: (failure) =>
-        setConfirmError(
-          failure instanceof Error
-            ? failure.message
-            : "Migration Artifact could not be confirmed.",
-        ),
       onSuccess: async () => {
-        setConfirmError(null);
         await queryClient.invalidateQueries({
           queryKey: orpc.migrationArtifacts.key(),
         });
@@ -148,6 +140,12 @@ export function ChangeDraft({
   if (preview.isError || !data) {
     return <p role="alert">The Schema Change Draft could not be built.</p>;
   }
+  const confirmError = confirm.isError
+    ? mutationErrorMessage(
+        confirm.error,
+        "Migration Artifact could not be confirmed.",
+      )
+    : null;
   if (data.status === "Blocked") {
     return (
       <section aria-label="Schema Change Draft" className="space-y-2">

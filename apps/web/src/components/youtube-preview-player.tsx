@@ -1,6 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: The click control owns this player’s transient loading state.
+
 import { Button } from "@cantiara/ui/components/button";
-import { useEffect, useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useEffect, useRef } from "react";
 import { z } from "zod";
 
 const playerMessageSchema = z.object({
@@ -68,19 +70,31 @@ function loadYouTubeApi() {
   return apiLoading;
 }
 
-export function YouTubePreviewPlayer({
+interface YouTubePreviewProps {
+  available?: boolean;
+  playerOrigin?: string;
+  videoId: string;
+}
+
+export function YouTubePreviewPlayer(props: YouTubePreviewProps) {
+  return (
+    <YouTubePlayerSession
+      {...props}
+      key={JSON.stringify([props.videoId, props.playerOrigin, props.available])}
+    />
+  );
+}
+
+function YouTubePlayerSession({
   videoId,
   available = true,
   playerOrigin,
-}: {
-  videoId: string;
-  available?: boolean;
-  playerOrigin?: string;
-}) {
-  const [requested, setRequested] = useState(false);
-  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
+}: YouTubePreviewProps) {
+  const playerSession = useCreateStore<"idle" | "loading" | "ready" | "error">(
     "idle",
   );
+  const status = useSelector(playerSession, (value) => value);
+  const requested = status === "loading" || status === "ready";
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!(requested && host.current)) {
@@ -100,7 +114,7 @@ export function YouTubePreviewPlayer({
       player?.destroy();
       player = undefined;
       container.replaceChildren();
-      setStatus("error");
+      playerSession.setState(() => "error");
     }
     if (playerOrigin) {
       const frame = document.createElement("iframe");
@@ -127,7 +141,7 @@ export function YouTubePreviewPlayer({
         }
         if (message.data.status === "ready") {
           clearTimeout(timeout);
-          setStatus("ready");
+          playerSession.setState(() => "ready");
         } else if (message.data.status === "error") {
           fail();
         }
@@ -163,7 +177,7 @@ export function YouTubePreviewPlayer({
               // Cue the selected video without starting playback. Errors for a
               // removed/private/restricted video remain handled after readiness.
               event.target.cueVideoById(videoId);
-              setStatus("ready");
+              playerSession.setState(() => "ready");
             },
             onError: fail,
           },
@@ -176,10 +190,9 @@ export function YouTubePreviewPlayer({
       player?.destroy();
       container.replaceChildren();
     };
-  }, [requested, videoId, playerOrigin]);
+  }, [requested, videoId, playerOrigin, playerSession]);
   function load() {
-    setStatus("loading");
-    setRequested(true);
+    playerSession.setState(() => "loading");
   }
   return (
     <div className="space-y-3">
@@ -190,7 +203,7 @@ export function YouTubePreviewPlayer({
       </p>
       {!requested && available && (
         <Button onClick={load} type="button" variant="outline">
-          Load YouTube
+          {status === "error" ? "Retry" : "Load YouTube"}
         </Button>
       )}
       {status === "loading" && <p role="status">Loading YouTube…</p>}
@@ -199,7 +212,7 @@ export function YouTubePreviewPlayer({
       )}
       <div
         className={
-          requested && status !== "error"
+          requested
             ? "aspect-video w-full overflow-hidden [&_iframe]:h-full [&_iframe]:w-full"
             : "hidden"
         }

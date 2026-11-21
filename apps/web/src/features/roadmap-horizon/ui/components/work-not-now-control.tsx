@@ -20,8 +20,8 @@ import {
   DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSelector } from "@tanstack/react-store";
-import { useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useRef } from "react";
 import { AppLink } from "@/components/app-link";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
@@ -324,9 +324,14 @@ function WorkNotNowDialog({
   work: WorkProfile;
 }) {
   const canStart = work.status !== "Closed" && work.archivedAt === null;
-  const [mode, setMode] = useState<Mode>(
+  const modeSession = useCreateStore(
     initialNotNowDialogMode(canStart, activeFromWork !== null),
+    ({ setState }) => ({
+      setMode: (next: Mode) => setState(() => next),
+    }),
   );
+  const mode = useSelector(modeSession);
+  const { setMode } = modeSession.actions;
   const recordRetry = useRef<{ fingerprint: string; key: string } | null>(null);
   const reconsiderRetry = useRef<{ event: string; key: string } | null>(null);
   const queryClient = useQueryClient();

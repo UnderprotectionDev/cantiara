@@ -10,7 +10,7 @@ import {
 } from "@cantiara/api/data-import";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef } from "react";
 import { buildSupportReferenceFailure } from "@/features/web-macos-client/lib/support-reference";
 import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
 import { orpc } from "@/utils/orpc";
@@ -44,7 +44,7 @@ export function ImportApplyPanel({
   preview: ImportPreview;
   scope: ImportScope;
 }) {
-  const [key] = useState(newApplyKey);
+  const applyKey = useRef<string | null>(null);
   const blocked = applyBlockedReason(preview);
   const commit = useMutation(
     orpc.applyImport.mutationOptions({
@@ -59,6 +59,8 @@ export function ImportApplyPanel({
   );
 
   function apply() {
+    const key = applyKey.current ?? newApplyKey();
+    applyKey.current = key;
     // A dropped connection can still leave a receipt reopenable by this key.
     rememberLastApplyKey(key);
     onAttempt(key);

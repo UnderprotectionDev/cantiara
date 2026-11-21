@@ -1,5 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useRef } from "react";
 import { orpc } from "@/utils/orpc";
 import {
@@ -17,6 +18,21 @@ export default function ValidationRecordsSurface({
   projectId: string;
   selectedId?: string;
 }) {
+  const statusFilter = useSearch({
+    from: "/_auth/projects/$projectId/",
+    select: (search) => search.validationStatus ?? "Active",
+  });
+  const navigate = useNavigate();
+  function selectStatus(status: "Active" | "Archived" | "Trash") {
+    navigate({
+      hash: true,
+      search: (current) => ({
+        ...current,
+        validationStatus: status === "Active" ? undefined : status,
+      }),
+      to: ".",
+    }).catch(() => undefined);
+  }
   const queryClient = useQueryClient();
   const options = orpc.projectValidationRecords.queryOptions({
     input: { projectId },
@@ -161,6 +177,7 @@ export default function ValidationRecordsSurface({
       counterparts={sources.data.filter(isValidationContextRecord)}
       onSave={save}
       onStartEditing={startEditing}
+      onStatusFilterChange={selectStatus}
       onTransition={transition}
       readOnly={records.data.readOnly}
       records={records.data.records}
@@ -168,6 +185,7 @@ export default function ValidationRecordsSurface({
       saveError={create.error ?? update.error}
       savePending={create.isPending || update.isPending}
       selectedId={selectedId}
+      statusFilter={statusFilter}
       transitionFailed={changeStatus.isError}
       transitionPending={changeStatus.isPending}
     />

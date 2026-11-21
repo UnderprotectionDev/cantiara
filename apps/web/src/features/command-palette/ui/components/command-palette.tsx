@@ -11,7 +11,7 @@ import {
 } from "@cantiara/ui/components/command";
 import { Kbd } from "@cantiara/ui/components/kbd";
 import { useNavigate } from "@tanstack/react-router";
-import { createStore, useSelector } from "@tanstack/react-store";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   ArrowLeftRight,
   ChevronLeft,
@@ -33,7 +33,6 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
 } from "react";
 
 import {
@@ -95,13 +94,22 @@ export default function CommandPalette({
   onOpenRecord,
   open,
 }: CommandPaletteProps) {
-  const [commandStack, setCommandStack] = useState<
-    readonly (readonly CommandPaletteCommand[])[]
-  >([]);
-  const [failureReason, setFailureReason] = useState<string | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
-  const [recordsReady, setRecordsReady] = useState(false);
-  const [query, setQuery] = useState(initialQuery);
+  const palette = useCreateStore({
+    commandStack: [] as readonly (readonly CommandPaletteCommand[])[],
+    failureReason: null as string | null,
+    recordsReady: false,
+    query: initialQuery,
+    running: null as object | null,
+  });
+  const { commandStack, failureReason, recordsReady, query, running } =
+    useSelector(palette, (value) => value);
+  const isRunning = running !== null;
+  const setQuery = useCallback(
+    (value: string) => {
+      palette.setState((state) => ({ ...state, query: value }));
+    },
+    [palette],
+  );
   const commandInputRef = useRef<HTMLInputElement>(null);
 
   const activeCommands = commandStack.at(-1) ?? commands;
@@ -162,75 +170,100 @@ export default function CommandPalette({
   ];
 
   useEffect(() => {
-    if (open) {
-      setQuery(initialQuery);
-      setFailureReason(null);
-      setCommandStack([]);
-      return;
-    }
-
-    setQuery("");
-    setFailureReason(null);
-    setCommandStack([]);
-  }, [initialQuery, open]);
+    palette.setState((state) => ({
+      ...state,
+      query: open ? initialQuery : "",
+      failureReason: null,
+      commandStack: [],
+      running: null,
+    }));
+  }, [initialQuery, open, palette]);
 
   useEffect(() => {
     if (!open) {
-      setRecordsReady(false);
       return;
     }
-
     const frame = requestAnimationFrame(() => {
-      setRecordsReady(true);
+      palette.setState((state) => ({ ...state, recordsReady: true }));
       commandInputRef.current?.focus();
     });
-    return () => cancelAnimationFrame(frame);
-  }, [open]);
+    return () => {
+      cancelAnimationFrame(frame);
+      palette.setState((state) => ({
+        ...state,
+        recordsReady: false,
+        running: null,
+      }));
+    };
+  }, [open, palette]);
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (!nextOpen) {
-        setQuery("");
-        setFailureReason(null);
-        setCommandStack([]);
+        palette.setState((state) => ({
+          ...state,
+          commandStack: [],
+          failureReason: null,
+          query: "",
+          running: null,
+        }));
       }
       onOpenChange(nextOpen);
     },
-    [onOpenChange],
+    [onOpenChange, palette],
   );
 
   const handleSelect = useCallback(
     async (command: CommandPaletteCommand) => {
-      if (isRunning) {
+      if (palette.get().running) {
+        return;
+      }
+      const { children } = command;
+      if (children?.length) {
+        palette.setState((state) => ({
+          ...state,
+          commandStack: [...state.commandStack, children],
+          failureReason: null,
+          query: "",
+        }));
         return;
       }
 
-      setFailureReason(null);
-      if (command.children && command.children.length > 0) {
-        setCommandStack((stack) => [...stack, command.children ?? []]);
-        setQuery("");
-        return;
-      }
-
-      setQuery("");
-      setIsRunning(true);
+      const attempt = {};
+      palette.setState((state) => ({
+        ...state,
+        failureReason: null,
+        query: "",
+        running: attempt,
+      }));
       try {
         await executeCommand(command, mutationContract);
-        handleOpenChange(false);
+        if (palette.get().running === attempt) {
+          handleOpenChange(false);
+        }
       } catch (error) {
-        setFailureReason(commandFailureReason(error));
-      } finally {
-        setIsRunning(false);
+        palette.setState((state) =>
+          state.running === attempt
+            ? {
+                ...state,
+                failureReason: commandFailureReason(error),
+                running: null,
+              }
+            : state,
+        );
       }
     },
-    [handleOpenChange, isRunning, mutationContract],
+    [handleOpenChange, mutationContract, palette],
   );
 
   const handleBack = useCallback(() => {
-    setCommandStack((stack) => stack.slice(0, -1));
-    setQuery("");
-    setFailureReason(null);
-  }, []);
+    palette.setState((state) => ({
+      ...state,
+      commandStack: state.commandStack.slice(0, -1),
+      failureReason: null,
+      query: "",
+    }));
+  }, [palette]);
 
   return (
     <CommandDialog
@@ -551,38 +584,37 @@ export function CommandPaletteProvider({
     onSwitchProject,
   } = source;
   const navigate = useNavigate();
-  const [paletteStore] = useState(() =>
-    createStore<CommandPaletteProviderState>({
-      initialQuery: "",
-      open: false,
-    }),
-  );
+  const paletteStore = useCreateStore<CommandPaletteProviderState>({
+    initialQuery: "",
+    open: false,
+  });
   const { initialQuery, open } = useSelector(paletteStore);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const wasOpenRef = useRef<boolean | null>(null);
   const commandRegistrationTokensRef = useRef(new Map<string, symbol>());
-  const [registeredCommands, setRegisteredCommands] = useState<
-    readonly CommandPaletteCommand[]
-  >([]);
+  const commandRegistry = useCreateStore<readonly CommandPaletteCommand[]>([]);
+  const registeredCommands = useSelector(commandRegistry);
+  const registerCommand = useCallback(
+    (command: CommandPaletteCommand) => {
+      const token = Symbol(command.id);
+      commandRegistrationTokensRef.current.set(command.id, token);
+      commandRegistry.setState((current) => [
+        ...current.filter((candidate) => candidate.id !== command.id),
+        command,
+      ]);
 
-  const registerCommand = useCallback((command: CommandPaletteCommand) => {
-    const token = Symbol(command.id);
-    commandRegistrationTokensRef.current.set(command.id, token);
-    setRegisteredCommands((current) => [
-      ...current.filter((candidate) => candidate.id !== command.id),
-      command,
-    ]);
-
-    return () => {
-      if (commandRegistrationTokensRef.current.get(command.id) !== token) {
-        return;
-      }
-      commandRegistrationTokensRef.current.delete(command.id);
-      setRegisteredCommands((current) =>
-        current.filter((candidate) => candidate.id !== command.id),
-      );
-    };
-  }, []);
+      return () => {
+        if (commandRegistrationTokensRef.current.get(command.id) !== token) {
+          return;
+        }
+        commandRegistrationTokensRef.current.delete(command.id);
+        commandRegistry.setState((current) =>
+          current.filter((candidate) => candidate.id !== command.id),
+        );
+      };
+    },
+    [commandRegistry],
+  );
 
   const navigationCommands = useMemo<CommandPaletteCommand[]>(() => {
     const navigationCommand = ({

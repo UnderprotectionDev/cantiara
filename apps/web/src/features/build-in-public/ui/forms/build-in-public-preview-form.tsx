@@ -277,6 +277,7 @@ export function BuildInPublicPreviewPanel({
             <DateTimePicker
               ariaLabel="Featured until"
               disabled={!featuredRecord}
+              key={preview.fingerprint}
               onChange={field.handleChange}
               value={field.state.value}
             />

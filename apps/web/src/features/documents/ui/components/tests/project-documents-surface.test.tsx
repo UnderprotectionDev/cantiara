@@ -2,10 +2,14 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: test stubs bind inline handlers.
 import { expect, test, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ membership: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  membership: vi.fn(),
+  navigate: vi.fn(async () => undefined),
+}));
 
 vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => () => Promise.resolve(),
+  useNavigate: () => mocks.navigate,
+  useSearch: () => false,
 }));
 vi.mock("@/utils/orpc", () => ({
   invalidateSmartCollectionMembership: mocks.membership,
@@ -66,6 +70,9 @@ test("a Document created from a Document Template refreshes every Document list 
     await Promise.resolve();
     button?.click();
   });
+  expect(mocks.navigate).toHaveBeenCalledWith(
+    expect.objectContaining({ hash: "document-created" }),
+  );
   expect(invalidate).toHaveBeenCalledWith({ queryKey: ["documents"] });
   expect(mocks.membership).toHaveBeenCalledWith(queryClient);
   await act(async () => root.unmount());

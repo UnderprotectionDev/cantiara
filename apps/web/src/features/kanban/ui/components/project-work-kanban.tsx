@@ -5,10 +5,11 @@ import type {
 } from "@cantiara/api/project-shell";
 import type { WorkStatus } from "@cantiara/api/work-lifecycle";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { currentDateInTimeZone } from "@/features/account-preferences/lib/account-preferences-format";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
+import { useViewClock } from "@/lib/use-view-clock";
 import {
   client,
   invalidateSmartCollectionMembership,
@@ -51,14 +52,7 @@ export default function ProjectWorkKanban({
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
   const { timeZone } = accountFormattingPreferences;
-  const [today, setToday] = useState(() => currentDateInTimeZone(timeZone));
-  useEffect(() => {
-    setToday(currentDateInTimeZone(timeZone));
-    const timer = window.setInterval(() => {
-      setToday(currentDateInTimeZone(timeZone));
-    }, 30_000);
-    return () => window.clearInterval(timer);
-  }, [timeZone]);
+  const today = currentDateInTimeZone(timeZone, useViewClock(30_000));
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
   const query = useQuery(

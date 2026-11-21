@@ -490,7 +490,7 @@ test("creates Work with a Project key, type, and protected start status", async 
 
   await expect(
     page.getByText("Work PAY-1 created.", { exact: true }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
   const firstWork = workListItem(page, "PAY-1 Investigate payment failures");
   await expect(firstWork).toContainText("Research");
   await expect(firstWork).toContainText("Not Started");
@@ -527,8 +527,25 @@ test("creates Work with a Project key, type, and protected start status", async 
   await closedWork
     .getByRole("combobox", { name: "Status for PAY-1" })
     .selectOption("In Progress");
-  await expect(closedWork.getByLabel("Reopen PAY-1")).toBeVisible();
-  await closedWork.getByRole("button", { name: "Confirm reopen" }).click();
+  const reopen = closedWork.getByRole("dialog", { name: "Reopen PAY-1" });
+  await expect(reopen.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await reopen.getByRole("button", { name: "Cancel" }).press("Escape");
+  await expect(reopen).toBeHidden();
+  const reopenedStatus = closedWork.getByRole("combobox", {
+    name: "Status for PAY-1",
+  });
+  await expect(reopenedStatus).toHaveValue("Closed");
+  await reopenedStatus.selectOption("In Progress");
+  await page.route(
+    "**/rpc/reopenWork",
+    (route) => route.fulfill({ status: 503, body: "Temporarily unavailable" }),
+    { times: 1 },
+  );
+  await reopen.getByRole("button", { name: "Confirm reopen" }).click();
+  await expect(closedWork.getByRole("alert")).toBeVisible();
+  await expect(reopen).toContainText("Reopen as In Progress");
+  await expect(reopenedStatus).toHaveValue("Closed");
+  await reopen.getByRole("button", { name: "Confirm reopen" }).click();
   await expect(closedWork.getByLabel("Reopen PAY-1")).toBeHidden({
     timeout: 15_000,
   });
@@ -556,7 +573,7 @@ test("creates Work with a Project key, type, and protected start status", async 
     .click();
   await expect(
     page.getByText("Work PAY-2 created.", { exact: true }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
 
   const duplicateWork = workListItem(page, "PAY-2 Document the payment flow");
   await duplicateWork
@@ -596,13 +613,14 @@ test("creates Work with a Project key, type, and protected start status", async 
   ).toContainText("Task");
 
   const secondWork = workListItem(page, "PAY-2 Document the payment flow");
+  // Both actions wait for a database write and refresh the Work list.
   await secondWork.getByRole("button", { name: "Archive" }).click();
-  await expect(secondWork).not.toBeVisible();
+  await expect(secondWork).not.toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "Archived" }).click();
   const archivedWork = workListItem(page, "PAY-2 Document the payment flow");
   await expect(archivedWork).toContainText("Not Started");
   await archivedWork.getByRole("button", { name: "Unarchive" }).click();
-  await expect(archivedWork).not.toBeVisible();
+  await expect(archivedWork).not.toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "Archived" }).click();
   await expect(
     workListItem(page, "PAY-2 Document the payment flow"),

@@ -43,6 +43,8 @@ Kurucu pinlenmiş Veri Modeli Diyagramı Sürümünden tam PostgreSQL DDL önizl
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** Schema Artifacts reads the exact Diagram Version and source/target pair from route search and uses only versions belonging to that Diagram. Clipboard feedback belongs to the current SQL output and copy attempt. The Schema Artifacts preview/export seam observes the selected version and draft.
+
 - **What a good test is.** Schema Artifacts public interface: invariant failures block DDL, disposable apply then destroy, destructive preview, Down present/absent, digest byte sensitivity, supersede pointer, no appliedness field, no credential API. PostgreSQL adversarial goldens from PRD 16. Presentation-only edit does not change hash.
 - **Seam (one).** Schema Artifacts. Playwright: **PostgreSQL DDL ve Migration Artefaktı önizleme/export'u**.
 - **Bound tests.** DDL, invariants, extension matrix, hash: `packages/api/src/schema-ddl.test.ts`; disposable apply then destroy, credential and apply surface absent: server `schema-artifacts.test.ts` and `neon-disposable-database.test.ts`; Schema Change Draft catalog, phases, destructive preview, forbidden SQL: `schema-change-draft.test.ts`, `schema-up-edit.test.ts`; Safe Down, digest, supersede, no appliedness, export manifest: `schema-migration-artifact.test.ts` and server `schema-artifacts.test.ts`.

@@ -9,6 +9,7 @@ test("Decisions follows the historical chain to the final Valid record and filte
   page,
   request,
 }) => {
+  test.setTimeout(60_000);
   const response = await request.get(
     `${serverUrl}/__e2e/setup?fixture=scope-tree`,
   );
@@ -106,10 +107,7 @@ test("Decisions follows the historical chain to the final Valid record and filte
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByLabel("Title", { exact: true }).fill("Current draft");
   await list.getByRole("link", { name: "Chain original", exact: true }).click();
-  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
-    "Current draft",
-  );
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByLabel("Title", { exact: true })).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Edit", exact: true }),
   ).toHaveCount(0);

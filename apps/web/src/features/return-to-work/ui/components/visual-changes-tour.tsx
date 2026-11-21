@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Tour controls act on the current transient driver.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { SinceLastLooked } from "@cantiara/api/return-to-work";
 import {
@@ -15,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@cantiara/ui/components/dialog";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   type RefObject,
   useCallback,
@@ -48,8 +50,10 @@ function VisualTourSession({
   driver: RefObject<ReturnType<typeof createReturnVisualTour> | null>;
 }) {
   const session = useRoadmapSession();
-  const [view] = useState(() => session?.state.view ?? null);
-  const [state, setState] = useState<ReturnVisualTourState>({
+  const roadmapView = session?.state.view ?? null;
+  const openingView = useCreateStore(() => roadmapView);
+  const view = useSelector(openingView);
+  const tourState = useCreateStore<ReturnVisualTourState>({
     status: "loading",
     current: null,
     limit: 20,
@@ -58,6 +62,15 @@ function VisualTourSession({
     remainder: null,
     restoration: "not-needed",
   });
+  const state = useSelector(tourState);
+  const publish = useCallback(
+    (tour: NonNullable<typeof driver.current>) => {
+      if (isOpen() && driver.current === tour) {
+        tourState.setState(() => ({ ...tour.state }));
+      }
+    },
+    [driver, isOpen, tourState],
+  );
   const ready = useCallback(
     (canvas: ReturnCanvasViewport) => {
       if (driver.current || !isOpen()) {
@@ -66,10 +79,10 @@ function VisualTourSession({
       const tour = createReturnVisualTour(changes, canvas);
       driver.current = tour;
       const pending = tour.start();
-      setState({ ...tour.state });
-      pending.then(() => setState({ ...tour.state }));
+      publish(tour);
+      pending.then(() => publish(tour));
     },
-    [changes, driver, isOpen],
+    [changes, driver, isOpen, publish],
   );
   const next = () => {
     const tour = driver.current;
@@ -77,8 +90,8 @@ function VisualTourSession({
       return;
     }
     const pending = tour.next();
-    setState({ ...tour.state });
-    pending.then(() => setState({ ...tour.state }));
+    publish(tour);
+    pending.then(() => publish(tour));
   };
   return (
     <>

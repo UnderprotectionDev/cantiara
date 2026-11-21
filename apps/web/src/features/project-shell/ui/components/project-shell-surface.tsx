@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Configuration rows and controls close over their current stage, status, or area.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { ProjectProfile } from "@cantiara/api/project-shell";
 import {
@@ -20,7 +21,9 @@ import {
   useLinkProps,
   useLocation,
   useNavigate,
+  useSearch,
 } from "@tanstack/react-router";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
 import {
   type ComponentProps,
@@ -29,7 +32,6 @@ import {
   type ReactNode,
   Suspense,
   useEffect,
-  useState,
 } from "react";
 import type { WorkStatusActionRequest } from "@/components/work-status-form";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
@@ -50,7 +52,6 @@ import {
   ALWAYS_REACHABLE_SURFACES,
   BACKLOG_HASH,
   CONFIGURATION_MODE_HASH,
-  type ConfigurationHost,
   DAILY_ACTION_HASHES,
   DAILY_ACTION_MESSAGES,
   DAILY_ACTIONS,
@@ -556,13 +557,10 @@ function ProjectShellContent({
   });
   const navigate = useNavigate();
   const configurationMode = activeHash === CONFIGURATION_MODE_HASH;
-  const [showExplanation, setShowExplanation] = useState(
-    () => !isProjectShellExplanationDismissed(projectId),
+  const shellPresentation = useCreateStore(
+    !isProjectShellExplanationDismissed(projectId),
   );
-  const [configurationHost, setConfigurationHost] =
-    useState<ConfigurationHost | null>(() =>
-      configurationMode ? "Project areas" : null,
-    );
+  const showExplanation = useSelector(shellPresentation);
   const dailyAction = dailyActionFromHash(activeHash);
   const sourceRecordRoute = projectSourceRecordFromHash(activeHash);
   const documentRoute = documentRecordFromHash(activeHash);
@@ -585,14 +583,6 @@ function ProjectShellContent({
     dailyAction,
     collectionWorkPrefill,
   );
-
-  useEffect(() => {
-    setShowExplanation(!isProjectShellExplanationDismissed(projectId));
-  }, [projectId]);
-
-  useEffect(() => {
-    setConfigurationHost(configurationMode ? "Project areas" : null);
-  }, [configurationMode]);
 
   useEffect(() => {
     if (!activeHash || typeof window === "undefined") {
@@ -631,7 +621,7 @@ function ProjectShellContent({
   } = project;
 
   function dismissExplanation() {
-    setShowExplanation(false);
+    shellPresentation.setState(() => false);
     rememberProjectShellExplanationDismissal(projectId);
   }
 
@@ -649,7 +639,6 @@ function ProjectShellContent({
       return;
     }
 
-    setConfigurationHost("Project areas");
     navigate({
       to: ".",
       search: (previous) => ({
@@ -722,7 +711,7 @@ function ProjectShellContent({
       return (
         <ProjectDecisionsSurface
           accountFormattingPreferences={accountFormattingPreferences}
-          key={projectId}
+          key={JSON.stringify([projectId, decisionSourceId])}
           projectId={projectId}
           selectedId={decisionSourceId}
         />
@@ -786,6 +775,7 @@ function ProjectShellContent({
           <Suspense fallback={<p>Loading Documents…</p>}>
             <ProjectDocumentsSurface
               accountFormattingPreferences={accountFormattingPreferences}
+              key={projectId}
               projectId={projectId}
               selectedDocumentId={documentRoute?.documentId}
               selectedSectionId={documentRoute?.sectionId}
@@ -888,8 +878,6 @@ function ProjectShellContent({
             baseRevision={revision}
             CustomFieldEditor={CustomFieldEditor}
             configuration={configuration}
-            configurationHost={configurationHost}
-            onConfigurationHostChange={setConfigurationHost}
             projectId={projectId}
             projectName={name}
             RecordActionEditor={RecordActionEditor}
@@ -934,11 +922,22 @@ function ProjectWorkSurface({
   workTypeWarning?: (type: WorkType) => string | null;
 }) {
   const navigate = useNavigate();
-  const [selectedWorkView, setSelectedWorkView] = useState<"Board" | "List">(
-    "Board",
-  );
-  const [statusActionRequest, setStatusActionRequest] =
-    useState<WorkStatusActionRequest | null>(null);
+  const selectedWorkView = useSearch({
+    from: "/_auth/projects/$projectId/",
+    select: (search) => search.workView ?? "Board",
+  });
+  function selectWorkView(view: "Board" | "List") {
+    navigate({
+      hash: activeHash,
+      search: (current) => ({
+        ...current,
+        workView: view === "List" ? view : undefined,
+      }),
+      to: ".",
+    }).catch(() => undefined);
+  }
+  const statusAction = useCreateStore<WorkStatusActionRequest | null>(null);
+  const statusActionRequest = useSelector(statusAction);
   const showSourceWork =
     isWorkRecordHash(activeHash) || isWorkRelationsHash(activeHash);
   const sourceWorkId = workRecordIdFromHash(activeHash);
@@ -947,7 +946,7 @@ function ProjectWorkSurface({
     status: WorkStatus;
     workId: string;
   }) {
-    setStatusActionRequest({ ...input, id: crypto.randomUUID() });
+    statusAction.setState(() => ({ ...input, id: crypto.randomUUID() }));
     navigate({
       hash: workRecordHash(input.workId),
       params: { projectId },
@@ -956,7 +955,7 @@ function ProjectWorkSurface({
   }
 
   function handleStatusActionRequest(requestId: string) {
-    setStatusActionRequest((current) =>
+    statusAction.setState((current) =>
       current?.id === requestId ? null : current,
     );
   }
@@ -1021,7 +1020,7 @@ function ProjectWorkSurface({
                 <Button
                   aria-pressed={selectedWorkView === view}
                   key={view}
-                  onClick={() => setSelectedWorkView(view)}
+                  onClick={() => selectWorkView(view)}
                   type="button"
                   variant={selectedWorkView === view ? "default" : "outline"}
                 >

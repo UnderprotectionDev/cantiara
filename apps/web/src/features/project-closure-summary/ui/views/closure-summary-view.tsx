@@ -8,7 +8,8 @@ import {
   PROJECT_CLOSURE_SUMMARY_LABEL,
 } from "@cantiara/api/project-closure-summary";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useCallback } from "react";
 import { projectRecordHref } from "@/features/project-history/lib/project-record-links";
 import { commandVariables } from "@/lib/command-variables";
 import { type client, orpc } from "@/utils/orpc";
@@ -62,8 +63,15 @@ export function ClosureSummaryView({
   projectId: string;
   sources: ClosureSummarySources;
 }) {
-  const [stage, setStage] = useState<Stage>({ kind: "select", selected: [] });
-  const [generation, setGeneration] = useState(0);
+  const initial: { stage: Stage; generation: number } = {
+    stage: { kind: "select", selected: [] },
+    generation: 0,
+  };
+  const composer = useCreateStore(initial, ({ setState }) => ({
+    setStage: (next: Stage) => setState((state) => ({ ...state, stage: next })),
+  }));
+  const { stage, generation } = useSelector(composer);
+  const { setStage } = composer.actions;
   const draftStage = stage.kind === "draft" ? stage : null;
   const inspect = useMutation({
     meta: { presentsSupportFailure: true },
@@ -76,14 +84,16 @@ export function ClosureSummaryView({
     }) => onDraft(refs),
     onSuccess: (draft, { action, refs, selected }) => {
       if (action === "generate") {
-        setGeneration(generation + 1);
-        setStage({
-          generation: generation + 1,
-          kind: "draft",
-          markdown: closureSummaryMarkdownOf(projectId, draft.sections),
-          saveKey: crypto.randomUUID(),
-          sources: refs,
-        });
+        composer.setState((state) => ({
+          generation: state.generation + 1,
+          stage: {
+            generation: state.generation + 1,
+            kind: "draft",
+            markdown: closureSummaryMarkdownOf(projectId, draft.sections),
+            saveKey: crypto.randomUUID(),
+            sources: refs,
+          },
+        }));
       } else {
         setStage({ kind: "select", selected });
       }
@@ -130,7 +140,7 @@ export function ClosureSummaryView({
     resetInspect();
     resetSave();
     setStage({ kind: "select", selected: [] });
-  }, [resetInspect, resetSave]);
+  }, [resetInspect, resetSave, setStage]);
   const onDateHistoryClick = useCallback(() => {
     if (draftStage) {
       fetchComparison().catch(() => undefined);

@@ -17,6 +17,8 @@ vi.mock("@/components/favorite-control", () => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
+  useSearch: () => [],
   useLinkProps: () => ({ href: "/projects/project-1#create" }),
 }));
 
@@ -33,6 +35,7 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@dnd-kit/react", () => ({
   DragDropProvider: ({ children }: { children: ReactNode }) => children,
   useDraggable: () => ({ isDragging: false, ref: vi.fn() }),
+  useDragOperation: () => ({}),
   useDroppable: () => ({ isDropTarget: false, ref: vi.fn() }),
 }));
 vi.mock("@/features/web-macos-client/store/client-shell", () => ({

@@ -50,6 +50,8 @@ Kurucu tek kayıt türü ve tek seçili kapsamda, kapalı dünya önizlemesi ve 
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Export surface consumes a list’s existing handoff once per visit and keeps it in its mounted session.
+
 - The Export seam verifies that the read-only preview is scoped to the requested scope and format before production.
 
 - **Query preview and produce evidence (#544).** The browser Export seam verifies preview before download and the allowed JSON and CSV outputs. The artifact is read-only and can be requested after a successful preview.

@@ -89,12 +89,8 @@ export default function DocumentMarkdownEditor({
   >;
   recordReferenceChoice: string;
   recordReferenceOptions: { id: string; label: string; recordType: string }[];
-  setSelectedTextRange: import("react").Dispatch<
-    import("react").SetStateAction<{ end: number; start: number } | null>
-  >;
-  setConversionWarning: import("react").Dispatch<
-    import("react").SetStateAction<boolean>
-  >;
+  setSelectedTextRange: (value: { end: number; start: number } | null) => void;
+  setConversionWarning: (value: boolean) => void;
   selectedTextRange: { end: number; start: number } | null;
   pinEvidenceKey: import("react").RefObject<string | null>;
   savedBody: string;

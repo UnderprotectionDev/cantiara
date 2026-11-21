@@ -23,7 +23,11 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import {
+  useCreateStore,
+  useSelector as useStoreSelector,
+} from "@tanstack/react-store";
+import { type SubmitEvent, useCallback, useLayoutEffect } from "react";
 import {
   type DefinitionRevisionArgs,
   useCustomFields,
@@ -133,7 +137,28 @@ export default function CustomFieldEditor({
       }
     }
   }
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingIdStore = useCreateStore<string | null>(null);
+  const editingId = useStoreSelector(editingIdStore, (value) => value);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Project changes end the current edit session.
+  useLayoutEffect(
+    () => () => editingIdStore.setState(() => null),
+    [editingIdStore, projectId],
+  );
+  useLayoutEffect(() => {
+    if (query.data) {
+      editingIdStore.setState((value) =>
+        query.data?.some(
+          (definition) => definition.id === value && !definition.trashedAt,
+        )
+          ? value
+          : null,
+      );
+    }
+  }, [editingIdStore, query.data]);
+  const setEditingId = useCallback(
+    (value: string | null) => editingIdStore.setState(() => value),
+    [editingIdStore],
+  );
   const form = useForm({
     defaultValues: INITIAL_VALUES,
     onSubmit: async ({ value }) => {

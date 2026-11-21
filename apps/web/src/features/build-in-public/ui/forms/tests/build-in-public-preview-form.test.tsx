@@ -165,6 +165,59 @@ test("nothing is published while Build in Public is off", () => {
   expect(button("Publish").disabled).toBe(true);
 });
 
+test("a changed preview clears a time-only Featured until draft", () => {
+  const { onApprove } = render();
+  const decision = item({
+    change: "Unpublished changes",
+    id: "member:decision",
+    kind: "Project member",
+    memberKind: "Decision",
+    title: "Launch scope",
+  });
+  const current = { ...preview, items: [decision] };
+  function show(fingerprint: string) {
+    act(() =>
+      root?.render(
+        <BuildInPublicPreviewPanel
+          enabled
+          onApprove={onApprove}
+          preview={{ ...current, fingerprint }}
+        />,
+      ),
+    );
+  }
+  show("decision-1");
+  act(() => {
+    checkbox(decision.id).click();
+  });
+  const record = document.querySelector<HTMLSelectElement>(
+    "#bip-featured-record",
+  );
+  const getTime = () =>
+    document.querySelector<HTMLInputElement>(
+      '[aria-label="Featured until time"]',
+    );
+  const time = getTime();
+  if (!(record && time)) {
+    throw new Error("Missing featured record controls");
+  }
+  act(() => {
+    record.value = "decision";
+    record.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(time.disabled).toBe(false);
+  act(() => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )?.set?.call(time, "13:20");
+    time.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  expect(time.value).toBe("13:20");
+  show("decision-2");
+  expect(getTime()?.value).toBe("");
+});
+
 test("a failed publish shows no form text and keeps the ticked items", async () => {
   const { onApprove } = render();
   onApprove.mockRejectedValue(new Error("offline"));

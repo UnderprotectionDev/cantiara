@@ -9,7 +9,9 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { lazy, Suspense, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { lazy, Suspense, useCallback } from "react";
 import { fetchFresh } from "@/lib/fetch-fresh";
 import { client, orpc } from "@/utils/orpc";
 import type { EditorDocument } from "../../lib/flow-editor";
@@ -22,6 +24,22 @@ import {
 } from "../views/user-flow-view";
 
 const UserFlowCanvas = lazy(() => import("./user-flow-canvas"));
+
+function useSelectedUserFlow() {
+  const selectedId = useSearch({
+    from: "/_auth/projects/$projectId/",
+    select: (search) => search.flow ?? null,
+  });
+  const navigate = useNavigate();
+  function setSelectedId(value: string) {
+    navigate({
+      hash: true,
+      search: (current) => ({ ...current, flow: value || undefined }),
+      to: ".",
+    }).catch(() => undefined);
+  }
+  return { selectedId, setSelectedId };
+}
 
 export default function UserFlowSurface({ projectId }: { projectId: string }) {
   const createUserFlowFromTemplateMutation = useMutation(
@@ -118,8 +136,18 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
     }),
   );
   const queryClient = useQueryClient();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
+  const { selectedId, setSelectedId } = useSelectedUserFlow();
+  const dirtyFlow = useCreateStore<string | null>(null);
+  const dirty = useSelector(
+    dirtyFlow,
+    (id) => id !== null && id === selectedId,
+  );
+  const setDirty = useCallback(
+    (value: boolean) => {
+      dirtyFlow.setState(() => (value ? selectedId : null));
+    },
+    [dirtyFlow, selectedId],
+  );
   const listOptions = orpc.userFlows.queryOptions({ input: { projectId } });
   const flows = useQuery(listOptions);
   const flowOptions = orpc.userFlow.queryOptions({

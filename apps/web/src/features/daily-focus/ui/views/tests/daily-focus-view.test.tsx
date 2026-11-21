@@ -1,5 +1,8 @@
+// @vitest-environment happy-dom
+
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { act, type ReactNode } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import DailyFocusView from "../daily-focus-view";
@@ -88,6 +91,67 @@ describe("Daily Focus selected profile day", () => {
     mocks.useMutation.mockReset();
     mocks.closeInput.mockReset();
     mocks.dayInput.mockReset();
+  });
+
+  test("returning to Daily Focus refreshes the Account day and preserves an explicit day", () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-28T06:59:30.000Z"));
+    const visibility = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("visible");
+    mocks.useQuery.mockImplementation((query: { queryKey?: string[] }) =>
+      query.queryKey
+        ? {
+            data: {
+              available: [],
+              candidates: [],
+              events: [],
+              focusDate: query.queryKey[1],
+              members: [],
+            },
+          }
+        : { data: { timeZone: "America/Los_Angeles", locale: "en-US" } },
+    );
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const navigate = () => undefined;
+    function render(day?: string) {
+      act(() =>
+        root.render(
+          <DailyFocusView
+            accountId="founder"
+            day={day}
+            onOpenCloseFocus={navigate}
+            onReturnToDailyFocus={navigate}
+            onSelectDay={navigate}
+          />,
+        ),
+      );
+    }
+    function returnToTab(at: string) {
+      vi.setSystemTime(new Date(at));
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+    }
+    try {
+      render();
+      expect(mocks.dayInput).toHaveBeenLastCalledWith("2026-09-27");
+      returnToTab("2026-09-28T07:00:01.000Z");
+      expect(mocks.dayInput).toHaveBeenLastCalledWith("2026-09-28");
+
+      render("2026-09-10");
+      returnToTab("2026-09-29T07:00:01.000Z");
+      act(() => vi.advanceTimersByTime(60_000));
+      expect(mocks.dayInput).toHaveBeenLastCalledWith("2026-09-10");
+    } finally {
+      act(() => root.unmount());
+      host.remove();
+      visibility.mockRestore();
+      vi.unstubAllGlobals();
+    }
   });
 
   test("waits for the Account time zone before choosing a writable day", () => {

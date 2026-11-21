@@ -2,13 +2,28 @@
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { orpc } from "@/utils/orpc";
 import { ArtifactList } from "../components/artifact-list";
 import { ChangeDraft } from "../components/change-draft";
 import { DdlPreview } from "../components/ddl-preview";
 
-function DataModelArtifacts({ diagram }: { diagram: TechnicalDiagramSource }) {
+type VersionField = "versionId" | "sourceId" | "targetId";
+type VersionSelection = Partial<Record<VersionField, string>>;
+type SelectVersion = (
+  diagramId: string,
+  field: VersionField,
+  id: string,
+) => void;
+
+function DataModelArtifacts({
+  diagram,
+  selection,
+  onSelect,
+}: {
+  diagram: TechnicalDiagramSource;
+  selection: VersionSelection;
+  onSelect: SelectVersion;
+}) {
   const versions = useQuery(
     orpc.technicalDiagramVersions.queryOptions({
       input: { diagramId: diagram.id },
@@ -17,9 +32,12 @@ function DataModelArtifacts({ diagram }: { diagram: TechnicalDiagramSource }) {
   const artifacts = useQuery(
     orpc.migrationArtifacts.queryOptions({ input: { diagramId: diagram.id } }),
   );
-  const [versionId, setVersionId] = useState<string | null>(null);
-  const [sourceId, setSourceId] = useState<string | null>(null);
-  const [targetId, setTargetId] = useState<string | null>(null);
+  function knownVersion(id: string | undefined) {
+    return versions.data?.some((version) => version.id === id) ? id : undefined;
+  }
+  const versionId = knownVersion(selection.versionId);
+  const sourceId = knownVersion(selection.sourceId);
+  const targetId = knownVersion(selection.targetId);
   return (
     <article className="space-y-3 rounded-lg border p-4">
       <h3 className="font-medium">{diagram.title}</h3>
@@ -36,7 +54,7 @@ function DataModelArtifacts({ diagram }: { diagram: TechnicalDiagramSource }) {
           <li key={version.id}>
             <Button
               aria-pressed={versionId === version.id}
-              onClick={() => setVersionId(version.id)}
+              onClick={() => onSelect(diagram.id, "versionId", version.id)}
               size="sm"
               type="button"
               variant={versionId === version.id ? "default" : "outline"}
@@ -59,7 +77,7 @@ function DataModelArtifacts({ diagram }: { diagram: TechnicalDiagramSource }) {
           <div className="flex flex-wrap gap-2" key={version.id}>
             <Button
               aria-pressed={sourceId === version.id}
-              onClick={() => setSourceId(version.id)}
+              onClick={() => onSelect(diagram.id, "sourceId", version.id)}
               size="sm"
               type="button"
               variant={sourceId === version.id ? "default" : "outline"}
@@ -68,7 +86,7 @@ function DataModelArtifacts({ diagram }: { diagram: TechnicalDiagramSource }) {
             </Button>
             <Button
               aria-pressed={targetId === version.id}
-              onClick={() => setTargetId(version.id)}
+              onClick={() => onSelect(diagram.id, "targetId", version.id)}
               size="sm"
               type="button"
               variant={targetId === version.id ? "default" : "outline"}
@@ -96,17 +114,20 @@ function DataModelArtifacts({ diagram }: { diagram: TechnicalDiagramSource }) {
 
 export default function SchemaArtifactsView({
   projectId,
-  selectedDiagramId,
+  selection,
+  onSelect,
 }: {
   projectId: string;
-  selectedDiagramId?: string;
+  selection: VersionSelection & { diagramId?: string };
+  onSelect: SelectVersion;
 }) {
   const diagrams = useQuery(
     orpc.technicalDiagrams.queryOptions({ input: { projectId } }),
   );
   const dataModels = (diagrams.data ?? []).filter(
     ({ id, type }) =>
-      type === "Data Model" && (!selectedDiagramId || id === selectedDiagramId),
+      type === "Data Model" &&
+      (!selection.diagramId || id === selection.diagramId),
   );
   return (
     <section aria-label="Schema Artifacts" className="space-y-4">
@@ -119,7 +140,12 @@ export default function SchemaArtifactsView({
         <p>No Data Model diagram yet. Model one in Technical Diagrams.</p>
       ) : null}
       {dataModels.map((diagram) => (
-        <DataModelArtifacts diagram={diagram} key={diagram.id} />
+        <DataModelArtifacts
+          diagram={diagram}
+          key={diagram.id}
+          onSelect={onSelect}
+          selection={selection.diagramId === diagram.id ? selection : {}}
+        />
       ))}
     </section>
   );

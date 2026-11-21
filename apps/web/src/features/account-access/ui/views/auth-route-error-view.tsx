@@ -1,7 +1,11 @@
 import { Button } from "@cantiara/ui/components/button";
 import type { ErrorComponentProps } from "@tanstack/react-router";
-import { ErrorComponent, useRouter } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
+import {
+  ErrorComponent,
+  useRouter,
+  useRouterState,
+} from "@tanstack/react-router";
+import { useCallback } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import {
   isOfflineTransportFailure,
@@ -11,31 +15,23 @@ import {
 import { ClientShellOfflineError } from "@/features/web-macos-client/store/client-shell";
 import {
   consumeSessionCheckRetry,
-  isSessionCheckRetryConsumed,
   SessionCheckError,
+  useSessionCheckRetryConsumed,
 } from "../../lib/auth-session-check";
 
 export default function AuthRouteErrorView({ error }: ErrorComponentProps) {
   const router = useRouter();
   const connection = useClientShellConnection();
-  const [isRetrying, setIsRetrying] = useState(false);
+  const isRetrying = useRouterState({ select: (state) => state.isLoading });
+  const retryConsumed = useSessionCheckRetryConsumed();
   const handleRetry = useCallback(async () => {
-    if (
-      isRetrying ||
-      isSessionCheckRetryConsumed() ||
-      connection === "offline"
-    ) {
+    if (isRetrying || connection === "offline" || !consumeSessionCheckRetry()) {
       return;
     }
-
-    consumeSessionCheckRetry();
-    setIsRetrying(true);
     try {
       await router.invalidate();
     } catch {
       // Keep the failure visible when invalidation rejects.
-    } finally {
-      setIsRetrying(false);
     }
   }, [connection, isRetrying, router]);
 
@@ -50,7 +46,7 @@ export default function AuthRouteErrorView({ error }: ErrorComponentProps) {
     : "not-written";
   const retryPolicy = isSessionCheckFailure ? error.retryPolicy : "once";
   const canRetry =
-    !(isSessionCheckRetryConsumed() || isRetrying) &&
+    !(retryConsumed || isRetrying) &&
     retryPolicy === "once" &&
     writeOutcome === "not-written" &&
     (isNetworkFailure || isSessionCheckFailure);

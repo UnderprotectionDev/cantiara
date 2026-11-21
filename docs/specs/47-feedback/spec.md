@@ -68,6 +68,8 @@ Kurucu Geri Bildirimi ayrı uzman ana kayıt olarak tutar: özgün mesaj, kanal,
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** Feed sort, source type and status come from validated Project search. The Feed reads the existing Smart Collection vocabulary.
+
 - **Popup lifecycle (#546).** The Feedback surface retry test opens `Convert to Work` from its trigger and observes that a second confirmation submits the same command after a rejected write.
 
 - The Feedback seam verifies that status and identity failures are displayed on the owning Feedback record.

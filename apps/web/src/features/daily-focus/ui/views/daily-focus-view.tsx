@@ -5,13 +5,15 @@ import { accountLocalDate } from "@cantiara/api/backlog";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useEffect, useMemo, useRef } from "react";
 import { DatePicker } from "@/components/date-picker";
 import {
   projectSourceRecordHash,
   workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { useViewClock } from "@/lib/use-view-clock";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import DailyFocusAddForm from "../forms/daily-focus-add-form";
 
@@ -32,12 +34,8 @@ export default function DailyFocusView({
 }) {
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
   const queryClient = useQueryClient();
-  const [now, setNow] = useState(() => new Date());
+  const now = useViewClock();
   const previousTimeZone = useRef<string | null>(null);
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
   useEffect(() => {
     const timeZone = preferences.data?.timeZone;
     if (!timeZone) {
@@ -242,9 +240,8 @@ function DailyFocusDayView({
   const dailyFocus = useQuery(
     orpc.dailyFocusDay.queryOptions({ input: { focusDate } }),
   );
-  const [rejectedCandidateIdsByDay, setRejectedCandidateIdsByDay] = useState<
-    Record<string, string[]>
-  >({});
+  const rejectedCandidates = useCreateStore<Record<string, string[]>>({});
+  const rejectedCandidateIdsByDay = useSelector(rejectedCandidates);
   const rejectedCandidateIds = new Set(
     rejectedCandidateIdsByDay[focusDate] ?? [],
   );
@@ -473,7 +470,7 @@ function DailyFocusDayView({
                   </Button>
                   <Button
                     onClick={() =>
-                      setRejectedCandidateIdsByDay((current) => ({
+                      rejectedCandidates.setState((current) => ({
                         ...current,
                         [focusDate]: [
                           ...new Set([

@@ -13,7 +13,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
 import { fetchFresh } from "@/lib/fetch-fresh";
@@ -23,7 +23,6 @@ import {
   orpc,
 } from "@/utils/orpc";
 import {
-  EMPTY_GAP_FILTER,
   type GapFilterValues,
   toCloseToolEscapeInput,
   toListFilter,
@@ -55,7 +54,7 @@ export function gapDateTimeFormatter(
  * The Workspace's Product Gap list and dogfooding summary. It records, relates
  * and converts nothing by itself: every write is the founder's explicit action.
  */
-function ProductGapsContent() {
+function ProductGapsContent({ filter, onFilterChange }: ProductGapsViewProps) {
   const followUpIdentity = useRef<{
     fingerprint: string;
     id: string;
@@ -102,7 +101,6 @@ function ProductGapsContent() {
     }),
   );
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<GapFilterValues>(EMPTY_GAP_FILTER);
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
   const options = orpc.productGaps.queryOptions({
     input: toListFilter(filter),
@@ -172,7 +170,7 @@ function ProductGapsContent() {
           ...(plan.kind === "Work" ? { workId: identity.workId } : {}),
         });
       }}
-      onFilterChange={setFilter}
+      onFilterChange={onFilterChange}
       onPreviewFollowUp={(gap, request) =>
         fetchFresh(queryClient, {
           ...orpc.previewProductGapFollowUp.queryOptions({
@@ -203,10 +201,15 @@ function ProductGapsContent() {
   );
 }
 
-export default function ProductGapsView() {
+interface ProductGapsViewProps {
+  filter: GapFilterValues;
+  onFilterChange: (value: GapFilterValues) => void;
+}
+
+export default function ProductGapsView(props: ProductGapsViewProps) {
   return (
     <ClientShellContent>
-      <ProductGapsContent />
+      <ProductGapsContent {...props} />
     </ClientShellContent>
   );
 }

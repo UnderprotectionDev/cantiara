@@ -74,6 +74,8 @@ Kurucu kapalı dünya önizlemesini onayladıktan sonra bir Dış yüzey ve Onay
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Project URL carries the selected shareable root identity. This root is resolved against the Project’s authorized roots before the private preview opens.
+
 - **Popup lifecycle (#546).** The Link Sharing lifecycle panel seam opens the confirmation, asserts the acknowledgment for `Reopen the same link`, and checks that a rejected `Revoke` retains the confirmation and shows the refusal.
 
 - **Issued token boundary (#544).** The Link Sharing surface test uses a real QueryClient to observe Approve scope, Rotate link and Reshare with a new link. A synthetic token reaches the private link display and never reaches mutation variables, results or global cache callbacks. Each operation refreshes its scope preview.
