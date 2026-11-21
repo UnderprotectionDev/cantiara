@@ -54,7 +54,7 @@ Kurucu Kullanıcı Akışını Proje kapsamlı tasarım ana kaydı olarak yönet
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** The Project URL carries the selected User Flow record. The User Flow inspector reads the selected node text from the DOM on blur and ties the field to the node and its text. Model updates reconcile with active React Flow gestures and measured geometry. The User Flow canvas seam covers the controlled editor.
+- **Client state ownership (#547).** The Project URL carries the selected User Flow record. The User Flow inspector reads the selected node text from the DOM on blur and ties the field to the node and its text. Model updates reconcile with active React Flow gestures and measured geometry. The User Flow canvas seam covers the controlled editor. The canvas test changes selection before a stale blur and verifies that only the current node receives the text that is saved.
 
 - **Popup lifecycle (#546).** The `Convert and Bind` seam confirms the form submits the selected record type and presents a refused preview in the popup. The dialog payload supplies the opening node or bind.
 

@@ -12,8 +12,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
+import { ORPCError } from "@orpc/client";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { type SubmitEvent, useState } from "react";
+import type { SubmitEvent } from "react";
 import { submitForm } from "@/lib/submit-form";
 
 import { assumptionFormSchema } from "../../lib/uncertainty-record-form";
@@ -46,14 +47,17 @@ export function AssumptionEditor({
   documents = [],
   onSave,
   onCancel,
+  writeError,
 }: {
   record?: AssumptionRecord;
   life?: AssumptionLife;
   documents?: Document[];
   onSave: Save;
   onCancel: () => void;
+  writeError?: unknown;
 }) {
-  const [conflict, setConflict] = useState(false);
+  const conflict =
+    writeError instanceof ORPCError && writeError.code === "CONFLICT";
   const outcome = life === "Confirmed" || life === "Refuted";
   // Keep each editing session pinned to the versions it offered; a stale choice must conflict at commit.
   const form = useForm({
@@ -92,56 +96,45 @@ export function AssumptionEditor({
         });
         return;
       }
-      try {
-        await onSave(
-          {
-            title: value.title,
-            statement: value.statement,
-            rationale: value.rationale,
-            ...(outcome && selected
-              ? {
-                  documentEvidence: {
-                    documentId: selected.id,
-                    documentRevision: selected.revision,
-                    selectionStart: 0,
-                    selectionEnd: selected.body.length,
-                    selectedText: selected.body,
-                  },
-                }
-              : {}),
-          },
-          baseRecord,
-        );
-      } catch (saveError) {
-        const changed =
-          typeof saveError === "object" &&
-          saveError !== null &&
-          "code" in saveError &&
-          saveError.code === "CONFLICT";
-        setConflict(changed);
-        form.setErrorMap({
-          onSubmit: {
-            form: changed
-              ? "Assumption or Evidence changed. Cancel and reopen before saving again. Your text is kept here."
-              : "Assumption could not be saved. Retry, or reload to check for changes. Your text is kept here.",
-            fields: {},
-          },
-        });
-      }
+      await onSave(
+        {
+          title: value.title,
+          statement: value.statement,
+          rationale: value.rationale,
+          ...(outcome && selected
+            ? {
+                documentEvidence: {
+                  documentId: selected.id,
+                  documentRevision: selected.revision,
+                  selectionStart: 0,
+                  selectionEnd: selected.body.length,
+                  selectedText: selected.body,
+                },
+              }
+            : {}),
+        },
+        baseRecord,
+      );
     },
   });
   const { evidenceDocuments: offeredDocuments } = useSelector(
     form.store,
     (state) => state.values,
   );
-  const error = useSelector(
+  const validationError = useSelector(
     form.store,
     (state): string | undefined => state.errorMap.onSubmit,
   );
+  const writeMessage = conflict
+    ? "Assumption or Evidence changed. Cancel and reopen before saving again. Your text is kept here."
+    : "Assumption could not be saved. Retry, or reload to check for changes. Your text is kept here.";
+  const error = validationError ?? (writeError ? writeMessage : undefined);
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    submitForm(form).catch(() => undefined);
+    if (!conflict) {
+      submitForm(form).catch(() => undefined);
+    }
   }
   return (
     <form

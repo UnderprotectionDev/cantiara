@@ -243,6 +243,9 @@ test("creating a case submits the typed definition and relations", async () => {
   expect(
     target.closest("fieldset")?.querySelector('[role="alert"]'),
   ).toBeNull();
+  expect(
+    target.closest("fieldset")?.querySelector('[role="status"]')?.textContent,
+  ).not.toContain("Checkout Work added to relations.");
 
   expect(onCreate).toHaveBeenCalledTimes(1);
   expect(onCreate.mock.calls[0]?.[0]).toMatchObject({

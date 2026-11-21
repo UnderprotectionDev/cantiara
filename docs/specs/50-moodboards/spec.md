@@ -48,7 +48,7 @@ Kurucu Moodboard'u Proje tasarım ana kaydı (Tasarım type `Moodboard`) olarak 
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** A Moodboard board keeps its own movement and measurement state. Presentation uses the current item range and resets on exit. The Moodboard board and presentation seams observe viewport and navigation.
+- **Client state ownership (#547).** A Moodboard board keeps its own movement and measurement state. Presentation uses the current item range and resets on exit. The Moodboard board and presentation seams observe viewport and navigation. The presentation test shortens the item sequence and opens a new presentation from its first item.
 
 - **Popup lifecycle (#546).** The Moodboard view tools seam opens `Crop` inline and tests a submitted view change through the existing visual view write.
 

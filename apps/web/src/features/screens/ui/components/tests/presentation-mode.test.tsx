@@ -77,4 +77,54 @@ test("Presentation Mode exposes no edit controls and reports a broken target", (
   expect(onExit).toHaveBeenCalledTimes(1);
 
   act(() => root.unmount());
+  container.remove();
+});
+
+test("changing the Wireframe snapshot clears the active presentation transition", () => {
+  const onExit = vi.fn();
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const other = createWireframeSnapshot({
+    document: createEmptyWireframeDocument(),
+    latestVersion: 1,
+    screenId: "missing",
+    title: "Destination",
+    version: 1,
+  });
+  function render(snapshot: typeof home) {
+    act(() =>
+      root.render(
+        <PresentationMode
+          onExit={onExit}
+          snapshots={[snapshot, other]}
+          startScreenId="home"
+        />,
+      ),
+    );
+  }
+  try {
+    render(home);
+    act(() =>
+      document.body
+        .querySelector('[data-block-id="go"]')
+        ?.dispatchEvent(new window.MouseEvent("click", { bubbles: true })),
+    );
+    expect(document.body.textContent).toContain("Destination - Wireframe v1");
+    const revised = createWireframeSnapshot({
+      document: createEmptyWireframeDocument(),
+      latestVersion: 2,
+      screenId: "home",
+      title: "Home",
+      version: 2,
+    });
+    render(revised);
+    expect(document.body.textContent).toContain("Home - Wireframe v2");
+    expect(document.body.textContent).not.toContain(
+      "Destination - Wireframe v1",
+    );
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
 });

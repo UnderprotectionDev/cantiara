@@ -45,7 +45,7 @@ Proje Hedefi başlık, açıklama, isteğe bağlı `Intended outcome` ve kullan�
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** The Goal editor session resets on Goal, Project or write-access changes. The Project Goals view and editor tests observe the form and current record.
+- **Client state ownership (#547).** The Goal editor session resets on Goal, Project or write-access changes. The Project Goals view and editor tests observe the form and current record. The view test changes Goals during a pending save and checks that restoring edit access does not reopen an old draft.
 
 - **What a good test is.** Tests observe Project Goals through create/edit of the record, `Contributes to Goal` attach/detach, live summary, and the absence of progress percent. They do not render the Value Chain graph.
 - **Seam (one).** Project Goals — record and membership interface. Relation catalog is the domain relation adapter, not a second module.

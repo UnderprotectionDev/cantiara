@@ -48,7 +48,7 @@ Kurucu Test Açığını Özellik/İş/spec bölümü/Risk/Proje Sürümü gibi 
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** Test Gap relation announcements are local to the active form and clear on reset. The Test Gaps seam observes the relation-picker feedback.
+- **Client state ownership (#547).** Test Gap relation announcements are local to the active form and clear on reset. The Test Gaps seam observes the relation-picker feedback. The Test Gap form test verifies that a successful submission clears relation feedback.
 
 - **Popup lifecycle (#546).** The Test Gap seam opens `Close Test Gap`, loads the available decisions, and submits the selected outcome from the inline panel. A failed write keeps the rationale and selection for a retry, and a successful retry closes the panel.
 

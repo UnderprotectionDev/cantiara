@@ -58,7 +58,7 @@ Kanban İşleri korunan `Not Started`, `In Progress`, `In Review`, `Blocked` ve 
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** The Kanban day is derived from the Account time zone and refreshed while mounted and when the tab becomes visible. The Kanban component seam uses its current day for deferred Work.
+- **Client state ownership (#547).** The Kanban day is derived from the Account time zone and refreshed while mounted and when the tab becomes visible. The Kanban component seam uses its current day for deferred Work. The mounted List test advances the Account day across midnight and verifies that deferred Work returns with its existing status.
 
 - **Popup lifecycle (#546).** The Kanban browser seam verifies per-column collapse and checks `Close` and Escape return focus to the Work's `Open source record` button. The full-page link opens the same Work.
 

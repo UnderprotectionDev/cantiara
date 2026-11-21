@@ -1,6 +1,12 @@
 // @vitest-environment happy-dom
 
-import { act } from "react";
+import { ORPCError } from "@orpc/client";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useMutation,
+} from "@tanstack/react-query";
+import { act, type ComponentProps, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, test, vi } from "vitest";
@@ -65,7 +71,7 @@ test("Uncertainty Records answer form requires an answer and offers optional rat
 });
 
 test.each([
-  { code: "ERROR", conflict: false },
+  { code: "INTERNAL_SERVER_ERROR", conflict: false },
   { code: "CONFLICT", conflict: true },
 ])(
   "Open Question retains entered answer and rationale after $code",
@@ -73,18 +79,34 @@ test.each([
     host = document.createElement("div");
     document.body.append(host);
     mountedRoot = createRoot(host);
-    const onSave = vi.fn(() =>
-      Promise.reject(Object.assign(new Error("Save failed"), { code })),
+    const onSave = vi.fn<ComponentProps<typeof OpenQuestionEditor>["onSave"]>(
+      () => Promise.reject(new ORPCError(code)),
     );
-
-    await act(() => {
-      mountedRoot?.render(
+    const queryClient = new QueryClient();
+    function Editor() {
+      const saveMutation = useMutation({
+        mutationFn: (input: Parameters<typeof onSave>) => onSave(...input),
+      });
+      const { mutateAsync } = saveMutation;
+      const saveDraft = useCallback(
+        (...input: Parameters<typeof onSave>) => mutateAsync(input),
+        [mutateAsync],
+      );
+      return (
         <OpenQuestionEditor
           documents={[]}
           onCancel={noop}
-          onSave={onSave}
+          onSave={saveDraft}
           record={{ ...record, answer: "", life: "Open", rationale: "" }}
-        />,
+          writeError={saveMutation.error}
+        />
+      );
+    }
+    await act(() => {
+      mountedRoot?.render(
+        <QueryClientProvider client={queryClient}>
+          <Editor />
+        </QueryClientProvider>,
       );
     });
 
@@ -119,13 +141,20 @@ test.each([
       }),
       expect.objectContaining({ id: record.id }),
     );
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
-      "Your text is kept here.",
-    );
+    await vi.waitFor(() => {
+      expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
+        "Your text is kept here.",
+      );
+    });
     expect(answer.value).toBe("Every other week");
     expect(rationale.value).toBe("The pilot showed a stable cadence.");
     expect(saveButton.disabled).toBe(conflict);
     act(() => setTextareaValue(answer, "Every week"));
     expect(saveButton.disabled).toBe(conflict);
+    if (conflict) {
+      expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+        "Cancel and reopen before saving.",
+      );
+    }
   },
 );

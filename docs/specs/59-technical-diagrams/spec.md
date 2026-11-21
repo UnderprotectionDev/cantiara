@@ -53,7 +53,7 @@ Kurucu Proje ana kaydı Teknik Diyagramı üç türde oluşturur. Her kimlik tam
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** The Technical Diagram canvas uses the opening viewport snapshot for a Diagram and View identity. Matching refetches keep the user’s viewport. The Technical Diagram canvas and viewport seam exercise fitting and restore.
+- **Client state ownership (#547).** The Technical Diagram canvas uses the opening viewport snapshot for a Diagram and View identity. Matching refetches keep the user’s viewport. The Technical Diagram canvas and viewport seam exercise fitting and restore. The canvas test preserves the viewport on a matching refetch and restores the new View's starting position after a View switch.
 
 - **Authority conversion submission (#545).** `diagram-authority-conversion-form.test.tsx` verifies that a pending `Preview conversion` accepts only one submission, reports a failed read beside the input, and preserves the draft for retry.
 

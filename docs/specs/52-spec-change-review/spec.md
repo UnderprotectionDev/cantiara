@@ -50,7 +50,7 @@ Kurucu önceki ve yeni Belge sürümünü değişen bölüm bağlamıyla inceler
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** The Project URL carries the selected review. Diff walking resets when the review or revision pair changes. The Spec Change Review view seam walks the current diff with the keyboard.
+- **Client state ownership (#547).** The Project URL carries the selected review. Diff walking resets when the review or revision pair changes. The Spec Change Review view seam walks the current diff with the keyboard. The view test moves focus to a changed section and checks that a changed revision pair resets the walk.
 
 - **Popup lifecycle (#546).** The Candidate Follow-up Work seam opens `Create Follow-up Work` from the candidate, reviews the command, and closes after a successful confirmation.
 

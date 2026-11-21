@@ -1,3 +1,7 @@
+// @vitest-environment happy-dom
+
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 import {
@@ -29,6 +33,76 @@ const hiddenRecord = {
 function ignoreOpenChange(_open: boolean) {
   // The server-rendered dialog does not need to update its controlled state.
 }
+
+test.each(["success", "failure"] as const)(
+  "an old command %s cannot change a reopened Command Palette",
+  async (outcome) => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const commandResult = Promise.withResolvers<void>();
+    const run = vi.fn(() => commandResult.promise);
+    const commands = buildCommandPaletteCommands({
+      commands: [
+        {
+          authorized: true,
+          id: "deferred-command",
+          label: "Update Work",
+          run,
+          scope: "Project",
+          selectionCount: 1,
+          shortcut: COMMAND_PALETTE_COMMAND_SHORTCUT,
+          target: "Ship the launch",
+          visibleCounterpart: "Work menu",
+        },
+      ],
+    });
+    const onOpenChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    function render(open: boolean) {
+      return act(() =>
+        root.render(
+          <CommandPalette
+            commands={commands}
+            onOpenChange={onOpenChange}
+            open={open}
+          />,
+        ),
+      );
+    }
+    try {
+      await render(true);
+      const command = document.querySelector<HTMLElement>(
+        '[data-command-id="deferred-command"]',
+      );
+      expect(command).not.toBeNull();
+      await act(async () => command?.click());
+      expect(run).toHaveBeenCalledOnce();
+      await render(false);
+      await render(true);
+
+      await act(async () => {
+        if (outcome === "success") {
+          commandResult.resolve();
+        } else {
+          commandResult.reject(new Error("Old Work could not be updated"));
+        }
+        await commandResult.promise.catch(() => undefined);
+      });
+
+      expect(onOpenChange).not.toHaveBeenCalledWith(false);
+      const dialog = document.querySelector('[role="dialog"]');
+      expect(dialog?.textContent).toContain("Update Work");
+      expect(dialog?.textContent).not.toContain(
+        "Old Work could not be updated",
+      );
+    } finally {
+      act(() => root.unmount());
+      host.remove();
+      vi.unstubAllGlobals();
+    }
+  },
+);
 
 describe("Command Palette command interface", () => {
   test("can defer authorized record command materialization", () => {

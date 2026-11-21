@@ -54,7 +54,7 @@ Kaynak Proje ana kaydıdır; URL/başlık, erişim zamanı, yakalanan içerik ve
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** The YouTube player session starts with Load YouTube for each video and player origin. The player boundary cleans up listeners, the player and timeouts before a replacement session. The YouTube fallback offers Retry after a preview failure.
+- **Client state ownership (#547).** The YouTube player session starts with Load YouTube for each video and player origin. The player boundary cleans up listeners, the player and timeouts before a replacement session. The YouTube fallback offers Retry after a preview failure. The player test retries, changes video, and unmounts while exercising callbacks from a superseded player.
 
 - **Popup lifecycle (#546).** The Source Check and evidence control seams open their disclosure to load records and drive the existing preview and retry flows.
 

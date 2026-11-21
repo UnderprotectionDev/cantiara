@@ -103,3 +103,83 @@ test("leaving the canvas flushes its last personal viewport exactly once", async
   expect(saveContent).not.toHaveBeenCalled();
   root = createRoot(host);
 });
+
+test("the User Flow inspector reads text only from the currently selected node", async () => {
+  saveContent.mockResolvedValue(undefined);
+  const nodes = [
+    {
+      id: "checkout",
+      kind: "Action",
+      placedAt: flow.createdAt,
+      position: { x: 0, y: 0 },
+      screen: null,
+      sectionId: null,
+      style: "default",
+      text: "Checkout",
+    },
+    {
+      id: "confirm",
+      kind: "Action",
+      placedAt: flow.createdAt,
+      position: { x: 0, y: 200 },
+      screen: null,
+      sectionId: null,
+      style: "default",
+      text: "Confirm order",
+    },
+  ] satisfies UserFlowView["nodes"];
+  act(() =>
+    root.render(
+      <UserFlowCanvas
+        flow={{ ...flow, nodes, version: 2 }}
+        onSave={saveContent}
+        onViewportChange={save}
+      />,
+    ),
+  );
+  const text = () =>
+    host.querySelector<HTMLTextAreaElement>("#user-flow-selected-text");
+  function select(label: string) {
+    const button = host.querySelector<HTMLButtonElement>(
+      `[aria-label="Select Action: ${label}"]`,
+    );
+    expect(button).not.toBeNull();
+    act(() => button?.click());
+  }
+  select("Checkout");
+  const previous = text();
+  expect(previous?.value).toBe("Checkout");
+  if (!previous) {
+    throw new Error("No selected node inspector");
+  }
+  previous.value = "Old draft";
+  select("Checkout");
+  select("Confirm order");
+  expect(text()?.value).toBe("Confirm order");
+  act(() =>
+    previous.dispatchEvent(new FocusEvent("focusout", { bubbles: true })),
+  );
+  expect(saveContent).not.toHaveBeenCalled();
+
+  const current = text();
+  if (!current) {
+    throw new Error("No replacement node inspector");
+  }
+  current.value = "Confirm payment";
+  act(() =>
+    current.dispatchEvent(new FocusEvent("focusout", { bubbles: true })),
+  );
+  const saveVersion = [...host.querySelectorAll("button")].find(
+    (button) => button.textContent === "Save version",
+  );
+  expect(saveVersion?.disabled).toBe(false);
+  await act(() => {
+    saveVersion?.click();
+    return Promise.resolve();
+  });
+  expect(saveContent).toHaveBeenCalledOnce();
+  expect(JSON.stringify(saveContent.mock.calls[0])).toContain(
+    "Confirm payment",
+  );
+  expect(JSON.stringify(saveContent.mock.calls[0])).not.toContain("Old draft");
+});

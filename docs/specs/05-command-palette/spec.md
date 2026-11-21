@@ -46,7 +46,7 @@ Komut Paleti uygulamanın kurucu yüzeylerinin her yerinden klavyeyle açılır.
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** Command Palette commands, query, and record readiness live for one opening. The existing animation frame still gates record results and focus. A late command result cannot update a reopened palette. The Command Palette component and keyboard journeys cover this boundary.
+- **Client state ownership (#547).** Command Palette commands, query, and record readiness live for one opening. The existing animation frame still gates record results and focus. A late command result cannot update a reopened palette. The Command Palette component and keyboard journeys cover this boundary. The component test settles both success and failure from a closed opening after the palette is reopened.
 
 - **What a good test is.** Tests observe Command Palette through its public interface: open from multiple founder routes within budget, search/create/switch only authorized scope, visible counterpart exists, out-of-scope command fails with no write, visitor template has no palette, keyboard-only complete. They do not assert component library internals or key-map JSON. Expected values are product rules (p95 150 ms visible, no silent no-op, no visitor palette).
 - **Seam (one).** Command Palette — the product-facing command interface. Universal Search, Project Shell, and Work create are adapters behind “run this command”; this suite uses fakes/stubs for records that do not exist yet, plus a counterpart that a visitor document does not mount the palette. Playwright for Komut Paleti and “Proje gezinme ve arama” is the same seam through the UI.

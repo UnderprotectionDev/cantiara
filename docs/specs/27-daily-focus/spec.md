@@ -51,7 +51,7 @@ Günlük Odak kişisel, gün-kapsamlı bir çalışma görünümüdür. Gösterm
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** The Daily Focus view derives the current day from a view-local clock and the Account time zone. An explicit URL day takes precedence across clock ticks and visibility changes. The Daily Focus view seam covers current-day and explicit-day navigation.
+- **Client state ownership (#547).** The Daily Focus view derives the current day from a view-local clock and the Account time zone. An explicit URL day takes precedence across clock ticks and visibility changes. The Daily Focus view seam covers current-day and explicit-day navigation. The view test simulates returning to the tab after Account midnight and checks that an explicit day still wins.
 
 - **What a good test is.** Tests observe Daily Focus through its public interface: add/remove membership, day-scoped no rollover, candidate reason and accept/reject, read-only `What happened today?`, and `Close focus` as a non-mutating view. Day-read tests use the profile time zone and assert source-derived Decision, Milestone, Project Release, Production Incident, and Work events, including a next-local-day boundary and typed source navigation. They do not assert calendar-widget internals. Expected values are product rules (membership does not write status; no rollover; candidate is not membership; close does not close Work; the event list does not write source records).
 - **Seam (one).** Daily Focus — the personal day-scoped membership, candidate, day-read, and calm-close interface. Focus Period, Unified Calendar, Backlog, Kanban, and personal shell are counterparts, not this module.

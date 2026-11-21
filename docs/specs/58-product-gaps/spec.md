@@ -42,7 +42,7 @@ Kurucu açık `Record Product Gap` eylemiyle Çalışma Alanı ana kaydı Ürün
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** The Product Gaps route carries applied filters. The Product Gap relation announcement belongs to the current form. Validation remains on its field form. The Product Gap form seam exercises the linked-record picker.
+- **Client state ownership (#547).** The Product Gaps route carries applied filters. The Product Gap relation announcement belongs to the current form. Validation remains on its field form. The Product Gap form seam exercises the linked-record picker. The Product Gap form test verifies that a successful submission clears its relation announcement.
 
 - **Popup lifecycle (#546).** The Dogfooding Summary and Tool Escape seams open the count disclosure and its one-event close form. Closing the event refreshes the displayed drill-down.
 

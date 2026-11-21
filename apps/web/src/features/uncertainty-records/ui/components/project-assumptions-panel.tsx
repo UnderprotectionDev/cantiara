@@ -29,12 +29,14 @@ function AssumptionEditingPanel({
   documentsPending,
   onCancel,
   onSave,
+  writeError,
 }: {
   editing: AssumptionEditing;
   documents?: Document[];
   documentsPending: boolean;
   onCancel: () => void;
   onSave: Save;
+  writeError?: unknown;
 }) {
   const needsEvidenceSnapshot =
     editing.kind === "transition" &&
@@ -57,6 +59,7 @@ function AssumptionEditingPanel({
       onCancel={onCancel}
       onSave={onSave}
       record={editing.record}
+      writeError={writeError}
     />
   );
 }
@@ -72,6 +75,7 @@ export function ProjectAssumptionsView({
   onStartEditing,
   renderEvidenceFlow,
   savedMessage,
+  writeError,
 }: {
   context: AssumptionsContext;
   renderEvidenceFlow?: (recordId: string) => ReactNode;
@@ -87,6 +91,7 @@ export function ProjectAssumptionsView({
   ) => Promise<unknown>;
   onStartEditing?: () => void;
   savedMessage?: string;
+  writeError?: unknown;
 }) {
   const editingSession = useCreateStore(
     undefined as AssumptionEditing | undefined,
@@ -114,7 +119,9 @@ export function ProjectAssumptionsView({
     } else {
       await onSave(draft, record);
     }
-    setEditing(undefined);
+    editingSession.setState((current) =>
+      current === editing ? undefined : current,
+    );
   }
   return (
     <section aria-label="Assumption" className="space-y-5">
@@ -134,6 +141,7 @@ export function ProjectAssumptionsView({
           editing={editing}
           onCancel={() => setEditing(undefined)}
           onSave={save}
+          writeError={writeError}
         />
       ) : null}
       {context.records.length === 0 ? (

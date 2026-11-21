@@ -1,7 +1,11 @@
+// @vitest-environment happy-dom
+
 import type {
   FileAttachment,
   FileAttachmentPreview,
 } from "@cantiara/api/file-attachments";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 
@@ -36,6 +40,64 @@ const attachment: FileAttachment = {
 };
 
 const noopDownload = () => undefined;
+
+test.each(["video", "audio"] as const)(
+  "Loop is local to the current %s source",
+  (kind) => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    function render(versionId: string) {
+      const path = `/api/file-attachments/attachment-1/versions/${versionId}/asset?variant=original`;
+      act(() =>
+        root.render(
+          <FileAttachmentPreviewView
+            assetStatus="ready"
+            assetURL={`blob:http://localhost/${versionId}`}
+            attachment={attachment}
+            onDownload={noopDownload}
+            preview={{
+              attachmentId: attachment.id,
+              downloadPath: path,
+              kind,
+              playback: {
+                autoplay: false,
+                fullscreen: true,
+                loop: "optional",
+                speeds: [0.75, 1, 1.25, 1.5, 2],
+                userInitiated: true,
+              },
+              previewPath: path,
+              status: "available",
+              versionId,
+            }}
+          />,
+        ),
+      );
+    }
+    const media = () => host.querySelector<HTMLMediaElement>(kind);
+    const checkbox = () => host.querySelector<HTMLElement>('[role="checkbox"]');
+    try {
+      render("version-1");
+      expect(media()?.loop).toBe(false);
+      expect(checkbox()?.getAttribute("aria-checked")).toBe("false");
+      act(() =>
+        host.querySelector<HTMLInputElement>('input[type="checkbox"]')?.click(),
+      );
+      expect(checkbox()?.getAttribute("aria-checked")).toBe("true");
+      expect(media()?.loop).toBe(true);
+
+      render("version-2");
+      expect(checkbox()?.getAttribute("aria-checked")).toBe("false");
+      expect(media()?.loop).toBe(false);
+    } finally {
+      act(() => root.unmount());
+      host.remove();
+      vi.unstubAllGlobals();
+    }
+  },
+);
 
 function renderPreview(
   preview: FileAttachmentPreview,

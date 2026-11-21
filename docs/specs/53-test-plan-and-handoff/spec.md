@@ -51,7 +51,7 @@ Kurucu Planlı Test Senaryosunu başlık, amaç, kapsam, önkoşul, beklenen dav
 
 ## Testing Decisions
 
-- **Client state ownership (#547).** Handoff package copying and field announcements are local to the package or form. The Planned Tests and Handoff seam observes the package versions and the current context announcement.
+- **Client state ownership (#547).** Handoff package copying and field announcements are local to the package or form. The Planned Tests and Handoff seam observes the package versions and the current context announcement. The Planned Test form test verifies that successful creation clears the relation announcement.
 
 - **Popup lifecycle (#546).** The Planned Test and Test Handoff web seams drive their existing inline create-version and edit forms. A successful write closes the form and a failed write keeps it available.
 

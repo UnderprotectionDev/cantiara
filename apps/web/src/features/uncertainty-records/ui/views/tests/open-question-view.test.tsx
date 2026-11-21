@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import { ORPCError } from "@orpc/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -8,6 +9,16 @@ import { afterEach, expect, test, vi } from "vitest";
 import { orpc } from "@/utils/orpc";
 import OpenQuestionsSurface from "../../components/open-questions-surface";
 import { OpenQuestionDetail } from "../open-question-view";
+
+const rpc = vi.hoisted(() => ({ answer: vi.fn() }));
+
+vi.mock("@/utils/orpc", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/utils/orpc")>();
+  return {
+    ...actual,
+    client: { transitionProjectSourceRecord: rpc.answer },
+  };
+});
 
 vi.mock("@/components/app-link", () => ({
   AppLink: ({ href, ...props }: { href: string } & Record<string, unknown>) => (
@@ -108,6 +119,87 @@ test("Uncertainty Records keeps historical answer and exact evidence visible whe
   expect(html).toContain("Pilot result");
   expect(html).toContain("Version 1");
   expect(html).not.toContain("<button");
+});
+
+test("a stale Answered conflict cannot lock a different Open Question", async () => {
+  const pending = Promise.withResolvers<never>();
+  rpc.answer.mockReturnValueOnce(pending.promise);
+  const testHost = document.createElement("div");
+  host = testHost;
+  document.body.append(testHost);
+  mountedRoot = createRoot(testHost);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
+  });
+  const { projectId } = record;
+  const first = { ...record, life: "Open" as const, answer: "", rationale: "" };
+  const second = { ...first, id: "question-2", title: "Second Open Question" };
+  queryClient.setQueryData(
+    orpc.openQuestions.queryOptions({ input: { projectId } }).queryKey,
+    { readOnly: false, records: [first, second] },
+  );
+  queryClient.setQueryData(
+    orpc.documents.queryOptions({ input: { projectId } }).queryKey,
+    [],
+  );
+  for (const question of [first, second]) {
+    queryClient.setQueryData(
+      orpc.openQuestionContext.queryOptions({
+        input: { sourceId: question.id, sourceType: "Open Question" },
+      }).queryKey,
+      { evidence: [], readOnly: false },
+    );
+  }
+  function render(selectedId: string) {
+    act(() =>
+      mountedRoot?.render(
+        <QueryClientProvider client={queryClient}>
+          <OpenQuestionsSurface projectId={projectId} selectedId={selectedId} />
+        </QueryClientProvider>,
+      ),
+    );
+  }
+  function click(label: string) {
+    const button = [...testHost.querySelectorAll("button")].find(
+      (item) => item.textContent?.trim() === label,
+    );
+    expect(button?.disabled).toBe(false);
+    act(() => button?.click());
+  }
+  function type(text: string) {
+    const answer =
+      testHost.querySelector<HTMLTextAreaElement>("#question-answer");
+    if (!answer) {
+      throw new Error("No Answer control");
+    }
+    act(() => setTextareaValue(answer, text));
+  }
+  render(first.id);
+  click("Answered");
+  type("First draft");
+  click("Save");
+  await vi.waitFor(() =>
+    expect(rpc.answer).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceId: first.id, answer: "First draft" }),
+    ),
+  );
+
+  render(second.id);
+  expect(testHost.querySelector("#question-answer")).toBeNull();
+  click("Answered");
+  type("Second draft");
+  await act(async () => {
+    pending.reject(new ORPCError("CONFLICT"));
+    await pending.promise.catch(() => undefined);
+  });
+  expect(
+    testHost.querySelector<HTMLTextAreaElement>("#question-answer")?.value,
+  ).toBe("Second draft");
+  expect(
+    testHost.querySelector<HTMLButtonElement>('button[type="submit"]')
+      ?.disabled,
+  ).toBe(false);
+  expect(testHost.querySelector('[role="alert"]')).toBeNull();
 });
 test.each(["Create", "Answered"] as const)(
   "Open Question keeps the %s draft when a background records refresh fails",
