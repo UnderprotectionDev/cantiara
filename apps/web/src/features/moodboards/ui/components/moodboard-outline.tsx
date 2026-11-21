@@ -19,23 +19,15 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import {
-  DndContext,
+  DragDropProvider,
   type DragEndEvent,
   KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+} from "@dnd-kit/react";
+import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { observeElementRect, useVirtualizer } from "@tanstack/react-virtual";
 import { type KeyboardEvent, type ReactNode, useRef } from "react";
+import { pointerDragSensor, serverOrderedSortable } from "@/lib/sortable-order";
 
 /** Above this many rows the outline virtualizes and drops pointer dragging. */
 export const OUTLINE_VIRTUALIZE_THRESHOLD = 150;
@@ -245,33 +237,34 @@ function ItemRow({ context, dragHandle, index, item }: ItemRowProps) {
   );
 }
 
-function SortableItemRow(props: Omit<ItemRowProps, "dragHandle">) {
-  const {
-    attributes,
-    isDragging,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: props.item.id, disabled: props.context.busy });
+function SortableItemRow({
+  sectionIndex,
+  ...props
+}: Omit<ItemRowProps, "dragHandle"> & { sectionIndex: number }) {
+  const group = props.item.sectionKey;
+  const sortable = useSortable({
+    ...serverOrderedSortable,
+    accept: group,
+    disabled: props.context.busy,
+    group,
+    id: props.item.id,
+    index: sectionIndex,
+    type: group,
+  });
   return (
     <li
-      ref={setNodeRef}
-      style={{
-        opacity: isDragging ? 0.6 : undefined,
-        transform: CSS.Transform.toString(transform),
-        transition,
-      }}
+      ref={sortable.ref}
+      style={{ opacity: sortable.isDragging ? 0.6 : undefined }}
     >
       <ItemRow
         {...props}
         dragHandle={
           <button
+            aria-busy={sortable.isDropping}
             aria-label={`Drag ${props.item.label}`}
             className="cursor-grab rounded px-2 py-1 text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing"
+            ref={sortable.handleRef}
             type="button"
-            {...attributes}
-            {...listeners}
           >
             ⋮⋮
           </button>
@@ -340,37 +333,38 @@ function useRovingFocus(
   };
 }
 
+const outlineDragSensors = [pointerDragSensor, KeyboardSensor];
+
 function StaticOutline({
   context,
   rows,
   indexes,
   sectionList,
 }: ReturnType<typeof useOutlineModel>) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
   const container = useRef<HTMLDivElement>(null);
   const onKeyDown = useRovingFocus(container, rows.length, () => undefined);
 
   function onDragEnd(event: DragEndEvent) {
-    if (!event.over || event.active.id === event.over.id) {
+    const { source, target } = event.operation;
+    if (
+      event.canceled ||
+      context.busy ||
+      !isSortable(source) ||
+      !source.group ||
+      !target
+    ) {
       return;
     }
-    const activeId = String(event.active.id);
-    const section = sectionList.find(({ items }) =>
-      items.some(({ id }) => id === activeId),
+    const section = context.sections.get(String(source.group));
+    if (!section) {
+      return;
+    }
+    const next = dropWithinSection(
+      context.order,
+      section.items.map(({ id }) => id),
+      String(source.id),
+      String(target.id),
     );
-    const next = section
-      ? dropWithinSection(
-          context.order,
-          section.items.map(({ id }) => id),
-          activeId,
-          String(event.over.id),
-        )
-      : null;
     if (next) {
       context.onReorder(next);
     }
@@ -380,7 +374,7 @@ function StaticOutline({
     // biome-ignore lint/a11y/noNoninteractiveElementInteractions: Key events bubble from the focusable row buttons to give them roving focus.
     // biome-ignore lint/a11y/noStaticElementInteractions: Key events bubble from the focusable row buttons to give them roving focus.
     <div onKeyDown={onKeyDown} ref={container}>
-      <DndContext onDragEnd={onDragEnd} sensors={sensors}>
+      <DragDropProvider onDragEnd={onDragEnd} sensors={outlineDragSensors}>
         {sectionList.map((section) => (
           <section className="space-y-2" key={section.key}>
             <SectionHeader
@@ -388,30 +382,26 @@ function StaticOutline({
               index={indexes.get(`section:${section.key}`) ?? 0}
               section={section}
             />
-            <SortableContext
-              items={section.items.map(({ id }) => id)}
-              strategy={verticalListSortingStrategy}
+            <ul
+              className="space-y-2"
+              hidden={section.collapsed}
+              id={`moodboard-outline-${section.key}`}
             >
-              <ul
-                className="space-y-2"
-                hidden={section.collapsed}
-                id={`moodboard-outline-${section.key}`}
-              >
-                {section.collapsed
-                  ? null
-                  : section.items.map((item) => (
-                      <SortableItemRow
-                        context={context}
-                        index={indexes.get(`item:${item.id}`) ?? 0}
-                        item={item}
-                        key={item.id}
-                      />
-                    ))}
-              </ul>
-            </SortableContext>
+              {section.collapsed
+                ? null
+                : section.items.map((item, sectionIndex) => (
+                    <SortableItemRow
+                      context={context}
+                      index={indexes.get(`item:${item.id}`) ?? 0}
+                      item={item}
+                      key={item.id}
+                      sectionIndex={sectionIndex}
+                    />
+                  ))}
+            </ul>
           </section>
         ))}
-      </DndContext>
+      </DragDropProvider>
     </div>
   );
 }

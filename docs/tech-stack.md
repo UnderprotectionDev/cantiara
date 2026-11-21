@@ -83,7 +83,7 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: başk
 | TanStack Pacer | Yoğun etkileşim kontrolü; paket `@tanstack/pacer-lite` |
 | TanStack Table | Veri tabloları |
 | TanStack Virtual | Liste sanallaştırma |
-| dnd-kit | Sürükle-bırak etkileşimleri |
+| dnd-kit | Sürükle-bırak etkileşimleri için `@dnd-kit/react` 0.5.3. Sensörler ve duyurular `@dnd-kit/dom`, çarpışma algılama `@dnd-kit/collision`, liste hareketi `@dnd-kit/helpers` üzerinden çalışır. Backlog ve Moodboard Outline, yazma tamamlanana kadar Query sırasını gösterir. Calendar sürükleme önizlemesini `useDragOperation` üzerinden, tarih onay taslağını bileşen ömürlü Store üzerinden okur. Kabul testleri spec 26, 28 ve 50'nin Testing Decisions bölümlerindedir. |
 | React DayPicker | Tarih seçimi |
 | date-fns | Tarih işlemleri |
 

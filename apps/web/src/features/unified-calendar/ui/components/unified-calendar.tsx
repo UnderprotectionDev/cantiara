@@ -1,3 +1,5 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Calendar controls close over the visible Work and date scope.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { WorkDateField, WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
@@ -8,28 +10,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
+import { pointerIntersection } from "@dnd-kit/collision";
 import {
-  type Active,
-  type CollisionDetection,
-  closestCenter,
-  DndContext,
+  DragDropProvider,
   type DragEndEvent,
-  type DragOverEvent,
-  type DragStartEvent,
-  KeyboardCode,
-  type KeyboardCoordinateGetter,
-  KeyboardSensor,
-  type Over,
-  PointerSensor,
-  pointerWithin,
   useDraggable,
+  useDragOperation,
   useDroppable,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
+} from "@dnd-kit/react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
-  addDays,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
@@ -40,9 +30,19 @@ import {
   startOfWeek,
 } from "date-fns";
 import { CalendarDays, GripVertical } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
+import {
+  CALENDAR_DATE_KINDS,
+  type CalendarDateDrag,
+  type CalendarDateKind,
+  calendarDateFromSource,
+  calendarDateFromTarget,
+  calendarDateKindsForSelection,
+  calendarDragPlugins,
+  calendarDragSensors,
+} from "../../lib/calendar-date-drag";
 
 export type CalendarView = "Day" | "Week" | "Month" | "Agenda";
 export type CalendarWork = Pick<
@@ -64,29 +64,6 @@ export interface CalendarDateChange {
   date: string;
   dateField: WorkDateField;
   workId: string;
-}
-
-export const CALENDAR_DATE_KINDS = [
-  { field: "plannedStartDate", label: "Planned start" },
-  { field: "targetDate", label: "Target date" },
-  { field: "reappearDate", label: "Reappear date" },
-] as const satisfies readonly { field: WorkDateField; label: string }[];
-export type CalendarDateKind = (typeof CALENDAR_DATE_KINDS)[number]["field"];
-
-export function calendarDateKindsForSelection(selected: Iterable<string>) {
-  const selectedFields = new Set(selected);
-  return CALENDAR_DATE_KINDS.filter(({ field }) => selectedFields.has(field));
-}
-
-const CALENDAR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-interface CalendarDateDrag {
-  baseRevision: number;
-  dateField: WorkDateField;
-  label: (typeof CALENDAR_DATE_KINDS)[number]["label"];
-  oldDate: string;
-  workId: string;
-  workTitle: string;
 }
 
 function dateSpan(work: CalendarWork) {
@@ -123,111 +100,10 @@ function visibleDays(
   );
 }
 
-const calendarCollisionDetection: CollisionDetection = (args) => {
-  const dayTargets = args.droppableContainers.filter(
-    ({ data }) => typeof data.current?.date === "string",
-  );
-  const dayTargetArgs = { ...args, droppableContainers: dayTargets };
-  if (args.pointerCoordinates) {
-    return pointerWithin(dayTargetArgs);
-  }
-  return closestCenter(dayTargetArgs);
-};
-
-function calendarDateFromActive(active: Active): CalendarDateDrag | null {
-  const value = active.data.current?.calendarDate;
-  return typeof value === "object" && value !== null
-    ? (value as CalendarDateDrag)
-    : null;
-}
-
-function calendarDateFromOver(over: Over | null) {
-  const date = over?.data.current?.date;
-  return typeof date === "string" && CALENDAR_DATE_PATTERN.test(date)
-    ? date
-    : null;
-}
-
-const calendarKeyboardCoordinates: KeyboardCoordinateGetter = (
-  event,
-  { context },
-) => {
-  let dayOffset: number;
-  switch (event.code) {
-    case KeyboardCode.Left:
-      dayOffset = -1;
-      break;
-    case KeyboardCode.Right:
-      dayOffset = 1;
-      break;
-    case KeyboardCode.Up:
-      dayOffset = -7;
-      break;
-    case KeyboardCode.Down:
-      dayOffset = 7;
-      break;
-    default:
-      return;
-  }
-  event.preventDefault();
-
-  const { active, collisionRect, droppableContainers, droppableRects, over } =
-    context;
-  if (!(active && collisionRect)) {
-    return;
-  }
-
-  const [closestDayCollision] = calendarCollisionDetection({
-    active,
-    collisionRect,
-    droppableContainers: droppableContainers.getEnabled(),
-    droppableRects,
-    pointerCoordinates: null,
-  });
-  const closestDay = closestDayCollision
-    ? droppableContainers.get(closestDayCollision.id)
-    : undefined;
-  const closestDate = closestDay?.data.current?.date;
-  const currentDate =
-    calendarDateFromOver(over) ??
-    (typeof closestDate === "string" && CALENDAR_DATE_PATTERN.test(closestDate)
-      ? closestDate
-      : null);
-  if (!currentDate) {
-    return;
-  }
-
-  const nextDate = format(
-    addDays(parseISO(currentDate), dayOffset),
-    "yyyy-MM-dd",
-  );
-  const nextDayId = `calendar-day:${nextDate}`;
-  const nextDay = droppableContainers.get(nextDayId);
-  const nextDayRect = nextDay ? droppableRects.get(nextDay.id) : undefined;
-  if (!nextDayRect) {
-    return;
-  }
-
-  return {
-    x: nextDayRect.left + (nextDayRect.width - collisionRect.width) / 2,
-    y: nextDayRect.top + (nextDayRect.height - collisionRect.height) / 2,
-  };
-};
-
-function calendarDateChangeFromDragEnd(
-  event: DragEndEvent,
-): CalendarDateChange | null {
-  const date = calendarDateFromOver(event.over);
-  const dateChange = calendarDateFromActive(event.active);
-  if (!(date && dateChange && date !== dateChange.oldDate)) {
-    return null;
-  }
-  return {
-    baseRevision: dateChange.baseRevision,
-    date,
-    dateField: dateChange.dateField,
-    workId: dateChange.workId,
-  };
+interface CalendarDateDraft {
+  nextDate: string;
+  source: CalendarDateDrag;
+  submitting: boolean;
 }
 
 function CalendarDateControl({
@@ -235,7 +111,6 @@ function CalendarDateControl({
   disabled,
   label,
   onDatePreview,
-  onDateChange,
   view,
   work,
 }: {
@@ -243,7 +118,6 @@ function CalendarDateControl({
   disabled: boolean;
   label: CalendarDateDrag["label"];
   onDatePreview?: (date: CalendarDateDrag, nextDate: string) => void;
-  onDateChange?: (change: CalendarDateChange) => void;
   view: CalendarView;
   work: CalendarWork;
 }) {
@@ -257,57 +131,32 @@ function CalendarDateControl({
     workTitle: work.title,
   };
   const { oldDate } = dragData;
-  const handleDateSelect = useCallback(
-    (date: Date | undefined) => {
-      if (!date) {
-        return;
-      }
-      const nextDate = format(date, "yyyy-MM-dd");
-      if (nextDate === oldDate) {
-        popoverHandle.close();
-        return;
-      }
-      popoverHandle.close();
-      onDatePreview?.(
-        {
-          baseRevision: work.revision,
-          dateField,
-          label,
-          oldDate,
-          workId: work.id,
-          workTitle: work.title,
-        },
-        nextDate,
-      );
-    },
-    [
-      dateField,
-      label,
-      oldDate,
-      onDatePreview,
-      popoverHandle,
-      work.id,
-      work.revision,
-      work.title,
-    ],
-  );
-  const { attributes, isDragging, listeners, setNodeRef, transform } =
-    useDraggable({
-      data: { calendarDate: dragData },
-      disabled:
-        disabled || !onDateChange || view === "Day" || view === "Agenda",
-      id: `calendar-date:${work.id}:${dateField}`,
-    });
+  function handleDateSelect(date: Date | undefined) {
+    if (!date) {
+      return;
+    }
+    popoverHandle.close();
+    const nextDate = format(date, "yyyy-MM-dd");
+    if (nextDate !== oldDate) {
+      onDatePreview?.(dragData, nextDate);
+    }
+  }
+  const draggable = useDraggable({
+    data: { calendarDate: dragData },
+    disabled: disabled || !onDatePreview || view === "Day" || view === "Agenda",
+    id: `calendar-date:${work.id}:${dateField}:${work.revision}`,
+    type: "calendar-date",
+  });
 
   if (view === "Day" || view === "Agenda") {
     return (
       <Popover handle={popoverHandle}>
         <PopoverTrigger
-          disabled={disabled || !onDateChange}
+          disabled={disabled || !onDatePreview}
           render={
             <Button
               aria-label={`${label} for ${work.title}`}
-              disabled={disabled || !onDateChange}
+              disabled={disabled || !onDatePreview}
               size="icon"
               type="button"
               variant="outline"
@@ -332,15 +181,10 @@ function CalendarDateControl({
     <button
       aria-label={`${label} for ${work.title}`}
       className="flex size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
-      disabled={disabled || !onDateChange}
-      ref={setNodeRef}
-      style={{
-        opacity: isDragging ? 0.45 : undefined,
-        transform: CSS.Translate.toString(transform),
-      }}
+      disabled={disabled || !onDatePreview}
+      ref={draggable.ref}
+      style={{ opacity: draggable.isDragging ? 0.45 : undefined }}
       type="button"
-      {...attributes}
-      {...listeners}
     >
       <GripVertical aria-hidden="true" className="size-4" />
     </button>
@@ -352,7 +196,6 @@ function CalendarDateMark({
   disabled,
   label,
   onDatePreview,
-  onDateChange,
   projectNames,
   selectedProjectId,
   view,
@@ -362,7 +205,6 @@ function CalendarDateMark({
   disabled: boolean;
   label: CalendarDateDrag["label"];
   onDatePreview?: (date: CalendarDateDrag, nextDate: string) => void;
-  onDateChange?: (change: CalendarDateChange) => void;
   projectNames: ReadonlyMap<string, string>;
   selectedProjectId: string;
   view: CalendarView;
@@ -374,7 +216,6 @@ function CalendarDateMark({
         dateField={dateField}
         disabled={disabled}
         label={label}
-        onDateChange={onDateChange}
         onDatePreview={onDatePreview}
         view={view}
         work={work}
@@ -408,7 +249,6 @@ function CalendarDaySection({
   disabled,
   formattingPreferences,
   onDatePreview,
-  onDateChange,
   projectNames,
   ranges,
   selectedProjectId,
@@ -419,7 +259,6 @@ function CalendarDaySection({
   disabled: boolean;
   formattingPreferences: AccountPreferences;
   onDatePreview?: (date: CalendarDateDrag, nextDate: string) => void;
-  onDateChange?: (change: CalendarDateChange) => void;
   projectNames: ReadonlyMap<string, string>;
   ranges: readonly CalendarWork[];
   selectedProjectId: string;
@@ -430,7 +269,9 @@ function CalendarDaySection({
   }[];
   view: CalendarView;
 }) {
-  const { isOver, setNodeRef } = useDroppable({
+  const { isDropTarget, ref } = useDroppable({
+    accept: "calendar-date",
+    collisionDetector: pointerIntersection,
     data: { date: day },
     id: `calendar-day:${day}`,
   });
@@ -448,10 +289,12 @@ function CalendarDaySection({
     <section
       aria-label={formattedDate}
       className={`min-h-28 rounded-lg border bg-card/40 p-3 ${
-        isOver ? "border-primary ring-2 ring-primary/40" : "border-border/70"
+        isDropTarget
+          ? "border-primary ring-2 ring-primary/40"
+          : "border-border/70"
       }`}
       data-calendar-day={day}
-      ref={setNodeRef}
+      ref={ref}
     >
       <h2 className="mb-2 border-b border-border/60 pb-2 text-sm font-medium">
         {weekdayFormatter.format(new Date(day))} {formattedDate}
@@ -484,7 +327,6 @@ function CalendarDaySection({
               disabled={disabled}
               key={`${work.id}:${dateField}`}
               label={label}
-              onDateChange={onDateChange}
               onDatePreview={onDatePreview}
               projectNames={projectNames}
               selectedProjectId={selectedProjectId}
@@ -604,7 +446,6 @@ function calendarRangesForDay(
 
 function CalendarAgenda({
   disabled,
-  onDateChange,
   onDatePreview,
   preferences,
   projectNames,
@@ -612,8 +453,7 @@ function CalendarAgenda({
   selectedProjectId,
 }: {
   disabled: boolean;
-  onDateChange?: (change: CalendarDateChange) => void;
-  onDatePreview: (date: CalendarDateDrag, nextDate: string) => void;
+  onDatePreview?: (date: CalendarDateDrag, nextDate: string) => void;
   preferences: AccountPreferences;
   projectNames: ReadonlyMap<string, string>;
   rows: readonly CalendarAgendaRow[];
@@ -640,7 +480,6 @@ function CalendarAgenda({
                 dateField={field}
                 disabled={disabled}
                 label={label}
-                onDateChange={onDateChange}
                 onDatePreview={onDatePreview}
                 view="Agenda"
                 work={work}
@@ -672,20 +511,21 @@ function CalendarAgenda({
 }
 
 function CalendarDatePreview({
-  date,
-  nextDate,
+  disabled,
+  draft,
   onCancel,
   onConfirm,
   preferences,
-  requiresConfirmation,
 }: {
-  date: CalendarDateDrag | null;
-  nextDate: string | null;
+  disabled: boolean;
+  draft: CalendarDateDraft | null;
   onCancel: () => void;
-  onConfirm: () => void;
+  onConfirm: (draft: CalendarDateDraft) => void;
   preferences: AccountPreferences;
-  requiresConfirmation: boolean;
 }) {
+  const { source, target } = useDragOperation();
+  const date = source ? calendarDateFromSource(source) : draft?.source;
+  const nextDate = source ? calendarDateFromTarget(target) : draft?.nextDate;
   if (!(date && nextDate && nextDate !== date.oldDate)) {
     return null;
   }
@@ -696,12 +536,23 @@ function CalendarDatePreview({
         {formatAccountDate(date.oldDate, preferences)} →{" "}
         {formatAccountDate(nextDate, preferences)}
       </p>
-      {requiresConfirmation ? (
+      {!source && draft ? (
         <div className="mt-2 flex gap-2">
-          <Button onClick={onConfirm} size="sm" type="button">
+          <Button
+            disabled={disabled || draft.submitting}
+            onClick={() => onConfirm(draft)}
+            size="sm"
+            type="button"
+          >
             Save
           </Button>
-          <Button onClick={onCancel} size="sm" type="button" variant="outline">
+          <Button
+            disabled={disabled || draft.submitting}
+            onClick={onCancel}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
             Cancel
           </Button>
         </div>
@@ -722,7 +573,7 @@ export default function UnifiedCalendar({
   works,
 }: {
   disabled?: boolean;
-  onDateChange?: (change: CalendarDateChange) => void;
+  onDateChange?: (change: CalendarDateChange) => Promise<unknown> | undefined;
   preferences: AccountPreferences;
   projects: readonly { id: string; name: string }[];
   selectedDate: string;
@@ -731,47 +582,13 @@ export default function UnifiedCalendar({
   view: CalendarView;
   works: readonly CalendarWork[];
 }) {
-  const [draggedDate, setDraggedDate] = useState<CalendarDateDrag | null>(null);
-  const [previewDate, setPreviewDate] = useState<string | null>(null);
-  const [previewRequiresConfirmation, setPreviewRequiresConfirmation] =
-    useState(false);
-  const cancelDrag = useCallback(() => {
-    setDraggedDate(null);
-    setPreviewDate(null);
-    setPreviewRequiresConfirmation(false);
-  }, []);
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const change = calendarDateChangeFromDragEnd(event);
-      cancelDrag();
-      if (change) {
-        onDateChange?.(change);
-      }
-    },
-    [cancelDrag, onDateChange],
+  const draftStore = useCreateStore<CalendarDateDraft | null>(null);
+  const draft = useSelector(draftStore);
+  const dragPlugins = useMemo(
+    () => calendarDragPlugins(preferences),
+    [preferences],
   );
-  const handleDatePreview = useCallback(
-    (dateChange: CalendarDateDrag, nextDate: string) => {
-      setDraggedDate(dateChange);
-      setPreviewDate(nextDate);
-      setPreviewRequiresConfirmation(true);
-    },
-    [],
-  );
-  const handleDragOver = useCallback(({ over }: DragOverEvent) => {
-    setPreviewDate(calendarDateFromOver(over));
-  }, []);
-  const handleDragStart = useCallback(({ active }: DragStartEvent) => {
-    setDraggedDate(calendarDateFromActive(active));
-    setPreviewDate(null);
-    setPreviewRequiresConfirmation(false);
-  }, []);
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: calendarKeyboardCoordinates,
-    }),
-  );
+  useEffect(() => () => draftStore.setState(() => null), [draftStore]);
   const projectNames = new Map(projects.map(({ id, name }) => [id, name]));
   const scopedWorks = works.filter(
     (work) =>
@@ -779,47 +596,83 @@ export default function UnifiedCalendar({
       (selectedProjectId === "all" || work.projectId === selectedProjectId),
   );
   const visibleKinds = calendarDateKindsForSelection(selectedDateKinds);
+  function isCurrentSource(source: CalendarDateDrag) {
+    return (
+      visibleKinds.some(({ field }) => field === source.dateField) &&
+      scopedWorks.some(
+        (work) =>
+          work.id === source.workId &&
+          work.revision === source.baseRevision &&
+          work[source.dateField] === source.oldDate,
+      )
+    );
+  }
+  const currentDraft = draft && isCurrentSource(draft.source) ? draft : null;
+  useEffect(() => {
+    if (draft && !currentDraft) {
+      draftStore.setState((current) => (current === draft ? null : current));
+    }
+  }, [currentDraft, draft, draftStore]);
+
+  function clearDraft() {
+    draftStore.setState(() => null);
+  }
+
+  function previewDate(source: CalendarDateDrag, nextDate: string) {
+    draftStore.setState(() => ({ source, nextDate, submitting: false }));
+  }
+
+  async function saveDate(submitted: CalendarDateDraft) {
+    const { source, nextDate } = submitted;
+    if (
+      disabled ||
+      !onDateChange ||
+      !isCurrentSource(source) ||
+      submitted.submitting ||
+      draftStore.get() !== submitted
+    ) {
+      return;
+    }
+    const attempt = { ...submitted, submitting: true };
+    draftStore.setState(() => attempt);
+    try {
+      await onDateChange({
+        baseRevision: source.baseRevision,
+        date: nextDate,
+        dateField: source.dateField,
+        workId: source.workId,
+      });
+      draftStore.setState((current) => (current === attempt ? null : current));
+    } catch {
+      // The write reports its error. Keep this proposal available for retry.
+      draftStore.setState((current) =>
+        current === attempt ? submitted : current,
+      );
+    }
+  }
+
+  async function handleDragEnd({ canceled, operation }: DragEndEvent) {
+    const source = calendarDateFromSource(operation.source);
+    const nextDate = calendarDateFromTarget(operation.target);
+    if (canceled || !source || !nextDate || nextDate === source.oldDate) {
+      clearDraft();
+      return;
+    }
+    if (!isCurrentSource(source) || disabled || !onDateChange) {
+      return;
+    }
+    const dropped = { source, nextDate, submitting: false };
+    draftStore.setState(() => dropped);
+    await saveDate(dropped);
+  }
+
   const hasStartAndTargetKinds =
     selectedDateKinds.includes("plannedStartDate") &&
     selectedDateKinds.includes("targetDate");
-  const agendaRows = calendarAgendaRows(
-    scopedWorks,
-    visibleKinds,
-    selectedDate,
-    preferences.firstDayOfWeek,
-  );
-
-  if (view === "Agenda") {
-    return (
-      <DndContext
-        collisionDetection={calendarCollisionDetection}
-        onDragCancel={cancelDrag}
-        onDragEnd={handleDragEnd}
-        onDragOver={handleDragOver}
-        onDragStart={handleDragStart}
-        sensors={sensors}
-      >
-        <CalendarDatePreview
-          date={draggedDate}
-          nextDate={previewDate}
-          onCancel={cancelDrag}
-          onConfirm={confirmDatePreview}
-          preferences={preferences}
-          requiresConfirmation={previewRequiresConfirmation}
-        />
-        <CalendarAgenda
-          disabled={disabled}
-          onDateChange={onDateChange}
-          onDatePreview={handleDatePreview}
-          preferences={preferences}
-          projectNames={projectNames}
-          rows={agendaRows}
-          selectedProjectId={selectedProjectId}
-        />
-      </DndContext>
-    );
-  }
-  const days = visibleDays(selectedDate, view, preferences.firstDayOfWeek);
+  const days =
+    view === "Agenda"
+      ? []
+      : visibleDays(selectedDate, view, preferences.firstDayOfWeek);
   const firstVisibleDay = days[0] ?? selectedDate;
   const lastVisibleDay = days.at(-1) ?? selectedDate;
   const monthLeadingDays = calendarMonthLeadingDayCount(
@@ -842,118 +695,82 @@ export default function UnifiedCalendar({
     lastVisibleDay,
   );
 
-  function announceDate(
-    date: CalendarDateDrag | null,
-    nextDate?: string | null,
-  ) {
-    if (!date) {
-      return "Calendar date was not moved.";
-    }
-    const oldValue = formatAccountDate(date.oldDate, preferences);
-    if (nextDate) {
-      return `${date.label} for ${date.workTitle}: ${oldValue} to ${formatAccountDate(nextDate, preferences)}.`;
-    }
-    return `${date.label} for ${date.workTitle}, ${oldValue}. Use the arrow keys to preview a date, Space to drop, or Escape to cancel.`;
-  }
-
-  function confirmDatePreview() {
-    if (!(draggedDate && previewDate && previewDate !== draggedDate.oldDate)) {
-      cancelDrag();
-      return;
-    }
-    onDateChange?.({
-      baseRevision: draggedDate.baseRevision,
-      date: previewDate,
-      dateField: draggedDate.dateField,
-      workId: draggedDate.workId,
-    });
-    cancelDrag();
-  }
-
   return (
-    <DndContext
-      accessibility={{
-        announcements: {
-          onDragCancel: ({ active }) =>
-            `${announceDate(calendarDateFromActive(active))} Cancelled.`,
-          onDragEnd: (event) =>
-            announceDate(
-              calendarDateFromActive(event.active),
-              calendarDateFromOver(event.over),
-            ),
-          onDragOver: (event) =>
-            announceDate(
-              calendarDateFromActive(event.active),
-              calendarDateFromOver(event.over),
-            ),
-          onDragStart: ({ active }) =>
-            announceDate(calendarDateFromActive(active)),
-        },
-        screenReaderInstructions: {
-          draggable:
-            "Press Space to pick up this date. Use the arrow keys to preview another day. Press Space to drop or Escape to cancel.",
-        },
-      }}
-      collisionDetection={calendarCollisionDetection}
-      onDragCancel={cancelDrag}
+    <DragDropProvider
       onDragEnd={handleDragEnd}
-      onDragOver={handleDragOver}
-      onDragStart={handleDragStart}
-      sensors={sensors}
+      onDragStart={clearDraft}
+      plugins={dragPlugins}
+      sensors={calendarDragSensors}
     >
-      {hasVisibleDatedWork ? null : (
-        <p className="mb-4 text-sm text-muted-foreground">
-          No dated Work in this Calendar view.
-        </p>
-      )}
       <CalendarDatePreview
-        date={draggedDate}
-        nextDate={previewDate}
-        onCancel={cancelDrag}
-        onConfirm={confirmDatePreview}
+        disabled={disabled}
+        draft={currentDraft}
+        onCancel={clearDraft}
+        onConfirm={saveDate}
         preferences={preferences}
-        requiresConfirmation={previewRequiresConfirmation}
       />
-      <section
-        aria-label={`${view} Calendar`}
-        className={
-          view === "Day"
-            ? "grid gap-3"
-            : "grid grid-cols-1 gap-2 sm:grid-cols-7"
-        }
-      >
-        {monthLeadingDays > 0 ? (
-          <div
-            aria-hidden="true"
-            className="hidden sm:block"
-            style={{ gridColumn: `span ${monthLeadingDays}` }}
-          />
-        ) : null}
-        {days.map((day) => {
-          const marks = calendarMarksForDay(scopedWorks, visibleKinds, day);
-          const ranges = calendarRangesForDay(
-            scopedSpans,
-            day,
-            view,
-            hasStartAndTargetKinds,
-          );
-          return (
-            <CalendarDaySection
-              day={day}
-              disabled={disabled}
-              formattingPreferences={preferences}
-              key={day}
-              marks={marks}
-              onDateChange={onDateChange}
-              onDatePreview={handleDatePreview}
-              projectNames={projectNames}
-              ranges={ranges}
-              selectedProjectId={selectedProjectId}
-              view={view}
-            />
-          );
-        })}
-      </section>
-    </DndContext>
+      {view === "Agenda" ? (
+        <CalendarAgenda
+          disabled={disabled}
+          onDatePreview={onDateChange ? previewDate : undefined}
+          preferences={preferences}
+          projectNames={projectNames}
+          rows={calendarAgendaRows(
+            scopedWorks,
+            visibleKinds,
+            selectedDate,
+            preferences.firstDayOfWeek,
+          )}
+          selectedProjectId={selectedProjectId}
+        />
+      ) : (
+        <>
+          {hasVisibleDatedWork ? null : (
+            <p className="mb-4 text-sm text-muted-foreground">
+              No dated Work in this Calendar view.
+            </p>
+          )}
+          <section
+            aria-label={`${view} Calendar`}
+            className={
+              view === "Day"
+                ? "grid gap-3"
+                : "grid grid-cols-1 gap-2 sm:grid-cols-7"
+            }
+          >
+            {monthLeadingDays > 0 ? (
+              <div
+                aria-hidden="true"
+                className="hidden sm:block"
+                style={{ gridColumn: `span ${monthLeadingDays}` }}
+              />
+            ) : null}
+            {days.map((day) => {
+              const marks = calendarMarksForDay(scopedWorks, visibleKinds, day);
+              const ranges = calendarRangesForDay(
+                scopedSpans,
+                day,
+                view,
+                hasStartAndTargetKinds,
+              );
+              return (
+                <CalendarDaySection
+                  day={day}
+                  disabled={disabled}
+                  formattingPreferences={preferences}
+                  key={day}
+                  marks={marks}
+                  onDatePreview={onDateChange ? previewDate : undefined}
+                  projectNames={projectNames}
+                  ranges={ranges}
+                  selectedProjectId={selectedProjectId}
+                  view={view}
+                />
+              );
+            })}
+          </section>
+        </>
+      )}
+    </DragDropProvider>
   );
 }

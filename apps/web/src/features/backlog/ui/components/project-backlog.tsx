@@ -23,23 +23,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
+import { closestCenter } from "@dnd-kit/collision";
+import { Accessibility, type DragDropManagerInput } from "@dnd-kit/dom";
+import { move } from "@dnd-kit/helpers";
 import {
-  closestCenter,
-  DndContext,
+  DragDropProvider,
   type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
   KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+} from "@dnd-kit/react";
+import { useSortable } from "@dnd-kit/react/sortable";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
@@ -56,6 +50,7 @@ import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/
 import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
+import { pointerDragSensor, serverOrderedSortable } from "@/lib/sortable-order";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
 import { useViewClock } from "@/lib/use-view-clock";
 import { client, orpc } from "@/utils/orpc";
@@ -65,15 +60,54 @@ import {
   presentBacklog,
 } from "../../lib/backlog-presentation";
 
+const backlogDragSensors = [pointerDragSensor, KeyboardSensor];
+
+function workName(item: { data: Record<string, unknown> }) {
+  return typeof item.data.title === "string" ? item.data.title : "Work";
+}
+
+const backlogDragPlugins: DragDropManagerInput["plugins"] = (defaults) => [
+  ...defaults.filter((plugin) => plugin !== Accessibility),
+  Accessibility.configure({
+    announcements: {
+      dragstart({ operation: { source } }: DragStartEvent) {
+        return source ? `Picked up ${workName(source)}.` : undefined;
+      },
+      dragover({ operation: { source, target } }: DragOverEvent) {
+        if (!source || source.id === target?.id) {
+          return;
+        }
+        return target
+          ? `${workName(source)} is over ${workName(target)}.`
+          : `${workName(source)} is outside the Backlog.`;
+      },
+      dragend(event: DragEndEvent) {
+        const { source, target } = event.operation;
+        if (!source) {
+          return;
+        }
+        if (event.canceled) {
+          return `Moving ${workName(source)} was cancelled.`;
+        }
+        return target && source.id !== target.id
+          ? `${workName(source)} was dropped over ${workName(target)}.`
+          : `${workName(source)} was not moved.`;
+      },
+    },
+  }),
+];
+
 function BacklogCard({
   canReorder,
   formattingPreferences,
+  index,
   projectId,
   profile,
   work,
 }: {
   canReorder: boolean;
   formattingPreferences: AccountPreferences;
+  index?: number;
   projectId: string;
   profile: WorkProfile | undefined;
   work: BacklogWork;
@@ -106,35 +140,31 @@ function BacklogCard({
     ? saveReappearDate.variables?.reappearDate
     : work.reappearDate;
   const selectedDate = reappearDate ? parseISO(reappearDate) : undefined;
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: work.id, disabled: !canReorder });
+  const sortable = useSortable({
+    ...serverOrderedSortable,
+    collisionDetector: closestCenter,
+    data: { title: work.title },
+    disabled: !canReorder,
+    id: work.id,
+    index: index ?? 0,
+  });
   return (
     <li
       className="flex items-center rounded-lg border border-border/70 bg-card/35 transition-colors hover:bg-card/70 motion-reduce:transition-none"
-      ref={setNodeRef}
-      style={{
-        opacity: isDragging ? 0.6 : undefined,
-        transform: CSS.Transform.toString(transform),
-        transition,
-      }}
+      ref={index === undefined ? undefined : sortable.ref}
+      style={{ opacity: sortable.isDragging ? 0.6 : undefined }}
     >
-      {canReorder ? (
+      {index === undefined ? null : (
         <button
+          aria-busy={sortable.isDropping}
           aria-label={`Drag ${work.title}`}
           className="ml-2 cursor-grab rounded px-2 py-3 text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing"
+          ref={sortable.handleRef}
           type="button"
-          {...attributes}
-          {...listeners}
         >
           ⋮⋮
         </button>
-      ) : null}
+      )}
       <Link
         className="flex min-h-12 min-w-0 flex-1 items-center gap-4 rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         hash={workRecordHash(work.id)}
@@ -305,12 +335,6 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   const preferencesQuery = useQuery(orpc.accountPreferences.queryOptions());
   const now = useViewClock();
   const priorityQuery = usePriorityMetricProjectValues(projectId).query;
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
   const updateOrder = usePreparedMutation(
     orpc.updateBacklogOrder.mutationOptions({
       meta: { onlineWrite: true },
@@ -424,40 +448,35 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   );
   const { saved, revision: presentationRevision } = presentationQuery.data;
   const savedDetail = savedPresentationDetail(saved, enabledMetrics);
-  const canReorder = presentation === "Manual order" && !updateOrder.isPending;
-  const workName = (id: string | number) =>
-    works.find((work) => work.id === id)?.title ?? "Work";
-
+  const manualOrder = presentation === "Manual order";
+  const canReorder = manualOrder && !updateOrder.isPending;
   const backlogRevision = orderQuery.data?.revision;
   function onDragEnd(event: DragEndEvent) {
+    const { source, target } = event.operation;
+    const currentIds = new Set(current.map(({ id }) => id));
     if (
       backlogRevision === undefined ||
-      !(canReorder && event.over) ||
-      event.active.id === event.over.id
+      !canReorder ||
+      event.canceled ||
+      !source ||
+      !target ||
+      source.id === target.id ||
+      !currentIds.has(String(source.id)) ||
+      !currentIds.has(String(target.id))
     ) {
       return;
     }
-    const from = current.findIndex((work) => work.id === event.active.id);
-    const to = current.findIndex((work) => work.id === event.over?.id);
-    if (from < 0 || to < 0) {
-      return;
-    }
-    const moved = arrayMove(
-      current.map((work) => work.id),
-      from,
-      to,
-    );
-    const currentIds = new Set(moved);
+    const moved = move([...currentIds], event);
     let position = 0;
     updateOrder.mutate({
       baseRevision: backlogRevision,
-      workIds: works.map((work) => {
-        if (!currentIds.has(work.id)) {
-          return work.id;
+      workIds: works.map(({ id }) => {
+        if (!currentIds.has(id)) {
+          return id;
         }
-        const id = moved[position] ?? work.id;
+        const nextId = moved[position] ?? id;
         position += 1;
-        return id;
+        return nextId;
       }),
     });
   }
@@ -539,44 +558,25 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
           Backlog order could not be saved. Try again.
         </p>
       ) : null}
-      <DndContext
-        accessibility={{
-          announcements: {
-            onDragStart: ({ active }) => `Picked up ${workName(active.id)}.`,
-            onDragOver: ({ active, over }) =>
-              over
-                ? `${workName(active.id)} is over ${workName(over.id)}.`
-                : `${workName(active.id)} is outside the Backlog.`,
-            onDragEnd: ({ active, over }) =>
-              over
-                ? `${workName(active.id)} was dropped over ${workName(over.id)}.`
-                : `${workName(active.id)} was not moved.`,
-            onDragCancel: ({ active }) =>
-              `Moving ${workName(active.id)} was cancelled.`,
-          },
-        }}
-        collisionDetection={closestCenter}
+      <DragDropProvider
         onDragEnd={onDragEnd}
-        sensors={sensors}
+        plugins={backlogDragPlugins}
+        sensors={backlogDragSensors}
       >
-        <SortableContext
-          items={current.map((work) => work.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <ol aria-label="Backlog" className="space-y-2">
-            {current.map((work) => (
-              <BacklogCard
-                canReorder={canReorder}
-                formattingPreferences={formattingPreferences}
-                key={work.id}
-                profile={profilesById.get(work.id)}
-                projectId={projectId}
-                work={work}
-              />
-            ))}
-          </ol>
-        </SortableContext>
-      </DndContext>
+        <ol aria-label="Backlog" className="space-y-2">
+          {current.map((work, index) => (
+            <BacklogCard
+              canReorder={canReorder}
+              formattingPreferences={formattingPreferences}
+              index={manualOrder ? index : undefined}
+              key={work.id}
+              profile={profilesById.get(work.id)}
+              projectId={projectId}
+              work={work}
+            />
+          ))}
+        </ol>
+      </DragDropProvider>
       <DeferredBacklog
         deferred={deferred}
         formattingPreferences={formattingPreferences}
