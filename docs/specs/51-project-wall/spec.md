@@ -54,6 +54,8 @@ Kurucu birden fazla düz, adlandırılmış Proje Duvarı tutar. Kalıcı öğel
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Project Wall view test switches walls with Presentation Mode open and expects the tools to return. Presentation and Outline inspection stay within their wall session. The canvas seam retries a failed Undo Auto-layout and keeps live controlled node interactions during model updates.
+
 - **Query write lifecycle (#544).** Personal view saves carry the scheduled Project and Wall as mutation variables. The Client Shell gate protects the write and the scoped viewport query carries the latest collapse and position before the save finishes. The Wall viewport test checks that cache update and a late flush on switching. Card moves update and roll back their own Wall query. The relation form retries the reviewed input after a failure and the Snapshot form reads the selected scope through Query.
 
 - **Persistent relation retry (#544).** The Project Wall relation seam keeps the original command for a repeated submission of the reviewed visual link and refreshes that wall after the write.

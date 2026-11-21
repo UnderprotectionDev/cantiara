@@ -11,7 +11,7 @@ import {
 } from "@cantiara/ui/components/dialog";
 import { Label } from "@cantiara/ui/components/label";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { invalidateSmartCollectionMembership, orpc } from "@/utils/orpc";
@@ -37,7 +37,20 @@ export default function DocumentsSurface({
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [archived, setArchived] = useState(false);
+  const archived = useSearch({
+    strict: false,
+    select: (search) => search.documentsArchived === true,
+  });
+  const baseHash = projectId === null ? "" : "documents";
+  const selectDocument = (id: string | null, showArchived = archived) =>
+    navigate({
+      hash: id ? documentRecordHash(id) : baseHash,
+      search: (search) => ({
+        ...search,
+        documentsArchived: showArchived || undefined,
+      }),
+      to: ".",
+    }).catch(() => undefined);
   const options = orpc.documents.queryOptions({
     input: { projectId, archived },
   });
@@ -50,27 +63,12 @@ export default function DocumentsSurface({
     orpc.documents.queryOptions({ input: { projectId, archived: !archived } }),
   );
   const allDocuments = [...(documents.data ?? []), ...(counterpart.data ?? [])];
-  const [selectedId, setSelectedId] = useState<string | null>(
-    selectedDocumentId ?? null,
-  );
+  const selectedId = selectedDocumentId ?? null;
   const [createHandle] = useState(createDialogHandle);
-  const selected =
-    documents.data?.find((item) => item.id === selectedId) ??
-    (selectedId === selectedDocumentId
-      ? counterpart.data?.find((item) => item.id === selectedId)
-      : undefined);
+  const selected = allDocuments.find((item) => item.id === selectedId);
 
   useEffect(() => {
-    if (
-      selectedDocumentId &&
-      documents.data?.some(({ id }) => id === selectedDocumentId)
-    ) {
-      setSelectedId(selectedDocumentId);
-    }
-  }, [documents.data, selectedDocumentId]);
-
-  useEffect(() => {
-    if (!selectedDocumentId || selectedId !== selectedDocumentId) {
+    if (!selectedDocumentId) {
       return;
     }
     const frame = window.requestAnimationFrame(() => {
@@ -79,7 +77,7 @@ export default function DocumentsSurface({
         ?.scrollIntoView({ block: "start", behavior: "auto" });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [selectedDocumentId, selectedId]);
+  }, [selectedDocumentId]);
 
   return (
     <section aria-label="Documents" className="space-y-6">
@@ -90,8 +88,7 @@ export default function DocumentsSurface({
             checked={archived}
             id="documents-archived"
             onCheckedChange={(checked) => {
-              setArchived(Boolean(checked));
-              setSelectedId(null);
+              selectDocument(null, checked);
             }}
           />
           Archived
@@ -102,14 +99,7 @@ export default function DocumentsSurface({
       </header>
       <DocumentTemplatesSurface
         onCreated={async (created) => {
-          setSelectedId(created.id);
-          if (projectId === null) {
-            navigate({
-              hash: documentRecordHash(created.id),
-              search: true,
-              to: ".",
-            }).catch(() => undefined);
-          }
+          await selectDocument(created.id, false);
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: orpc.documents.key() }),
             ...invalidateSmartCollectionMembership(queryClient),
@@ -122,15 +112,7 @@ export default function DocumentsSurface({
         documentStarterSkeletons={documentStarterSkeletons}
         handle={createHandle}
         onCreated={async (created) => {
-          setArchived(false);
-          setSelectedId(created.id);
-          if (projectId === null) {
-            navigate({
-              hash: documentRecordHash(created.id),
-              search: true,
-              to: ".",
-            }).catch(() => undefined);
-          }
+          await selectDocument(created.id, false);
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: orpc.documents.key() }),
             ...invalidateSmartCollectionMembership(queryClient),
@@ -144,7 +126,7 @@ export default function DocumentsSurface({
       <div className="space-y-5">
         <DocumentNavigation
           documents={documents.data ?? []}
-          onSelect={setSelectedId}
+          onSelect={selectDocument}
           scope={
             projectId === null
               ? { kind: "wiki" }

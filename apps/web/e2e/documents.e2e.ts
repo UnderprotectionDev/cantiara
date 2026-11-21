@@ -158,6 +158,13 @@ test("organizes Documents with a preview and preserves identity through Archive 
   }
   await createDocument("Planning root");
   await createDocument("Release child");
+  const childUrl = page.url();
+  await page.goBack();
+  await expect(editor.getByLabel("Title")).toHaveValue("Planning root");
+  await page.goForward();
+  await expect(editor.getByLabel("Title")).toHaveValue("Release child");
+  await page.goto(childUrl);
+  await expect(editor.getByLabel("Title")).toHaveValue("Release child");
   await editor.getByRole("button", { name: "Organize Document" }).click();
   const organize = page.getByRole("dialog", { name: "Organize Document" });
   await organize.getByLabel("Folder", { exact: true }).fill("Planning");
@@ -188,7 +195,10 @@ test("organizes Documents with a preview and preserves identity through Archive 
   ).toHaveCount(0);
   await surface
     .getByRole("checkbox", { name: "Archived", exact: true })
-    .check();
+    .click();
+  await expect(
+    surface.getByRole("checkbox", { name: "Archived", exact: true }),
+  ).toBeChecked();
   await surface
     .getByRole("navigation", { name: "Documents" })
     .getByRole("button", { name: "Release child", exact: true })
@@ -203,7 +213,10 @@ test("organizes Documents with a preview and preserves identity through Archive 
   await unarchive.getByRole("button", { name: "Apply", exact: true }).click();
   await surface
     .getByRole("checkbox", { name: "Archived", exact: true })
-    .uncheck();
+    .click();
+  await expect(
+    surface.getByRole("checkbox", { name: "Archived", exact: true }),
+  ).not.toBeChecked();
   await page.reload();
   await surface
     .getByRole("navigation", { name: "Documents" })
@@ -217,7 +230,10 @@ test("organizes Documents with a preview and preserves identity through Archive 
   });
   await surface
     .getByRole("checkbox", { name: "Archived", exact: true })
-    .check();
+    .click();
+  await expect(
+    surface.getByRole("checkbox", { name: "Archived", exact: true }),
+  ).toBeChecked();
   await createDocument("New active Document");
   await expect(
     surface.getByRole("checkbox", { name: "Archived", exact: true }),

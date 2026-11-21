@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
+import { z } from "zod";
 import SharesAndPublicationsSurface from "@/features/external-surface-management/ui/components/shares-and-publications-surface";
-
 import GitHubIntegrationSurface from "@/features/github-integration/ui/components/github-integration-surface";
 import LinkSharingSurface from "@/features/link-sharing/ui/components/link-sharing-surface";
 import ProductionIncidentsView from "@/features/production-incidents/ui/views/production-incidents-view";
 import ClosureSummarySurface from "@/features/project-closure-summary/ui/components/closure-summary-surface";
+import { projectActivityFiltersSchema } from "@/features/project-history/lib/project-activity-filters";
 import ProjectActivitySurface from "@/features/project-history/ui/components/project-activity-surface";
 import StoryTimelineSurface from "@/features/project-history/ui/components/story-timeline-surface";
 import WorkRecordHistorySurface from "@/features/project-history/ui/components/work-record-history-surface";
@@ -18,6 +19,28 @@ import { smartCollectionWorkPrefillFromSearch } from "@/features/smart-collectio
 import TrashSurface from "@/features/trash/ui/components/trash-surface";
 import ValueChainSurface from "@/features/value-chain/ui/components/value-chain-surface";
 
+const projectViewSearch = z.object({
+  backlogSort: z
+    .enum(["Priority", "Date", "Field"])
+    .optional()
+    .catch(undefined),
+  backlogMetricId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .optional()
+    .catch(undefined),
+  backlogField: z.enum(["Title", "Status"]).optional().catch(undefined),
+  roadmapView: z.string().trim().min(1).max(255).optional().catch(undefined),
+  activity: projectActivityFiltersSchema.optional().catch(undefined),
+  review: z.string().trim().min(1).max(255).optional().catch(undefined),
+  flow: z.string().trim().min(1).max(255).optional().catch(undefined),
+  tag: z.string().trim().min(1).max(255).optional().catch(undefined),
+  workArchived: z.boolean().optional().catch(undefined),
+  workView: z.literal("List").optional().catch(undefined),
+});
+
 export const Route = createFileRoute("/_auth/projects/$projectId/")({
   validateSearch: (search) => {
     const configurationReturn =
@@ -28,6 +51,10 @@ export const Route = createFileRoute("/_auth/projects/$projectId/")({
 
     return {
       ...smartCollectionWorkPrefillFromSearch(search),
+      ...projectViewSearch.parse(search),
+      ...(search.documentsArchived === true
+        ? { documentsArchived: true as const }
+        : {}),
       ...(configurationReturn ? { configurationReturn } : {}),
     };
   },

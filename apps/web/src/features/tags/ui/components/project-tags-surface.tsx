@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Tag controls close over their current record and selected tag.
+
 import type {
   ApplyTagInput,
   RemoveTagInput,
@@ -12,6 +13,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTags } from "@/features/tags/hooks/use-tags";
 import { commandVariables } from "@/lib/command-variables";
@@ -65,7 +67,18 @@ export default function ProjectTagsSurface({
 }: {
   projectId: string;
 }) {
-  const [filterTagId, setFilterTagId] = useState("");
+  const filterTagId = useSearch({
+    strict: false,
+    select: (search) => search.tag ?? "",
+  });
+  const navigate = useNavigate();
+  function setFilterTagId(value: string) {
+    navigate({
+      hash: true,
+      search: (current) => ({ ...current, tag: value || undefined }),
+      to: ".",
+    }).catch(() => undefined);
+  }
   const [renameValidationError, setRenameValidationError] = useState<
     string | null
   >(null);

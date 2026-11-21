@@ -68,17 +68,24 @@ async function writeWithPreviewRefresh<T, R>(
   }
 }
 
-function selectedContact(
+function findSelectedContact(
   contacts: Contact[] | undefined,
-  selectedId: string | null,
   openedId?: string,
+  requestedId?: string,
 ) {
   return (
-    contacts?.find(({ id }) => id === (selectedId ?? openedId)) ?? contacts?.[0]
+    contacts?.find(({ id }) => id === (openedId ?? requestedId)) ??
+    contacts?.[0]
   );
 }
 
-export default function ContactsView({ contactId }: { contactId?: string }) {
+export default function ContactsView({
+  contactId,
+  onSelect,
+}: {
+  contactId?: string;
+  onSelect: (id: string) => void;
+}) {
   const queryClient = useQueryClient();
   const contacts = useQuery(orpc.contacts.queryOptions());
   const companies = useQuery(orpc.companies.queryOptions());
@@ -89,12 +96,11 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     }),
     enabled: contactId !== undefined,
   });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const selected = selectedContact(
+  const selected = findSelectedContact(
     contacts.data,
-    selectedId,
     opened.data?.contact.id,
+    contactId,
   );
 
   const refresh = () =>
@@ -115,7 +121,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     mutationFn: (input: Parameters<typeof client.createContact>[0]) =>
       client.createContact(input),
     onSuccess: async (contact) => {
-      setSelectedId(contact.id);
+      onSelect(contact.id);
       await refresh();
     },
   });
@@ -150,7 +156,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
       client.mergeContacts(input),
     onSuccess: async (result) => {
       setMergePair(null);
-      setSelectedId(result.survivor.id);
+      onSelect(result.survivor.id);
       await refresh();
     },
   });
@@ -169,7 +175,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
       client.undoMerge(input),
     onSuccess: async (result) => {
       setUndoRetiredId(null);
-      setSelectedId(result.restored.id);
+      onSelect(result.restored.id);
       await Promise.all([
         refresh(),
         queryClient.invalidateQueries({
@@ -297,7 +303,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
                 <button
                   aria-pressed={selected?.id === contact.id}
                   className="w-full rounded-md border px-3 py-2 text-left text-sm aria-pressed:bg-accent"
-                  onClick={() => setSelectedId(contact.id)}
+                  onClick={() => onSelect(contact.id)}
                   type="button"
                 >
                   {contactLabel(contact)}
@@ -322,7 +328,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
         onMerge={(survivorId, retiredId) =>
           setMergePair({ retiredId, survivorId })
         }
-        onOpen={setSelectedId}
+        onOpen={onSelect}
       />
       {mergePair && mergePreview.data ? (
         <MergePreviewPanel

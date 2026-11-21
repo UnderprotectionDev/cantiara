@@ -57,6 +57,8 @@ Roadmap ufuk ve görünüm gruplarını anlatı olarak sunar. `Now`, `Next` veya
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Project URL carries the selected Roadmap view. Presentation remains view-local. The Return to Work adapter becomes ready after the initial viewport placement. The Roadmap canvas and Return to Work visual tour seams cover projection and restore.
+
 - **Popup lifecycle (#546).** The Roadmap web seams exercise `Place on plan` and Milestone `Edit` in their existing inline controls. Cancel and successful writes fold the editing panel.
 
 - **Named view submission (#545).** `roadmap-view-form.test.tsx` verifies that repeated `Save named view` submissions while a write is pending send one write and report one saved view.

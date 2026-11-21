@@ -11,8 +11,8 @@ import { Button } from "@cantiara/ui/components/button";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { useSelector } from "@tanstack/react-store";
-import { type Ref, useId, useImperativeHandle, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { type Ref, useCallback, useId, useImperativeHandle } from "react";
 import { submitForm } from "@/lib/submit-form";
 import { orpc } from "@/utils/orpc";
 import {
@@ -48,7 +48,12 @@ export function TestHandoffContextField({
   value: ContextRefDraft[];
 }) {
   const statusId = useId();
-  const [message, setMessage] = useState("");
+  const messageStore = useCreateStore("");
+  const message = useSelector(messageStore, (text) => text);
+  const setMessage = useCallback(
+    (text: string) => messageStore.setState(() => text),
+    [messageStore],
+  );
   const picker = useForm({
     defaultValues: {
       kind: "Work" as TestHandoffContextKind,
@@ -70,7 +75,7 @@ export function TestHandoffContextField({
       picker.reset();
       setMessage("");
     },
-    [picker],
+    [picker, setMessage],
   );
   const { kind, targetId, sectionId, wireframeVersion } = useSelector(
     picker.store,

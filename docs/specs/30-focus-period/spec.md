@@ -50,6 +50,8 @@ Odak Dönemi farklı Projelerden İşleri isteğe bağlı 1–8 haftalık ortak 
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Focus Period route stores the selected period. The current period follows its deep link and browser history.
+
 - The Focus Period seam verifies that the current mutation reports server failures and preserves the defined membership conflict message.
 
 - **RPC refusal evidence (#543).** `focus-period-rpc.test.ts` covers both codes and Account scope. `apps/server/src/app.test.ts` covers both typed membership refusals and the generic fallback through the HTTP Support Reference envelope. `focus-period.e2e.ts` verifies that `Add Work` on overlapping `Planned` periods shows the membership refusal and leaves the second period without that Work.

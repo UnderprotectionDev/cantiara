@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each tool binds its own Moodboard, item, and revision.
+
 import {
   cropPixelRect,
   isDefaultVisualView,
@@ -17,7 +18,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
-import { useEffect, useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { useMoodboards } from "../../hooks/use-moodboards";
 import VisualCropForm from "../forms/visual-crop-form";
@@ -263,7 +265,13 @@ export function PresentationView({
   onExit: () => void;
 }) {
   const sequence = presentationSequence(moodboard.items, moodboard.focusOrder);
-  const [index, setIndex] = useState(0);
+  const presentation = useCreateStore(0);
+  const storedIndex = useSelector(presentation, (value) => value);
+  const lastIndex = Math.max(0, sequence.length - 1);
+  const index = Math.min(storedIndex, lastIndex);
+  useLayoutEffect(() => {
+    presentation.setState((value) => Math.min(value, lastIndex));
+  }, [lastIndex, presentation]);
   const item = sequence[Math.min(index, sequence.length - 1)];
   return (
     <section
@@ -313,7 +321,9 @@ export function PresentationView({
       <div className="flex items-center gap-2">
         <Button
           disabled={index === 0}
-          onClick={() => setIndex(index - 1)}
+          onClick={() =>
+            presentation.setState((value) => Math.max(0, value - 1))
+          }
           type="button"
           variant="outline"
         >
@@ -324,7 +334,9 @@ export function PresentationView({
         </span>
         <Button
           disabled={index >= sequence.length - 1}
-          onClick={() => setIndex(index + 1)}
+          onClick={() =>
+            presentation.setState((value) => Math.min(lastIndex, value + 1))
+          }
           type="button"
           variant="outline"
         >

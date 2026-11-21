@@ -54,6 +54,8 @@ Kaynak Proje ana kaydıdır; URL/başlık, erişim zamanı, yakalanan içerik ve
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The YouTube player session starts with Load YouTube for each video and player origin. The player boundary cleans up listeners, the player and timeouts before a replacement session. The YouTube fallback offers Retry after a preview failure.
+
 - **Popup lifecycle (#546).** The Source Check and evidence control seams open their disclosure to load records and drive the existing preview and retry flows.
 
 - The Smart Link composer reads the latest preview and save outcome from their observers. The Evidence seam keeps the plan aligned with the selected range and target, and a confirmed Source refreshes its Project list.

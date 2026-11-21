@@ -42,6 +42,8 @@ Proje bazlı özel alan tanımları yalnız kendi Projesinde yaşar. Desteklenen
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The inline field definition editor is scoped to its Project and active definition. The Custom Fields form and lifecycle seam covers Cancel, completion and removal.
+
 - **#545.** The web custom-field-scalar-form.test.tsx seam checks that a failed blur write keeps the edited value and that the same input can be submitted again.
 
 - A new record has no Custom field values query. Writes to an existing record refresh its values and the owning Project values.

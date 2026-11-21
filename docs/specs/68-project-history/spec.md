@@ -54,6 +54,8 @@ Proje Hikâyesi iki ayrı yüzey sunar. Gerçekleşen olayların zaman çizelges
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Project URL carries applied Project Activity source and event filters. Pagination starts over when either filter changes.
+
 - **What a good test is.** Tests observe Project History through its public interface: story listing in Proje and Özellik context, activity listing with filters, row actor/previous–next, cluster expand on Proje Etkinliği and on the source record’s Kayıt geçmişi view, and “this event did not become a notification.” They do not assert Drizzle row shapes, a private history table, or mock internal aggregators. Expected values are product rules (story excludes field edits; activity does not mint signals; five-minute cluster is presentation-only), not recomputed SQL.
 - **Seam (one).** Project History — the product-facing history interface used by the Proje shell and Özellik context. Kayıt geçmişi writes, GitHub adapters, and notification registry are collaborators behind that interface (real versus test double). Playwright for keyboard/screen-reader inspection is the same seam through the UI, not a second module.
 - **Modules under test.** Project History only. Birleşik Bildirim Merkezi, Proje genel bakışı, kapanış özeti, sürüm notu, and GitHub App packages are not in this suite except as “no signal minted / not default landing / not release notes” counterparts.

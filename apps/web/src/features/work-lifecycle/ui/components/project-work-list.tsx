@@ -21,9 +21,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "@tanstack/react-router";
+import { useLocation, useNavigate, useSearch } from "@tanstack/react-router";
 import { useSelector } from "@tanstack/react-store";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import ActiveWorkingSetControl from "@/components/active-working-set-control";
 import { ExportListAction } from "@/components/export-list-action";
 import FavoriteControl from "@/components/favorite-control";
@@ -98,8 +98,22 @@ export default function ProjectWorkList({
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
-  const handledWorkHash = useRef<string | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
+  const archived = useSearch({
+    strict: false,
+    select: (search) => search.workArchived,
+  });
+  const navigate = useNavigate();
+  const allProjectWorksQuery = useQuery(
+    orpc.projectWorks.queryOptions({
+      input: { archived: "all", projectId },
+    }),
+  );
+  const linkedWorkId = workIdFromHash(activeHash);
+  const linkedWork = linkedWorkId
+    ? allProjectWorksQuery.data?.find(({ id }) => id === linkedWorkId)
+    : undefined;
+  const linkedWorkIsArchived = Boolean(linkedWork?.archivedAt);
+  const showArchived = archived ?? linkedWorkIsArchived;
   const bulkWorkSelection = useBulkWorkSelection();
   const [bulkEditHandle] = useState(createDialogHandle);
   const connection = useClientShellConnection();
@@ -121,28 +135,6 @@ export default function ProjectWorkList({
     createDialogHandle<RecordActionDialogPayload>,
   );
   const recordActions = useQuery(recordActionListOptions(projectId));
-  const allProjectWorksQuery = useQuery(
-    orpc.projectWorks.queryOptions({
-      input: { archived: "all", projectId },
-    }),
-  );
-  useEffect(() => {
-    if (!allProjectWorksQuery.data) {
-      return;
-    }
-    const workId = workIdFromHash(activeHash);
-    const workHashKey = `${projectId}:${activeHash}`;
-    if (!workId || handledWorkHash.current === workHashKey) {
-      return;
-    }
-    handledWorkHash.current = workHashKey;
-    const targetWork = allProjectWorksQuery.data.find(
-      (work) => work.id === workId,
-    );
-    if (targetWork) {
-      setShowArchived(targetWork.archivedAt !== null);
-    }
-  }, [activeHash, allProjectWorksQuery.data, projectId]);
   useEffect(() => {
     if (
       !activeHash ||
@@ -205,7 +197,15 @@ export default function ProjectWorkList({
             onClick={() => {
               bulkWorkSelection.clearSelection();
               bulkEditHandle.close();
-              setShowArchived((current) => !current);
+              navigate({
+                hash: activeHash,
+                search: (current) => ({
+                  ...current,
+                  workArchived:
+                    !showArchived || (linkedWorkIsArchived ? false : undefined),
+                }),
+                to: ".",
+              }).catch(() => undefined);
             }}
             size="sm"
             type="button"

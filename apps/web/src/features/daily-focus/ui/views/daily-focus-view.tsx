@@ -12,6 +12,7 @@ import {
   workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { useViewClock } from "@/lib/use-view-clock";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import DailyFocusAddForm from "../forms/daily-focus-add-form";
 
@@ -32,12 +33,8 @@ export default function DailyFocusView({
 }) {
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
   const queryClient = useQueryClient();
-  const [now, setNow] = useState(() => new Date());
+  const now = useViewClock();
   const previousTimeZone = useRef<string | null>(null);
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
   useEffect(() => {
     const timeZone = preferences.data?.timeZone;
     if (!timeZone) {

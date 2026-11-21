@@ -26,6 +26,7 @@ import {
   ReactFlow,
   type ReactFlowInstance,
   ReactFlowProvider,
+  useNodesState,
   useReactFlow,
 } from "@xyflow/react";
 import {
@@ -37,6 +38,7 @@ import {
   useState,
 } from "react";
 
+import { useReconcileFlowNodes } from "@/lib/use-reconcile-flow-nodes";
 import {
   type AlignEdge,
   alignSelection,
@@ -277,7 +279,6 @@ function Editor({
         ? saveError.message
         : "User Flow could not be saved.";
   }
-  const [textDraft, setTextDraft] = useState<string | null>(null);
   const dirty = isDirty(editor);
 
   useEffect(() => {
@@ -358,11 +359,10 @@ function Editor({
   ]);
 
   // React Flow animates drags on its own copy; the model owns every commit.
-  const [canvasNodes, setCanvasNodes] =
-    useState<Array<CanvasCard | FlowNode>>(modelNodes);
-  useEffect(() => {
-    setCanvasNodes(modelNodes);
-  }, [modelNodes]);
+  const [canvasNodes, setCanvasNodes, applyNodeChanges] = useNodesState<
+    CanvasCard | FlowNode
+  >(modelNodes);
+  useReconcileFlowNodes(modelNodes, setCanvasNodes);
 
   const edges = useMemo<Edge[]>(
     () =>
@@ -377,7 +377,7 @@ function Editor({
 
   const onNodesChange = useCallback(
     (changes: NodeChangeset<CanvasCard | FlowNode>) => {
-      setCanvasNodes((nodes) => changes.applyTo(nodes));
+      applyNodeChanges(changes);
       const selection = [...changes].filter(
         (change) => change.type === "select",
       );
@@ -397,7 +397,7 @@ function Editor({
         });
       }
     },
-    [],
+    [applyNodeChanges],
   );
 
   const onNodeDragStop = useCallback(
@@ -584,13 +584,6 @@ function Editor({
       ? editor.document.nodes.find(({ id }) => id === editor.selection[0])
       : undefined;
   const commonStyle = single?.style ?? "default";
-
-  function commitText() {
-    if (textDraft !== null) {
-      apply((state) => setSelectionText(state, textDraft));
-      setTextDraft(null);
-    }
-  }
 
   return (
     <div className="space-y-3">
@@ -781,10 +774,20 @@ function Editor({
           <div className="space-y-1">
             <Label htmlFor="user-flow-selected-text">Selected node text</Label>
             <Textarea
+              defaultValue={single.text}
               id="user-flow-selected-text"
-              onBlur={commitText}
-              onChange={(event) => setTextDraft(event.target.value)}
-              value={textDraft ?? single.text}
+              key={JSON.stringify([single.id, single.text])}
+              onBlur={(event) => {
+                const text = event.currentTarget.value;
+                if (text !== single.text) {
+                  apply((state) =>
+                    state.selection.length === 1 &&
+                    state.selection[0] === single.id
+                      ? setSelectionText(state, text)
+                      : state,
+                  );
+                }
+              }}
             />
           </div>
           <div className="space-y-1">

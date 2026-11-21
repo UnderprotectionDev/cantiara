@@ -20,6 +20,7 @@ import {
   useLinkProps,
   useLocation,
   useNavigate,
+  useSearch,
 } from "@tanstack/react-router";
 import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
 import {
@@ -722,7 +723,7 @@ function ProjectShellContent({
       return (
         <ProjectDecisionsSurface
           accountFormattingPreferences={accountFormattingPreferences}
-          key={projectId}
+          key={JSON.stringify([projectId, decisionSourceId])}
           projectId={projectId}
           selectedId={decisionSourceId}
         />
@@ -786,6 +787,7 @@ function ProjectShellContent({
           <Suspense fallback={<p>Loading Documents…</p>}>
             <ProjectDocumentsSurface
               accountFormattingPreferences={accountFormattingPreferences}
+              key={projectId}
               projectId={projectId}
               selectedDocumentId={documentRoute?.documentId}
               selectedSectionId={documentRoute?.sectionId}
@@ -934,9 +936,20 @@ function ProjectWorkSurface({
   workTypeWarning?: (type: WorkType) => string | null;
 }) {
   const navigate = useNavigate();
-  const [selectedWorkView, setSelectedWorkView] = useState<"Board" | "List">(
-    "Board",
-  );
+  const selectedWorkView = useSearch({
+    strict: false,
+    select: (search) => search.workView ?? "Board",
+  });
+  function selectWorkView(view: "Board" | "List") {
+    navigate({
+      hash: activeHash,
+      search: (current) => ({
+        ...current,
+        workView: view === "List" ? view : undefined,
+      }),
+      to: ".",
+    }).catch(() => undefined);
+  }
   const [statusActionRequest, setStatusActionRequest] =
     useState<WorkStatusActionRequest | null>(null);
   const showSourceWork =
@@ -1021,7 +1034,7 @@ function ProjectWorkSurface({
                 <Button
                   aria-pressed={selectedWorkView === view}
                   key={view}
-                  onClick={() => setSelectedWorkView(view)}
+                  onClick={() => selectWorkView(view)}
                   type="button"
                   variant={selectedWorkView === view ? "default" : "outline"}
                 >

@@ -13,6 +13,7 @@ import {
 } from "@cantiara/api/project-wall-viewport";
 import { Button } from "@cantiara/ui/components/button";
 import { LiteDebouncer } from "@tanstack/pacer-lite";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   type Edge,
   MarkerType,
@@ -22,6 +23,7 @@ import {
   ReactFlow,
   type ReactFlowInstance,
   ReactFlowProvider,
+  useNodesState,
   useReactFlow,
 } from "@xyflow/react";
 import {
@@ -33,6 +35,7 @@ import {
   useState,
 } from "react";
 
+import { useReconcileFlowNodes } from "@/lib/use-reconcile-flow-nodes";
 import {
   commandForKey,
   type WallCommand,
@@ -170,13 +173,22 @@ function Canvas({
     visibleCardCount: cards.length - hiddenCards.size,
   });
   const selected = useMemo(() => new Set(selection), [selection]);
-  const [preview, setPreview] = useState<AutoLayoutPreview | null>(null);
+  const layout = useCreateStore<{
+    preview: AutoLayoutPreview | null;
+    applied: AutoLayoutPreview | null;
+    pending: boolean;
+    status: string | null;
+  }>({ preview: null, applied: null, pending: false, status: null });
+  const {
+    preview,
+    applied,
+    pending: layoutPending,
+    status,
+  } = useSelector(layout, (value) => value);
   // Transient keyboard/pointer geometry while React renders the cache update.
   const [draftPositions, setDraftPositions] = useState<
     ReadonlyMap<string, ProjectWallPosition>
   >(new Map());
-  const [applied, setApplied] = useState<AutoLayoutPreview | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
 
   const frame = useCallback(() => {
     const element = frameRef.current;
@@ -333,8 +345,9 @@ function Canvas({
       })),
     [hiddenCards, links, scene.reducedDetail],
   );
-  const [nodes, setNodes] = useState(modelNodes);
-  useEffect(() => setNodes(modelNodes), [modelNodes]);
+  const [nodes, setNodes, applyNodeChanges] =
+    useNodesState<WallNode>(modelNodes);
+  useReconcileFlowNodes(modelNodes, setNodes);
 
   useEffect(() => {
     if (pendingFit.current && !nodes.some((node) => node.hidden)) {
@@ -345,7 +358,7 @@ function Canvas({
 
   const onNodesChange = useCallback(
     (changes: NodeChangeset<WallNode>) => {
-      setNodes((current) => changes.applyTo(current));
+      applyNodeChanges(changes);
       const picks = [...changes].filter((change) => change.type === "select");
       if (picks.length > 0) {
         const next = new Set(selection);
@@ -361,7 +374,7 @@ function Canvas({
         onSelectionChange([...next]);
       }
     },
-    [onSelectionChange, selection],
+    [applyNodeChanges, onSelectionChange, selection],
   );
 
   // --- Card moves and keyboard commands -------------------------------------------
@@ -380,7 +393,7 @@ function Canvas({
   const commit = useCallback(
     (moves: PositionMove[]) => {
       if (moves.length === 0) {
-        return;
+        return Promise.resolve(false);
       }
       // Preserve queued keyboard moves for cards outside this gesture.
       const pending = new Map(queued.current);
@@ -393,8 +406,8 @@ function Canvas({
         cardId,
         position,
       }));
-      Promise.resolve(onMoveRef.current(committed))
-        .catch(() => undefined)
+      return Promise.resolve(onMoveRef.current(committed))
+        .catch(() => false)
         .finally(() =>
           setDraftPositions((current) => {
             const next = new Map(current);
@@ -422,7 +435,7 @@ function Canvas({
   const applyMoves = useCallback(
     (moves: PositionMove[]) => {
       if (moves.length === 0) {
-        return;
+        return Promise.resolve(false);
       }
       setDraftPositions((current) => {
         const next = new Map(current);
@@ -431,7 +444,7 @@ function Canvas({
         }
         return next;
       });
-      commit(moves);
+      return commit(moves);
     },
     [commit],
   );
@@ -460,9 +473,13 @@ function Canvas({
 
   // A manual drag supersedes any shown `Preview Auto-layout` proposal.
   const dropPreview = useCallback(() => {
-    setPreview(null);
-    setStatus(null);
-  }, []);
+    layout.setState(() => ({
+      preview: null,
+      applied: null,
+      pending: false,
+      status: null,
+    }));
+  }, [layout]);
 
   useEffect(
     () => () => {
@@ -490,10 +507,14 @@ function Canvas({
     },
     [applyMoves, dropPreview],
   );
-  const align = (edge: AlignEdge) =>
-    applyMoves(alignCards(layoutCards, selection, edge));
-  const distribute = (axis: DistributeAxis) =>
-    applyMoves(distributeCards(layoutCards, selection, axis));
+  function align(edge: AlignEdge) {
+    dropPreview();
+    return applyMoves(alignCards(layoutCards, selection, edge));
+  }
+  function distribute(axis: DistributeAxis) {
+    dropPreview();
+    return applyMoves(distributeCards(layoutCards, selection, axis));
+  }
   const stack = (move: StackMove) =>
     onReorder(
       reorderSelection(
@@ -613,26 +634,39 @@ function Canvas({
       targets,
       groups.map(({ id }) => id),
     );
-    setApplied(null);
-    setPreview(proposal);
-    setStatus(
-      proposal.moves.length === 0 ? "Auto-layout: nothing to rearrange." : null,
+    layout.setState((state) => ({
+      ...state,
+      preview: proposal,
+      status:
+        proposal.moves.length === 0
+          ? "Auto-layout: nothing to rearrange."
+          : null,
+    }));
+  }
+  async function writeLayout(command: "apply" | "undo") {
+    const current = layout.get();
+    const proposal = command === "apply" ? current.preview : current.applied;
+    if (!proposal || current.pending) {
+      return;
+    }
+    const pending = { ...current, pending: true };
+    layout.setState(() => pending);
+    const written = await applyMoves(
+      command === "apply" ? proposal.moves : proposal.previous,
     );
-  }
-  function applyPreview() {
-    if (!preview) {
-      return;
-    }
-    applyMoves(preview.moves);
-    setApplied(preview);
-    setPreview(null);
-  }
-  function undoLayout() {
-    if (!applied) {
-      return;
-    }
-    applyMoves(applied.previous);
-    setApplied(null);
+    layout.setState((value) => {
+      if (value !== pending) {
+        return value;
+      }
+      if (!written) {
+        return current;
+      }
+      return {
+        ...current,
+        preview: null,
+        applied: command === "apply" ? proposal : null,
+      };
+    });
   }
 
   return (
@@ -714,7 +748,8 @@ function Canvas({
         </Button>
         {applied ? (
           <Button
-            onClick={undoLayout}
+            disabled={layoutPending}
+            onClick={() => writeLayout("undo")}
             size="sm"
             type="button"
             variant="outline"
@@ -741,11 +776,18 @@ function Canvas({
               : ""}
             . Nothing is saved until you apply it.
           </span>
-          <Button onClick={applyPreview} size="sm" type="button">
+          <Button
+            disabled={layoutPending}
+            onClick={() => writeLayout("apply")}
+            size="sm"
+            type="button"
+          >
             Apply Auto-layout
           </Button>
           <Button
-            onClick={() => setPreview(null)}
+            onClick={() =>
+              layout.setState((value) => ({ ...value, preview: null }))
+            }
             size="sm"
             type="button"
             variant="outline"

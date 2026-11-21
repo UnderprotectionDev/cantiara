@@ -58,6 +58,8 @@ Kanban İşleri korunan `Not Started`, `In Progress`, `In Review`, `Blocked` ve 
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Kanban day is derived from the Account time zone and refreshed while mounted and when the tab becomes visible. The Kanban component seam uses its current day for deferred Work.
+
 - **Popup lifecycle (#546).** The Kanban browser seam verifies per-column collapse and checks `Close` and Escape return focus to the Work's `Open source record` button. The full-page link opens the same Work.
 
 - **What a good test is.** Tests observe Kanban through its public interface: five columns in protected order with `In Review` between `In Progress` and `Blocked`, column move among the four open columns (including into and out of `In Review`), closure-step on `Closed`, reopen to any open column including `In Review`, soft WIP/focus overflow still movable, shared in-progress count and focus warning in Board and List, List scan of the same Work, collapse, saved-view sort, elapsed current-status duration, and future Reappear date backgrounding with no independent rank. They do not assert CSS grid internals or Drizzle column maps. Expected values are product rules (status written only by column move or explicit action; Closed does not skip closure; WIP does not block; a future Reappear date does not change status).

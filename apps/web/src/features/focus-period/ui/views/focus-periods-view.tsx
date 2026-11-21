@@ -27,11 +27,16 @@ import { FollowUpWorkSection } from "../forms/focus-period-follow-up-form";
 import { PeriodLeftoverDecisions } from "../forms/focus-period-leftover-form";
 import { FocusPeriodMembershipControl } from "../forms/focus-period-membership-form";
 
-export default function FocusPeriodsView() {
+export default function FocusPeriodsView({
+  selectedId,
+  onSelect,
+}: {
+  selectedId?: string;
+  onSelect: (id: string) => void;
+}) {
   const queryClient = useQueryClient();
   const periods = useQuery(orpc.focusPeriods.queryOptions());
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected =
     periods.data?.find((period) => period.id === selectedId) ??
     periods.data?.[0];
@@ -48,7 +53,7 @@ export default function FocusPeriodsView() {
       endDate: string;
     }) => client.createFocusPeriod(input),
     onSuccess: async (period) => {
-      setSelectedId(period.id);
+      onSelect(period.id);
       await refresh();
     },
   });
@@ -176,7 +181,7 @@ export default function FocusPeriodsView() {
                 aria-current={selected?.id === period.id ? "page" : undefined}
                 className="block w-full rounded-md border px-3 py-2 text-left hover:bg-muted"
                 key={period.id}
-                onClick={() => setSelectedId(period.id)}
+                onClick={() => onSelect(period.id)}
                 type="button"
               >
                 <span className="block font-medium">{period.purpose}</span>

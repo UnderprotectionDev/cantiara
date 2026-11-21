@@ -1,7 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Risk controls bind to the current record and form field.
 
 import { Button } from "@cantiara/ui/components/button";
-import { useEffect, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useEffect } from "react";
 import { AppLink } from "@/components/app-link";
 import { projectSourceRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import type { RiskRecord } from "../../lib/risk-form";
@@ -14,7 +15,29 @@ export function riskHref(projectId: string, sourceId?: string) {
   return `/projects/${encodeURIComponent(projectId)}#${sourceId ? projectSourceRecordHash("Risk", sourceId) : "risks"}`;
 }
 
-export function ProjectRisksView({
+interface ProjectRisksViewProps {
+  onSave: (draft: RiskDraft, record?: RiskRecord) => Promise<unknown>;
+  onStartEditing?: () => void;
+  onTransition: (draft: RiskDraft, record?: RiskRecord) => Promise<unknown>;
+  projectId: string;
+  readOnly?: boolean;
+  records: RiskRecord[];
+  savedMessage?: string;
+  saveError?: unknown;
+  savePending?: boolean;
+  selectedId?: string;
+}
+
+export function ProjectRisksView(props: ProjectRisksViewProps) {
+  return (
+    <ProjectRisksViewSession
+      key={JSON.stringify([props.projectId, props.selectedId, props.readOnly])}
+      {...props}
+    />
+  );
+}
+
+function ProjectRisksViewSession({
   records,
   projectId,
   selectedId,
@@ -25,21 +48,12 @@ export function ProjectRisksView({
   savedMessage,
   saveError,
   savePending,
-}: {
-  records: RiskRecord[];
-  projectId: string;
-  selectedId?: string;
-  readOnly?: boolean;
-  onSave: (draft: RiskDraft, record?: RiskRecord) => Promise<unknown>;
-  onTransition: (draft: RiskDraft, record?: RiskRecord) => Promise<unknown>;
-  onStartEditing?: () => void;
-  savedMessage?: string;
-  saveError?: unknown;
-  savePending?: boolean;
-}) {
-  const [editingMode, setEditingMode] = useState<
-    "create" | "edit" | "status" | undefined
-  >(undefined);
+}: ProjectRisksViewProps) {
+  const session = useCreateStore<{ mode: "create" | "edit" | "status" } | null>(
+    null,
+  );
+  const active = useSelector(session, (value) => value);
+  const editingMode = active?.mode;
   const selected = records.find((record) => record.id === selectedId);
   const editing: RiskEditing | undefined = (() => {
     if (savedMessage) {
@@ -57,16 +71,19 @@ export function ProjectRisksView({
       readOnly ||
       (editingMode !== "create" && editingMode !== undefined && !selected)
     ) {
-      setEditingMode(undefined);
+      session.setState(() => null);
     }
-  }, [editingMode, readOnly, selected]);
+  }, [editingMode, readOnly, selected, session]);
   function start(mode: "create" | "edit" | "status") {
     onStartEditing?.();
-    setEditingMode(mode);
+    session.setState(() => ({ mode }));
   }
   async function save(draft: RiskDraft, record?: RiskRecord) {
+    if (!active || session.get() !== active) {
+      return;
+    }
     await (editing?.mode === "status" ? onTransition : onSave)(draft, record);
-    setEditingMode(undefined);
+    session.setState((current) => (current === active ? null : current));
   }
   return (
     <section aria-label="Risks" className="space-y-5">
@@ -87,7 +104,7 @@ export function ProjectRisksView({
               ? "create"
               : `${editing.mode}:${editing.record.id}`
           }
-          onCancel={() => setEditingMode(undefined)}
+          onCancel={() => session.setState(() => null)}
           onSave={save}
           record={editing.record}
           saveError={saveError}

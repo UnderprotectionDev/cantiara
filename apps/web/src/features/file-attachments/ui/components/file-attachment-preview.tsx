@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: The preview trigger uses Base UI open state for its variant.
+
 import type {
   FileAttachment,
   FileAttachmentLocationBindInput,
@@ -21,6 +22,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   Container,
   createPlayer,
@@ -396,7 +398,7 @@ interface MediaPreviewProps {
 
 function MediaPreview(props: MediaPreviewProps) {
   return (
-    <AttachmentMediaPlayer>
+    <AttachmentMediaPlayer key={JSON.stringify([props.kind, props.src])}>
       <MediaPreviewContent {...props} />
     </AttachmentMediaPlayer>
   );
@@ -416,7 +418,8 @@ function MediaPreviewContent({
     },
     [],
   );
-  const [loop, setLoop] = useState(false);
+  const loopPreference = useCreateStore(false);
+  const loop = useSelector(loopPreference, (value) => value);
   const [speed, setSpeed] = useState(playback?.speeds[1] ?? 1);
   const handleSpeedChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -426,9 +429,12 @@ function MediaPreviewContent({
   );
   const loopId = useId();
   const speedId = useId();
-  const handleLoopChange = useCallback((checked: boolean) => {
-    setLoop(checked);
-  }, []);
+  const handleLoopChange = useCallback(
+    (checked: boolean) => {
+      loopPreference.setState(() => checked);
+    },
+    [loopPreference],
+  );
   const handleFullscreen = useCallback(() => {
     player.requestFullscreen().catch(() => undefined);
   }, [player]);

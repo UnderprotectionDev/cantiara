@@ -8,8 +8,8 @@ import {
 } from "@cantiara/api/planned-tests";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { writeTextToClipboard } from "@/lib/clipboard";
+import { useClipboardFeedback } from "@/lib/use-clipboard-feedback";
 import { orpc } from "@/utils/orpc";
 import { errorText } from "../../lib/error-text";
 import { downloadPackageText } from "../../lib/test-handoff-form";
@@ -40,15 +40,17 @@ function PackageCopies({
   handoff: TestHandoffRecord;
   record: TestHandoffPackageRecord;
 }) {
-  const [message, setMessage] = useState("");
   const base = `test-handoff-${handoff.id}-package-${record.packageVersion}`;
-  async function copy(text: string, label: string) {
-    try {
-      await writeTextToClipboard(text);
-      setMessage(`${label} copied.`);
-    } catch {
-      setMessage(`${label} could not be copied. Download it instead.`);
-    }
+  const clipboard = useClipboardFeedback<string>(base);
+  const { feedback } = clipboard;
+  const failure = feedback.status === "failed" ? feedback.message : "";
+  const message = feedback.status === "copied" ? feedback.value : failure;
+  function copy(text: string, label: string) {
+    return clipboard.copy(
+      () => writeTextToClipboard(text),
+      `${label} copied.`,
+      () => `${label} could not be copied. Download it instead.`,
+    );
   }
   const renderings = [
     {

@@ -792,6 +792,28 @@ describe("Project Wall Presentation Mode", () => {
     expect(view.textContent).toContain("Ship onboarding");
   });
 
+  test("changing the selected Project Wall closes Presentation Mode", () => {
+    const first = wall([card()]);
+    const second = { ...first, id: "wall-2", title: "Release Wall" };
+    const view = mountLayout(first);
+    act(() => button("Presentation Mode")?.click());
+    expect(button("Exit Presentation Mode")).toBeDefined();
+    act(() =>
+      root?.render(
+        <ProjectWallLayout
+          actions={actions()}
+          canvas={<p>canvas</p>}
+          options={options}
+          selected={second}
+          walls={[summary]}
+        />,
+      ),
+    );
+    expect(button("Exit Presentation Mode")).toBeUndefined();
+    expect(view.querySelector('input[value="Release Wall"]')).not.toBeNull();
+    expect(button("Presentation Mode")).toBeDefined();
+  });
+
   test("Focus order edits call onSetFocusOrder with existing card ids", () => {
     const handlers = actions();
     host = document.createElement("div");

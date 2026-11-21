@@ -15,13 +15,17 @@ import {
 import { Switch } from "@cantiara/ui/components/switch";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useCreateStore,
+  useSelector as useStoreSelector,
+} from "@tanstack/react-store";
 import { Check, Sparkles } from "lucide-react";
 import {
   type MouseEvent,
   type SubmitEvent,
   useEffect,
   useRef,
-  useState,
+  useSyncExternalStore,
 } from "react";
 import { STALE_BASE_REVISION_MESSAGE } from "@/lib/mutation-messages";
 import { submitForm } from "@/lib/submit-form";
@@ -74,6 +78,14 @@ function getSaveErrorMessage(error: unknown) {
   return "Completion effects could not be saved. Refresh to try again.";
 }
 
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribeToReducedMotion(listener: () => void) {
+  const media = window.matchMedia(REDUCED_MOTION_QUERY);
+  media.addEventListener("change", listener);
+  return () => media.removeEventListener("change", listener);
+}
+
 export default function CompletionEffectsForm({
   accountId,
   snapshot,
@@ -89,9 +101,16 @@ export default function CompletionEffectsForm({
     clientIdempotencyKey: string;
     values: string;
   } | null>(null);
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const [previewing, setPreviewing] = useState(false);
-  const [previewStatus, setPreviewStatus] = useState<string | null>(null);
+  const prefersReducedMotion = useSyncExternalStore(
+    subscribeToReducedMotion,
+    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
+    () => false,
+  );
+  const animation = useCreateStore<"idle" | "playing" | "finished" | "static">(
+    "idle",
+  );
+  const previewPhase = useStoreSelector(animation, (value) => value);
+  const previewing = previewPhase === "playing" && !prefersReducedMotion;
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const savePreferences = useMutation({
@@ -160,14 +179,6 @@ export default function CompletionEffectsForm({
       : null);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
-    updatePreference();
-    mediaQuery.addEventListener("change", updatePreference);
-    return () => mediaQuery.removeEventListener("change", updatePreference);
-  }, []);
-
-  useEffect(() => {
     const values = valuesFromSnapshot(snapshot);
     if (
       latestSavedAt.current !== null &&
@@ -182,22 +193,24 @@ export default function CompletionEffectsForm({
     }
   }, [form, snapshot]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: A reduced-motion change ends the active preview.
   useEffect(
     () => () => {
-      if (previewTimer.current) {
+      if (previewTimer.current !== null) {
         clearTimeout(previewTimer.current);
+        previewTimer.current = null;
       }
+      animation.setState(() => "idle");
     },
-    [],
+    [animation, prefersReducedMotion],
   );
 
   function stopPreview() {
-    if (previewTimer.current) {
+    if (previewTimer.current !== null) {
       clearTimeout(previewTimer.current);
       previewTimer.current = null;
     }
-    setPreviewing(false);
-    setPreviewStatus(null);
+    animation.setState(() => "idle");
   }
 
   function selectTheme(event: MouseEvent<HTMLButtonElement>) {
@@ -227,23 +240,15 @@ export default function CompletionEffectsForm({
   }
 
   function preview() {
-    if (previewTimer.current) {
-      clearTimeout(previewTimer.current);
-      previewTimer.current = null;
-    }
-    setPreviewStatus(null);
+    stopPreview();
     if (prefersReducedMotion) {
-      setPreviewing(false);
-      setPreviewStatus(
-        `Static sample shown. ${COMPLETION_EFFECT_MOTION_DESCRIPTIONS[form.state.values.theme]}`,
-      );
+      animation.setState(() => "static");
       return;
     }
 
-    setPreviewing(true);
+    animation.setState(() => "playing");
     previewTimer.current = setTimeout(() => {
-      setPreviewing(false);
-      setPreviewStatus("Preview finished.");
+      animation.setState(() => "finished");
       previewTimer.current = null;
     }, COMPLETION_EFFECT_PREVIEW_DURATION_MS);
   }
@@ -435,7 +440,10 @@ export default function CompletionEffectsForm({
               className="min-h-5 text-xs text-muted-foreground"
               role="status"
             >
-              {previewStatus}
+              {previewPhase === "finished" ? "Preview finished." : null}
+              {previewPhase === "static"
+                ? `Static sample shown. ${COMPLETION_EFFECT_MOTION_DESCRIPTIONS[form.state.values.theme]}`
+                : null}
             </div>
           </section>
         )}

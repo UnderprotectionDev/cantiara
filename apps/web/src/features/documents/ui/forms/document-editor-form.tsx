@@ -26,6 +26,10 @@ import {
 } from "@cantiara/ui/components/tabs";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useCreateStore,
+  useSelector as useStoreSelector,
+} from "@tanstack/react-store";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Mathematics } from "@tiptap/extension-mathematics";
 import { TableKit } from "@tiptap/extension-table";
@@ -35,6 +39,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import {
   type SetStateAction,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -122,11 +127,59 @@ export default function DocumentEditor({
   const editing = useSyncExternalStore(editSession.subscribe, editSession.get);
   const [revision, setRevision] = useState(record.revision);
 
-  const [view, setView] = useState<DocumentView>(() =>
-    targetSectionId ? "preview" : "write",
+  const presentation = useCreateStore<{
+    view: DocumentView;
+    conversionWarning: boolean;
+    selectedVersion: number | null;
+    previewBody: string;
+    selectedTextRange: { end: number; start: number } | null;
+  }>({
+    view: targetSectionId ? "preview" : "write",
+    conversionWarning: false,
+    selectedVersion: null,
+    previewBody: record.body,
+    selectedTextRange: null,
+  });
+  const {
+    view,
+    conversionWarning,
+    selectedVersion,
+    previewBody,
+    selectedTextRange,
+  } = useStoreSelector(presentation);
+  const setView = useCallback(
+    (next: SetStateAction<DocumentView>) => {
+      presentation.setState((state) => ({
+        ...state,
+        view: typeof next === "function" ? next(state.view) : next,
+      }));
+    },
+    [presentation],
   );
-  const [conversionWarning, setConversionWarning] = useState(false);
-  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const setConversionWarning = useCallback(
+    (next: boolean) => {
+      presentation.setState((state) => ({ ...state, conversionWarning: next }));
+    },
+    [presentation],
+  );
+  const setSelectedVersion = useCallback(
+    (next: number | null) => {
+      presentation.setState((state) => ({ ...state, selectedVersion: next }));
+    },
+    [presentation],
+  );
+  const setPreviewBody = useCallback(
+    (next: string) => {
+      presentation.setState((state) => ({ ...state, previewBody: next }));
+    },
+    [presentation],
+  );
+  const setSelectedTextRange = useCallback(
+    (next: { end: number; start: number } | null) => {
+      presentation.setState((state) => ({ ...state, selectedTextRange: next }));
+    },
+    [presentation],
+  );
 
   const versionOptions = orpc.documentVersions.queryOptions({
     input: { documentId: record.id },
@@ -143,7 +196,6 @@ export default function DocumentEditor({
   });
   const selectedSnapshot =
     selectedVersion === record.revision ? record : selectedVersionQuery.data;
-  const [previewBody, setPreviewBody] = useState(record.body);
   const [savedBody, setSavedBody] = useState(record.body);
   const insertForm = useForm({
     defaultValues: {
@@ -181,10 +233,6 @@ export default function DocumentEditor({
   const setOriginalBlockOutcome = (
     value: SetStateAction<typeof originalBlockOutcome>,
   ) => insertForm.setFieldValue("originalBlockOutcome", value);
-  const [selectedTextRange, setSelectedTextRange] = useState<{
-    end: number;
-    start: number;
-  } | null>(null);
   const [pinEvidenceHandle] = useState(createDialogHandle);
   const [bulkConversionHandle] = useState(createDialogHandle);
   const [recordConversionHandle] = useState(createDialogHandle);
@@ -199,7 +247,7 @@ export default function DocumentEditor({
     if (targetSectionId) {
       setView("preview");
     }
-  }, [targetSectionId]);
+  }, [setView, targetSectionId]);
   const conversionKey = useRef<string | null>(null);
   const pinEvidenceKey = useRef<string | null>(null);
   const recordConversionKey = useRef<string | null>(null);
@@ -406,6 +454,7 @@ export default function DocumentEditor({
     editing,
     form,
     revision,
+    setSelectedTextRange,
     queryClient,
     liveWorkOptions.queryKey,
     versionOptions.queryKey,
@@ -715,7 +764,7 @@ export default function DocumentEditor({
       setView((current) => (current === "write" ? "markdown" : current));
       setConversionWarning(true);
     }
-  }, [editor, record.body]);
+  }, [editor, record.body, setConversionWarning, setView]);
 
   useEffect(() => {
     if (!editor || editing.dirty || editing.pending) {
@@ -740,6 +789,8 @@ export default function DocumentEditor({
     editing.dirty,
     editing.pending,
     editing.editable,
+    setConversionWarning,
+    setView,
     view,
   ]);
 

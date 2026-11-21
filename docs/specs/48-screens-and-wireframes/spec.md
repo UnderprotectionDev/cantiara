@@ -60,6 +60,8 @@ Kurucu Ekranı Proje kapsamında bağımsız ana kayıt olarak tutar; yalnız ba
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Wireframe overlay commits text once from the active DOM field on Enter or blur. Escape cancels it. Presentation restarts for a changed start Screen or snapshot, and the Pane observes its own size. The Wireframe pane and presentation tests exercise those paths.
+
 - **Popup lifecycle (#546).** The Wireframe `Convert and Bind` control seam opens the dialog, previews the selected target type, and confirms only that preview. The write stays within the existing Wireframe operation.
 
 - **Convert and Bind submission (#545).** `convert-and-bind-form.test.tsx` verifies that a failed `Confirm` keeps the title, retry uses the same origin and target identifiers, and a successful `Confirm` clears the draft before the next conversion.

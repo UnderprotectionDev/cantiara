@@ -63,6 +63,8 @@ Kurucu bir İşin nedenini, beklenen sonucunu, kanıtını ve ilişkili proje ge
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Work Context Card clears expanded context and copy feedback at the Work identity and type boundary. Clipboard feedback belongs to the current context and copy attempt. The Work Context Card and Markdown copy seam cover the surface and its command.
+
 - **#545.** The layout editor validates the selected Work type and layout before Preview or Confirm. The Work Context Card web seam checks the shared draft and the review controls in Configuration Mode.
 
 - The layout configuration seam verifies that previews follow the current revision, and that Apply and Undo display their own results and errors.

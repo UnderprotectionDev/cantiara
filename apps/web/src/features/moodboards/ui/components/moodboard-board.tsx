@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: The board binds pointer and key handlers to its mounted element.
+
 import { outlineItemLabel } from "@cantiara/api/moodboard-outline";
 import {
   boardLayout,
@@ -10,7 +11,8 @@ import {
   zoomViewport,
 } from "@cantiara/api/moodboard-viewport";
 import { MOODBOARD_UI_LABELS, type Moodboard } from "@cantiara/api/moodboards";
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { type KeyboardEvent, useEffect, useRef } from "react";
 
 const DEFAULT_SIZE = { height: 480, width: 800 };
 const KEY_PAN_PIXELS = 80;
@@ -29,7 +31,8 @@ export interface MoodboardBoardProps {
 }
 
 function useBoardSize(element: React.RefObject<HTMLElement | null>) {
-  const [size, setSize] = useState(DEFAULT_SIZE);
+  const measurements = useCreateStore(DEFAULT_SIZE);
+  const size = useSelector(measurements, (value) => value);
   useEffect(() => {
     const node = element.current;
     if (!(node && typeof ResizeObserver !== "undefined")) {
@@ -38,12 +41,16 @@ function useBoardSize(element: React.RefObject<HTMLElement | null>) {
     const observer = new ResizeObserver(([entry]) => {
       const { height, width } = entry?.contentRect ?? DEFAULT_SIZE;
       if (width > 0 && height > 0) {
-        setSize({ height, width });
+        measurements.setState((previous) =>
+          previous.height === height && previous.width === width
+            ? previous
+            : { height, width },
+        );
       }
     });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [element]);
+  }, [element, measurements]);
   return size;
 }
 
@@ -53,15 +60,20 @@ function useBoardSize(element: React.RefObject<HTMLElement | null>) {
  * viewport that would open on an empty region fits visible content instead.
  */
 export function MoodboardBoard(props: MoodboardBoardProps) {
+  return <MoodboardBoardSession key={props.moodboard.id} {...props} />;
+}
+
+function MoodboardBoardSession(props: MoodboardBoardProps) {
   const { moodboard, onSelect, onViewportChange, savedViewport, selectedId } =
     props;
   const element = useRef<HTMLDivElement>(null);
   const size = useBoardSize(element);
   const rects = boardLayout(moodboard.items.map(({ id }) => id));
   // undefined follows the restored viewport; null is the neutral Fit View.
-  const [moved, setMoved] = useState<PersonalViewport | null | undefined>(
+  const viewportSession = useCreateStore<PersonalViewport | null | undefined>(
     undefined,
   );
+  const moved = useSelector(viewportSession, (value) => value);
   const candidate = moved === undefined ? savedViewport : moved;
   const viewport =
     candidate && !isMeaninglessViewport(candidate, rects, size)
@@ -80,12 +92,12 @@ export function MoodboardBoard(props: MoodboardBoardProps) {
   const detailed = shown.length <= BOARD_DETAIL_LIMIT;
 
   function change(next: PersonalViewport) {
-    setMoved(next);
+    viewportSession.setState(() => next);
     onViewportChange(next);
   }
 
   function fitToContent() {
-    setMoved(null);
+    viewportSession.setState(() => null);
     onViewportChange(null);
   }
 

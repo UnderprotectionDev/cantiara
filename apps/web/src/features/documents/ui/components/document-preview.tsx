@@ -20,6 +20,7 @@ import { githubDarkTheme } from "@tanstack/highlight/themes/github-dark";
 import { githubLightTheme } from "@tanstack/highlight/themes/github-light";
 import type { MarkdownExtension } from "@tanstack/markdown";
 import { Markdown } from "@tanstack/markdown/react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import katex from "katex";
 import { AppLink } from "@/components/app-link";
 import "katex/dist/katex.min.css";
@@ -293,33 +294,44 @@ function SourceRecordPreviewLink({
 
 function MermaidPreview({ source }: { source: string }) {
   const id = useId().replaceAll(/[^a-zA-Z0-9]/g, "");
-  const [rendered, setRendered] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const diagram = useCreateStore<{
+    source: string;
+    attempt: number;
+    rendered?: string;
+    error?: string;
+  }>({ source, attempt: 0 });
+  const result = useSelector(diagram, (state) =>
+    state.source === source ? state : null,
+  );
+  const { rendered, error } = result ?? {};
 
   useEffect(() => {
+    const attempt = diagram.get().attempt + 1;
+    diagram.setState(() => ({ source, attempt }));
     let active = true;
-    setRendered(null);
-    setError(null);
     mermaid
-      .render(`documentMermaid${id}`, source)
+      .render(`documentMermaid${id}-${attempt}`, source)
       .then(({ svg }) => {
         if (active) {
-          setRendered(svg);
+          diagram.setState(() => ({ source, attempt, rendered: svg }));
         }
       })
       .catch((failure: unknown) => {
         if (active) {
-          setError(
-            failure instanceof Error
-              ? failure.message
-              : "Diagram could not be rendered.",
-          );
+          diagram.setState(() => ({
+            source,
+            attempt,
+            error:
+              failure instanceof Error
+                ? failure.message
+                : "Diagram could not be rendered.",
+          }));
         }
       });
     return () => {
       active = false;
     };
-  }, [id, source]);
+  }, [diagram, id, source]);
 
   return (
     <div className="space-y-2">

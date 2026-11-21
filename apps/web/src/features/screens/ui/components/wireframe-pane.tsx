@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected block and toolbar kind.
+
 import type { LiveCardResolution } from "@cantiara/api/screen-origins";
 import {
   restoreViewport,
@@ -10,7 +11,7 @@ import {
   type WireframeComponentKind,
 } from "@cantiara/api/wireframe-document";
 import { Button } from "@cantiara/ui/components/button";
-import { useSelector } from "@tanstack/react-store";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   BarChart3,
   CreditCard,
@@ -66,8 +67,10 @@ export function stageSizeFor(pane: { height: number; width: number }) {
 
 function usePaneSize() {
   const ref = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ height: 600, width: 960 });
-  const [measured, setMeasured] = useState(false);
+  const pane = useCreateStore<ReturnType<typeof stageSizeFor> | null>(null);
+  const measuredSize = useSelector(pane, (value) => value);
+  const size = measuredSize ?? { height: 600, width: 960 };
+  const measured = measuredSize !== null;
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) {
@@ -76,15 +79,19 @@ function usePaneSize() {
     const measure = () => {
       const rect = element.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
-        setSize(stageSizeFor(rect));
-        setMeasured(true);
+        const next = stageSizeFor(rect);
+        pane.setState((previous) =>
+          previous?.height === next.height && previous.width === next.width
+            ? previous
+            : next,
+        );
       }
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [pane]);
   return { measured, ref, size };
 }
 
@@ -364,6 +371,7 @@ export function WireframePane({
               y: editingBlock.y,
             }}
             initialValue={editingBlock.label}
+            key={editingBlock.id}
             onCancel={() => setEditing(null)}
             onCommit={commitText}
           />

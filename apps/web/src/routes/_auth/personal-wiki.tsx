@@ -3,6 +3,11 @@ import PersonalWikiSurface from "@/features/personal-wiki/ui/components/personal
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
 
 export const Route = createFileRoute("/_auth/personal-wiki")({
+  validateSearch: (search) => ({
+    ...(search.documentsArchived === true
+      ? { documentsArchived: true as const }
+      : {}),
+  }),
   component: PersonalWikiRoute,
 });
 

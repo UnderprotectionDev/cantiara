@@ -11,6 +11,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { orpc } from "@/utils/orpc";
 import RoadmapViewEditor from "../forms/roadmap-view-form";
@@ -180,7 +181,21 @@ function RoadmapContent({
 }
 
 export default function ProjectRoadmap({ projectId }: { projectId: string }) {
-  const [selection, setSelection] = useState<ViewSelection>("direction");
+  const selection = useSearch({
+    strict: false,
+    select: (search) => search.roadmapView ?? "direction",
+  });
+  const navigate = useNavigate();
+  const setSelection = (value: string) => {
+    navigate({
+      hash: "roadmap",
+      search: (current) => ({
+        ...current,
+        roadmapView: value === "direction" ? undefined : value,
+      }),
+      to: ".",
+    }).catch(() => undefined);
+  };
   const [presentationMode, setPresentationMode] = useState(false);
   const roadmapRef = useRef<HTMLElement>(null);
   const presentationButtonRef = useRef<HTMLButtonElement>(null);
@@ -322,9 +337,7 @@ function RoadmapPresentation({
   roadmapContent: import("react").JSX.Element;
   enterPresentationMode: () => void;
   presentationButtonRef: RefObject<HTMLButtonElement | null>;
-  setSelection: import("react").Dispatch<
-    import("react").SetStateAction<string>
-  >;
+  setSelection: (value: string) => void;
   views: RoadmapView[];
 }) {
   return presentationMode ? (

@@ -17,7 +17,7 @@ import {
   workContextLayoutSections,
   workContextSourceText,
 } from "@cantiara/api/work-context";
-import type { WorkProfile, WorkType } from "@cantiara/api/work-lifecycle";
+import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import {
   Accordion,
   AccordionContent,
@@ -27,7 +27,8 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useLinkProps, useLocation, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { getWorkStatusLabel } from "@/components/work-status-form";
 import { useCommandPalette } from "@/features/command-palette/ui/components/command-palette";
 import {
@@ -37,32 +38,41 @@ import {
   workRelationsHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ReturnToWork from "@/features/return-to-work/ui/components/return-to-work";
+import { useClipboardFeedback } from "@/lib/use-clipboard-feedback";
 import { orpc } from "@/utils/orpc";
 import {
   COPY_CONTEXT_AS_MARKDOWN_LABEL,
   createCopyContextAsMarkdownCommand,
 } from "../../lib/work-context-markdown";
 
+const EMPTY_PROJECT_WORKS: readonly WorkProfile[] = [];
+
 const WORK_CONTEXT_SECTION_ID_PATTERN = /[^a-z0-9]+/gi;
 
-interface WorkContextState {
-  visibleSections: string[];
-  workType: WorkType;
-}
-
-export default function WorkContextCard({
-  work,
-  workStatusLabels,
-  priorityValues,
-  projectWorks = [],
-  workContextLayouts,
-}: {
+interface WorkContextCardProps {
   priorityValues?: WorkContextPriorityValues;
   projectWorks?: readonly WorkProfile[];
   work: WorkProfile;
   workContextLayouts?: Partial<WorkContextLayouts>;
   workStatusLabels: readonly WorkStatusLabel[];
-}) {
+}
+
+export default function WorkContextCard(props: WorkContextCardProps) {
+  return (
+    <WorkContextSession
+      {...props}
+      key={JSON.stringify([props.work.id, props.work.type])}
+    />
+  );
+}
+
+function WorkContextSession({
+  work,
+  workStatusLabels,
+  priorityValues,
+  projectWorks = EMPTY_PROJECT_WORKS,
+  workContextLayouts,
+}: WorkContextCardProps) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
   const relationsQuery = useQuery(
     orpc.relations.queryOptions({
@@ -80,12 +90,8 @@ export default function WorkContextCard({
     work.type,
     configuredLayout,
   );
-  const [contextState, setContextState] = useState<WorkContextState>({
-    visibleSections: [],
-    workType: work.type,
-  });
-  const visibleSections =
-    contextState.workType === work.type ? contextState.visibleSections : [];
+  const context = useCreateStore<string[]>([]);
+  const visibleSections = useSelector(context, (value) => value);
   const nextSection = nextWorkContextSection(
     work.type,
     visibleSections,
@@ -165,20 +171,17 @@ export default function WorkContextCard({
     relationsQuery.isError,
     relationsQuery.isPending,
   ]);
-  const [copyState, setCopyState] = useState<"idle" | "copying" | "copied">(
-    "idle",
-  );
-  const [copyError, setCopyError] = useState<string | null>(null);
+  const clipboard = useClipboardFeedback<void>(copyCommand);
+  const copyState = clipboard.feedback.status;
+  const copyError =
+    clipboard.feedback.status === "failed" ? clipboard.feedback.message : null;
 
-  function addContext() {
+  const addContext = useCallback(() => {
     if (!nextSection) {
       return;
     }
-    setContextState({
-      visibleSections: [...visibleSections, nextSection.key],
-      workType: work.type,
-    });
-  }
+    context.setState((sections) => [...sections, nextSection.key]);
+  }, [context, nextSection]);
 
   const initialFieldValues: Record<WorkContextInitialField, string> = {
     Planning: "Not set",
@@ -187,17 +190,15 @@ export default function WorkContextCard({
     Type: work.type,
   };
 
-  const handleCopy = useCallback(async () => {
-    setCopyError(null);
-    setCopyState("copying");
-    try {
-      await copyCommand.run();
-      setCopyState("copied");
-    } catch (error) {
-      setCopyState("idle");
-      setCopyError(copyErrorMessage(error));
-    }
-  }, [copyCommand]);
+  const handleCopy = useCallback(
+    () =>
+      clipboard.copy(
+        async () => copyCommand.run(),
+        undefined,
+        copyErrorMessage,
+      ),
+    [clipboard, copyCommand],
+  );
 
   return (
     <section

@@ -1,8 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: The output binds its own copy and download handlers.
 import type { SchemaSqlExport } from "@cantiara/api/schema-artifacts";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
 import { writeTextToClipboard } from "@/lib/clipboard";
+import { useClipboardFeedback } from "@/lib/use-clipboard-feedback";
 
 import { downloadSqlText } from "../../lib/sql-download";
 
@@ -19,14 +19,16 @@ export function SqlOutput({
   label: string;
   sql: string;
 }) {
-  const [message, setMessage] = useState("");
-  async function copy() {
-    try {
-      await writeTextToClipboard(sql);
-      setMessage(`${label} copied.`);
-    } catch {
-      setMessage(`${label} could not be copied. Select the text instead.`);
-    }
+  const clipboard = useClipboardFeedback<string>(JSON.stringify([label, sql]));
+  const { feedback } = clipboard;
+  const failure = feedback.status === "failed" ? feedback.message : "";
+  const message = feedback.status === "copied" ? feedback.value : failure;
+  function copy() {
+    return clipboard.copy(
+      () => writeTextToClipboard(sql),
+      `${label} copied.`,
+      () => `${label} could not be copied. Select the text instead.`,
+    );
   }
   return (
     <div className="space-y-2">

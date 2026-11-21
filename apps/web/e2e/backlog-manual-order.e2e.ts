@@ -101,6 +101,13 @@ test("Backlog drag persists its own order across alternate presentations and a s
       await page
         .getByLabel("Field to sort by")
         .selectOption({ label: "Status" });
+      await page.reload();
+      await expect(page.getByLabel("Backlog sort")).toHaveValue("Field");
+      await expect(page.getByLabel("Field to sort by")).toHaveValue("Status");
+      await page.goBack();
+      await expect(page.getByLabel("Field to sort by")).toHaveValue("Title");
+      await page.goForward();
+      await expect(page.getByLabel("Field to sort by")).toHaveValue("Status");
     }
     await page
       .getByLabel("Backlog sort")

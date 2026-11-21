@@ -67,6 +67,8 @@ Dosya tam olarak bir Proje veya Kişisel Wiki kapsamında ana kayıt olarak yaş
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** Loop is a playback-session preference and resets when the media source changes. Markup rebinds measurements when its image or canvas changes and clears an unfinished stroke when the tool, page or version changes. The File Attachment preview and marking seams cover these controls.
+
 - **#545.** The web file-attachment-location-form.test.tsx seam checks that the selected location and target mode feed the preview command from the current form values.
 
 - The protected asset and Binder seams verify retry from Query, discard a previous selection’s preview and keep an identical planned bind on retry.

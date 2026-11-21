@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each tool binds its own wall, card and format.
+
 import type { ProjectWallView } from "@cantiara/api/project-wall";
 import {
   PROJECT_WALL_PRESENTATION_LABELS,
@@ -7,7 +8,8 @@ import {
   projectWallPresentationSequence,
 } from "@cantiara/api/project-wall-presentation";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useLayoutEffect } from "react";
 
 import { cardLabel } from "../../lib/project-wall-presentation";
 import { ProjectWallCard } from "./project-wall-card";
@@ -40,7 +42,13 @@ export function ProjectWallPresentationView({
   wall: ProjectWallView;
 }) {
   const sequence = projectWallPresentationSequence(wall.cards, wall.focusOrder);
-  const [index, setIndex] = useState(0);
+  const presentation = useCreateStore(0);
+  const storedIndex = useSelector(presentation, (value) => value);
+  const lastIndex = Math.max(0, sequence.length - 1);
+  const index = Math.min(storedIndex, lastIndex);
+  useLayoutEffect(() => {
+    presentation.setState((value) => Math.min(value, lastIndex));
+  }, [lastIndex, presentation]);
   const card = sequence[Math.min(index, sequence.length - 1)];
   return (
     <section
@@ -58,7 +66,9 @@ export function ProjectWallPresentationView({
       <div className="flex items-center gap-2">
         <Button
           disabled={index === 0}
-          onClick={() => setIndex(index - 1)}
+          onClick={() =>
+            presentation.setState((value) => Math.max(0, value - 1))
+          }
           type="button"
           variant="outline"
         >
@@ -69,7 +79,9 @@ export function ProjectWallPresentationView({
         </span>
         <Button
           disabled={index >= sequence.length - 1}
-          onClick={() => setIndex(index + 1)}
+          onClick={() =>
+            presentation.setState((value) => Math.min(lastIndex, value + 1))
+          }
           type="button"
           variant="outline"
         >

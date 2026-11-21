@@ -59,6 +59,8 @@ Kurucu tek Çalışma Alanı etiket ad alanında düz etiket oluşturur, kayıtl
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Project URL stores the active tag filter. Back and Forward reload linked records under the selected tag.
+
 - The Project Tags seam verifies that a confirmed rename exposes its receipt for Undo until the matching Undo succeeds, including when Undo is retried.
 
 - **Tag creation retry (#544).** The Project Tags browser test loses the first successful response, resubmits the same form, and sees one Tag. The PostgreSQL seam checks receipt replay, changed input conflict and independent duplicate-name rejection.

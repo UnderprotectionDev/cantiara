@@ -45,6 +45,8 @@ Proje Hedefi başlık, açıklama, isteğe bağlı `Intended outcome` ve kullan�
 
 ## Testing Decisions
 
+- **Client state ownership (#547).** The Goal editor session resets on Goal, Project or write-access changes. The Project Goals view and editor tests observe the form and current record.
+
 - **What a good test is.** Tests observe Project Goals through create/edit of the record, `Contributes to Goal` attach/detach, live summary, and the absence of progress percent. They do not render the Value Chain graph.
 - **Seam (one).** Project Goals — record and membership interface. Relation catalog is the domain relation adapter, not a second module.
 - **Modules under test.** Project Goals only. Value Chain, Milestone life, Release life, Decision, evidence are counterparts (wrong relation rejected; chain not built).

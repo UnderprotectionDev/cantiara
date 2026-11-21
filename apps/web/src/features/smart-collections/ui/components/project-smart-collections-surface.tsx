@@ -11,7 +11,12 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@cantiara/ui/components/toggle-group";
-import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
+import {
+  DragDropProvider,
+  useDraggable,
+  useDragOperation,
+  useDroppable,
+} from "@dnd-kit/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLinkProps } from "@tanstack/react-router";
 import {
@@ -19,13 +24,7 @@ import {
   useCreateStore,
 } from "@tanstack/react-store";
 import { GripVertical } from "lucide-react";
-import {
-  type ComponentProps,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { ExportListAction } from "@/components/export-list-action";
 import FavoriteControl from "@/components/favorite-control";
 import {
@@ -60,13 +59,6 @@ import { SmartCollectionInsights } from "./smart-collection-insights";
 
 const SMART_COLLECTION_DRAG_TYPE = "smart-collection-record";
 
-type DragEndEvent = Parameters<
-  NonNullable<ComponentProps<typeof DragDropProvider>["onDragEnd"]>
->[0];
-type DragOverEvent = Parameters<
-  NonNullable<ComponentProps<typeof DragDropProvider>["onDragOver"]>
->[0];
-
 type SmartCollectionDragRecord = SmartCollectionMembershipPreviewRecord & {
   id: string;
   recordName: string;
@@ -84,14 +76,17 @@ function collectionViewDropId(viewId: string) {
 }
 
 function previewForDragEvent(
-  event: DragOverEvent | DragEndEvent,
+  operation: {
+    source?: { data: unknown } | null;
+    target?: { id: string | number } | null;
+  },
   viewsByDropId: ReadonlyMap<string, SmartCollectionViewSource>,
 ): SmartCollectionMembershipPreview | null {
-  const dragData = event.operation.source?.data as
+  const dragData = operation.source?.data as
     | { smartCollectionRecord?: SmartCollectionDragRecord }
     | undefined;
   const record = dragData?.smartCollectionRecord;
-  const view = viewsByDropId.get(String(event.operation.target?.id ?? ""));
+  const view = viewsByDropId.get(String(operation.target?.id ?? ""));
   if (!(record && view) || record.sourceViewId === view.id) {
     return null;
   }
@@ -452,7 +447,7 @@ function collectionExportHandoff(
 }
 
 function CollectionViewCard({
-  preview,
+  preview: droppedPreview,
   view,
 }: {
   preview: SmartCollectionMembershipPreview | null;
@@ -467,6 +462,13 @@ function CollectionViewCard({
     accept: SMART_COLLECTION_DRAG_TYPE,
     id: collectionViewDropId(view.id),
   });
+  const operation = useDragOperation();
+  const preview = operation.source
+    ? previewForDragEvent(
+        operation,
+        new Map([[collectionViewDropId(view.id), view]]),
+      )
+    : droppedPreview;
   const showDropTarget = droppable.isDropTarget && preview?.viewId === view.id;
   const isWorkCollection = view.sourceType === "Work";
   const newWorkLinkProps = useLinkProps(newWorkLinkTarget(view));
@@ -561,30 +563,22 @@ export default function ProjectSmartCollectionsSurface({
   projectId: string;
   selectedViewId?: string;
 }) {
-  const [membershipPreview, setMembershipPreview] =
-    useState<SmartCollectionMembershipPreview | null>(null);
-  const previousProjectId = useRef(projectId);
-  const previousSelectedViewId = useRef(selectedViewId);
+  const membership = useCreateStore<SmartCollectionMembershipPreview | null>(
+    null,
+  );
+  const membershipPreview = useCollectionPanelSelector(
+    membership,
+    (value) => value,
+  );
   const options = orpc.smartCollectionViews.queryOptions({
     input: { projectId },
   });
   const views = useQuery(options);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Changing Project or View ends the membership preview.
   useEffect(() => {
-    if (previousProjectId.current === projectId) {
-      return;
-    }
-    previousProjectId.current = projectId;
-    setMembershipPreview(null);
-  }, [projectId]);
-
-  useEffect(() => {
-    if (previousSelectedViewId.current === selectedViewId) {
-      return;
-    }
-    previousSelectedViewId.current = selectedViewId;
-    setMembershipPreview(null);
-  }, [selectedViewId]);
+    membership.setState(() => null);
+  }, [membership, projectId, selectedViewId]);
 
   const visible = selectedViewId
     ? views.data?.filter(({ id }) => id === selectedViewId)
@@ -600,14 +594,15 @@ export default function ProjectSmartCollectionsSurface({
         <p role="alert">Smart Collection is unavailable.</p>
       ) : null}
       <DragDropProvider
+        key={JSON.stringify([projectId, selectedViewId])}
         onDragEnd={(event) => {
-          setMembershipPreview(
-            event.canceled ? null : previewForDragEvent(event, viewsByDropId),
+          membership.setState(() =>
+            event.canceled
+              ? null
+              : previewForDragEvent(event.operation, viewsByDropId),
           );
         }}
-        onDragOver={(event) => {
-          setMembershipPreview(previewForDragEvent(event, viewsByDropId));
-        }}
+        onDragStart={() => membership.setState(() => null)}
       >
         <div className="grid gap-3 md:grid-cols-2">
           {visible?.map((view) => (

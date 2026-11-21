@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected review and changed section.
+
 import type {
   SpecChangeReviewDetail,
   SpecChangeReviewSummary,
@@ -6,7 +7,7 @@ import type {
   SpecSectionChange,
 } from "@cantiara/api/spec-change-review";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 
 import {
   type DiffWalkDirection,
@@ -86,13 +87,14 @@ function ReviewDiff({
   onPreviewFollowUp?: PreviewFollowUp;
 }) {
   const { diff, review } = detail;
-  const [current, setCurrent] = useState<number | null>(null);
+  const currentStore = useCreateStore<number | null>(null);
+  const current = useSelector(currentStore, (value) => value);
   const count = diff.sections.length;
   const currentSection = current === null ? undefined : diff.sections[current];
 
   function walk(direction: DiffWalkDirection) {
     const index = walkIndex(current, count, direction);
-    setCurrent(index);
+    currentStore.setState(() => index);
     if (index !== null) {
       document.getElementById(sectionElementId(review.id, index))?.focus();
     }
@@ -211,7 +213,11 @@ export function SpecChangeReviewView({
       {detail ? (
         <ReviewDiff
           detail={detail}
-          key={detail.review.id}
+          key={JSON.stringify([
+            detail.review.id,
+            detail.previous.revision,
+            detail.next.revision,
+          ])}
           markStatus={markStatus}
           onConfirmFollowUp={onConfirmFollowUp}
           onMark={onMark}

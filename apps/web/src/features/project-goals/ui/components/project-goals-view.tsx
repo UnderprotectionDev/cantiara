@@ -2,7 +2,8 @@
 
 import type { ProjectGoalRecord } from "@cantiara/api/project-goals";
 import { Button } from "@cantiara/ui/components/button";
-import { type ReactNode, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import type { ReactNode } from "react";
 import { AppLink } from "@/components/app-link";
 import {
   FIELDS,
@@ -13,7 +14,35 @@ import {
 export function projectGoalsHref(projectId: string, goalId?: string) {
   return `/projects/${encodeURIComponent(projectId)}#${goalId ? `project-goal-${encodeURIComponent(goalId)}` : "goals"}`;
 }
-export function ProjectGoalsView({
+interface ProjectGoalsViewProps {
+  goals: readonly ProjectGoalRecord[];
+  membership?: ReactNode;
+  onSave: (
+    draft: ProjectGoalDraft,
+    goal?: ProjectGoalRecord,
+  ) => Promise<unknown>;
+  onStartEditing?: () => void;
+  projectId: string;
+  readOnly: boolean;
+  savedMessage?: string;
+  selectedId?: string;
+}
+
+export function ProjectGoalsView(props: ProjectGoalsViewProps) {
+  return (
+    <ProjectGoalsViewSession
+      key={JSON.stringify([
+        props.projectId,
+        props.selectedId,
+        props.readOnly,
+        props.goals.some(({ id }) => id === props.selectedId),
+      ])}
+      {...props}
+    />
+  );
+}
+
+function ProjectGoalsViewSession({
   goals,
   projectId,
   readOnly,
@@ -22,20 +51,10 @@ export function ProjectGoalsView({
   onStartEditing,
   savedMessage,
   membership,
-}: {
-  goals: readonly ProjectGoalRecord[];
-  projectId: string;
-  readOnly: boolean;
-  selectedId?: string;
-  onSave: (
-    draft: ProjectGoalDraft,
-    goal?: ProjectGoalRecord,
-  ) => Promise<unknown>;
-  membership?: ReactNode;
-  savedMessage?: string;
-  onStartEditing?: () => void;
-}) {
-  const [editing, setEditing] = useState(false);
+}: ProjectGoalsViewProps) {
+  const editSession = useCreateStore(false);
+  const editing = useSelector(editSession, (value) => value);
+  const setEditing = (value: boolean) => editSession.setState(() => value);
   const selected = selectedId
     ? goals.find((goal) => goal.id === selectedId)
     : undefined;
@@ -136,7 +155,7 @@ function ProjectGoalEditControls({
   canEdit: boolean;
   editing: boolean;
   selected: ProjectGoalRecord | undefined;
-  setEditing: import("react").Dispatch<import("react").SetStateAction<boolean>>;
+  setEditing: (value: boolean) => void;
   onSave: (
     draft: ProjectGoalDraft,
     goal?: ProjectGoalRecord,

@@ -1,4 +1,7 @@
+// @vitest-environment happy-dom
 import type { ProjectSourceRecord } from "@cantiara/api/project-source-records";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { ProjectDecisionsView } from "../project-decisions-panel";
@@ -157,5 +160,45 @@ test("a withdrawn terminal shows No Valid Decision without current navigation fr
     expect(html).not.toContain("Open current decision");
     expect(html).toContain("Constraints changed");
     expect(html).toContain("Keep scope small.");
+  }
+});
+
+test("changing the selected Decision closes the previous record's editor", () => {
+  const next = { ...decision, id: "decision-2", title: "New scope" };
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  const environment = vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  function render(selectedId: string) {
+    act(() =>
+      root.render(
+        <ProjectDecisionsView
+          decisions={[decision, next]}
+          onSave={save}
+          onWithdraw={save}
+          projectId="project-1"
+          selectedId={selectedId}
+        />,
+      ),
+    );
+  }
+  function edit() {
+    const button = [...host.querySelectorAll("button")].find(
+      (candidate) => candidate.textContent === "Edit",
+    );
+    act(() => button?.click());
+  }
+  try {
+    render(decision.id);
+    edit();
+    expect(host.querySelector("input")?.value).toBe("Release scope");
+    render(next.id);
+    expect(host.querySelector("form")).toBeNull();
+    edit();
+    expect(host.querySelector("input")?.value).toBe("New scope");
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    environment.unstubAllGlobals();
   }
 });
