@@ -51,6 +51,8 @@ Kurucu etkiyi önizler, Hesap Erişimi feature'ının `Confirm GitHub Identity` 
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Security Redaction panel seam opens the existing preview and grant form, keeps proof and error feedback in that panel, and returns to the initial control on Cancel.
+
 - **Write lifecycle evidence (#544).** The web Redact seam observes typed-name, grant and incomplete-spread refusals. It verifies that the supplied raw value and grant stay outside MutationCache.
 
 - **RPC refusal evidence (#543).** `security-redaction-rpc.test.ts` verifies the grant and typed-name outcomes. `apps/server/src/app.test.ts` verifies both name mismatch and incomplete spread through HTTP, including rejection of an invalid locator kind and omission of private fields. `security-redaction-panel.test.tsx` exercises the display of each typed apply refusal and the fresh `Confirm GitHub Identity` step.

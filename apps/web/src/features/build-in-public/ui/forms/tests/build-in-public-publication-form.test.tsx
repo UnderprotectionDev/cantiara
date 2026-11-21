@@ -132,7 +132,7 @@ test("a slug change is previewed and its redirect confirmed before it applies; u
 
   click(button(view, "Unpublish"));
   expect(onUnpublish).not.toHaveBeenCalled();
-  click(button(view, "Confirm Unpublish"));
+  await clickAndSettle(button(document.body, "Confirm Unpublish"));
   expect(onUnpublish).toHaveBeenCalledTimes(1);
 });
 

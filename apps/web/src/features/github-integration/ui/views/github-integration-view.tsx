@@ -245,6 +245,8 @@ function TriageResults({
 
 function LinkItem({
   actions,
+  error,
+  resetWrite,
   formattingPreferences,
   link,
   projectId,
@@ -252,6 +254,8 @@ function LinkItem({
   saving,
 }: {
   actions: GitHubIntegrationActions;
+  error: { action: "Reconnect" | "Disconnect"; message: string } | null;
+  resetWrite: () => void;
   formattingPreferences: AccountPreferences;
   link: GitHubRepositoryLink;
   projectId: string;
@@ -336,6 +340,7 @@ function LinkItem({
         handle={handle}
         onOpenChange={(open, event) => {
           if (open) {
+            resetWrite();
             trigger.current =
               event.trigger instanceof HTMLElement ? event.trigger : null;
           } else if (saving && event.reason !== "imperative-action") {
@@ -355,6 +360,7 @@ function LinkItem({
               <DialogTitle className="sr-only">{payload} preview</DialogTitle>
               <LinkActionPreview
                 action={payload}
+                failure={error?.action === payload ? error.message : null}
                 linkId={link.id}
                 loadPreview={actions.loadPreview}
                 onClose={() => handle.close()}
@@ -383,6 +389,7 @@ function LinkItem({
 
 function LinkActionPreview({
   action,
+  failure,
   linkId,
   loadPreview,
   onClose,
@@ -391,6 +398,7 @@ function LinkActionPreview({
   saving,
 }: {
   action: GitHubLinkPreview["action"];
+  failure: string | null;
   linkId: string;
   loadPreview: GitHubIntegrationActions["loadPreview"];
   onClose: () => void;
@@ -406,14 +414,19 @@ function LinkActionPreview({
       : orpc.previewGitHubReconnect
     ).queryKey({ input: { linkId, projectId } }),
   });
-  const [failure, setFailure] = useState<string | null>(null);
+  const submitting = useRef<boolean>(false);
   async function confirm() {
-    setFailure(null);
+    if (submitting.current) {
+      return;
+    }
+    submitting.current = true;
     try {
       await onConfirm();
       onClose();
-    } catch (error) {
-      setFailure(errorText(error, "The GitHub action did not finish."));
+    } catch {
+      // The shared mutation observer renders this command's error in the dialog.
+    } finally {
+      submitting.current = false;
     }
   }
   return (
@@ -520,8 +533,13 @@ export function GitHubIntegrationView({
       }
     },
   });
+  const failedCommand = write.isError ? write.variables : undefined;
+  const failedLinkAction =
+    failedCommand?.kind === "reconnect" || failedCommand?.kind === "disconnect"
+      ? failedCommand
+      : null;
   let notice: GitHubNoticeState | undefined;
-  if (write.isError) {
+  if (write.isError && !failedLinkAction) {
     notice = {
       kind: "alert",
       text: errorText(write.error, "The GitHub action did not finish."),
@@ -590,10 +608,25 @@ export function GitHubIntegrationView({
             {links.map((link) => (
               <LinkItem
                 actions={actions}
+                error={
+                  failedLinkAction?.linkId === link.id
+                    ? {
+                        action:
+                          failedLinkAction.kind === "reconnect"
+                            ? "Reconnect"
+                            : "Disconnect",
+                        message: errorText(
+                          write.error,
+                          "The GitHub action did not finish.",
+                        ),
+                      }
+                    : null
+                }
                 formattingPreferences={formattingPreferences}
                 key={link.id}
                 link={link}
                 projectId={projectId}
+                resetWrite={write.reset}
                 run={write.mutateAsync}
                 saving={write.isPending}
               />

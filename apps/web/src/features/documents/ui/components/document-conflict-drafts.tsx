@@ -146,7 +146,9 @@ export default function DocumentConflictDrafts({
       ),
     onSuccess: async (document) => {
       compare.reset();
-      independentHandle.close();
+      if (independentHandle.isOpen) {
+        independentHandle.close();
+      }
       onResolved(document);
       await queryClient.invalidateQueries({ queryKey: draftOptions.queryKey });
       await queryClient.invalidateQueries({

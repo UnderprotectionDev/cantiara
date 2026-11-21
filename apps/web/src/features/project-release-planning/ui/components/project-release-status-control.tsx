@@ -56,6 +56,7 @@ export function ProjectReleaseStatusControl({
   const actions = useRef<AlertDialogActions | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const committed = useRef<boolean>(false);
+  const openingControl = useRef<HTMLElement | null>(null);
   const error = failed
     ? "Status could not be changed. Reload and try again."
     : null;
@@ -119,6 +120,7 @@ export function ProjectReleaseStatusControl({
               <AlertDialogTrigger
                 disabled={saving}
                 handle={handle}
+                key={suggestion.status}
                 payload={suggestion.status}
                 render={<Button size="sm" variant="outline" />}
               >
@@ -148,6 +150,8 @@ export function ProjectReleaseStatusControl({
         onOpenChange={(open, event) => {
           if (open) {
             committed.current = false;
+            openingControl.current =
+              event.trigger instanceof HTMLElement ? event.trigger : null;
             resetStatus?.();
           } else if (saving && event.reason !== "imperative-action") {
             event.cancel();
@@ -161,7 +165,11 @@ export function ProjectReleaseStatusControl({
           const copy = projectReleaseStatusChangeCopy(payload, openScope);
           return (
             <AlertDialogContent
-              finalFocus={() => (committed.current ? heading.current : true)}
+              finalFocus={() =>
+                committed.current || !openingControl.current?.isConnected
+                  ? heading.current
+                  : openingControl.current
+              }
             >
               <AlertDialogHeader>
                 <AlertDialogTitle>{copy.title}</AlertDialogTitle>

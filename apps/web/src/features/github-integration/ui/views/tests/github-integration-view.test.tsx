@@ -329,9 +329,10 @@ test("shows a refusal as an alert", async () => {
     buttonNamed("Confirm Reconnect").click();
     await settle();
   });
-  expect(host?.querySelector('p[role="alert"]')?.textContent).toBe(
-    "Install it again.",
-  );
+  expect(
+    document.querySelector('[role="dialog"] p[role="alert"]')?.textContent,
+  ).toBe("Install it again.");
+  expect(host?.querySelector('p[role="alert"]')).toBeNull();
 });
 
 test("previews the triage without any Work control and can skip it", async () => {

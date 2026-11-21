@@ -32,7 +32,9 @@ test("previews an archive change, then applies it with one save identity", async
     descendants: [],
     reason: null,
   });
-  rpc.organize.mockResolvedValue({ id: "doc" });
+  rpc.organize
+    .mockRejectedValueOnce(new Error("Connection interrupted"))
+    .mockResolvedValue({ id: "doc" });
   const onCommitted = vi.fn(async () => undefined);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -82,6 +84,14 @@ test("previews an archive change, then applies it with one save identity", async
         documentId: "doc",
       }),
     );
+    await vi.waitFor(() =>
+      expect(
+        document.querySelector('[role="dialog"] [role="alert"]')?.textContent,
+      ).toBe("Connection interrupted"),
+    );
+    await act(async () => button("Apply").click());
+    expect(rpc.organize).toHaveBeenCalledTimes(2);
+    expect(rpc.organize.mock.calls[1]).toEqual(rpc.organize.mock.calls[0]);
     expect(onCommitted).toHaveBeenCalledWith({ id: "doc" });
     await vi.waitFor(() =>
       expect(document.querySelector("[role=dialog]")).toBeNull(),

@@ -14,7 +14,7 @@ import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
-  type createDialogHandle,
+  createDialogHandle,
   Dialog,
   DialogClose,
   DialogContent,
@@ -30,6 +30,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { useQuery } from "@tanstack/react-query";
 import {
   type RefObject,
   type SubmitEvent,
@@ -43,6 +44,7 @@ import {
   useRecordActionRunner,
 } from "../../hooks/use-record-action-runner";
 import { useRecordActionRuntimeInputForm } from "../../hooks/use-record-action-runtime-input-form";
+import { recordActionListOptions } from "../../hooks/use-record-actions";
 import { recordActionRuntimeInputsFormSchema } from "../../lib/record-action-runtime-inputs";
 
 function RuntimeCustomFieldControl({
@@ -153,6 +155,12 @@ function RuntimeCustomFieldControl({
     );
   }
   return null;
+}
+
+export const createRecordActionHandle = createDialogHandle<ActiveRecordAction>;
+
+export function useRecordActionList(projectId: string) {
+  return useQuery(recordActionListOptions(projectId));
 }
 
 export function RecordActionButtons({
@@ -617,6 +625,7 @@ export function RecordActionRunDialog({
           >
             <RecordActionRunContent
               busy={busy}
+              key={`${payload.action.id}:${payload.work.id}`}
               openingAction={payload}
               projectId={projectId}
             />

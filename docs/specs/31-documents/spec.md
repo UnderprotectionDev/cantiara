@@ -70,7 +70,7 @@ Belge Proje veya Kişisel Wiki kapsamında, yalnız veritabanında yaşayan sür
 
 ## Testing Decisions
 
-- **Popup lifecycle (#546).** The Document organization seam opens the Archive action from its own trigger and checks the selected action and base revision in the applied command. The form lives within the dialog's open lifetime.
+- **Popup lifecycle (#546).** The Document organization seam opens the Archive action from its own trigger and checks that a rejected write stays open and a retry preserves the selected action, base revision, and command identity. The form lives within the dialog's open lifetime.
 
 - **#545.** The web document-organization-form.test.tsx and document-evidence-role-form.test.tsx seams check preview and apply, and replay of the same failed write from the retained draft.
 

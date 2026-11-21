@@ -8,7 +8,9 @@ import {
 import { type Document, documentTypeSchema } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import {
+  createDialogHandle,
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -34,6 +36,11 @@ import {
 } from "../../lib/document-template-form";
 
 type TemplateMode = "add" | "edit" | "convert" | "apply";
+interface TemplateDialogTarget {
+  mode: TemplateMode;
+  preview?: { sourceDocumentId: string; sourceRevision: number };
+  template?: TemplateChoice;
+}
 const templateDialogTitles: Record<TemplateMode, string> = {
   add: "Add Document Template",
   edit: "Edit Document Template",
@@ -141,8 +148,8 @@ export default function DocumentTemplatesSurface({
     selection === personalReviewTemplate.id
       ? personalReviewTemplate
       : templates.data?.find(({ id }) => id === selection);
-  const [mode, setMode] = useState<TemplateMode | null>(null);
-  const [templateAtOpen, setTemplateAtOpen] = useState<TemplateChoice>();
+  const [handle] = useState(createDialogHandle<TemplateDialogTarget>);
+  const sourceControl = useRef<HTMLButtonElement | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const pending = useRef<{ key: string } | null>(null);
 
@@ -164,8 +171,7 @@ export default function DocumentTemplatesSurface({
       }
       if (pending.current?.key === input.clientIdempotencyKey) {
         pending.current = null;
-        setMode(null);
-        setTemplateAtOpen(undefined);
+        handle.close();
         setValidationError(null);
       }
     },
@@ -178,7 +184,12 @@ export default function DocumentTemplatesSurface({
       title: "",
       values: {},
     } as TemplateFormValues,
-    onSubmit: async ({ value }) => {
+    onSubmitMeta: undefined as TemplateDialogTarget | undefined,
+    onSubmit: async ({ value, meta }) => {
+      if (!meta) {
+        return;
+      }
+      const { mode, template, preview } = meta;
       const parsed =
         mode === "apply"
           ? createDocumentFromTemplateFormSchema.safeParse(value)
@@ -197,8 +208,8 @@ export default function DocumentTemplatesSurface({
         {
           mode,
           values: { ...value, ...parsed.data },
-          selected: templateAtOpen,
-          preview,
+          selected: template,
+          preview: preview ?? null,
           projectId,
         },
         save.isError ? save.variables : undefined,
@@ -207,11 +218,10 @@ export default function DocumentTemplatesSurface({
       await save.mutateAsync(input);
     },
   });
-  function open(nextMode: TemplateMode) {
-    const openedTemplate = nextMode === "add" ? undefined : selected;
+  function open(target: TemplateDialogTarget) {
+    const { mode: nextMode, template: openedTemplate } = target;
     pending.current = null;
     save.reset();
-    setTemplateAtOpen(openedTemplate);
     setValidationError(null);
     if (nextMode !== "convert") {
       conversion.reset();
@@ -240,25 +250,25 @@ export default function DocumentTemplatesSurface({
       },
       { keepDefaultValues: true },
     );
-    setMode(nextMode);
+    handle.openWithPayload(target);
   }
   const conversion = useMutation({
     mutationKey: orpc.previewDocumentTemplate.mutationKey(),
     mutationFn: (documentId: string) =>
       client.previewDocumentTemplate({ documentId }),
     onSuccess: (result) => {
-      open("convert");
+      open({
+        mode: "convert",
+        preview: {
+          sourceDocumentId: result.sourceDocumentId,
+          sourceRevision: result.sourceRevision,
+        },
+      });
       form.setFieldValue("name", result.name);
       form.setFieldValue("body", result.body);
       form.setFieldValue("type", result.type);
     },
   });
-  const preview = conversion.data
-    ? {
-        sourceDocumentId: conversion.data.sourceDocumentId,
-        sourceRevision: conversion.data.sourceRevision,
-      }
-    : null;
   const error =
     validationError ??
     save.error?.message ??
@@ -266,11 +276,6 @@ export default function DocumentTemplatesSurface({
       ? "Document could not be loaded for Convert to template."
       : null);
   const templateSaved = save.isSuccess && save.data.template;
-  const title = templateDialogTitles[mode ?? "add"];
-  let submitLabel = mode === "apply" ? "Create from template" : "Save";
-  if (save.isPending) {
-    submitLabel = "Saving…";
-  }
   return (
     <section
       aria-label="Document Templates"
@@ -303,27 +308,44 @@ export default function DocumentTemplatesSurface({
           </NativeSelect>
         </div>
         <Button
-          disabled={!selected}
-          onClick={() => open("apply")}
+          disabled={!selected || conversion.isPending}
+          onClick={(event) => {
+            sourceControl.current = event.currentTarget;
+            open({ mode: "apply", template: selected });
+          }}
           type="button"
         >
           Create from template
         </Button>
         <Button
-          disabled={!selected}
-          onClick={() => open("edit")}
+          disabled={!selected || conversion.isPending}
+          onClick={(event) => {
+            sourceControl.current = event.currentTarget;
+            open({ mode: "edit", template: selected });
+          }}
           type="button"
           variant="outline"
         >
           Edit Document Template
         </Button>
-        <Button onClick={() => open("add")} type="button" variant="outline">
+        <Button
+          disabled={conversion.isPending}
+          onClick={(event) => {
+            sourceControl.current = event.currentTarget;
+            open({ mode: "add" });
+          }}
+          type="button"
+          variant="outline"
+        >
           Add Document Template
         </Button>
         {source ? (
           <Button
             disabled={conversion.isPending}
-            onClick={() => conversion.mutate(source.id)}
+            onClick={(event) => {
+              sourceControl.current = event.currentTarget;
+              conversion.mutate(source.id);
+            }}
             type="button"
             variant="outline"
           >
@@ -334,177 +356,200 @@ export default function DocumentTemplatesSurface({
       {templates.isError ? (
         <p role="alert">Document Templates could not be loaded.</p>
       ) : null}
-      {error && mode === null ? <p role="alert">{error}</p> : null}
-      {templateSaved && mode === null ? (
+      {conversion.isError ? (
+        <p role="alert">
+          Document could not be loaded for Convert to template.
+        </p>
+      ) : null}
+      {templateSaved ? (
         <p className="text-sm text-muted-foreground" role="status">
           Document Template saved. Existing Documents are unchanged.
         </p>
       ) : null}
       <Dialog
-        onOpenChange={(openState) => {
-          if (!(openState || save.isPending)) {
-            setMode(null);
-            setTemplateAtOpen(undefined);
-            pending.current = null;
-            save.reset();
-            conversion.reset();
-            setValidationError(null);
+        handle={handle}
+        onOpenChange={(openState, event) => {
+          if (openState || event.reason === "imperative-action") {
+            return;
           }
+          if (save.isPending) {
+            event.cancel();
+            return;
+          }
+          pending.current = null;
         }}
-        open={mode !== null}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto rounded-xl p-6 sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
-            <DialogDescription>
-              {templateDialogDescription(
-                mode,
-                templateAtOpen?.id === personalReviewTemplate.id,
-                preview?.sourceRevision,
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            aria-busy={save.isPending}
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              form.handleSubmit().catch(() => undefined);
-            }}
-          >
-            {mode === "apply" ? (
-              <>
-                <form.Field name="title">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label htmlFor={`${identifier}-title`}>Title</Label>
-                      <Input
-                        autoFocus
-                        id={`${identifier}-title`}
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        required
-                        value={field.state.value}
-                      />
-                    </div>
+        {({ payload }) => {
+          if (!payload) {
+            return null;
+          }
+          const { mode, template: templateAtOpen, preview } = payload;
+          const title = templateDialogTitles[mode];
+          let submitLabel = mode === "apply" ? "Create from template" : "Save";
+          if (save.isPending) {
+            submitLabel = "Saving…";
+          }
+          return (
+            <DialogContent
+              className="max-h-[85vh] overflow-y-auto rounded-xl p-6 sm:max-w-2xl"
+              finalFocus={sourceControl}
+            >
+              <DialogHeader>
+                <DialogTitle>{title}</DialogTitle>
+                <DialogDescription>
+                  {templateDialogDescription(
+                    mode,
+                    templateAtOpen?.id === personalReviewTemplate.id,
+                    preview?.sourceRevision,
                   )}
-                </form.Field>
-                <p className="font-medium">Placeholders</p>
-                {documentTemplateFields(selected?.body ?? "").map((name) => (
-                  <form.Field key={name} name={`values.${name}`}>
-                    {(field) => (
-                      <div className="space-y-2">
-                        <Label htmlFor={`${identifier}-${name}`}>{name}</Label>
-                        <Input
-                          id={`${identifier}-${name}`}
-                          onChange={(event) =>
-                            field.handleChange(event.target.value)
-                          }
-                          value={field.state.value ?? ""}
-                        />
-                      </div>
+                </DialogDescription>
+              </DialogHeader>
+              <form
+                aria-busy={save.isPending}
+                className="space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  form.handleSubmit(payload).catch(() => undefined);
+                }}
+              >
+                {mode === "apply" ? (
+                  <>
+                    <form.Field name="title">
+                      {(field) => (
+                        <div className="space-y-2">
+                          <Label htmlFor={`${identifier}-title`}>Title</Label>
+                          <Input
+                            autoFocus
+                            id={`${identifier}-title`}
+                            onChange={(event) =>
+                              field.handleChange(event.target.value)
+                            }
+                            required
+                            value={field.state.value}
+                          />
+                        </div>
+                      )}
+                    </form.Field>
+                    <p className="font-medium">Placeholders</p>
+                    {documentTemplateFields(selected?.body ?? "").map(
+                      (name) => (
+                        <form.Field key={name} name={`values.${name}`}>
+                          {(field) => (
+                            <div className="space-y-2">
+                              <Label htmlFor={`${identifier}-${name}`}>
+                                {name}
+                              </Label>
+                              <Input
+                                id={`${identifier}-${name}`}
+                                onChange={(event) =>
+                                  field.handleChange(event.target.value)
+                                }
+                                value={field.state.value ?? ""}
+                              />
+                            </div>
+                          )}
+                        </form.Field>
+                      ),
                     )}
-                  </form.Field>
-                ))}
-                <Label htmlFor={`${identifier}-preview`}>Skeleton</Label>
-                <Textarea
-                  className="min-h-48 w-full rounded-lg border bg-background p-3 font-mono text-sm"
-                  id={`${identifier}-preview`}
-                  readOnly
-                  value={selected?.body ?? ""}
-                />
-              </>
-            ) : (
-              <>
-                <form.Field name="name">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label htmlFor={`${identifier}-name`}>Name</Label>
-                      <Input
-                        autoFocus
-                        id={`${identifier}-name`}
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        required
-                        value={field.state.value}
-                      />
-                    </div>
-                  )}
-                </form.Field>
-                <form.Field name="type">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label htmlFor={`${identifier}-type`}>Type</Label>
-                      <NativeSelect
-                        id={`${identifier}-type`}
-                        onChange={(event) =>
-                          field.handleChange(
-                            documentTypeSchema.parse(event.target.value),
-                          )
-                        }
-                        value={field.state.value}
-                      >
-                        {documentTypeSchema.options.map((type) => (
-                          <NativeSelectOption key={type} value={type}>
-                            {type}
-                          </NativeSelectOption>
-                        ))}
-                      </NativeSelect>
-                    </div>
-                  )}
-                </form.Field>
-                <form.Field name="body">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label htmlFor={`${identifier}-body`}>Skeleton</Label>
-                      <Textarea
-                        className="min-h-48 w-full rounded-lg border bg-background p-3 font-mono text-sm"
-                        id={`${identifier}-body`}
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        value={field.state.value}
-                      />
-                      <p className="text-sm text-muted-foreground">
-                        Placeholders:{" "}
-                        {documentTemplateFields(field.state.value).join(", ") ||
-                          "None"}
-                      </p>
-                    </div>
-                  )}
-                </form.Field>
-              </>
-            )}
-            {error ? <p role="alert">{error}</p> : null}
-            <DialogFooter>
-              <Button
-                disabled={save.isPending}
-                onClick={() => setMode(null)}
-                type="button"
-                variant="outline"
-              >
-                Cancel
-              </Button>
-              <form.Subscribe
-                selector={(state) =>
-                  mode === "apply" ? state.values.title : state.values.name
-                }
-              >
-                {(name) => (
-                  <Button
-                    disabled={save.isPending || !name.trim()}
-                    type="submit"
-                  >
-                    {submitLabel}
-                  </Button>
+                    <Label htmlFor={`${identifier}-preview`}>Skeleton</Label>
+                    <Textarea
+                      className="min-h-48 w-full rounded-lg border bg-background p-3 font-mono text-sm"
+                      id={`${identifier}-preview`}
+                      readOnly
+                      value={selected?.body ?? ""}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <form.Field name="name">
+                      {(field) => (
+                        <div className="space-y-2">
+                          <Label htmlFor={`${identifier}-name`}>Name</Label>
+                          <Input
+                            autoFocus
+                            id={`${identifier}-name`}
+                            onChange={(event) =>
+                              field.handleChange(event.target.value)
+                            }
+                            required
+                            value={field.state.value}
+                          />
+                        </div>
+                      )}
+                    </form.Field>
+                    <form.Field name="type">
+                      {(field) => (
+                        <div className="space-y-2">
+                          <Label htmlFor={`${identifier}-type`}>Type</Label>
+                          <NativeSelect
+                            id={`${identifier}-type`}
+                            onChange={(event) =>
+                              field.handleChange(
+                                documentTypeSchema.parse(event.target.value),
+                              )
+                            }
+                            value={field.state.value}
+                          >
+                            {documentTypeSchema.options.map((type) => (
+                              <NativeSelectOption key={type} value={type}>
+                                {type}
+                              </NativeSelectOption>
+                            ))}
+                          </NativeSelect>
+                        </div>
+                      )}
+                    </form.Field>
+                    <form.Field name="body">
+                      {(field) => (
+                        <div className="space-y-2">
+                          <Label htmlFor={`${identifier}-body`}>Skeleton</Label>
+                          <Textarea
+                            className="min-h-48 w-full rounded-lg border bg-background p-3 font-mono text-sm"
+                            id={`${identifier}-body`}
+                            onChange={(event) =>
+                              field.handleChange(event.target.value)
+                            }
+                            value={field.state.value}
+                          />
+                          <p className="text-sm text-muted-foreground">
+                            Placeholders:{" "}
+                            {documentTemplateFields(field.state.value).join(
+                              ", ",
+                            ) || "None"}
+                          </p>
+                        </div>
+                      )}
+                    </form.Field>
+                  </>
                 )}
-              </form.Subscribe>
-            </DialogFooter>
-          </form>
-        </DialogContent>
+                {error ? <p role="alert">{error}</p> : null}
+                <DialogFooter>
+                  <DialogClose
+                    disabled={save.isPending}
+                    render={<Button variant="outline" />}
+                  >
+                    Cancel
+                  </DialogClose>
+                  <form.Subscribe
+                    selector={(state) =>
+                      mode === "apply" ? state.values.title : state.values.name
+                    }
+                  >
+                    {(name) => (
+                      <Button
+                        disabled={save.isPending || !name.trim()}
+                        type="submit"
+                      >
+                        {submitLabel}
+                      </Button>
+                    )}
+                  </form.Subscribe>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          );
+        }}
       </Dialog>
     </section>
   );

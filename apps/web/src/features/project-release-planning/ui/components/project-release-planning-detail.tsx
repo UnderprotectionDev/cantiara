@@ -13,7 +13,14 @@ import {
 } from "@cantiara/api/project-release-planning";
 import { PROJECT_RELEASE_HYPOTHESIS_FIELDS } from "@cantiara/api/project-source-records";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
+import {
+  Dialog,
+  type DialogActions,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@cantiara/ui/components/dialog";
+import { useRef } from "react";
 import { AppLink } from "@/components/app-link";
 import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
 import {
@@ -268,7 +275,8 @@ function HypothesisSection({
   readOnly: boolean;
   release: Detail["release"];
 }) {
-  const [editing, setEditing] = useState(false);
+  const dialogActions = useRef<DialogActions | null>(null);
+  const saving = useRef<boolean>(false);
   return (
     <section aria-label="Access and outcome hypothesis" className="space-y-4">
       <div className="space-y-1">
@@ -278,68 +286,85 @@ function HypothesisSection({
           automatically.
         </p>
       </div>
-      {editing && !readOnly ? (
-        <ProjectReleaseHypothesisForm
-          key={release.revision}
-          onCancel={() => setEditing(false)}
-          onSave={async (hypothesis) => {
-            await actions.onSaveHypothesis(hypothesis);
-            setEditing(false);
-          }}
-          release={release}
-        />
-      ) : (
-        <dl className="space-y-4 rounded-lg border border-border/70 p-4">
-          {PROJECT_RELEASE_HYPOTHESIS_FIELDS.map(({ label, name }) => (
-            <div key={name}>
-              <dt className="text-sm font-medium">{label}</dt>
-              <dd className="mt-1 text-sm break-words whitespace-pre-wrap text-muted-foreground">
-                {release[name] || "—"}
+      <dl className="space-y-4 rounded-lg border border-border/70 p-4">
+        {PROJECT_RELEASE_HYPOTHESIS_FIELDS.map(({ label, name }) => (
+          <div key={name}>
+            <dt className="text-sm font-medium">{label}</dt>
+            <dd className="mt-1 text-sm break-words whitespace-pre-wrap text-muted-foreground">
+              {release[name] || "—"}
+            </dd>
+            {name === "audience" && audience.length ? (
+              <dd className="mt-2">
+                <ul className="flex flex-wrap gap-2 text-sm">
+                  {audience.map((link) => (
+                    <li
+                      className="flex items-center gap-1 rounded-md border border-border/70 px-2 py-1"
+                      key={link.id}
+                    >
+                      <span>
+                        {link.target.type}: {link.target.title}
+                      </span>
+                      {linksReadOnly ? null : (
+                        <Button
+                          aria-label={`Remove ${link.target.title} from audience`}
+                          onClick={() => {
+                            actions
+                              .onRemoveAudience(link)
+                              .catch(() => undefined);
+                          }}
+                          size="xs"
+                          type="button"
+                          variant="ghost"
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </dd>
-              {name === "audience" && audience.length ? (
-                <dd className="mt-2">
-                  <ul className="flex flex-wrap gap-2 text-sm">
-                    {audience.map((link) => (
-                      <li
-                        className="flex items-center gap-1 rounded-md border border-border/70 px-2 py-1"
-                        key={link.id}
-                      >
-                        <span>
-                          {link.target.type}: {link.target.title}
-                        </span>
-                        {linksReadOnly ? null : (
-                          <Button
-                            aria-label={`Remove ${link.target.title} from audience`}
-                            onClick={() => {
-                              actions
-                                .onRemoveAudience(link)
-                                .catch(() => undefined);
-                            }}
-                            size="xs"
-                            type="button"
-                            variant="ghost"
-                          >
-                            Remove
-                          </Button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </dd>
-              ) : null}
-            </div>
-          ))}
-        </dl>
-      )}
-      {readOnly || editing ? null : (
+            ) : null}
+          </div>
+        ))}
+      </dl>
+      {readOnly ? null : (
         <div className="space-y-4">
-          <Button
-            onClick={() => setEditing(true)}
-            type="button"
-            variant="outline"
+          <Dialog
+            actionsRef={dialogActions}
+            onOpenChange={(open, event) => {
+              if (
+                !open &&
+                saving.current &&
+                event.reason !== "imperative-action"
+              ) {
+                event.cancel();
+              }
+            }}
           >
-            Edit hypothesis
-          </Button>
+            <DialogTrigger render={<Button variant="outline" />}>
+              Edit hypothesis
+            </DialogTrigger>
+            <DialogContent>
+              <DialogTitle>Edit hypothesis</DialogTitle>
+              <ProjectReleaseHypothesisForm
+                onCancel={() => {
+                  if (!saving.current) {
+                    dialogActions.current?.close();
+                  }
+                }}
+                onSave={async (hypothesis) => {
+                  saving.current = true;
+                  try {
+                    await actions.onSaveHypothesis(hypothesis);
+                    dialogActions.current?.close();
+                  } finally {
+                    saving.current = false;
+                  }
+                }}
+                release={release}
+              />
+            </DialogContent>
+          </Dialog>
           {linksReadOnly ? null : (
             <ProjectReleaseAudienceForm
               candidates={audienceCandidates}

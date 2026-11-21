@@ -5,11 +5,17 @@ import {
   shortCodeSchema,
 } from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { Check, LockKeyhole, Pencil, Save } from "lucide-react";
-import { type SubmitEvent, useCallback, useEffect, useState } from "react";
+import { type SubmitEvent, useEffect } from "react";
 import { submitForm } from "@/lib/submit-form";
+import { useCollapsibleState } from "@/lib/use-collapsible-state";
 
 import { useProjectShortCode } from "../../hooks/use-project-short-code";
 
@@ -18,7 +24,7 @@ export default function ProjectShortCodeForm({
 }: {
   project: ProjectProfile;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useCollapsibleState();
 
   const { clearError, error, isPending, isSuccess, saveShortCode } =
     useProjectShortCode(project);
@@ -67,109 +73,110 @@ export default function ProjectShortCodeForm({
     clearError();
   }
 
-  const handleStartEditing = useCallback(() => {
-    clearError();
-    setIsEditing(true);
-  }, [clearError]);
-
-  if (!isEditing || isSuccess) {
-    return (
-      <div className="flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">Short code</p>
-          <p className="mt-1 flex items-center gap-2 text-sm font-medium">
-            <span>{project.shortCode}</span>
-            {project.shortCodeLocked ? (
-              <LockKeyhole
-                aria-hidden="true"
-                className="size-3.5 text-muted-foreground"
-              />
-            ) : null}
-          </p>
-          {project.shortCodeLocked ? (
-            <p
-              className="mt-1 text-xs text-muted-foreground"
-              id={`short-code-help-${project.id}`}
-            >
-              Short code is locked after the first Work.
-            </p>
-          ) : null}
-        </div>
-        {project.shortCodeLocked ? null : (
-          <Button
-            aria-label="Edit Short code"
-            className="min-h-11"
-            onClick={handleStartEditing}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <Pencil aria-hidden="true" />
-            Edit
-          </Button>
-        )}
-      </div>
-    );
+  function changeOpen(open: boolean) {
+    if (open) {
+      clearError();
+    }
+    setIsEditing(open);
   }
+  const editing = isEditing && !isSuccess;
 
   return (
-    <form className="space-y-2" onSubmit={handleSubmit}>
-      <label
-        className="text-xs font-medium"
-        htmlFor={`short-code-${project.id}`}
-      >
-        Short code
-      </label>
-      <form.Field name="shortCode">
-        {(field) => (
-          <Input
-            aria-label="Short code"
-            disabled={isPending}
-            id={`short-code-${project.id}`}
-            name={field.name}
-            onChange={(event) => field.handleChange(event.target.value)}
-            value={field.state.value}
-          />
-        )}
-      </form.Field>
-      {(validationError ?? error) ? (
-        <p className="text-xs text-destructive" role="alert">
-          {validationError ?? error}
-        </p>
-      ) : null}
-      <div className="flex flex-wrap gap-2">
-        <form.Subscribe selector={(state) => state.values.shortCode}>
-          {(shortCode) => (
+    <Collapsible onOpenChange={changeOpen} open={editing}>
+      {editing ? null : (
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Short code</p>
+            <p className="mt-1 flex items-center gap-2 text-sm font-medium">
+              <span>{project.shortCode}</span>
+              {project.shortCodeLocked ? (
+                <LockKeyhole
+                  aria-hidden="true"
+                  className="size-3.5 text-muted-foreground"
+                />
+              ) : null}
+            </p>
+            {project.shortCodeLocked ? (
+              <p
+                className="mt-1 text-xs text-muted-foreground"
+                id={`short-code-help-${project.id}`}
+              >
+                Short code is locked after the first Work.
+              </p>
+            ) : null}
+          </div>
+          {project.shortCodeLocked ? null : (
+            <CollapsibleTrigger
+              aria-label="Edit Short code"
+              className="min-h-11"
+              render={<Button size="sm" variant="outline" />}
+            >
+              <Pencil aria-hidden="true" />
+              Edit
+            </CollapsibleTrigger>
+          )}
+        </div>
+      )}
+      <CollapsibleContent>
+        <form className="space-y-2" onSubmit={handleSubmit}>
+          <label
+            className="text-xs font-medium"
+            htmlFor={`short-code-${project.id}`}
+          >
+            Short code
+          </label>
+          <form.Field name="shortCode">
+            {(field) => (
+              <Input
+                aria-label="Short code"
+                disabled={isPending}
+                id={`short-code-${project.id}`}
+                name={field.name}
+                onChange={(event) => field.handleChange(event.target.value)}
+                value={field.state.value}
+              />
+            )}
+          </form.Field>
+          {(validationError ?? error) ? (
+            <p className="text-xs text-destructive" role="alert">
+              {validationError ?? error}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <form.Subscribe selector={(state) => state.values.shortCode}>
+              {(shortCode) => (
+                <Button
+                  className="min-h-11"
+                  disabled={
+                    isPending ||
+                    !shortCode.trim() ||
+                    shortCode.trim() === project.shortCode
+                  }
+                  size="sm"
+                  type="submit"
+                >
+                  {isPending ? (
+                    <Save aria-hidden="true" />
+                  ) : (
+                    <Check aria-hidden="true" />
+                  )}
+                  Save Short code
+                </Button>
+              )}
+            </form.Subscribe>
             <Button
               className="min-h-11"
-              disabled={
-                isPending ||
-                !shortCode.trim() ||
-                shortCode.trim() === project.shortCode
-              }
+              disabled={isPending}
+              onClick={cancelEditing}
               size="sm"
-              type="submit"
+              type="button"
+              variant="ghost"
             >
-              {isPending ? (
-                <Save aria-hidden="true" />
-              ) : (
-                <Check aria-hidden="true" />
-              )}
-              Save Short code
+              Cancel
             </Button>
-          )}
-        </form.Subscribe>
-        <Button
-          className="min-h-11"
-          disabled={isPending}
-          onClick={cancelEditing}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          Cancel
-        </Button>
-      </div>
-    </form>
+          </div>
+        </form>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

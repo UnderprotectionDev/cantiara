@@ -1,11 +1,18 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected Planned Test Case and form fields.
+
 import type {
   PlannedTestCaseRecord,
   PlannedTestCaseVersionRecord,
 } from "@cantiara/api/planned-tests";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useCollapsibleState } from "@/lib/use-collapsible-state";
 import { orpc } from "@/utils/orpc";
 import {
   type CaseFormValues,
@@ -75,9 +82,8 @@ function CaseItem({
   readOnly: boolean;
   record: PlannedTestCaseRecord;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useCollapsibleState();
   const heading = useRef<HTMLHeadingElement>(null);
-  const formId = `planned-test-${record.id}-version-form`;
   const queryClient = useQueryClient();
   const createVersion = useMutation({
     mutationKey: orpc.createPlannedTestCaseVersion.mutationKey(),
@@ -111,9 +117,15 @@ function CaseItem({
   }
 
   return (
-    <li
+    <Collapsible
       className="space-y-3 rounded-lg border border-border/70 p-4"
       id={`planned-test-case-${record.id}`}
+      onOpenChange={(next) => {
+        createVersion.reset();
+        setEditing(next);
+      }}
+      open={editingVersion && !readOnly}
+      render={<li />}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="font-medium" ref={heading} tabIndex={-1}>
@@ -130,36 +142,24 @@ function CaseItem({
         </p>
       ) : null}
       {readOnly ? null : (
-        <Button
-          aria-controls={formId}
-          aria-expanded={editingVersion}
-          onClick={() => {
-            createVersion.reset();
-            setEditing(!editingVersion);
-          }}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
+        <CollapsibleTrigger render={<Button size="sm" variant="outline" />}>
           {editingVersion ? "Cancel new version" : "New version"}
-        </Button>
+        </CollapsibleTrigger>
       )}
-      <div id={formId}>
-        {editingVersion && !readOnly ? (
-          <CaseForm
-            focusOnMount
-            heading={`New version of ${record.current.title}`}
-            idPrefix={`planned-test-${record.id}`}
-            initial={formFromVersion(record.current)}
-            loadTargets={loadTargets}
-            onCancel={() => setEditing(false)}
-            onSubmit={save}
-            projectId={projectId}
-            showChangeKind
-            submitLabel="Save new version"
-          />
-        ) : null}
-      </div>
+      <CollapsibleContent>
+        <CaseForm
+          focusOnMount
+          heading={`New version of ${record.current.title}`}
+          idPrefix={`planned-test-${record.id}`}
+          initial={formFromVersion(record.current)}
+          loadTargets={loadTargets}
+          onCancel={() => setEditing(false)}
+          onSubmit={save}
+          projectId={projectId}
+          showChangeKind
+          submitLabel="Save new version"
+        />
+      </CollapsibleContent>
       {record.versions.length > 1 ? (
         <details>
           <summary className="cursor-pointer text-sm">
@@ -184,7 +184,7 @@ function CaseItem({
           </ol>
         </details>
       ) : null}
-    </li>
+    </Collapsible>
   );
 }
 

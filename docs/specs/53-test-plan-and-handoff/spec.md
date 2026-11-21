@@ -51,6 +51,8 @@ Kurucu Planlı Test Senaryosunu başlık, amaç, kapsam, önkoşul, beklenen dav
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Planned Test and Test Handoff web seams drive their existing inline create-version and edit forms. A successful write closes the form and a failed write keeps it available.
+
 - **#545.** The web planned-tests-view.test.tsx and test-handoffs-view.test.tsx seams check retained case text after a refused save, exact Document and Wireframe pins, and picker validation for a missing version or duplicate context.
 
 - The Planned Test and Test Handoff seams scope relation and Context target reads to the selected Project and target kind.

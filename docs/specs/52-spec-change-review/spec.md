@@ -50,6 +50,8 @@ Kurucu önceki ve yeni Belge sürümünü değişen bölüm bağlamıyla inceler
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Candidate Follow-up Work seam opens `Create Follow-up Work` from the candidate, reviews the command, and closes after a successful confirmation.
+
 - **What a good test is.** Tests observe Spec Change Review through the public interface: version-backed section diff, candidate set equals recorded-link closure, similarity/AI absent, metadata does not write target Work, follow-up preview creates one Work, new spec version does not clobber prior review pair. Not jsdiff snapshot strings as product truth.
 - **Seam (one).** Spec Change Review — the product-facing queue, candidate, and follow-up-Work preview interface. Document storage is owned by Documents; this seam consumes versions.
 - **Modules under test.** Spec Change Review only. Refuted Assumption Review, Test Gaps, GitHub review, generic Document diff UI beyond Primary spec are counterparts.

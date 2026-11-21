@@ -54,6 +54,8 @@ Kaynak Proje ana kaydıdır; URL/başlık, erişim zamanı, yakalanan içerik ve
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Source Check and evidence control seams open their disclosure to load records and drive the existing preview and retry flows.
+
 - The Smart Link composer reads the latest preview and save outcome from their observers. The Evidence seam keeps the plan aligned with the selected range and target, and a confirmed Source refreshes its Project list.
 
 - **What a good test is.** Tests observe Sources and Freshness through Source CRUD, isolated preview, recheck/compare, and per-use keep/rebind. They go red on silent rebind, private-IP preview success, or treating preview HTML as a Source version. Expected values come from the freshness journey (one Source, three targets, two versions, partial review), not from fetch implementation.

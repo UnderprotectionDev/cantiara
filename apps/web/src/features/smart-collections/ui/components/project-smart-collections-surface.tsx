@@ -7,9 +7,17 @@ import type {
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Label } from "@cantiara/ui/components/label";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@cantiara/ui/components/toggle-group";
 import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLinkProps } from "@tanstack/react-router";
+import {
+  useSelector as useCollectionPanelSelector,
+  useCreateStore,
+} from "@tanstack/react-store";
 import { GripVertical } from "lucide-react";
 import {
   type ComponentProps,
@@ -450,9 +458,8 @@ function CollectionViewCard({
   preview: SmartCollectionMembershipPreview | null;
   view: SmartCollectionViewSource;
 }) {
-  const [activePanel, setActivePanel] = useState<"records" | "insights">(
-    "records",
-  );
+  const panel = useCreateStore<"records" | "insights">("records");
+  const activePanel = useCollectionPanelSelector(panel);
   const [selectedSlices, setSelectedSlices] = useState<
     SmartCollectionInsightSelection[]
   >([]);
@@ -478,7 +485,7 @@ function CollectionViewCard({
   };
   const showAllRecords = () => {
     setSelectedSlices([]);
-    setActivePanel("records");
+    panel.setState(() => "records");
   };
 
   return (
@@ -516,25 +523,19 @@ function CollectionViewCard({
         />
       )}
       {isWorkCollection ? (
-        <fieldset className="flex gap-2">
-          <legend className="sr-only">Collection view</legend>
-          <Button
-            aria-pressed={activePanel === "records"}
-            onClick={() => setActivePanel("records")}
-            type="button"
-            variant={activePanel === "records" ? "secondary" : "outline"}
-          >
-            Records
-          </Button>
-          <Button
-            aria-pressed={activePanel === "insights"}
-            onClick={() => setActivePanel("insights")}
-            type="button"
-            variant={activePanel === "insights" ? "secondary" : "outline"}
-          >
-            Insights
-          </Button>
-        </fieldset>
+        <ToggleGroup
+          aria-label="Collection view"
+          onValueChange={([next]) => {
+            if (next === "records" || next === "insights") {
+              panel.setState(() => next);
+            }
+          }}
+          value={[activePanel]}
+          variant="outline"
+        >
+          <ToggleGroupItem value="records">Records</ToggleGroupItem>
+          <ToggleGroupItem value="insights">Insights</ToggleGroupItem>
+        </ToggleGroup>
       ) : null}
       {preview?.viewId === view.id ? (
         <MembershipFieldChangePreview preview={preview} />

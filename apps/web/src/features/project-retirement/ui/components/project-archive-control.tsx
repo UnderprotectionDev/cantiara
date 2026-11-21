@@ -5,8 +5,13 @@ import {
   PROJECT_ARCHIVED_BANNER,
 } from "@cantiara/api/project-retirement";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useCollapsibleState } from "@/lib/use-collapsible-state";
 import {
   useArchivedProjects,
   useArchivePreview,
@@ -24,7 +29,7 @@ export default function ProjectArchiveControl({
   projectId: string;
 }) {
   const archived = useArchivedProjects();
-  const [previewing, setPreviewing] = useState(false);
+  const [previewing, setPreviewing] = useCollapsibleState();
   const preview = useArchivePreview(projectId, previewing);
   const transition = useRetirementTransition();
 
@@ -47,41 +52,44 @@ export default function ProjectArchiveControl({
   }
 
   return (
-    <div className="mt-5 space-y-3">
+    <Collapsible
+      className="mt-5 space-y-3"
+      onOpenChange={setPreviewing}
+      open={previewing}
+    >
       {previewing ? null : (
-        <Button
-          className="min-h-11"
-          onClick={() => setPreviewing(true)}
-          type="button"
-          variant="outline"
+        <CollapsibleTrigger
+          render={<Button className="min-h-11" variant="outline" />}
         >
           {ARCHIVE_LABEL}
-        </Button>
+        </CollapsibleTrigger>
       )}
-      {previewing && preview.isPending ? <p>Loading…</p> : null}
-      {previewing && preview.isError ? (
-        <p role="alert">The archive preview could not be loaded.</p>
-      ) : null}
-      {previewing && preview.data ? (
-        <ArchivePreviewPanel
-          busy={transition.isPending}
-          onCancel={() => setPreviewing(false)}
-          onConfirm={() =>
-            transition.mutate(
-              {
-                action: "archive",
-                baseRevision: preview.data.project.revision,
-                projectId,
-              },
-              { onSuccess: () => setPreviewing(false) },
-            )
-          }
-          preview={preview.data}
-        />
-      ) : null}
+      <CollapsibleContent>
+        {previewing && preview.isPending ? <p>Loading…</p> : null}
+        {previewing && preview.isError ? (
+          <p role="alert">The archive preview could not be loaded.</p>
+        ) : null}
+        {previewing && preview.data ? (
+          <ArchivePreviewPanel
+            busy={transition.isPending}
+            onCancel={() => setPreviewing(false)}
+            onConfirm={() =>
+              transition.mutate(
+                {
+                  action: "archive",
+                  baseRevision: preview.data.project.revision,
+                  projectId,
+                },
+                { onSuccess: () => setPreviewing(false) },
+              )
+            }
+            preview={preview.data}
+          />
+        ) : null}
+      </CollapsibleContent>
       {transition.isError ? (
         <p role="alert">Archive did not complete. Review the preview again.</p>
       ) : null}
-    </div>
+    </Collapsible>
   );
 }

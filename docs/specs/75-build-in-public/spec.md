@@ -54,6 +54,8 @@ Build in Public Proje bazında isteğe bağlıdır. Kurucu kapalı dünya önizl
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Build in Public publication form seam opens the terminal `Unpublish` confirmation, checks that opening does not write, and invokes the published page handler only on confirmation.
+
 - **What a good test is.** Tests observe Build in Public through its public interface: mapping matrix, unpublished-changes diff, same-revision trio, project-view members, featured-record window, placeholder list with resolve-or-confirm, feed membership, no counter, visitor first-content measurement, revoke/range. Expected values are the default map (including `In Review→In Progress`), refusal of a Public Status Label that reuses an internal status name such as `In Review`, and “source edit unseen until approval.”
 - **Seam (one).** Build in Public — product-facing project public snapshot. Access adapter shared with Link Sharing.
 - **Modules under test.** Build in Public only. Wiki publish and link-share creates are counterparts. Release communication may supply suggested labels; this suite asserts they do not apply without approval.

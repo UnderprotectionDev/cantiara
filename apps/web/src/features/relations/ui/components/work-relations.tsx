@@ -8,6 +8,11 @@ import type {
 } from "@cantiara/api/relations";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLinkProps } from "@tanstack/react-router";
 import { useState } from "react";
@@ -16,6 +21,7 @@ import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-
 import { commandVariables } from "@/lib/command-variables";
 import { fetchFresh } from "@/lib/fetch-fresh";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
+import { useCollapsibleState } from "@/lib/use-collapsible-state";
 import { client, orpc } from "@/utils/orpc";
 import { CreateRelationForm } from "../forms/create-relation-form";
 import { ResolveBlockerForm } from "../forms/resolve-blocker-form";
@@ -694,7 +700,7 @@ function BlockerActions({
   onResolve: (note?: string) => Promise<unknown>;
   relation: RelationView;
 }) {
-  const [isResolving, setIsResolving] = useState(false);
+  const [isResolving, setIsResolving] = useCollapsibleState();
 
   if (relation.kind !== "Blocks") {
     return null;
@@ -715,29 +721,29 @@ function BlockerActions({
   if (relation.blockingStatus !== "Active") {
     return null;
   }
-  if (!isResolving) {
-    return (
-      <Button
-        disabled={disabled}
-        onClick={() => setIsResolving(true)}
-        size="xs"
-        type="button"
-        variant="outline"
-      >
-        Mark blocker resolved
-      </Button>
-    );
-  }
+
   return (
-    <ResolveBlockerForm
-      disabled={disabled}
-      onCancel={() => setIsResolving(false)}
-      onResolve={async (note) => {
-        await onResolve(note);
-        setIsResolving(false);
-      }}
-      relationId={relation.id}
-    />
+    <Collapsible onOpenChange={setIsResolving} open={isResolving}>
+      {isResolving ? null : (
+        <CollapsibleTrigger
+          disabled={disabled}
+          render={<Button size="xs" variant="outline" />}
+        >
+          Mark blocker resolved
+        </CollapsibleTrigger>
+      )}
+      <CollapsibleContent>
+        <ResolveBlockerForm
+          disabled={disabled}
+          onCancel={() => setIsResolving(false)}
+          onResolve={async (note) => {
+            await onResolve(note);
+            setIsResolving(false);
+          }}
+          relationId={relation.id}
+        />
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

@@ -7,7 +7,11 @@ import {
   documentTypeSchema,
 } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
-import { createDialogHandle } from "@cantiara/ui/components/dialog";
+import {
+  createDialogHandle,
+  Dialog,
+  DialogContent,
+} from "@cantiara/ui/components/dialog";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
 import {
@@ -77,7 +81,9 @@ import DocumentMarkdownEditor from "../components/document-markdown-editor";
 import DocumentOrganizationControls from "../components/document-organization-controls";
 import DocumentRecoveryNotice from "../components/document-recovery-notice";
 import DocumentVersionHistory from "../components/document-version-history";
-import DocumentWorkActionDialog from "../components/document-work-action-dialog";
+import DocumentWorkActionDialog, {
+  type DocumentWorkAction,
+} from "../components/document-work-action-dialog";
 import DocumentBulkConversionDialog from "./document-bulk-conversion-form";
 import DocumentDiagramConversionDialog from "./document-diagram-conversion-form";
 import DocumentRecordConversionDialog from "./document-record-conversion-form";
@@ -182,10 +188,13 @@ export default function DocumentEditor({
   const [pinEvidenceHandle] = useState(createDialogHandle);
   const [bulkConversionHandle] = useState(createDialogHandle);
   const [recordConversionHandle] = useState(createDialogHandle);
-  const [conversionSelection, setConversionSelection] = useState<{
-    start: number;
-    end: number;
-  } | null>(null);
+  const [diagramConversionHandle] = useState(
+    createDialogHandle<{
+      start: number;
+      end: number;
+      revision: number;
+    }>,
+  );
   useEffect(() => {
     if (targetSectionId) {
       setView("preview");
@@ -196,11 +205,7 @@ export default function DocumentEditor({
   const recordConversionKey = useRef<string | null>(null);
   const recordConversionId = useRef<string | null>(null);
   const bulkConversionKey = useRef<string | null>(null);
-  const [workAction, setWorkAction] = useState<{
-    id: string;
-    kind: "status" | "close";
-    requestId: string;
-  } | null>(null);
+  const [workActionHandle] = useState(createDialogHandle<DocumentWorkAction>);
   const liveWorkOptions = orpc.documentLiveWorkBlocks.queryOptions({
     input: { documentId: record.id, body: previewBody },
   });
@@ -236,19 +241,6 @@ export default function DocumentEditor({
     sectionDocumentId,
     selectedDiagramId,
   );
-  const conversionPreview = useQuery({
-    ...orpc.previewMermaidConversion.queryOptions({
-      input: {
-        documentId: record.id,
-        documentRevision: revision,
-        blockStart: conversionSelection?.start ?? 0,
-        blockEnd: conversionSelection?.end ?? 1,
-        originalBlock: originalBlockOutcome,
-        title: conversionTitle,
-      },
-    }),
-    enabled: conversionSelection !== null,
-  });
   const diagramWrite = useMutation({
     mutationKey: orpc.convertMermaidToTechnicalDiagram.mutationKey(),
     meta: { onlineWrite: true },
@@ -280,7 +272,7 @@ export default function DocumentEditor({
           }
         }
         if (conversionKey.current === input.clientIdempotencyKey) {
-          setConversionSelection(null);
+          diagramConversionHandle.close();
           conversionKey.current = null;
         }
       }
@@ -289,43 +281,6 @@ export default function DocumentEditor({
       });
     },
   });
-  const convertDiagram = {
-    ...diagramWrite,
-    mutateAsync() {
-      if (!conversionSelection) {
-        return diagramWrite.mutateAsync(
-          new Error("No Mermaid block selected."),
-        );
-      }
-      const reviewed = conversionPreview.data;
-      if (
-        !(
-          reviewed &&
-          matchesDiagramConversionPreview(
-            reviewed,
-            conversionSelection,
-            conversionTitle,
-            originalBlockOutcome,
-          )
-        )
-      ) {
-        return diagramWrite.mutateAsync(
-          new Error("Preview the Mermaid conversion again."),
-        );
-      }
-      conversionKey.current ??= crypto.randomUUID();
-      return diagramWrite.mutateAsync({
-        documentId: record.id,
-        documentRevision: revision,
-        blockStart: conversionSelection.start,
-        blockEnd: conversionSelection.end,
-        originalBlock: originalBlockOutcome,
-        title: conversionTitle,
-        previewToken: reviewed.previewToken,
-        clientIdempotencyKey: conversionKey.current,
-      });
-    },
-  };
   const convertedDiagram = diagramWrite.data ?? null;
   const works = useDocumentWorkSources(record, view);
   const bulkRows = documentListRows(savedBody);
@@ -336,11 +291,6 @@ export default function DocumentEditor({
     diagrams.data,
     record.id,
   );
-  const actionWork = useQuery({
-    ...orpc.work.queryOptions({ input: { workId: workAction?.id ?? "" } }),
-    enabled: workAction !== null,
-    refetchOnMount: "always",
-  });
   const allowRichUpdates = useRef(false);
   const save = useMutation({
     // Retry from the current editor so an old Support notice cannot save newer text.
@@ -1135,13 +1085,20 @@ export default function DocumentEditor({
                     documentReferences={documentReferences}
                     liveOtherBlocks={liveOtherBlocks}
                     liveWorkBlocks={liveWorkBlocks}
+                    openDiagramConversion={(range) =>
+                      diagramConversionHandle.openWithPayload({
+                        ...range,
+                        revision,
+                      })
+                    }
+                    openWorkAction={(action) =>
+                      workActionHandle.openWithPayload(action)
+                    }
                     previewBody={previewBody}
                     record={record}
                     savedBody={savedBody}
-                    setConversionSelection={setConversionSelection}
                     setConversionTitle={setConversionTitle}
                     setOriginalBlockOutcome={setOriginalBlockOutcome}
-                    setWorkAction={setWorkAction}
                     targetSectionId={targetSectionId}
                   />
                 )}
@@ -1202,24 +1159,122 @@ export default function DocumentEditor({
         selectedTextRange={selectedTextRange}
       />
       <DocumentWorkActionDialog
-        actionWork={actionWork}
+        handle={workActionHandle}
         liveWorkOptions={liveWorkOptions}
         queryClient={queryClient}
-        setWorkAction={setWorkAction}
-        workAction={workAction}
       />
-      <DocumentDiagramConversionDialog
-        conversionKey={conversionKey}
-        conversionPreview={conversionPreview}
-        conversionSelection={conversionSelection}
-        conversionTitle={conversionTitle}
-        convertDiagram={convertDiagram}
-        originalBlockOutcome={originalBlockOutcome}
-        record={record}
-        setConversionSelection={setConversionSelection}
-        setConversionTitle={setConversionTitle}
-        setOriginalBlockOutcome={setOriginalBlockOutcome}
-      />
+      <Dialog
+        handle={diagramConversionHandle}
+        onOpenChange={(open, event) => {
+          if (
+            !open &&
+            diagramWrite.isPending &&
+            event.reason !== "imperative-action"
+          ) {
+            event.cancel();
+          }
+        }}
+      >
+        {({ payload }) =>
+          payload ? (
+            <DialogContent>
+              <DocumentDiagramConversion
+                conversionKey={conversionKey}
+                conversionSelection={payload}
+                conversionTitle={conversionTitle}
+                diagramWrite={diagramWrite}
+                originalBlockOutcome={originalBlockOutcome}
+                record={record}
+                setConversionTitle={setConversionTitle}
+                setOriginalBlockOutcome={setOriginalBlockOutcome}
+              />
+            </DialogContent>
+          ) : null
+        }
+      </Dialog>
     </section>
+  );
+}
+
+function DocumentDiagramConversion({
+  conversionKey,
+  conversionSelection,
+  conversionTitle,
+  diagramWrite,
+  originalBlockOutcome,
+  record,
+  setConversionTitle,
+  setOriginalBlockOutcome,
+}: Omit<
+  Parameters<typeof DocumentDiagramConversionDialog>[0],
+  "conversionPreview" | "convertDiagram" | "conversionSelection"
+> & {
+  conversionSelection: { start: number; end: number; revision: number };
+  diagramWrite: Pick<
+    import("@tanstack/react-query").UseMutationResult<
+      import("@cantiara/api/technical-diagrams").TechnicalDiagramSource,
+      Error,
+      Parameters<typeof client.convertMermaidToTechnicalDiagram>[0] | Error,
+      unknown
+    >,
+    "mutateAsync" | "isPending" | "isError" | "error"
+  >;
+}) {
+  const conversionPreview = useQuery({
+    ...orpc.previewMermaidConversion.queryOptions({
+      input: {
+        documentId: record.id,
+        documentRevision: conversionSelection.revision,
+        blockStart: conversionSelection.start,
+        blockEnd: conversionSelection.end,
+        originalBlock: originalBlockOutcome,
+        title: conversionTitle,
+      },
+    }),
+  });
+  const convertDiagram = {
+    ...diagramWrite,
+    mutateAsync() {
+      const reviewed = conversionPreview.data;
+      if (
+        !(
+          reviewed &&
+          matchesDiagramConversionPreview(
+            reviewed,
+            conversionSelection,
+            conversionTitle,
+            originalBlockOutcome,
+          )
+        )
+      ) {
+        return diagramWrite.mutateAsync(
+          new Error("Preview the Mermaid conversion again."),
+        );
+      }
+      conversionKey.current ??= crypto.randomUUID();
+      return diagramWrite.mutateAsync({
+        documentId: record.id,
+        documentRevision: conversionSelection.revision,
+        blockStart: conversionSelection.start,
+        blockEnd: conversionSelection.end,
+        originalBlock: originalBlockOutcome,
+        title: conversionTitle,
+        previewToken: reviewed.previewToken,
+        clientIdempotencyKey: conversionKey.current,
+      });
+    },
+  };
+  return (
+    <DocumentDiagramConversionDialog
+      conversionKey={conversionKey}
+      conversionPreview={conversionPreview}
+      conversionSelection={conversionSelection}
+      conversionTitle={conversionTitle}
+      convertDiagram={convertDiagram}
+      originalBlockOutcome={originalBlockOutcome}
+      record={record}
+      setConversionTitle={setConversionTitle}
+      setOriginalBlockOutcome={setOriginalBlockOutcome}
+    />
   );
 }

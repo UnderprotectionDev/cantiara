@@ -4,7 +4,6 @@ import type {
   SpecReviewState,
 } from "@cantiara/api/spec-change-review-candidates";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
 import SpecCandidateReviewForm from "../forms/spec-candidate-review-form";
 import {
   type ConfirmFollowUp,
@@ -49,7 +48,6 @@ function CandidateRow({
   onPreviewFollowUp?: PreviewFollowUp;
   reviewId: string;
 }) {
-  const [followUpOpen, setFollowUpOpen] = useState(false);
   const name = candidateName(candidate);
   return (
     <li className="space-y-2 rounded-lg border border-border p-4">
@@ -77,26 +75,20 @@ function CandidateRow({
             : "no longer available"}
         </p>
       ) : null}
-      {candidate.followUp || candidate.record.broken ? null : (
-        <Button
-          disabled={!(onPreviewFollowUp && onConfirmFollowUp)}
-          onClick={() => setFollowUpOpen(true)}
-          type="button"
-          variant="outline"
-        >
-          Create Follow-up Work
-        </Button>
-      )}
-      {followUpOpen && onPreviewFollowUp && onConfirmFollowUp ? (
-        <SpecFollowUpDialog
-          candidate={candidate}
-          name={name}
-          onClose={() => setFollowUpOpen(false)}
-          onConfirm={onConfirmFollowUp}
-          onPreview={onPreviewFollowUp}
-          reviewId={reviewId}
-        />
-      ) : null}
+      {!(candidate.followUp || candidate.record.broken) &&
+        (onPreviewFollowUp && onConfirmFollowUp ? (
+          <SpecFollowUpDialog
+            candidate={candidate}
+            name={name}
+            onConfirm={onConfirmFollowUp}
+            onPreview={onPreviewFollowUp}
+            reviewId={reviewId}
+          />
+        ) : (
+          <Button disabled type="button" variant="outline">
+            Create Follow-up Work
+          </Button>
+        ))}
     </li>
   );
 }

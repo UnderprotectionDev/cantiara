@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Configuration controls close over their current stage, status, or area.
+
 import {
   getStarterConfigurationDefinition,
   isProjectCoreArea,
@@ -11,6 +12,11 @@ import {
 } from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@cantiara/ui/components/collapsible";
 import { Input } from "@cantiara/ui/components/input";
 import {
   NativeSelect,
@@ -40,6 +46,7 @@ import {
   projectAreaAvailabilityLabel,
 } from "@/features/project-shell/ui/components/project-area-availability";
 import WorkTemplateEditor from "@/features/work-templates/ui/components/work-template-editor";
+import { useCollapsibleState } from "@/lib/use-collapsible-state";
 
 function submitConfigurationChange(
   change: ProjectShellConfigurationChange,
@@ -110,7 +117,7 @@ export default function ProjectConfigurationForm({
   const { error, mutation } = useProjectConfiguration(projectId, baseRevision);
   const { error: enableError, mutation: enableProjectArea } =
     useProjectAreaEnable(projectId, baseRevision);
-  const [restorePreviewOpen, setRestorePreviewOpen] = useState(false);
+  const [restorePreviewOpen, setRestorePreviewOpen] = useCollapsibleState();
   const defaultPinnedAreas =
     getStarterConfigurationDefinition(starterConfiguration).extraPinnedAreas;
   const requestEnableProjectArea = useCallback(
@@ -151,7 +158,7 @@ export default function ProjectConfigurationForm({
       { kind: "restore-default-navigation" },
       { onSuccess: () => setRestorePreviewOpen(false) },
     );
-  }, [mutation]);
+  }, [mutation, setRestorePreviewOpen]);
   const projectAreasNavigationPreview: ProjectAreasNavigationPreview = {
     defaultPinnedAreas,
     onRestoreDefaultNavigation: requestRestoreDefaultNavigation,
@@ -503,22 +510,23 @@ function ProjectAreasConfiguration({
   navigationPreview: ProjectAreasNavigationPreview;
 }) {
   return (
-    <div className="mt-3 space-y-4">
+    <Collapsible
+      className="mt-3 space-y-4"
+      onOpenChange={navigationPreview.onRestorePreviewOpenChange}
+      open={navigationPreview.restorePreviewOpen}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-2xl text-xs/relaxed text-muted-foreground">
           {message}
         </p>
-        <Button
-          className="shrink-0"
+        <CollapsibleTrigger
           disabled={disabled}
-          onClick={() => navigationPreview.onRestorePreviewOpenChange(true)}
-          type="button"
-          variant="outline"
+          render={<Button className="shrink-0" variant="outline" />}
         >
           Restore default navigation
-        </Button>
+        </CollapsibleTrigger>
       </div>
-      {navigationPreview.restorePreviewOpen ? (
+      <CollapsibleContent>
         <fieldset className="space-y-3 border bg-background p-4 text-sm">
           <legend className="font-medium">Navigation preview</legend>
           <p className="text-muted-foreground">
@@ -551,7 +559,7 @@ function ProjectAreasConfiguration({
             </Button>
           </div>
         </fieldset>
-      ) : null}
+      </CollapsibleContent>
       <ConfigurationMutationError error={error} />
       <ul
         aria-label="Project areas"
@@ -589,7 +597,7 @@ function ProjectAreasConfiguration({
           );
         })}
       </ul>
-    </div>
+    </Collapsible>
   );
 }
 

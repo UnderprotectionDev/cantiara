@@ -41,6 +41,8 @@ Kurucu bir Wiki Belgesini kapalı dünya önizlemesiyle onaylar. Yayın, Dış y
 
 ## Testing Decisions
 
+- **Popup lifecycle (#546).** The Wiki publication form seam opens `Unpublish` and `Enable indexing` from their own triggers and checks their confirmation and acknowledgment before write.
+
 - **What a good test is.** Tests observe Wiki Publishing through its public interface: preview member list of exact records, versions, fields, and files, publish one document, visitor GET of approved snapshot, omit unapproved child, default noindex, revoke `410 Gone` fail-closed with no body, placeholder list with resolve-or-`Publish/share anyway`. They reuse the access adapter; they do not re-specify CDN internals. Expected values are “single wiki ≠ project public” and “live wiki does not stream.”
 - **Seam (one).** Wiki Publishing — product-facing publish of one Wiki Belge. Access verification is an adapter shared with Link Sharing.
 - **Modules under test.** Wiki Publishing only. Build in Public and link-share create flows are counterparts.

@@ -9,10 +9,12 @@ import type { Document } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
+  createDialogHandle,
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@cantiara/ui/components/dialog";
 import { Label } from "@cantiara/ui/components/label";
 import {
@@ -21,7 +23,13 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type SubmitEvent, useRef, useState } from "react";
+import {
+  type RefObject,
+  type SubmitEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { z } from "zod";
 
 import { client, orpc } from "@/utils/orpc";
@@ -31,18 +39,86 @@ import { DocumentTransferPreviewPanel } from "../components/document-transfer-pr
 type TransferAction = "Move" | "Copy" | "Export" | "Assign File Attachments";
 type TransferFormat = "Markdown" | "PDF";
 
-export default function DocumentTransferForm({
-  record,
-  documents,
-  disabled,
-  onCommitted,
-}: {
-  record: Document;
-  documents: Document[];
+interface DocumentTransferFormProps {
   disabled: boolean;
+  documents: Document[];
   onCommitted: (record: Document) => Promise<void>;
+  record: Document;
+}
+
+const transferControls = [
+  { action: "Move", label: "Move", projectOnly: true },
+  { action: "Copy", label: "Copy", projectOnly: false },
+  { action: "Export", label: "Export", projectOnly: false },
+  {
+    action: "Assign File Attachments",
+    label: "File Attachments",
+    projectOnly: true,
+  },
+] as const;
+
+export default function DocumentTransferForm({
+  disabled,
+  ...formProps
+}: DocumentTransferFormProps) {
+  const [handle] = useState(createDialogHandle<TransferAction>);
+  const busy = useRef<boolean>(false);
+  return (
+    <>
+      <div className="flex flex-wrap gap-2">
+        {transferControls.map(({ action, label, projectOnly }) => (
+          <DialogTrigger
+            disabled={disabled || (projectOnly && !formProps.record.projectId)}
+            handle={handle}
+            key={action}
+            payload={action}
+            render={<Button variant="outline" />}
+          >
+            {label}
+          </DialogTrigger>
+        ))}
+      </div>
+      <Dialog
+        handle={handle}
+        onOpenChange={(open, event) => {
+          if (!open && busy.current && event.reason !== "imperative-action") {
+            event.cancel();
+          }
+        }}
+      >
+        {({ payload }) =>
+          payload ? (
+            <DialogContent className="max-h-[85vh] overflow-y-auto">
+              <DocumentTransferContent
+                {...formProps}
+                action={payload}
+                busyRef={busy}
+                onClose={() => {
+                  if (handle.isOpen) {
+                    handle.close();
+                  }
+                }}
+              />
+            </DialogContent>
+          ) : null
+        }
+      </Dialog>
+    </>
+  );
+}
+
+function DocumentTransferContent({
+  action,
+  busyRef,
+  documents,
+  onClose,
+  onCommitted,
+  record,
+}: Omit<DocumentTransferFormProps, "disabled"> & {
+  action: TransferAction;
+  busyRef: RefObject<boolean>;
+  onClose: () => void;
 }) {
-  const [action, setAction] = useState<TransferAction | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const form = useForm({
     defaultValues: {
@@ -58,9 +134,6 @@ export default function DocumentTransferForm({
       cancelPreview.reset();
       pending.current = null;
       activeWriteKey.current = undefined;
-      if (!action) {
-        return;
-      }
       if (action === "Export") {
         const parsed = documentExportFormSchema.safeParse({
           documentId: record.id,
@@ -179,7 +252,7 @@ export default function DocumentTransferForm({
         }
         resetPreview();
         if (input.action !== "Cancel External Surface") {
-          setAction(null);
+          onClose();
         }
       },
     }),
@@ -243,14 +316,6 @@ export default function DocumentTransferForm({
     activeWriteKey.current = undefined;
     setValidationError(null);
   }
-  function open(next: "Move" | "Copy" | "Export" | "Assign File Attachments") {
-    resetPreview();
-    form.setFieldValue("attachmentIds", []);
-    form.setFieldValue("childDocumentIds", []);
-    form.setFieldValue("targetProjectId", "");
-    form.setFieldValue("version", record.revision);
-    setAction(next);
-  }
   const busy =
     apply.isPending ||
     cancelPreview.isPending ||
@@ -260,23 +325,12 @@ export default function DocumentTransferForm({
     validationError ??
     (apply.error ?? cancelPreview.error ?? inspect.error ?? download.error)
       ?.message;
-  function handleMove() {
-    open("Move");
-  }
-  function handleCopy() {
-    open("Copy");
-  }
-  function handleExport() {
-    open("Export");
-  }
-  function handleAttachments() {
-    open("Assign File Attachments");
-  }
-  function handleOpenChange(isOpen: boolean) {
-    if (!(isOpen || busy)) {
-      handleCancel();
-    }
-  }
+  useLayoutEffect(() => {
+    busyRef.current = busy;
+    return () => {
+      busyRef.current = false;
+    };
+  }, [busy, busyRef]);
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
@@ -324,162 +378,120 @@ export default function DocumentTransferForm({
   }
   function handleCancel() {
     resetPreview();
-    setAction(null);
+    onClose();
   }
   return (
     <>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          disabled={disabled || !record.projectId}
-          onClick={handleMove}
-          type="button"
-          variant="outline"
-        >
-          Move
-        </Button>
-        <Button
-          disabled={disabled}
-          onClick={handleCopy}
-          type="button"
-          variant="outline"
-        >
-          Copy
-        </Button>
-        <Button
-          disabled={disabled}
-          onClick={handleExport}
-          type="button"
-          variant="outline"
-        >
-          Export
-        </Button>
-        <Button
-          disabled={disabled || !record.projectId}
-          onClick={handleAttachments}
-          type="button"
-          variant="outline"
-        >
-          File Attachments
-        </Button>
-      </div>
-      <Dialog onOpenChange={handleOpenChange} open={action !== null}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {action === "Assign File Attachments"
-                ? action
-                : `${action} Document`}
-            </DialogTitle>
-          </DialogHeader>
-          <form className="contents" onSubmit={handleSubmit}>
-            <form.Field name="targetProjectId">
-              {(field) => (
-                <TargetScopeField
-                  action={action}
-                  busy={busy}
-                  onChange={(value) => {
-                    field.handleChange(value);
-                    resetPreview();
-                  }}
-                  projects={projects}
-                  record={record}
-                  value={field.state.value}
-                />
-              )}
-            </form.Field>
-            <form.Field name="attachmentIds">
-              {(field) => (
-                <AttachmentsField
-                  action={action}
-                  attachments={attachments}
-                  busy={busy}
-                  onToggle={(id, checked) => {
-                    field.handleChange(
-                      checked
-                        ? [...field.state.value, id]
-                        : field.state.value.filter((value) => value !== id),
-                    );
-                    resetPreview();
-                  }}
-                  record={record}
-                  value={field.state.value}
-                />
-              )}
-            </form.Field>
-            <form.Field name="childDocumentIds">
-              {(field) => (
-                <ChildDocumentsField
-                  action={action}
-                  busy={busy}
-                  childOptions={childOptions}
-                  onToggle={(id, checked) => {
-                    field.handleChange(
-                      checked
-                        ? [...field.state.value, id]
-                        : field.state.value.filter((value) => value !== id),
-                    );
-                    resetPreview();
-                  }}
-                  value={field.state.value}
-                />
-              )}
-            </form.Field>
-            <form.Field name="version">
-              {(field) => (
-                <VersionField
-                  action={action}
-                  busy={busy}
-                  onChange={(value) => {
-                    field.handleChange(value);
-                    resetPreview();
-                  }}
-                  record={record}
-                  value={field.state.value}
-                  versions={versions}
-                />
-              )}
-            </form.Field>
-            <form.Field name="format">
-              {(field) => (
-                <FormatField
-                  action={action}
-                  busy={busy}
-                  onChange={(value) => {
-                    field.handleChange(value);
-                    resetPreview();
-                  }}
-                  value={field.state.value}
-                />
-              )}
-            </form.Field>
-            {action === "Copy" ? (
-              <p>
-                Copy creates a new identity with source origin, without history,
-                children, File Attachments, relations or publication.
-              </p>
-            ) : null}
-            {preview ? (
-              <DocumentTransferPreviewPanel preview={preview} />
-            ) : null}
-            {exportPreview ? (
-              <pre className="max-h-60 overflow-auto text-sm whitespace-pre-wrap">
-                {exportPreview.markdown}
-              </pre>
-            ) : null}
-            {error ? <p role="alert">{error}</p> : null}
-            <DocumentTransferActions
+      <DialogHeader>
+        <DialogTitle>
+          {action === "Assign File Attachments" ? action : `${action} Document`}
+        </DialogTitle>
+      </DialogHeader>
+      <form className="contents" onSubmit={handleSubmit}>
+        <form.Field name="targetProjectId">
+          {(field) => (
+            <TargetScopeField
               action={action}
               busy={busy}
-              exportPreview={exportPreview}
-              handleApply={handleApply}
-              handleCancel={handleCancel}
-              handleCancelSurface={handleCancelSurface}
-              handleDownload={handleDownload}
-              preview={preview}
+              onChange={(value) => {
+                field.handleChange(value);
+                resetPreview();
+              }}
+              projects={projects}
+              record={record}
+              value={field.state.value}
             />
-          </form>
-        </DialogContent>
-      </Dialog>
+          )}
+        </form.Field>
+        <form.Field name="attachmentIds">
+          {(field) => (
+            <AttachmentsField
+              action={action}
+              attachments={attachments}
+              busy={busy}
+              onToggle={(id, checked) => {
+                field.handleChange(
+                  checked
+                    ? [...field.state.value, id]
+                    : field.state.value.filter((value) => value !== id),
+                );
+                resetPreview();
+              }}
+              record={record}
+              value={field.state.value}
+            />
+          )}
+        </form.Field>
+        <form.Field name="childDocumentIds">
+          {(field) => (
+            <ChildDocumentsField
+              action={action}
+              busy={busy}
+              childOptions={childOptions}
+              onToggle={(id, checked) => {
+                field.handleChange(
+                  checked
+                    ? [...field.state.value, id]
+                    : field.state.value.filter((value) => value !== id),
+                );
+                resetPreview();
+              }}
+              value={field.state.value}
+            />
+          )}
+        </form.Field>
+        <form.Field name="version">
+          {(field) => (
+            <VersionField
+              action={action}
+              busy={busy}
+              onChange={(value) => {
+                field.handleChange(value);
+                resetPreview();
+              }}
+              record={record}
+              value={field.state.value}
+              versions={versions}
+            />
+          )}
+        </form.Field>
+        <form.Field name="format">
+          {(field) => (
+            <FormatField
+              action={action}
+              busy={busy}
+              onChange={(value) => {
+                field.handleChange(value);
+                resetPreview();
+              }}
+              value={field.state.value}
+            />
+          )}
+        </form.Field>
+        {action === "Copy" ? (
+          <p>
+            Copy creates a new identity with source origin, without history,
+            children, File Attachments, relations or publication.
+          </p>
+        ) : null}
+        {preview ? <DocumentTransferPreviewPanel preview={preview} /> : null}
+        {exportPreview ? (
+          <pre className="max-h-60 overflow-auto text-sm whitespace-pre-wrap">
+            {exportPreview.markdown}
+          </pre>
+        ) : null}
+        {error ? <p role="alert">{error}</p> : null}
+        <DocumentTransferActions
+          action={action}
+          busy={busy}
+          exportPreview={exportPreview}
+          handleApply={handleApply}
+          handleCancel={handleCancel}
+          handleCancelSurface={handleCancelSurface}
+          handleDownload={handleDownload}
+          preview={preview}
+        />
+      </form>
     </>
   );
 }

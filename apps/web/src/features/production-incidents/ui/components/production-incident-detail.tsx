@@ -10,7 +10,14 @@ import {
 } from "@cantiara/api/production-incidents";
 import { PRODUCTION_INCIDENT_STATUS_OPTIONS } from "@cantiara/api/project-source-records";
 import { Button } from "@cantiara/ui/components/button";
-import { useState } from "react";
+import {
+  Dialog,
+  type DialogActions,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@cantiara/ui/components/dialog";
+import { useRef } from "react";
 import { AppLink } from "@/components/app-link";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
@@ -61,7 +68,8 @@ export function ProductionIncidentDetail({
   savedMessage?: string;
 }) {
   const { incident, readOnly } = detail;
-  const [editing, setEditing] = useState(false);
+  const dialogActions = useRef<DialogActions | null>(null);
+  const saving = useRef<boolean>(false);
   const attached = attachedProductionIncidentLinks(detail.links);
   const unlinked = detail.candidates.filter(
     (candidate) =>
@@ -98,46 +106,68 @@ export function ProductionIncidentDetail({
           <section aria-label="Incident record" className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-lg font-medium">Record</h3>
-              {readOnly || editing ? null : (
-                <Button
-                  onClick={() => setEditing(true)}
-                  size="sm"
-                  type="button"
-                  variant="outline"
+              {readOnly ? null : (
+                <Dialog
+                  actionsRef={dialogActions}
+                  onOpenChange={(open, event) => {
+                    if (
+                      !open &&
+                      saving.current &&
+                      event.reason !== "imperative-action"
+                    ) {
+                      event.cancel();
+                    }
+                  }}
                 >
-                  Edit incident
-                </Button>
+                  <DialogTrigger
+                    render={<Button size="sm" variant="outline" />}
+                  >
+                    Edit incident
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogTitle>Edit incident</DialogTitle>
+                    <ProductionIncidentForm
+                      draft={productionIncidentDraft(
+                        incident,
+                        formatting.timeZone,
+                      )}
+                      mode="edit"
+                      onCancel={() => {
+                        if (!saving.current) {
+                          dialogActions.current?.close();
+                        }
+                      }}
+                      onSubmit={async (values) => {
+                        saving.current = true;
+                        try {
+                          await actions.onSave(values);
+                          dialogActions.current?.close();
+                        } finally {
+                          saving.current = false;
+                        }
+                      }}
+                      timeZone={formatting.timeZone}
+                    />
+                  </DialogContent>
+                </Dialog>
               )}
             </div>
-            {editing ? (
-              <ProductionIncidentForm
-                draft={productionIncidentDraft(incident, formatting.timeZone)}
-                mode="edit"
-                onCancel={() => setEditing(false)}
-                onSubmit={async (values) => {
-                  await actions.onSave(values);
-                  setEditing(false);
-                }}
-                timeZone={formatting.timeZone}
-              />
-            ) : (
-              <dl className="grid gap-3 text-sm">
-                <div className="grid gap-1">
-                  <dt className="text-muted-foreground">Occurred at</dt>
-                  <dd>
-                    {formatAccountDateTime(incident.occurredAt, formatting)}
+            <dl className="grid gap-3 text-sm">
+              <div className="grid gap-1">
+                <dt className="text-muted-foreground">Occurred at</dt>
+                <dd>
+                  {formatAccountDateTime(incident.occurredAt, formatting)}
+                </dd>
+              </div>
+              {PRODUCTION_INCIDENT_TEXT_FIELDS.map(({ label, name }) => (
+                <div className="grid gap-1" key={name}>
+                  <dt className="text-muted-foreground">{label}</dt>
+                  <dd className="break-words whitespace-pre-wrap">
+                    {incident[name] || "—"}
                   </dd>
                 </div>
-                {PRODUCTION_INCIDENT_TEXT_FIELDS.map(({ label, name }) => (
-                  <div className="grid gap-1" key={name}>
-                    <dt className="text-muted-foreground">{label}</dt>
-                    <dd className="break-words whitespace-pre-wrap">
-                      {incident[name] || "—"}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            )}
+              ))}
+            </dl>
           </section>
         </div>
         <div className="space-y-8">
