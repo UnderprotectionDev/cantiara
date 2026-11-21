@@ -4,7 +4,12 @@ import type { WireframeViewport } from "@cantiara/api/screen-viewport";
 import type { ScreenWireframe } from "@cantiara/api/screens";
 import { Button } from "@cantiara/ui/components/button";
 import { LiteDebouncer } from "@tanstack/pacer-lite";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useMutationState,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -66,12 +71,38 @@ function LoadedWireframe({
     }),
   );
   const saveViewport = viewportWrite.mutate;
-  const saveScreenWireframeMutation = useMutation(
-    orpc.saveScreenWireframe.mutationOptions({
-      meta: { onlineWrite: true, presentsSupportFailure: true },
-      mutationFn: (input) => client.saveScreenWireframe(input),
-    }),
+  const queryClient = useQueryClient();
+  const { screenId } = wireframe;
+  const options = useMemo(
+    () => orpc.screenWireframe.queryOptions({ input: { projectId, screenId } }),
+    [projectId, screenId],
   );
+  const saveScope = `save-wireframe:${projectId}:${screenId}`;
+  const saveOptions = orpc.saveScreenWireframe.mutationOptions({
+    scope: { id: saveScope },
+    meta: { onlineWrite: true, presentsSupportFailure: true },
+    mutationFn: (input) => client.saveScreenWireframe(input),
+    onSuccess: async (next) => {
+      await queryClient.cancelQueries({
+        exact: true,
+        queryKey: options.queryKey,
+      });
+      queryClient.setQueryData(options.queryKey, next);
+    },
+  });
+  const { mutateAsync: saveWireframe } = useMutation(saveOptions);
+  const pendingDocuments = useMutationState({
+    filters: {
+      exact: true,
+      mutationKey: saveOptions.mutationKey,
+      predicate: (mutation) => mutation.options.scope?.id === saveScope,
+      status: "pending",
+    },
+    // The mutation key and scope select only this Screen's Wireframe saves.
+    select: ({ state }) =>
+      (state.variables as { document: ScreenWireframe["document"] } | undefined)
+        ?.document,
+  });
   const saveScreenWireframeVersionMutation = usePreparedMutation(
     {
       mutationKey: orpc.saveScreenWireframeVersion.mutationKey(),
@@ -94,15 +125,10 @@ function LoadedWireframe({
       screenId,
     }),
   );
-  const saveWireframe = saveScreenWireframeMutation.mutateAsync;
-  const queryClient = useQueryClient();
-  const { screenId } = wireframe;
-  const options = useMemo(
-    () => orpc.screenWireframe.queryOptions({ input: { projectId, screenId } }),
-    [projectId, screenId],
+  // A fast reopen inherits the latest flushed document while its save is pending.
+  const [editor] = useState(() =>
+    createWireframeEditor(pendingDocuments.at(-1) ?? wireframe.document),
   );
-  // One session per Screen (the caller keys by Screen id); saves never rebuild it.
-  const [editor] = useState(() => createWireframeEditor(wireframe.document));
   const router = useRouter();
   const saved = useRef(wireframe.document);
 
@@ -119,13 +145,12 @@ function LoadedWireframe({
       retryCount: number,
     ) {
       try {
-        const next = await saveWireframe({
+        await saveWireframe({
           document,
           projectId,
           screenId,
         });
         saved.current = document;
-        queryClient.setQueryData(options.queryKey, next);
         if (failing) {
           failing = false;
           defaultClientShell.markUnsavedChanges(false);
@@ -136,15 +161,17 @@ function LoadedWireframe({
           failing = true;
           presentSupportReferenceFailure(error, {
             kind: "mutation",
-            retry: () => {
-              if (
-                active &&
-                editor.getState().document === document &&
-                saved.current !== document
-              ) {
-                return write(document, retryCount + 1);
-              }
-            },
+            retry: active
+              ? () => {
+                  if (
+                    active &&
+                    editor.getState().document === document &&
+                    saved.current !== document
+                  ) {
+                    return write(document, retryCount + 1);
+                  }
+                }
+              : undefined,
             retryCount,
           });
         }
@@ -155,26 +182,22 @@ function LoadedWireframe({
       (document: ScreenWireframe["document"]) => write(document, 0),
       { wait: SAVE_DELAY_MS },
     );
+    let lastDocument = editor.getState().document;
     const unsubscribe = editor.subscribe(() => {
       const { document } = editor.getState();
-      if (document === saved.current) {
+      if (document === lastDocument) {
         return;
       }
+      lastDocument = document;
       debouncer.maybeExecute(document);
     });
     return () => {
       active = false;
-      debouncer.cancel();
       unsubscribe();
+      // A completed gesture belongs to this Screen even if the editor closes.
+      debouncer.flush();
     };
-  }, [
-    editor,
-    options.queryKey,
-    projectId,
-    queryClient,
-    saveWireframe,
-    screenId,
-  ]);
+  }, [editor, projectId, saveWireframe, screenId]);
 
   // The personal viewport has its own query key and write: a geometry write
   // never refetches it and a viewport write never touches the Wireframe cache
@@ -277,7 +300,6 @@ function LoadedWireframe({
       const { document } = editor.getState();
       const flushed = await saveWireframe({ document, projectId, screenId });
       saved.current = document;
-      queryClient.setQueryData(options.queryKey, flushed);
       return fetchFresh(queryClient, {
         ...orpc.previewConvertAndBind.queryOptions({
           input: {

@@ -11,6 +11,7 @@ import {
   zoomViewport,
 } from "@cantiara/api/moodboard-viewport";
 import { MOODBOARD_UI_LABELS, type Moodboard } from "@cantiara/api/moodboards";
+import { LiteThrottler } from "@tanstack/pacer-lite";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { type KeyboardEvent, useEffect, useRef } from "react";
 
@@ -38,18 +39,27 @@ function useBoardSize(element: React.RefObject<HTMLElement | null>) {
     if (!(node && typeof ResizeObserver !== "undefined")) {
       return;
     }
-    const observer = new ResizeObserver(([entry]) => {
-      const { height, width } = entry?.contentRect ?? DEFAULT_SIZE;
-      if (width > 0 && height > 0) {
+    const resize = new LiteThrottler(
+      (width: number, height: number) => {
         measurements.setState((previous) =>
           previous.height === height && previous.width === width
             ? previous
             : { height, width },
         );
+      },
+      { wait: 32 },
+    );
+    const observer = new ResizeObserver(([entry]) => {
+      const { height, width } = entry?.contentRect ?? DEFAULT_SIZE;
+      if (width > 0 && height > 0) {
+        resize.maybeExecute(width, height);
       }
     });
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      resize.cancel();
+    };
   }, [element, measurements]);
   return size;
 }

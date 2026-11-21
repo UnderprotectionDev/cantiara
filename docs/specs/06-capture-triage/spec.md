@@ -76,6 +76,8 @@ Hızlı yakalama serbest metni veya isteğe bağlı mini şablonu Yakalama Gelen
 
 ## Testing Decisions
 
+- **Interaction timing (#548).** The extension popup seam in `web-capture-view.test.tsx` verifies immediate `Search Inbox` input, a single lookup after a typing burst, abort and suppression of superseded targets, and cancellation on popup close.
+
 - **Client state ownership (#547).** The Capture Inbox keeps bulk and sequential triage in a mounted Inbox session. The current item uses the latest available snapshot and an opening fallback for items that left the list. The Web Capture popup uses the existing TanStack Store version for transient loaded link, draft and feedback. Its browser storage adapter still owns paired-link persistence.
 
 - **Popup lifecycle (#546).** The `capture-inbox.e2e.ts` browser seam opens the `New capture` composer, checks focus return on `Close` and Escape, and verifies that a rejected save keeps the draft open for retry. A successful save returns focus to `New capture` and displays the saved Capture.

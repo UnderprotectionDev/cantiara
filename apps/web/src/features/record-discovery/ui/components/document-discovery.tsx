@@ -30,6 +30,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { LiteDebouncer } from "@tanstack/pacer-lite";
 import { useQuery } from "@tanstack/react-query";
 import { useMatches, useRouteContext } from "@tanstack/react-router";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
@@ -37,6 +38,7 @@ import {
   type ChangeEvent,
   type ReactNode,
   useCallback,
+  useEffect,
   useId,
   useMemo,
   useState,
@@ -462,10 +464,12 @@ function DiscoverySurface({
   accountId,
   currentProjectId,
   onOpenSource,
+  open,
 }: {
   accountId: string;
   currentProjectId?: string;
   onOpenSource: () => void;
+  open: boolean;
 }) {
   const initialDiscovery: {
     view: DiscoveryView;
@@ -538,6 +542,7 @@ function DiscoverySurface({
           onChangeArchived: changeArchived,
           onChangeQuery: changeQuery,
           onOpenSource,
+          open,
           query,
         }}
       />
@@ -591,6 +596,7 @@ function RecordSearchSurface({
   onChangeArchived,
   onChangeQuery,
   onOpenSource,
+  open,
   query,
 }: {
   accountId: string;
@@ -599,31 +605,53 @@ function RecordSearchSurface({
   onChangeArchived: (checked: boolean) => void;
   onChangeQuery: (event: ChangeEvent<HTMLInputElement>) => void;
   onOpenSource: () => void;
+  open: boolean;
   query: string;
 }) {
   const { status, changeStatus } = useDecisionStatus();
+  const searchTerm = query.trim();
+  const settledSearch = useCreateStore("");
+  const settledTerm = useSelector(settledSearch, (value) => value);
+  const debouncer = useMemo(
+    () =>
+      new LiteDebouncer((term: string) => settledSearch.setState(() => term), {
+        wait: 250,
+      }),
+    [settledSearch],
+  );
+  useEffect(() => {
+    if (open) {
+      if (!searchTerm) {
+        settledSearch.setState(() => "");
+      } else if (searchTerm !== settledTerm) {
+        debouncer.maybeExecute(searchTerm);
+      }
+    }
+    return () => debouncer.cancel();
+  }, [debouncer, open, searchTerm, settledSearch, settledTerm]);
+  const ready = open && Boolean(searchTerm) && searchTerm === settledTerm;
   const searchResults = useQuery({
     ...universalSearchQueryOptions(accountId, {
-      query,
+      query: ready ? searchTerm : "",
       index: "Search",
       decisionStatus: status,
       archived,
       ...(currentProjectId ? { currentProjectId } : {}),
     }),
-    enabled: Boolean(accountId) && Boolean(query.trim()),
+    enabled: Boolean(accountId) && ready,
   });
   return (
     <>
       <DecisionStatusFilter onChange={changeStatus} value={status} />
       <SearchPanel
         archived={archived}
-        failed={searchResults.isError}
+        failed={ready && searchResults.isError}
         onChangeArchived={onChangeArchived}
         onChangeQuery={onChangeQuery}
         onOpenSource={onOpenSource}
-        pending={searchResults.status === "pending" && Boolean(query.trim())}
+        pending={Boolean(searchTerm) && (!ready || searchResults.isPending)}
         query={query}
-        results={searchResults.data}
+        results={ready ? searchResults.data : undefined}
       />
     </>
   );
@@ -799,12 +827,18 @@ function RecordTableSurface({
 export default function DocumentDiscovery() {
   const { session } = useRouteContext({ from: "/_auth" });
   const [dialogHandle] = useState(createDialogHandle);
+  const dialog = useCreateStore(false);
+  const open = useSelector(dialog, (value) => value);
+  const changeOpen = useCallback(
+    (next: boolean) => dialog.setState(() => next),
+    [dialog],
+  );
   const close = useCallback(() => dialogHandle.close(), [dialogHandle]);
   const [currentProjectId] = useMatches().flatMap((match) =>
     "projectId" in match.params ? [match.params.projectId] : [],
   );
   return (
-    <Dialog handle={dialogHandle}>
+    <Dialog handle={dialogHandle} onOpenChange={changeOpen}>
       <DialogTrigger render={<Button variant="ghost" />}>Search</DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
@@ -817,6 +851,7 @@ export default function DocumentDiscovery() {
           accountId={session.data.user.id}
           currentProjectId={currentProjectId}
           onOpenSource={close}
+          open={open}
         />
       </DialogContent>
     </Dialog>

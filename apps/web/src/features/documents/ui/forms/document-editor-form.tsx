@@ -66,7 +66,6 @@ import {
   type DocumentView,
   documentListRows,
   documentRecordReferenceOptions,
-  matchesDiagramConversionPreview,
   titleFromSelectedText,
   uniqueDocumentSections,
 } from "../../lib/document-editor-markdown";
@@ -98,6 +97,7 @@ const lowlight = createLowlight(common);
 
 interface DocumentEditorPresentation {
   conversionWarning: boolean;
+  diagramConversionOpen: boolean;
   previewBody: string;
   selectedTextRange: { end: number; start: number } | null;
   selectedVersion: number | null;
@@ -138,6 +138,7 @@ export default function DocumentEditor({
   const initialPresentation: DocumentEditorPresentation = {
     view: targetSectionId ? "preview" : "write",
     conversionWarning: false,
+    diagramConversionOpen: false,
     selectedVersion: null,
     previewBody: record.body,
     selectedTextRange: null,
@@ -150,6 +151,8 @@ export default function DocumentEditor({
       })),
     setConversionWarning: (next: boolean) =>
       setState((state) => ({ ...state, conversionWarning: next })),
+    setDiagramConversionOpen: (next: boolean) =>
+      setState((state) => ({ ...state, diagramConversionOpen: next })),
     setPreviewBody: (next: string) =>
       setState((state) => ({ ...state, previewBody: next })),
     setSelectedVersion: (next: number | null) =>
@@ -161,6 +164,7 @@ export default function DocumentEditor({
   const {
     view,
     conversionWarning,
+    diagramConversionOpen,
     selectedVersion,
     previewBody,
     selectedTextRange,
@@ -168,6 +172,7 @@ export default function DocumentEditor({
   const {
     setView,
     setConversionWarning,
+    setDiagramConversionOpen,
     setSelectedVersion,
     setPreviewBody,
     setSelectedTextRange,
@@ -195,10 +200,6 @@ export default function DocumentEditor({
       sectionDocumentId: "",
       sectionId: "",
       recordReferenceChoice: "",
-      conversionTitle: record.title,
-      originalBlockOutcome: "Keep independent" as
-        | "Keep independent"
-        | "Replace with live reference",
     },
   });
   const {
@@ -206,8 +207,6 @@ export default function DocumentEditor({
     sectionDocumentId,
     sectionId,
     recordReferenceChoice,
-    conversionTitle,
-    originalBlockOutcome,
   } = useSelector(insertForm.store, (state) => state.values);
   const setSelectedDiagramId = (
     value: SetStateAction<typeof selectedDiagramId>,
@@ -220,11 +219,6 @@ export default function DocumentEditor({
   const setRecordReferenceChoice = (
     value: SetStateAction<typeof recordReferenceChoice>,
   ) => insertForm.setFieldValue("recordReferenceChoice", value);
-  const setConversionTitle = (value: SetStateAction<typeof conversionTitle>) =>
-    insertForm.setFieldValue("conversionTitle", value);
-  const setOriginalBlockOutcome = (
-    value: SetStateAction<typeof originalBlockOutcome>,
-  ) => insertForm.setFieldValue("originalBlockOutcome", value);
   const [pinEvidenceHandle] = useState(createDialogHandle);
   const [bulkConversionHandle] = useState(createDialogHandle);
   const [recordConversionHandle] = useState(createDialogHandle);
@@ -233,6 +227,7 @@ export default function DocumentEditor({
       start: number;
       end: number;
       revision: number;
+      requestId: string;
     }>,
   );
   useEffect(() => {
@@ -285,19 +280,9 @@ export default function DocumentEditor({
     mutationKey: orpc.convertMermaidToTechnicalDiagram.mutationKey(),
     meta: { onlineWrite: true },
     mutationFn: (
-      input:
-        | Parameters<typeof client.convertMermaidToTechnicalDiagram>[0]
-        | Error,
-    ) => {
-      if (input instanceof Error) {
-        throw input;
-      }
-      return client.convertMermaidToTechnicalDiagram(input);
-    },
+      input: Parameters<typeof client.convertMermaidToTechnicalDiagram>[0],
+    ) => client.convertMermaidToTechnicalDiagram(input),
     onSuccess: async (_, input) => {
-      if (input instanceof Error) {
-        return;
-      }
       if (conversionKey.current === input.clientIdempotencyKey) {
         if (input.originalBlock === "Replace with live reference") {
           const committed = await fetchFresh(queryClient, {
@@ -1122,24 +1107,23 @@ export default function DocumentEditor({
                 {(body) => (
                   <DocumentBodyPreview
                     body={body}
-                    conversionKey={conversionKey}
                     documentReferences={documentReferences}
                     liveOtherBlocks={liveOtherBlocks}
                     liveWorkBlocks={liveWorkBlocks}
-                    openDiagramConversion={(range) =>
+                    openDiagramConversion={(range) => {
+                      conversionKey.current = null;
                       diagramConversionHandle.openWithPayload({
                         ...range,
                         revision,
-                      })
-                    }
+                        requestId: crypto.randomUUID(),
+                      });
+                    }}
                     openWorkAction={(action) =>
                       workActionHandle.openWithPayload(action)
                     }
                     previewBody={previewBody}
                     record={record}
                     savedBody={savedBody}
-                    setConversionTitle={setConversionTitle}
-                    setOriginalBlockOutcome={setOriginalBlockOutcome}
                     targetSectionId={targetSectionId}
                   />
                 )}
@@ -1213,109 +1197,26 @@ export default function DocumentEditor({
             event.reason !== "imperative-action"
           ) {
             event.cancel();
+            return;
           }
+          setDiagramConversionOpen(open);
         }}
       >
         {({ payload }) =>
           payload ? (
             <DialogContent>
-              <DocumentDiagramConversion
+              <DocumentDiagramConversionDialog
                 conversionKey={conversionKey}
                 conversionSelection={payload}
-                conversionTitle={conversionTitle}
                 diagramWrite={diagramWrite}
-                originalBlockOutcome={originalBlockOutcome}
+                key={payload.requestId}
+                open={diagramConversionOpen}
                 record={record}
-                setConversionTitle={setConversionTitle}
-                setOriginalBlockOutcome={setOriginalBlockOutcome}
               />
             </DialogContent>
           ) : null
         }
       </Dialog>
     </section>
-  );
-}
-
-function DocumentDiagramConversion({
-  conversionKey,
-  conversionSelection,
-  conversionTitle,
-  diagramWrite,
-  originalBlockOutcome,
-  record,
-  setConversionTitle,
-  setOriginalBlockOutcome,
-}: Omit<
-  Parameters<typeof DocumentDiagramConversionDialog>[0],
-  "conversionPreview" | "convertDiagram" | "conversionSelection"
-> & {
-  conversionSelection: { start: number; end: number; revision: number };
-  diagramWrite: Pick<
-    import("@tanstack/react-query").UseMutationResult<
-      import("@cantiara/api/technical-diagrams").TechnicalDiagramSource,
-      Error,
-      Parameters<typeof client.convertMermaidToTechnicalDiagram>[0] | Error,
-      unknown
-    >,
-    "mutateAsync" | "isPending" | "isError" | "error"
-  >;
-}) {
-  const conversionPreview = useQuery({
-    ...orpc.previewMermaidConversion.queryOptions({
-      input: {
-        documentId: record.id,
-        documentRevision: conversionSelection.revision,
-        blockStart: conversionSelection.start,
-        blockEnd: conversionSelection.end,
-        originalBlock: originalBlockOutcome,
-        title: conversionTitle,
-      },
-    }),
-  });
-  const convertDiagram = {
-    ...diagramWrite,
-    mutateAsync() {
-      const reviewed = conversionPreview.data;
-      if (
-        !(
-          reviewed &&
-          matchesDiagramConversionPreview(
-            reviewed,
-            conversionSelection,
-            conversionTitle,
-            originalBlockOutcome,
-          )
-        )
-      ) {
-        return diagramWrite.mutateAsync(
-          new Error("Preview the Mermaid conversion again."),
-        );
-      }
-      conversionKey.current ??= crypto.randomUUID();
-      return diagramWrite.mutateAsync({
-        documentId: record.id,
-        documentRevision: conversionSelection.revision,
-        blockStart: conversionSelection.start,
-        blockEnd: conversionSelection.end,
-        originalBlock: originalBlockOutcome,
-        title: conversionTitle,
-        previewToken: reviewed.previewToken,
-        clientIdempotencyKey: conversionKey.current,
-      });
-    },
-  };
-  return (
-    <DocumentDiagramConversionDialog
-      conversionKey={conversionKey}
-      conversionPreview={conversionPreview}
-      conversionSelection={conversionSelection}
-      conversionTitle={conversionTitle}
-      convertDiagram={convertDiagram}
-      originalBlockOutcome={originalBlockOutcome}
-      record={record}
-      setConversionTitle={setConversionTitle}
-      setOriginalBlockOutcome={setOriginalBlockOutcome}
-    />
   );
 }

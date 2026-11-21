@@ -193,3 +193,45 @@ describe("Moodboard board hard scenes", () => {
     );
   });
 });
+
+test("Moodboard applies the latest resize in a burst and cancels on unmount", () => {
+  vi.useFakeTimers();
+  let resize: (entries: { contentRect: DOMRect }[]) => void = () => undefined;
+  const disconnect = vi.fn();
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(callback: typeof resize) {
+        resize = callback;
+      }
+      observe = vi.fn();
+      disconnect = disconnect;
+    },
+  );
+  try {
+    const { surface } = mount(board(1), {
+      savedViewport: { centerX: 0, centerY: 0, zoom: 1 },
+    });
+    const offset = () =>
+      surface.querySelector<HTMLElement>("[style*='translate']")?.style
+        .transform;
+    const notify = (width: number) =>
+      act(() => resize([{ contentRect: new DOMRect(0, 0, width, 480) }]));
+
+    notify(600);
+    expect(offset()).toContain("translate(300px,");
+    notify(650);
+    notify(700);
+    expect(offset()).toContain("translate(300px,");
+    act(() => vi.advanceTimersByTime(40));
+    expect(offset()).toContain("translate(350px,");
+    notify(750);
+    act(() => root?.unmount());
+    root = null;
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  }
+});

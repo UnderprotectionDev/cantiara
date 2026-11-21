@@ -12,9 +12,6 @@ export default function DocumentBodyPreview({
   record,
   previewBody,
   savedBody,
-  conversionKey,
-  setConversionTitle,
-  setOriginalBlockOutcome,
   openDiagramConversion,
   body,
   targetSectionId,
@@ -38,15 +35,6 @@ export default function DocumentBodyPreview({
   record: Document;
   previewBody: string;
   savedBody: string;
-  conversionKey: import("react").RefObject<string | null>;
-  setConversionTitle: import("react").Dispatch<
-    import("react").SetStateAction<string>
-  >;
-  setOriginalBlockOutcome: import("react").Dispatch<
-    import("react").SetStateAction<
-      "Keep independent" | "Replace with live reference"
-    >
-  >;
   openDiagramConversion: (range: { start: number; end: number }) => void;
   body: string;
   targetSectionId: string | undefined;
@@ -74,12 +62,7 @@ export default function DocumentBodyPreview({
         }
         onMermaidConvert={
           record.projectId !== null && previewBody === savedBody
-            ? (start, end) => {
-                conversionKey.current = null;
-                setConversionTitle(record.title);
-                setOriginalBlockOutcome("Keep independent");
-                openDiagramConversion({ start, end });
-              }
+            ? (start, end) => openDiagramConversion({ start, end })
             : undefined
         }
         source={body}

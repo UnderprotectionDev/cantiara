@@ -14,80 +14,121 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useForm } from "@tanstack/react-form";
-import { useEffect } from "react";
-import type { client } from "@/utils/orpc";
+import { LiteDebouncer } from "@tanstack/pacer-lite";
+import { useForm, useSelector } from "@tanstack/react-form";
+import {
+  skipToken,
+  type UseMutationResult,
+  useQuery,
+} from "@tanstack/react-query";
+import { useCreateStore } from "@tanstack/react-store";
+import { type RefObject, useEffect, useMemo } from "react";
+import { type client, orpc } from "@/utils/orpc";
 import { convertMermaidDiagramFormSchema } from "../../lib/document-conversion-form";
 import { matchesDiagramConversionPreview } from "../../lib/document-editor-markdown";
 
 export default function DocumentDiagramConversionDialog({
   conversionKey,
-  setOriginalBlockOutcome,
   conversionSelection,
-  conversionTitle,
-  setConversionTitle,
-  originalBlockOutcome,
-  conversionPreview,
+  diagramWrite,
+  open,
   record,
-  convertDiagram,
 }: {
-  conversionKey: import("react").RefObject<string | null>;
-  setOriginalBlockOutcome: import("react").Dispatch<
-    import("react").SetStateAction<
-      "Keep independent" | "Replace with live reference"
-    >
-  >;
-  conversionSelection: { start: number; end: number };
-  conversionTitle: string;
-  setConversionTitle: import("react").Dispatch<
-    import("react").SetStateAction<string>
-  >;
-  originalBlockOutcome: "Keep independent" | "Replace with live reference";
-  conversionPreview: import("@tanstack/react-query").UseQueryResult<
-    Awaited<ReturnType<typeof client.previewMermaidConversion>>,
-    Error
-  >;
-  record: Document;
-  convertDiagram: Pick<
-    import("@tanstack/react-query").UseMutationResult<
-      import("@cantiara/api/technical-diagrams").TechnicalDiagramSource,
+  conversionKey: RefObject<string | null>;
+  conversionSelection: { start: number; end: number; revision: number };
+  diagramWrite: Pick<
+    UseMutationResult<
+      Awaited<ReturnType<typeof client.convertMermaidToTechnicalDiagram>>,
       Error,
-      void,
+      Parameters<typeof client.convertMermaidToTechnicalDiagram>[0],
       unknown
     >,
     "mutateAsync" | "isPending" | "isError" | "error"
   >;
+  open: boolean;
+  record: Pick<Document, "id" | "title">;
 }) {
   const form = useForm({
     defaultValues: {
-      originalBlock: originalBlockOutcome,
-      title: conversionTitle,
+      originalBlock: "Keep independent" as
+        | "Keep independent"
+        | "Replace with live reference",
+      title: record.title,
     },
     onSubmit: async ({ value }) => {
       const parsed = convertMermaidDiagramFormSchema.safeParse(value);
-      if (!parsed.success) {
+      const reviewed = conversionPreview.data;
+      if (
+        !(
+          parsed.success &&
+          canConvert &&
+          reviewed &&
+          parsed.data.title === title &&
+          parsed.data.originalBlock === originalBlock
+        )
+      ) {
         return;
       }
-      if (!convertDiagram.isPending) {
-        await convertDiagram.mutateAsync();
-      }
+      conversionKey.current ??= crypto.randomUUID();
+      await diagramWrite.mutateAsync({
+        ...previewSource,
+        ...parsed.data,
+        previewToken: reviewed.previewToken,
+        clientIdempotencyKey: conversionKey.current,
+      });
     },
   });
-  // The parent resets the title and outcome when a selection opens or closes.
-  useEffect(() => {
-    if (form.getFieldValue("title") !== conversionTitle) {
-      form.setFieldValue("title", conversionTitle);
-    }
-    if (form.getFieldValue("originalBlock") !== originalBlockOutcome) {
-      form.setFieldValue("originalBlock", originalBlockOutcome);
-    }
-  }, [conversionTitle, form, originalBlockOutcome]);
-  const previewMatchesSelection = matchesDiagramConversionPreview(
-    conversionPreview.data,
-    conversionSelection,
-    conversionTitle,
-    originalBlockOutcome,
+  const title = useSelector(form.store, (state) => state.values.title.trim());
+  const originalBlock = useSelector(
+    form.store,
+    (state) => state.values.originalBlock,
   );
+  const previewTitle = useCreateStore(record.title.trim());
+  const settledTitle = useSelector(previewTitle, (value) => value);
+  const debouncer = useMemo(
+    () =>
+      new LiteDebouncer((next: string) => previewTitle.setState(() => next), {
+        wait: 250,
+      }),
+    [previewTitle],
+  );
+  useEffect(() => {
+    if (open && title !== settledTitle) {
+      debouncer.maybeExecute(title);
+    }
+    return () => debouncer.cancel();
+  }, [debouncer, open, title, settledTitle]);
+
+  const previewSource = {
+    documentId: record.id,
+    documentRevision: conversionSelection.revision,
+    blockStart: conversionSelection.start,
+    blockEnd: conversionSelection.end,
+  };
+  const ready =
+    open &&
+    title === settledTitle &&
+    convertMermaidDiagramFormSchema.shape.title.safeParse(title).success;
+  const conversionPreview = useQuery(
+    orpc.previewMermaidConversion.queryOptions({
+      input: ready ? { ...previewSource, originalBlock, title } : skipToken,
+    }),
+  );
+  const previewMatchesSelection =
+    ready &&
+    conversionPreview.isSuccess &&
+    !conversionPreview.isFetching &&
+    matchesDiagramConversionPreview(
+      conversionPreview.data,
+      conversionSelection,
+      title,
+      originalBlock,
+    );
+  const canConvert =
+    previewMatchesSelection &&
+    Boolean(conversionPreview.data?.canConvert) &&
+    !diagramWrite.isPending;
+
   return (
     <>
       <DialogHeader>
@@ -107,10 +148,9 @@ export default function DocumentDiagramConversionDialog({
         <form.Field
           listeners={{
             onChange: ({ value }) => {
-              if (value !== conversionTitle) {
+              if (value.trim() !== title) {
                 conversionKey.current = null;
               }
-              setConversionTitle(value);
             },
           }}
           name="title"
@@ -128,9 +168,8 @@ export default function DocumentDiagramConversionDialog({
         </form.Field>
         <form.Field
           listeners={{
-            onChange: ({ value }) => {
+            onChange: () => {
               conversionKey.current = null;
-              setOriginalBlockOutcome(value);
             },
           }}
           name="originalBlock"
@@ -161,9 +200,7 @@ export default function DocumentDiagramConversionDialog({
             </>
           )}
         </form.Field>
-        {conversionPreview.data &&
-        !conversionPreview.isFetching &&
-        previewMatchesSelection ? (
+        {conversionPreview.data && previewMatchesSelection ? (
           <section aria-label="Conversion preview" className="text-sm">
             <p>
               Document: {record.title} · Version:{" "}
@@ -200,27 +237,22 @@ export default function DocumentDiagramConversionDialog({
             ) : null}
           </section>
         ) : null}
-        {conversionPreview.isError ? (
+        {ready && conversionPreview.isError ? (
           <p role="alert">{conversionPreview.error.message}</p>
         ) : null}
-        {convertDiagram.isError ? (
-          <p role="alert">{convertDiagram.error?.message}</p>
+        {diagramWrite.isError ? (
+          <p role="alert">{diagramWrite.error?.message}</p>
         ) : null}
       </form>
       <DialogFooter>
         <DialogClose
-          disabled={convertDiagram.isPending}
+          disabled={diagramWrite.isPending}
           render={<Button variant="outline" />}
         >
           Cancel
         </DialogClose>
         <Button
-          disabled={
-            !conversionPreview.data?.canConvert ||
-            conversionPreview.isFetching ||
-            !previewMatchesSelection ||
-            convertDiagram.isPending
-          }
+          disabled={!canConvert}
           form="convert-diagram-form"
           type="submit"
         >

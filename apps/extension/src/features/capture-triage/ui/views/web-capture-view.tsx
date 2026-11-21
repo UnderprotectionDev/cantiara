@@ -2,6 +2,7 @@ import type {
   WebCaptureKind,
   WebCapturePairingInput,
 } from "@cantiara/api/web-capture";
+import { LiteDebouncer } from "@tanstack/pacer-lite";
 import { useSelector } from "@tanstack/react-form";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -119,12 +120,31 @@ export function WebCaptureView() {
     };
   }, [setIsReading, setLink, setLocalError]);
 
-  const search = targetSearch.trim();
+  const searchTerm = targetSearch.trim();
+  const settledSearch = useCreateStore("");
+  const settledTerm = useStoreSelector(settledSearch);
+  const debouncer = useMemo(
+    () =>
+      new LiteDebouncer((term: string) => settledSearch.setState(() => term), {
+        wait: 250,
+      }),
+    [settledSearch],
+  );
+  useEffect(() => {
+    if (!searchTerm) {
+      settledSearch.setState(() => "");
+    } else if (searchTerm !== settledTerm) {
+      debouncer.maybeExecute(searchTerm);
+    }
+    return () => debouncer.cancel();
+  }, [debouncer, searchTerm, settledSearch, settledTerm]);
+  const search = !searchTerm || searchTerm === settledTerm ? searchTerm : null;
   const targetQuery = useQuery({
     queryKey: ["web-capture-targets", link?.id, search],
-    queryFn: link
-      ? ({ signal }) => listWebCaptureTargets(link.token, search, signal)
-      : skipToken,
+    queryFn:
+      link && search !== null
+        ? ({ signal }) => listWebCaptureTargets(link.token, search, signal)
+        : skipToken,
   });
   const targets = targetQuery.data ?? [];
 
