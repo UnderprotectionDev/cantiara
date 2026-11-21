@@ -11,6 +11,7 @@ import {
   type WireframeComponentKind,
 } from "@cantiara/api/wireframe-document";
 import { Button } from "@cantiara/ui/components/button";
+import { LiteThrottler } from "@tanstack/pacer-lite";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   BarChart3,
@@ -76,21 +77,29 @@ function usePaneSize() {
     if (!element) {
       return;
     }
-    const measure = () => {
-      const rect = element.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        const next = stageSizeFor(rect);
+    const resize = new LiteThrottler(
+      (next: ReturnType<typeof stageSizeFor>) => {
         pane.setState((previous) =>
           previous?.height === next.height && previous.width === next.width
             ? previous
             : next,
         );
+      },
+      { wait: 32 },
+    );
+    const measure = () => {
+      const rect = element.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        resize.maybeExecute(stageSizeFor(rect));
       }
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      resize.cancel();
+    };
   }, [pane]);
   return { measured, ref, size };
 }

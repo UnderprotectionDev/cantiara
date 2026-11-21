@@ -602,7 +602,15 @@ test("a failed autosave presents one Client Shell failure per streak and flags u
   await gesture();
   expect(save).toHaveBeenCalledTimes(3);
   expect(markUnsavedChanges).toHaveBeenLastCalledWith(false);
+
+  save.mockRejectedValueOnce(new Error("Closing save failed"));
+  await act(() => button?.click());
   await act(async () => root.unmount());
+  expect(markUnsavedChanges).toHaveBeenLastCalledWith(true);
+  expect(presentFailure).toHaveBeenLastCalledWith(
+    expect.objectContaining({ message: "Closing save failed" }),
+    expect.objectContaining({ retry: undefined }),
+  );
 });
 
 test("Wireframe overlay commits once on Enter or cancels on Escape", () => {
@@ -652,5 +660,119 @@ test("Wireframe overlay commits once on Enter or cancels on Escape", () => {
   } finally {
     act(() => root.unmount());
     host.remove();
+  }
+});
+
+test("Wireframe resize keeps the first and latest dimensions and cancels on unmount", async () => {
+  vi.useFakeTimers();
+  let notify: () => void = () => undefined;
+  const disconnect = vi.fn();
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(callback: () => void) {
+        notify = callback;
+      }
+      observe = vi.fn();
+      disconnect = disconnect;
+    },
+  );
+  let width = 400;
+  const measure = vi
+    .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+    .mockImplementation(() => new DOMRect(0, 0, width, 300));
+  const editor = createWireframeEditor(createEmptyWireframeDocument());
+  const view = mount(<WireframePane editor={editor} liveText={{}} />);
+  const stageWidth = () =>
+    view.container
+      .querySelector('[data-testid="stage"]')
+      ?.getAttribute("data-width");
+  const resize = (next: number) =>
+    act(() => {
+      width = next;
+      notify();
+    });
+  try {
+    await view.render();
+    expect(stageWidth()).toBe("400");
+    await resize(450);
+    await resize(500);
+    expect(stageWidth()).toBe("400");
+    await act(() => vi.advanceTimersByTime(40));
+    expect(stageWidth()).toBe("500");
+    await resize(550);
+    await view.unmount();
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    await view.unmount();
+    measure.mockRestore();
+    vi.unstubAllGlobals();
+  }
+});
+
+test("closing and immediately reopening Wireframe preserves edits through in-flight autosaves", async () => {
+  vi.useFakeTimers();
+  const wireframe: ScreenWireframe = {
+    createdAt: "2026-10-01T09:00:00.000Z",
+    document: createEmptyWireframeDocument(),
+    liveText: {},
+    screenId: "screen-1",
+    version: 1,
+    versionId: "v1",
+  };
+  const earlier = Promise.withResolvers<ScreenWireframe>();
+  save.mockImplementationOnce(() => earlier.promise);
+  save.mockImplementation(async ({ document }) => ({ ...wireframe, document }));
+  const cache = new QueryClient();
+  cache.setQueryData(["wireframe"], wireframe);
+  cache.setQueryData(["viewport"], { viewport: null });
+  const open = () =>
+    mount(
+      <QueryClientProvider client={cache}>
+        <WireframeSurface
+          projectId="project-1"
+          readOnly={false}
+          screenId="screen-1"
+        />
+      </QueryClientProvider>,
+    );
+  const view = open();
+  const reopened = open();
+  try {
+    await view.render();
+    await act(async () => {
+      buttonNamed(view.container, "Button")?.click();
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    expect(save).toHaveBeenCalledTimes(1);
+    await act(() => buttonNamed(view.container, "Input")?.click());
+    await view.unmount();
+    expect(save).toHaveBeenCalledTimes(1);
+    await reopened.render();
+    await act(() => buttonNamed(reopened.container, "Card")?.click());
+    await reopened.unmount();
+    expect(save).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      earlier.resolve({
+        ...wireframe,
+        document: save.mock.calls[0]?.[0].document,
+      });
+      await Promise.resolve();
+    });
+    expect(save).toHaveBeenCalledTimes(3);
+    expect(cache.getQueryData(["wireframe"])).toMatchObject({
+      document: {
+        blocks: [{ kind: "Button" }, { kind: "Input" }, { kind: "Card" }],
+      },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    expect(save).toHaveBeenCalledTimes(3);
+  } finally {
+    await view.unmount();
+    await reopened.unmount();
+    cache.clear();
   }
 });

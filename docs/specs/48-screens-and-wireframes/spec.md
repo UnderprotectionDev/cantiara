@@ -60,6 +60,8 @@ Kurucu Ekranı Proje kapsamında bağımsız ana kayıt olarak tutar; yalnız ba
 
 ## Testing Decisions
 
+- **Interaction timing (#548).** The `wireframe-pane.test.tsx` seam verifies the first positive size and the latest size after a resize burst, cancellation of trailing resize work on unmount, and that closing the Wireframe flushes the latest completed gesture after an in-flight autosave. Reopening before the response starts from the pending document, so the next edit preserves the flushed gestures. A failed closing save flags unsaved changes without offering a retry tied to the closed editor.
+
 - **Client state ownership (#547).** The Wireframe overlay commits text once from the active DOM field on Enter or blur. Escape cancels it. Presentation restarts for a changed start Screen or snapshot, and the Pane observes its own size. The Wireframe pane and presentation tests exercise those paths. The Presentation Mode test changes the opening Wireframe snapshot after following a link and checks that presentation returns to the opening Screen.
 
 - **Popup lifecycle (#546).** The Wireframe `Convert and Bind` control seam opens the dialog, previews the selected target type, and confirms only that preview. The write stays within the existing Wireframe operation.
