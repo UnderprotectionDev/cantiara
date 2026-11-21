@@ -23,7 +23,6 @@ import {
   ReactFlow,
   type ReactFlowInstance,
   ReactFlowProvider,
-  useNodesState,
   useReactFlow,
 } from "@xyflow/react";
 import {
@@ -345,9 +344,8 @@ function Canvas({
       })),
     [hiddenCards, links, scene.reducedDetail],
   );
-  const [nodes, setNodes, applyNodeChanges] =
-    useNodesState<WallNode>(modelNodes);
-  useReconcileFlowNodes(modelNodes, setNodes);
+  const { nodes, onNodesChange: applyNodeChanges } =
+    useReconcileFlowNodes(modelNodes);
 
   useEffect(() => {
     if (pendingFit.current && !nodes.some((node) => node.hidden)) {

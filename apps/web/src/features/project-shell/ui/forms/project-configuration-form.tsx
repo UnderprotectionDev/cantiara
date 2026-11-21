@@ -97,8 +97,6 @@ export default function ProjectConfigurationForm({
   CustomFieldEditor,
   WorkContextLayoutForm,
   RecordActionEditor,
-  configurationHost,
-  onConfigurationHostChange,
   projectId,
   projectName,
   starterConfiguration,
@@ -108,12 +106,15 @@ export default function ProjectConfigurationForm({
   CustomFieldEditor: CustomFieldEditorComponent;
   WorkContextLayoutForm: WorkContextLayoutFormComponent;
   RecordActionEditor: CustomFieldEditorComponent;
-  configurationHost: ConfigurationHost | null;
-  onConfigurationHostChange: (host: ConfigurationHost | null) => void;
   projectId: string;
   projectName: string;
   starterConfiguration: StarterConfiguration;
 }) {
+  const hostStore = useCreateStore<ConfigurationHost | null>("Project areas");
+  const configurationHost = useSelector(hostStore);
+  function onConfigurationHostChange(next: ConfigurationHost | null) {
+    hostStore.setState(() => next);
+  }
   const { error, mutation } = useProjectConfiguration(projectId, baseRevision);
   const { error: enableError, mutation: enableProjectArea } =
     useProjectAreaEnable(projectId, baseRevision);

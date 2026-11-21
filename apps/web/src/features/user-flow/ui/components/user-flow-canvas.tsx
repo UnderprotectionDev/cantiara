@@ -28,7 +28,6 @@ import {
   ReactFlow,
   type ReactFlowInstance,
   ReactFlowProvider,
-  useNodesState,
   useReactFlow,
 } from "@xyflow/react";
 import {
@@ -383,10 +382,8 @@ function Editor({
   ]);
 
   // React Flow animates drags on its own copy; the model owns every commit.
-  const [canvasNodes, setCanvasNodes, applyNodeChanges] = useNodesState<
-    CanvasCard | FlowNode
-  >(modelNodes);
-  useReconcileFlowNodes(modelNodes, setCanvasNodes);
+  const { nodes: canvasNodes, onNodesChange: applyNodeChanges } =
+    useReconcileFlowNodes(modelNodes);
 
   const edges = useMemo<Edge[]>(
     () =>

@@ -1,11 +1,9 @@
-import type { Node } from "@xyflow/react";
-import { type Dispatch, type SetStateAction, useEffect, useRef } from "react";
+import { type Node, useNodesState } from "@xyflow/react";
+import { useEffect, useRef } from "react";
 
 /** Merge model changes with the interaction state kept by React Flow. */
-export function useReconcileFlowNodes<T extends Node>(
-  model: T[],
-  setNodes: Dispatch<SetStateAction<T[]>>,
-) {
+export function useReconcileFlowNodes<T extends Node>(model: T[]) {
+  const [nodes, setNodes, onNodesChange] = useNodesState(model);
   const previousModel = useRef(model);
   useEffect(() => {
     const previous = previousModel.current;
@@ -33,4 +31,5 @@ export function useReconcileFlowNodes<T extends Node>(
       });
     });
   }, [model, setNodes]);
+  return { nodes, onNodesChange };
 }

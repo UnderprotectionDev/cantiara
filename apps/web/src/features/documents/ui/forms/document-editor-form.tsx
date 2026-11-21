@@ -188,7 +188,7 @@ export default function DocumentEditor({
   });
   const selectedSnapshot =
     selectedVersion === record.revision ? record : selectedVersionQuery.data;
-  const { savedBody } = editing;
+  const savedBody = editing.savedBuffer.body;
   const insertForm = useForm({
     defaultValues: {
       selectedDiagramId: "",
@@ -307,7 +307,7 @@ export default function DocumentEditor({
           });
           if (conversionKey.current === input.clientIdempotencyKey) {
             editSession.accept(committed);
-            form.setFieldValue("body", committed.body);
+            form.reset(editSession.get().buffer);
             setPreviewBody(committed.body);
           }
         }
@@ -378,10 +378,11 @@ export default function DocumentEditor({
     }),
   );
   const form = useForm({
-    defaultValues: {
-      title: record.title,
-      type: record.type,
-      body: record.body,
+    defaultValues: editing.savedBuffer,
+    listeners: {
+      onChange: ({ formApi }) => {
+        editSession.edit(formApi.state.values);
+      },
     },
     onSubmit: async ({ value }) => {
       editSession.edit(value);
@@ -405,29 +406,21 @@ export default function DocumentEditor({
   );
   useEffect(() => editSession.connect(), [editSession]);
   useEffect(() => {
-    const subscription = form.store.subscribe(() =>
-      editSession.edit(form.state.values),
-    );
-    return () => subscription.unsubscribe();
-  }, [editSession, form]);
-  useEffect(() => {
     if (editing.dirty || record.revision <= editing.baseRevision) {
       return;
     }
     editSession.accept(record);
     syncedRevision.current = record.revision;
-    // Move the form with the session now; otherwise its next change event
-    // would write the previous body back into the accepted buffer.
-    form.reset({ title: record.title, type: record.type, body: record.body });
+    form.reset(editSession.get().buffer);
   }, [editSession, editing.baseRevision, editing.dirty, form, record]);
   useEffect(() => {
-    if (editing.dirty || revision === syncedRevision.current) {
+    // The list refresh can advance the form before this effect runs with
+    // the previous render's edit-session snapshot.
+    if (editing.dirty || revision <= syncedRevision.current) {
       return;
     }
     syncedRevision.current = revision;
-    form.setFieldValue("title", editing.buffer.title);
-    form.setFieldValue("type", editing.buffer.type);
-    form.setFieldValue("body", editing.buffer.body);
+    form.reset(editing.buffer);
     bulkConversionKey.current = null;
     setSelectedTextRange(null);
     pinEvidenceKey.current = null;
@@ -867,9 +860,7 @@ export default function DocumentEditor({
         documentId={record.id}
         onResolved={(current) => {
           editSession.accept(current);
-          form.setFieldValue("title", current.title);
-          form.setFieldValue("type", current.type);
-          form.setFieldValue("body", current.body);
+          form.reset(editSession.get().buffer);
           form.setErrorMap({ onSubmit: undefined });
           onSaved().catch(() => undefined);
         }}

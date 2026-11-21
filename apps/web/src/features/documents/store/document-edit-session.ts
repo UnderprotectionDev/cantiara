@@ -20,7 +20,7 @@ interface DocumentEditState {
   lastSavedAt: string;
   offline: boolean;
   pending: boolean;
-  savedBody: string;
+  savedBuffer: DocumentEditBuffer;
 }
 
 interface DocumentEditSessionOptions {
@@ -59,15 +59,15 @@ export function createDocumentEditSession({
   shell,
   write,
 }: DocumentEditSessionOptions) {
-  let saved: DocumentEditBuffer = {
+  const initialBuffer: DocumentEditBuffer = {
     body: record.body,
     title: record.title,
     type: record.type,
   };
   let pendingKey: string | null = null;
   const store = createStore<DocumentEditState>({
-    buffer: saved,
-    savedBody: saved.body,
+    buffer: initialBuffer,
+    savedBuffer: initialBuffer,
     baseRevision: record.revision,
     conflictDraft: null,
     dirty: false,
@@ -100,17 +100,24 @@ export function createDocumentEditSession({
     }
     if (!sameBuffer(buffer, store.state.buffer)) {
       pendingKey = null;
-      update({ buffer: { ...buffer }, dirty: !sameBuffer(buffer, saved) });
+      update({
+        buffer: { ...buffer },
+        dirty: !sameBuffer(buffer, store.state.savedBuffer),
+      });
     }
     return true;
   }
 
   function accept(document: Document) {
-    saved = { body: document.body, title: document.title, type: document.type };
+    const saved = {
+      body: document.body,
+      title: document.title,
+      type: document.type,
+    };
     pendingKey = null;
     update({
       buffer: saved,
-      savedBody: saved.body,
+      savedBuffer: saved,
       baseRevision: document.revision,
       conflictDraft: null,
       dirty: false,

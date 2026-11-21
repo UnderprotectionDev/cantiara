@@ -51,6 +51,8 @@ test("Risks persists founder fields and explicit acceptance, preserves drafts, a
     .getByRole("link", { name: "Dependency outage", exact: true })
     .click();
   await expect(detail).toContainText("Dependency outage");
+  await expect(page.getByLabel("Title", { exact: true })).toHaveCount(0);
+  await detail.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
     "Dependency outage",
   );

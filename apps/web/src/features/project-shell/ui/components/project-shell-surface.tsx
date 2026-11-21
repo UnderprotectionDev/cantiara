@@ -52,7 +52,6 @@ import {
   ALWAYS_REACHABLE_SURFACES,
   BACKLOG_HASH,
   CONFIGURATION_MODE_HASH,
-  type ConfigurationHost,
   DAILY_ACTION_HASHES,
   DAILY_ACTION_MESSAGES,
   DAILY_ACTIONS,
@@ -558,26 +557,10 @@ function ProjectShellContent({
   });
   const navigate = useNavigate();
   const configurationMode = activeHash === CONFIGURATION_MODE_HASH;
-  const initialPresentation: {
-    explanation: boolean;
-    configurationHost: ConfigurationHost | null;
-  } = {
-    explanation: !isProjectShellExplanationDismissed(projectId),
-    configurationHost: configurationMode ? "Project areas" : null,
-  };
   const shellPresentation = useCreateStore(
-    initialPresentation,
-    ({ setState }) => ({
-      setShowExplanation: (next: boolean) =>
-        setState((state) => ({ ...state, explanation: next })),
-      setConfigurationHost: (next: ConfigurationHost | null) =>
-        setState((state) => ({ ...state, configurationHost: next })),
-    }),
+    !isProjectShellExplanationDismissed(projectId),
   );
-  const { explanation: showExplanation, configurationHost } =
-    useSelector(shellPresentation);
-  const { setShowExplanation, setConfigurationHost } =
-    shellPresentation.actions;
+  const showExplanation = useSelector(shellPresentation);
   const dailyAction = dailyActionFromHash(activeHash);
   const sourceRecordRoute = projectSourceRecordFromHash(activeHash);
   const documentRoute = documentRecordFromHash(activeHash);
@@ -600,14 +583,6 @@ function ProjectShellContent({
     dailyAction,
     collectionWorkPrefill,
   );
-
-  useEffect(() => {
-    setShowExplanation(!isProjectShellExplanationDismissed(projectId));
-  }, [projectId, setShowExplanation]);
-
-  useEffect(() => {
-    setConfigurationHost(configurationMode ? "Project areas" : null);
-  }, [configurationMode, setConfigurationHost]);
 
   useEffect(() => {
     if (!activeHash || typeof window === "undefined") {
@@ -646,7 +621,7 @@ function ProjectShellContent({
   } = project;
 
   function dismissExplanation() {
-    setShowExplanation(false);
+    shellPresentation.setState(() => false);
     rememberProjectShellExplanationDismissal(projectId);
   }
 
@@ -664,7 +639,6 @@ function ProjectShellContent({
       return;
     }
 
-    setConfigurationHost("Project areas");
     navigate({
       to: ".",
       search: (previous) => ({
@@ -904,8 +878,6 @@ function ProjectShellContent({
             baseRevision={revision}
             CustomFieldEditor={CustomFieldEditor}
             configuration={configuration}
-            configurationHost={configurationHost}
-            onConfigurationHostChange={setConfigurationHost}
             projectId={projectId}
             projectName={name}
             RecordActionEditor={RecordActionEditor}

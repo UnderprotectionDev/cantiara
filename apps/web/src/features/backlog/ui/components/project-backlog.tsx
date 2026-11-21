@@ -259,11 +259,12 @@ function savedPresentationDetail(
   return null;
 }
 
-export default function ProjectBacklog({ projectId }: { projectId: string }) {
+function useBacklogPresentation() {
   const search = useSearch({ from: "/_auth/projects/$projectId/" });
-  const presentation = search.backlogSort ?? "Manual order";
+  const presentation: BacklogPresentation =
+    search.backlogSort ?? "Manual order";
   const priorityMetricId = search.backlogMetricId ?? "";
-  const field = search.backlogField ?? "Title";
+  const field: BacklogSortField = search.backlogField ?? "Title";
   const navigate = useNavigate();
   function showPresentation(
     sort: BacklogPresentation,
@@ -282,6 +283,12 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
       to: ".",
     }).catch(() => undefined);
   }
+  return { field, presentation, priorityMetricId, showPresentation };
+}
+
+export default function ProjectBacklog({ projectId }: { projectId: string }) {
+  const { field, presentation, priorityMetricId, showPresentation } =
+    useBacklogPresentation();
   const queryClient = useQueryClient();
   const query = useQuery(
     orpc.projectBacklog.queryOptions({ input: { projectId } }),
