@@ -70,7 +70,7 @@ export interface FileAttachmentPreviewViewProps {
   onPreviewLocation?: (
     input: FileAttachmentLocationBindPreviewInput,
   ) => Promise<FileAttachmentLocationBindPreview>;
-  onRetry?: () => void;
+  onRetry?: () => void | Promise<void>;
   onUndoMarking?: (marking: FileAttachmentMarking) => void | Promise<void>;
   preview: FileAttachmentPreviewData;
   projectId?: string;
@@ -172,7 +172,7 @@ function UnavailablePreview({
   retryable = true,
 }: {
   failureMessage?: string;
-  onRetry?: () => void;
+  onRetry?: () => void | Promise<void>;
   retryable?: boolean;
 }) {
   return (
@@ -221,7 +221,7 @@ function PreviewContent({
     input: FileAttachmentLocationBindInput,
   ) => void | Promise<void>;
   onCreateMarking?: (input: FileAttachmentMarkingInput) => void | Promise<void>;
-  onRetry?: () => void;
+  onRetry?: () => void | Promise<void>;
   onPreviewLocation?: (
     input: FileAttachmentLocationBindPreviewInput,
   ) => Promise<FileAttachmentLocationBindPreview>;
@@ -321,7 +321,7 @@ function AssetStatusMessage({
   onRetry,
   status,
 }: {
-  onRetry?: () => void;
+  onRetry?: () => void | Promise<void>;
   status: AssetStatus;
 }) {
   if (status === "error") {
@@ -535,7 +535,7 @@ function PdfPreview(props: FileAttachmentPdfPreviewProps) {
         </p>
       }
     >
-      <LazyPdfPreview key={`${props.assetURL}:${props.pageCount}`} {...props} />
+      <LazyPdfPreview {...props} />
     </Suspense>
   );
 }
@@ -627,17 +627,17 @@ export function FileAttachmentPreviewPanel({
   const asset = useFileAttachmentAsset(
     open && preview?.status === "available" ? assetPath : undefined,
   );
-  const handlePreviewRetry = useCallback(() => {
+  const handlePreviewRetry = useCallback(async () => {
     if (
       open &&
       !previewQuery.isError &&
       preview?.status === "available" &&
       assetPath
     ) {
-      asset.refetch().catch(() => undefined);
+      await asset.refetch().catch(() => undefined);
       return;
     }
-    previewQuery.refetch().catch(() => undefined);
+    await previewQuery.refetch().catch(() => undefined);
   }, [
     asset.refetch,
     assetPath,
