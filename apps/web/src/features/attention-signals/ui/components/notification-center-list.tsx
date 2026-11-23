@@ -8,6 +8,12 @@ import type {
   OpenAttentionSignalOutput,
 } from "@cantiara/api/attention-signals";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
+import { useMemo } from "react";
 import { AppLink } from "@/components/app-link";
 import {
   documentRecordHash,
@@ -128,14 +134,19 @@ function PreviewPanel({
 function SignalRow({
   actions,
   panels,
+  rowProps,
   signal,
 }: {
   actions?: NotificationCenterActions;
   panels: NotificationCenterPanels;
+  rowProps: VirtualRowProps;
   signal: AttentionSignal;
 }) {
   return (
-    <li className="grid gap-1 text-sm">
+    <li {...rowProps} className="grid gap-1 text-sm">
+      <span className="sr-only">
+        {signal.group.kind} {signal.group.id}
+      </span>
       <div className="flex flex-wrap items-baseline gap-x-2">
         <code>{signal.signalId}</code>
         {signal.signalId === "review-later" ? (
@@ -210,10 +221,15 @@ function SectionView({
   panels: NotificationCenterPanels;
   section: NotificationCenter["sections"][number];
 }) {
-  const count = section.groups.reduce(
-    (total, group) => total + group.signals.length,
-    0,
+  const rows = useMemo(
+    () =>
+      section.groups.flatMap(({ group, key, signals }) => [
+        { id: `group:${key}`, title: `${group.kind} ${group.id}` } as const,
+        ...signals.map((signal) => ({ id: `signal:${signal.id}`, signal })),
+      ]),
+    [section.groups],
   );
+  const count = rows.length - section.groups.length;
   return (
     <details className="rounded-md border" open={section.defaultOpen}>
       <summary className="cursor-pointer px-3 py-2 font-medium">
@@ -224,25 +240,35 @@ function SectionView({
           No signals in this section.
         </p>
       ) : (
-        <ul className="grid gap-3 px-3 pb-3">
-          {section.groups.map((group) => (
-            <li key={group.key}>
-              <h3 className="text-sm font-medium">
-                {group.group.kind} {group.group.id}
-              </h3>
-              <ul className="mt-1 grid gap-2">
-                {group.signals.map((signal) => (
-                  <SignalRow
-                    actions={actions}
-                    key={signal.id}
-                    panels={panels}
-                    signal={signal}
-                  />
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
+        <div className="px-3 pb-3">
+          <VirtualList
+            className="space-y-2"
+            estimateSize={80}
+            gap={8}
+            getKey={virtualRowId}
+            isFocusable={(row) => "signal" in row}
+            keepMounted={[
+              panels.opened && `signal:${panels.opened.signalRowId}`,
+              panels.preview && `signal:${panels.preview.signalRowId}`,
+            ].filter((key) => key !== null)}
+            rows={rows}
+          >
+            {(row, rowProps) =>
+              "signal" in row ? (
+                <SignalRow
+                  actions={actions}
+                  panels={panels}
+                  rowProps={rowProps}
+                  signal={row.signal}
+                />
+              ) : (
+                <li {...rowProps}>
+                  <h3 className="text-sm font-medium">{row.title}</h3>
+                </li>
+              )
+            }
+          </VirtualList>
+        </div>
       )}
     </details>
   );

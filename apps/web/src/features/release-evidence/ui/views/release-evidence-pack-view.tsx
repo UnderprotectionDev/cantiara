@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to one checklist item.
+
 import {
   RELEASE_EVIDENCE_NOTE,
   RELEASE_EVIDENCE_OPEN_SOURCE_LABEL,
@@ -10,6 +11,10 @@ import {
 } from "@cantiara/api/release-evidence";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
 import { AppLink } from "@/components/app-link";
 import { releaseEvidenceSourceHref } from "../../lib/release-evidence-links";
 import { AddChecklistItemForm } from "../forms/add-checklist-item-form";
@@ -42,12 +47,17 @@ function OpenSource({
 function EvidenceRow({
   projectId,
   row,
+  rowProps,
 }: {
   projectId: string;
   row: ReleaseEvidenceRow;
+  rowProps?: VirtualRowProps;
 }) {
   return (
-    <li className="space-y-1 rounded-md border border-border/60 p-3">
+    <li
+      {...rowProps}
+      className="space-y-1 rounded-md border border-border/60 p-3"
+    >
       <p className="font-medium">
         {row.title}
         {row.state ? (
@@ -174,11 +184,17 @@ export function ReleaseEvidencePackView({
             No source needs attention. This is not a verdict.
           </p>
         ) : (
-          <ul className="space-y-2">
-            {pack.attention.map((row) => (
+          <VirtualList
+            className="space-y-2"
+            estimateSize={80}
+            gap={8}
+            getKey={(row) => row.rowId}
+            rows={pack.attention}
+          >
+            {(row, rowProps) => (
               <li
                 className="space-y-1 rounded-md border border-border/60 p-3"
-                key={row.rowId}
+                {...rowProps}
               >
                 <p className="font-medium">{row.title}</p>
                 <p className="text-sm text-muted-foreground">
@@ -186,8 +202,8 @@ export function ReleaseEvidencePackView({
                 </p>
                 <OpenSource projectId={projectId} source={row.source} />
               </li>
-            ))}
-          </ul>
+            )}
+          </VirtualList>
         )}
       </section>
       {pack.sections.map((section) => {
@@ -219,15 +235,21 @@ export function ReleaseEvidencePackView({
                     Nothing is related to this Project Release here.
                   </p>
                 ) : null}
-                <ul className="space-y-2">
-                  {section.rows.map((row) => (
+                <VirtualList
+                  className="space-y-2"
+                  estimateSize={110}
+                  gap={8}
+                  getKey={(row) => row.rowId}
+                  rows={section.rows}
+                >
+                  {(row, rowProps) => (
                     <EvidenceRow
-                      key={row.rowId}
                       projectId={projectId}
                       row={row}
+                      rowProps={rowProps}
                     />
-                  ))}
-                </ul>
+                  )}
+                </VirtualList>
               </>
             )}
           </section>

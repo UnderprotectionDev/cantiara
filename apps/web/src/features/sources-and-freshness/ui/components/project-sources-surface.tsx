@@ -3,6 +3,11 @@ import {
   DEFAULT_ACCOUNT_PREFERENCES,
 } from "@cantiara/api/account-preferences";
 import type { SmartLinkPreview } from "@cantiara/api/smart-link-preview";
+import {
+  VirtualList,
+  type VirtualListReveal,
+} from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { env } from "@/env";
@@ -18,9 +23,11 @@ import { SourceRecheckControls } from "./source-recheck-controls";
 export default function ProjectSourcesSurface({
   projectId,
   preferences = DEFAULT_ACCOUNT_PREFERENCES,
+  reveal,
 }: {
   projectId: string;
   preferences?: AccountPreferences;
+  reveal?: VirtualListReveal;
 }) {
   const createSourceMutation = useMutation(
     orpc.createSource.mutationOptions({
@@ -85,43 +92,53 @@ export default function ProjectSourcesSurface({
           isTauriRuntime() ? new URL(env.VITE_SERVER_URL).origin : undefined
         }
       />
-      {records.map((source) => (
-        <article
-          className="space-y-2 rounded-lg border bg-card p-4"
-          id={`source-record-${source.id}`}
-          key={source.id}
-          tabIndex={-1}
-        >
-          <h3 className="font-medium">{source.version.title}</h3>
-          <p className="text-sm font-medium">
-            Historical snapshot · Version {source.revision}
-          </p>
-          <a
-            className="block break-all underline"
-            href={source.version.url}
-            rel="noopener noreferrer"
-            target="_blank"
+      <VirtualList
+        as="div"
+        className="space-y-5"
+        estimateSize={130}
+        gap={12}
+        getKey={virtualRowId}
+        reveal={reveal}
+        rows={records}
+      >
+        {(source, rowProps) => (
+          <article
+            className="space-y-2 rounded-lg border bg-card p-4"
+            id={`source-record-${source.id}`}
+            {...rowProps}
+            tabIndex={-1}
           >
-            {source.version.url}
-          </a>
-          <p className="text-sm text-muted-foreground">
-            {formatAccountDateTime(source.version.accessedAt, preferences)}
-          </p>
-          <p className="text-sm break-words whitespace-pre-wrap">
-            {source.version.capturedContent || "No text was captured."}
-          </p>
-          <SourceRecheckControls
-            preferences={preferences}
-            readOnly={readOnly}
-            source={source}
-          />
-          <SourceEvidenceControls
-            preferences={preferences}
-            readOnly={readOnly}
-            source={source}
-          />
-        </article>
-      ))}
+            <h3 className="font-medium">{source.version.title}</h3>
+            <p className="text-sm font-medium">
+              Historical snapshot · Version {source.revision}
+            </p>
+            <a
+              className="block break-all underline"
+              href={source.version.url}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              {source.version.url}
+            </a>
+            <p className="text-sm text-muted-foreground">
+              {formatAccountDateTime(source.version.accessedAt, preferences)}
+            </p>
+            <p className="text-sm break-words whitespace-pre-wrap">
+              {source.version.capturedContent || "No text was captured."}
+            </p>
+            <SourceRecheckControls
+              preferences={preferences}
+              readOnly={readOnly}
+              source={source}
+            />
+            <SourceEvidenceControls
+              preferences={preferences}
+              readOnly={readOnly}
+              source={source}
+            />
+          </article>
+        )}
+      </VirtualList>
     </section>
   );
 }

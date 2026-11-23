@@ -64,6 +64,24 @@ function render(projects: ArchivedProjectEntry[]) {
 }
 
 describe("Archive view", () => {
+  test("starts a large Archive with the supplied Project order", () => {
+    const html = render(
+      Array.from({ length: 120 }, (_, index) => ({
+        ...entry,
+        project: {
+          ...entry.project,
+          id: `p-${index}`,
+          name: `Archived Project ${120 - index}`,
+        },
+      })),
+    );
+    expect(html).toContain("Archived Project 120");
+    expect(html.indexOf("Archived Project 120")).toBeLessThan(
+      html.indexOf("Archived Project 119"),
+    );
+    expect(html).not.toContain("Archived Project 100");
+  });
+
   test("lists the Project, its living surfaces and open security actions with source states", () => {
     const html = render([entry]);
     expect(html).toContain("Archive");
@@ -141,6 +159,7 @@ describe("Archive view", () => {
             {
               mark: "In Trash",
               scope: "Project other",
+              id: "relation-1",
               sourceLabel: "Other work",
               targetLabel: "Ship",
             },

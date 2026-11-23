@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Configuration rows and controls close over their current stage, status, or area.
 
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
+import type { FeedRow } from "@cantiara/api/feedback-feed";
 import type { ProjectProfile } from "@cantiara/api/project-shell";
 import {
   isProjectCoreArea,
@@ -37,6 +38,7 @@ import type { WorkStatusActionRequest } from "@/components/work-status-form";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
 import CustomFieldEditor from "@/features/custom-fields/ui/forms/custom-field-editor-form";
 import ProjectDecisionsSurface from "@/features/decisions/ui/components/project-decisions-surface";
+import { masterRecordElementId } from "@/features/feedback/lib/master-record-element-id";
 import FeedSurface from "@/features/feedback/ui/components/feed-surface";
 import FeedbackSurface from "@/features/feedback/ui/components/feedback-surface";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
@@ -433,58 +435,78 @@ function ProjectSourceRecordRoute({
   );
 }
 
-function projectUncertaintySurface(
-  projectId: string,
-  accountId: string | undefined,
-  activeHash: string,
-  sourceRecordRoute: ReturnType<typeof projectSourceRecordFromHash>,
-  preferences: AccountPreferences,
-) {
+function ProjectDiscoverySurface({
+  projectId,
+  accountId,
+  activeHash,
+  sourceRecordRoute,
+  preferences,
+}: {
+  projectId: string;
+  accountId?: string;
+  activeHash: string;
+  sourceRecordRoute: ReturnType<typeof projectSourceRecordFromHash>;
+  preferences: AccountPreferences;
+}) {
+  const feedSelection = useCreateStore<{
+    kind: FeedRow["kind"];
+    key: string;
+    elementId: string;
+  } | null>(null);
+  const feedReveal = useSelector(feedSelection);
+  const openFeedRecord = (row: FeedRow) => {
+    feedSelection.setState(() => ({
+      kind: row.kind,
+      key: row.id,
+      elementId: masterRecordElementId(row),
+    }));
+  };
+  const isDiscoveryArea = ["discovery", "project-area-discovery"].includes(
+    activeHash,
+  );
   const assumptionSourceId =
     sourceRecordRoute?.sourceType === "Assumption"
       ? sourceRecordRoute.sourceId
       : undefined;
   const isAssumptionSurface =
-    ["discovery", "project-area-discovery"].includes(activeHash) ||
-    assumptionSourceId !== undefined;
+    isDiscoveryArea || assumptionSourceId !== undefined;
   const questionSourceId =
     sourceRecordRoute?.sourceType === "Open Question"
       ? sourceRecordRoute.sourceId
       : undefined;
-  const isQuestionSurface =
-    ["discovery", "project-area-discovery"].includes(activeHash) ||
-    questionSourceId !== undefined;
+  const isQuestionSurface = isDiscoveryArea || questionSourceId !== undefined;
   const validationSourceId =
     sourceRecordRoute?.sourceType === "Validation Record"
       ? sourceRecordRoute.sourceId
       : undefined;
   const isValidationSurface =
-    ["discovery", "project-area-discovery"].includes(activeHash) ||
-    validationSourceId !== undefined;
-  if (!(isAssumptionSurface || isQuestionSurface || isValidationSurface)) {
-    return null;
-  }
+    isDiscoveryArea || validationSourceId !== undefined;
   return (
     <div className="flex flex-col gap-8" id={navigationHash("Discovery")}>
-      {["discovery", "project-area-discovery"].includes(activeHash) ? (
-        <ProjectSourcesSurface
-          key={`sources:${projectId}`}
-          preferences={preferences}
-          projectId={projectId}
-        />
-      ) : null}
-      {["discovery", "project-area-discovery"].includes(activeHash) ? (
-        <ResearchSessionsSurface
-          accountId={accountId}
-          key={`research:${projectId}`}
-          projectId={projectId}
-        />
-      ) : null}
-      {["discovery", "project-area-discovery"].includes(activeHash) ? (
-        <FeedbackSurface key={`feedback:${projectId}`} projectId={projectId} />
-      ) : null}
-      {["discovery", "project-area-discovery"].includes(activeHash) ? (
-        <FeedSurface key={`feed:${projectId}`} projectId={projectId} />
+      {isDiscoveryArea ? (
+        <>
+          <ProjectSourcesSurface
+            key={`sources:${projectId}`}
+            preferences={preferences}
+            projectId={projectId}
+            reveal={feedReveal?.kind === "Source" ? feedReveal : undefined}
+          />
+          <ResearchSessionsSurface
+            accountId={accountId}
+            key={`research:${projectId}`}
+            projectId={projectId}
+          />
+          <FeedbackSurface
+            key={`feedback:${projectId}`}
+            projectId={projectId}
+            reveal={feedReveal?.kind === "Feedback" ? feedReveal : undefined}
+          />
+          <FeedSurface
+            key={`feed:${projectId}`}
+            onOpen={openFeedRecord}
+            projectId={projectId}
+          />
+        </>
       ) : null}
       {isValidationSurface ? (
         <ValidationRecordsSurface
@@ -686,13 +708,18 @@ function ProjectShellContent({
       productionArea,
     ) ??
     projectGitHubSurface(activeHash, githubArea) ??
-    projectUncertaintySurface(
-      projectId,
-      accountId,
-      activeHash,
-      sourceRecordRoute,
-      accountFormattingPreferences,
-    );
+    (["discovery", "project-area-discovery"].includes(activeHash) ||
+    sourceRecordRoute?.sourceType === "Assumption" ||
+    sourceRecordRoute?.sourceType === "Open Question" ||
+    sourceRecordRoute?.sourceType === "Validation Record" ? (
+      <ProjectDiscoverySurface
+        accountId={accountId}
+        activeHash={activeHash}
+        preferences={accountFormattingPreferences}
+        projectId={projectId}
+        sourceRecordRoute={sourceRecordRoute}
+      />
+    ) : null);
   const projectSurface = (() => {
     if (isGoalsSurface) {
       return (

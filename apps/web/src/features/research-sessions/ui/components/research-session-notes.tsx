@@ -8,6 +8,8 @@ import {
   researchSessionNoteInputSchema,
 } from "@cantiara/api/research-sessions";
 import { Button } from "@cantiara/ui/components/button";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppLink } from "@/components/app-link";
@@ -134,76 +136,84 @@ export function ResearchSessionNotes({
         </Button>
       </div>
       {saved ? <p role="status">Note saved.</p> : null}
-      {notes.map((note) => (
-        <article
-          aria-label={note.kind}
-          className={`space-y-2 rounded-md border p-4 ${noteStyles[note.kind]}`}
-          key={note.id}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <h5 className="font-medium">{note.kind}</h5>
-            <Button
-              disabled={
-                readOnly || !!editing || !!bindingDraft || bindingPending
-              }
-              onClick={() => start(note)}
-              variant="outline"
-            >
-              Edit note
-            </Button>
-          </div>
-          {bindingActions ? (
-            <div className="flex flex-wrap gap-2">
+      <VirtualList
+        as="div"
+        estimateSize={130}
+        gap={12}
+        getKey={virtualRowId}
+        rows={notes}
+      >
+        {(note, rowProps) => (
+          <article
+            aria-label={note.kind}
+            className={`space-y-2 rounded-md border p-4 ${noteStyles[note.kind]}`}
+            {...rowProps}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <h5 className="font-medium">{note.kind}</h5>
               <Button
                 disabled={
-                  readOnly ||
-                  !!editing ||
-                  !!bindingDraft ||
-                  bindingPending ||
-                  !researchSessionConsentGates(record.consent).convert ||
-                  !researchSessionConsentGates(
-                    record.content.find((item) => item.content.id === note.id)
-                      ?.consentAtCapture ?? "Not asked",
-                  ).convert
+                  readOnly || !!editing || !!bindingDraft || bindingPending
                 }
-                onClick={() => startBinding(note, "create")}
+                onClick={() => start(note)}
                 variant="outline"
               >
-                Convert to new record and bind
-              </Button>
-              <Button
-                disabled={
-                  readOnly ||
-                  !!editing ||
-                  !!bindingDraft ||
-                  bindingPending ||
-                  !researchSessionConsentGates(record.consent).convert ||
-                  !researchSessionConsentGates(
-                    record.content.find((item) => item.content.id === note.id)
-                      ?.consentAtCapture ?? "Not asked",
-                  ).convert
-                }
-                onClick={() => startBinding(note, "bind")}
-                variant="outline"
-              >
-                Bind as evidence to existing record
+                Edit note
               </Button>
             </div>
-          ) : null}
-          {note.kind === "Participant quote" ? (
-            <blockquote className="text-sm whitespace-pre-wrap">
-              {note.text}
-            </blockquote>
-          ) : (
-            <p className="text-sm whitespace-pre-wrap">{note.text}</p>
-          )}
-          {note.kind === "Participant quote" && note.speakerLabel ? (
-            <p className="text-sm text-muted-foreground">
-              Speaker label: {note.speakerLabel}
-            </p>
-          ) : null}
-        </article>
-      ))}
+            {bindingActions ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  disabled={
+                    readOnly ||
+                    !!editing ||
+                    !!bindingDraft ||
+                    bindingPending ||
+                    !researchSessionConsentGates(record.consent).convert ||
+                    !researchSessionConsentGates(
+                      record.content.find((item) => item.content.id === note.id)
+                        ?.consentAtCapture ?? "Not asked",
+                    ).convert
+                  }
+                  onClick={() => startBinding(note, "create")}
+                  variant="outline"
+                >
+                  Convert to new record and bind
+                </Button>
+                <Button
+                  disabled={
+                    readOnly ||
+                    !!editing ||
+                    !!bindingDraft ||
+                    bindingPending ||
+                    !researchSessionConsentGates(record.consent).convert ||
+                    !researchSessionConsentGates(
+                      record.content.find((item) => item.content.id === note.id)
+                        ?.consentAtCapture ?? "Not asked",
+                    ).convert
+                  }
+                  onClick={() => startBinding(note, "bind")}
+                  variant="outline"
+                >
+                  Bind as evidence to existing record
+                </Button>
+              </div>
+            ) : null}
+            {note.kind === "Participant quote" ? (
+              <blockquote className="text-sm whitespace-pre-wrap">
+                {note.text}
+              </blockquote>
+            ) : (
+              <p className="text-sm whitespace-pre-wrap">{note.text}</p>
+            )}
+            {note.kind === "Participant quote" && note.speakerLabel ? (
+              <p className="text-sm text-muted-foreground">
+                Speaker label: {note.speakerLabel}
+              </p>
+            ) : null}
+          </article>
+        )}
+      </VirtualList>
       {bindingDraft && targets.isError ? (
         <div>
           <p role="alert">Targets are unavailable. Try the action again.</p>
@@ -271,43 +281,51 @@ function ResearchSessionEvidence({
           Evidence is unavailable. Reopen this Research Session to retry.
         </p>
       ) : null}
-      {(query.isError ? [] : (query.data ?? [])).map((binding) => (
-        <article
-          aria-label="Version-pinned evidence"
-          className="space-y-2 rounded-md border p-3"
-          key={binding.id}
-        >
-          <p className="font-medium">Version-pinned evidence</p>
-          <p className="text-sm">
-            {binding.target.brokenReason ??
-              `${binding.target.type}: ${binding.target.label}`}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Bound at{" "}
-            <time dateTime={binding.createdAt}>{binding.createdAt}</time>
-          </p>
-          <ResearchEvidenceTargetAction
-            actions={actions}
-            binding={binding}
-            record={record}
-          />
-          <p className="text-sm">
-            Research Session revision {binding.pin.source.revision} · range{" "}
-            {binding.pin.start}–{binding.pin.end}
-          </p>
-          {record.revision > binding.pin.source.revision ? (
-            <p className="text-sm text-muted-foreground">
-              Newer version exists
+      <VirtualList
+        as="div"
+        estimateSize={130}
+        gap={12}
+        getKey={virtualRowId}
+        rows={query.isError ? [] : (query.data ?? [])}
+      >
+        {(binding, rowProps) => (
+          <article
+            aria-label="Version-pinned evidence"
+            className="space-y-2 rounded-md border p-3"
+            {...rowProps}
+          >
+            <p className="font-medium">Version-pinned evidence</p>
+            <p className="text-sm">
+              {binding.target.brokenReason ??
+                `${binding.target.type}: ${binding.target.label}`}
             </p>
-          ) : null}
-          <blockquote className="border-l-4 pl-3 text-sm whitespace-pre-wrap">
-            {binding.pin.excerpt}
-          </blockquote>
-          {binding.origin ? (
-            <p className="text-sm">Origin: {record.title}</p>
-          ) : null}
-        </article>
-      ))}
+            <p className="text-sm text-muted-foreground">
+              Bound at{" "}
+              <time dateTime={binding.createdAt}>{binding.createdAt}</time>
+            </p>
+            <ResearchEvidenceTargetAction
+              actions={actions}
+              binding={binding}
+              record={record}
+            />
+            <p className="text-sm">
+              Research Session revision {binding.pin.source.revision} · range{" "}
+              {binding.pin.start}–{binding.pin.end}
+            </p>
+            {record.revision > binding.pin.source.revision ? (
+              <p className="text-sm text-muted-foreground">
+                Newer version exists
+              </p>
+            ) : null}
+            <blockquote className="border-l-4 pl-3 text-sm whitespace-pre-wrap">
+              {binding.pin.excerpt}
+            </blockquote>
+            {binding.origin ? (
+              <p className="text-sm">Origin: {record.title}</p>
+            ) : null}
+          </article>
+        )}
+      </VirtualList>
     </>
   );
 }

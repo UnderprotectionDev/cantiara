@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Custom field draft fixture</title>
+  </head>
+  <body>
+    <div
+      id="main-content"
+      style="height: 320px; overflow: auto; overflow-anchor: none"
+    ></div>
+    <script type="module">
+    import "../src/index.css";
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+
+    const main = document.getElementById("main-content");
+
+    import { VirtualList } from "@cantiara/ui/components/virtual-list";
+    import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
+    import { CustomFieldScalarForm } from "../src/features/custom-fields/ui/forms/custom-field-scalar-form.tsx";
+
+    const records = Array.from({ length: 40 }, (_, index) => ({
+      id: `Work ${index + 1}`,
+    }));
+    const fields = Array.from({ length: 40 }, (_, index) => ({
+      id: `Field ${index + 1}`,
+    }));
+    const refuse = () => Promise.reject(new Error("Fixture write refused"));
+    const renderRecord = (record, recordProps) =>
+      createElement(
+        "li",
+        { ...recordProps, style: { ...recordProps.style, height: 2736 } },
+        createElement("h2", { style: { height: 24 } }, record.id),
+        createElement(
+          VirtualList,
+          { estimateSize: 60, gap: 8, getKey: virtualRowId, rows: fields },
+          (field, fieldProps) => {
+            const id = `${record.id} ${field.id}`;
+            return createElement(
+              "li",
+              { ...fieldProps, style: { ...fieldProps.style, minHeight: 60 } },
+              createElement("label", { htmlFor: id }, id),
+              createElement(CustomFieldScalarForm, {
+                current: null,
+                disabled: false,
+                id,
+                kind: "text",
+                onCommit: refuse,
+                revision: 2,
+              }),
+            );
+          },
+        ),
+      );
+    createRoot(main).render(
+      createElement(
+        "div",
+        null,
+        createElement("button", { type: "button" }, "Leave field"),
+        createElement(
+          VirtualList,
+          { estimateSize: 2736, gap: 8, getKey: virtualRowId, rows: records },
+          renderRecord,
+        ),
+      ),
+    );
+    </script>
+  </body>
+</html>

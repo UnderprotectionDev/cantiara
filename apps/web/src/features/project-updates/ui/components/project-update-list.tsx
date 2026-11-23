@@ -4,6 +4,8 @@ import {
   PROJECT_UPDATE_OPEN_SOURCE_LABEL,
   type ProjectUpdate,
 } from "@cantiara/api/project-updates";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { AppLink } from "@/components/app-link";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { projectRecordHref } from "@/features/project-history/lib/project-record-links";
@@ -32,11 +34,19 @@ export function ProjectUpdateList({
     );
   }
   return (
-    <ol aria-label="Project Updates, newest first" className="space-y-4">
-      {updates.map((update) => (
+    <VirtualList
+      aria-label="Project Updates, newest first"
+      as="ol"
+      className="space-y-4"
+      estimateSize={140}
+      gap={8}
+      getKey={virtualRowId}
+      rows={updates}
+    >
+      {(update, rowProps) => (
         <li
           className="space-y-3 rounded-lg border border-border/70 p-4"
-          key={update.id}
+          {...rowProps}
         >
           <article aria-label={`${PROJECT_UPDATE_LABEL} ${update.mark}`}>
             <header className="flex flex-wrap items-baseline gap-3">
@@ -97,7 +107,7 @@ export function ProjectUpdateList({
             </details>
           </article>
         </li>
-      ))}
-    </ol>
+      )}
+    </VirtualList>
   );
 }

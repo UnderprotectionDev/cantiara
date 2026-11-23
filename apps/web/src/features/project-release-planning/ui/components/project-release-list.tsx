@@ -1,8 +1,10 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Record windows bind identity to the row model for this surface.
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import {
   groupProjectReleasesByStatus,
   type ProjectReleaseOverview,
 } from "@cantiara/api/project-release-planning";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
 import type { ReactNode } from "react";
 import { AppLink } from "@/components/app-link";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
@@ -49,40 +51,47 @@ export function ProjectReleaseList({
             {status}{" "}
             <span className="text-muted-foreground">({releases.length})</span>
           </h3>
-          <ul className="divide-y rounded-lg border border-border/70">
-            {releases.map(
-              ({ githubReferences, lastChangedAt, release, scope }) => (
-                <li key={release.id}>
-                  <AppLink
-                    className="grid gap-1 p-4 underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_auto]"
-                    href={projectReleasesHref(projectId, release.id)}
-                  >
-                    <span className="min-w-0 font-medium break-words">
-                      {release.name}
-                      {release.versionLabel ? (
-                        <span className="ml-2 text-sm font-normal text-muted-foreground">
-                          Version label {release.versionLabel}
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {release.status}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      Scope: {scope.completed} completed, {scope.open} open
-                      {githubReferences
-                        ? ` · ${githubReferences} GitHub ${githubReferences === 1 ? "reference" : "references"}`
-                        : ""}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      Last change{" "}
-                      {formatAccountDateTime(lastChangedAt, formatting)}
-                    </span>
-                  </AppLink>
-                </li>
-              ),
+          <VirtualList
+            className="divide-y rounded-lg border border-border/70"
+            estimateSize={100}
+            gap={8}
+            getKey={({ release }) => release.id}
+            rows={releases}
+          >
+            {(
+              { githubReferences, lastChangedAt, release, scope },
+              rowProps,
+            ) => (
+              <li {...rowProps}>
+                <AppLink
+                  className="grid gap-1 p-4 underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_auto]"
+                  href={projectReleasesHref(projectId, release.id)}
+                >
+                  <span className="min-w-0 font-medium break-words">
+                    {release.name}
+                    {release.versionLabel ? (
+                      <span className="ml-2 text-sm font-normal text-muted-foreground">
+                        Version label {release.versionLabel}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {release.status}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    Scope: {scope.completed} completed, {scope.open} open
+                    {githubReferences
+                      ? ` · ${githubReferences} GitHub ${githubReferences === 1 ? "reference" : "references"}`
+                      : ""}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    Last change{" "}
+                    {formatAccountDateTime(lastChangedAt, formatting)}
+                  </span>
+                </AppLink>
+              </li>
             )}
-          </ul>
+          </VirtualList>
         </section>
       ))}
     </section>

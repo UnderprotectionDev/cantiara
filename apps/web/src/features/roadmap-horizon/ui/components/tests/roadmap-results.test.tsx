@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import type {
   RoadmapBlocker,
   RoadmapView,
@@ -11,13 +12,13 @@ import {
   createRouter,
   RouterContextProvider,
 } from "@tanstack/react-router";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { ContextRecordPreviewProvider } from "@/features/record-discovery/ui/components/context-record-preview";
 
 import { RoadmapResults } from "../roadmap-results";
-
-const OPEN_DETAILS = /<details[^>]*open=/;
 
 const rootRoute = createRootRoute({});
 const projectRoute = createRoute({
@@ -75,7 +76,7 @@ const view: RoadmapView = {
   types: ["Task"],
 };
 
-function renderResults(presentationMode = false) {
+function roadmapResults(presentationMode = false) {
   const router = createRouter({
     history: createMemoryHistory({
       initialEntries: ["/projects/project-1"],
@@ -83,7 +84,7 @@ function renderResults(presentationMode = false) {
     routeTree,
   });
   const blockers: RoadmapBlocker[] = [{ blockedWorkId: candidate.id, blocker }];
-  return renderToStaticMarkup(
+  return (
     <QueryClientProvider client={new QueryClient()}>
       <RouterContextProvider router={router}>
         <ContextRecordPreviewProvider>
@@ -96,17 +97,37 @@ function renderResults(presentationMode = false) {
           />
         </ContextRecordPreviewProvider>
       </RouterContextProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
 }
 
-describe("Roadmap Horizon presentation", () => {
-  test("shows filtered unplanned Work in a collapsed live section with source preview actions", () => {
-    const html = renderResults();
+async function renderOpenResults(presentationMode = false) {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(() => root.render(roadmapResults(presentationMode)));
+    const trigger = [...host.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Unplanned candidates"),
+    );
+    await act(() => trigger?.click());
+    return host.innerHTML;
+  } finally {
+    await act(() => root.unmount());
+    host.remove();
+  }
+}
 
+describe("Roadmap Horizon presentation", () => {
+  test("defers filtered unplanned Work until the section opens", () => {
+    const html = renderToStaticMarkup(roadmapResults());
     expect(html).toContain("Unplanned candidates");
     expect(html).toContain("(1)");
-    expect(html).not.toMatch(OPEN_DETAILS);
+    expect(html).not.toContain("Place on plan");
+  });
+
+  test("opens filtered unplanned Work and its source preview actions", async () => {
+    const html = await renderOpenResults();
     expect(html).toContain("Place on plan");
     expect(html).toContain("Review Later");
     expect(html).toContain("Blocked Work");
@@ -129,8 +150,8 @@ describe("Roadmap Horizon presentation", () => {
     expect(html).not.toContain("Parked");
   });
 
-  test("hides editing and opens source records as read-only details in Presentation Mode", () => {
-    const html = renderResults(true);
+  test("hides editing and opens source records as read-only details in Presentation Mode", async () => {
+    const html = await renderOpenResults(true);
 
     expect(html).toContain("Open source record");
     expect(html).toContain(

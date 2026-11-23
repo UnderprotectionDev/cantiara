@@ -54,7 +54,7 @@ describe("Archive preview panel", () => {
   const preview: ArchivePreview = {
     allowedActions: [{ action: "surface-revoke", label: "Revoke / Unpublish" }],
     githubNotice: "Unarchive does not re-enable GitHub.",
-    inFlight: [{ kind: "Import", state: "Applying" }],
+    inFlight: [{ id: "import-1", kind: "Import", state: "Applying" }],
     leaves: ["Work"],
     project: {
       archivedAt: null,

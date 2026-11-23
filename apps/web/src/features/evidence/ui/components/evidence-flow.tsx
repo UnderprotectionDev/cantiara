@@ -7,6 +7,11 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import type { ChangeEvent } from "react";
 import { AppLink } from "@/components/app-link";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
@@ -63,11 +68,16 @@ function EvidenceFlowRows({ rows }: { rows: EvidenceFlowRow[] }) {
     return <p>No explicit evidence for this filter.</p>;
   }
   return (
-    <ol className="space-y-2">
-      {rows.map((row) => (
-        <EvidenceFlowItem key={row.id} row={row} />
-      ))}
-    </ol>
+    <VirtualList
+      as="ol"
+      className="space-y-2"
+      estimateSize={96}
+      gap={8}
+      getKey={virtualRowId}
+      rows={rows}
+    >
+      {(row, rowProps) => <EvidenceFlowItem row={row} rowProps={rowProps} />}
+    </VirtualList>
   );
 }
 
@@ -82,10 +92,16 @@ function openSourceRecordHref(row: EvidenceFlowRow) {
   return `/projects/${encodeURIComponent(row.source.projectId)}#${documentRecordHash(row.source.recordId)}`;
 }
 
-function EvidenceFlowItem({ row }: { row: EvidenceFlowRow }) {
+function EvidenceFlowItem({
+  row,
+  rowProps,
+}: {
+  row: EvidenceFlowRow;
+  rowProps?: VirtualRowProps;
+}) {
   const openHref = openSourceRecordHref(row);
   return (
-    <li>
+    <li {...rowProps}>
       <p>
         {row.sourceType}: {row.source.title ?? "Unavailable source"}
       </p>

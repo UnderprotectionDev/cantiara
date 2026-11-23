@@ -20,6 +20,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate, useSearch } from "@tanstack/react-router";
 import { useSelector } from "@tanstack/react-store";
@@ -52,6 +54,10 @@ import {
   usePriorityMetricProjectValues,
 } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import PriorityMetricValuesForm from "@/features/priority-metrics/ui/components/priority-metric-values-form";
+import {
+  workRecordHash,
+  workRecordIdFromHash,
+} from "@/features/project-shell/lib/project-shell-navigation";
 import {
   type RecordActionDialogPayload,
   recordActionListOptions,
@@ -141,9 +147,7 @@ export default function ProjectWorkList({
       query.isPending ||
       query.isError ||
       typeof window === "undefined" ||
-      !query.data.some(
-        (work) => `work-${encodeURIComponent(work.id)}` === activeHash,
-      )
+      !query.data.some((work) => workRecordHash(work.id) === activeHash)
     ) {
       return;
     }
@@ -250,12 +254,22 @@ export default function ProjectWorkList({
           {showArchived ? "No archived Work." : "No Work yet."}
         </p>
       ) : (
-        <ul aria-label={showArchived ? "Archived Work list" : "Work list"}>
-          {query.data.map((work) => (
+        <VirtualList
+          aria-label={showArchived ? "Archived Work list" : "Work list"}
+          estimateSize={420}
+          gap={12}
+          getKey={virtualRowId}
+          keepMounted={
+            statusActionRequest ? [statusActionRequest.workId] : undefined
+          }
+          rows={query.data}
+          scrollToKey={workRecordIdFromHash(activeHash ?? "")}
+        >
+          {(work, rowProps) => (
             <li
+              {...rowProps}
               className="relative isolate mb-3 grid gap-4 rounded-lg border border-border/70 bg-card/40 px-4 py-4 transition-colors last:mb-0 hover:bg-card"
-              id={`work-${encodeURIComponent(work.id)}`}
-              key={work.id}
+              id={workRecordHash(work.id)}
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
                 <div className="flex min-w-0 items-start gap-3">
@@ -388,8 +402,8 @@ export default function ProjectWorkList({
                 </div>
               </div>
             </li>
-          ))}
-        </ul>
+          )}
+        </VirtualList>
       )}
       <RecordActionRunDialog
         handle={recordActionHandle}

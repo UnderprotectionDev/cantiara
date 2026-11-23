@@ -66,8 +66,8 @@ test("refreshes a Roadmap horizon selection after another tab changes it", async
 
   await openAllWorkRoadmap(page);
   await page
-    .locator("#roadmap details > summary")
-    .filter({ hasText: "Unplanned candidates" })
+    .locator("#roadmap")
+    .getByRole("button", { name: "Unplanned candidates" })
     .click();
   const firstTabWork = roadmapWork(page, title);
   await expect(firstTabWork).toBeVisible();

@@ -4,6 +4,11 @@ import {
   TEST_SESSION_LABEL,
   type TestSessionRecord,
 } from "@cantiara/api/test-report";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import TestSessionImportForm, {
   type ImportTestSessionFile,
 } from "../forms/test-session-import-form";
@@ -13,10 +18,17 @@ import TestSessionRecordForm, {
 
 const REPORTER_LABEL = { integration: "Integration", user: "User" } as const;
 
-function TestSessionItem({ session }: { session: TestSessionRecord }) {
+function TestSessionItem({
+  session,
+  rowProps,
+}: {
+  session: TestSessionRecord;
+  rowProps?: VirtualRowProps;
+}) {
   const { executor } = session;
   return (
     <li
+      {...rowProps}
       className="space-y-3 rounded-lg border border-border/70 p-4"
       id={`test-session-${session.id}`}
     >
@@ -54,20 +66,24 @@ function TestSessionItem({ session }: { session: TestSessionRecord }) {
           <dd>{session.reportedAtText}</dd>
         </div>
       </dl>
-      <ul
+      <VirtualList
         aria-label={`${SESSION_TEST_REPORT_LABEL}s`}
         className="space-y-1 text-sm"
+        estimateSize={140}
+        gap={8}
+        getKey={virtualRowId}
+        rows={session.tests}
       >
-        {session.tests.map((test) => (
-          <li key={test.id}>
+        {(test, testRowProps) => (
+          <li {...testRowProps}>
             <span className="font-medium">{test.title}</span>
             {`: ${test.resultLabel}`}
             {test.notes ? (
               <span className="block text-muted-foreground">{test.notes}</span>
             ) : null}
           </li>
-        ))}
-      </ul>
+        )}
+      </VirtualList>
     </li>
   );
 }
@@ -109,11 +125,17 @@ export function TestSessionsView({
       {sessions.length === 0 ? (
         <p className="text-sm text-muted-foreground">No Test Sessions yet.</p>
       ) : (
-        <ul className="space-y-3">
-          {sessions.map((session) => (
-            <TestSessionItem key={session.id} session={session} />
-          ))}
-        </ul>
+        <VirtualList
+          className="space-y-3"
+          estimateSize={140}
+          gap={12}
+          getKey={virtualRowId}
+          rows={sessions}
+        >
+          {(session, rowProps) => (
+            <TestSessionItem rowProps={rowProps} session={session} />
+          )}
+        </VirtualList>
       )}
     </section>
   );

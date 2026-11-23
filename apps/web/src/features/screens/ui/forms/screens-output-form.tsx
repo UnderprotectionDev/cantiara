@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the chosen Screen versions.
+
 import type { ScreenRecord } from "@cantiara/api/screens";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
@@ -6,6 +7,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useForm } from "@tanstack/react-form";
 import { screensOutputFormSchema } from "../../lib/screen-forms";
 import {
@@ -79,12 +82,15 @@ export function ScreensOutputPanel({
         {(field) => {
           const picked = field.state.value;
           return (
-            <ul className="space-y-1 text-sm">
-              {candidates.map((screen) => (
-                <li
-                  className="flex flex-wrap items-center gap-2"
-                  key={screen.id}
-                >
+            <VirtualList
+              className="space-y-1 text-sm"
+              estimateSize={80}
+              gap={8}
+              getKey={virtualRowId}
+              rows={candidates}
+            >
+              {(screen, rowProps) => (
+                <li className="flex flex-wrap items-center gap-2" {...rowProps}>
                   <label
                     className="flex items-center gap-2"
                     htmlFor={`screens-output-${screen.id}`}
@@ -123,8 +129,8 @@ export function ScreensOutputPanel({
                     </NativeSelect>
                   )}
                 </li>
-              ))}
-            </ul>
+              )}
+            </VirtualList>
           );
         }}
       </form.Field>

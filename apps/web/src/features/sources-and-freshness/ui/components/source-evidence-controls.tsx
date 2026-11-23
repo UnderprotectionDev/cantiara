@@ -12,6 +12,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { useRef, useState } from "react";
@@ -28,6 +33,7 @@ interface EvidenceUseProps extends EvidenceProps {
   onCompare: (use: SourceEvidenceUse) => void;
   onKeep: (use: SourceEvidenceUse) => void;
   pending: boolean;
+  rowProps?: VirtualRowProps;
   use: SourceEvidenceUse;
 }
 function EvidenceUse({
@@ -38,9 +44,11 @@ function EvidenceUse({
   pending,
   onCompare,
   onKeep,
+  rowProps,
 }: EvidenceUseProps) {
   return (
     <fieldset
+      {...rowProps}
       aria-label={`Evidence use: ${use.target.type}: ${use.targetTitle}`}
       className="space-y-2 rounded-lg border p-3"
     >
@@ -287,18 +295,27 @@ function SourceEvidenceUses({
         unavailable={unavailable}
         uses={uses}
       />{" "}
-      {uses.data?.uses.map((use) => (
-        <EvidenceUse
-          key={use.id}
-          onCompare={begin}
-          onKeep={save}
-          pending={pending || sourceBehind}
-          preferences={preferences}
-          readOnly={readOnly}
-          source={source}
-          use={use}
-        />
-      ))}
+      <VirtualList
+        as="div"
+        className="space-y-2"
+        estimateSize={120}
+        gap={8}
+        getKey={virtualRowId}
+        rows={uses.data?.uses ?? []}
+      >
+        {(use, rowProps) => (
+          <EvidenceUse
+            onCompare={begin}
+            onKeep={save}
+            pending={pending || sourceBehind}
+            preferences={preferences}
+            readOnly={readOnly}
+            rowProps={rowProps}
+            source={source}
+            use={use}
+          />
+        )}
+      </VirtualList>
       {editor || readOnly ? null : (
         <Button disabled={pending} onClick={() => begin()} type="button">
           Bind as evidence to existing record

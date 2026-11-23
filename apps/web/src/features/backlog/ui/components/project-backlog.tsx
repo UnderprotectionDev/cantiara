@@ -23,6 +23,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { closestCenter } from "@dnd-kit/collision";
 import { Accessibility, type DragDropManagerInput } from "@dnd-kit/dom";
 import { move } from "@dnd-kit/helpers";
@@ -36,6 +41,7 @@ import {
 import { useSortable } from "@dnd-kit/react/sortable";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { useTable } from "@tanstack/react-table";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
@@ -105,6 +111,7 @@ function BacklogCard({
   projectId,
   profile,
   work,
+  rowProps,
 }: {
   canReorder: boolean;
   formattingPreferences: AccountPreferences;
@@ -112,6 +119,7 @@ function BacklogCard({
   projectId: string;
   profile: WorkProfile | undefined;
   work: BacklogWork;
+  rowProps?: VirtualRowProps;
 }) {
   const queryClient = useQueryClient();
   const [popoverHandle] = useState(createPopoverHandle);
@@ -151,9 +159,18 @@ function BacklogCard({
   });
   return (
     <li
+      {...rowProps}
       className="flex items-center rounded-lg border border-border/70 bg-card/35 transition-colors hover:bg-card/70 motion-reduce:transition-none"
-      ref={index === undefined ? undefined : sortable.ref}
-      style={{ opacity: sortable.isDragging ? 0.6 : undefined }}
+      ref={(node) => {
+        rowProps?.ref?.(node);
+        if (index !== undefined) {
+          sortable.ref(node);
+        }
+      }}
+      style={{
+        ...rowProps?.style,
+        opacity: sortable.isDragging ? 0.6 : undefined,
+      }}
     >
       {index === undefined ? null : (
         <button
@@ -318,6 +335,8 @@ function useBacklogPresentation() {
 }
 
 export default function ProjectBacklog({ projectId }: { projectId: string }) {
+  const drag = useCreateStore<string | null>(null);
+  const draggedWorkId = useSelector(drag);
   const { field, presentation, priorityMetricId, showPresentation } =
     useBacklogPresentation();
   const queryClient = useQueryClient();
@@ -461,6 +480,7 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   const canReorder = manualOrder && !updateOrder.isPending;
   const backlogRevision = orderQuery.data?.revision;
   function onDragEnd(event: DragEndEvent) {
+    drag.setState(() => null);
     const { source, target } = event.operation;
     const currentIds = new Set(current.map(({ id }) => id));
     if (
@@ -560,22 +580,36 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
       ) : null}
       <DragDropProvider
         onDragEnd={onDragEnd}
+        onDragStart={({ operation }) =>
+          drag.setState(() =>
+            operation.source ? String(operation.source.id) : null,
+          )
+        }
         plugins={backlogDragPlugins}
         sensors={backlogDragSensors}
       >
-        <ol aria-label="Backlog" className="space-y-2">
-          {current.map((work, index) => (
+        <VirtualList
+          aria-label="Backlog"
+          as="ol"
+          className="space-y-2"
+          estimateSize={110}
+          gap={8}
+          getKey={virtualRowId}
+          keepMounted={draggedWorkId ? [draggedWorkId] : undefined}
+          rows={current}
+        >
+          {(work, rowProps, index) => (
             <BacklogCard
               canReorder={canReorder}
               formattingPreferences={formattingPreferences}
               index={manualOrder ? index : undefined}
-              key={work.id}
               profile={profilesById.get(work.id)}
               projectId={projectId}
+              rowProps={rowProps}
               work={work}
             />
-          ))}
-        </ol>
+          )}
+        </VirtualList>
       </DragDropProvider>
       <DeferredBacklog
         deferred={deferred}
@@ -756,18 +790,26 @@ function DeferredBacklog({
   return deferred.length > 0 ? (
     <section aria-label="Deferred" className="space-y-2">
       <h3 className="text-sm font-semibold">Deferred</h3>
-      <ol aria-label="Deferred" className="space-y-2">
-        {deferred.map((work) => (
+      <VirtualList
+        aria-label="Deferred"
+        as="ol"
+        className="space-y-2"
+        estimateSize={110}
+        gap={8}
+        getKey={virtualRowId}
+        rows={deferred}
+      >
+        {(work, rowProps) => (
           <BacklogCard
             canReorder={false}
             formattingPreferences={formattingPreferences}
-            key={work.id}
             profile={profilesById.get(work.id)}
             projectId={projectId}
+            rowProps={rowProps}
             work={work}
           />
-        ))}
-      </ol>
+        )}
+      </VirtualList>
     </section>
   ) : null;
 }

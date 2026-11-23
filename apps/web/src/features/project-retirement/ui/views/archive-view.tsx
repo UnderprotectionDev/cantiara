@@ -15,6 +15,10 @@ import {
 } from "@cantiara/api/project-retirement";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
@@ -27,6 +31,7 @@ function EntryCard({
   onRestore,
   onUnarchive,
   pending,
+  rowProps,
 }: {
   deletePanel?: ReactNode;
   entry: ArchivedProjectEntry;
@@ -35,10 +40,12 @@ function EntryCard({
   onRestore?: (entry: ArchivedProjectEntry) => void;
   onUnarchive: (entry: ArchivedProjectEntry) => void;
   pending: boolean;
+  rowProps: VirtualRowProps;
 }) {
   const { project, trash } = entry;
   return (
     <li
+      {...rowProps}
       className="space-y-4 rounded-lg border p-4"
       data-project-id={project.id}
     >
@@ -106,13 +113,19 @@ function EntryCard({
             No approved External Surface is live.
           </p>
         ) : (
-          <ul className="space-y-1 text-sm">
-            {entry.surfaces.map((surface) => (
-              <li key={surface.surfaceId}>
+          <VirtualList
+            className="space-y-1 text-sm"
+            estimateSize={26}
+            gap={4}
+            getKey={(surface) => surface.surfaceId}
+            rows={entry.surfaces}
+          >
+            {(surface, surfaceRowProps) => (
+              <li {...surfaceRowProps}>
                 {surface.title} · {surface.visibility} · {surface.sourceState}
               </li>
-            ))}
-          </ul>
+            )}
+          </VirtualList>
         )}
       </section>
 
@@ -123,13 +136,19 @@ function EntryCard({
             No access-reducing action is open.
           </p>
         ) : (
-          <ul className="space-y-1 text-sm">
-            {entry.securityActions.map((item) => (
-              <li key={`${item.action}:${item.source.id}`}>
+          <VirtualList
+            className="space-y-1 text-sm"
+            estimateSize={60}
+            gap={4}
+            getKey={(item) => `${item.action}:${item.source.id}`}
+            rows={entry.securityActions}
+          >
+            {(item, actionRowProps) => (
+              <li {...actionRowProps}>
                 {item.label} · {item.source.title} · {item.source.state}
               </li>
-            ))}
-          </ul>
+            )}
+          </VirtualList>
         )}
       </section>
 
@@ -193,8 +212,15 @@ export function ArchiveView({
         <p>No Project is archived.</p>
       ) : null}
       {projects.length > 0 ? (
-        <ul className="space-y-3">
-          {projects.map((entry) => (
+        <VirtualList
+          className="space-y-3"
+          estimateSize={220}
+          gap={12}
+          getKey={(entry) => entry.project.id}
+          keepMounted={deletePanel ? [deletePanel.projectId] : undefined}
+          rows={projects}
+        >
+          {(entry, rowProps) => (
             <EntryCard
               deletePanel={
                 deletePanel?.projectId === entry.project.id
@@ -203,14 +229,14 @@ export function ArchiveView({
               }
               entry={entry}
               formatting={formatting}
-              key={entry.project.id}
               onDelete={onDelete}
               onRestore={onRestore}
               onUnarchive={onUnarchive}
               pending={pendingProjectId === entry.project.id}
+              rowProps={rowProps}
             />
-          ))}
-        </ul>
+          )}
+        </VirtualList>
       ) : null}
     </section>
   );

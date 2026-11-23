@@ -49,6 +49,8 @@ Evrensel Arama yetkili ana kayıtları kapalı eşitlik-bozucu sırayla bulur; e
 
 ## Testing Decisions
 
+- **Growing lists (#551).** `universal-search-results.test.tsx` checks that a large Search initially mounts an ordered subset. `apps/web/e2e/record-table-window.e2e.ts` checks that a 500-row Table windows the sorted rows and reaches the final record through the route scroll owner. It also checks that a rejected cell draft survives scrolling after the editor loses focus.
+
 - **Interaction timing (#548).** The `document-discovery.test.tsx` Search seam verifies immediate input, one request per typing burst, abort and suppression of a superseded result, and cancellation when `Search` closes.
 
 - **Client state ownership (#547).** Search and Table view filters belong to the open Record Discovery experience. Closing it ends the current selection.

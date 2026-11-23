@@ -10,6 +10,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { pointerIntersection } from "@dnd-kit/collision";
 import {
   DragDropProvider,
@@ -200,6 +205,7 @@ function CalendarDateMark({
   selectedProjectId,
   view,
   work,
+  rowProps,
 }: {
   dateField: WorkDateField;
   disabled: boolean;
@@ -209,9 +215,14 @@ function CalendarDateMark({
   selectedProjectId: string;
   view: CalendarView;
   work: CalendarWork;
+  rowProps?: VirtualRowProps;
 }) {
   return (
-    <li className="flex items-start gap-1" key={`${work.id}:${dateField}`}>
+    <li
+      {...rowProps}
+      className="flex items-start gap-1"
+      key={`${work.id}:${dateField}`}
+    >
       <CalendarDateControl
         dateField={dateField}
         disabled={disabled}
@@ -269,6 +280,12 @@ function CalendarDaySection({
   }[];
   view: CalendarView;
 }) {
+  const { source } = useDragOperation();
+  const draggedDate = calendarDateFromSource(source);
+  const draggedMarkKey =
+    draggedDate?.oldDate === day
+      ? `${draggedDate.workId}:${draggedDate.dateField}`
+      : undefined;
   const { isDropTarget, ref } = useDroppable({
     accept: "calendar-date",
     collisionDetector: pointerIntersection,
@@ -299,42 +316,58 @@ function CalendarDaySection({
       <h2 className="mb-2 border-b border-border/60 pb-2 text-sm font-medium">
         {weekdayFormatter.format(new Date(day))} {formattedDate}
       </h2>
-      {ranges.map((work) => (
-        <div
-          className="mb-2 rounded bg-primary/10 px-2 py-1 text-xs"
-          key={work.id}
-        >
-          <span className="font-medium">{work.key}</span> · {work.title}
-          <span className="block text-muted-foreground">
-            Planned start · Target date
-          </span>
-          <OpenSourceRecordButton
-            className="min-h-10 px-0 py-0 text-xs"
-            target={{
-              kind: "work",
-              label: `${work.key} · ${work.title}`,
-              projectId: work.projectId,
-              workId: work.id,
-            }}
-          />
-        </div>
-      ))}
+      <VirtualList
+        as="div"
+        className="space-y-2"
+        estimateSize={45}
+        gap={8}
+        getKey={virtualRowId}
+        rows={ranges}
+      >
+        {(work, rowProps) => (
+          <div
+            className="rounded bg-primary/10 px-2 py-1 text-xs"
+            {...rowProps}
+          >
+            <span className="font-medium">{work.key}</span> · {work.title}
+            <span className="block text-muted-foreground">
+              Planned start · Target date
+            </span>
+            <OpenSourceRecordButton
+              className="min-h-10 px-0 py-0 text-xs"
+              target={{
+                kind: "work",
+                label: `${work.key} · ${work.title}`,
+                projectId: work.projectId,
+                workId: work.id,
+              }}
+            />
+          </div>
+        )}
+      </VirtualList>
       {marks.length > 0 ? (
-        <ul className="space-y-1.5">
-          {marks.map(({ dateField, label, work }) => (
+        <VirtualList
+          className="space-y-1.5"
+          estimateSize={26}
+          gap={4}
+          getKey={({ dateField, work }) => `${work.id}:${dateField}`}
+          keepMounted={draggedMarkKey ? [draggedMarkKey] : undefined}
+          rows={marks}
+        >
+          {({ dateField, label, work }, rowProps) => (
             <CalendarDateMark
               dateField={dateField}
               disabled={disabled}
-              key={`${work.id}:${dateField}`}
               label={label}
               onDatePreview={onDatePreview}
               projectNames={projectNames}
+              rowProps={rowProps}
               selectedProjectId={selectedProjectId}
               view={view}
               work={work}
             />
-          ))}
-        </ul>
+          )}
+        </VirtualList>
       ) : null}
     </section>
   );
@@ -466,11 +499,18 @@ function CalendarAgenda({
           No dated Work in this Calendar view.
         </p>
       ) : null}
-      <ol className="divide-y divide-border/70">
-        {rows.map(({ date, field, label, work }) => (
+      <VirtualList
+        as="ol"
+        className="divide-y divide-border/70"
+        estimateSize={48}
+        gap={8}
+        getKey={(row) => `${row.work.id}:${row.field}`}
+        rows={rows}
+      >
+        {({ date, field, label, work }, rowProps) => (
           <li
             className="grid gap-x-4 gap-y-1 py-2 sm:grid-cols-[minmax(8rem,auto)_minmax(9rem,auto)_minmax(0,1fr)_auto] sm:items-center"
-            key={`${work.id}:${field}`}
+            {...rowProps}
           >
             <div className="flex items-center gap-1">
               <time className="text-sm text-muted-foreground" dateTime={date}>
@@ -504,8 +544,8 @@ function CalendarAgenda({
               }}
             />
           </li>
-        ))}
-      </ol>
+        )}
+      </VirtualList>
     </section>
   );
 }

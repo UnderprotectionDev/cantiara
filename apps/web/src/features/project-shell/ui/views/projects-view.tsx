@@ -9,6 +9,8 @@ import {
   workspaceOverviewSavedListHref,
 } from "@cantiara/api/workspace-overview";
 import { buttonVariants } from "@cantiara/ui/components/button";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
@@ -62,11 +64,17 @@ function ProjectsListSection({
       ) : null}
       {data?.length === 0 ? <ProjectsEmptyState /> : null}
       {data && data.length > 0 ? (
-        <ul className="divide-y border-y border-border/70">
-          {data.map((project) => (
-            <ProjectRow key={project.id} project={project} />
-          ))}
-        </ul>
+        <VirtualList
+          className="divide-y border-y border-border/70"
+          estimateSize={100}
+          gap={12}
+          getKey={virtualRowId}
+          rows={data}
+        >
+          {(project, rowProps) => (
+            <ProjectRow project={project} rowProps={rowProps} />
+          )}
+        </VirtualList>
       ) : null}
     </section>
   );

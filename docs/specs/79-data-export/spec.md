@@ -50,6 +50,8 @@ Kurucu tek kayıt türü ve tek seçili kapsamda, kapalı dünya önizlemesi ve 
 
 ## Testing Decisions
 
+- **Growing lists (#551).** `export-view.test.tsx` and `apps/web/e2e/export-preview.e2e.ts` check the 10,000-record preview after disclosure, the supplied order, a bounded render window, and keyboard access to the last record through the preview scroll region.
+
 - **Interactive record rows (#550).** Backlog sends the displayed order for every presentation through `order: listed`. The Backlog seam checks the handoff for a Field sort, and the selected-export seam checks that the resulting file follows the listed IDs. The browser journey compares the downloaded CSV with the Field-sorted Backlog, using tied and numeric-looking titles.
 
 - **Client state ownership (#547).** The Export surface consumes a list’s existing handoff once per visit and keeps it in its mounted session.

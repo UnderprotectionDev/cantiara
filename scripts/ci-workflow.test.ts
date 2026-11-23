@@ -36,6 +36,32 @@ const workflow: { jobs: Record<string, WorkflowJob | undefined> } = JSON.parse(
   parsed.stdout,
 );
 
+test("Playwright installation keeps the runner's apt mirror configuration", () => {
+  const install = spawnSync(
+    "bash",
+    [
+      "-c",
+      `
+        sudo() { echo "unexpected sudo: $*" >&2; }
+        timeout() { printf '%s\\n' "$@"; }
+        export -f sudo timeout
+        bash scripts/ci-install-playwright.sh --only-shell chromium
+      `,
+    ],
+    { cwd: root, encoding: "utf8" },
+  );
+  expect(install.status).toBe(0);
+  expect(install.stderr).toBe("");
+  expect(install.stdout.trim().split("\n").slice(1)).toEqual([
+    "bunx",
+    "playwright",
+    "install",
+    "--with-deps",
+    "--only-shell",
+    "chromium",
+  ]);
+});
+
 test("integration scheduling partitions every suite without sharing database workers", () => {
   const { jobs } = workflow;
   const server = jobs["server-integration"];

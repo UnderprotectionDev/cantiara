@@ -6,6 +6,11 @@ import type {
   ProjectOverviewSourceRecord,
 } from "@cantiara/api/project-overview";
 import type { ProjectArea } from "@cantiara/api/project-shell";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useLinkProps } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 import { AppLink } from "@/components/app-link";
@@ -150,19 +155,23 @@ export function OverviewModule({
       </header>
 
       {records.length > 0 ? (
-        <ul
+        <VirtualList
           aria-label={`${module.name} source records`}
           className="mt-2 divide-y"
+          estimateSize={40}
+          gap={8}
+          getKey={virtualRowId}
+          rows={records}
         >
-          {records.map((record) => (
+          {(record, rowProps) => (
             <SourceRecord
               formattingPreferences={formattingPreferences}
-              key={record.id}
               moduleName={module.name}
               record={record}
+              rowProps={rowProps}
             />
-          ))}
-        </ul>
+          )}
+        </VirtualList>
       ) : (
         <p className="mt-3 pb-1 text-sm/relaxed text-muted-foreground">
           {emptyMessage}
@@ -202,15 +211,18 @@ function SourceRecord({
   formattingPreferences,
   moduleName,
   record,
+  rowProps,
 }: {
   formattingPreferences: OverviewFormattingPreferences;
   moduleName: ProjectOverviewModuleName;
   record: ProjectOverviewSourceRecord;
+  rowProps?: VirtualRowProps;
 }) {
   const dateValue = record.targetDate ?? record.updatedAt;
 
   return (
     <li
+      {...rowProps}
       className="py-3 first:pt-3 last:pb-1"
       data-overview-record={record.id}
       data-overview-stage={moduleName === "Stages" ? record.id : undefined}

@@ -410,6 +410,7 @@ function VirtualOutline({ context, rows }: ReturnType<typeof useOutlineModel>) {
   const scroller = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: rows.length,
+    getItemKey: (index) => rowKey(rows[index]),
     estimateSize: () => OUTLINE_ROW_HEIGHT,
     getScrollElement: () => scroller.current,
     initialRect: { height: OUTLINE_VIEW_HEIGHT, width: 800 },

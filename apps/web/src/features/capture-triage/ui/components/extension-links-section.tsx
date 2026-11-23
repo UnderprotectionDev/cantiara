@@ -1,4 +1,6 @@
 import { Button } from "@cantiara/ui/components/button";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import type { MouseEvent } from "react";
 import { useCallback } from "react";
 
@@ -94,11 +96,17 @@ export default function ExtensionLinksSection({
         </p>
       ) : null}
       {links.data && links.data.length > 0 ? (
-        <ul className="divide-y border-y border-border/70">
-          {links.data.map((link) => (
+        <VirtualList
+          className="divide-y border-y border-border/70"
+          estimateSize={80}
+          gap={8}
+          getKey={virtualRowId}
+          rows={links.data}
+        >
+          {(link, rowProps) => (
             <li
               className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between"
-              key={link.id}
+              {...rowProps}
             >
               <div className="grid gap-1 text-sm">
                 <p className="font-medium">{link.device}</p>
@@ -123,8 +131,8 @@ export default function ExtensionLinksSection({
                 Revoke
               </Button>
             </li>
-          ))}
-        </ul>
+          )}
+        </VirtualList>
       ) : null}
     </section>
   );

@@ -82,6 +82,7 @@ export function createDatabaseDeleteGroup(
     async relations(_accountId, projectId) {
       const rows = await database
         .select({
+          id: workRelation.id,
           sourceProjectId: work.projectId,
           sourceTitle: work.title,
           targetLabel: workRelation.targetLabel,
@@ -96,6 +97,7 @@ export function createDatabaseDeleteGroup(
           ),
         );
       return rows.map((row) => ({
+        id: row.id,
         mark: DELETED_TARGET_MARK,
         scope: `Project ${row.sourceProjectId}`,
         sourceLabel: row.sourceTitle,

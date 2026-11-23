@@ -1,9 +1,14 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Record windows bind identity to the row model for this surface.
 import {
   GITHUB_PR_CONTEXT_CARD_LABEL,
   type GitHubPrContextOverview,
   type GitHubPrContextRecord,
   type GitHubPrContextCard as PrContextCard,
 } from "@cantiara/api/github-pr-context";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
 import { AppLink } from "@/components/app-link";
 import { projectAreaNavigationHash } from "@/features/project-shell/lib/project-area-navigation";
 import {
@@ -62,9 +67,15 @@ function RecordRows({
     <div>
       <dt className="font-medium">{label}</dt>
       <dd>
-        <ul className="space-y-1">
-          {records.map((record) => (
-            <li key={record.recordId}>
+        <VirtualList
+          className="space-y-1"
+          estimateSize={80}
+          gap={8}
+          getKey={(record) => record.recordId}
+          rows={records}
+        >
+          {(record, rowProps) => (
+            <li {...rowProps}>
               <AppLink
                 className="underline underline-offset-2"
                 href={prContextRecordHref(projectId, record)}
@@ -75,8 +86,8 @@ function RecordRows({
                 {`${record.state ? `, ${record.state}` : ""}, via ${record.viaWorkKeys.join(", ")}`}
               </span>
             </li>
-          ))}
-        </ul>
+          )}
+        </VirtualList>
       </dd>
     </div>
   );
@@ -98,17 +109,23 @@ function WorkTextRows({
     <div>
       <dt className="font-medium">{label}</dt>
       <dd>
-        <ul className="space-y-1">
-          {rows.map((row) => (
-            <li key={row.work.id}>
+        <VirtualList
+          className="space-y-1"
+          estimateSize={80}
+          gap={8}
+          getKey={(row) => row.work.id}
+          rows={rows}
+        >
+          {(row, rowProps) => (
+            <li {...rowProps}>
               {`${row.text} `}
               <span className="text-muted-foreground">
                 {"Source: "}
                 <WorkLink projectId={projectId} work={row.work} />
               </span>
             </li>
-          ))}
-        </ul>
+          )}
+        </VirtualList>
       </dd>
     </div>
   );
@@ -142,10 +159,19 @@ function ChecksRow({ card }: { card: PrContextCard }) {
   );
 }
 
-function Card({ card, projectId }: { card: PrContextCard; projectId: string }) {
+function Card({
+  card,
+  projectId,
+  rowProps,
+}: {
+  card: PrContextCard;
+  projectId: string;
+  rowProps?: VirtualRowProps;
+}) {
   const headingId = `github-pr-context-${card.recordId}`;
   return (
     <section
+      {...rowProps}
       aria-labelledby={headingId}
       className="space-y-2 rounded-lg border border-border/70 p-3"
     >
@@ -268,9 +294,17 @@ export function GitHubPrContextCards({
         Read-only and derived from the linked records. Diff review, approval and
         merge stay on GitHub.
       </p>
-      {data.cards.map((card) => (
-        <Card card={card} key={card.recordId} projectId={projectId} />
-      ))}
+      <VirtualList
+        as="div"
+        estimateSize={110}
+        gap={12}
+        getKey={(card) => card.recordId}
+        rows={data.cards}
+      >
+        {(card, rowProps) => (
+          <Card card={card} projectId={projectId} rowProps={rowProps} />
+        )}
+      </VirtualList>
     </section>
   );
 }

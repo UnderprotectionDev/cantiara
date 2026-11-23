@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected row and filter.
+
 import { FEEDBACK_STATUSES, type FeedbackStatus } from "@cantiara/api/feedback";
 import {
   FEED_ROW_KINDS,
@@ -12,16 +13,17 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
+
+import { masterRecordElementId } from "../../lib/master-record-element-id";
 
 export interface FeedQuery {
   sort: FeedSort;
   sourceType?: FeedRowKind;
   status?: FeedbackStatus;
-}
-
-/** DOM id of the master record's own element, shared with the Feedback and Source surfaces. */
-export function masterRecordElementId(row: Pick<FeedRow, "id" | "kind">) {
-  return `${row.kind === "Feedback" ? "feedback" : "source"}-record-${row.id}`;
 }
 
 /** Moves to the same master record element; the Feed copies nothing and changes no route. */
@@ -110,12 +112,15 @@ function FeedFilters({
 function FeedItem({
   onOpen,
   row,
+  rowProps,
 }: {
   onOpen: (row: FeedRow) => void;
   row: FeedRow;
+  rowProps?: VirtualRowProps;
 }) {
   return (
     <li
+      {...rowProps}
       className="space-y-2 rounded-lg border border-border/70 p-3"
       data-record-id={row.id}
       data-record-kind={row.kind}
@@ -206,11 +211,18 @@ export function FeedView({
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nothing to read yet.</p>
       ) : (
-        <ul aria-label="Feed" className="space-y-2">
-          {rows.map((row) => (
-            <FeedItem key={`${row.kind}:${row.id}`} onOpen={onOpen} row={row} />
-          ))}
-        </ul>
+        <VirtualList
+          aria-label="Feed"
+          className="space-y-2"
+          estimateSize={140}
+          gap={8}
+          getKey={(row) => `${row.kind}:${row.id}`}
+          rows={rows}
+        >
+          {(row, rowProps) => (
+            <FeedItem onOpen={onOpen} row={row} rowProps={rowProps} />
+          )}
+        </VirtualList>
       )}
     </section>
   );

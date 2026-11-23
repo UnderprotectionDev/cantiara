@@ -6,6 +6,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { AppLink } from "@/components/app-link";
 import { projectSourceRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
@@ -134,108 +136,116 @@ export function ValidationRecordsView({
           No Validation Records in this view.
         </p>
       ) : null}
-      {visible.map((record) => (
-        <article
-          className="space-y-4 rounded-lg border border-border/70 bg-card/35 p-5"
-          key={record.id}
-        >
-          <h3 className="font-medium">
-            <AppLink
-              className="underline"
-              href={`#${projectSourceRecordHash("Validation Record", record.id)}`}
-            >
-              {record.title}
-            </AppLink>
-          </h3>
-          <dl className="space-y-3">
-            <div>
-              <dt className="text-sm font-medium">Method</dt>
-              <dd className="text-sm whitespace-pre-wrap text-muted-foreground">
-                {record.method}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium">Result</dt>
-              <dd className="text-sm whitespace-pre-wrap text-muted-foreground">
-                {record.result || "—"}
-              </dd>
-            </div>
-          </dl>
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">Related</h4>
-            {record.context.map((link) => {
-              const source = counterparts.find(
-                (candidate) =>
-                  candidate.sourceType === link.sourceType &&
-                  candidate.id === link.sourceId,
-              );
-              return source && "title" in source ? (
-                <AppLink
-                  className="block text-sm underline"
-                  href={`#${projectSourceRecordHash(link.sourceType, link.sourceId)}`}
-                  key={`${link.sourceType}:${link.sourceId}`}
-                >
-                  {link.sourceType}: {source.title}
-                </AppLink>
-              ) : (
-                <p
-                  className="text-sm text-muted-foreground"
-                  key={`${link.sourceType}:${link.sourceId}`}
-                >
-                  Record unavailable
+      <VirtualList
+        as="div"
+        estimateSize={100}
+        gap={12}
+        getKey={virtualRowId}
+        rows={visible}
+      >
+        {(record, rowProps) => (
+          <article
+            className="space-y-4 rounded-lg border border-border/70 bg-card/35 p-5"
+            {...rowProps}
+          >
+            <h3 className="font-medium">
+              <AppLink
+                className="underline"
+                href={`#${projectSourceRecordHash("Validation Record", record.id)}`}
+              >
+                {record.title}
+              </AppLink>
+            </h3>
+            <dl className="space-y-3">
+              <div>
+                <dt className="text-sm font-medium">Method</dt>
+                <dd className="text-sm whitespace-pre-wrap text-muted-foreground">
+                  {record.method}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium">Result</dt>
+                <dd className="text-sm whitespace-pre-wrap text-muted-foreground">
+                  {record.result || "—"}
+                </dd>
+              </div>
+            </dl>
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">Related</h4>
+              {record.context.map((link) => {
+                const source = counterparts.find(
+                  (candidate) =>
+                    candidate.sourceType === link.sourceType &&
+                    candidate.id === link.sourceId,
+                );
+                return source && "title" in source ? (
+                  <AppLink
+                    className="block text-sm underline"
+                    href={`#${projectSourceRecordHash(link.sourceType, link.sourceId)}`}
+                    key={`${link.sourceType}:${link.sourceId}`}
+                  >
+                    {link.sourceType}: {source.title}
+                  </AppLink>
+                ) : (
+                  <p
+                    className="text-sm text-muted-foreground"
+                    key={`${link.sourceType}:${link.sourceId}`}
+                  >
+                    Record unavailable
+                  </p>
+                );
+              })}
+              {record.context.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No context linked.
                 </p>
-              );
-            })}
-            {record.context.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No context linked.
-              </p>
-            ) : null}
-          </div>
-          {readOnly ? null : (
-            <div className="flex flex-wrap gap-2">
-              {record.status === "Active" ? (
-                <>
-                  <Button
-                    disabled={transitionPending || Boolean(activeEditor)}
-                    onClick={() => {
-                      onStartEditing?.();
-                      setEditing({ record });
-                    }}
-                    variant="outline"
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    disabled={transitionPending || Boolean(activeEditor)}
-                    onClick={() => transition(record, "Archived")}
-                    variant="outline"
-                  >
-                    Archive
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  disabled={transitionPending || Boolean(activeEditor)}
-                  onClick={() => transition(record, "Active")}
-                  variant="outline"
-                >
-                  Restore
-                </Button>
-              )}
-              {record.status === "Trash" ? null : (
-                <Button
-                  disabled={transitionPending || Boolean(activeEditor)}
-                  onClick={() => transition(record, "Trash")}
-                  variant="outline"
-                >
-                  Move to Trash
-                </Button>
-              )}
+              ) : null}
             </div>
-          )}
-        </article>
-      ))}
+            {readOnly ? null : (
+              <div className="flex flex-wrap gap-2">
+                {record.status === "Active" ? (
+                  <>
+                    <Button
+                      disabled={transitionPending || Boolean(activeEditor)}
+                      onClick={() => {
+                        onStartEditing?.();
+                        setEditing({ record });
+                      }}
+                      variant="outline"
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      disabled={transitionPending || Boolean(activeEditor)}
+                      onClick={() => transition(record, "Archived")}
+                      variant="outline"
+                    >
+                      Archive
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    disabled={transitionPending || Boolean(activeEditor)}
+                    onClick={() => transition(record, "Active")}
+                    variant="outline"
+                  >
+                    Restore
+                  </Button>
+                )}
+                {record.status === "Trash" ? null : (
+                  <Button
+                    disabled={transitionPending || Boolean(activeEditor)}
+                    onClick={() => transition(record, "Trash")}
+                    variant="outline"
+                  >
+                    Move to Trash
+                  </Button>
+                )}
+              </div>
+            )}
+          </article>
+        )}
+      </VirtualList>
     </section>
   );
 }

@@ -12,6 +12,11 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
@@ -98,6 +103,8 @@ export default function ContactsView({
     enabled: contactId !== undefined,
   });
   const [validationError, setValidationError] = useState<string | null>(null);
+  const { data: contactRows = [] } = contacts;
+  const { data: companyRows = [] } = companies;
   const selected = findSelectedContact(
     contacts.data,
     opened.data?.contact.id,
@@ -308,9 +315,15 @@ export default function ContactsView({
         <section aria-label="Contacts" className="space-y-3">
           <h2 className="text-xl font-semibold">Contacts</h2>
           {contacts.data?.length === 0 ? <p>No Contacts yet.</p> : null}
-          <ul className="space-y-2">
-            {contacts.data?.map((contact) => (
-              <li key={contact.id}>
+          <VirtualList
+            className="space-y-2"
+            estimateSize={80}
+            gap={8}
+            getKey={virtualRowId}
+            rows={contactRows}
+          >
+            {(contact, rowProps) => (
+              <li {...rowProps}>
                 <button
                   aria-pressed={selected?.id === contact.id}
                   className="w-full rounded-md border px-3 py-2 text-left text-sm aria-pressed:bg-accent"
@@ -320,17 +333,23 @@ export default function ContactsView({
                   {contactLabel(contact)}
                 </button>
               </li>
-            ))}
-          </ul>
+            )}
+          </VirtualList>
         </section>
         <section aria-label="Companies" className="space-y-3">
           <h2 className="text-xl font-semibold">Companies</h2>
           {companies.data?.length === 0 ? <p>No Companies yet.</p> : null}
-          <ul className="space-y-2">
-            {companies.data?.map((company) => (
-              <CompanyItem company={company} key={company.id} />
-            ))}
-          </ul>
+          <VirtualList
+            className="space-y-2"
+            estimateSize={80}
+            gap={8}
+            getKey={virtualRowId}
+            rows={companyRows}
+          >
+            {(company, rowProps) => (
+              <CompanyItem company={company} rowProps={rowProps} />
+            )}
+          </VirtualList>
         </section>
       </div>
       <DuplicateCandidates
@@ -414,12 +433,15 @@ function DuplicateCandidates({
     <section aria-label="Duplicate candidates" className="space-y-3">
       <h2 className="text-xl font-semibold">Duplicate candidates</h2>
       {candidates.length === 0 ? <p>No duplicate candidates.</p> : null}
-      <ul className="space-y-2">
-        {candidates.map((candidate) => (
-          <li
-            className="rounded-md border px-3 py-2 text-sm"
-            key={`${candidate.strength}-${candidate.contactIds.join("-")}`}
-          >
+      <VirtualList
+        className="space-y-2"
+        estimateSize={110}
+        gap={8}
+        getKey={(candidate) => JSON.stringify(candidate.contactIds)}
+        rows={candidates}
+      >
+        {(candidate, rowProps) => (
+          <li className="rounded-md border px-3 py-2 text-sm" {...rowProps}>
             <span className="font-medium">
               {candidate.strength === "strong"
                 ? "Strong copy candidate"
@@ -449,15 +471,21 @@ function DuplicateCandidates({
               />
             ) : null}
           </li>
-        ))}
-      </ul>
+        )}
+      </VirtualList>
     </section>
   );
 }
 
-function CompanyItem({ company }: { company: Company }) {
+function CompanyItem({
+  company,
+  rowProps,
+}: {
+  company: Company;
+  rowProps?: VirtualRowProps;
+}) {
   return (
-    <li className="rounded-md border px-3 py-2 text-sm">
+    <li {...rowProps} className="rounded-md border px-3 py-2 text-sm">
       {company.name}
       <span className="ml-2 text-muted-foreground">
         {company.contactCount} Contact{company.contactCount === 1 ? "" : "s"}
@@ -524,9 +552,15 @@ function ContactProfile({
         <dt className="text-muted-foreground">Persona</dt>
         <dd>
           {contact.personaDocuments.length === 0 ? "None" : null}
-          <ul className="space-y-1">
-            {contact.personaDocuments.map((persona) => (
-              <li key={persona.documentId}>
+          <VirtualList
+            className="space-y-1"
+            estimateSize={70}
+            gap={8}
+            getKey={(persona) => persona.documentId}
+            rows={contact.personaDocuments}
+          >
+            {(persona, rowProps) => (
+              <li {...rowProps}>
                 {persona.title}{" "}
                 <Link
                   className="underline underline-offset-2"
@@ -537,8 +571,8 @@ function ContactProfile({
                   Open Source Record
                 </Link>
               </li>
-            ))}
-          </ul>
+            )}
+          </VirtualList>
         </dd>
       </dl>
     </section>

@@ -65,6 +65,8 @@ Kurucu Özellik, Bug, Görev, Araştırma ve İyileştirmeyi değişmez Proje an
 
 ## Testing Decisions
 
+- **Growing lists (#551).** The shared list fixture in `apps/web/e2e/virtual-list.e2e.ts` opens a record target beyond the initial window and checks variable-height measurement, keyboard traversal, and preservation of a focused draft during route scrolling. The Custom Fields draft fixture checks that an enclosing virtual Work row remains mounted after a rejected scalar edit loses focus.
+
 - **Client state ownership (#547).** The Work list reads the Archived filter from the Project URL and follows the linked Work’s archive state when the URL omits the filter. The inline Reopen confirmation is tied to the current Work and revision. Cancel and Escape clear it. A rejected write keeps the target available for retry. The Work lifecycle seam covers reopen, closure history and retry. The browser journey rejects the first Reopen write and confirms that the same target can be retried.
 
 - **Popup lifecycle (#546).** The Work list uses a detached Base UI trigger for `Bulk Edit`. The browser bulk editing seam checks that Escape and `Cancel` return focus to `Bulk Edit`, that the operation stays visible while applying or finalizing, and that a failed row remains visible in the results. A new preview and apply can successfully retry the same selected Work.

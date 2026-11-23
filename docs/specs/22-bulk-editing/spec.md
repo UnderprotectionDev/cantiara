@@ -50,6 +50,8 @@ Kurucu açıkça seçtiği İşlerde mevcut alanları fark önizlemesi, ilerleme
 
 ## Testing Decisions
 
+- **Growing lists (#551).** `apps/web/e2e/bulk-editing.e2e.ts` selects a large set of Work across successive list windows and checks the last Preview and results rows in their scroll regions.
+
 - **#545.** The web bulk-edit-status-form.test.tsx seam checks that the same Status and closure fields drive the dialog and the awaited Preview.
 
 - **What a good test is.** Tests observe Bulk Editing through its public interface: selection, preview, progress, per-record results, unselected untouched, conflict and support reference on one record, per-record Undo, cancellation of queued work, and progress/results after route return. They do not assert job table internals.

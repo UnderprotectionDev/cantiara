@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Roadmap controls bind to the selected Work and view.
+
 import type {
   RoadmapBlocker,
   RoadmapBlockerSource,
@@ -16,6 +17,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
 import { useEffect, useState } from "react";
 import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
@@ -244,6 +249,7 @@ function RoadmapWorkItem({
   researchOriginTitle,
   view,
   work,
+  rowProps,
 }: {
   activeBlockers: RoadmapBlockerSource[];
   candidate: boolean;
@@ -252,12 +258,14 @@ function RoadmapWorkItem({
   researchOriginTitle: string | undefined;
   view: RoadmapView | null;
   work: WorkProfile;
+  rowProps?: VirtualRowProps;
 }) {
   const record = roadmapBlockerSource(work);
   const mark = roadmapFieldValue(work, view?.markBy ?? "Type");
 
   return (
     <article
+      {...rowProps}
       className={`rounded-lg border p-4 ${role === "Secondary" ? "ml-4 bg-muted/20" : "bg-card"}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -344,22 +352,30 @@ export function RoadmapResults({
               {view ? (
                 <h3 className="border-b pb-2 text-sm font-medium">{group}</h3>
               ) : null}
-              {items.map(({ work, secondary }) => (
-                <RoadmapWorkItem
-                  activeBlockers={blockersByWork.get(work.id) ?? []}
-                  candidate={false}
-                  key={work.id}
-                  presentationMode={presentationMode}
-                  researchOriginTitle={findResearchTitleForWork(
-                    work.id,
-                    origins,
-                    works,
-                  )}
-                  role={roadmapRole(secondary)}
-                  view={view}
-                  work={work}
-                />
-              ))}
+              <VirtualList
+                as="div"
+                estimateSize={110}
+                gap={8}
+                getKey={(row) => row.work.id}
+                rows={items}
+              >
+                {({ work, secondary }, rowProps) => (
+                  <RoadmapWorkItem
+                    activeBlockers={blockersByWork.get(work.id) ?? []}
+                    candidate={false}
+                    presentationMode={presentationMode}
+                    researchOriginTitle={findResearchTitleForWork(
+                      work.id,
+                      origins,
+                      works,
+                    )}
+                    role={roadmapRole(secondary)}
+                    rowProps={rowProps}
+                    view={view}
+                    work={work}
+                  />
+                )}
+              </VirtualList>
             </section>
           ))
         ) : (
@@ -368,36 +384,45 @@ export function RoadmapResults({
           </p>
         )}
       </div>
-      <details className="border-t pt-4">
-        <summary className="w-fit cursor-pointer text-sm font-medium">
+      <Collapsible className="border-t pt-4">
+        <CollapsibleTrigger className="w-fit cursor-pointer text-sm font-medium">
           Unplanned candidates{" "}
           <span className="text-muted-foreground">({candidates.length})</span>
-        </summary>
-        <div className="mt-4 grid gap-3">
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-4 grid gap-3">
           {candidates.length ? (
-            candidates.map(({ work, secondary }) => (
-              <RoadmapWorkItem
-                activeBlockers={blockersByWork.get(work.id) ?? []}
-                candidate
-                key={work.id}
-                presentationMode={presentationMode}
-                researchOriginTitle={findResearchTitleForWork(
-                  work.id,
-                  origins,
-                  works,
-                )}
-                role={roadmapRole(secondary)}
-                view={view}
-                work={work}
-              />
-            ))
+            <VirtualList
+              as="div"
+              className="space-y-3"
+              estimateSize={120}
+              gap={12}
+              getKey={({ work }) => work.id}
+              rows={candidates}
+            >
+              {({ work, secondary }, rowProps) => (
+                <RoadmapWorkItem
+                  activeBlockers={blockersByWork.get(work.id) ?? []}
+                  candidate
+                  presentationMode={presentationMode}
+                  researchOriginTitle={findResearchTitleForWork(
+                    work.id,
+                    origins,
+                    works,
+                  )}
+                  role={roadmapRole(secondary)}
+                  rowProps={rowProps}
+                  view={view}
+                  work={work}
+                />
+              )}
+            </VirtualList>
           ) : (
             <p className="text-sm text-muted-foreground">
               No unplanned Work matches this view.
             </p>
           )}
-        </div>
-      </details>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }

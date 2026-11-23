@@ -3,7 +3,8 @@
 import type { FeedRow } from "@cantiara/api/feedback-feed";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
-import { FeedView, masterRecordElementId } from "../feed-view";
+import { masterRecordElementId } from "../../../lib/master-record-element-id";
+import { FeedView } from "../feed-view";
 
 const feedbackRow: FeedRow = {
   attachments: [{ id: "a1", name: "screenshot.png" }],

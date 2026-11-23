@@ -16,7 +16,14 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
+import {
+  DragDropProvider,
+  useDraggable,
+  useDragOperation,
+  useDroppable,
+} from "@dnd-kit/react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { GripVertical } from "lucide-react";
 import {
@@ -152,6 +159,8 @@ function KanbanColumn({
   statusWorks: readonly WorkProfile[];
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
+  const { source } = useDragOperation();
+  const draggedWorkId = source?.data.workId;
   const contextQueries = useQueries({
     queries: statusWorks.map((work) =>
       orpc.workContext.queryOptions({ input: { workId: work.id } }),
@@ -212,23 +221,30 @@ function KanbanColumn({
       {hasOpenBlocker ? (
         <p className="text-xs text-muted-foreground">Open blocker</p>
       ) : null}
-      <CollapsibleContent
-        aria-label={`${label} Work`}
-        className="space-y-2"
-        keepMounted
-        render={<ul />}
-      >
-        {statusWorks.map((work) => (
-          <li key={work.id}>
-            <KanbanCard
-              disabled={disabled}
-              onStatusAction={onStatusAction}
-              projectId={projectId}
-              work={work}
-              workStatusLabels={workStatusLabels}
-            />
-          </li>
-        ))}
+      <CollapsibleContent>
+        <VirtualList
+          aria-label={`${label} Work`}
+          className="space-y-2"
+          estimateSize={145}
+          gap={8}
+          getKey={virtualRowId}
+          keepMounted={
+            typeof draggedWorkId === "string" ? [draggedWorkId] : undefined
+          }
+          rows={statusWorks}
+        >
+          {(work, rowProps) => (
+            <li {...rowProps}>
+              <KanbanCard
+                disabled={disabled}
+                onStatusAction={onStatusAction}
+                projectId={projectId}
+                work={work}
+                workStatusLabels={workStatusLabels}
+              />
+            </li>
+          )}
+        </VirtualList>
       </CollapsibleContent>
     </Collapsible>
   );

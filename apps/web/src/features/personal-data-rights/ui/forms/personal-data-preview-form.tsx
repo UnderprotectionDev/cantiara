@@ -13,6 +13,8 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useForm } from "@tanstack/react-form";
 import { type SubmitEvent, useEffect, useMemo, useRef } from "react";
 
@@ -98,11 +100,15 @@ export function PersonalDataPreviewPanel({
             <li key={source.kind}>
               {source.kind}: {source.items.length}
               {source.items.length > 0 ? (
-                <ul aria-label={`${source.kind} in this package`}>
-                  {source.items.map((item) => (
-                    <li key={item.id}>{item.label}</li>
-                  ))}
-                </ul>
+                <VirtualList
+                  aria-label={`${source.kind} in this package`}
+                  estimateSize={60}
+                  gap={4}
+                  getKey={virtualRowId}
+                  rows={source.items}
+                >
+                  {(item, rowProps) => <li {...rowProps}>{item.label}</li>}
+                </VirtualList>
               ) : null}
             </li>
           ))}

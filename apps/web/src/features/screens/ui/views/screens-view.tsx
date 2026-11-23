@@ -12,6 +12,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import type { ReactNode } from "react";
 import type { ScreenTemplateActions } from "../../lib/screen-template-actions";
 import type { CreateScreen } from "../forms/create-screen-form";
@@ -46,21 +52,26 @@ interface LifecycleWriteState {
 
 function ScreenItem({
   lifecycleWrite,
+  onWireframeOpenChange,
   onSetLifecycle,
   readOnly,
   renderWireframe,
   screen,
   templates,
+  rowProps,
 }: {
   lifecycleWrite?: LifecycleWriteState;
+  onWireframeOpenChange: (id: string, open: boolean) => void;
   onSetLifecycle: SetScreenLifecycle;
   readOnly: boolean;
   renderWireframe?: RenderWireframe;
   screen: ScreenRecord;
   templates?: ScreenTemplateActions;
+  rowProps?: VirtualRowProps;
 }) {
   return (
     <li
+      {...rowProps}
       className="space-y-2 rounded-lg border border-border/70 p-4"
       id={`screen-${screen.id}`}
     >
@@ -105,7 +116,10 @@ function ScreenItem({
         <SaveAsTemplate actions={templates} screen={screen} />
       ) : null}
       {renderWireframe && screen.lifecycle !== "In Trash" ? (
-        <Collapsible className="space-y-3">
+        <Collapsible
+          className="space-y-3"
+          onOpenChange={(open) => onWireframeOpenChange(screen.id, open)}
+        >
           <CollapsibleTrigger
             render={(props, { open }) => (
               <Button {...props} size="sm" variant="outline">
@@ -137,6 +151,15 @@ export function ScreensView({
   screens: ScreenRecord[];
   templates?: ScreenTemplateActions;
 }) {
+  const wireframePanels = useCreateStore<readonly string[]>([]);
+  const openWireframes = useSelector(wireframePanels);
+  function onWireframeOpenChange(id: string, open: boolean) {
+    wireframePanels.setState((current) =>
+      open
+        ? [...new Set([...current, id])]
+        : current.filter((item) => item !== id),
+    );
+  }
   return (
     <section aria-label="Screens" className="space-y-6" id="screens">
       <h2 className="text-lg font-semibold">Screens</h2>
@@ -159,19 +182,27 @@ export function ScreensView({
             {items.length === 0 ? (
               <p className="text-sm text-muted-foreground">{empty}</p>
             ) : (
-              <ul className="space-y-3">
-                {items.map((item) => (
+              <VirtualList
+                className="space-y-3"
+                estimateSize={110}
+                gap={8}
+                getKey={virtualRowId}
+                keepMounted={openWireframes}
+                rows={items}
+              >
+                {(item, rowProps) => (
                   <ScreenItem
-                    key={item.id}
                     lifecycleWrite={lifecycleWrite}
                     onSetLifecycle={onSetLifecycle}
+                    onWireframeOpenChange={onWireframeOpenChange}
                     readOnly={readOnly}
                     renderWireframe={renderWireframe}
+                    rowProps={rowProps}
                     screen={item}
                     templates={templates}
                   />
-                ))}
-              </ul>
+                )}
+              </VirtualList>
             )}
           </div>
         );

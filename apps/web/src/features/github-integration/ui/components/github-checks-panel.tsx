@@ -1,9 +1,14 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Record windows bind identity to the row model for this surface.
 import {
   GITHUB_CHECK_ACTION_LABEL,
   type GitHubCheckRow,
   type GitHubChecksOverview,
   type GitHubPullRequestChecks,
 } from "@cantiara/api/github-checks";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
 
 const SHORT_SHA_LENGTH = 7;
 
@@ -11,10 +16,19 @@ function checksCount(count: number) {
   return `${count} ${count === 1 ? "check" : "checks"}`;
 }
 
-function CheckRow({ check }: { check: GitHubCheckRow }) {
+function CheckRow({
+  check,
+  rowProps,
+}: {
+  check: GitHubCheckRow;
+  rowProps?: VirtualRowProps;
+}) {
   const nameId = `github-check-${check.provider}-${check.checkId}`;
   return (
-    <li className="space-y-1 rounded-lg border border-border/70 p-3">
+    <li
+      {...rowProps}
+      className="space-y-1 rounded-lg border border-border/70 p-3"
+    >
       <p id={nameId}>
         {check.detailsUrl ? (
           <a
@@ -44,10 +58,16 @@ function CheckRow({ check }: { check: GitHubCheckRow }) {
   );
 }
 
-function PullRequestChecks({ pull }: { pull: GitHubPullRequestChecks }) {
+function PullRequestChecks({
+  pull,
+  rowProps,
+}: {
+  pull: GitHubPullRequestChecks;
+  rowProps?: VirtualRowProps;
+}) {
   const headingId = `github-checks-pr-${pull.recordId}`;
   return (
-    <section aria-labelledby={headingId} className="space-y-2">
+    <section {...rowProps} aria-labelledby={headingId} className="space-y-2">
       <h4 className="font-medium" id={headingId}>
         {`Pull request #${pull.number} ${pull.title}`}
       </h4>
@@ -74,14 +94,18 @@ function PullRequestChecks({ pull }: { pull: GitHubPullRequestChecks }) {
         </p>
       )}
       {pull.checks.length > 0 ? (
-        <ul aria-labelledby={headingId} className="space-y-2">
-          {pull.checks.map((check) => (
-            <CheckRow
-              check={check}
-              key={`${check.provider}:${check.checkId}`}
-            />
-          ))}
-        </ul>
+        <VirtualList
+          aria-labelledby={headingId}
+          className="space-y-2"
+          estimateSize={65}
+          gap={8}
+          getKey={(check) => `${check.provider}:${check.checkId}`}
+          rows={pull.checks}
+        >
+          {(check, checkRowProps) => (
+            <CheckRow check={check} rowProps={checkRowProps} />
+          )}
+        </VirtualList>
       ) : null}
       {pull.supersededCount > 0 ? (
         <p className="text-muted-foreground">
@@ -115,9 +139,17 @@ export function GitHubChecksPanel({ data }: { data: GitHubChecksOverview }) {
         says the check is required; otherwise it is Unknown. Checks are not
         tests of this Project.
       </p>
-      {data.pullRequests.map((pull) => (
-        <PullRequestChecks key={pull.recordId} pull={pull} />
-      ))}
+      <VirtualList
+        as="div"
+        estimateSize={100}
+        gap={12}
+        getKey={(pull) => pull.recordId}
+        rows={data.pullRequests}
+      >
+        {(pull, rowProps) => (
+          <PullRequestChecks pull={pull} rowProps={rowProps} />
+        )}
+      </VirtualList>
     </section>
   );
 }

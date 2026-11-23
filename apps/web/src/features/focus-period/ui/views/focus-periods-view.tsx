@@ -7,6 +7,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { isDefinedError, ORPCError } from "@orpc/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -176,20 +178,28 @@ export default function FocusPeriodsView({
       {periods.data?.length ? (
         <div className="grid gap-6 md:grid-cols-[16rem_minmax(0,1fr)]">
           <nav aria-label="Focus Period" className="space-y-2">
-            {periods.data.map((period) => (
-              <button
-                aria-current={selected?.id === period.id ? "page" : undefined}
-                className="block w-full rounded-md border px-3 py-2 text-left hover:bg-muted"
-                key={period.id}
-                onClick={() => onSelect(period.id)}
-                type="button"
-              >
-                <span className="block font-medium">{period.purpose}</span>
-                <span className="text-sm text-muted-foreground">
-                  {period.startDate} – {period.endDate} · {period.status}
-                </span>
-              </button>
-            ))}
+            <VirtualList
+              as="div"
+              estimateSize={44}
+              gap={8}
+              getKey={virtualRowId}
+              rows={periods.data}
+            >
+              {(period, rowProps) => (
+                <button
+                  aria-current={selected?.id === period.id ? "page" : undefined}
+                  className="block w-full rounded-md border px-3 py-2 text-left hover:bg-muted"
+                  {...rowProps}
+                  onClick={() => onSelect(period.id)}
+                  type="button"
+                >
+                  <span className="block font-medium">{period.purpose}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {period.startDate} – {period.endDate} · {period.status}
+                  </span>
+                </button>
+              )}
+            </VirtualList>
           </nav>
           {selected ? (
             <PeriodDetail
@@ -318,13 +328,19 @@ function PeriodDetail({
         >
           <h3 className="font-semibold">Still-open Work</h3>
           {stillOpen.length ? (
-            <ul className="list-inside list-disc">
-              {stillOpen.map((item) => (
-                <li key={item.id}>
+            <VirtualList
+              className="list-inside list-disc"
+              estimateSize={80}
+              gap={8}
+              getKey={virtualRowId}
+              rows={stillOpen}
+            >
+              {(item, rowProps) => (
+                <li {...rowProps}>
                   {item.title} · {item.key}
                 </li>
-              ))}
-            </ul>
+              )}
+            </VirtualList>
           ) : (
             <p>No Work remains open.</p>
           )}
@@ -375,20 +391,26 @@ function PeriodDetail({
       {period.closeSnapshot ? (
         <section>
           <h3 className="font-semibold">Still-open Work</h3>
-          <ul className="mt-2 space-y-1">
-            {period.closeSnapshot
-              .filter((item) => item.status !== "Closed")
-              .map((item) => (
-                <li key={item.id}>
-                  {item.title} · {item.key}
-                  {unavailableWorkIds.has(item.id) ? (
-                    <p className="text-sm text-muted-foreground">
-                      Work is unavailable.
-                    </p>
-                  ) : null}
-                </li>
-              ))}
-          </ul>
+          <VirtualList
+            className="mt-2 space-y-1"
+            estimateSize={50}
+            gap={8}
+            getKey={virtualRowId}
+            rows={period.closeSnapshot.filter(
+              (item) => item.status !== "Closed",
+            )}
+          >
+            {(item, rowProps) => (
+              <li {...rowProps}>
+                {item.title} · {item.key}
+                {unavailableWorkIds.has(item.id) ? (
+                  <p className="text-sm text-muted-foreground">
+                    Work is unavailable.
+                  </p>
+                ) : null}
+              </li>
+            )}
+          </VirtualList>
         </section>
       ) : null}
       <CloseComparisonSection period={period} />
@@ -430,11 +452,17 @@ function WorkMembersSection({
           No Work in this Focus Period.
         </p>
       ) : (
-        <ul className="mt-2 space-y-2">
-          {period.members.map((item) => (
+        <VirtualList
+          className="mt-2 space-y-2"
+          estimateSize={90}
+          gap={8}
+          getKey={virtualRowId}
+          rows={period.members}
+        >
+          {(item, rowProps) => (
             <li
               className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
-              key={item.id}
+              {...rowProps}
             >
               <Link
                 hash={workRecordHash(item.id)}
@@ -461,8 +489,8 @@ function WorkMembersSection({
                 </Button>
               ) : null}
             </li>
-          ))}
-        </ul>
+          )}
+        </VirtualList>
       )}
     </section>
   );
@@ -491,9 +519,16 @@ function CloseComparisonSection({ period }: { period: FocusPeriodRecord }) {
               <dd className="font-medium">{items.length}</dd>
             </dl>
             {items.length ? (
-              <ul aria-label={label} className="space-y-1">
-                {items.map((item) => (
-                  <li className="break-words" key={item.id}>
+              <VirtualList
+                aria-label={label}
+                className="space-y-1"
+                estimateSize={68}
+                gap={8}
+                getKey={virtualRowId}
+                rows={items}
+              >
+                {(item, rowProps) => (
+                  <li className="break-words" {...rowProps}>
                     {item.sourceAvailable === false ? (
                       <>
                         <span>
@@ -515,8 +550,8 @@ function CloseComparisonSection({ period }: { period: FocusPeriodRecord }) {
                       </Link>
                     )}
                   </li>
-                ))}
-              </ul>
+                )}
+              </VirtualList>
             ) : null}
           </div>
         ))}

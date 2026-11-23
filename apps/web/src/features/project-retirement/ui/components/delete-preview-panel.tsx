@@ -5,22 +5,7 @@ import {
 } from "@cantiara/api/project-retirement";
 import { Button } from "@cantiara/ui/components/button";
 
-function List({ items, title }: { items: string[]; title: string }) {
-  return (
-    <section aria-label={title} className="space-y-1">
-      <h3 className="text-sm font-medium">{title}</h3>
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">None.</p>
-      ) : (
-        <ul className="list-disc space-y-0.5 pl-5 text-sm">
-          {items.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
+import { RetirementPreviewList } from "./retirement-preview-list";
 
 /**
  * Delete Project preview (Archive only): the delete group, the surfaces and
@@ -44,40 +29,42 @@ export function DeletePreviewPanel({
       aria-label={`${DELETE_PROJECT_LABEL} preview`}
       className="space-y-4 rounded-lg border p-4"
     >
-      <List
-        items={preview.group.map(
-          (member) => `${member.recordKind}: ${member.label}`,
-        )}
+      <RetirementPreviewList
+        items={preview.group.map((member) => ({
+          id: `${member.recordKind}:${member.recordId}`,
+          label: `${member.recordKind}: ${member.label}`,
+        }))}
         title="Delete group"
       />
-      <List
-        items={preview.revokedSurfaces.map(
-          (surface) =>
-            `${surface.title} · ${surface.visibility} · revoked now, terminal`,
-        )}
+      <RetirementPreviewList
+        items={preview.revokedSurfaces.map((surface) => ({
+          id: surface.surfaceId,
+          label: `${surface.title} · ${surface.visibility} · revoked now, terminal`,
+        }))}
         title="External Surfaces revoked immediately"
       />
-      <List
-        items={preview.ownRemovalSurfaces.map(
-          (surface) =>
-            `${surface.title} · ${surface.visibility} · not revoked here`,
-        )}
+      <RetirementPreviewList
+        items={preview.ownRemovalSurfaces.map((surface) => ({
+          id: surface.surfaceId,
+          label: `${surface.title} · ${surface.visibility} · not revoked here`,
+        }))}
         title="Build in Public surfaces to remove first"
       />
       {preview.visitorSessionsEnd ? (
         <p className="text-sm">Visitor sessions end immediately.</p>
       ) : null}
-      <List
-        items={preview.integrationsStop.map(
-          (link) => `${link.label} · ${link.state}`,
-        )}
+      <RetirementPreviewList
+        items={preview.integrationsStop.map((link) => ({
+          id: link.id,
+          label: `${link.label} · ${link.state}`,
+        }))}
         title="Integrations that stop"
       />
-      <List
-        items={preview.relations.map(
-          (relation) =>
-            `${relation.sourceLabel} (${relation.scope}) → ${relation.targetLabel} · ${relation.mark}`,
-        )}
+      <RetirementPreviewList
+        items={preview.relations.map((relation) => ({
+          id: relation.id,
+          label: `${relation.sourceLabel} (${relation.scope}) → ${relation.targetLabel} · ${relation.mark}`,
+        }))}
         title="Relations in other scopes"
       />
       {preview.notices.map((notice) => (

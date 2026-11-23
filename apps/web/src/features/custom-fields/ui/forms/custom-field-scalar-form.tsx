@@ -5,6 +5,7 @@ import {
   type ParsedCustomFieldValuePayload,
 } from "@cantiara/api/custom-fields";
 import { Input } from "@cantiara/ui/components/input";
+import { useRetainVirtualRow } from "@cantiara/ui/hooks/use-retain-virtual-row";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useEffect } from "react";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
@@ -95,6 +96,11 @@ export function CustomFieldScalarForm({
     form.store,
     (state): string | undefined => state.errorMap.onSubmit,
   );
+  const hasDraft = useSelector(
+    form.store,
+    (state) => state.values.editingRevision !== null,
+  );
+  useRetainVirtualRow(hasDraft);
   const pending = useSelector(form.store, (state) => state.isSubmitting);
   const errorId = `${id}-error`;
 

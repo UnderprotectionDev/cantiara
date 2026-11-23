@@ -1,6 +1,8 @@
 import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { getWorkStatusLabel } from "@/components/work-status-form";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
 import { KanbanCardSummary } from "./kanban-board";
@@ -23,9 +25,16 @@ export default function KanbanList({
         <h3 className="text-xl font-semibold tracking-tight">List</h3>
         <KanbanWorkSummary focusThreshold={focusThreshold} works={works} />
       </header>
-      <ul aria-label="List Work" className="divide-y rounded-md border">
-        {works.map((work) => (
-          <li key={work.id}>
+      <VirtualList
+        aria-label="List Work"
+        className="divide-y rounded-md border"
+        estimateSize={108}
+        gap={8}
+        getKey={virtualRowId}
+        rows={works}
+      >
+        {(work, rowProps) => (
+          <li {...rowProps}>
             <article className="grid gap-3 bg-card px-3 py-3 md:grid-cols-[minmax(15rem,2fr)_minmax(8rem,1fr)_minmax(12rem,1.5fr)_auto] md:items-center">
               <div className="min-w-0">
                 <p className="text-sm font-medium">
@@ -57,8 +66,8 @@ export default function KanbanList({
               />
             </article>
           </li>
-        ))}
-      </ul>
+        )}
+      </VirtualList>
       {works.length === 0 ? (
         <p className="py-5 text-center text-sm text-muted-foreground">
           No Work in this view.

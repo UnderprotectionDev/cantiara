@@ -202,6 +202,7 @@ export type InFlightKind = (typeof IN_FLIGHT_KINDS)[number];
 
 /** One piece of in-flight work with its exact state, never a guess. */
 export const inFlightWorkSchema = z.object({
+  id: z.string(),
   kind: z.enum(IN_FLIGHT_KINDS),
   state: z.string(),
 });
@@ -330,6 +331,7 @@ export type DeleteGroupMember = z.infer<typeof deleteGroupMemberSchema>;
 
 /** A living relation in another scope whose target goes to Trash with the group. */
 export const livingRelationSchema = z.object({
+  id: z.string(),
   mark: z.literal(DELETED_TARGET_MARK),
   scope: z.string(),
   sourceLabel: z.string(),

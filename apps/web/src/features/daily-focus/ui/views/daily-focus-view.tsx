@@ -2,7 +2,10 @@
 
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { accountLocalDate } from "@cantiara/api/backlog";
+import type { DailyFocusEvent } from "@cantiara/api/daily-focus";
 import { Button } from "@cantiara/ui/components/button";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
@@ -193,9 +196,15 @@ function DailyFocusCloseGroup({
       <h2 className="mb-3 text-lg font-semibold" id={headingId}>
         {label}
       </h2>
-      <ul className="divide-y border-y border-border/70">
-        {work.map((item) => (
-          <li key={item.id}>
+      <VirtualList
+        className="divide-y border-y border-border/70"
+        estimateSize={44}
+        gap={4}
+        getKey={virtualRowId}
+        rows={work}
+      >
+        {(item, rowProps) => (
+          <li {...rowProps}>
             <Link
               className="flex min-h-16 flex-col justify-center gap-1 rounded-sm py-3 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
               hash={workRecordHash(item.id)}
@@ -211,8 +220,8 @@ function DailyFocusCloseGroup({
               </span>
             </Link>
           </li>
-        ))}
-      </ul>
+        )}
+      </VirtualList>
     </section>
   );
 }
@@ -229,14 +238,6 @@ function DailyFocusDayView({
   preferences: AccountPreferences;
 }) {
   const queryClient = useQueryClient();
-  const eventTimeFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(preferences.locale, {
-        timeStyle: "short",
-        timeZone: preferences.timeZone,
-      }),
-    [preferences.locale, preferences.timeZone],
-  );
   const dailyFocus = useQuery(
     orpc.dailyFocusDay.queryOptions({ input: { focusDate } }),
   );
@@ -321,11 +322,17 @@ function DailyFocusDayView({
           </p>
         ) : null}
         {dailyFocus.data?.members.length ? (
-          <ul className="divide-y border-y border-border/70">
-            {dailyFocus.data.members.map((work) => (
+          <VirtualList
+            className="divide-y border-y border-border/70"
+            estimateSize={90}
+            gap={8}
+            getKey={virtualRowId}
+            rows={dailyFocus.data.members}
+          >
+            {(work, rowProps) => (
               <li
                 className="flex min-h-16 items-center gap-3 py-3"
-                key={work.id}
+                {...rowProps}
               >
                 <Link
                   className="min-w-0 flex-1 rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
@@ -351,66 +358,15 @@ function DailyFocusDayView({
                   Remove from Daily Focus
                 </Button>
               </li>
-            ))}
-          </ul>
+            )}
+          </VirtualList>
         ) : null}
       </section>
 
-      <section
-        aria-labelledby="daily-focus-events-heading"
-        className="mt-10 space-y-4"
-      >
-        <h2
-          className="text-xl font-semibold tracking-tight"
-          id="daily-focus-events-heading"
-        >
-          What happened today?
-        </h2>
-        {dailyFocus.data?.events.length === 0 ? (
-          <p className="text-muted-foreground">
-            No notable events for this day.
-          </p>
-        ) : null}
-        {dailyFocus.data?.events.length ? (
-          <ul className="divide-y border-y border-border/70">
-            {dailyFocus.data.events.map((event) => (
-              <li
-                className="flex min-h-16 items-center gap-3 py-3"
-                key={event.id}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">
-                    {event.kind} ·{" "}
-                    {event.sourceKey ? `${event.sourceKey} ` : ""}
-                    {event.sourceTitle}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    <time dateTime={event.occurredAt}>
-                      {eventTimeFormatter.format(new Date(event.occurredAt))}
-                    </time>
-                    <span> · {event.projectName}</span>
-                  </p>
-                </div>
-                <Link
-                  className="shrink-0 rounded-sm text-sm text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-                  hash={
-                    event.sourceType === "Work"
-                      ? workRecordHash(event.sourceId)
-                      : projectSourceRecordHash(
-                          event.sourceType,
-                          event.sourceId,
-                        )
-                  }
-                  params={{ projectId: event.projectId }}
-                  to="/projects/$projectId"
-                >
-                  Open source record
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
+      <DailyFocusEvents
+        events={dailyFocus.data?.events}
+        preferences={preferences}
+      />
 
       <section
         aria-labelledby="daily-focus-candidates-heading"
@@ -513,5 +469,76 @@ function DailyFocusDayView({
         ) : null}
       </section>
     </main>
+  );
+}
+
+function DailyFocusEvents({
+  events,
+  preferences,
+}: {
+  events: readonly DailyFocusEvent[] | undefined;
+  preferences: AccountPreferences;
+}) {
+  const eventTimeFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(preferences.locale, {
+        timeStyle: "short",
+        timeZone: preferences.timeZone,
+      }),
+    [preferences.locale, preferences.timeZone],
+  );
+  return (
+    <section
+      aria-labelledby="daily-focus-events-heading"
+      className="mt-10 space-y-4"
+    >
+      <h2
+        className="text-xl font-semibold tracking-tight"
+        id="daily-focus-events-heading"
+      >
+        What happened today?
+      </h2>
+      {events?.length === 0 ? (
+        <p className="text-muted-foreground">No notable events for this day.</p>
+      ) : null}
+      {events?.length ? (
+        <VirtualList
+          className="divide-y border-y border-border/70"
+          estimateSize={75}
+          gap={8}
+          getKey={virtualRowId}
+          rows={events}
+        >
+          {(event, rowProps) => (
+            <li className="flex min-h-16 items-center gap-3 py-3" {...rowProps}>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">
+                  {event.kind} · {event.sourceKey ? `${event.sourceKey} ` : ""}
+                  {event.sourceTitle}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  <time dateTime={event.occurredAt}>
+                    {eventTimeFormatter.format(new Date(event.occurredAt))}
+                  </time>
+                  <span> · {event.projectName}</span>
+                </p>
+              </div>
+              <Link
+                className="shrink-0 rounded-sm text-sm text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                hash={
+                  event.sourceType === "Work"
+                    ? workRecordHash(event.sourceId)
+                    : projectSourceRecordHash(event.sourceType, event.sourceId)
+                }
+                params={{ projectId: event.projectId }}
+                to="/projects/$projectId"
+              >
+                Open source record
+              </Link>
+            </li>
+          )}
+        </VirtualList>
+      ) : null}
+    </section>
   );
 }

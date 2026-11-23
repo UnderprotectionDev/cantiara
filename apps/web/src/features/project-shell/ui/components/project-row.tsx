@@ -1,12 +1,22 @@
 import type { ProjectProfile } from "@cantiara/api/project-shell";
 import { Badge } from "@cantiara/ui/components/badge";
+import type { VirtualRowProps } from "@cantiara/ui/components/virtual-list";
 import { Link } from "@tanstack/react-router";
 
 import ProjectShortCodeForm from "../forms/project-short-code-form";
 
-export default function ProjectRow({ project }: { project: ProjectProfile }) {
+export default function ProjectRow({
+  project,
+  rowProps,
+}: {
+  project: ProjectProfile;
+  rowProps?: VirtualRowProps;
+}) {
   return (
-    <li className="grid gap-4 px-4 py-4 transition-colors hover:bg-muted/35 sm:px-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center">
+    <li
+      {...rowProps}
+      className="grid gap-4 px-4 py-4 transition-colors hover:bg-muted/35 sm:px-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center"
+    >
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="truncate font-medium">

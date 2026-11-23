@@ -11,9 +11,11 @@ import {
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
 import { Input } from "@cantiara/ui/components/input";
+import { useRetainVirtualRow } from "@cantiara/ui/hooks/use-retain-virtual-row";
 import { useForm, useSelector } from "@tanstack/react-form";
+import { useCreateStore } from "@tanstack/react-store";
 import { Check, LockKeyhole, Pencil, Save } from "lucide-react";
-import { type SubmitEvent, useEffect, useState } from "react";
+import { type SubmitEvent, useEffect } from "react";
 import { submitForm } from "@/lib/submit-form";
 
 import { useProjectShortCode } from "../../hooks/use-project-short-code";
@@ -23,7 +25,8 @@ export default function ProjectShortCodeForm({
 }: {
   project: ProjectProfile;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
+  const editor = useCreateStore(false);
+  const isEditing = useSelector(editor);
 
   const { clearError, error, isPending, isSuccess, saveShortCode } =
     useProjectShortCode(project);
@@ -67,7 +70,7 @@ export default function ProjectShortCodeForm({
 
   function cancelEditing() {
     form.setFieldValue("shortCode", project.shortCode);
-    setIsEditing(false);
+    editor.setState(() => false);
     form.setErrorMap({ onSubmit: undefined });
     clearError();
   }
@@ -76,9 +79,10 @@ export default function ProjectShortCodeForm({
     if (open) {
       clearError();
     }
-    setIsEditing(open);
+    editor.setState(() => open);
   }
   const editing = isEditing && !isSuccess;
+  useRetainVirtualRow(editing);
 
   return (
     <Collapsible onOpenChange={changeOpen} open={editing}>

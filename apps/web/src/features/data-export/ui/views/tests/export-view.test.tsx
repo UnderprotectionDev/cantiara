@@ -6,7 +6,8 @@ import {
   type ExportPreview,
 } from "@cantiara/api/data-export";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ComponentProps } from "react";
+import { act, type ComponentProps } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import {
@@ -89,6 +90,42 @@ describe("Export view", () => {
 });
 
 describe("Export preview panel", () => {
+  test("opens a window into all 10,000 records in export order", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const records = Array.from({ length: 10_000 }, (_, index) => ({
+      id: `work-${index}`,
+      label: `Work ${10_000 - index}`,
+    }));
+    try {
+      await act(() => {
+        root.render(
+          <ExportPreviewPanel
+            disabled={false}
+            onCancel={() => undefined}
+            onConfirm={() => undefined}
+            preview={{ ...preview, recordCount: records.length, records }}
+            produced={null}
+          />,
+        );
+      });
+      const trigger = [...host.querySelectorAll("button")].find((button) =>
+        button.textContent?.includes("10000 records leave"),
+      );
+      await act(() => trigger?.click());
+      const rows = host.querySelectorAll(
+        '[aria-label="Records in this file"] li',
+      );
+      expect(rows[0]?.textContent).toBe("Work 10000");
+      expect(rows[1]?.textContent).toBe("Work 9999");
+      expect(rows.length).toBeLessThan(40);
+    } finally {
+      await act(() => root.unmount());
+      host.remove();
+    }
+  });
+
   const render = (value: ExportPreview) =>
     renderToStaticMarkup(
       <ExportPreviewPanel

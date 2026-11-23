@@ -70,6 +70,8 @@ Belge Proje veya Kişisel Wiki kapsamında, yalnız veritabanında yaşayan sür
 
 ## Testing Decisions
 
+- **Growing lists (#551).** `apps/web/e2e/document-navigation-window.e2e.ts` opens a late Document by its hash, checks selected state and parent context, and verifies bounded rendering in its Folder.
+
 - **Interaction timing (#548).** The `document-diagram-conversion-form.test.tsx` dialog seam verifies that typing `Title` coalesces preview reads, an invalid or unreviewed title cannot confirm, the write uses the current preview token, whitespace-only edits preserve the confirmation identity on retry, and closing cancels pending preview work.
 
 - **Client state ownership (#547).** The Documents browser seam observes the selected Document in the fragment and Archived in route search. Creation opens the new record. Back, Forward and a direct link restore the selected Document. The local template selector clears a removed template. The editor reads the saved body and base revision from its edit session. The organization browser seam saves content after a metadata-only revision and reloads it. Mermaid displays results for the current source only. The Document preview seam checks valid KaTeX output and invalid formula feedback. The preview test resolves and rejects Mermaid requests out of order and closes the preview before a final result.
