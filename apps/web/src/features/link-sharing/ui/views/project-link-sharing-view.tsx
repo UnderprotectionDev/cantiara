@@ -6,7 +6,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useRouteContext } from "@tanstack/react-router";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
-import { useLayoutEffect } from "react";
+import { useCallback, useLayoutEffect } from "react";
 import { env } from "@/env";
 import { orpc } from "@/utils/orpc";
 import { useApproveShareScope } from "../../hooks/use-approve-share-scope";
@@ -52,15 +52,18 @@ export default function ProjectLinkSharingView({
   });
   const issued = useSelector(display, (state) => state.issued);
 
-  function resetDisplay() {
+  const resetDisplay = useCallback(() => {
     display.setState((state) => ({
       issued: null,
       latestOperation: state.latestOperation + 1,
       revokedSurfaceIds: new Set(),
     }));
-  }
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Clean up the previous display before paint and on unmount.
-  useLayoutEffect(() => resetDisplay, [display, accountId, projectId, rootKey]);
+  }, [display]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Account, Project, and root changes end the display session.
+  useLayoutEffect(
+    () => resetDisplay,
+    [resetDisplay, accountId, projectId, rootKey],
+  );
 
   function isCurrent(operation: number, surfaceId: string) {
     const state = display.get();
