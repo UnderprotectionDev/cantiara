@@ -979,8 +979,7 @@ test("shows Completion Effects feedback for a bulk Completed close", async ({
     await expect(effect).toBeVisible();
 
     await bulkRefreshGate.started;
-    await bulkEdit.getByRole("button", { name: "Cancel", exact: true }).click();
-    await expect(finalizing).toBeVisible();
+    await expect(finalizing).toBeDisabled();
   } finally {
     activeRefreshGate = null;
     bulkRefreshGate.release();
