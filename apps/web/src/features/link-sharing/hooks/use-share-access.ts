@@ -3,15 +3,20 @@ import type {
   ReshareExpiredLinkInput,
   SetShareExpiryInput,
   ShareRoot,
+  ShareScopePreview,
 } from "@cantiara/api/link-sharing";
 import { hashKey, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { client, orpc } from "@/utils/orpc";
-import type { IssuedShareLink } from "../lib/share-access";
+import type { ShareTokenDisplay } from "../lib/share-access";
 
 interface ShareTarget {
   root: ShareRoot;
   surfaceId: string;
+}
+
+function previewKey(root: ShareRoot) {
+  return orpc.previewShareScope.queryKey({ input: { root } });
 }
 
 interface ShareWriteState {
@@ -30,8 +35,7 @@ export type ShareRotationFeedback = ShareWriteState;
 export function useShareAccess(
   root: ShareRoot | null,
   currentSurfaceId: string | undefined,
-  issueLink: (link: IssuedShareLink) => void,
-  onRevoked: () => void,
+  display: ShareTokenDisplay,
 ) {
   const queryClient = useQueryClient();
   const reshareAttempt = useRef<{ fingerprint: string; id: string } | null>(
@@ -48,9 +52,7 @@ export function useShareAccess(
 
   function refreshPreview(_: unknown, __: unknown, input: ShareTarget) {
     return queryClient.invalidateQueries({
-      queryKey: orpc.previewShareScope.queryKey({
-        input: { root: input.root },
-      }),
+      queryKey: previewKey(input.root),
     });
   }
 
@@ -66,13 +68,13 @@ export function useShareAccess(
     mutationKey: orpc.reshareShareLink.mutationKey(),
     meta: { onlineWrite: true },
     mutationFn: async ({
+      displayOperation,
       root: _,
       ...input
-    }: ShareTarget & ReshareExpiredLinkInput) => {
+    }: ShareTarget &
+      ReshareExpiredLinkInput & { displayOperation: number }) => {
       const { accessToken, ...shared } = await client.reshareShareLink(input);
-      if (accessToken) {
-        issueLink({ surfaceId: shared.surfaceId, token: accessToken });
-      }
+      display.receive(displayOperation, shared.surfaceId, accessToken);
       return shared;
     },
     onSuccess: (_, input) => {
@@ -86,19 +88,48 @@ export function useShareAccess(
   const revoke = useMutation({
     mutationKey: orpc.revokeShareLink.mutationKey(),
     meta: { onlineWrite: true },
-    mutationFn: ({ surfaceId }: ShareTarget) =>
-      client.revokeShareLink({ surfaceId }),
-    onSuccess: onRevoked,
-    onSettled: refreshPreview,
+    mutationFn: async ({ root: revokedRoot, surfaceId }: ShareTarget) => {
+      const result = await client.revokeShareLink({ surfaceId });
+      display.revoke(surfaceId);
+      // Clear the revoked surface and its approval scope before the fresh read.
+      const queryKey = previewKey(revokedRoot);
+      const preview = queryClient.getQueryData<ShareScopePreview>(queryKey);
+      if (preview?.surface?.surfaceId === surfaceId) {
+        await queryClient.resetQueries({ exact: true, queryKey });
+      } else {
+        await queryClient.invalidateQueries({ queryKey });
+      }
+      return result;
+    },
+    onError: (_, input) =>
+      queryClient.invalidateQueries({ queryKey: previewKey(input.root) }),
   });
 
   const rotate = useMutation({
     mutationKey: orpc.rotateShareToken.mutationKey(),
     meta: { onlineWrite: true },
-    mutationFn: async ({ surfaceId }: ShareTarget) => {
+    mutationFn: async ({
+      displayOperation,
+      root: rotatedRoot,
+      surfaceId,
+    }: ShareTarget & { displayOperation: number }) => {
+      const queryKey = previewKey(rotatedRoot);
+      const targetsCurrentPreview = () =>
+        queryClient.getQueryData<ShareScopePreview>(queryKey)?.surface
+          ?.surfaceId === surfaceId;
+      // A global Retry can still reference a failed mutation after a newer write.
+      if (
+        !(
+          display.isCurrent(displayOperation, surfaceId) &&
+          targetsCurrentPreview()
+        )
+      ) {
+        throw new Error("The previous rotation is no longer current.");
+      }
       const { token, ...access } = await client.rotateShareToken({ surfaceId });
-      if (token) {
-        issueLink({ surfaceId: access.surfaceId, token });
+      // Revoke can complete from a previous display while this write is pending.
+      if (targetsCurrentPreview()) {
+        display.receive(displayOperation, access.surfaceId, token);
       }
       return access;
     },
@@ -194,11 +225,16 @@ export function useShareAccess(
       }
       return await reshare.mutateAsync({
         ...input,
+        displayOperation: display.beginIssuance(),
         newSurfaceId: reshareAttempt.current.id,
       });
     },
     revoke: async () => revoke.mutateAsync(target()),
-    rotateToken: async () => rotate.mutateAsync(target()),
+    rotateToken: async () =>
+      rotate.mutateAsync({
+        ...target(),
+        displayOperation: display.beginIssuance(),
+      }),
     setExpiry: async (expiresAt: string | null) =>
       expiry.mutateAsync({ ...target(), expiresAt }),
     setPassword: async (value: string | null) => {

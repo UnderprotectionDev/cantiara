@@ -87,22 +87,22 @@ export function LinkSharingView({
           {previewError ? (
             <p role="alert">The scope preview is unavailable.</p>
           ) : null}
+          {notice ? <p role="status">{notice}</p> : null}
           {preview ? (
             <>
               <ShareScopeStatus formatting={formatting} preview={preview} />
-              {notice ? <p role="status">{notice}</p> : null}
               {preview.surface ? (
                 <>
                   {preview.surface.state === "Active" ? (
                     <ShareAccessPanel
                       {...access}
-                      key={preview.surface.surfaceId}
+                      key={`access:${preview.surface.surfaceId}`}
                       passwordProtected={preview.surface.passwordProtected}
                     />
                   ) : null}
                   <ShareLifecyclePanel
                     {...lifecycle}
-                    key={preview.surface.surfaceId}
+                    key={`lifecycle:${preview.surface.surfaceId}`}
                     surface={preview.surface}
                     timeZone={formatting.timeZone}
                   />

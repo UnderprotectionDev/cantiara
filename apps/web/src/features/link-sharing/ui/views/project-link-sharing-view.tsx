@@ -4,13 +4,18 @@ import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { ShareRoot } from "@cantiara/api/link-sharing";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRouteContext } from "@tanstack/react-router";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useCallback, useLayoutEffect } from "react";
 import { env } from "@/env";
 import { orpc } from "@/utils/orpc";
 import { useApproveShareScope } from "../../hooks/use-approve-share-scope";
 import { useShareAccess } from "../../hooks/use-share-access";
-import type { IssuedShareLink } from "../../lib/share-access";
-import { LinkSharingView } from "../views/link-sharing-view";
+import type {
+  IssuedShareLink,
+  ShareTokenDisplay,
+} from "../../lib/share-access";
+import { LinkSharingView } from "./link-sharing-view";
 
 function rootOf(key: string, roots: readonly ShareRoot[]): ShareRoot | null {
   const root = roots.find((record) => `${record.kind}:${record.id}` === key);
@@ -21,34 +26,95 @@ function rootOf(key: string, roots: readonly ShareRoot[]): ShareRoot | null {
  * Loads the Project's shareable main records and the exact closed-world
  * preview of the chosen one, and approves the founder's selection.
  */
-interface LinkSharingSurfaceProps {
+interface ProjectLinkSharingViewProps {
   onSelectRoot: (key: string) => void;
   projectId: string;
   selectedKey?: string;
 }
 
-export default function LinkSharingSurface({
+export default function ProjectLinkSharingView({
   projectId,
   selectedKey = "",
   onSelectRoot,
-}: LinkSharingSurfaceProps) {
+}: ProjectLinkSharingViewProps) {
+  const { session } = useRouteContext({ from: "/_auth" });
+  const accountId = session.data.user.id;
   const roots = useQuery(
     orpc.shareRoots.queryOptions({ input: { projectId } }),
   );
   const preferences = useQuery(orpc.accountPreferences.queryOptions());
-  const [issued, setIssued] = useState<IssuedShareLink | null>(null);
-  const approve = useApproveShareScope(setIssued);
-  const root = rootOf(selectedKey, roots.data ?? []);
+  const root = roots.isError ? null : rootOf(selectedKey, roots.data ?? []);
+  const rootKey = root && selectedKey;
+  const display = useCreateStore({
+    issued: null as IssuedShareLink | null,
+    latestOperation: 0,
+    revokedSurfaceIds: new Set<string>(),
+  });
+  const issued = useSelector(display, (state) => state.issued);
+
+  const resetDisplay = useCallback(() => {
+    display.setState((state) => ({
+      issued: null,
+      latestOperation: state.latestOperation + 1,
+      revokedSurfaceIds: new Set(),
+    }));
+  }, [display]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Account, Project, and root changes end the display session.
+  useLayoutEffect(
+    () => resetDisplay,
+    [resetDisplay, accountId, projectId, rootKey],
+  );
+
+  function isCurrent(operation: number, surfaceId: string) {
+    const state = display.get();
+    return (
+      state.latestOperation === operation &&
+      !state.revokedSurfaceIds.has(surfaceId)
+    );
+  }
+
+  const tokenDisplay: ShareTokenDisplay = {
+    beginIssuance: () => {
+      const latestOperation = display.get().latestOperation + 1;
+      display.setState((state) => ({ ...state, latestOperation }));
+      return latestOperation;
+    },
+    isCurrent,
+    receive: (operation, surfaceId, token) => {
+      if (isCurrent(operation, surfaceId)) {
+        display.setState((state) => ({
+          ...state,
+          issued: token ? { surfaceId, token } : null,
+        }));
+      }
+    },
+    revoke: (surfaceId) => {
+      display.setState((state) => ({
+        ...state,
+        issued: state.issued?.surfaceId === surfaceId ? null : state.issued,
+        revokedSurfaceIds: new Set([...state.revokedSurfaceIds, surfaceId]),
+      }));
+    },
+  };
+  const approve = useApproveShareScope(tokenDisplay);
   const preview = useQuery({
     ...orpc.previewShareScope.queryOptions({
       input: { root: root ?? { id: "", kind: "Document" } },
     }),
     enabled: root !== null,
   });
-  const surfaceId = preview.data?.surface?.surfaceId;
-  const access = useShareAccess(root, surfaceId, setIssued, () =>
-    setIssued(null),
+  const previewSurfaceId = preview.data?.surface?.surfaceId;
+  useLayoutEffect(
+    () => () => {
+      display.setState((state) =>
+        state.issued && state.issued.surfaceId === previewSurfaceId
+          ? { ...state, issued: null }
+          : state,
+      );
+    },
+    [display, previewSurfaceId],
   );
+  const access = useShareAccess(root, previewSurfaceId, tokenDisplay);
   const revoked =
     access.lifecycleFeedback?.action === "revoke" &&
     access.lifecycleFeedback.status === "success";
@@ -76,7 +142,7 @@ export default function LinkSharingSurface({
     <LinkSharingView
       access={{
         issuedToken:
-          issued && issued.surfaceId === surfaceId ? issued.token : null,
+          issued && issued.surfaceId === previewSurfaceId ? issued.token : null,
         onRemovePassword: () => access.setPassword(null),
         onRotate: access.rotateToken,
         onSavePassword: (password) => access.setPassword(password),
@@ -110,6 +176,9 @@ export default function LinkSharingSurface({
       }}
       onSelectRoot={(key) => {
         access.resetFeedback();
+        if (key !== selectedKey) {
+          resetDisplay();
+        }
         onSelectRoot(key);
       }}
       preview={preview.data}

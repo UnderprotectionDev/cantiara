@@ -42,6 +42,7 @@ import { masterRecordElementId } from "@/features/feedback/lib/master-record-ele
 import FeedSurface from "@/features/feedback/ui/components/feed-surface";
 import FeedbackSurface from "@/features/feedback/ui/components/feedback-surface";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
+import ProjectLinkSharingView from "@/features/link-sharing/ui/views/project-link-sharing-view";
 import PlannedTestsSurface from "@/features/planned-tests/ui/components/planned-tests-surface";
 import PrioritizationSurface from "@/features/prioritization-sessions/ui/components/prioritization-surface";
 import { ProjectGoalsRoute } from "@/features/project-goals/ui/components/project-goals-surface";
@@ -218,7 +219,7 @@ function trashSurface(activeHash: string, trashArea?: ReactNode) {
   ) : null;
 }
 
-/** The route composes `Share`, so the shell never imports its `ui/`. */
+/** The route composes `Shares and Publications`. */
 function sharesAndPublicationsSurface(
   activeHash: string,
   sharesAndPublicationsArea?: ReactNode,
@@ -229,10 +230,28 @@ function sharesAndPublicationsSurface(
   ) : null;
 }
 
-function shareSurface(activeHash: string, linkSharingArea?: ReactNode) {
-  return linkSharingArea && activeHash === SHARE_HASH ? (
-    <div id={SHARE_HASH}>{linkSharingArea}</div>
-  ) : null;
+function ProjectShareSurface({ projectId }: { projectId: string }) {
+  const selectedKey = useSearch({
+    from: "/_auth/projects/$projectId/",
+    select: (search) => search.shareRoot,
+  });
+  const navigate = useNavigate();
+
+  return (
+    <div id={SHARE_HASH}>
+      <ProjectLinkSharingView
+        onSelectRoot={(key) => {
+          navigate({
+            hash: true,
+            search: (current) => ({ ...current, shareRoot: key || undefined }),
+            to: ".",
+          }).catch(() => undefined);
+        }}
+        projectId={projectId}
+        selectedKey={selectedKey}
+      />
+    </div>
+  );
 }
 
 /** The route composes `Project Updates`, so the shell never imports its `ui/`. */
@@ -541,7 +560,6 @@ function ProjectShellContent({
   project,
   projectHistoryArea,
   projectUpdatesArea,
-  linkSharingArea,
   trashArea,
   sharesAndPublicationsArea,
   productionArea,
@@ -560,7 +578,6 @@ function ProjectShellContent({
   project: ProjectProfile;
   projectHistoryArea?: ReactNode;
   projectUpdatesArea?: ReactNode;
-  linkSharingArea?: ReactNode;
   trashArea?: ReactNode;
   sharesAndPublicationsArea?: ReactNode;
   projectId: string;
@@ -698,7 +715,9 @@ function ProjectShellContent({
     ) ??
     projectHistorySurface(activeHash, projectHistoryArea) ??
     projectUpdatesSurface(activeHash, projectUpdatesArea) ??
-    shareSurface(activeHash, linkSharingArea) ??
+    (activeHash === SHARE_HASH ? (
+      <ProjectShareSurface key={projectId} projectId={projectId} />
+    ) : null) ??
     trashSurface(activeHash, trashArea) ??
     sharesAndPublicationsSurface(activeHash, sharesAndPublicationsArea) ??
     projectProductionSurface(

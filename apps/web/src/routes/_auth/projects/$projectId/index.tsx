@@ -7,7 +7,6 @@ import { useCallback } from "react";
 import { z } from "zod";
 import SharesAndPublicationsSurface from "@/features/external-surface-management/ui/components/shares-and-publications-surface";
 import GitHubIntegrationSurface from "@/features/github-integration/ui/components/github-integration-surface";
-import LinkSharingSurface from "@/features/link-sharing/ui/components/link-sharing-surface";
 import ProductionIncidentsView from "@/features/production-incidents/ui/views/production-incidents-view";
 import ClosureSummarySurface from "@/features/project-closure-summary/ui/components/closure-summary-surface";
 import { projectActivityFiltersSchema } from "@/features/project-history/lib/project-activity-filters";
@@ -84,17 +83,6 @@ export const Route = createFileRoute("/_auth/projects/$projectId/")({
 
 function RouteComponent() {
   const { projectId } = Route.useParams();
-  const shareRoot = Route.useSearch({ select: (search) => search.shareRoot });
-  const navigate = Route.useNavigate();
-  const selectShareRoot = useCallback(
-    (key: string) => {
-      navigate({
-        hash: true,
-        search: (current) => ({ ...current, shareRoot: key || undefined }),
-      }).catch(() => undefined);
-    },
-    [navigate],
-  );
   const { session } = Route.useRouteContext();
   const releaseEvidenceArea = useCallback(
     (releaseId: string) => (
@@ -133,14 +121,6 @@ function RouteComponent() {
       }
       githubArea={
         <GitHubIntegrationSurface key={projectId} projectId={projectId} />
-      }
-      linkSharingArea={
-        <LinkSharingSurface
-          key={projectId}
-          onSelectRoot={selectShareRoot}
-          projectId={projectId}
-          selectedKey={shareRoot}
-        />
       }
       productionArea={ProductionIncidentsView}
       projectHistoryArea={
