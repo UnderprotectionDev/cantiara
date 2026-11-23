@@ -15,8 +15,8 @@ import {
 import {
   VirtualList,
   type VirtualRowProps,
-  virtualRowId,
 } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import type { ReactNode } from "react";
 import type { ScreenTemplateActions } from "../../lib/screen-template-actions";

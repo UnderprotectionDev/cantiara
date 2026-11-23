@@ -54,8 +54,8 @@ test("tours the same changes on the live Roadmap and restores viewport and keybo
     .getByRole("link", { name: "Roadmap", exact: true })
     .click();
   await page
-    .locator("#roadmap details > summary")
-    .filter({ hasText: "Unplanned candidates" })
+    .locator("#roadmap")
+    .getByRole("button", { name: "Unplanned candidates" })
     .click();
   const work = page
     .locator("#roadmap article")

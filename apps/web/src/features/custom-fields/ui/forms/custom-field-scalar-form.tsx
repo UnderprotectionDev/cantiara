@@ -5,7 +5,7 @@ import {
   type ParsedCustomFieldValuePayload,
 } from "@cantiara/api/custom-fields";
 import { Input } from "@cantiara/ui/components/input";
-import { useRetainVirtualRow } from "@cantiara/ui/components/virtual-list";
+import { useRetainVirtualRow } from "@cantiara/ui/hooks/use-retain-virtual-row";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useEffect } from "react";
 import { mutationErrorMessage } from "@/lib/mutation-messages";

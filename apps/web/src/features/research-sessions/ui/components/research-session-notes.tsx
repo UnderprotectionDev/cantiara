@@ -8,10 +8,8 @@ import {
   researchSessionNoteInputSchema,
 } from "@cantiara/api/research-sessions";
 import { Button } from "@cantiara/ui/components/button";
-import {
-  VirtualList,
-  virtualRowId,
-} from "@cantiara/ui/components/virtual-list";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppLink } from "@/components/app-link";

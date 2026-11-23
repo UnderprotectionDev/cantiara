@@ -11,10 +11,8 @@ import {
 } from "@cantiara/api/security-redaction";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
-import {
-  VirtualList,
-  virtualRowId,
-} from "@cantiara/ui/components/virtual-list";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useForm } from "@tanstack/react-form";
 import { type SubmitEvent, useEffect, useRef } from "react";
 

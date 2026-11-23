@@ -9,8 +9,8 @@ import type { ProjectArea } from "@cantiara/api/project-shell";
 import {
   VirtualList,
   type VirtualRowProps,
-  virtualRowId,
 } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useLinkProps } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 import { AppLink } from "@/components/app-link";

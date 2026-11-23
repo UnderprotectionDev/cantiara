@@ -16,11 +16,9 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import {
-  useRetainVirtualRow,
-  VirtualList,
-  virtualRowId,
-} from "@cantiara/ui/components/virtual-list";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { useRetainVirtualRow } from "@cantiara/ui/hooks/use-retain-virtual-row";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   type ColumnDef,

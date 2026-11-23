@@ -2,10 +2,8 @@ import {
   type DocumentEvidenceForTarget,
   groupEvidenceByRole,
 } from "@cantiara/api/document-evidence";
-import {
-  VirtualList,
-  virtualRowId,
-} from "@cantiara/ui/components/virtual-list";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 
 /** Target-side surface: groups by stored Evidence Role; each count opens its exact accessible set. */
 export default function EvidenceRoleGroups({

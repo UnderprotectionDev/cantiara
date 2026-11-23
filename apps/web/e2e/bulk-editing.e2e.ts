@@ -301,13 +301,24 @@ test("shows virtualized results for a large Work selection", async ({
     .click();
   await openWorkRecordFromKanbanList(page);
 
-  const workRows = page.locator('ul[aria-label="Work list"] > li');
-  await expect(workRows).toHaveCount(setup.workCount, { timeout: 30_000 });
-  const workCheckboxes = await workRows.getByRole("checkbox").all();
-  await workCheckboxes.reduce(
-    (previousCheck, checkbox) => previousCheck.then(() => checkbox.check()),
-    Promise.resolve(),
+  const workList = page.getByRole("list", {
+    name: WORK_LIST_NAME,
+    exact: true,
+  });
+  const workRowAt = (position: number) =>
+    workList.locator(`:scope > li[aria-posinset="${position}"]`);
+  await expect(workRowAt(1)).toHaveAttribute(
+    "aria-setsize",
+    String(setup.workCount),
   );
+  expect(await workList.locator(":scope > li").count()).toBeLessThan(
+    setup.workCount,
+  );
+  // Each action scrolls its row into view, mounting the next rows in order.
+  for (let position = 1; position <= setup.workCount; position += 1) {
+    // biome-ignore lint/performance/noAwaitInLoops: Checking this row mounts the next window.
+    await workRowAt(position).getByRole("checkbox").check();
+  }
   await expect(
     page.getByText(`${setup.workCount} selected`, { exact: true }),
   ).toBeVisible();

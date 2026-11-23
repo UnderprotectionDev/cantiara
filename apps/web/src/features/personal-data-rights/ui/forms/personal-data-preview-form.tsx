@@ -13,10 +13,8 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from "@cantiara/ui/components/radio-group";
-import {
-  VirtualList,
-  virtualRowId,
-} from "@cantiara/ui/components/virtual-list";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useForm } from "@tanstack/react-form";
 import { type SubmitEvent, useEffect, useMemo, useRef } from "react";
 

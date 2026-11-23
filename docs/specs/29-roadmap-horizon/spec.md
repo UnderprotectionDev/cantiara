@@ -57,7 +57,7 @@ Roadmap ufuk ve görünüm gruplarını anlatı olarak sunar. `Now`, `Next` veya
 
 ## Testing Decisions
 
-- **Growing lists (#551).** `roadmap-results.test.tsx` verifies that `Unplanned candidates` mounts on disclosure and exposes its record actions when opened.
+- **Growing lists (#551).** `roadmap-results.test.tsx` verifies that `Unplanned candidates` mounts on disclosure and exposes its record actions when opened. `apps/web/e2e/roadmap-horizon.e2e.ts` and `apps/web/e2e/return-visual-tour.e2e.ts` open it by its accessible button name before using `Place on plan`.
 
 - **Client state ownership (#547).** The Project URL carries the selected Roadmap view. Presentation remains view-local. The Return to Work adapter becomes ready after the first successful viewport placement. If the initial fit and fallback both fail, Fit View can retry placement. The Roadmap canvas and Return to Work visual tour seams cover projection, placement retry, and restore.
 

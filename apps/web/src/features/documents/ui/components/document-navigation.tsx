@@ -1,10 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Record windows bind identity to the row model for this surface.
 import type { Document } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
-import {
-  VirtualList,
-  virtualRowId,
-} from "@cantiara/ui/components/virtual-list";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { type MouseEvent, useCallback, useMemo } from "react";
 
 import {

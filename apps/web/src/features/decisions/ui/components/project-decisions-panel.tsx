@@ -7,10 +7,8 @@ import {
 import type { DecisionSupersessionGraph } from "@cantiara/api/decision-supersession";
 import type { ProjectSourceRecord } from "@cantiara/api/project-source-records";
 import { Button } from "@cantiara/ui/components/button";
-import {
-  VirtualList,
-  virtualRowId,
-} from "@cantiara/ui/components/virtual-list";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { type ReactNode, useLayoutEffect } from "react";
 import { AppLink } from "@/components/app-link";

@@ -11,6 +11,7 @@ import {
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
 import { Input } from "@cantiara/ui/components/input";
+import { useRetainVirtualRow } from "@cantiara/ui/hooks/use-retain-virtual-row";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useCreateStore } from "@tanstack/react-store";
 import { Check, LockKeyhole, Pencil, Save } from "lucide-react";
@@ -20,10 +21,8 @@ import { submitForm } from "@/lib/submit-form";
 import { useProjectShortCode } from "../../hooks/use-project-short-code";
 
 export default function ProjectShortCodeForm({
-  onEditingChange,
   project,
 }: {
-  onEditingChange?: (id: string, editing: boolean) => void;
   project: ProjectProfile;
 }) {
   const editor = useCreateStore(false);
@@ -83,10 +82,7 @@ export default function ProjectShortCodeForm({
     editor.setState(() => open);
   }
   const editing = isEditing && !isSuccess;
-  useEffect(
-    () => onEditingChange?.(project.id, editing),
-    [editing, onEditingChange, project.id],
-  );
+  useRetainVirtualRow(editing);
 
   return (
     <Collapsible onOpenChange={changeOpen} open={editing}>

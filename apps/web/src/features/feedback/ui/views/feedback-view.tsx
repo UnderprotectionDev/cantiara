@@ -14,8 +14,8 @@ import {
   VirtualList,
   type VirtualListReveal,
   type VirtualRowProps,
-  virtualRowId,
 } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import {
   type ConfirmConvert,
   ConvertToWorkDialog,

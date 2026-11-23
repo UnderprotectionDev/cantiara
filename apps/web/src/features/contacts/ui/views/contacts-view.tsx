@@ -15,8 +15,8 @@ import {
 import {
   VirtualList,
   type VirtualRowProps,
-  virtualRowId,
 } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useCreateStore, useSelector } from "@tanstack/react-store";

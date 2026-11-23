@@ -4,10 +4,8 @@ import {
 } from "@cantiara/api/account-preferences";
 import { decisionChain } from "@cantiara/api/decision-chain";
 import type { DecisionSupersessionGraph } from "@cantiara/api/decision-supersession";
-import {
-  VirtualList,
-  virtualRowId,
-} from "@cantiara/ui/components/virtual-list";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { AppLink } from "@/components/app-link";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 

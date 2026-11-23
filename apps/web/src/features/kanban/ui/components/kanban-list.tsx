@@ -1,10 +1,8 @@
 import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
-import {
-  VirtualList,
-  virtualRowId,
-} from "@cantiara/ui/components/virtual-list";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { getWorkStatusLabel } from "@/components/work-status-form";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
 import { KanbanCardSummary } from "./kanban-board";

@@ -14,8 +14,9 @@ import {
 } from "@cantiara/ui/components/native-select";
 import {
   VirtualList,
-  virtualRowId,
+  type VirtualRowProps,
 } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useSyncExternalStore } from "react";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ import { commandVariables } from "@/lib/command-variables";
 import { captureInboxQueryOptions, client, orpc } from "@/utils/orpc";
 
 import {
+  type BulkSenseMakingColumn,
   type BulkSenseMakingDraft,
   bulkSenseMakingColumns,
   captureCountLabel,
@@ -229,126 +231,151 @@ export default function BulkSenseMakingView({
           rows={columns}
         >
           {(column, columnProps) => (
-            <section
-              {...columnProps}
-              aria-label={column.label}
-              className="min-w-72 border border-border/70 bg-background"
-            >
-              <header className="flex items-start justify-between gap-3 border-b bg-muted/25 px-3 py-3">
-                <div className="min-w-0">
-                  <h3 className="truncate text-sm font-semibold">
-                    {column.label}
-                  </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {captureCountLabel(column.items.length)}
-                  </p>
-                </div>
-                {column.clusterId ? (
-                  <div className="flex shrink-0 gap-1">
-                    <Button
-                      aria-label={`Move ${column.label} left`}
-                      disabled={!isOnline || saveLayout.isPending}
-                      onClick={() =>
-                        moveCluster(column.clusterId as string, -1)
-                      }
-                      type="button"
-                      variant="ghost"
-                    >
-                      Move left
-                    </Button>
-                    <Button
-                      aria-label={`Move ${column.label} right`}
-                      disabled={!isOnline || saveLayout.isPending}
-                      onClick={() => moveCluster(column.clusterId as string, 1)}
-                      type="button"
-                      variant="ghost"
-                    >
-                      Move right
-                    </Button>
-                  </div>
-                ) : null}
-              </header>
-              <VirtualList
-                className="divide-y"
-                estimateSize={132}
-                gap={0}
-                getKey={virtualRowId}
-                rows={column.items}
-              >
-                {(item, rowProps) => {
-                  const itemPlacement = layout.placements.find(
-                    (placement) => placement.itemId === item.id,
-                  );
-                  return (
-                    <li className="space-y-3 p-3" {...rowProps}>
-                      <div className="flex items-center justify-between gap-2">
-                        {item.template ? (
-                          <span className="text-xs font-medium">
-                            {item.template}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Capture
-                          </span>
-                        )}
-                        <NativeSelect
-                          aria-label={`Place ${item.id}`}
-                          disabled={!isOnline || saveLayout.isPending}
-                          onChange={(event) =>
-                            placeItem(item.id, event.target.value || null)
-                          }
-                          value={itemPlacement?.clusterId ?? ""}
-                        >
-                          <NativeSelectOption value="">
-                            Ungrouped
-                          </NativeSelectOption>
-                          {layout.clusters
-                            .slice()
-                            .sort(
-                              (left, right) =>
-                                left.position - right.position ||
-                                left.id.localeCompare(right.id),
-                            )
-                            .map((cluster) => (
-                              <NativeSelectOption
-                                key={cluster.id}
-                                value={cluster.id}
-                              >
-                                {cluster.name}
-                              </NativeSelectOption>
-                            ))}
-                        </NativeSelect>
-                      </div>
-                      {item.content ? (
-                        <p className="text-sm/6 whitespace-pre-wrap">
-                          {item.content}
-                        </p>
-                      ) : null}
-                      {Object.entries(item.fields).length > 0 ? (
-                        <dl className="space-y-2 text-xs">
-                          {Object.entries(item.fields).map(([label, value]) => (
-                            <div key={label}>
-                              <dt className="text-muted-foreground">{label}</dt>
-                              <dd className="whitespace-pre-wrap">{value}</dd>
-                            </div>
-                          ))}
-                        </dl>
-                      ) : null}
-                      <CaptureInboxItemActions
-                        accountId={accountId}
-                        formattingPreferences={formattingPreferences}
-                        item={item}
-                        onUndoPreview={onUndoPreview}
-                        triageAvailable={triageAvailable}
-                      />
-                    </li>
-                  );
-                }}
-              </VirtualList>
-            </section>
+            <BulkSenseMakingColumnView
+              accountId={accountId}
+              column={column}
+              disabled={!isOnline || saveLayout.isPending}
+              formattingPreferences={formattingPreferences}
+              layout={layout}
+              moveCluster={moveCluster}
+              onUndoPreview={onUndoPreview}
+              placeItem={placeItem}
+              rowProps={columnProps}
+              triageAvailable={triageAvailable}
+            />
           )}
         </VirtualList>
       </div>
+    </section>
+  );
+}
+
+function BulkSenseMakingColumnView({
+  accountId,
+  column,
+  disabled,
+  formattingPreferences,
+  layout,
+  moveCluster,
+  onUndoPreview,
+  placeItem,
+  rowProps,
+  triageAvailable,
+}: {
+  accountId: string;
+  column: BulkSenseMakingColumn;
+  disabled: boolean;
+  formattingPreferences: AccountPreferences;
+  layout: BulkSenseMakingDraft;
+  moveCluster: (clusterId: string, direction: -1 | 1) => void;
+  onUndoPreview: (mergeId: string) => void;
+  placeItem: (itemId: string, clusterId: string | null) => void;
+  rowProps: VirtualRowProps;
+  triageAvailable: boolean;
+}) {
+  const { clusterId } = column;
+  return (
+    <section
+      {...rowProps}
+      aria-label={column.label}
+      className="min-w-72 border border-border/70 bg-background"
+    >
+      <header className="flex items-start justify-between gap-3 border-b bg-muted/25 px-3 py-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-semibold">{column.label}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {captureCountLabel(column.items.length)}
+          </p>
+        </div>
+        {clusterId ? (
+          <div className="flex shrink-0 gap-1">
+            <Button
+              aria-label={`Move ${column.label} left`}
+              disabled={disabled}
+              onClick={() => moveCluster(clusterId, -1)}
+              type="button"
+              variant="ghost"
+            >
+              Move left
+            </Button>
+            <Button
+              aria-label={`Move ${column.label} right`}
+              disabled={disabled}
+              onClick={() => moveCluster(clusterId, 1)}
+              type="button"
+              variant="ghost"
+            >
+              Move right
+            </Button>
+          </div>
+        ) : null}
+      </header>
+      <VirtualList
+        className="divide-y"
+        estimateSize={132}
+        gap={0}
+        getKey={virtualRowId}
+        rows={column.items}
+      >
+        {(item, itemProps) => {
+          const itemPlacement = layout.placements.find(
+            (placement) => placement.itemId === item.id,
+          );
+          return (
+            <li className="space-y-3 p-3" {...itemProps}>
+              <div className="flex items-center justify-between gap-2">
+                {item.template ? (
+                  <span className="text-xs font-medium">{item.template}</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Capture</span>
+                )}
+                <NativeSelect
+                  aria-label={`Place ${item.id}`}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    placeItem(item.id, event.target.value || null)
+                  }
+                  value={itemPlacement?.clusterId ?? ""}
+                >
+                  <NativeSelectOption value="">Ungrouped</NativeSelectOption>
+                  {layout.clusters
+                    .slice()
+                    .sort(
+                      (left, right) =>
+                        left.position - right.position ||
+                        left.id.localeCompare(right.id),
+                    )
+                    .map((cluster) => (
+                      <NativeSelectOption key={cluster.id} value={cluster.id}>
+                        {cluster.name}
+                      </NativeSelectOption>
+                    ))}
+                </NativeSelect>
+              </div>
+              {item.content ? (
+                <p className="text-sm/6 whitespace-pre-wrap">{item.content}</p>
+              ) : null}
+              {Object.entries(item.fields).length > 0 ? (
+                <dl className="space-y-2 text-xs">
+                  {Object.entries(item.fields).map(([label, value]) => (
+                    <div key={label}>
+                      <dt className="text-muted-foreground">{label}</dt>
+                      <dd className="whitespace-pre-wrap">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+              <CaptureInboxItemActions
+                accountId={accountId}
+                formattingPreferences={formattingPreferences}
+                item={item}
+                onUndoPreview={onUndoPreview}
+                triageAvailable={triageAvailable}
+              />
+            </li>
+          );
+        }}
+      </VirtualList>
     </section>
   );
 }

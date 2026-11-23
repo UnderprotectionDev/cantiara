@@ -6,8 +6,8 @@ import type { SmartLinkPreview } from "@cantiara/api/smart-link-preview";
 import {
   VirtualList,
   type VirtualListReveal,
-  virtualRowId,
 } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { env } from "@/env";

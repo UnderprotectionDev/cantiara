@@ -13,8 +13,8 @@ import {
 import {
   VirtualList,
   type VirtualRowProps,
-  virtualRowId,
 } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { pointerIntersection } from "@dnd-kit/collision";
 import {
   DragDropProvider,

@@ -161,9 +161,6 @@ function OutlineItem({
   const { onChange, state } = props;
   const label = describe(node);
   const selected = state.selection.includes(node.id);
-  const sections = state.document.nodes.filter(
-    ({ kind }) => kind === "Section",
-  );
   const reference =
     node.screenId === null ? null : (props.screens.get(node.screenId) ?? null);
   return (
@@ -245,41 +242,56 @@ function OutlineItem({
       </div>
       {reference ? <ScreenReference reference={reference} /> : null}
       <div id={`user-flow-inspect-${node.id}`}>
-        {inspected ? (
-          <div className="space-y-2">
-            <Inspector node={node} state={state} />
-            {node.kind === "Section" ? null : (
-              <NativeSelect
-                aria-label={`Section of ${label}`}
-                onChange={(event) => {
-                  const value = event.target.value || null;
-                  onChange((current) =>
-                    assignSelectionToSection(
-                      select(current, [node.id], "replace"),
-                      value,
-                    ),
-                  );
-                }}
-                value={node.sectionId ?? ""}
-              >
-                <NativeSelectOption value="">Ungrouped</NativeSelectOption>
-                {sections.map((section) => (
-                  <NativeSelectOption key={section.id} value={section.id}>
-                    {describe(section)}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            )}
-            <BindControls
-              createId={props.createId}
-              node={node}
-              onChange={onChange}
-              state={state}
-            />
-          </div>
-        ) : null}
+        {inspected ? <OutlineItemInspector node={node} props={props} /> : null}
       </div>
     </li>
+  );
+}
+
+function OutlineItemInspector({
+  node,
+  props,
+}: {
+  node: OutlineRow["node"];
+  props: OutlineProps;
+}) {
+  const { onChange, state } = props;
+  const label = describe(node);
+  const sections = state.document.nodes.filter(
+    ({ kind }) => kind === "Section",
+  );
+  return (
+    <div className="space-y-2">
+      <Inspector node={node} state={state} />
+      {node.kind === "Section" ? null : (
+        <NativeSelect
+          aria-label={`Section of ${label}`}
+          onChange={(event) => {
+            const value = event.target.value || null;
+            onChange((current) =>
+              assignSelectionToSection(
+                select(current, [node.id], "replace"),
+                value,
+              ),
+            );
+          }}
+          value={node.sectionId ?? ""}
+        >
+          <NativeSelectOption value="">Ungrouped</NativeSelectOption>
+          {sections.map((section) => (
+            <NativeSelectOption key={section.id} value={section.id}>
+              {describe(section)}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      )}
+      <BindControls
+        createId={props.createId}
+        node={node}
+        onChange={onChange}
+        state={state}
+      />
+    </div>
   );
 }
 

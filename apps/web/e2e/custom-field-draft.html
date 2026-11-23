@@ -16,10 +16,8 @@
 
     const main = document.getElementById("main-content");
 
-    import {
-      VirtualList,
-      virtualRowId,
-    } from "@cantiara/ui/components/virtual-list";
+    import { VirtualList } from "@cantiara/ui/components/virtual-list";
+    import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
     import { CustomFieldScalarForm } from "../src/features/custom-fields/ui/forms/custom-field-scalar-form.tsx";
 
     const records = Array.from({ length: 40 }, (_, index) => ({

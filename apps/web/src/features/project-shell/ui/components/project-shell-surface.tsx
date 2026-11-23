@@ -461,57 +461,52 @@ function ProjectDiscoverySurface({
       elementId: masterRecordElementId(row),
     }));
   };
+  const isDiscoveryArea = ["discovery", "project-area-discovery"].includes(
+    activeHash,
+  );
   const assumptionSourceId =
     sourceRecordRoute?.sourceType === "Assumption"
       ? sourceRecordRoute.sourceId
       : undefined;
   const isAssumptionSurface =
-    ["discovery", "project-area-discovery"].includes(activeHash) ||
-    assumptionSourceId !== undefined;
+    isDiscoveryArea || assumptionSourceId !== undefined;
   const questionSourceId =
     sourceRecordRoute?.sourceType === "Open Question"
       ? sourceRecordRoute.sourceId
       : undefined;
-  const isQuestionSurface =
-    ["discovery", "project-area-discovery"].includes(activeHash) ||
-    questionSourceId !== undefined;
+  const isQuestionSurface = isDiscoveryArea || questionSourceId !== undefined;
   const validationSourceId =
     sourceRecordRoute?.sourceType === "Validation Record"
       ? sourceRecordRoute.sourceId
       : undefined;
   const isValidationSurface =
-    ["discovery", "project-area-discovery"].includes(activeHash) ||
-    validationSourceId !== undefined;
+    isDiscoveryArea || validationSourceId !== undefined;
   return (
     <div className="flex flex-col gap-8" id={navigationHash("Discovery")}>
-      {["discovery", "project-area-discovery"].includes(activeHash) ? (
-        <ProjectSourcesSurface
-          key={`sources:${projectId}`}
-          preferences={preferences}
-          projectId={projectId}
-          reveal={feedReveal?.kind === "Source" ? feedReveal : undefined}
-        />
-      ) : null}
-      {["discovery", "project-area-discovery"].includes(activeHash) ? (
-        <ResearchSessionsSurface
-          accountId={accountId}
-          key={`research:${projectId}`}
-          projectId={projectId}
-        />
-      ) : null}
-      {["discovery", "project-area-discovery"].includes(activeHash) ? (
-        <FeedbackSurface
-          key={`feedback:${projectId}`}
-          projectId={projectId}
-          reveal={feedReveal?.kind === "Feedback" ? feedReveal : undefined}
-        />
-      ) : null}
-      {["discovery", "project-area-discovery"].includes(activeHash) ? (
-        <FeedSurface
-          key={`feed:${projectId}`}
-          onOpen={openFeedRecord}
-          projectId={projectId}
-        />
+      {isDiscoveryArea ? (
+        <>
+          <ProjectSourcesSurface
+            key={`sources:${projectId}`}
+            preferences={preferences}
+            projectId={projectId}
+            reveal={feedReveal?.kind === "Source" ? feedReveal : undefined}
+          />
+          <ResearchSessionsSurface
+            accountId={accountId}
+            key={`research:${projectId}`}
+            projectId={projectId}
+          />
+          <FeedbackSurface
+            key={`feedback:${projectId}`}
+            projectId={projectId}
+            reveal={feedReveal?.kind === "Feedback" ? feedReveal : undefined}
+          />
+          <FeedSurface
+            key={`feed:${projectId}`}
+            onOpen={openFeedRecord}
+            projectId={projectId}
+          />
+        </>
       ) : null}
       {isValidationSurface ? (
         <ValidationRecordsSurface

@@ -5,10 +5,8 @@ import type {
   ResearchSessionRecord,
 } from "@cantiara/api/research-sessions";
 import { Button } from "@cantiara/ui/components/button";
-import {
-  VirtualList,
-  virtualRowId,
-} from "@cantiara/ui/components/virtual-list";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useState } from "react";
 import { ResearchSessionNotes } from "../components/research-session-notes";
 import type {

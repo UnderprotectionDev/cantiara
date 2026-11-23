@@ -4,10 +4,8 @@ import {
   PROJECT_UPDATE_OPEN_SOURCE_LABEL,
   type ProjectUpdate,
 } from "@cantiara/api/project-updates";
-import {
-  VirtualList,
-  virtualRowId,
-} from "@cantiara/ui/components/virtual-list";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { AppLink } from "@/components/app-link";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { projectRecordHref } from "@/features/project-history/lib/project-record-links";

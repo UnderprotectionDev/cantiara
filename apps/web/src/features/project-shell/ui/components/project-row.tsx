@@ -6,11 +6,9 @@ import { Link } from "@tanstack/react-router";
 import ProjectShortCodeForm from "../forms/project-short-code-form";
 
 export default function ProjectRow({
-  onEditingChange,
   project,
   rowProps,
 }: {
-  onEditingChange: (id: string, editing: boolean) => void;
   project: ProjectProfile;
   rowProps?: VirtualRowProps;
 }) {
@@ -43,10 +41,7 @@ export default function ProjectRow({
         ) : null}
       </div>
       <div className="border-t border-border/70 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
-        <ProjectShortCodeForm
-          onEditingChange={onEditingChange}
-          project={project}
-        />
+        <ProjectShortCodeForm project={project} />
       </div>
     </li>
   );

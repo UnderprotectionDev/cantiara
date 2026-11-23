@@ -7,8 +7,8 @@ import {
 import {
   VirtualList,
   type VirtualRowProps,
-  virtualRowId,
 } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import TestSessionImportForm, {
   type ImportTestSessionFile,
 } from "../forms/test-session-import-form";

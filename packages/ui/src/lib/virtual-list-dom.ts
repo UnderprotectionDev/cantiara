@@ -92,3 +92,5 @@ export function outsideTabStop(list: HTMLElement, reverse: boolean) {
   );
   return reverse ? stops.at(-1) : stops[0];
 }
+
+export const virtualRowId = (row: { id: string }) => row.id;

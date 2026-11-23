@@ -11,9 +11,7 @@ import {
 import {
   type ComponentPropsWithoutRef,
   type CSSProperties,
-  createContext,
   Fragment,
-  type KeyboardEvent,
   type ReactNode,
   type RefCallback,
   useCallback,
@@ -23,14 +21,10 @@ import {
   useRef,
 } from "react";
 
-import {
-  directRow,
-  isDocumentScroll,
-  nextRowTabTarget,
-  outsideTabStop,
-  rowTabStops,
-  scrollOwner,
-} from "../lib/virtual-list-dom";
+import { RowRetentionContext } from "../hooks/use-retain-virtual-row";
+import { useVirtualListGeometry } from "../hooks/use-virtual-list-geometry";
+import { useVirtualListKeyboard } from "../hooks/use-virtual-list-keyboard";
+import { isDocumentScroll } from "../lib/virtual-list-dom";
 
 const MIN_VIRTUAL_ROWS = 30;
 const OVERSCAN = 8;
@@ -43,17 +37,7 @@ export interface VirtualRowProps {
   style?: CSSProperties;
 }
 
-export const virtualRowId = (row: { id: string }) => row.id;
-
 type ListTag = "div" | "ul" | "ol" | "tbody";
-
-const RowRetentionContext = createContext<(() => () => void) | null>(null);
-
-/** Keep an active editor mounted through every virtual list that contains it. */
-export function useRetainVirtualRow(active: boolean) {
-  const retain = useContext(RowRetentionContext);
-  useLayoutEffect(() => (active ? retain?.() : undefined), [active, retain]);
-}
 
 function RetainedRow({
   children,
@@ -124,18 +108,8 @@ export function VirtualList<Row>({
   scrollToKey,
 }: VirtualListProps<Row>) {
   const listRef = useRef<HTMLElement | null>(null);
-  const viewport = useCreateStore<{
-    owner: HTMLElement;
-    margin: number;
-    inlineStart: number;
-    inlineEnd: number;
-  } | null>(null);
-  const geometry = useSelector(viewport);
-  const focusedKey = useRef<string | null>(null);
-  const keyboard = useCreateStore<{ index: number; reverse: boolean } | null>(
-    null,
-  );
-  const pendingFocus = useSelector(keyboard);
+  const { focusedKey, handleBlur, handleFocus, handleTab, pendingFocus } =
+    useVirtualListKeyboard(listRef, rows, getKey, isFocusable);
   const retention = useCreateStore<ReadonlyMap<string, number>>(
     new Map<string, number>(),
   );
@@ -181,68 +155,7 @@ export function VirtualList<Row>({
   }, []);
   const enabled = rows.length >= MIN_VIRTUAL_ROWS;
 
-  useLayoutEffect(() => {
-    if (!enabled) {
-      return;
-    }
-    const list = listRef.current;
-    const owner = list && scrollOwner(list, horizontal);
-    if (!(list && owner)) {
-      return;
-    }
-    const scrollTarget = isDocumentScroll(owner) ? window : owner;
-    function updateGeometry() {
-      if (!(list && owner)) {
-        return;
-      }
-      const rect = list.getBoundingClientRect();
-      const ownerRect = owner.getBoundingClientRect();
-      const documentOwner = isDocumentScroll(owner);
-      const margin = horizontal
-        ? rect.left +
-          owner.scrollLeft -
-          (documentOwner ? 0 : ownerRect.left + owner.clientLeft)
-        : rect.top +
-          owner.scrollTop -
-          (documentOwner ? 0 : ownerRect.top + owner.clientTop);
-      const style = getComputedStyle(list);
-      const inlineStart = Number.parseFloat(style.paddingInlineStart) || 0;
-      const inlineEnd = Number.parseFloat(style.paddingInlineEnd) || 0;
-      viewport.setState((current) =>
-        current?.margin === margin &&
-        current.owner === owner &&
-        current.inlineStart === inlineStart &&
-        current.inlineEnd === inlineEnd
-          ? current
-          : { inlineEnd, inlineStart, margin, owner },
-      );
-    }
-    const observer = new ResizeObserver(updateGeometry);
-    // Changes above the list (headers, disclosures, preceding lists) can move
-    // its origin independently of the height of the scroll viewport.
-    for (
-      let element: HTMLElement | null = list;
-      element && element !== owner;
-      element = element.parentElement
-    ) {
-      observer.observe(element);
-      for (
-        let sibling = element.previousElementSibling;
-        sibling;
-        sibling = sibling.previousElementSibling
-      ) {
-        observer.observe(sibling);
-      }
-    }
-    observer.observe(owner);
-    updateGeometry();
-    scrollTarget.addEventListener("scroll", updateGeometry, { passive: true });
-    return () => {
-      observer.disconnect();
-      scrollTarget.removeEventListener("scroll", updateGeometry);
-    };
-  }, [enabled, horizontal, viewport]);
-
+  const geometry = useVirtualListGeometry(listRef, enabled, horizontal);
   const scrollMargin = geometry?.margin ?? 0;
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -330,93 +243,15 @@ export function VirtualList<Row>({
     }
   });
 
-  useLayoutEffect(() => {
-    const list = listRef.current;
-    if (!(pendingFocus && list)) {
-      return;
-    }
-    const { index, reverse } = pendingFocus;
-    const row = list.querySelector(`:scope > [data-index="${index}"]`);
-    if (!row) {
-      return;
-    }
-    const stop = rowTabStops(row).at(reverse ? -1 : 0);
-    if (stop) {
-      keyboard.setState(() => null);
-      stop.focus();
-      return;
-    }
-    const next = nextRowTabTarget(
-      list,
-      index,
-      reverse ? -1 : 1,
-      rows,
-      isFocusable,
-    );
-    if (next && !next.stop) {
-      const frame = requestAnimationFrame(() =>
-        keyboard.setState(() => ({ index: next.index, reverse })),
-      );
-      return () => cancelAnimationFrame(frame);
-    }
-    const destination = next?.stop ?? outsideTabStop(list, reverse);
-    keyboard.setState(() => null);
-    destination?.focus();
-  });
-
-  function handleTab(event: KeyboardEvent<HTMLElement>) {
-    if (
-      event.key !== "Tab" ||
-      event.defaultPrevented ||
-      !(event.target instanceof HTMLElement)
-    ) {
-      return;
-    }
-    const list = listRef.current;
-    const row = list && directRow(list, event.target);
-    if (!(list && row)) {
-      return;
-    }
-    const reverse = event.shiftKey;
-    const stops = rowTabStops(row);
-    if (event.target !== (reverse ? stops[0] : stops.at(-1))) {
-      return;
-    }
-    const next = nextRowTabTarget(
-      list,
-      Number(row.dataset.index),
-      reverse ? -1 : 1,
-      rows,
-      isFocusable,
-    );
-    if (!next || next.stop) {
-      return;
-    }
-    event.preventDefault();
-    keyboard.setState(() => ({ index: next.index, reverse }));
-  }
-
-  const virtualItems = virtualizer.getVirtualItems();
-  // The first paint and non-layout renderers can display a small initial
-  // window while the scroll owner is still waiting to report its dimensions.
-  const items = virtualItems.length
-    ? virtualItems
-    : Array.from(
-        { length: enabled ? Math.min(OVERSCAN, rows.length) : rows.length },
-        (_, index) => {
-          const start = scrollMargin + index * (estimateSize + gap);
-          return { end: start + estimateSize, index, start };
-        },
-      );
+  const items = virtualizer.getVirtualItems();
+  const windowItems = items.length
+    ? items
+    : initialWindow(rows.length, estimateSize, gap, scrollMargin);
   const size = virtualizer.getTotalSize();
   const inlineStart = geometry?.inlineStart ?? 0;
   const inlineSize = `calc(100% - ${inlineStart + (geometry?.inlineEnd ?? 0)}px)`;
   let previousEnd = scrollMargin;
   const useSpacers = enabled && (isTable || horizontal);
-  const windowStyle: CSSProperties = horizontal
-    ? { alignItems: "start", display: "flex", width: size, gap: 0 }
-    : { height: size, position: "relative" };
-  const listStyle = enabled && !isTable ? windowStyle : undefined;
   const Spacer = isList ? "li" : "div";
 
   function spacer(length: number) {
@@ -451,34 +286,15 @@ export function VirtualList<Row>({
       aria-label={label}
       aria-labelledby={labelledBy}
       className={className}
-      onBlur={(event) => {
-        const target = event.relatedTarget;
-        if (
-          target instanceof Element &&
-          !event.currentTarget.contains(target) &&
-          !target.closest(
-            '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]',
-          )
-        ) {
-          focusedKey.current = null;
-        }
-      }}
-      onFocus={(event) => {
-        if (listRef.current && event.target instanceof HTMLElement) {
-          const row = directRow(listRef.current, event.target);
-          const record = rows[Number(row?.dataset.index)];
-          if (record !== undefined) {
-            focusedKey.current = getKey(record);
-          }
-        }
-      }}
+      onBlur={handleBlur}
+      onFocus={handleFocus}
       onKeyDown={handleTab}
       ref={setList}
       role={enabled && isList ? "list" : undefined}
-      style={listStyle}
+      style={virtualListStyle(size, enabled && !isTable, horizontal)}
     >
       {rows.length === 0 ? empty : null}
-      {items.map(({ end, index, start }) => {
+      {windowItems.map(({ end, index, start }) => {
         const row = rows[index];
         if (row === undefined) {
           return null;
@@ -508,6 +324,34 @@ export function VirtualList<Row>({
       {spacer(size - previousEnd + scrollMargin)}
     </Tag>
   );
+}
+
+function initialWindow(
+  count: number,
+  estimateSize: number,
+  gap: number,
+  scrollMargin: number,
+) {
+  // The first paint and non-layout renderers can display a small initial
+  // window while the scroll owner is still waiting to report its dimensions.
+  const length = count >= MIN_VIRTUAL_ROWS ? Math.min(OVERSCAN, count) : count;
+  return Array.from({ length }, (_, index) => {
+    const start = scrollMargin + index * (estimateSize + gap);
+    return { end: start + estimateSize, index, start };
+  });
+}
+
+function virtualListStyle(
+  size: number,
+  windowed: boolean,
+  horizontal: boolean,
+): CSSProperties | undefined {
+  if (!windowed) {
+    return;
+  }
+  return horizontal
+    ? { alignItems: "start", display: "flex", width: size, gap: 0 }
+    : { height: size, position: "relative" };
 }
 
 function TableSpacer({

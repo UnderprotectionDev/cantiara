@@ -8,8 +8,8 @@ import type {
 import {
   VirtualList,
   type VirtualRowProps,
-  virtualRowId,
 } from "@cantiara/ui/components/virtual-list";
+import { virtualRowId } from "@cantiara/ui/lib/virtual-list-dom";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { useMemo } from "react";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
