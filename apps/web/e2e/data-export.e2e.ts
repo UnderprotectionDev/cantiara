@@ -147,3 +147,55 @@ test("Export previews before download, keeps JSON raw and CSV spreadsheet-safe, 
   expect(refused.ok()).toBe(false);
   expect(await refused.text()).toContain("unlisted_family");
 });
+
+test("Backlog CSV follows the displayed Field order and keeps ties in manual order", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(90_000);
+  const setupResponse = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=project-shell`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+  };
+  await context.addCookies([{ ...setup.cookie, expires: -1 }]);
+
+  await page.goto("/projects/new");
+  await page.getByLabel("Project Name").fill("Backlog Export Order");
+  await page.getByRole("button", { name: "Create Project" }).click();
+  await page
+    .getByRole("link", { name: "Backlog Export Order", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+  await createWork(page, "Work 2");
+  await createWork(page, "Work 10");
+  await createWork(page, "Work 2");
+
+  await page.getByRole("link", { name: "Backlog", exact: true }).click();
+  await page.getByLabel("Backlog sort").selectOption("Field");
+  await expect(page.getByLabel("Field to sort by")).toHaveValue("Title");
+  const keys = [/BAC-2.*Work 10/, /BAC-1.*Work 2/, /BAC-3.*Work 2/];
+  await expect(
+    page.getByRole("list", { name: "Backlog" }).locator(":scope > li"),
+  ).toHaveText(keys);
+
+  await page.getByRole("button", { name: "Export Backlog" }).click();
+  const form = page.getByRole("form", { name: "Export selection" });
+  await expect(form.getByRole("radio", { name: "CSV" })).toBeChecked();
+  await form.getByRole("button", { name: "Preview", exact: true }).click();
+  await page
+    .getByRole("region", { name: "Export Task as CSV" })
+    .getByRole("button", { name: "Export", exact: true })
+    .click();
+  const download = page.getByRole("link", { name: /^Download .*\.csv$/ });
+  await expect(download).toBeVisible();
+  await download.focus();
+  const csv = await downloadedText(page);
+  expect(csv.text.match(/BAC-[123]/g)).toEqual(["BAC-2", "BAC-1", "BAC-3"]);
+});

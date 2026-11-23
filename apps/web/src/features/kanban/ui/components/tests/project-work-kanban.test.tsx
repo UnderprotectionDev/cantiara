@@ -141,17 +141,26 @@ describe("Kanban default Work scan", () => {
         work(2, { reappearDate: "2026-09-26" }),
         work(1, { reappearDate: "2026-09-25" }),
       ];
-      const html = renderToStaticMarkup(
-        kanbanElement(view, works, {
-          direction: "descending",
-          field: "reappearDate",
-        }),
-      );
+      const orderedKeys = (direction: ProjectWorkSort["direction"]) => [
+        ...new Set(
+          renderToStaticMarkup(
+            kanbanElement(view, works, { direction, field: "reappearDate" }),
+          ).match(/CAN-[1-4]/g),
+        ),
+      ];
 
-      expect(html.indexOf("CAN-2")).toBeLessThan(html.indexOf("CAN-1"));
-      expect(html.indexOf("CAN-1")).toBeLessThan(html.indexOf("CAN-3"));
-      expect(html.indexOf("CAN-3")).toBeLessThan(html.indexOf("CAN-4"));
-      expect(html).toContain("CAN-4");
+      expect(orderedKeys("ascending")).toEqual([
+        "CAN-1",
+        "CAN-3",
+        "CAN-2",
+        "CAN-4",
+      ]);
+      expect(orderedKeys("descending")).toEqual([
+        "CAN-2",
+        "CAN-1",
+        "CAN-3",
+        "CAN-4",
+      ]);
     },
   );
 

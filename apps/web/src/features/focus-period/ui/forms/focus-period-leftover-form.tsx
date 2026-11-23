@@ -17,7 +17,7 @@ import {
   tableFeatures,
   useTable,
 } from "@tanstack/react-table";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { fetchCurrentWork } from "@/lib/fetch-current-work";
 import { executeWrite } from "@/utils/execute-write";
 import {
@@ -142,6 +142,18 @@ export function PeriodLeftoverDecisions({
     features: leftoverFeatures,
     getRowId: (work) => work.id,
   });
+  const { getSelectedRowIds, setRowSelection } = table;
+  const { rows, rowsById } = table.getRowModel();
+  useEffect(() => {
+    const selectedIds = getSelectedRowIds();
+    const availableIds = selectedIds.filter((id) =>
+      Object.hasOwn(rowsById, id),
+    );
+    if (availableIds.length !== selectedIds.length) {
+      setRowSelection(Object.fromEntries(availableIds.map((id) => [id, true])));
+    }
+  }, [getSelectedRowIds, rowsById, setRowSelection]);
+
   const form = useForm({
     defaultValues: {
       destination: "Backlog",
@@ -150,10 +162,10 @@ export function PeriodLeftoverDecisions({
       closeAnyway: false,
     } as LeftoverValues,
     onSubmit: ({ value }) => {
-      const { rowsById } = table.getRowModel();
-      const selectedWorkIds = table
-        .getSelectedRowIds()
-        .filter((id) => Object.hasOwn(rowsById, id));
+      const { rowsById: currentRowsById } = table.getRowModel();
+      const selectedWorkIds = getSelectedRowIds().filter((id) =>
+        Object.hasOwn(currentRowsById, id),
+      );
       return act(() => sendDecisions(value, selectedWorkIds));
     },
   });
@@ -209,7 +221,6 @@ export function PeriodLeftoverDecisions({
     form.store,
     (state) => state.values,
   );
-  const { rows } = table.getRowModel();
   return period.status === "Closed" && rows.length ? (
     <section
       aria-label="Still-open Work decisions"

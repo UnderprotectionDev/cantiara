@@ -110,6 +110,16 @@ describe("Backlog presentation", () => {
     expect(works.map(({ id }) => id)).toEqual(["a", "b", "c"]);
   });
 
+  test("keeps equally ranked Work in manual order when sorting by Priority", () => {
+    const priority = new Map([
+      ["c", 4],
+      ["b", 4],
+      ["a", 1],
+    ]);
+
+    expect(presentedIds(works, "Priority", priority)).toEqual(["b", "c", "a"]);
+  });
+
   test("lets Field select a named Work field", () => {
     expect(presentedIds(works, "Field", new Map(), "Status")).toEqual([
       "c",

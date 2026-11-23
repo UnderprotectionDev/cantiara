@@ -65,6 +65,20 @@ describe("Kanban saved Work view", () => {
     ).toEqual(["work-1", "work-2", "work-3"]);
   });
 
+  test.each(["createdAt", "updatedAt"] as const)(
+    "uses the saved %s sort",
+    (field) => {
+      const works = [
+        work({ id: "work-1", number: 1, [field]: "2026-09-25T09:00:00.000Z" }),
+        work({ id: "work-2", number: 2, [field]: "2026-09-24T09:00:00.000Z" }),
+      ];
+      expect(sortedIds(works, { direction: "ascending", field })).toEqual([
+        "work-2",
+        "work-1",
+      ]);
+    },
+  );
+
   test("backgrounds future reappearing Work until its date", () => {
     const works = [
       work({ id: "work-today", reappearDate: "2026-09-25" }),

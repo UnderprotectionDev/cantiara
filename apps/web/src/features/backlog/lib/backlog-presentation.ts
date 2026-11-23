@@ -1,10 +1,9 @@
+import { sortFn_basic } from "@tanstack/react-table";
 import {
-  type ColumnDef,
-  createSortedRowModel,
-  rowSortingFeature,
-  sortFn_basic,
-  tableFeatures,
-} from "@tanstack/react-table";
+  type WorkListSortColumn,
+  workListSortingFeatures,
+  workListTextColumn,
+} from "@/lib/work-list-sorting";
 
 export type BacklogPresentation =
   | "Manual order"
@@ -21,11 +20,6 @@ interface PresentableWork {
   title: string;
 }
 
-const backlogFeatures = tableFeatures({
-  rowSortingFeature,
-  sortedRowModel: createSortedRowModel(),
-});
-
 interface BacklogRow<T> {
   priority: number;
   work: T;
@@ -37,33 +31,33 @@ export function backlogTableOptions<T extends PresentableWork>(
   priorityByWorkId: ReadonlyMap<string, number>,
   field: BacklogSortField,
 ) {
-  const columns: ColumnDef<typeof backlogFeatures, BacklogRow<T>>[] = [
-    {
-      id: "Priority",
-      accessorKey: "priority",
+  const sortColumns: Record<
+    Exclude<BacklogPresentation, "Manual order">,
+    WorkListSortColumn<BacklogRow<T>>
+  > = {
+    Priority: {
+      accessorFn: ({ priority }) => priority,
       sortFn: sortFn_basic,
     },
-    {
-      id: "Date",
+    Date: {
       accessorFn: ({ work }) =>
         work.targetDate ?? work.plannedStartDate ?? "9999-12-31",
     },
-    {
-      id: "Field",
+    Field: {
       accessorFn: ({ work }) => (field === "Status" ? work.status : work.title),
     },
-  ];
+  };
   return {
-    columns,
+    columns: Object.entries(sortColumns).map(([id, column]) => ({
+      ...column,
+      id,
+    })),
     data: works.map((work) => ({
       priority: priorityByWorkId.get(work.id) ?? -1,
       work,
     })),
-    defaultColumn: {
-      sortFn: (left, right, columnId) =>
-        left.getValue<string>(columnId).localeCompare(right.getValue(columnId)),
-    } satisfies Partial<ColumnDef<typeof backlogFeatures, BacklogRow<T>>>,
-    features: backlogFeatures,
+    defaultColumn: workListTextColumn,
+    features: workListSortingFeatures,
     getRowId: ({ work }: BacklogRow<T>) => work.id,
     state: {
       // Table keeps the input order for ties and with no active sort.

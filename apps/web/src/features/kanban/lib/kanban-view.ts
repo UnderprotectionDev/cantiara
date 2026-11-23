@@ -1,31 +1,31 @@
 import type { ProjectWorkSort } from "@cantiara/api/project-shell";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
-import {
-  type ColumnDef,
-  createSortedRowModel,
-  rowSortingFeature,
-  sortFn_basic,
-  tableFeatures,
-} from "@tanstack/react-table";
+import { sortFn_basic } from "@tanstack/react-table";
 import { differenceInMinutes } from "date-fns";
+import {
+  type WorkListSortColumn,
+  workListSortingFeatures,
+  workListTextColumn,
+} from "@/lib/work-list-sorting";
 
-const kanbanFeatures = tableFeatures({
-  rowSortingFeature,
-  sortedRowModel: createSortedRowModel(),
-});
-
-const kanbanColumns: ColumnDef<typeof kanbanFeatures, WorkProfile>[] = [
-  { accessorKey: "number", sortFn: sortFn_basic },
-  { accessorKey: "title" },
-  { accessorKey: "createdAt" },
-  { accessorKey: "updatedAt" },
-  { accessorKey: "id" },
-  {
-    id: "reappearDate",
+const kanbanSortColumns: Record<
+  ProjectWorkSort["field"] | "id",
+  WorkListSortColumn<WorkProfile>
+> = {
+  number: { accessorFn: (work) => work.number, sortFn: sortFn_basic },
+  title: { accessorFn: (work) => work.title },
+  createdAt: { accessorFn: (work) => work.createdAt },
+  updatedAt: { accessorFn: (work) => work.updatedAt },
+  id: { accessorFn: (work) => work.id },
+  reappearDate: {
     accessorFn: (work) => work.reappearDate ?? undefined,
     sortUndefined: "last",
   },
-];
+};
+const kanbanColumns = Object.entries(kanbanSortColumns).map(([id, column]) => ({
+  ...column,
+  id,
+}));
 
 export function kanbanTableOptions(
   works: readonly WorkProfile[],
@@ -34,11 +34,8 @@ export function kanbanTableOptions(
   return {
     columns: kanbanColumns,
     data: works,
-    defaultColumn: {
-      sortFn: (left, right, columnId) =>
-        left.getValue<string>(columnId).localeCompare(right.getValue(columnId)),
-    } satisfies Partial<ColumnDef<typeof kanbanFeatures, WorkProfile>>,
-    features: kanbanFeatures,
+    defaultColumn: workListTextColumn,
+    features: workListSortingFeatures,
     getRowId: (work: WorkProfile) => work.id,
     state: {
       sorting: [

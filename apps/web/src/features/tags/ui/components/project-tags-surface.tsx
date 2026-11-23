@@ -407,6 +407,7 @@ function TagRecordList({
     data: records,
     features: tagRecordFeatures,
     getRowId: (record) => record.id,
+    // The tag query provides the filtered Work in server order.
     manualFiltering: true,
   });
   const { rows } = table.getRowModel();

@@ -54,7 +54,7 @@ Proje Hikâyesi iki ayrı yüzey sunar. Gerçekleşen olayların zaman çizelges
 
 ## Testing Decisions
 
-- **Interactive record rows (#550).** The Project Activity view seam verifies that every loaded entry remains visible in server order and that Show older changes requests another cursor page. The cluster disclosure still lists each atomic change.
+- **Interactive record rows (#550).** The Project Activity seam verifies that every loaded entry remains visible in server order. The mounted surface checks the cursor received by the query, the appended rows, and the first-page request after a filter change. The cluster disclosure still lists each atomic change.
 
 - **Client state ownership (#547).** The Project URL carries applied Project Activity source and event filters. Pagination starts over when either filter changes.
 

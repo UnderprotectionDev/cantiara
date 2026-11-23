@@ -47,7 +47,7 @@ Backlog hazır, dinamik bir Akıllı Koleksiyondur. Üyelik, ele alma veya başk
 
 ## Testing Decisions
 
-- **Interactive record rows (#550).** The Backlog seam verifies that the Field sort keeps ties in manual order and that the export handoff carries the same IDs in display order. Manual order exports the main list followed by Deferred Work.
+- **Interactive record rows (#550).** The Backlog seam verifies that the Field and Priority sorts keep ties in manual order and that the export handoff carries the same IDs in display order. Manual order exports the main list followed by Deferred Work. The Selected Export browser journey downloads the Field-sorted Backlog as CSV and checks the same Work keys in the same order.
 
 - **Sortable drag (#549).** The Backlog browser seam moves Work with Space and the arrow keys, checks the announcements and Escape, then rejects a reorder and checks that the saved order is still shown. A successful retry persists across presentations and reload.
 

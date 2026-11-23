@@ -177,6 +177,7 @@ export function ProjectActivityEntries({
     features: activityFeatures,
     getRowId: (entry) =>
       entry.kind === "cluster" ? entry.cluster.id : entry.row.id,
+    // The query provides the filtered entries from all loaded cursor pages.
     manualFiltering: true,
     manualPagination: true,
   });

@@ -103,7 +103,11 @@ export default function ProjectWorkKanban({
     () => filterDefaultKanbanWorks(query.data ?? [], today),
     [query.data, today],
   );
-  const table = useTable(kanbanTableOptions(visibleWorks, sort));
+  const tableOptions = useMemo(
+    () => kanbanTableOptions(visibleWorks, sort),
+    [visibleWorks, sort],
+  );
+  const table = useTable(tableOptions);
 
   if (query.status === "pending") {
     return <p className="text-sm text-muted-foreground">Loading Work…</p>;
