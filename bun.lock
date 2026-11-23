@@ -4,9 +4,6 @@
   "workspaces": {
     "": {
       "name": "cantiara",
-      "dependencies": {
-        "zod": "catalog:",
-      },
       "devDependencies": {
         "@biomejs/biome": "2.6.8",
         "@cantiara/config": "workspace:*",
@@ -189,10 +186,7 @@
       "dependencies": {
         "@cantiara/auth": "workspace:*",
         "@cantiara/db": "workspace:*",
-        "@orpc/client": "catalog:",
-        "@orpc/openapi": "catalog:",
         "@orpc/server": "catalog:",
-        "@orpc/zod": "catalog:",
         "canonicalize": "^5.1.0",
         "date-fns": "^4.4.0",
         "diff": "9.0.0",
@@ -209,7 +203,6 @@
       "dependencies": {
         "@cantiara/db": "workspace:*",
         "better-auth": "catalog:",
-        "zod": "catalog:",
       },
       "devDependencies": {
         "@cantiara/config": "workspace:*",
@@ -245,7 +238,6 @@
         "class-variance-authority": "^0.7.1",
         "cmdk": "^1.1.1",
         "cn": "^0.2.5",
-        "date-fns": "^4.4.0",
         "embla-carousel-react": "^8.6.0",
         "input-otp": "^1.5.0",
         "lucide-react": "catalog:",
