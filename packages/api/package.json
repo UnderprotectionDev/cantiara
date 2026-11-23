@@ -20,10 +20,7 @@
   "dependencies": {
     "@cantiara/auth": "workspace:*",
     "@cantiara/db": "workspace:*",
-    "@orpc/client": "catalog:",
-    "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
-    "@orpc/zod": "catalog:",
     "canonicalize": "^5.1.0",
     "date-fns": "^4.4.0",
     "diff": "9.0.0",
