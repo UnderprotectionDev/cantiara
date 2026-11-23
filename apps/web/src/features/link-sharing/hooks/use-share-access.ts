@@ -91,21 +91,18 @@ export function useShareAccess(
     mutationFn: async ({ root: revokedRoot, surfaceId }: ShareTarget) => {
       const result = await client.revokeShareLink({ surfaceId });
       display.revoke(surfaceId);
-      // A newer mount can still be reading this preview while the refresh runs.
+      // Clear the revoked surface and its approval scope before the fresh read.
       const queryKey = previewKey(revokedRoot);
-      const cancelledPreview = queryClient.cancelQueries({
-        exact: true,
-        queryKey,
-      });
-      queryClient.setQueryData<ShareScopePreview>(queryKey, (preview) =>
-        preview?.surface?.surfaceId === surfaceId
-          ? { ...preview, diff: null, surface: null }
-          : undefined,
-      );
-      await cancelledPreview;
+      const preview = queryClient.getQueryData<ShareScopePreview>(queryKey);
+      if (preview?.surface?.surfaceId === surfaceId) {
+        await queryClient.resetQueries({ exact: true, queryKey });
+      } else {
+        await queryClient.invalidateQueries({ queryKey });
+      }
       return result;
     },
-    onSettled: refreshPreview,
+    onError: (_, input) =>
+      queryClient.invalidateQueries({ queryKey: previewKey(input.root) }),
   });
 
   const rotate = useMutation({

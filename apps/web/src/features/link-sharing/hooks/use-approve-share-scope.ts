@@ -14,10 +14,10 @@ export function useApproveShareScope(display: ShareTokenDisplay) {
     mutationFn: async ({
       displayOperation,
       ...input
-    }: ApproveShareScopeInput & { displayOperation: number }) => {
+    }: ApproveShareScopeInput & { displayOperation: number | null }) => {
       const { accessToken, ...approved } =
         await client.approveShareScope(input);
-      if (accessToken) {
+      if (accessToken && displayOperation !== null) {
         display.receive(displayOperation, approved.surfaceId, accessToken);
       }
       return approved;
@@ -40,7 +40,8 @@ export function useApproveShareScope(display: ShareTokenDisplay) {
     return approval.mutateAsync({
       ...input,
       approvalId: attempt.current.id,
-      displayOperation: display.beginIssuance(),
+      // Approving an existing surface writes a revision without issuing a token.
+      displayOperation: input.surfaceId ? null : display.beginIssuance(),
     });
   };
 }

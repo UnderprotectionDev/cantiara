@@ -82,6 +82,9 @@ function mountShare(initialState: "Active" | "Expired" | null = "Active") {
   const invalidate = vi
     .spyOn(queryClient, "invalidateQueries")
     .mockResolvedValue(undefined);
+  const refetch = vi
+    .spyOn(queryClient, "refetchQueries")
+    .mockResolvedValue(undefined);
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
@@ -135,6 +138,7 @@ function mountShare(initialState: "Active" | "Expired" | null = "Active") {
         .querySelector<HTMLInputElement>("#share-visitor-link")
         ?.value.split("/s/")[1],
     queryClient,
+    refetch,
     render: (next?: Partial<typeof props>) => act(() => render(next)),
     select: (key: string) =>
       act(async () => {
@@ -477,6 +481,57 @@ test("a delayed Rotate link cannot overwrite a newer Reshare with a new link", a
 
   await resolveResult(rotation, { ...surface, token: "superseded-rotation" });
   expect(share.token()).toBe("reshared-link");
+});
+
+test("approving a new revision of the same surface does not discard its pending rotation", async () => {
+  const share = mountShare();
+  rpc.rotateShareToken.mockResolvedValueOnce({
+    ...surface,
+    token: "previous-link",
+  });
+  await share.click("Rotate link");
+  await vi.waitFor(() => expect(share.token()).toBe("previous-link"));
+  await vi.waitFor(() =>
+    expect(share.button("Rotate link")?.disabled).toBe(false),
+  );
+
+  const rotation = Promise.withResolvers<unknown>();
+  rpc.rotateShareToken.mockReturnValueOnce(rotation.promise);
+  await share.click("Rotate link");
+  rpc.approveShareScope.mockResolvedValueOnce({
+    ...surface,
+    accessToken: null,
+    revision: 2,
+  });
+  await share.click("Approve scope");
+  expect(rpc.approveShareScope).toHaveBeenCalledWith(
+    expect.objectContaining({ surfaceId: surface.surfaceId }),
+  );
+
+  await resolveResult(rotation, { ...surface, token: "replacement-link" });
+  await vi.waitFor(() => expect(share.token()).toBe("replacement-link"));
+});
+
+test("Revoke waits for a fresh scope before offering another approval", async () => {
+  const share = mountShare();
+  const refresh = Promise.withResolvers<void>();
+  share.refetch.mockReturnValue(refresh.promise);
+  share.invalidate.mockReturnValue(refresh.promise);
+  rpc.revokeShareLink.mockResolvedValueOnce({
+    revokedAt: surface.lastApprovedAt,
+    surfaceId: surface.surfaceId,
+  });
+  await share.click("Revoke");
+  await share.click("Revoke", true);
+  await vi.waitFor(() => expect(share.button("Rotate link")).toBeUndefined());
+  expect(share.button("Approve scope")).toBeUndefined();
+
+  await act(async () => {
+    share.setPreview(null);
+    refresh.resolve();
+    await refresh.promise;
+  });
+  await vi.waitFor(() => expect(share.button("Approve scope")).toBeDefined());
 });
 
 test("Copy link remains available for repeat copying and Rotate link replaces it", async () => {

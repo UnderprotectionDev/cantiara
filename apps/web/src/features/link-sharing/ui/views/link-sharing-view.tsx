@@ -87,10 +87,10 @@ export function LinkSharingView({
           {previewError ? (
             <p role="alert">The scope preview is unavailable.</p>
           ) : null}
+          {notice ? <p role="status">{notice}</p> : null}
           {preview ? (
             <>
               <ShareScopeStatus formatting={formatting} preview={preview} />
-              {notice ? <p role="status">{notice}</p> : null}
               {preview.surface ? (
                 <>
                   {preview.surface.state === "Active" ? (
