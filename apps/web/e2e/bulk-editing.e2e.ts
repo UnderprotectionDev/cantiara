@@ -158,19 +158,34 @@ test("previews and applies a status change only to selected Work", async ({
   await failedDialog
     .getByRole("button", { name: "Preview", exact: true })
     .click();
-  await failedDialog
-    .getByRole("button", { name: "Apply", exact: true })
-    .click();
-  const failedResults = failedDialog.getByRole("list", {
-    name: "Bulk Edit results",
+  const workRefresh = "**/rpc/projectWorks";
+  const refreshGate = Promise.withResolvers<void>();
+  await page.route(workRefresh, async (route) => {
+    await refreshGate.promise;
+    await route.continue();
   });
-  await expect(failedResults).toContainText("Failed");
-  await expect(failedResults).toContainText("Support reference unavailable.");
-  await expect(failedResults).not.toContainText("Failed to fetch");
-  await expect(workStatusControl(changedWork)).toHaveValue("In Progress");
+  try {
+    await failedDialog
+      .getByRole("button", { name: "Apply", exact: true })
+      .click();
+    const failedResults = failedDialog.getByRole("list", {
+      name: "Bulk Edit results",
+    });
+    await expect(failedResults).toContainText("Failed");
+    await expect(failedResults).toContainText("Support reference unavailable.");
+    await expect(failedResults).not.toContainText("Failed to fetch");
+    await expect(workStatusControl(changedWork)).toHaveValue("In Progress");
+    await expect(
+      failedDialog.getByRole("button", { name: "Finalizing", exact: true }),
+    ).toBeDisabled();
+  } finally {
+    refreshGate.resolve();
+    await page.unroute(workRefresh);
+  }
   await page.unroute("**/rpc/updateWorkStatus");
 
   await failedDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(failedDialog).toBeHidden();
   await expect(bulkEditTrigger).toBeFocused();
   await bulkEditTrigger.click();
   await bulkEdit

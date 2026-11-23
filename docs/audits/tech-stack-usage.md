@@ -1,6 +1,6 @@
 # Teknoloji yığını kullanım denetimi
 
-Durum: **4. aşama tamamlandı, kullanıcı onayı bekliyor**
+Durum: **4. aşama tamamlandı. Sahiplik kararları 2026-11-19’da onaylandı (#553, §16).**
 
 Tarih: 2026-11-18. Branch: `chore/audit-spec-stack`.
 
@@ -94,7 +94,7 @@ Resmi oRPC skill'leri (`middleapi/orpc/skills`) v2'yi hedefliyor ve v1 projesind
 
 ---
 
-## 3. Rate limit (Sahipsiz)
+## 3. Rate limit (ertelendi, #553)
 
 - tech-stack'te rate limit'in tek sahibi Cloudflare WAF. Bu kural IP tabanlı.
 - Spec'ler zaten uygulama katmanında karşılanıyor:
@@ -109,6 +109,8 @@ Resmi oRPC skill'leri (`middleapi/orpc/skills`) v2'yi hedefliyor ve v1 projesind
 - Adaptörler memory, Redis, Upstash, Bun Redis ve Cloudflare. **PostgreSQL adaptörü yok.** tech-stack Redis'i bilinçli olarak eklemiyor (`docs/tech-stack.md` "Bilinçli olarak eklenmeyenler"). Bu yüzden oturumlu oRPC procedure'lerinde kullanıcı bazlı limit gerekirse özel bir `RateLimiter` (PostgreSQL) yazmak gerekir.
 
 **Öneri:** Şimdilik ekleme. İhtiyaç doğarsa v2 `@orpc/ratelimit` arayüzüne uyan, PostgreSQL destekli özel limiter yazılır. Bu yeni bir stack kararıdır.
+
+**Karar (#553, 2026-11-19):** Genel uygulama içi rate limiter somut bir owning spec ihtiyacına kadar ertelendi; yeni issue açılmadı. Account Access sign-in sayacı, Link Sharing ziyaretçi kapısı ve kurucu sınırı, GitHub giden API limiti, Smart Link egress ve Cloudflare WAF korumaları kendi sınırlarında kalır. İhtiyaç doğduğunda limiter seçimi yukarıdaki öneriye göre yeni stack kararı olarak getirilir. Kayıt: `docs/tech-stack.md` Cloudflare WAF / Rate Limiting satırı ve bu belgenin 16. bölümü.
 
 ---
 
@@ -1379,7 +1381,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** TanStack Store / Table atomları. Alt komut katmanları ve geri düğmesi için paletin geçici oturum Store'u ve useSelector.; Genel komut çalıştırıcısının sonuç durumu; ortak palet oturumu Store'u ve useSelector. Gerçek RPC komutunun hatası kendi mutation'ında kalır.; Palet oturum Store'u ve useSelector; executeCommand navigasyon ve eşzamanlı komut da çalıştırdığından bütün komutları Query mutation'ına dönüştürme.; Palet oturum Store'u/useSelector; başlangıç komutu ve komut arama girdisi, URL'ye taşınmaz.
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-115 · 05-command-palette · React state → Sahipsiz
+#### TK-115 · 05-command-palette · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/command-palette/ui/components/command-palette.tsx:103`, `const [recordsReady, setRecordsReady] = useState(false);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor.
@@ -1579,7 +1581,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** oRPC / Query. apply.error / remove.error; rename.error / undoRename.error; rename.data (receiptId, tag.revision); undo sonrası rename.reset()
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-143 · 14-file-attachments · React state → Sahipsiz
+#### TK-143 · 14-file-attachments · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:312`, `const [surfaceSize, setSurfaceSize] = useState(fallbackSize);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 4 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Canlı canvas ölçümü; tanımlı hedef yok
@@ -1607,14 +1609,14 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** TanStack Form. file-attachment-location-form useForm alanı (point/region); yüzey seçimi form.setFieldValue ile yazar; Bind as origin konumu gönderilen formun değeri: location form'un x/y/width/height/page alanları tek kaynak; şu an useState + useEffect setFieldValue ile çift kaynak; formApi.setErrorMap({ onSubmit }) + form.Subscribe errorMap.onSubmit; sunucu hatası mutation.error
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-147 · 14-file-attachments · React state → Sahipsiz
+#### TK-147 · 14-file-attachments · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/file-attachments/ui/components/file-attachment-pdf.tsx:52`, `const [loadedPages, setLoadedPages] = useState<number | null>(null);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 3 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor.
 - **Beklenen ve önerilen düzeltme:** Sahipsiz. React-PDF Document onLoadSuccess numPages; yerel kütüphane geri çağrısı; Page onRenderSuccess sayacı; hazır durum türetimi için; React-PDF hata geri çağrısı; Document/Page `error` render prop'ları mesajı sahiplenebilir (kısmi)
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-148 · 14-file-attachments · React state → Sahipsiz
+#### TK-148 · 14-file-attachments · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/file-attachments/ui/components/file-attachment-preview.tsx:394`, `const [loop, setLoop] = useState(false);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Video.js sahipliği kullanıcı kararına
@@ -1649,7 +1651,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** TanStack Form. Layout editör formunun workType alanı — bkz. spec-2-12; useForm layout alanı, sectionOrder mode="array" moveValue — bkz. spec-2-12
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-153 · 16-work-context · React state → Sahipsiz
+#### TK-153 · 16-work-context · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/work-context/ui/components/work-context-card.tsx:84`, `const [contextState, setContextState] = useState<WorkContextState>({`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 3 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Kullanıcı kararı: Store mu sahipsiz mi
@@ -1797,7 +1799,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Hesaplanan değer. matchMedia snapshot için useSyncExternalStore(subscribe,getSnapshot,getServerSnapshot); Preview evresi ve prefersReducedMotion üzerinden hesaplanan canlı mesaj
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-174 · 23-completion-effects · React state → Sahipsiz
+#### TK-174 · 23-completion-effects · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/completion-effects/ui/forms/completion-effects-form.tsx:89`, `const [previewing, setPreviewing] = useState(false);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Örnek efekti tıklama başlatıyor, süre bitince kapatılıyor.
@@ -1839,7 +1841,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** oRPC / Query. start.error/reset ve form seviyesinde gösterim; previewReconcile.data/reset; previewId doğrulama girdisi
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-180 · 24-external-handoffs · React state → Sahipsiz
+#### TK-180 · 24-external-handoffs · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/external-handoffs/ui/components/external-execution-handoff.tsx:213`, `const [copiedHandoffId, setCopiedHandoffId] = useState<string | null>(null);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 2 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Kopyalama başarısı RPC’den önce görünür. Kayıt başarısız olsa bile doğru kopyalama sonucunu koru.
@@ -1861,7 +1863,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Base UI. Her kolon için kontrolsüz Collapsible.Root/Trigger/Panel
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-183 · 25-kanban · React state → Sahipsiz
+#### TK-183 · 25-kanban · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/kanban/ui/components/project-work-kanban.tsx:54`, `const [today, setToday] = useState(() => currentDateInTimeZone(timeZone));`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Bugün, Reappear date uygunluğunu değiştiriyor. Saat intervali meşru.
@@ -1889,7 +1891,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Router search. Project route validateSearch + navigate({ search })
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-187 · 26-backlog · React state → Sahipsiz
+#### TK-187 · 26-backlog · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/backlog/ui/components/project-backlog.tsx:272`, `const [now, setNow] = useState(() => new Date());`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Dakika tick’i Deferred ayrımının tarih geldiğinde güncellenmesini sağlıyor. Interval meşru.
@@ -1904,7 +1906,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Diğer konumlar:** `apps/web/src/features/backlog/ui/components/project-backlog.tsx:34`, `apps/web/src/features/backlog/ui/components/project-backlog.tsx:41`, `apps/web/src/features/backlog/ui/components/project-backlog.tsx:115`, `apps/web/src/features/backlog/ui/components/project-backlog.tsx:411`, `apps/web/src/features/backlog/ui/components/project-backlog.tsx:511`.
 - **Güven:** yüksek. Klavye sensörü mevcut. Sürüm notunda açık @deprecated kanıtı gerekmiyor; proje DnD sahibi ihlali. helpers doğrudan app bağımlılığı olarak kurulu değil. K6, 5. aşama geçişi için mevcut karar.
 
-#### TK-189 · 27-daily-focus · React state → Sahipsiz
+#### TK-189 · 27-daily-focus · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/daily-focus/ui/views/daily-focus-view.tsx:35`, `const [now, setNow] = useState(() => new Date());`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Dakika tick’i URL’de day yokken bugünü yeniden hesaplıyor. Interval meşru.
@@ -1932,7 +1934,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Base UI. Kontrolsüz Popover + actionsRef.current?.close()
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-193 · 28-unified-calendar · React state → Sahipsiz
+#### TK-193 · 28-unified-calendar · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/unified-calendar/ui/components/unified-calendar.tsx:732`, `const [draggedDate, setDraggedDate] = useState<CalendarDateDrag | null>(null);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 2 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Alan, revizyon ve kaynak Work hem aktif drag hem ayrı onay yolu için tutuluyor.
@@ -2003,7 +2005,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Router search. Project route validateSearch + navigate({ search }), view kaydı Query’de
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-203 · 29-roadmap-horizon · React state → Sahipsiz
+#### TK-203 · 29-roadmap-horizon · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/roadmap-horizon/ui/components/roadmap-canvas.tsx:66`, `const [flow, setFlow] = useState<ReactFlowInstance<RoadmapNode> | null>(null);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Instance buton erişilebilirliğini ve Return to Work adapter kaydını tetikliyor; ref tek başına render güncellemez.
@@ -2066,7 +2068,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Base UI. Base UI Dialog `createHandle<{ initial; result }>()` + `handle.openWithPayload(...)`; başarıda `actionsRef.current?.close()`; Base UI Dialog `createHandle<{ mode; rebind; range }>()`; satırdan/butondan `Trigger handle payload`; Açılış anındaki seçim aralığı aynı handle payload içinde taşınır; Base UI Dialog `createHandle<"hierarchy" | "archive">()` + Trigger payload; başarıda `actionsRef.close()`
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-212 · 31-documents · React state → Sahipsiz
+#### TK-212 · 31-documents · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/documents/ui/components/document-preview.tsx:296`, `const [rendered, setRendered] = useState<string | null>(null);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 2 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Query yalnız sunucu verisi olarak tanımlı; karar kullanıcıya
@@ -2087,7 +2089,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** TanStack Form. TanStack Form: `formApi.setErrorMap({ onSubmit })` + `form.Subscribe selector={s => s.errorMap.onSubmit}`; sunucu hatası `mutation.error`; TanStack Form: `formApi.setErrorMap({ onSubmit })` + `form.Subscribe selector={s => s.errorMap.onSubmit}`; sunucu hatası `mutation.error`; save/restore `mutation.error`; Ekleme araç çubuğu seçimleri `useForm` alanı (`lib/document-insert-form.ts` şeması); Ekleme araç çubuğu formu alanı
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-215 · 31-documents · React state → Sahipsiz
+#### TK-215 · 31-documents · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/documents/ui/forms/document-templates-form.tsx:139`, `const [selection, setSelection] = useState<string>(personalReviewTemplate.id);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor.
@@ -2145,7 +2147,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Router search. Insight dilim filtresi search param (view id ile anahtarlı)
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-223 · 34-smart-collections · React state → Sahipsiz
+#### TK-223 · 34-smart-collections · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/smart-collections/ui/components/project-smart-collections-surface.tsx:564`, `useState<SmartCollectionMembershipPreview | null>(null);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor.
@@ -2201,7 +2203,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** TanStack Form. Sayaç + useEffect yerine çocuk formda `await mutateAsync()` sonrası `formApi.reset()`; TanStack Form: `formApi.setErrorMap({ onSubmit })` + `form.Subscribe selector={s => s.errorMap.onSubmit}`; sunucu hatası `mutation.error`; Tek seferlik anlık görüntü: `useForm({ defaultValues })` ilk değeri zaten sabitler; base kayıt/revizyon render etkilemediği için `useRef` veya form defaultValues alanı; `setErrorMap({ onSubmit: conflictError })`; current value hata değerinden gösterilir
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-231 · 37-goals · React state → Sahipsiz
+#### TK-231 · 37-goals · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/project-goals/ui/components/project-goals-view.tsx:38`, `const [editing, setEditing] = useState(false);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor.
@@ -2229,7 +2231,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Hesaplanan değer. `commit.error` üzerinden CONFLICT kodundan türetilir
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-235 · 38-decisions · React state → Sahipsiz
+#### TK-235 · 38-decisions · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/decisions/ui/components/project-decisions-panel.tsx:53`, `const [editing, setEditing] = useState<`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor.
@@ -2250,7 +2252,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** oRPC / Query. save/transition `useMutation` → `isSuccess` + `variables`
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-238 · 40-risks · React state → Sahipsiz
+#### TK-238 · 40-risks · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/risks/ui/components/project-risks-view.tsx:36`, `const [editingMode, setEditingMode] = useState<`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor.
@@ -2455,7 +2457,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** TanStack Form. formApi.setErrorMap / form.Subscribe selector errorMap.onSubmit; formApi.setErrorMap / form.Subscribe isSubmitSuccessful
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-267 · 48-screens-and-wireframes · React state → Sahipsiz
+#### TK-267 · 48-screens-and-wireframes · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/screens/ui/components/canvas-text-overlay.tsx:21`, `const [draft, setDraft] = useState(initialValue);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Sadece geçici metin ve keyboard commit; render state kaldırılabilir, kabul edilen overlay ve engine transaction sınırı sürer.
@@ -2469,14 +2471,14 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** oRPC / Query. previewLinkedBlockChange.queryOptions / data veya mutation.data; applyLinkedBlockChange mutation.error / detach için engine sonucu; useMutation, isPending ve variables (çoklu sürüm okuma + çıktı); useMutation.error / reset
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-269 · 48-screens-and-wireframes · React state → Sahipsiz
+#### TK-269 · 48-screens-and-wireframes · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/screens/ui/components/presentation-mode.tsx:30`, `const [state, setState] = useState<PresentationState | null>(() =>`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Renderer dışındaki salt okunur Presentation State mevcut Snapshot ve etkileşimli hotspot geçmişini tutuyor.
 - **Beklenen ve önerilen düzeltme:** Sahipsiz. Sunum gezinmesi ve gizli blokları için tanımlı sahip yok
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-270 · 48-screens-and-wireframes · React state → Sahipsiz
+#### TK-270 · 48-screens-and-wireframes · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/screens/ui/components/wireframe-pane.tsx:69`, `const [size, setSize] = useState({ height: 600, width: 960 });`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Boyut Konva Stage ve viewport hesaplamasını besliyor.
@@ -2525,7 +2527,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** TanStack Store / Table atomları. useCreateStore / useSelector; User Flow editor Store selector
 - **Güven:** yüksek. Çağrı bazında etkiler 13. bölümde.
 
-#### TK-277 · 49-user-flow · React state → Sahipsiz
+#### TK-277 · 49-user-flow · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/user-flow/ui/components/user-flow-canvas.tsx:269`, `const [textDraft, setTextDraft] = useState<string | null>(null);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 2 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Node metni komut uygulanana kadar yerel, seçim değişimi/iptal semantiği korunmalı; gönderilen form modellenirse Form sahibi olur.
@@ -2560,7 +2562,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** useVirtualizer({ getItemKey: index => rowKey(rows[index]), … }). Virtualizer kimliğini mevcut rowKey’e bağla; ölçülen inspector satırları ve section collapse/reorder durumlarını koru.
 - **Güven:** yüksek. Ölçüm tekrar tetiklenirse sapma geçici olabilir.
 
-#### TK-282 · 50-moodboards · React state → Sahipsiz
+#### TK-282 · 50-moodboards · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/moodboards/ui/components/moodboard-board.tsx:32`, `const [size, setSize] = useState(DEFAULT_SIZE);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 2 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Ölçüm kart koordinatları ve ilk viewport hesabını etkiliyor. Pacer bildirim sıklığını yönetebilir.
@@ -2581,7 +2583,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Base UI. Collapsible.Root / Trigger / Panel
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-285 · 50-moodboards · React state → Sahipsiz
+#### TK-285 · 50-moodboards · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/moodboards/ui/components/moodboard-view-tools.tsx:255`, `const [index, setIndex] = useState(0);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Presentation Mode içinde önceki/sonraki odak adımının indeksi.
@@ -2616,7 +2618,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Hesaplanan değer. save.isError (useMutation sonucu); yeni mutate durumu zaten sıfırlar; preview?.moves.length === 0 iken metin hesaplanır
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-290 · 51-project-wall · React state → Sahipsiz
+#### TK-290 · 51-project-wall · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/project-wall/ui/components/project-wall-canvas.tsx:173`, `const [preview, setPreview] = useState<AutoLayoutPreview | null>(null);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 3 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Konva/React Flow kendi düğüm sürüklemesi kuralı
@@ -2630,14 +2632,14 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** oRPC / Query. Taşıma mutation'ı: onMutate'te orpc.projectWall queryKey setQueryData snapshot, onError geri alma, onSettled invalidate (6.2 / 6.10); write() yardımcısı yerine useMutation(orpc.x.mutationOptions()).error; sayfa düzeyi için useMutationState; Kişisel görünüm sorgusunun cache'i: schedule anında queryClient.setQueryData(orpc.projectWallViewport.queryKey(...)) ile iyimser collapse; Önizleme okuması: useMutation(orpc.preview*.mutationOptions()).data (olay tetikli) veya useQuery(queryOptions, enabled); form listeners.onChange → mutation.reset()
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-292 · 51-project-wall · React state → Sahipsiz
+#### TK-292 · 51-project-wall · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/project-wall/ui/components/project-wall-outline.tsx:458`, `const [inspectedId, setInspectedId] = useState<string | null>(null);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Seçili kayıt Router kuralı ile spec'in 'never persisted' kuralı çelişiyor; kullanıcı kararı
 - **Beklenen ve önerilen düzeltme:** Sahipsiz. Spec gereği oturumluk, kalıcı/geri yüklenmez → Router search uygun değil; tek bileşen
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-293 · 51-project-wall · React state → Sahipsiz
+#### TK-293 · 51-project-wall · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/project-wall/ui/components/project-wall-presentation.tsx:43`, `const [index, setIndex] = useState(0);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor.
@@ -2658,7 +2660,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Router search. Seçili Proje Duvarı: proje kabuğu route search'üne wallId (validateSearch Zod .catch(undefined)), navigate({ search })
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-296 · 51-project-wall · React state → Sahipsiz
+#### TK-296 · 51-project-wall · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/project-wall/ui/views/project-wall-view.tsx:112`, `const [presenting, setPresenting] = useState(false);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Base UI popup değil; View dalı bütün düzenleme araçlarını gizliyor.
@@ -2686,7 +2688,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Router search. Seçili inceleme reviewId search'te
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-300 · 52-spec-change-review · React state → Sahipsiz
+#### TK-300 · 52-spec-change-review · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/spec-change-review/ui/views/spec-change-review-view.tsx:89`, `const [current, setCurrent] = useState<number | null>(null);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Paylaşılabilir bölüm bağlantısı istenirse Router; spec istemiyor
@@ -2700,21 +2702,21 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** TanStack Form. Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array"); useForm onSubmit içinde formApi.setErrorMap({ onSubmit }) + form.Subscribe selector={s => s.errorMap.onSubmit}; sunucu hatası mutateAsync reddinden
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-302 · 53-test-plan-and-handoff · React state → Sahipsiz
+#### TK-302 · 53-test-plan-and-handoff · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/planned-tests/ui/components/planned-test-relations-field.tsx:45`, `const [message, setMessage] = useState("");`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor.
 - **Beklenen ve önerilen düzeltme:** Sahipsiz. Ekle/kaldır/kopyala sonrası aria-live duyurusu; stack'te sahibi yok
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-303 · 53-test-plan-and-handoff · React state → Sahipsiz
+#### TK-303 · 53-test-plan-and-handoff · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/planned-tests/ui/components/test-handoff-context-field.tsx:52`, `const [message, setMessage] = useState("");`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor.
 - **Beklenen ve önerilen düzeltme:** Sahipsiz. Ekle/kaldır/kopyala sonrası aria-live duyurusu; stack'te sahibi yok; 'Choose a Wireframe version.' doğrulama metni alt form validator'ına (form) taşınabilir
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-304 · 53-test-plan-and-handoff · React state → Sahipsiz
+#### TK-304 · 53-test-plan-and-handoff · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/planned-tests/ui/components/test-handoff-package-panel.tsx:42`, `const [message, setMessage] = useState("");`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Pano kopyalama sonucu duyurusu
@@ -2749,7 +2751,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** TanStack Form. Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array"); useForm onSubmit içinde formApi.setErrorMap({ onSubmit }) + form.Subscribe selector={s => s.errorMap.onSubmit}; sunucu hatası mutateAsync reddinden
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-309 · 55-test-gaps · React state → Sahipsiz
+#### TK-309 · 55-test-gaps · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/test-gaps/ui/components/test-gap-relations-field.tsx:54`, `const [message, setMessage] = useState("");`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor.
@@ -2819,7 +2821,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** TanStack Form. Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array"); useForm onSubmit içinde formApi.setErrorMap({ onSubmit }) + form.Subscribe selector={s => s.errorMap.onSubmit}; sunucu hatası mutateAsync reddinden; isSubmitSuccessful (form.Subscribe)
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-319 · 58-product-gaps · React state → Sahipsiz
+#### TK-319 · 58-product-gaps · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/product-gaps/ui/components/product-gap-links-field.tsx:50`, `const [message, setMessage] = useState("");`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor.
@@ -2847,7 +2849,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Hesaplanan değer. save.isError; createVersion.error ?? restoreVersion.error; placeCard/moveCard/removeCard/previewConvert/confirmConvert error'larından hesaplanır; previewMutation.error ?? confirmMutation.error
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-323 · 59-technical-diagrams · React state → Sahipsiz
+#### TK-323 · 59-technical-diagrams · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/technical-diagrams/ui/components/technical-diagram-canvas.tsx:78`, `const [opening] = useState(() =>`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. State mekanizması olarak kullanılıyor ama hiç güncellenmiyor
@@ -2875,7 +2877,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** TanStack Form. UpEditForm'un gönderilmiş Up SQL değeri; form ChangeDraft'a taşınıp schemaChangePreview girdisi useSelector(form.store, s => submitted value) ile okunur
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-327 · 60-schema-artifacts · React state → Sahipsiz
+#### TK-327 · 60-schema-artifacts · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/schema-artifacts/ui/components/sql-output.tsx:22`, `const [message, setMessage] = useState("");`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Pano kopyalama duyurusu
@@ -3043,7 +3045,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Base UI. Sheet(Dialog) kontrolsüz + `actionsRef.current?.close()` (renderSurface/Open full page kapatması)
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-351 · 72-personal-shell · React state → Sahipsiz
+#### TK-351 · 72-personal-shell · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/personal-shell/ui/components/personal-shell.tsx:36`, `const [surface, setSurface] = useState<PersonalShellSurface>(`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Kullanıcı kararı: sahipsiz mi bileşen ömürlü Store mu.
@@ -3065,7 +3067,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Router search. /_auth/projects/$projectId `validateSearch` (Zod `.catch`) + `useSearch` + `navigate({ search })`
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-354 · 73-link-sharing · React state → Sahipsiz
+#### TK-354 · 73-link-sharing · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/features/link-sharing/ui/components/link-sharing-surface.tsx:34`, `const [issued, setIssued] = useState<IssuedShareLink | null>(null);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Bir kez gösterilen Secret; default Query mutation cache veya persist edilen Store üzerinden taşınmamalı.
@@ -3318,7 +3320,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** oRPC / Query. update.error ?? moveToTrash.error ?? restore.error ?? deletePermanently.error; yeni denemede mutation.reset()
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-389 · ortak · React state → Sahipsiz
+#### TK-389 · ortak · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/components/custom-field-editor-form.tsx:123`, `const [editingId, setEditingId] = useState<string | null>(null);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Router search'e taşımak spec 10 davranışı gerektirmiyor; karar 16. bölüme.
@@ -3332,7 +3334,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Base UI. Kontrolsüz Popover + Popover.Root actionsRef; onSelect ve Clear içinde actionsRef.current?.close() (Base UI 1.9.0 PopoverRoot.actionsRef)
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-391 · ortak · React state → Sahipsiz
+#### TK-391 · ortak · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/components/date-picker.tsx:170`, `const [draftTime, setDraftTime] = useState("");`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Seçenek: kontrolsüz time Input + ref (render dışı) — kullanıcı kararı.
@@ -3367,7 +3369,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** TanStack Form. actionId/baseRevision'ı form değerine koy: form.reset(draftFromAction(action)) ve onSubmit value'dan oku; başlık için useSelector(form.store, s => s.values.actionId); stepResult/safeParse için setErrorMap({ onSubmit }); kaydetme ve Move to Trash hataları create.error/update.error/moveToTrash.error
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-396 · ortak · React state → Sahipsiz
+#### TK-396 · ortak · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/components/work-status-form.tsx:93`, `const [reopenTarget, setReopenTarget] = useState<WorkOpenStatus | null>(null);`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. Setter WorkCompletionNotice alt bileşenine prop olarak geçiyor (satır 530+).
@@ -3381,7 +3383,7 @@ Başlangıç `a548a2c810b0`, temiz çalışma ağacı ve 85 spec. Sayılar Yüks
 - **Beklenen ve önerilen düzeltme:** Hesaplanan değer. status !== "idle" (load() iki state'i birlikte yazar, status idle'a dönmez)
 - **Güven:** yüksek. Bu grubun çağrıları ve ayrı hedefleri 13. bölümde.
 
-#### TK-398 · ortak · React state → Sahipsiz
+#### TK-398 · ortak · React state → Sahibi kararlaştırıldı (#553, §16.1)
 
 - **Kanıt:** `apps/web/src/components/youtube-preview-player.tsx:81`, `const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(`. **Kural:** Raporun React state kuralı; §6.2–6.8 içinden duruma ait sözleşme.
 - **Kullanım ve etki:** 1 çağrı, 1 dosyada aynı sorumluluk için React içinde ayrı state tutuyor. setTimeout'lar zaman aşımı (6.7 meşru); message dinleyicisi origin+source+Zod kontrolü yapıyor.
@@ -3413,9 +3415,9 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/extension/src/features/capture-triage/ui/views/web-capture-view.tsx:49` | `isReading` | Store — TanStack Store createStore + useSelector(s => s.linkLoadStatus) | D | TK-117 |
 | `apps/web/src/components/custom-field-editor-form.tsx:121` | `formError` | Form — onSubmit içinde formApi.setErrorMap({ onSubmit: issue.message }) + form.Subscribe selector={s => s.errorMap.onSubmit} | D | TK-387 |
 | `apps/web/src/components/custom-field-editor-form.tsx:122` | `actionError` | Query — update.error ?? moveToTrash.error ?? restore.error ?? deletePermanently.error; yeni denemede mutation.reset() | D | TK-388 |
-| `apps/web/src/components/custom-field-editor-form.tsx:123` | `editingId` | Sahipsiz — Satır içi düzenleme modu; yalnız bu editör ve prop ile alt liste kullanıyor, URL/Store/Form sahibi tanımlı değil Router search'e taşımak spec 10 davranışı gerektirmiyor; karar 16. bölüme. | D | TK-389 |
+| `apps/web/src/components/custom-field-editor-form.tsx:123` | `editingId` | Karar #553 — Yerel edit Store. Reset, yönlendirme ve güncel durum: §16.1 G1 | D | TK-389 |
 | `apps/web/src/components/date-picker.tsx:58` | `open` | Base UI — Kontrolsüz Popover + Popover.Root actionsRef; onSelect ve Clear içinde actionsRef.current?.close() (Base UI 1.9.0 PopoverRoot.actionsRef) | D | TK-390 |
-| `apps/web/src/components/date-picker.tsx:170` | `draftTime` | Sahipsiz — Bileşik kontrolün tarih seçilmeden yazılan saat taslağı; form değeri sözleşmesi tek 'yyyy-MM-ddTHH:mm' dizesi olduğu için Form alanı değil Seçenek: kontrolsüz time Input + ref (render dışı) — kullanıcı kararı. | D | TK-391 |
+| `apps/web/src/components/date-picker.tsx:170` | `draftTime` | Karar #553 — Kontrol Store: draftTime ve son yayılan değer. Reset, yönlendirme ve güncel durum: §16.1 G1 | D | TK-391 |
 | `apps/web/src/components/personal-reminder-control.tsx:48` | `open` | Base UI — Dialog.createHandle<PersonalReminderAction>() + iki DialogTrigger handle payload; Dialog.Root children ({ payload }); sorgular popup içeriğine taşınınca enabled: open gereksizleşir | D | TK-392 |
 | `apps/web/src/components/personal-reminder-control.tsx:49` | `action` | Base UI — Aynı createHandle payload'ı (Remind me / Review Later) | D | TK-392 |
 | `apps/web/src/components/personal-reminder-control.tsx:50` | `error` | Query — create.error ?? cancel.error; PersonalReminderForm yerel doğrulaması için formApi.setErrorMap({ onSubmit }) | D | TK-393 |
@@ -3425,10 +3427,10 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/components/record-action-form.tsx:214` | `error` | Form — stepResult/safeParse için setErrorMap({ onSubmit }); kaydetme ve Move to Trash hataları create.error/update.error/moveToTrash.error | D | TK-395 |
 | `apps/web/src/components/work-status-form.tsx:89` | `selectedStatus` | Query — Normal Status eyleminde mutation.variables ve güncel Work verisi; gönderilen Close girdileri Form’da. | D | TK-106 |
 | `apps/web/src/components/work-status-form.tsx:90` | `closePreview` | Query — previewClose.data; iptal/başarıda previewClose.reset() | O | TK-106 |
-| `apps/web/src/components/work-status-form.tsx:93` | `reopenTarget` | Sahipsiz — Satır içi role="dialog" onay paneli; açılır pencere olmadığı için Base UI sahibi kesin değil. Seçenek: AlertDialog + createHandle<WorkOpenStatus>() Setter WorkCompletionNotice alt bileşenine prop olarak geçiyor (satır 530+). | D | TK-396 |
+| `apps/web/src/components/work-status-form.tsx:93` | `reopenTarget` | Karar #553 — Satır içi onay Store; uygun ARIA, odak ve Escape. Reset, yönlendirme ve güncel durum: §16.1 G2 | D | TK-396 |
 | `apps/web/src/components/work-status-form.tsx:94` | `error` | Query — updateStatus/previewClose/closeWork/reopenWork .error; closeForm safeParse hatası için setErrorMap({ onSubmit }) | D | TK-106 |
 | `apps/web/src/components/youtube-preview-player.tsx:80` | `requested` | Türetilen — status !== "idle" (load() iki state'i birlikte yazar, status idle'a dönmez) | D | TK-397 |
-| `apps/web/src/components/youtube-preview-player.tsx:81` | `status` | Sahipsiz — Üçüncü taraf iframe/YT Player yaşam döngüsünün emir kipli canlı durumu; Query/Store/Base UI sahibi yok setTimeout'lar zaman aşımı (6.7 meşru); message dinleyicisi origin+source+Zod kontrolü yapıyor. | D | TK-398 |
+| `apps/web/src/components/youtube-preview-player.tsx:81` | `status` | Karar #553 — YouTube adapter yerel Store. Reset, yönlendirme ve güncel durum: §16.1 G8 | D | TK-398 |
 | `apps/web/src/features/account-access/lib/auth-session-check.ts:97` | `sessionCheckRetryConsumed` | Store — Account Access store ve useSelector; Retry hakkı tüketilince hata görünümü güncellenir, loader başarıyla tamamlandığında sıfırlanır. Router yükleme durumu ayrı seçilir. | D | TK-108 |
 | `apps/web/src/features/account-access/ui/views/auth-route-error-view.tsx:21` | `isRetrying` | Router — useRouterState({ select: state => state.isLoading }); loader yenilemesi router.invalidate() olarak kalır. Retry hakkı ilgili deneme kimliğiyle ayrı izlenir. | D | TK-109 |
 | `apps/web/src/features/account-access/ui/views/github-sign-in-view.tsx:16` | `isWaitingForGitHub` | Query — Better Auth taşıması korunur; TanStack Query mutation yalnız bekleme ve sonuç yaşam döngüsünü sarmalar. | D | TK-110 |
@@ -3446,7 +3448,7 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/backlog/ui/components/project-backlog.tsx:255` | `presentation` | Router — Project route validateSearch + navigate({ search }) | D | TK-186 |
 | `apps/web/src/features/backlog/ui/components/project-backlog.tsx:256` | `priorityMetricId` | Router — Project route validateSearch + navigate({ search }) | D | TK-186 |
 | `apps/web/src/features/backlog/ui/components/project-backlog.tsx:257` | `field` | Router — Project route validateSearch + navigate({ search }) | D | TK-186 |
-| `apps/web/src/features/backlog/ui/components/project-backlog.tsx:272` | `now` | Sahipsiz — Tarayıcı saati ve zaman dilimi; kabul edilmiş render sahibi yok Dakika tick’i Deferred ayrımının tarih geldiğinde güncellenmesini sağlıyor. Interval meşru. | D | TK-187 |
+| `apps/web/src/features/backlog/ui/components/project-backlog.tsx:272` | `now` | Karar #553 — Görünüm ömürlü saat Store; tarih Hesap saat diliminden türetilir. Reset, yönlendirme ve güncel durum: §16.1 G3 | D | TK-187 |
 | `apps/web/src/features/build-in-public/ui/forms/build-in-public-publication-form.tsx:46` | `confirmUnpublish` | Base UI — AlertDialog kontrolsüz: `AlertDialog.Trigger` + `AlertDialog.Close` | D | TK-358 |
 | `apps/web/src/features/build-in-public/ui/forms/build-in-public-slug-form.tsx:30` | `slugError` | Form — slug alanında `validators.onSubmit` (parseSetSlug) + `setErrorMap`; Preview düğmesi için `form.validateField('slug','submit')` | D | TK-359 |
 | `apps/web/src/features/bulk-editing/hooks/use-bulk-work-selection.ts:37` | `selection` | Store — useCreateStore(initialValue, actions) + useSelector | D | TK-169 |
@@ -3473,13 +3475,13 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/command-palette/ui/components/command-palette.tsx:98` | `commandStack` | Store — Alt komut katmanları ve geri düğmesi için paletin geçici oturum Store'u ve useSelector. | D | TK-114 |
 | `apps/web/src/features/command-palette/ui/components/command-palette.tsx:101` | `failureReason` | Store — Genel komut çalıştırıcısının sonuç durumu; ortak palet oturumu Store'u ve useSelector. Gerçek RPC komutunun hatası kendi mutation'ında kalır. | D | TK-114 |
 | `apps/web/src/features/command-palette/ui/components/command-palette.tsx:102` | `isRunning` | Store — Palet oturum Store'u ve useSelector; executeCommand navigasyon ve eşzamanlı komut da çalıştırdığından bütün komutları Query mutation'ına dönüştürme. | D | TK-114 |
-| `apps/web/src/features/command-palette/ui/components/command-palette.tsx:103` | `recordsReady` | Sahipsiz — İlk paint sonrasına ertelenen sonuç montajı; requestAnimationFrame odak işi meşru. Paint sonrası render kapısı için stack'te açık sahip yok. | D | TK-115 |
+| `apps/web/src/features/command-palette/ui/components/command-palette.tsx:103` | `recordsReady` | Karar #553 — Palette oturumu Store; mevcut rAF zamanlaması korunur. Reset, yönlendirme ve güncel durum: §16.1 G8 | D | TK-115 |
 | `apps/web/src/features/command-palette/ui/components/command-palette.tsx:104` | `query` | Store — Palet oturum Store'u/useSelector; başlangıç komutu ve komut arama girdisi, URL'ye taşınmaz. | D | TK-114 |
 | `apps/web/src/features/command-palette/ui/components/command-palette.tsx:554` | `paletteStore` | Store — useCreateStore ile bileşen ömrüne bağlı store, useSelector ile okuma. | D | TK-114 |
 | `apps/web/src/features/command-palette/ui/components/command-palette.tsx:564` | `registeredCommands` | Store — createStoreContext/useCreateStore ve useSelector; alt Project bileşenleri tarafından kaydedilen komutlar ortak Store'da, token ref'i kayıt temizleme kimliği olabilir. | D | TK-114 |
 | `apps/web/src/features/completion-effects/hooks/use-user-initiated-work-success.ts:78` | `feedbackByWorkId` | Store — useCreateStore(initialValue, actions) + useSelector | D | TK-172 |
 | `apps/web/src/features/completion-effects/ui/forms/completion-effects-form.tsx:88` | `prefersReducedMotion` | Türetilen — matchMedia snapshot için useSyncExternalStore(subscribe,getSnapshot,getServerSnapshot) | D | TK-173 |
-| `apps/web/src/features/completion-effects/ui/forms/completion-effects-form.tsx:89` | `previewing` | Sahipsiz — Animasyonun yerel yaşam döngüsü; kabul edilmiş render sahibi yok Örnek efekti tıklama başlatıyor, süre bitince kapatılıyor. | D | TK-174 |
+| `apps/web/src/features/completion-effects/ui/forms/completion-effects-form.tsx:89` | `previewing` | Karar #553 — Önizleme Store; timer ref içinde. Reset, yönlendirme ve güncel durum: §16.1 G8 | D | TK-174 |
 | `apps/web/src/features/completion-effects/ui/forms/completion-effects-form.tsx:90` | `previewStatus` | Türetilen — Preview evresi ve prefersReducedMotion üzerinden hesaplanan canlı mesaj | D | TK-173 |
 | `apps/web/src/features/completion-effects/ui/forms/completion-effects-form.tsx:91` | `saveError` | Form — form.setErrorMap({ onSubmit }) + form.Subscribe, ağ hatası mutation.error | D | TK-175 |
 | `apps/web/src/features/completion-effects/ui/forms/completion-effects-form.tsx:92` | `hasSaved` | Query — savePreferences.isSuccess + reset veya mutation.variables ile güncel değer karşılaştırması | D | TK-176 |
@@ -3492,7 +3494,7 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/custom-fields/ui/components/custom-field-values-form.tsx:141` | `value` | Form — useForm ve form.Field; Number taslağı ve sayısal doğrulama, boş değer ile geçersiz sayıyı ayır ve blur kaydının hatasını alanda göster. | D | TK-132 |
 | `apps/web/src/features/custom-fields/ui/components/custom-field-values-form.tsx:185` | `open` | Base UI — Kontrolsüz Popover ve actionsRef.current?.close(); mevcut PopoverTrigger korunur. Popover.Close da uygun düğmeler için primitive olarak kullanılabilir. | D | TK-133 |
 | `apps/web/src/features/custom-fields/ui/components/custom-field-values-form.tsx:312` | `actionError` | Query — values.setValue.error/clearValue.error ve reset; en son girişime ait hatayı göster. Taslak callback sunucu hatası üretmiyor. | D | TK-134 |
-| `apps/web/src/features/daily-focus/ui/views/daily-focus-view.tsx:35` | `now` | Sahipsiz — Tarayıcı saati ve Account zaman dilimi; kabul edilmiş render sahibi yok Dakika tick’i URL’de day yokken bugünü yeniden hesaplıyor. Interval meşru. | D | TK-189 |
+| `apps/web/src/features/daily-focus/ui/views/daily-focus-view.tsx:35` | `now` | Karar #553 — Görünüm ömürlü saat Store. Reset, yönlendirme ve güncel durum: §16.1 G3 | D | TK-189 |
 | `apps/web/src/features/daily-focus/ui/views/daily-focus-view.tsx:245` | `rejectedCandidateIdsByDay` | Store — useCreateStore(initialValue, actions) + useSelector | D | TK-190 |
 | `apps/web/src/features/data-export/hooks/use-export-flow.ts:23` | `pending` | Query — preview/produce `useMutation` `isPending` | O | TK-092 |
 | `apps/web/src/features/data-export/hooks/use-export-flow.ts:24` | `refusal` | Query — mutation `error` → `exportRefusalMessage` (hedefte `isDefinedError`) | D | TK-092 |
@@ -3514,7 +3516,7 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/decisions/ui/components/decision-supersession-controls.tsx:35` | `pending` | Query — commit için `useMutation(orpc.commitDecisionSupersession.mutationOptions())` → `isPending` | D | TK-233 |
 | `apps/web/src/features/decisions/ui/components/decision-supersession-controls.tsx:36` | `error` | Query — oRPC + Query: `useMutation(orpc.x.mutationOptions())` sonucu `error` (beklenen hata için `isDefinedError`) | D | TK-233 |
 | `apps/web/src/features/decisions/ui/components/decision-supersession-controls.tsx:37` | `conflict` | Türetilen — `commit.error` üzerinden CONFLICT kodundan türetilir | D | TK-234 |
-| `apps/web/src/features/decisions/ui/components/project-decisions-panel.tsx:53` | `editing` | Sahipsiz — Satır içi editör modu (popup değil); Router search (`editing`) veya Base UI Collapsible seçenekleri; karar kullanıcıya | D | TK-235 |
+| `apps/web/src/features/decisions/ui/components/project-decisions-panel.tsx:53` | `editing` | Karar #553 — Store: mode ve hedef recordId; editör kimliği ikisini içerir. Reset, yönlendirme ve güncel durum: §16.1 G1 | D | TK-235 |
 | `apps/web/src/features/decisions/ui/components/project-decisions-surface.tsx:39` | `savedMessage` | Query — save/withdraw `useMutation` → `isSuccess` + `variables` (operation) ile durum metni | D | TK-233 |
 | `apps/web/src/features/decisions/ui/forms/decision-editor-form.tsx:39` | `error` | Form — TanStack Form: `formApi.setErrorMap({ onSubmit })` + `form.Subscribe selector={s => s.errorMap.onSubmit}`; sunucu hatası `mutation.error` | D | TK-236 |
 | `apps/web/src/features/decisions/ui/forms/decision-editor-form.tsx:40` | `conflict` | Form — `setErrorMap({ onSubmit: { conflict: true, ... } })` ile form hata değerinden okunur | D | TK-236 |
@@ -3527,8 +3529,8 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/documents/ui/components/document-evidence-controls.tsx:104` | `rebindRange` | Base UI — Açılış anındaki seçim aralığı aynı handle payload içinde taşınır | D | TK-211 |
 | `apps/web/src/features/documents/ui/components/document-organization-controls.tsx:17` | `action` | Base UI — Base UI Dialog `createHandle<"hierarchy" \| "archive">()` + Trigger payload; başarıda `actionsRef.close()` | D | TK-211 |
 | `apps/web/src/features/documents/ui/components/document-organization-controls.tsx:18` | `openCount` | Base UI — Remount sayacı gereksiz: kapanınca popup unmount olur / `onOpenChangeComplete` içinde `form.reset()` | D | TK-211 |
-| `apps/web/src/features/documents/ui/components/document-preview.tsx:296` | `rendered` | Sahipsiz — Yerel async Mermaid render (sunucu verisi değil); stack sahibi yok. Seçenek: yerel `queryFn` ile Query veya ayrı karar Query yalnız sunucu verisi olarak tanımlı; karar kullanıcıya | D | TK-212 |
-| `apps/web/src/features/documents/ui/components/document-preview.tsx:297` | `error` | Sahipsiz — Mermaid render hatası; 296 ile aynı sahipsiz iş | D | TK-212 |
+| `apps/web/src/features/documents/ui/components/document-preview.tsx:296` | `rendered` | Karar #553 — Mermaid render Store; kaynak başına istek kimliği. Reset, yönlendirme ve güncel durum: §16.1 G8 | D | TK-212 |
+| `apps/web/src/features/documents/ui/components/document-preview.tsx:297` | `error` | Karar #553 — Aynı Mermaid render Store. Reset, yönlendirme ve güncel durum: §16.1 G8 | D | TK-212 |
 | `apps/web/src/features/documents/ui/components/document-preview.tsx:344` | `error` | Türetilen — `katex.renderToString` try/catch ile render sırasında (`useMemo`) türetilir; effect + setState gerekmez | D | TK-213 |
 | `apps/web/src/features/documents/ui/components/project-documents-surface.tsx:36` | `archived` | Router — `validateSearch` Zod `archived: z.boolean().catch(false)` + `Route.useSearch()` / `navigate({ search: prev => ... })` | D | TK-046 |
 | `apps/web/src/features/documents/ui/components/project-documents-surface.tsx:49` | `selectedId` | Router — Seçili Document zaten route hash (`selectedDocumentId`) kaynaklı; useEffect ile yerel kopyaya aynalanıyor. Seçim `navigate({ hash: documentRecordHash(id) })` ile yazılmalı | O | TK-046 |
@@ -3565,7 +3567,7 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/documents/ui/forms/document-link-form.tsx:26` | `error` | Form — Alan seviyesi `validators.onSubmit` (Zod) / `field.state.meta.errors` | D | TK-214 |
 | `apps/web/src/features/documents/ui/forms/document-organization-form.tsx:73` | `preview` | Query — `inspect.data`; `invalidatePreview` → `inspect.reset()` | D | TK-210 |
 | `apps/web/src/features/documents/ui/forms/document-organization-form.tsx:74` | `error` | Form — TanStack Form: `formApi.setErrorMap({ onSubmit })` + `form.Subscribe selector={s => s.errorMap.onSubmit}`; sunucu hatası `mutation.error` | D | TK-214 |
-| `apps/web/src/features/documents/ui/forms/document-templates-form.tsx:139` | `selection` | Sahipsiz — Gönderilmeyen tekli şablon seçimi (NativeSelect); açılışta payload’a girer. Seçenek: küçük `useForm` alanı veya handle payload; karar kullanıcıya | D | TK-215 |
+| `apps/web/src/features/documents/ui/forms/document-templates-form.tsx:139` | `selection` | Karar #553 — Şablon seçicinin yerel Store; açılış payload’ı ayrı. Reset, yönlendirme ve güncel durum: §16.1 G1 | D | TK-215 |
 | `apps/web/src/features/documents/ui/forms/document-templates-form.tsx:144` | `mode` | Base UI — Base UI Dialog `createHandle<{ mode; template }>()` + Trigger payload | D | TK-211 |
 | `apps/web/src/features/documents/ui/forms/document-templates-form.tsx:145` | `templateAtOpen` | Base UI — Aynı handle payload (`template`) | D | TK-211 |
 | `apps/web/src/features/documents/ui/forms/document-templates-form.tsx:146` | `error` | Form — TanStack Form: `formApi.setErrorMap({ onSubmit })` + `form.Subscribe selector={s => s.errorMap.onSubmit}`; sunucu hatası `mutation.error` | D | TK-214 |
@@ -3580,8 +3582,8 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/external-handoffs/ui/components/external-execution-handoff.tsx:210` | `expanded` | Base UI — Collapsible.Root defaultOpen; açık içerikte alt sorgu bileşenini mount et | D | TK-177 |
 | `apps/web/src/features/external-handoffs/ui/components/external-execution-handoff.tsx:211` | `formError` | Form — StartHandoffForm form.setErrorMap({ onSubmit }) ve form.Subscribe | D | TK-178 |
 | `apps/web/src/features/external-handoffs/ui/components/external-execution-handoff.tsx:212` | `writeError` | Query — start.error/reset ve form seviyesinde gösterim | D | TK-179 |
-| `apps/web/src/features/external-handoffs/ui/components/external-execution-handoff.tsx:213` | `copiedHandoffId` | Sahipsiz — Yerel Clipboard sonucu için kabul edilmiş sahip yok Kopyalama başarısı RPC’den önce görünür. Kayıt başarısız olsa bile doğru kopyalama sonucunu koru. | D | TK-180 |
-| `apps/web/src/features/external-handoffs/ui/components/external-execution-handoff.tsx:214` | `copyError` | Sahipsiz — Clipboard hatasının yerel sahibi açık; kayıt hatası recordPackageExport.error Clipboard reddi ve daha sonra gerçekleşebilen Work history yazma hatası farklı sonuçlar. | D | TK-180 |
+| `apps/web/src/features/external-handoffs/ui/components/external-execution-handoff.tsx:213` | `copiedHandoffId` | Karar #553 — Clipboard sonucu Store; history kayıt sonucu Query. Reset, yönlendirme ve güncel durum: §16.1 G4 | D | TK-180 |
+| `apps/web/src/features/external-handoffs/ui/components/external-execution-handoff.tsx:214` | `copyError` | Karar #553 — Aynı Clipboard Store. Reset, yönlendirme ve güncel durum: §16.1 G4 | D | TK-180 |
 | `apps/web/src/features/external-handoffs/ui/forms/cancel-handoff-form.tsx:22` | `error` | Form — form.setErrorMap({ onSubmit }) + form.Subscribe | D | TK-178 |
 | `apps/web/src/features/external-handoffs/ui/forms/handoff-reconcile-form.tsx:55` | `preview` | Query — previewReconcile.data/reset; previewId doğrulama girdisi | D | TK-179 |
 | `apps/web/src/features/external-handoffs/ui/forms/handoff-reconcile-form.tsx:56` | `error` | Form — form.setErrorMap({ onSubmit }) + form.Subscribe | D | TK-178 |
@@ -3597,19 +3599,19 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/feedback/ui/forms/evidence-quality-form.tsx:53` | `status` | Form — formApi.setErrorMap / form.Subscribe isSubmitSuccessful | D | TK-266 |
 | `apps/web/src/features/feedback/ui/views/feedback-view.tsx:62` | `error` | Query — setFeedbackIdentity / setFeedbackStatus mutation.error | D | TK-263 |
 | `apps/web/src/features/feedback/ui/views/feedback-view.tsx:63` | `converting` | Base UI — Dialog.Trigger / Dialog.Close / actionsRef.close() | D | TK-265 |
-| `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:312` | `surfaceSize` | Sahipsiz — ResizeObserver ile ölçülen DOM boyutu; Konva Stage width/height girdisi. Sahibi yok (Pacer gerekmez: tetiklenen iş yalnız yeniden çizim). Canlı canvas ölçümü; tanımlı hedef yok | D | TK-143 |
-| `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:313` | `media` | Sahipsiz — Sahip kararı gerekli; 16. bölüm. Reaktifte yüklenmiş media metadata’sı; güvenli doğrudan türetim mevcut source element olaylarına bağlı. | D | TK-143 |
-| `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:316` | `mediaSize` | Sahipsiz — img naturalWidth/canvas boyutu (load + ResizeObserver) ölçümü; objectContainBox girdisi | D | TK-143 |
-| `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:320` | `draft` | Sahipsiz — Konva pointer çizim taslağı (canlı imleç etkileşimi); tamamlanınca onCreateMarking mutation'ına dönüşür Brief: yerel canvas pointer etkileşimi sahipsiz | D | TK-143 |
+| `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:312` | `surfaceSize` | Karar #553 — ResizeObserver -> yüzey Store. Reset, yönlendirme ve güncel durum: §16.1 G5 | D | TK-143 |
+| `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:313` | `media` | Karar #553 — Element ve yükleme/ölçüm aboneliği aynı efekt içinde; ayrı render state yok. Reset, yönlendirme ve güncel durum: §16.1 G5 | D | TK-143 |
+| `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:316` | `mediaSize` | Karar #553 — Media ölçüm Store. Reset, yönlendirme ve güncel durum: §16.1 G5 | D | TK-143 |
+| `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:320` | `draft` | Karar #553 — Çizim hareketinin yerel Store’u. Reset, yönlendirme ve güncel durum: §16.1 G6 | D | TK-143 |
 | `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:578` | `tool` | Store — useCreateStore (bileşen ömrü) veya createStoreContext: araç çubuğu, MarkupSurface ve PDF sayfaları (render prop) aynı değeri paylaşıyor | D | TK-144 |
 | `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:579` | `markingError` | Query — createMarkingMutation.error / undoMarkingMutation.error (file-attachment-preview.tsx) — reset() ile temizleme | D | TK-145 |
 | `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:580` | `locationOpen` | Store — Binder paneli + yüzey seçim modu paylaşıyor: tool ile aynı useCreateStore; panel tek başına olsaydı Base UI Collapsible | D | TK-144 |
 | `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:581` | `locationKind` | Form — file-attachment-location-form useForm alanı (point/region); yüzey seçimi form.setFieldValue ile yazar | D | TK-146 |
 | `apps/web/src/features/file-attachments/ui/components/file-attachment-markup.tsx:583` | `location` | Form — Bind as origin konumu gönderilen formun değeri: location form'un x/y/width/height/page alanları tek kaynak; şu an useState + useEffect setFieldValue ile çift kaynak | D | TK-146 |
-| `apps/web/src/features/file-attachments/ui/components/file-attachment-pdf.tsx:52` | `loadedPages` | Sahipsiz — React-PDF Document onLoadSuccess numPages; yerel kütüphane geri çağrısı | D | TK-147 |
-| `apps/web/src/features/file-attachments/ui/components/file-attachment-pdf.tsx:53` | `renderedPages` | Sahipsiz — Page onRenderSuccess sayacı; hazır durum türetimi için | D | TK-147 |
-| `apps/web/src/features/file-attachments/ui/components/file-attachment-pdf.tsx:54` | `failed` | Sahipsiz — React-PDF hata geri çağrısı; Document/Page `error` render prop'ları mesajı sahiplenebilir (kısmi) | D | TK-147 |
-| `apps/web/src/features/file-attachments/ui/components/file-attachment-preview.tsx:394` | `loop` | Sahipsiz — Video.js React 10.5 player'da loop özelliği/UI'ı bulunamadı; native media loop prop'u Video.js sahipliği kullanıcı kararına | D | TK-148 |
+| `apps/web/src/features/file-attachments/ui/components/file-attachment-pdf.tsx:52` | `loadedPages` | Karar #553 — PDF adapter Store: numPages; Document suspense=false. Reset, yönlendirme ve güncel durum: §16.1 G10 | D | TK-147 |
+| `apps/web/src/features/file-attachments/ui/components/file-attachment-pdf.tsx:53` | `renderedPages` | Karar #553 — PDF adapter Store: render nesline göre sayfa kimlikleri kümesi. Reset, yönlendirme ve güncel durum: §16.1 G10 | D | TK-147 |
+| `apps/web/src/features/file-attachments/ui/components/file-attachment-pdf.tsx:54` | `failed` | Karar #553 — PDF adapter toplu hata Store; tek alert ve Retry korunur; Page onLoadError dahil. Reset, yönlendirme ve güncel durum: §16.1 G10 | D | TK-147 |
+| `apps/web/src/features/file-attachments/ui/components/file-attachment-preview.tsx:394` | `loop` | Karar #553 — Media yerel Store; deklaratif loop prop ve kontrollü Checkbox. Reset, yönlendirme ve güncel durum: §16.1 G8 | D | TK-148 |
 | `apps/web/src/features/file-attachments/ui/components/file-attachment-preview.tsx:395` | `speed` | Store — Video.js React 10.5 player store'u (PlaybackRate / PlaybackRateRadioGroup UI) — TanStack Store değil, stack'teki Video.js sahibi | D | TK-144 |
 | `apps/web/src/features/file-attachments/ui/components/file-attachment-preview.tsx:514` | `state` | Query — useQuery({queryKey,queryFn:({signal})=>fetchFileAttachmentAsset(path,signal)}) — bkz. spec-2-2 | D | TK-145 |
 | `apps/web/src/features/file-attachments/ui/components/file-attachment-preview.tsx:577` | `assetRetryToken` | Query — query.refetch() — bkz. spec-2-2 | D | TK-145 |
@@ -3636,9 +3638,9 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/github-integration/ui/views/github-integration-view.tsx:323` | `search` | Form — TanStack Form ile gönderilmiş değer; oRPC searchGitHubRecords.queryOptions + skipToken veya olay içi queryClient.query | D | TK-330 |
 | `apps/web/src/features/github-integration/ui/views/github-integration-view.tsx:383` | `notice` | Query — TanStack Query useMutation / useMutationState ile error, isSuccess, variables ve data | D | TK-329 |
 | `apps/web/src/features/kanban/ui/components/kanban-board.tsx:57` | `collapsedStatuses` | Base UI — Her kolon için kontrolsüz Collapsible.Root/Trigger/Panel | D | TK-182 |
-| `apps/web/src/features/kanban/ui/components/project-work-kanban.tsx:54` | `today` | Sahipsiz — Tarayıcı saati ve Account zaman dilimi; kabul edilmiş render sahibi yok Bugün, Reappear date uygunluğunu değiştiriyor. Saat intervali meşru. | D | TK-183 |
+| `apps/web/src/features/kanban/ui/components/project-work-kanban.tsx:54` | `today` | Karar #553 — Saat Store’undan Hesap saat dilimine göre tarih türetimi. Reset, yönlendirme ve güncel durum: §16.1 G3 | D | TK-183 |
 | `apps/web/src/features/link-sharing/ui/components/link-sharing-surface.tsx:28` | `selectedKey` | Router — /_auth/projects/$projectId `validateSearch` (Zod `.catch`) + `useSearch` + `navigate({ search })` | D | TK-353 |
-| `apps/web/src/features/link-sharing/ui/components/link-sharing-surface.tsx:34` | `issued` | Sahipsiz — Sahip kararı gerekli; 16. bölüm. Bir kez gösterilen Secret; default Query mutation cache veya persist edilen Store üzerinden taşınmamalı. | D | TK-354 |
+| `apps/web/src/features/link-sharing/ui/components/link-sharing-surface.tsx:34` | `issued` | Karar #553 — Share surface özel bellek Store; token cache/persist/debug/log dışında. Reset, yönlendirme ve güncel durum: §16.1 G11 | D | TK-354 |
 | `apps/web/src/features/link-sharing/ui/components/link-sharing-surface.tsx:35` | `notice` | Query — revoke mutation `isSuccess` | D | TK-089 |
 | `apps/web/src/features/link-sharing/ui/components/share-access-panel.tsx:31` | `status` | Query — rotate mutation `isSuccess`; kopyalama sonucu için `useMutation({ mutationFn: writeTextToClipboard })` ya da sahipsiz | D | TK-089 |
 | `apps/web/src/features/link-sharing/ui/components/share-access-panel.tsx:32` | `failed` | Query — rotate/copy mutation `error` | D | TK-089 |
@@ -3652,11 +3654,11 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/link-sharing/ui/forms/share-password-form.tsx:23` | `error` | Form — `setErrorMap({ onSubmit })`; remove yolu için setLinkPassword mutation `error` | D | TK-356 |
 | `apps/web/src/features/link-sharing/ui/forms/share-password-form.tsx:24` | `saved` | Form — `isSubmitSuccessful`; remove yolu mutation `isSuccess` | D | TK-356 |
 | `apps/web/src/features/link-sharing/ui/forms/share-scope-form.tsx:58` | `error` | Form — `validators.onSubmit` (shareScopeFormSchema + groupsNeedingChoice) + `setErrorMap` | D | TK-356 |
-| `apps/web/src/features/moodboards/ui/components/moodboard-board.tsx:32` | `size` | Sahipsiz — Tarayıcı ölçümü / ResizeObserver; render durumunun sahibi belirlenmemiş Ölçüm kart koordinatları ve ilk viewport hesabını etkiliyor. Pacer bildirim sıklığını yönetebilir. | D | TK-282 |
-| `apps/web/src/features/moodboards/ui/components/moodboard-board.tsx:62` | `moved` | Sahipsiz — Canlı kamera veya viewport için renderer oturumu sahibi belirlenmemiş Taşınan ve sıfırlanan somut viewport, kişisel sunucu kopyasından önce görünür dönüşümü çizer. | D | TK-282 |
+| `apps/web/src/features/moodboards/ui/components/moodboard-board.tsx:32` | `size` | Karar #553 — ResizeObserver -> board Store. Reset, yönlendirme ve güncel durum: §16.1 G5 | D | TK-282 |
+| `apps/web/src/features/moodboards/ui/components/moodboard-board.tsx:62` | `moved` | Karar #553 — Moodboard viewport oturum Store. Reset, yönlendirme ve güncel durum: §16.1 G6 | D | TK-282 |
 | `apps/web/src/features/moodboards/ui/components/moodboard-outline.tsx:283` | `inspectedId` | Store — useCreateStore / useSelector | D | TK-283 |
 | `apps/web/src/features/moodboards/ui/components/moodboard-view-tools.tsx:104` | `cropOpen` | Base UI — Collapsible.Root / Trigger / Panel | D | TK-284 |
-| `apps/web/src/features/moodboards/ui/components/moodboard-view-tools.tsx:255` | `index` | Sahipsiz — Sunum gezinmesi için belgelenmiş durum sahibi yok Presentation Mode içinde önceki/sonraki odak adımının indeksi. | D | TK-285 |
+| `apps/web/src/features/moodboards/ui/components/moodboard-view-tools.tsx:255` | `index` | Karar #553 — Sunum oturumu Store. Reset, yönlendirme ve güncel durum: §16.1 G7 | D | TK-285 |
 | `apps/web/src/features/moodboards/ui/components/moodboard-workspace.tsx:32` | `viewport` | Store — createStoreContext / useSelector | D | TK-283 |
 | `apps/web/src/features/moodboards/ui/components/moodboard-workspace.tsx:35` | `collapsedChoice` | Store — createStoreContext / useSelector | D | TK-283 |
 | `apps/web/src/features/moodboards/ui/components/moodboard-workspace.tsx:36` | `selectedId` | Store — createStoreContext / useSelector | D | TK-283 |
@@ -3678,17 +3680,17 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/personal-data-rights/hooks/use-personal-data-flow.ts:28` | `produced` | Query — `useMutation(orpc.exportPersonalData.mutationOptions({ gcTime: 0 })).data/reset()`; download artifact’ını aktif incelemeyle sınırla. | O | TK-098 |
 | `apps/web/src/features/personal-data-rights/ui/forms/personal-data-contact-form.tsx:28` | `refusal` | Form — TanStack Form 1.33.5 `form.setErrorMap({ onSubmit })` ve `form.Subscribe`; iki preview için uygun `onSubmitMeta`. | D | TK-373 |
 | `apps/web/src/features/personal-shell/ui/components/personal-shell.tsx:35` | `open` | Base UI — Sheet(Dialog) kontrolsüz + `actionsRef.current?.close()` (renderSurface/Open full page kapatması) | D | TK-350 |
-| `apps/web/src/features/personal-shell/ui/components/personal-shell.tsx:36` | `surface` | Sahipsiz — Router search spec 72 'panel içi gezinme geri yüklenmez' kuralıyla dışlanıyor; Base UI Tabs kontrolsüz SheetTitle/Link'i besleyemez; alternatif `useCreateStore` Kullanıcı kararı: sahipsiz mi bileşen ömürlü Store mu. | D | TK-351 |
+| `apps/web/src/features/personal-shell/ui/components/personal-shell.tsx:36` | `surface` | Karar #553 — Shell bileşeni/oturumu Store. Reset, yönlendirme ve güncel durum: §16.1 G7 | D | TK-351 |
 | `apps/web/src/features/planned-tests/ui/components/planned-test-relations-field.tsx:36` | `targetType` | Form — Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array") | D | TK-301 |
 | `apps/web/src/features/planned-tests/ui/components/planned-test-relations-field.tsx:43` | `targetId` | Form — Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array") | D | TK-301 |
 | `apps/web/src/features/planned-tests/ui/components/planned-test-relations-field.tsx:44` | `sectionId` | Form — Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array") | D | TK-301 |
-| `apps/web/src/features/planned-tests/ui/components/planned-test-relations-field.tsx:45` | `message` | Sahipsiz — Ekle/kaldır/kopyala sonrası aria-live duyurusu; stack'te sahibi yok | D | TK-302 |
+| `apps/web/src/features/planned-tests/ui/components/planned-test-relations-field.tsx:45` | `message` | Karar #553 — Başarı duyurusu Store; already related doğrulaması Form. Reset, yönlendirme ve güncel durum: §16.1 G4 | D | TK-302 |
 | `apps/web/src/features/planned-tests/ui/components/test-handoff-context-field.tsx:42` | `kind` | Form — Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array") | D | TK-301 |
 | `apps/web/src/features/planned-tests/ui/components/test-handoff-context-field.tsx:49` | `targetId` | Form — Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array") | D | TK-301 |
 | `apps/web/src/features/planned-tests/ui/components/test-handoff-context-field.tsx:50` | `sectionId` | Form — Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array") | D | TK-301 |
 | `apps/web/src/features/planned-tests/ui/components/test-handoff-context-field.tsx:51` | `wireframeVersion` | Form — Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array") | D | TK-301 |
-| `apps/web/src/features/planned-tests/ui/components/test-handoff-context-field.tsx:52` | `message` | Sahipsiz — Ekle/kaldır/kopyala sonrası aria-live duyurusu; stack'te sahibi yok; 'Choose a Wireframe version.' doğrulama metni alt form validator'ına (form) taşınabilir | D | TK-303 |
-| `apps/web/src/features/planned-tests/ui/components/test-handoff-package-panel.tsx:42` | `message` | Sahipsiz — Ekle/kaldır/kopyala sonrası aria-live duyurusu; stack'te sahibi yok Pano kopyalama sonucu duyurusu | D | TK-304 |
+| `apps/web/src/features/planned-tests/ui/components/test-handoff-context-field.tsx:52` | `message` | Karar #553 — Duyuru Store; eksik Wireframe/already added doğrulaması Form. Reset, yönlendirme ve güncel durum: §16.1 G4 | D | TK-303 |
+| `apps/web/src/features/planned-tests/ui/components/test-handoff-package-panel.tsx:42` | `message` | Karar #553 — Paket satırı kopyalama Store. Reset, yönlendirme ve güncel durum: §16.1 G4 | D | TK-304 |
 | `apps/web/src/features/planned-tests/ui/components/test-handoff-package-panel.tsx:127` | `preview` | Query — Önizleme okuması: useMutation(orpc.preview*.mutationOptions()).data (olay tetikli) veya useQuery(queryOptions, enabled); form listeners.onChange → mutation.reset() | D | TK-305 |
 | `apps/web/src/features/planned-tests/ui/components/test-handoff-package-panel.tsx:128` | `error` | Query — useMutation(orpc.x.mutationOptions()).error / isError | D | TK-305 |
 | `apps/web/src/features/planned-tests/ui/components/test-handoff-package-panel.tsx:129` | `message` | Query — produce mutation isSuccess + data.packageVersion | D | TK-305 |
@@ -3719,7 +3721,7 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/product-gaps/ui/components/dogfooding-summary.tsx:154` | `opened` | Base UI — Base UI Collapsible; escapes useQuery'si yalnız açıkken mount olan Panel içindeki bileşene taşınırsa enabled bayrağına gerek kalmaz | D | TK-317 |
 | `apps/web/src/features/product-gaps/ui/components/product-gap-links-field.tsx:46` | `targetType` | Form — Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array") | D | TK-318 |
 | `apps/web/src/features/product-gaps/ui/components/product-gap-links-field.tsx:49` | `targetId` | Form — Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array") | D | TK-318 |
-| `apps/web/src/features/product-gaps/ui/components/product-gap-links-field.tsx:50` | `message` | Sahipsiz — Ekle/kaldır/kopyala sonrası aria-live duyurusu; stack'te sahibi yok | D | TK-319 |
+| `apps/web/src/features/product-gaps/ui/components/product-gap-links-field.tsx:50` | `message` | Karar #553 — Duyuru Store; already related doğrulaması Form. Reset, yönlendirme ve güncel durum: §16.1 G4 | D | TK-319 |
 | `apps/web/src/features/product-gaps/ui/components/product-gaps-board.tsx:55` | `error` | Query — useMutation(orpc.x.mutationOptions()).error / isError | D | TK-320 |
 | `apps/web/src/features/product-gaps/ui/components/product-gaps-board.tsx:56` | `message` | Query — setStatus mutation isSuccess + variables.status | D | TK-320 |
 | `apps/web/src/features/product-gaps/ui/components/tool-escape-fields.tsx:45` | `sourceType` | Form — Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array") | D | TK-318 |
@@ -3753,7 +3755,7 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/project-goals/ui/components/project-goal-membership-panel.tsx:50` | `message` | Query — `isSuccess` + `variables.attached` | D | TK-229 |
 | `apps/web/src/features/project-goals/ui/components/project-goal-membership-panel.tsx:51` | `settledChanges` | Form — Sayaç + useEffect yerine çocuk formda `await mutateAsync()` sonrası `formApi.reset()` | D | TK-230 |
 | `apps/web/src/features/project-goals/ui/components/project-goals-surface.tsx:29` | `savedMessage` | Query — save `useMutation` → `isSuccess` | D | TK-229 |
-| `apps/web/src/features/project-goals/ui/components/project-goals-view.tsx:38` | `editing` | Sahipsiz — Satır içi editör modu (popup değil); Router search (`editing`) veya Base UI Collapsible seçenekleri; karar kullanıcıya | D | TK-231 |
+| `apps/web/src/features/project-goals/ui/components/project-goals-view.tsx:38` | `editing` | Karar #553 — Yerel edit Store. Reset, yönlendirme ve güncel durum: §16.1 G1 | D | TK-231 |
 | `apps/web/src/features/project-goals/ui/forms/project-goal-form.tsx:71` | `error` | Form — TanStack Form: `formApi.setErrorMap({ onSubmit })` + `form.Subscribe selector={s => s.errorMap.onSubmit}`; sunucu hatası `mutation.error` | D | TK-230 |
 | `apps/web/src/features/project-goals/ui/forms/project-goal-form.tsx:72` | `baseGoal` | Form — Tek seferlik anlık görüntü: `useForm({ defaultValues })` ilk değeri zaten sabitler; base kayıt/revizyon render etkilemediği için `useRef` veya form defaultValues alanı | D | TK-230 |
 | `apps/web/src/features/project-goals/ui/forms/project-goal-form.tsx:73` | `conflict` | Form — `setErrorMap({ onSubmit: conflictError })`; current value hata değerinden gösterilir | D | TK-230 |
@@ -3790,20 +3792,20 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/project-updates/ui/forms/project-update-reminder-form.tsx:47` | `error` | Form — TanStack Form formApi.setErrorMap({ onSubmit }) ve form.Subscribe ile errorMap.onSubmit; Skip hatası için skip mutation.error | D | TK-341 |
 | `apps/web/src/features/project-updates/ui/forms/project-update-reminder-form.tsx:48` | `busy` | Query — form.Subscribe isSubmitting ve useMutation.isPending (Skip); gerekiyorsa mutation scope.id ile seri çalıştır | D | TK-342 |
 | `apps/web/src/features/project-wall/hooks/use-personal-project-wall-view.ts:53` | `saveError` | Türetilen — save.isError (useMutation sonucu); yeni mutate durumu zaten sıfırlar | D | TK-289 |
-| `apps/web/src/features/project-wall/ui/components/project-wall-canvas.tsx:173` | `preview` | Sahipsiz — İstemcide hesaplanan Auto-layout önerisi; canlı canvas etkileşimi, stack sahibi yok | D | TK-290 |
+| `apps/web/src/features/project-wall/ui/components/project-wall-canvas.tsx:173` | `preview` | Karar #553 — Auto-layout komut Store. Reset, yönlendirme ve güncel durum: §16.1 G6 | D | TK-290 |
 | `apps/web/src/features/project-wall/ui/components/project-wall-canvas.tsx:175` | `optimistic` | Query — Taşıma mutation'ı: onMutate'te orpc.projectWall queryKey setQueryData snapshot, onError geri alma, onSettled invalidate (6.2 / 6.10) | D | TK-291 |
-| `apps/web/src/features/project-wall/ui/components/project-wall-canvas.tsx:178` | `applied` | Sahipsiz — Auto-layout geri alma kaydı; yerel canvas komutu | D | TK-290 |
+| `apps/web/src/features/project-wall/ui/components/project-wall-canvas.tsx:178` | `applied` | Karar #553 — Auto-layout geri alma Store. Reset, yönlendirme ve güncel durum: §16.1 G6 | D | TK-290 |
 | `apps/web/src/features/project-wall/ui/components/project-wall-canvas.tsx:179` | `status` | Türetilen — preview?.moves.length === 0 iken metin hesaplanır | D | TK-289 |
-| `apps/web/src/features/project-wall/ui/components/project-wall-canvas.tsx:359` | `nodes` | Sahipsiz — React Flow kontrollü node durumu (sürükleme/seçim RF'nin kendi işi); useEffect ile modelNodes aynalaması gereksiz render yaratıyor, RF onNodesChange/applyNodeChanges akışı kendi sorumluluğunda Konva/React Flow kendi düğüm sürüklemesi kuralı | D | TK-290 |
-| `apps/web/src/features/project-wall/ui/components/project-wall-outline.tsx:458` | `inspectedId` | Sahipsiz — Spec gereği oturumluk, kalıcı/geri yüklenmez → Router search uygun değil; tek bileşen Seçili kayıt Router kuralı ile spec'in 'never persisted' kuralı çelişiyor; kullanıcı kararı | D | TK-292 |
-| `apps/web/src/features/project-wall/ui/components/project-wall-presentation.tsx:43` | `index` | Sahipsiz — Sunum modunda geçici adım imleci | D | TK-293 |
+| `apps/web/src/features/project-wall/ui/components/project-wall-canvas.tsx:359` | `nodes` | Karar #553 — React Flow controlled akış; useNodesState ve model uzlaştırma. Reset, yönlendirme ve güncel durum: §16.1 G6 | D | TK-290 |
+| `apps/web/src/features/project-wall/ui/components/project-wall-outline.tsx:458` | `inspectedId` | Karar #553 — Outline yerel Store. Reset, yönlendirme ve güncel durum: §16.1 G7 | D | TK-292 |
+| `apps/web/src/features/project-wall/ui/components/project-wall-presentation.tsx:43` | `index` | Karar #553 — Sunum oturumu Store. Reset, yönlendirme ve güncel durum: §16.1 G7 | D | TK-293 |
 | `apps/web/src/features/project-wall/ui/components/project-wall-scene.tsx:52` | `selection` | Store — Canvas ve Outline arasında paylaşılan oturumluk seçim: createStoreContext / useCreateStore + useSelector | D | TK-294 |
 | `apps/web/src/features/project-wall/ui/components/project-wall-surface.tsx:41` | `chosenId` | Router — Seçili Proje Duvarı: proje kabuğu route search'üne wallId (validateSearch Zod .catch(undefined)), navigate({ search }) | D | TK-295 |
 | `apps/web/src/features/project-wall/ui/components/project-wall-surface.tsx:42` | `error` | Query — write() yardımcısı yerine useMutation(orpc.x.mutationOptions()).error; sayfa düzeyi için useMutationState | D | TK-291 |
 | `apps/web/src/features/project-wall/ui/components/project-wall-surface.tsx:92` | `chosenCollapse` | Query — Kişisel görünüm sorgusunun cache'i: schedule anında queryClient.setQueryData(orpc.projectWallViewport.queryKey(...)) ile iyimser collapse | D | TK-291 |
 | `apps/web/src/features/project-wall/ui/forms/project-wall-snapshot-form.tsx:47` | `preview` | Query — Önizleme okuması: useMutation(orpc.preview*.mutationOptions()).data (olay tetikli) veya useQuery(queryOptions, enabled); form listeners.onChange → mutation.reset() | D | TK-291 |
 | `apps/web/src/features/project-wall/ui/forms/relation-link-form.tsx:77` | `preview` | Query — Önizleme okuması: useMutation(orpc.preview*.mutationOptions()).data (olay tetikli) veya useQuery(queryOptions, enabled); form listeners.onChange → mutation.reset() | D | TK-291 |
-| `apps/web/src/features/project-wall/ui/views/project-wall-view.tsx:112` | `presenting` | Sahipsiz — Presentation Mode tam görünüm değişimi. Görünüm sahibi için karar gerekli. Base UI popup değil; View dalı bütün düzenleme araçlarını gizliyor. | D | TK-296 |
+| `apps/web/src/features/project-wall/ui/views/project-wall-view.tsx:112` | `presenting` | Karar #553 — Duvar görünüm Store: presentingWallId. Reset, yönlendirme ve güncel durum: §16.1 G7 | D | TK-296 |
 | `apps/web/src/features/project-wall/ui/views/project-wall-view.tsx:114` | `opened` | Store — Bileşen kapsamlı TanStack useCreateStore ve useSelector. | D | TK-294 |
 | `apps/web/src/features/record-actions/hooks/use-record-action-runner.ts:41` | `active` | Base UI — Dialog.createHandle<Payload>(), openWithPayload ve popup eylem kapsamı | D | TK-165 |
 | `apps/web/src/features/record-actions/hooks/use-record-action-runner.ts:42` | `runVersion` | Store — Aynı payload ile yeni çalıştırma gerekiyorsa kapsamlı useCreateStore veya Dialog oturum kimliği | D | TK-166 |
@@ -3875,7 +3877,7 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/return-to-work/ui/forms/next-concrete-step-form.tsx:32` | `error` | Form — TanStack Form: `formApi.setErrorMap({ onSubmit })` + `form.Subscribe selector={s => s.errorMap.onSubmit}`; sunucu hatası `mutation.error` | D | TK-228 |
 | `apps/web/src/features/return-to-work/ui/forms/next-concrete-step-form.tsx:33` | `saved` | Form — `isSubmitSuccessful` (`form.Subscribe`) veya mutation `isSuccess` | D | TK-228 |
 | `apps/web/src/features/risks/ui/components/project-risks-surface.tsx:25` | `savedMessage` | Query — save/transition `useMutation` → `isSuccess` + `variables` | D | TK-237 |
-| `apps/web/src/features/risks/ui/components/project-risks-view.tsx:36` | `editingMode` | Sahipsiz — Satır içi editör modu (popup değil); Router search (`editing`) veya Base UI Collapsible seçenekleri; karar kullanıcıya | D | TK-238 |
+| `apps/web/src/features/risks/ui/components/project-risks-view.tsx:36` | `editingMode` | Karar #553 — Yerel edit Store. Reset, yönlendirme ve güncel durum: §16.1 G1 | D | TK-238 |
 | `apps/web/src/features/risks/ui/forms/risk-form.tsx:45` | `baseRecord` | Form — Tek seferlik anlık görüntü: `useForm({ defaultValues })` ilk değeri zaten sabitler; base kayıt/revizyon render etkilemediği için `useRef` veya form defaultValues alanı | D | TK-239 |
 | `apps/web/src/features/risks/ui/forms/risk-form.tsx:46` | `error` | Form — TanStack Form: `formApi.setErrorMap({ onSubmit })` + `form.Subscribe selector={s => s.errorMap.onSubmit}`; sunucu hatası `mutation.error` | D | TK-239 |
 | `apps/web/src/features/risks/ui/forms/risk-form.tsx:47` | `conflict` | Form — `setErrorMap` hata değerinden türetilir | D | TK-239 |
@@ -3885,7 +3887,7 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/roadmap-horizon/ui/components/project-milestones.tsx:52` | `relationIdempotencyKey` | Render dışı useRef — useRef. Yalnız olay/komut kimliğini tut; JSX veya abonelikte okuma. | D | TK-201 |
 | `apps/web/src/features/roadmap-horizon/ui/components/project-roadmap.tsx:183` | `selection` | Router — Project route validateSearch + navigate({ search }), view kaydı Query’de | D | TK-202 |
 | `apps/web/src/features/roadmap-horizon/ui/components/project-roadmap.tsx:184` | `presentationMode` | Store — Project kapsamlı roadmap-session useSelector veya kapsamlı useCreateStore | D | TK-198 |
-| `apps/web/src/features/roadmap-horizon/ui/components/roadmap-canvas.tsx:66` | `flow` | Sahipsiz — React Flow instance ve onInit sahibi; hazır olma state’i için stack’te belirlenmiş değiştirme yolu yok Instance buton erişilebilirliğini ve Return to Work adapter kaydını tetikliyor; ref tek başına render güncellemez. | D | TK-203 |
+| `apps/web/src/features/roadmap-horizon/ui/components/roadmap-canvas.tsx:66` | `flow` | Karar #553 — ReactFlowProvider ve useReactFlow; ilk viewport yerleştirmesi sonrası ready. Reset, yönlendirme ve güncel durum: §16.1 G6 | D | TK-203 |
 | `apps/web/src/features/roadmap-horizon/ui/components/roadmap-canvas.tsx:67` | `highlight` | Store — Project roadmap-session üzerinden useSelector ve oturum eylemi | D | TK-198 |
 | `apps/web/src/features/roadmap-horizon/ui/components/roadmap-placement.tsx:25` | `previewChoice` | Form — form.Subscribe/submit meta veya form-owned preview değeri | D | TK-204 |
 | `apps/web/src/features/roadmap-horizon/ui/components/roadmap-results.tsx:210` | `editing` | Base UI — Collapsible.Root/Trigger veya kontrolsüz Dialog ve başarıda close | D | TK-199 |
@@ -3899,18 +3901,18 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/roadmap-horizon/ui/forms/roadmap-view-form.tsx:74` | `draftId` | Form — Form varsayılan değeri/submit command kimliği; başarılı kayıttan sonra form reset | D | TK-204 |
 | `apps/web/src/features/schema-artifacts/ui/components/change-draft.tsx:102` | `confirmError` | Türetilen — confirm.error (useMutation sonucu) | D | TK-325 |
 | `apps/web/src/features/schema-artifacts/ui/components/change-draft.tsx:135` | `edited` | Form — UpEditForm'un gönderilmiş Up SQL değeri; form ChangeDraft'a taşınıp schemaChangePreview girdisi useSelector(form.store, s => submitted value) ile okunur | D | TK-326 |
-| `apps/web/src/features/schema-artifacts/ui/components/sql-output.tsx:22` | `message` | Sahipsiz — Ekle/kaldır/kopyala sonrası aria-live duyurusu; stack'te sahibi yok Pano kopyalama duyurusu | D | TK-327 |
+| `apps/web/src/features/schema-artifacts/ui/components/sql-output.tsx:22` | `message` | Karar #553 — SQL çıktı kopyalama Store. Reset, yönlendirme ve güncel durum: §16.1 G4 | D | TK-327 |
 | `apps/web/src/features/schema-artifacts/ui/views/schema-artifacts-view.tsx:20` | `versionId` | Router — Route zaten diagramId search'ü taşıyor; versionId/sourceId/targetId aynı validateSearch'e (Zod .catch(undefined)) | D | TK-328 |
 | `apps/web/src/features/schema-artifacts/ui/views/schema-artifacts-view.tsx:21` | `sourceId` | Router — Route zaten diagramId search'ü taşıyor; versionId/sourceId/targetId aynı validateSearch'e (Zod .catch(undefined)) | D | TK-328 |
 | `apps/web/src/features/schema-artifacts/ui/views/schema-artifacts-view.tsx:22` | `targetId` | Router — Route zaten diagramId search'ü taşıyor; versionId/sourceId/targetId aynı validateSearch'e (Zod .catch(undefined)) | D | TK-328 |
-| `apps/web/src/features/screens/ui/components/canvas-text-overlay.tsx:21` | `draft` | Sahipsiz — Dokümante DOM textarea overlay / defaultValue ve commit anında DOM okuma Sadece geçici metin ve keyboard commit; render state kaldırılabilir, kabul edilen overlay ve engine transaction sınırı sürer. | D | TK-267 |
+| `apps/web/src/features/screens/ui/components/canvas-text-overlay.tsx:21` | `draft` | Karar #553 — Kontrolsüz textarea; defaultValue ve olaydan commit; render’da ref okuma yok. Reset, yönlendirme ve güncel durum: §16.1 G6 | D | TK-267 |
 | `apps/web/src/features/screens/ui/components/linked-block-controls.tsx:76` | `preview` | Query — previewLinkedBlockChange.queryOptions / data veya mutation.data | D | TK-268 |
 | `apps/web/src/features/screens/ui/components/linked-block-controls.tsx:78` | `error` | Query — applyLinkedBlockChange mutation.error / detach için engine sonucu | D | TK-268 |
-| `apps/web/src/features/screens/ui/components/presentation-mode.tsx:30` | `state` | Sahipsiz — Sunum gezinmesi ve gizli blokları için tanımlı sahip yok Renderer dışındaki salt okunur Presentation State mevcut Snapshot ve etkileşimli hotspot geçmişini tutuyor. | D | TK-269 |
+| `apps/web/src/features/screens/ui/components/presentation-mode.tsx:30` | `state` | Karar #553 — Wireframe sunum oturum Store. Reset, yönlendirme ve güncel durum: §16.1 G7 | D | TK-269 |
 | `apps/web/src/features/screens/ui/components/screens-output-surface.tsx:70` | `busy` | Query — useMutation, isPending ve variables (çoklu sürüm okuma + çıktı) | D | TK-268 |
 | `apps/web/src/features/screens/ui/components/screens-output-surface.tsx:71` | `error` | Query — useMutation.error / reset | D | TK-268 |
 | `apps/web/src/features/screens/ui/components/screens-output-surface.tsx:72` | `presenting` | Query — sürüm hazırlama mutation.data / variables / reset | D | TK-268 |
-| `apps/web/src/features/screens/ui/components/wireframe-pane.tsx:69` | `size` | Sahipsiz — ResizeObserver ölçümü; renderer durumunun sahibi belirlenmemiş Boyut Konva Stage ve viewport hesaplamasını besliyor. | D | TK-270 |
+| `apps/web/src/features/screens/ui/components/wireframe-pane.tsx:69` | `size` | Karar #553 — Pane ölçüm Store. Reset, yönlendirme ve güncel durum: §16.1 G5 | D | TK-270 |
 | `apps/web/src/features/screens/ui/components/wireframe-pane.tsx:70` | `measured` | Türetilen — null ölçümden hasMeasured türet | D | TK-271 |
 | `apps/web/src/features/screens/ui/components/wireframe-pane.tsx:125` | `session` | Store — useCreateStore ile atomik oturum verisi, ya da bir kez oluşturulan engine Store’unu scope’a bağla | D | TK-272 |
 | `apps/web/src/features/screens/ui/components/wireframe-pane.tsx:216` | `editing` | Store — Wireframe editor.store / useSelector | D | TK-272 |
@@ -3932,7 +3934,7 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/security-redaction/ui/components/security-redaction-panel.tsx:32` | `open` | Base UI — Collapsible (kontrolsüz, iptal için kontrollü gerekir) veya AlertDialog + `actionsRef.close()` | D | TK-365 |
 | `apps/web/src/features/smart-collections/ui/components/project-smart-collections-surface.tsx:453` | `activePanel` | Base UI — Base UI Tabs/ToggleGroup `defaultValue`; programatik geçiş (`showAllRecords`) gerekiyorsa kontrollü kaynak Store | D | TK-221 |
 | `apps/web/src/features/smart-collections/ui/components/project-smart-collections-surface.tsx:456` | `selectedSlices` | Router — Insight dilim filtresi search param (view id ile anahtarlı) | D | TK-222 |
-| `apps/web/src/features/smart-collections/ui/components/project-smart-collections-surface.tsx:564` | `membershipPreview` | Sahipsiz — dnd-kit sürükleme önizlemesi; sürükleme sırasında `useDragOperation()` ile türetilebilir, bırakma sonrası önizlemenin sahibi yok | D | TK-223 |
+| `apps/web/src/features/smart-collections/ui/components/project-smart-collections-surface.tsx:564` | `membershipPreview` | Karar #553 — Aktif drag useDragOperation; drop sonrası önizleme Store. Reset, yönlendirme ve güncel durum: §16.1 G9 | D | TK-223 |
 | `apps/web/src/features/smart-collections/ui/forms/smart-collection-create-form.tsx:89` | `error` | Form — TanStack Form: `formApi.setErrorMap({ onSubmit })` + `form.Subscribe selector={s => s.errorMap.onSubmit}`; sunucu hatası `mutation.error` | D | TK-224 |
 | `apps/web/src/features/sources-and-freshness/ui/components/source-evidence-controls.tsx:92` | `open` | Base UI — Collapsible.Root / Trigger / Panel | D | TK-255 |
 | `apps/web/src/features/sources-and-freshness/ui/components/source-evidence-controls.tsx:93` | `editor` | Store — useCreateStore / useSelector | D | TK-256 |
@@ -3956,7 +3958,7 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/spec-change-review/ui/components/spec-change-review-follow-up-dialog.tsx:119` | `error` | Query — preview query error + confirm mutation error | D | TK-070 |
 | `apps/web/src/features/spec-change-review/ui/components/spec-change-review-follow-up-dialog.tsx:120` | `pending` | Query — preview.isPending \|\| confirm.isPending | D | TK-070 |
 | `apps/web/src/features/spec-change-review/ui/components/spec-change-review-surface.tsx:29` | `selectedId` | Router — Seçili inceleme reviewId search'te | D | TK-299 |
-| `apps/web/src/features/spec-change-review/ui/views/spec-change-review-view.tsx:89` | `current` | Sahipsiz — Diff bölümleri arasında yürüme imleci (klavye gezinme) Paylaşılabilir bölüm bağlantısı istenirse Router; spec istemiyor | D | TK-300 |
+| `apps/web/src/features/spec-change-review/ui/views/spec-change-review-view.tsx:89` | `current` | Karar #553 — Diff görünümü Store. Reset, yönlendirme ve güncel durum: §16.1 G7 | D | TK-300 |
 | `apps/web/src/features/tags/ui/components/project-tags-surface.tsx:78` | `filterTagId` | Router — validateSearch (Zod tagId .catch) + Route.useSearch() + navigate({ search: prev => ({ ...prev, tagId }) }) — spec 13 etiket filtresi | D | TK-140 |
 | `apps/web/src/features/tags/ui/components/project-tags-surface.tsx:79` | `formError` | Form — CreateTagForm setErrorMap + create.error | D | TK-141 |
 | `apps/web/src/features/tags/ui/components/project-tags-surface.tsx:80` | `actionError` | Query — apply.error / remove.error | D | TK-142 |
@@ -3967,7 +3969,7 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/technical-diagrams/ui/components/project-technical-diagrams-surface.tsx:58` | `versionError` | Türetilen — createVersion.error ?? restoreVersion.error | D | TK-322 |
 | `apps/web/src/features/technical-diagrams/ui/components/project-technical-diagrams-surface.tsx:103` | `plan` | Query — previewConvert.data; iptal için previewConvert.reset() | D | TK-073 |
 | `apps/web/src/features/technical-diagrams/ui/components/project-technical-diagrams-surface.tsx:104` | `compositionError` | Türetilen — placeCard/moveCard/removeCard/previewConvert/confirmConvert error'larından hesaplanır | D | TK-322 |
-| `apps/web/src/features/technical-diagrams/ui/components/technical-diagram-canvas.tsx:78` | `opening` | Sahipsiz — Setter'sız mount anlık görüntüsü (viewport açılış kararı); render'ı yalnız ilk değerle etkiliyor State mekanizması olarak kullanılıyor ama hiç güncellenmiyor | D | TK-323 |
+| `apps/web/src/features/technical-diagrams/ui/components/technical-diagram-canvas.tsx:78` | `opening` | Karar #553 — Mount’a bağlı salt okunur snapshot; render’da ref okunmaz. Reset, yönlendirme ve güncel durum: §16.1 G6 | D | TK-323 |
 | `apps/web/src/features/technical-diagrams/ui/components/technical-diagram-canvas.tsx:130` | `collapsed` | Store — Bileşen kapsamlı TanStack useCreateStore ve useSelector. | D | TK-324 |
 | `apps/web/src/features/technical-diagrams/ui/components/technical-diagram-editor.tsx:93` | `tableId` | Store — AddColumnForm ve AddIndexForm arasında paylaşılan geçici tablo seçimi: useCreateStore + useSelector | D | TK-324 |
 | `apps/web/src/features/technical-diagrams/ui/forms/diagram-authority-conversion-form.tsx:46` | `preview` | Query — previewMutation.data; eskimiş yanıt kontrolü previewMutation.variables ile form değerleri karşılaştırılarak; listeners.onChange → previewMutation.reset() | D | TK-073 |
@@ -3977,7 +3979,7 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/test-gaps/ui/components/test-gap-relations-field.tsx:45` | `targetType` | Form — Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array") | D | TK-308 |
 | `apps/web/src/features/test-gaps/ui/components/test-gap-relations-field.tsx:52` | `targetId` | Form — Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array") | D | TK-308 |
 | `apps/web/src/features/test-gaps/ui/components/test-gap-relations-field.tsx:53` | `sectionId` | Form — Seçici taslak alanı: ayrı bir useForm (alt form) veya üst formun field'ı; Ekle eylemi pushValue (mode="array") | D | TK-308 |
-| `apps/web/src/features/test-gaps/ui/components/test-gap-relations-field.tsx:54` | `message` | Sahipsiz — Ekle/kaldır/kopyala sonrası aria-live duyurusu; stack'te sahibi yok | D | TK-309 |
+| `apps/web/src/features/test-gaps/ui/components/test-gap-relations-field.tsx:54` | `message` | Karar #553 — Duyuru Store; already related doğrulaması Form. Reset, yönlendirme ve güncel durum: §16.1 G4 | D | TK-309 |
 | `apps/web/src/features/test-gaps/ui/forms/test-gap-form.tsx:87` | `error` | Form — useForm onSubmit içinde formApi.setErrorMap({ onSubmit }) + form.Subscribe selector={s => s.errorMap.onSubmit}; sunucu hatası mutateAsync reddinden | D | TK-308 |
 | `apps/web/src/features/test-gaps/ui/forms/test-gap-form.tsx:202` | `message` | Query — Plan/unplan eylemleri için mutation isSuccess + variables | D | TK-310 |
 | `apps/web/src/features/test-gaps/ui/forms/test-gap-form.tsx:203` | `error` | Query — useMutation(orpc.x.mutationOptions()).error / isError | D | TK-310 |
@@ -4025,8 +4027,8 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/uncertainty-records/ui/views/open-question-view.tsx:21` | `pending` | Query — transitionProjectSourceRecord mutation.isPending | D | TK-241 |
 | `apps/web/src/features/uncertainty-records/ui/views/open-question-view.tsx:22` | `error` | Query — transitionProjectSourceRecord mutation.error | D | TK-241 |
 | `apps/web/src/features/unified-calendar/ui/components/unified-calendar.tsx:249` | `datePickerOpen` | Base UI — Kontrolsüz Popover + actionsRef.current?.close() | D | TK-192 |
-| `apps/web/src/features/unified-calendar/ui/components/unified-calendar.tsx:732` | `draggedDate` | Sahipsiz — Etkin drag için @dnd-kit/react useDragOperation().source; Date Picker onay taslağı için açık sahip kararı Alan, revizyon ve kaynak Work hem aktif drag hem ayrı onay yolu için tutuluyor. | D | TK-193 |
-| `apps/web/src/features/unified-calendar/ui/components/unified-calendar.tsx:733` | `previewDate` | Sahipsiz — Etkin drag için useDragOperation().target; Date Picker onay taslağı için açık sahip kararı Hover tarihi ve açık Date Picker önerisi aynı state’e yazılıyor. | D | TK-193 |
+| `apps/web/src/features/unified-calendar/ui/components/unified-calendar.tsx:732` | `draggedDate` | Karar #553 — Aktif drag dnd-kit source; Date Picker/onay için ayrı taslak Store. Reset, yönlendirme ve güncel durum: §16.1 G9 | D | TK-193 |
+| `apps/web/src/features/unified-calendar/ui/components/unified-calendar.tsx:733` | `previewDate` | Karar #553 — Aktif drag dnd-kit target; onay için aynı taslak Store. Reset, yönlendirme ve güncel durum: §16.1 G9 | D | TK-193 |
 | `apps/web/src/features/unified-calendar/ui/components/unified-calendar.tsx:735` | `previewRequiresConfirmation` | Türetilen — Önizlemenin türünden hesapla; Date Picker taslağı onay ister, drag hover istemez | D | TK-194 |
 | `apps/web/src/features/unified-calendar/ui/views/unified-calendar-view.tsx:113` | `dateChangeUndo` | Query — updateCalendarDate.data ve undoCalendarDate durumundan türet; reset ile kapsamı temizle | D | TK-195 |
 | `apps/web/src/features/unified-calendar/ui/views/unified-calendar-view.tsx:117` | `dateChangeError` | Query — updateCalendarDate.error ve undoCalendarDate.error/reset | D | TK-195 |
@@ -4038,8 +4040,8 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/user-flow/ui/components/user-flow-canvas.tsx:266` | `snap` | Store — useCreateStore / useSelector | D | TK-276 |
 | `apps/web/src/features/user-flow/ui/components/user-flow-canvas.tsx:267` | `error` | Query — saveUserFlowVersion mutation.error / reset | D | TK-275 |
 | `apps/web/src/features/user-flow/ui/components/user-flow-canvas.tsx:268` | `saving` | Query — saveUserFlowVersion mutation.isPending | D | TK-275 |
-| `apps/web/src/features/user-flow/ui/components/user-flow-canvas.tsx:269` | `textDraft` | Sahipsiz — Inspector canlı metin taslağı için tanımlı sahip yok Node metni komut uygulanana kadar yerel, seçim değişimi/iptal semantiği korunmalı; gönderilen form modellenirse Form sahibi olur. | D | TK-277 |
-| `apps/web/src/features/user-flow/ui/components/user-flow-canvas.tsx:351` | `canvasNodes` | Sahipsiz — React Flow 13 renderer adapter geçici node değişiklikleri modelNodes türetimi ile pointer sürüklemesi/selection/ölçüm yaması aynı state’de. Düz türetim canlı drag’i kaybeder; kalıcı modelden ayrı adapter durumu gerekir. | D | TK-277 |
+| `apps/web/src/features/user-flow/ui/components/user-flow-canvas.tsx:269` | `textDraft` | Karar #553 — Kontrolsüz Textarea; node/metin kimliği; blur olayından commit. Reset, yönlendirme ve güncel durum: §16.1 G6 | D | TK-277 |
+| `apps/web/src/features/user-flow/ui/components/user-flow-canvas.tsx:351` | `canvasNodes` | Karar #553 — React Flow controlled akış; useNodesState ve model uzlaştırma. Reset, yönlendirme ve güncel durum: §16.1 G6 | D | TK-277 |
 | `apps/web/src/features/user-flow/ui/components/user-flow-outline.tsx:282` | `inspectedId` | Store — useCreateStore / useSelector | D | TK-276 |
 | `apps/web/src/features/user-flow/ui/components/user-flow-surface.tsx:23` | `selectedId` | Router — validateSearch / useSearch / navigate({ search }) | D | TK-278 |
 | `apps/web/src/features/user-flow/ui/components/user-flow-surface.tsx:24` | `dirty` | Store — User Flow editor Store selector | D | TK-276 |
@@ -4075,9 +4077,9 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | `apps/web/src/features/work-context/ui/components/work-context-card-layout-editor.tsx:44` | `receiptId` | Query — applyMutation.data.receiptId; undo/değişiklikte applyMutation.reset() | D | TK-026 |
 | `apps/web/src/features/work-context/ui/components/work-context-card-layout-editor.tsx:45` | `preview` | Query — previewMutation.data | O | TK-026 |
 | `apps/web/src/features/work-context/ui/components/work-context-card-layout-editor.tsx:48` | `localError` | Query — preview/apply/undo .error; custom section doğrulaması için form setErrorMap | D | TK-026 |
-| `apps/web/src/features/work-context/ui/components/work-context-card.tsx:84` | `contextState` | Sahipsiz — Add Context ile kademeli açılan bölümler; tek kart görünüm durumu, paylaşılmıyor, URL'e ait değil Kullanıcı kararı: Store mu sahipsiz mi | D | TK-153 |
-| `apps/web/src/features/work-context/ui/components/work-context-card.tsx:169` | `copyState` | Sahipsiz — İstemci içi async clipboard yazımı; Query 'sunucu verisi' sahibi olduğundan hedef yok (useMutation seçeneği kullanıcı kararı) | D | TK-153 |
-| `apps/web/src/features/work-context/ui/components/work-context-card.tsx:172` | `copyError` | Sahipsiz — copyState ile aynı | D | TK-153 |
+| `apps/web/src/features/work-context/ui/components/work-context-card.tsx:84` | `contextState` | Karar #553 — Kart yerel Store; work.id ve work.type sınırı. Reset, yönlendirme ve güncel durum: §16.1 G1 | D | TK-153 |
+| `apps/web/src/features/work-context/ui/components/work-context-card.tsx:169` | `copyState` | Karar #553 — Clipboard Store; deneme kimliğiyle geç sonuç koruması. Reset, yönlendirme ve güncel durum: §16.1 G4 | D | TK-153 |
+| `apps/web/src/features/work-context/ui/components/work-context-card.tsx:172` | `copyError` | Karar #553 — Aynı Clipboard Store. Reset, yönlendirme ve güncel durum: §16.1 G4 | D | TK-153 |
 | `apps/web/src/features/work-context/ui/components/work-context-card.tsx:636` | `openCountId` | Base UI — Base UI Accordion (tek açık öğe, kontrolsüz defaultValue) — Priority Foundations sayım listeleri | D | TK-154 |
 | `apps/web/src/features/work-drafts/ui/forms/work-draft-form.tsx:171` | `open` | Base UI — Popover kontrolsüz + seçimde Popover.Close / actionsRef.current?.close() | D | TK-135 |
 | `apps/web/src/features/work-drafts/ui/forms/work-draft-form.tsx:233` | `text` | Form — Ham sayı metni form alanı (customFieldValues yanında raw text alanı); render sırasında setState senkronu kaldırılır | D | TK-136 |
@@ -4132,7 +4134,7 @@ AST envanterinde **720 `useState`**, **0 `useReducer`** çağrısı var. Aynı k
 | Form | 186 |
 | Store | 89 |
 | Base UI | 81 |
-| Sahipsiz | 56 |
+| Sahibi kararlaştırıldı (önceden sahipsiz; #553, §16.1) | 56 |
 | Türetilen | 31 |
 | Router | 27 |
 | Render dışı useRef | 8 |
@@ -4246,17 +4248,96 @@ Mekanik envanter **188 manifest bildirimi** saydı. Burada yalnız çıkarma ön
 
 ## 16. Sahipsiz ve belirsiz işler
 
-| İş | Seçenek ve öneri | Neden karar gerekir |
+Kullanıcı 2026-11-19 tarihinde bu bölümün state, rate limit ve analytics başlıkları için karar paketini onayladı ([#553 karar yorumu](https://github.com/UnderprotectionDev/cantiara/issues/553#issuecomment-7013251362)). #553 yalnız karar ve yönlendirme kaydıdır; düzeltmelerin uygulanmış olduğunu kendisi göstermez. Uygulama durumu 16.1’deki güncel durum sütunundadır. Aşağıda karar verilmedi diye işaretlenen başlıklar açık kalır.
+
+| İş | Karar durumu | Sahip, erteleme, sözleşme veya açık seçenek |
 | --- | --- | --- |
-| Uygulama içi rate limit | Kimlik, anonim ağ kaynağı ve iş emri için ayrı limit sözleşmeleri tanımla; sayaç ve depolama tercihi sonra yapılsın. | §3 ve tech-stack kapsamı ürün geneli için bir sahip tanımlamıyor. Smart Link egress ve public ziyaretçi korumaları kendi sınırlarında değerlendirilir. |
-| Ürün analytics | Önce hangi ürün sorularını ve hangi saklama sınırını karşılayacağına karar ver. Mevcut Evlog ve Better Stack operasyon gözlemi için değerlendirilebilir; ürün analytics sahibi ayrıca kararlaştırılır. | Teknik log ve ürün olayının veri sorumlulukları farklı. |
-| Bileşen içi etkileşimler | Özellikle tuval viewport/ölçüm, odak, zamanlı geçici geri bildirim, dış oynatıcı olayları ve bileşen içi edit modu için 13. bölümdeki sahipsiz satırları incele. Kütüphane kontrollü seçenek veya abonelik sunuyorsa o sınırı değerlendir. Geri kalanda önce sahip ve yaşam süresi kararı ver. | Router görünür URL durumu, Store paylaşım ve Base UI popup için bağlayıcı. Her yerel etkileşim bu üç kapsama girmiyor. |
-| Her seçimi URL’ye taşıma | Paylaşılabilir/geri düğmesiyle yürüyen seçimi Router’a bağla. Project Wall ve Personal Shell gibi açıkça oturum içi kalan seçimlerde spec’in yaşam süresini koru. | Bazı spec’ler modal, çalışma oturumu ve seçim için kalıcılığı özellikle sınırlıyor. |
-| Satır içi onay veya edit alanı | Gerçek popup ise Base UI. Akış satır içinde kalsın isteniyorsa etkileşimin sahibi ve Escape/odağın kapsamı ayrı tarif edilsin. | Görsel olarak satır içi görünmek diyalog sözleşmesini kendiliğinden belirlemiyor. |
-| T3 Env ile DB yerel bağlanma adaptörü | `packages/db/src/env.ts` validasyon girişi, `packages/db/src/local-postgres.ts` ise `NEON_LOCAL` bağlantı sınırı. Yerel CLI ve uygulama girişlerinin paylaştığı doğrulanmış env yüzeyi belirlenebilir. | Sunucu ortamı kuralının DB paketi ve yerel CLI üzerindeki kapsamı belgede açık değil. Statik incelemede bir değer sızıntısı görülmedi. |
-| Better Auth GitHub taşıması | Better Auth hook/callback sözleşmesi korunarak harici GitHub HTTP erişimini tek bir sahipte toplama seçeneğini değerlendir. Zaman aşımı ve güvenli hata dönüşü bu sınırın parçası olsun. | Uygulama RPC’si ile dış OAuth HTTP isteği farklı sınırlar. Bun yerleşik taşıma, Undici paketi ve GitHub App’in Octokit portunun rolü ayrı belgelenmeli. |
-| API referansı erişim politikası ve platform taşıması | `apps/server/src/app.ts` içindeki API referansı ve extension origin politikasının hedef kitlesini ve dağıtımdaki sınırlarını netleştir. | Teknoloji sahibi Scalar. Üretimde erişim ve origin politikasının özellik sahibi açık değil. Yetkisiz erişim sonucu doğrulanmadı. |
-| Hassas işlem parametreleri | Redaksiyon, grant ve export gibi akışlarda önce hangi değerlerin Query key, cache ve global hata işleyicisinde kalabileceğini belirle. | Form/Query sahipliği, hassas verinin gereksiz yere cache'e taşınmasına izin vermez. |
+| Uygulama içi rate limit | Ertelendi (#553) | Genel uygulama limiter’ı somut bir owning spec ihtiyacına kadar eklenmez; yeni issue yok. Account Access, Link Sharing, GitHub, Smart Link egress ve Cloudflare WAF korumaları kendi sınırlarında kalır. Kayıt: 3. bölüm ve `docs/tech-stack.md` Cloudflare WAF / Rate Limiting satırı. |
+| Ürün analytics | Mevcut erteleme sözleşmesine bağlandı (#553) | Sahip: `docs/tech-stack.md` “Daha sonra eklenecekler” altındaki ürün analitiği sağlayıcısı notu ve [PRD 18](../prd/18-future-directions.md) “Sağlayıcısız ürün analitiği yön notu”; kapsam dışı sınırı [PRD 19](../prd/19-out-of-scope.md). Ayrı stack kararı verilmeden analytics sağlayıcısı seçilmez veya stack’e eklenmez. Evlog ve Better Stack operasyon gözlemidir; ürün analytics sahibine dönüştürülmez. Yeni issue yok. |
+| Bileşen içi etkileşimler | Karar verildi (#553) | 56 sahipsiz state kullanımının sahibi, reset sınırı ve yönlendirmesi 16.1’dedir. Önce mevcut kütüphanenin state/abonelik API’si, kalan geçici render state için bileşen ömürlü TanStack Store. |
+| Her seçimi URL’ye taşıma | Mevcut sözleşme korundu (#553) | Bu 56 kullanım için yeni Router search alanı yok. Yalnız spec’in paylaşılabilir veya geri düğmesiyle yürüyen konumları Router’a aittir. Personal Shell ve Project Wall geri yüklememe sınırları korunur. |
+| Satır içi onay veya edit alanı | Karar verildi (#553) | Reopen onayı satır içi kalır; uygun ARIA, odak ve Escape/Cancel sağlanır, modal dönüşüm yapılmaz (#546 bunu değiştirmez). Satır içi edit modları bileşen ömürlü Store’dadır (16.1 G1, G2). |
+| T3 Env ile DB yerel bağlanma adaptörü | Karar verilmedi; açık | TK-399 state envanterinin parçası değildir; #553 bunun için sahiplik veya uygulama onayı üretmez. Seçenek: `packages/db/src/env.ts` validasyon girişi, `packages/db/src/local-postgres.ts` ise `NEON_LOCAL` bağlantı sınırı; yerel CLI ve uygulama girişlerinin paylaştığı doğrulanmış env yüzeyi belirlenebilir. Neden: sunucu ortamı kuralının DB paketi ve yerel CLI üzerindeki kapsamı belgede açık değil. Statik incelemede bir değer sızıntısı görülmedi. |
+| Better Auth GitHub taşıması | Karar verilmedi; açık | Seçenek: Better Auth hook/callback sözleşmesi korunarak harici GitHub HTTP erişimini tek bir sahipte toplama; zaman aşımı ve güvenli hata dönüşü bu sınırın parçası olsun. Neden: uygulama RPC’si ile dış OAuth HTTP isteği farklı sınırlar. Bun yerleşik taşıma, Undici paketi ve GitHub App’in Octokit portunun rolü ayrı belgelenmeli. |
+| API referansı erişim politikası ve platform taşıması | Karar verilmedi; açık | Seçenek: `apps/server/src/app.ts` içindeki API referansı ve extension origin politikasının hedef kitlesini ve dağıtımdaki sınırlarını netleştir. Neden: teknoloji sahibi Scalar. Üretimde erişim ve origin politikasının özellik sahibi açık değil. Yetkisiz erişim sonucu doğrulanmadı. |
+| Hassas işlem parametreleri | Karar verilmedi; açık | Seçenek: redaksiyon, grant ve export gibi akışlarda önce hangi değerlerin Query key, cache ve global hata işleyicisinde kalabileceğini belirle. Neden: Form/Query sahipliği, hassas verinin gereksiz yere cache’e taşınmasına izin vermez. #553 yalnız issued Share token’ı için #555/#544 kısıtını kaydeder; bu başlığın geri kalanına karar atamaz. |
+
+### 16.1 Önceden sahipsiz state kullanımlarının sahiplik kararları (#553)
+
+Ortak sözleşme:
+
+- Önce mevcut kütüphanenin state/abonelik API’si kullanılır. Kalan geçici render state bileşen ömürlü TanStack Store’a gider; singleton, persist veya storage eklenmez. Stack kaydı: `docs/tech-stack.md` TanStack Store satırı (#547).
+- Yazılabilir Store için değer overload’u, salt okunur snapshot için getter kullanılır; getter yazılabilir lazy initializer sayılmaz. Prop veya kimlik değişimi kendiliğinden reset sağlamaz; tablodaki reset açıkça uygulanır. Tüm abonelik, timer ve async sonuçlar unmount’ta temizlenir veya geçersiz kılınır.
+- Aynı sorumluluğun alanları tek Store’da gruplanır; her satır için ayrı Store açılmaz.
+- Bu 56 kullanım için yeni Router search alanı yok. Personal Shell ve Project Wall geri yüklememe sınırları korunur.
+- Reopen onayı satır içi kalır; uygun ARIA, odak ve Escape/Cancel sağlanır. Modal dönüşüm yapılmaz.
+- Command Palette rAF davranışı korunur; `useDeferredValue` doğrudan eşdeğer kabul edilmez. Saatler için global singleton zorunlu değildir; mevcut yerel kapsam yeterlidir.
+- Query ve Form, UI duyurusunun yerine konmaz: gerçek doğrulama Form’da, sunucu işlemi sonucu Query’de, yerel Clipboard sonucu Store’da kalır.
+
+Yönlendirme: #547 geçici state sahipliği ve reset, Store stack genişlemesi, controlled canvas, Decision hedef kimliği ve Project Wall Sunum Kipi reset’i; #545 seçici Form doğrulaması, duyuru ayrımı ve history Query hata türetimi; #549 TK-193 Calendar aktif drag ve onay taslağı; #555 S-Secret, TK-354 issued Share token’ı (#544 Query/MutationCache dışlama kısıtıyla); #556 S-PDF, TK-147 React-PDF 11 yerel hata/Retry. #547 aynı PDF dosyasında ikinci paralel uygulama yapmaz.
+
+Güncel durum, `main` `eac1a1eb` üzerinde 2026-11-23 tarihinde statik kod okumasıyla kaydedildi: **52 kullanımda onaylanan sahip uygulanmış, 4 kullanım bekliyor** (TK-147 üç state #556, TK-354 bir state #555). #547, #549, #545, #544 ve #546 kapalı; #555 ve #556 açık. “Sahip uygulandı” yalnız kodda görülen sahibi bildirir; reset, odak ve geç async davranışı bu kayıtta çalıştırılarak doğrulanmadı. Bu davranışların testi owning spec’in Testing Decisions seam’ine ve ilgili uygulama issue’suna aittir. Denetim konumu kaynak `a548a2c8` satırıdır; taşınan dosyalar güncel durum sütununda yeni yollarıyla gösterilir.
+
+Uygulama kabul sınırları: her düzeltme owning spec’in Testing Decisions seam’ine bağlanır. Aynı bileşende kimlik değişimi, Cancel/Escape, başarısız yazmada taslağın korunması, unmount ve geç veya sırası değişmiş async callback test edilir. Decision düzenlemesi mode ve recordId’ye bağlıdır; eski taslak yeni seçilen kayda yazılamaz. Project Wall sunumu duvar değişince kapanır veya sıfırlanır. React Flow controlled model uzlaştırması canlı drag, selection ve measured alanlarını korur; Roadmap adaptörü ilk viewport yerleştirmesinden önce ready olmaz. Decision hedef kaydı ve Project Wall sunum reset riskleri kod incelemesi bulgularıdır; çalıştırılarak yeniden üretilmiş bug iddiası değildir.
+
+| Grup | Denetim konumu | Değişken | TK | Onaylanan sahip | Reset/yaşam sınırı | Yönlendirme | Güncel durum (`apps/web/src/`) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| G1 Satır içi edit modu ve yerel seçim | `components/custom-field-editor-form.tsx:123` | `editingId` | TK-389 | Yerel edit Store | Cancel, başarılı kayıt, Project/alan değişimi veya kaldırılması | #547 | Sahip uygulandı: `features/custom-fields/ui/forms/custom-field-editor-form.tsx:140` `editingIdStore` (dosya #544’te taşındı) |
+| G1 Satır içi edit modu ve yerel seçim | `components/date-picker.tsx:170` | `draftTime` | TK-391 | Kontrol Store: draftTime ve son yayılan değer | Clear, dış Form reset veya farklı kayıt; bileşenin kendi value yayımı ayırt edilir | #547 | Sahip uygulandı: `components/date-picker.tsx:176` `control` Store. Aynı değeri yeniden yayımlayan dış reset bu Store’dan ayırt edilemez; açık saat taslağı varken tüketici bileşeni form oturumuyla key’ler (`:161` JSDoc) |
+| G1 Satır içi edit modu ve yerel seçim | `features/decisions/ui/components/project-decisions-panel.tsx:53` | `editing` | TK-235 | Store: mode ve hedef recordId; editör kimliği ikisini içerir | Cancel, başarılı save/withdraw, selectedId/Project veya readOnly değişimi | #547 | Sahip uygulandı: `features/decisions/ui/components/project-decisions-panel.tsx:65` `session` (identity, mode, recordId) |
+| G1 Satır içi edit modu ve yerel seçim | `features/documents/ui/forms/document-templates-form.tsx:139` | `selection` | TK-215 | Şablon seçicinin yerel Store; açılış payload’ı ayrı | Project değişimi, şablonun kaldırılması, unmount; popup kapanışı zorunlu reset değil | #547 | Sahip uygulandı: `features/documents/ui/forms/document-templates-form.tsx:149` `selectionStore` |
+| G1 Satır içi edit modu ve yerel seçim | `features/project-goals/ui/components/project-goals-view.tsx:38` | `editing` | TK-231 | Yerel edit Store | Cancel, başarılı kayıt, Goal/Project değişimi veya canEdit false | #547 | Sahip uygulandı: `features/project-goals/ui/components/project-goals-view.tsx:55` `editSession` |
+| G1 Satır içi edit modu ve yerel seçim | `features/risks/ui/components/project-risks-view.tsx:36` | `editingMode` | TK-238 | Yerel edit Store | Cancel, başarılı kayıt, Risk/Project değişimi veya readOnly | #547 | Sahip uygulandı: `features/risks/ui/components/project-risks-view.tsx:52` `session` |
+| G1 Satır içi edit modu ve yerel seçim | `features/work-context/ui/components/work-context-card.tsx:84` | `contextState` | TK-153 | Kart yerel Store; work.id ve work.type sınırı | Work kimliği/türü değişimi veya kart kapanışı | #547 | Sahip uygulandı: `features/work-context/ui/components/work-context-card.tsx:93` `context` |
+| G2 Satır içi onay | `components/work-status-form.tsx:93` | `reopenTarget` | TK-396 | Satır içi onay Store; uygun ARIA, odak ve Escape | Cancel/Escape, başarılı reopen, Work/revizyon değişimi; hata taslağı silmez | #547 | Sahip uygulandı: `components/work-status-form.tsx:145` `reopenConfirmation`; satır içi `role="dialog"` ve Escape (`:125`) |
+| G3 Görünüm saati | `features/backlog/ui/components/project-backlog.tsx:272` | `now` | TK-187 | Görünüm ömürlü saat Store; tarih Hesap saat diliminden türetilir | Mount/tick/sekme dönüşü yenile; timezone değişimini hesapla; unmount timer temizliği | #547 | Sahip uygulandı: `features/backlog/ui/components/project-backlog.tsx:356` `useViewClock` (`lib/use-view-clock.ts`) |
+| G3 Görünüm saati | `features/daily-focus/ui/views/daily-focus-view.tsx:35` | `now` | TK-189 | Görünüm ömürlü saat Store | Tick/sekme dönüşü ve timezone değişimi; açık URL day korunur; unmount temizliği | #547 | Sahip uygulandı: `features/daily-focus/ui/views/daily-focus-view.tsx:40` `useViewClock` |
+| G3 Görünüm saati | `features/kanban/ui/components/project-work-kanban.tsx:54` | `today` | TK-183 | Saat Store’undan Hesap saat dilimine göre tarih türetimi | Gün/timezone değişimi; unmount abonelik temizliği | #547 | Sahip uygulandı: `features/kanban/ui/components/project-work-kanban.tsx:56` `useViewClock(30_000)` |
+| G4 Clipboard sonucu ve duyuru | `features/external-handoffs/ui/components/external-execution-handoff.tsx:213` | `copiedHandoffId` | TK-180 | Clipboard sonucu Store; history kayıt sonucu Query | Yeni kopyalama veya Work/Handoff değişimi; history yazma hatası clipboard başarısını silmez | #547; Query kısmı #545 | Sahip uygulandı: `features/external-handoffs/ui/components/external-execution-handoff.tsx:258` `useClipboardFeedback` (`lib/use-clipboard-feedback.ts`); history hatası `recordPackageExport` mutation’ından (`:416`) |
+| G4 Clipboard sonucu ve duyuru | `features/external-handoffs/ui/components/external-execution-handoff.tsx:214` | `copyError` | TK-180 | Aynı Clipboard Store | Yeni kopyalama veya Work/Handoff değişimi; geç sonuç koruması | #547 | Sahip uygulandı: `features/external-handoffs/ui/components/external-execution-handoff.tsx:258` aynı `useClipboardFeedback` |
+| G4 Clipboard sonucu ve duyuru | `features/planned-tests/ui/components/planned-test-relations-field.tsx:45` | `message` | TK-302 | Başarı duyurusu Store; already related doğrulaması Form | Yeni eylem/hedef türü, Form reset veya kayıt değişimi | #545 + #547 | Sahip uygulandı: `features/planned-tests/ui/forms/planned-test-relations-field-form.tsx:44` `announcement` (dosya #545’te taşındı) |
+| G4 Clipboard sonucu ve duyuru | `features/planned-tests/ui/components/test-handoff-context-field.tsx:52` | `message` | TK-303 | Duyuru Store; eksik Wireframe/already added doğrulaması Form | Yeni eylem/hedef, Form reset veya Handoff değişimi | #545 + #547 | Sahip uygulandı: `features/planned-tests/ui/forms/test-handoff-context-field-form.tsx:51` `announcement` (dosya #545’te taşındı) |
+| G4 Clipboard sonucu ve duyuru | `features/planned-tests/ui/components/test-handoff-package-panel.tsx:42` | `message` | TK-304 | Paket satırı kopyalama Store | Yeni kopyalama, paket sürümü/Handoff değişimi, unmount | #547 | Sahip uygulandı: `features/planned-tests/ui/components/test-handoff-package-panel.tsx:47` `useClipboardFeedback` |
+| G4 Clipboard sonucu ve duyuru | `features/product-gaps/ui/components/product-gap-links-field.tsx:50` | `message` | TK-319 | Duyuru Store; already related doğrulaması Form | Yeni eylem/hedef türü, Form reset veya Product Gap değişimi | #545 + #547 | Sahip uygulandı: `features/product-gaps/ui/forms/product-gap-links-field-form.tsx:51` `announcement` (dosya #545’te taşındı) |
+| G4 Clipboard sonucu ve duyuru | `features/schema-artifacts/ui/components/sql-output.tsx:22` | `message` | TK-327 | SQL çıktı kopyalama Store | Yeni kopyalama, çıktı değişimi, unmount | #547 | Sahip uygulandı: `features/schema-artifacts/ui/components/sql-output.tsx:27` `useClipboardFeedback` |
+| G4 Clipboard sonucu ve duyuru | `features/test-gaps/ui/components/test-gap-relations-field.tsx:54` | `message` | TK-309 | Duyuru Store; already related doğrulaması Form | Yeni eylem/hedef türü, Form reset veya Test Gap değişimi | #545 + #547 | Sahip uygulandı: `features/test-gaps/ui/forms/test-gap-relations-field-form.tsx:53` `announcement` (dosya #545’te taşındı) |
+| G4 Clipboard sonucu ve duyuru | `features/work-context/ui/components/work-context-card.tsx:169` | `copyState` | TK-153 | Clipboard Store; deneme kimliğiyle geç sonuç koruması | Yeni kopyalama, Work/bağlam değişimi, unmount | #547 | Sahip uygulandı: `features/work-context/ui/components/work-context-card.tsx:174` `useClipboardFeedback` |
+| G4 Clipboard sonucu ve duyuru | `features/work-context/ui/components/work-context-card.tsx:172` | `copyError` | TK-153 | Aynı Clipboard Store | Yeni kopyalama, Work/bağlam değişimi, unmount | #547 | Sahip uygulandı: `features/work-context/ui/components/work-context-card.tsx:174` aynı `useClipboardFeedback` |
+| G5 DOM ölçümü | `features/file-attachments/ui/components/file-attachment-markup.tsx:312` | `surfaceSize` | TK-143 | ResizeObserver -> yüzey Store | DOM yüzeyi değişiminde yeniden ölç; unmount temizliği | #547 | Sahip uygulandı: `features/file-attachments/ui/components/file-attachment-markup.tsx:327` `measurements`; ResizeObserver `:375` |
+| G5 DOM ölçümü | `features/file-attachments/ui/components/file-attachment-markup.tsx:313` | `media` | TK-143 | Element ve yükleme/ölçüm aboneliği aynı efekt içinde; ayrı render state yok | Element değişimi ve efekt temizliği; gerekirse DOM değişimini gözlemle | #547 | Sahip uygulandı: `features/file-attachments/ui/components/file-attachment-markup.tsx:377` efekt içi yerel değişken; render state yok |
+| G5 DOM ölçümü | `features/file-attachments/ui/components/file-attachment-markup.tsx:316` | `mediaSize` | TK-143 | Media ölçüm Store | Dosya sürümü, PDF sayfası veya media elementi değişimi | #547 | Sahip uygulandı: `features/file-attachments/ui/components/file-attachment-markup.tsx:327` aynı `measurements`; ResizeObserver `:391` |
+| G5 DOM ölçümü | `features/moodboards/ui/components/moodboard-board.tsx:32` | `size` | TK-282 | ResizeObserver -> board Store | DOM değişiminde yeniden ölç; unmount temizliği | #547 | Sahip uygulandı: `features/moodboards/ui/components/moodboard-board.tsx:35` `measurements` |
+| G5 DOM ölçümü | `features/screens/ui/components/wireframe-pane.tsx:69` | `size` | TK-270 | Pane ölçüm Store | DOM değişiminde yeniden ölç; unmount observer temizliği | #547 | Sahip uygulandı: `features/screens/ui/components/wireframe-pane.tsx:71` `pane`; ResizeObserver `:97` |
+| G6 Canvas ve renderer oturumu | `features/file-attachments/ui/components/file-attachment-markup.tsx:320` | `draft` | TK-143 | Çizim hareketinin yerel Store’u | Pointer tamamlanması/iptali, tool/page/version veya disabled değişimi | #547 | Sahip uygulandı: `features/file-attachments/ui/components/file-attachment-markup.tsx:338` `drawing` |
+| G6 Canvas ve renderer oturumu | `features/moodboards/ui/components/moodboard-board.tsx:62` | `moved` | TK-282 | Moodboard viewport oturum Store | Moodboard id değişimi/unmount; Fit View null; refetch kullanıcı hareketini ezmez | #547 | Sahip uygulandı: `features/moodboards/ui/components/moodboard-board.tsx:83` `viewportSession` |
+| G6 Canvas ve renderer oturumu | `features/project-wall/ui/components/project-wall-canvas.tsx:173` | `preview` | TK-290 | Auto-layout komut Store | Cancel, başarılı Apply, yeni hesaplama veya dayanak duvar değişimi | #547 | Sahip uygulandı: `features/project-wall/ui/components/project-wall-canvas.tsx:175` `layout` Store |
+| G6 Canvas ve renderer oturumu | `features/project-wall/ui/components/project-wall-canvas.tsx:178` | `applied` | TK-290 | Auto-layout geri alma Store | Başarılı Undo, geçersizleştiren düzenleme veya duvar değişimi; başarısız Undo’da korunur | #547 | Sahip uygulandı: `features/project-wall/ui/components/project-wall-canvas.tsx:175` aynı `layout` Store |
+| G6 Canvas ve renderer oturumu | `features/project-wall/ui/components/project-wall-canvas.tsx:359` | `nodes` | TK-290 | React Flow controlled akış; useNodesState ve model uzlaştırma | Duvar oturumu değişimi; model güncellemesi drag/selection/measured bilgisini ezmez | #547 | Sahip uygulandı: `features/project-wall/ui/components/project-wall-canvas.tsx:347` `useReconcileFlowNodes` (`lib/use-reconcile-flow-nodes.ts`, `useNodesState`) |
+| G6 Canvas ve renderer oturumu | `features/roadmap-horizon/ui/components/roadmap-canvas.tsx:66` | `flow` | TK-203 | ReactFlowProvider ve useReactFlow; ilk viewport yerleştirmesi sonrası ready | Proje/provider değişimi veya unmount; Return to Work adapter temizliği | #547 | Sahip uygulandı: `features/roadmap-horizon/ui/components/roadmap-canvas.tsx:62` `ReactFlowProvider`, `:78` `useReactFlow` |
+| G6 Canvas ve renderer oturumu | `features/screens/ui/components/canvas-text-overlay.tsx:21` | `draft` | TK-267 | Kontrolsüz textarea; defaultValue ve olaydan commit; render’da ref okuma yok | Enter/blur tek commit; Escape cancel; yeni hedefte yeni overlay | #547 | Sahip uygulandı: `features/screens/ui/components/canvas-text-overlay.tsx:37` `defaultValue`; state yok |
+| G6 Canvas ve renderer oturumu | `features/technical-diagrams/ui/components/technical-diagram-canvas.tsx:78` | `opening` | TK-323 | Mount’a bağlı salt okunur snapshot; render’da ref okunmaz | Diagram/view kimliği değişince yeni oturum; refetch yeniden merkezlemez | #547 | Sahip uygulandı: `features/technical-diagrams/ui/components/technical-diagram-canvas.tsx:79` getter ile `openingSnapshot` |
+| G6 Canvas ve renderer oturumu | `features/user-flow/ui/components/user-flow-canvas.tsx:269` | `textDraft` | TK-277 | Kontrolsüz Textarea; node/metin kimliği; blur olayından commit | Seçim veya dış metin değişimi; iptal/commit mevcut davranışı korunur | #547 | Sahip uygulandı: `features/user-flow/ui/components/user-flow-canvas.tsx:798` kontrolsüz `Textarea` `defaultValue` |
+| G6 Canvas ve renderer oturumu | `features/user-flow/ui/components/user-flow-canvas.tsx:351` | `canvasNodes` | TK-277 | React Flow controlled akış; useNodesState ve model uzlaştırma | Flow oturumu değişimi; model güncellemesi canlı drag/selection/measured bilgisini ezmez | #547 | Sahip uygulandı: `features/user-flow/ui/components/user-flow-canvas.tsx:385` `useReconcileFlowNodes` |
+| G7 Sunum Kipi, gezinme ve inceleme oturumu | `features/moodboards/ui/components/moodboard-view-tools.tsx:255` | `index` | TK-285 | Sunum oturumu Store | Çıkış/Moodboard değişimi; sıra değişiminde geçerli aralığa getir | #547 | Sahip uygulandı: `features/moodboards/ui/components/moodboard-view-tools.tsx:268` `presentation` |
+| G7 Sunum Kipi, gezinme ve inceleme oturumu | `features/personal-shell/ui/components/personal-shell.tsx:36` | `surface` | TK-351 | Shell bileşeni/oturumu Store | Shell/Hesap oturumu sonu; aynı oturum kapat-açta korunur | #547 | Sahip uygulandı: `features/personal-shell/ui/components/personal-shell.tsx:37` `navigation` |
+| G7 Sunum Kipi, gezinme ve inceleme oturumu | `features/project-wall/ui/components/project-wall-outline.tsx:458` | `inspectedId` | TK-292 | Outline yerel Store | İncelemeyi kapatma, kart kaldırılması, duvar değişimi/unmount | #547 | Sahip uygulandı: `features/project-wall/ui/components/project-wall-outline.tsx:467` `inspectedIdStore` |
+| G7 Sunum Kipi, gezinme ve inceleme oturumu | `features/project-wall/ui/components/project-wall-presentation.tsx:43` | `index` | TK-293 | Sunum oturumu Store | Çıkış/duvar değişimi; sıra değişince geçerli aralığa getir | #547 | Sahip uygulandı: `features/project-wall/ui/components/project-wall-presentation.tsx:45` `presentation` |
+| G7 Sunum Kipi, gezinme ve inceleme oturumu | `features/project-wall/ui/views/project-wall-view.tsx:112` | `presenting` | TK-296 | Duvar görünüm Store: presentingWallId | Exit/Escape, seçili duvar değişimi, unmount | #547 | Sahip uygulandı: `features/project-wall/ui/views/project-wall-view.tsx:114` `navigation.presentingWallId` |
+| G7 Sunum Kipi, gezinme ve inceleme oturumu | `features/screens/ui/components/presentation-mode.tsx:30` | `state` | TK-269 | Wireframe sunum oturum Store | Çıkış/unmount veya yeni snapshot/başlangıç oturumu | #547 | Sahip uygulandı: `features/screens/ui/components/presentation-mode.tsx:41` `presentation` |
+| G7 Sunum Kipi, gezinme ve inceleme oturumu | `features/spec-change-review/ui/views/spec-change-review-view.tsx:89` | `current` | TK-300 | Diff görünümü Store | Review/revizyon çifti değişimi veya unmount | #547 | Sahip uygulandı: `features/spec-change-review/ui/views/spec-change-review-view.tsx:90` `currentStore` |
+| G8 Yerel async adapter ve efekt | `components/youtube-preview-player.tsx:81` | `status` | TK-398 | YouTube adapter yerel Store | Video/origin değişimi, Retry, unmount; player/listener/timeout temizliği | #547 | Sahip uygulandı: `components/youtube-preview-player.tsx:93` `playerSession` |
+| G8 Yerel async adapter ve efekt | `features/command-palette/ui/components/command-palette.tsx:103` | `recordsReady` | TK-115 | Palette oturumu Store; mevcut rAF zamanlaması korunur | Palette kapanınca; bekleyen rAF iptal | #547 | Sahip uygulandı: `features/command-palette/ui/components/command-palette.tsx:97` `palette` Store; rAF `:186` |
+| G8 Yerel async adapter ve efekt | `features/completion-effects/ui/forms/completion-effects-form.tsx:89` | `previewing` | TK-174 | Önizleme Store; timer ref içinde | Süre sonu, stop, tema/palet veya reduced-motion değişimi, unmount | #547 | Sahip uygulandı: `features/completion-effects/ui/forms/completion-effects-form.tsx:109` `animation`; timer ref `:114` |
+| G8 Yerel async adapter ve efekt | `features/documents/ui/components/document-preview.tsx:296` | `rendered` | TK-212 | Mermaid render Store; kaynak başına istek kimliği | Kaynak değişimi veya unmount; eski sonuç kabul edilmez | #547 | Sahip uygulandı: `features/documents/ui/components/document-preview.tsx:297` `diagram` Store |
+| G8 Yerel async adapter ve efekt | `features/documents/ui/components/document-preview.tsx:297` | `error` | TK-212 | Aynı Mermaid render Store | Yeni kaynak/render denemesi veya unmount | #547 | Sahip uygulandı: `features/documents/ui/components/document-preview.tsx:297` aynı `diagram` Store |
+| G8 Yerel async adapter ve efekt | `features/file-attachments/ui/components/file-attachment-preview.tsx:394` | `loop` | TK-148 | Media yerel Store; deklaratif loop prop ve kontrollü Checkbox | Yeni src/media oturumu; başlangıç false | #547 | Sahip uygulandı: `features/file-attachments/ui/components/file-attachment-preview.tsx:421` `playbackSession` |
+| G9 Sürükleme ve onay taslağı | `features/smart-collections/ui/components/project-smart-collections-surface.tsx:564` | `membershipPreview` | TK-223 | Aktif drag useDragOperation; drop sonrası önizleme Store | Cancel, yeni drag, önizleme kapanışı veya Project/View değişimi | #547; zaten yeni dnd-kit API’sinde | Sahip uygulandı: `features/smart-collections/ui/components/project-smart-collections-surface.tsx:508` `useDragOperation`, `:625` `membership` |
+| G9 Sürükleme ve onay taslağı | `features/unified-calendar/ui/components/unified-calendar.tsx:732` | `draggedDate` | TK-193 | Aktif drag dnd-kit source; Date Picker/onay için ayrı taslak Store | Cancel veya başarılı uygulama, Work/alan/revizyon değişimi; hata taslağı silmez | #549 (uygulama); #547 (yalnız ortak sözleşme) | Sahip uygulandı: `features/unified-calendar/ui/components/unified-calendar.tsx:566` `useDragOperation().source`, `:625` `draftStore` (#549) |
+| G9 Sürükleme ve onay taslağı | `features/unified-calendar/ui/components/unified-calendar.tsx:733` | `previewDate` | TK-193 | Aktif drag dnd-kit target; onay için aynı taslak Store | Drag cancel, onay iptali/başarısı veya taslak kimliği değişimi | #549 (uygulama); #547 (yalnız ortak sözleşme) | Sahip uygulandı: `features/unified-calendar/ui/components/unified-calendar.tsx:566` `useDragOperation().target`, `:625` `draftStore` (#549) |
+| G10 PDF adapter (S-PDF) | `features/file-attachments/ui/components/file-attachment-pdf.tsx:52` | `loadedPages` | TK-147 | PDF adapter Store: numPages; Document suspense=false | Asset/sürüm/pageCount/retry oturumu değişimi | #547 + #556 (S-PDF) | Bekliyor (#556): `features/file-attachments/ui/components/file-attachment-pdf.tsx:52` hâlâ `useState` |
+| G10 PDF adapter (S-PDF) | `features/file-attachments/ui/components/file-attachment-pdf.tsx:53` | `renderedPages` | TK-147 | PDF adapter Store: render nesline göre sayfa kimlikleri kümesi | Asset/render nesli değişimi; aynı sayfa callback’i iki kez sayılmaz | #547 + #556 (S-PDF) | Bekliyor (#556): `features/file-attachments/ui/components/file-attachment-pdf.tsx:53` hâlâ `useState` sayacı |
+| G10 PDF adapter (S-PDF) | `features/file-attachments/ui/components/file-attachment-pdf.tsx:54` | `failed` | TK-147 | PDF adapter toplu hata Store; tek alert ve Retry korunur; Page onLoadError dahil | Asset/sürüm veya Retry; Document suspense=false | #547 + #556 (S-PDF) | Bekliyor (#556): `features/file-attachments/ui/components/file-attachment-pdf.tsx:54` hâlâ `useState` |
+| G11 Secret (S-Secret) | `features/link-sharing/ui/components/link-sharing-surface.tsx:34` | `issued` | TK-354 | Share surface özel bellek Store; token cache/persist/debug/log dışında | Root/Project/Hesap değişimi, revoke, rotate/reshare, kapanış/unmount; geç/eski sonuç atılır | #555 (S-Secret); #544 güvenlik kısıtı | Bekliyor (#555): `features/link-sharing/ui/components/link-sharing-surface.tsx:39` hâlâ `useState` |
 
 ## 17. check:conventions için mekanik kural adayları
 
@@ -4285,6 +4366,7 @@ Büyüklük **S/M/L**, planlama için tahmindir. Yüksek bulgular varsa ilk sır
 | Router ve state eşlemesi | Dosya ve değişkenler 13. bölüm Router, Store ve Türetilen gruplarında. Project Documents, Record Discovery, Daily Focus, Calendar ve paylaşılan filtreler öncelikli. | Spec’in URL kalıcılığı ve gizlilik kuralları, Router validateSearch, Store | L |
 | Arama, yoğun etkileşim ve sıralama | Kayıt Keşfi, Mermaid dönüşümü, eklenti araması, Wireframe/Moodboard resize ve eski sürükleme kullanan Backlog/Calendar/Moodboard. TK-003, TK-048, TK-044, TK-188, TK-196, TK-069 | Pacer Lite, Query iptali; dnd-kit sensörler ve yazma geri alma sözleşmesi | L |
 | Büyüyen liste ve veri tabloları | Bildirim Merkezi, Export önizlemesi, Work, Project ve Archive listeleri; 12. bölümün ilgili spec’leri. | Table v9 özellikleri, Virtual öğe kimliği ve değişken ölçüm, klavye erişimi | L |
+| Sahipsiz state, rate limit ve analytics kararları (#553) | 13. bölümün 56 Sahipsiz satırı ve 16. bölüm başlıkları. Karar kaydıdır; düzeltmeler 16.1’de #547, #545, #549, #555 ve #556’ya yönlendirildi. Rate limit ve analytics için yeni issue yok. | Kullanıcı onayı 2026-11-19; owning spec Testing Decisions seam’leri | S |
 | Bağımlılık temizliği | 15. bölümdeki kaldırma adaylarının ayrı manifestleri. | Workspace build ve tip kontrolü, peer ve tool zinciri | S |
 
 ## 19. Kapsam, örneklem ve doğrulanamayanlar

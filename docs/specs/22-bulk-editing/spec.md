@@ -41,7 +41,7 @@ Kurucu açıkça seçtiği İşlerde mevcut alanları fark önizlemesi, ilerleme
 - **Glossary.** Use İş, Liste görünümü, Kanban, Akıllı Koleksiyon. Avoid: select-all-unspecified, schema migration, import, record-action catalog, silent partial.
 - **Selection.** Only explicitly selected Work on list, Kanban, Smart Collection, import-result, and similar multi-record surfaces. No selection-less “all records” write. Unselected rows are untouched.
 - **Existing fields.** Bulk updates existing fields only. No new field definitions, schema migration, or record creation.
-- **Preview, progress, results.** Show the field change preview, then progress without freezing UI, then per-record `Succeeded`, `Failed`, or `Canceled` results. Every selected Work has a visible result. First progress indicator meets the bulk budget. Cancel stops queued writes before their commit barrier; already-dispatched writes settle under `Finalizing`. Keep operation progress and results in the Bulk Editing store so they remain visible after SPA route navigation and return.
+- **Preview, progress, results.** Show the field change preview, then progress without freezing UI, then per-record `Succeeded`, `Failed`, or `Canceled` results. Every selected Work has a visible result. First progress indicator meets the bulk budget. Cancel stops queued writes before their commit barrier; already-dispatched writes settle under `Finalizing`. Once all results are available, show `Finalizing` while Work data refreshes. Users can close the dialog once the refresh settles. Keep operation progress and results in the Bulk Editing store so they remain visible after SPA route navigation and return.
 - **Per-record atomicity.** Each Work apply is an idempotent command with base revision. A conflict on one record fails that record visibly and does not last-write-win. Other selected records may still succeed; that is not silent because results are listed. Successful reversible status changes expose `Undo` from their receipt. Undo uses the common contract, restores status and closure fields, and must not rewind unrelated later edits. A successful undo is shown as `Undone`.
 - **Lifecycle hooks.** Status-to-`Closed` must still collect close result (`Completed`/`Abandoned`) via the lifecycle close step; bulk cannot skip it. This feature invokes that rule rather than owning close UX long-term.
 - **Not 21 / 80.** Named multi-step catalog stays Record Actions. Import stays 80. No reusable multi-record action buttons.
@@ -49,6 +49,8 @@ Kurucu açıkça seçtiği İşlerde mevcut alanları fark önizlemesi, ilerleme
 - **Stack.** TanStack Table/virtual for large selections. pg-boss if a large job must progress asynchronously; first progress still meets budget. No new spreadsheet product.
 
 ## Testing Decisions
+
+- **Finalizing and focus return.** `apps/web/e2e/bulk-editing.e2e.ts` holds the Work refresh after a failed status change and checks that `Finalizing` disables closing. Once the refresh settles, `Cancel` closes the dialog, returns focus to `Bulk Edit`, and the user can reopen it and retry.
 
 - **Growing lists (#551).** `apps/web/e2e/bulk-editing.e2e.ts` selects a large set of Work across successive list windows and checks the last Preview and results rows in their scroll regions.
 
