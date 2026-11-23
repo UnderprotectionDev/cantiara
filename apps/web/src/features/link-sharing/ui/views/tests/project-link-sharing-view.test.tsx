@@ -6,7 +6,7 @@ import { act, type ComponentProps } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 import { orpc } from "@/utils/orpc";
-import LinkSharingSurface from "../link-sharing-surface";
+import ProjectLinkSharingView from "../project-link-sharing-view";
 
 const rpc = vi.hoisted(() => ({
   rotateShareToken: vi.fn(),
@@ -88,7 +88,7 @@ function mountShare(initialState: "Active" | "Expired" | null = "Active") {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
-  let props: ComponentProps<typeof LinkSharingSurface> = {
+  let props: ComponentProps<typeof ProjectLinkSharingView> = {
     onSelectRoot: (selectedKey) => render({ selectedKey }),
     projectId: "p1",
     selectedKey: guideKey,
@@ -98,7 +98,7 @@ function mountShare(initialState: "Active" | "Expired" | null = "Active") {
     props = { ...props, ...next };
     root.render(
       <QueryClientProvider client={queryClient}>
-        <LinkSharingSurface {...props} />
+        <ProjectLinkSharingView {...props} />
       </QueryClientProvider>,
     );
   }
@@ -511,6 +511,38 @@ test("approving a new revision of the same surface does not discard its pending 
   await resolveResult(rotation, { ...surface, token: "replacement-link" });
   await vi.waitFor(() => expect(share.token()).toBe("replacement-link"));
 });
+
+test.each(["newer rotation", "reopened Share"] as const)(
+  "does not let an old Rotate link retry invalidate the link from a %s",
+  async (scenario) => {
+    const share = mountShare();
+    rpc.rotateShareToken
+      .mockRejectedValueOnce(new Error("The link was not rotated."))
+      .mockResolvedValueOnce({ ...surface, token: "current-link" })
+      .mockResolvedValueOnce({ ...surface, token: "obsolete-retry-link" });
+    await share.click("Rotate link");
+    await vi.waitFor(() =>
+      expect(share.host.querySelector('[role="alert"]')).not.toBeNull(),
+    );
+    const failed = share.queryClient.getMutationCache().getAll().at(-1);
+    if (!failed) {
+      throw new Error("Failed rotation did not register its mutation");
+    }
+
+    if (scenario === "reopened Share") {
+      share.close();
+      share.render();
+    }
+    await share.click("Rotate link");
+    await vi.waitFor(() => expect(share.token()).toBe("current-link"));
+
+    await act(async () => {
+      await failed.execute(failed.state.variables).catch(() => undefined);
+    });
+    expect(rpc.rotateShareToken).toHaveBeenCalledTimes(2);
+    expect(share.token()).toBe("current-link");
+  },
+);
 
 test("Revoke waits for a fresh scope before offering another approval", async () => {
   const share = mountShare();

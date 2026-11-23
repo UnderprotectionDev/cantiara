@@ -15,7 +15,7 @@ import type {
   IssuedShareLink,
   ShareTokenDisplay,
 } from "../../lib/share-access";
-import { LinkSharingView } from "../views/link-sharing-view";
+import { LinkSharingView } from "./link-sharing-view";
 
 function rootOf(key: string, roots: readonly ShareRoot[]): ShareRoot | null {
   const root = roots.find((record) => `${record.kind}:${record.id}` === key);
@@ -26,17 +26,17 @@ function rootOf(key: string, roots: readonly ShareRoot[]): ShareRoot | null {
  * Loads the Project's shareable main records and the exact closed-world
  * preview of the chosen one, and approves the founder's selection.
  */
-interface LinkSharingSurfaceProps {
+interface ProjectLinkSharingViewProps {
   onSelectRoot: (key: string) => void;
   projectId: string;
   selectedKey?: string;
 }
 
-export default function LinkSharingSurface({
+export default function ProjectLinkSharingView({
   projectId,
   selectedKey = "",
   onSelectRoot,
-}: LinkSharingSurfaceProps) {
+}: ProjectLinkSharingViewProps) {
   const { session } = useRouteContext({ from: "/_auth" });
   const accountId = session.data.user.id;
   const roots = useQuery(
@@ -62,19 +62,28 @@ export default function LinkSharingSurface({
   // biome-ignore lint/correctness/useExhaustiveDependencies: Clean up the previous display before paint and on unmount.
   useLayoutEffect(() => resetDisplay, [display, accountId, projectId, rootKey]);
 
+  function isCurrent(operation: number, surfaceId: string) {
+    const state = display.get();
+    return (
+      state.latestOperation === operation &&
+      !state.revokedSurfaceIds.has(surfaceId)
+    );
+  }
+
   const tokenDisplay: ShareTokenDisplay = {
     beginIssuance: () => {
       const latestOperation = display.get().latestOperation + 1;
       display.setState((state) => ({ ...state, latestOperation }));
       return latestOperation;
     },
+    isCurrent,
     receive: (operation, surfaceId, token) => {
-      display.setState((state) =>
-        state.latestOperation === operation &&
-        !state.revokedSurfaceIds.has(surfaceId)
-          ? { ...state, issued: token ? { surfaceId, token } : null }
-          : state,
-      );
+      if (isCurrent(operation, surfaceId)) {
+        display.setState((state) => ({
+          ...state,
+          issued: token ? { surfaceId, token } : null,
+        }));
+      }
     },
     revoke: (surfaceId) => {
       display.setState((state) => ({

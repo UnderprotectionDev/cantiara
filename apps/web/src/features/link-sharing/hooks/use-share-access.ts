@@ -113,12 +113,22 @@ export function useShareAccess(
       root: rotatedRoot,
       surfaceId,
     }: ShareTarget & { displayOperation: number }) => {
+      const queryKey = previewKey(rotatedRoot);
+      const targetsCurrentPreview = () =>
+        queryClient.getQueryData<ShareScopePreview>(queryKey)?.surface
+          ?.surfaceId === surfaceId;
+      // A global Retry can still reference a failed mutation after a newer write.
+      if (
+        !(
+          display.isCurrent(displayOperation, surfaceId) &&
+          targetsCurrentPreview()
+        )
+      ) {
+        throw new Error("The previous rotation is no longer current.");
+      }
       const { token, ...access } = await client.rotateShareToken({ surfaceId });
       // Revoke can complete from a previous display while this write is pending.
-      const preview = queryClient.getQueryData<ShareScopePreview>(
-        previewKey(rotatedRoot),
-      );
-      if (preview?.surface?.surfaceId === access.surfaceId) {
+      if (targetsCurrentPreview()) {
         display.receive(displayOperation, access.surfaceId, token);
       }
       return access;
