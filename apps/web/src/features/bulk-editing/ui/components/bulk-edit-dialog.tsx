@@ -453,6 +453,7 @@ function BulkEditPreviewSection({
   const previewListRef = useRef<HTMLElement>(null);
   const virtualizer = useVirtualizer({
     count: changedRecords.length,
+    getItemKey: (index) => changedRecords[index].work.id,
     estimateSize: () => 56,
     gap: 8,
     getScrollElement: () => previewListRef.current,
@@ -555,6 +556,8 @@ function BulkEditProgressSection({
   const resultPages = operation?.resultPages ?? [];
   const virtualizer = useVirtualizer({
     count: resultCount,
+    getItemKey: (index) =>
+      bulkEditResultAt(resultPages, index)?.workId ?? index,
     estimateSize: () => 56,
     gap: 4,
     getScrollElement: () => resultListRef.current,

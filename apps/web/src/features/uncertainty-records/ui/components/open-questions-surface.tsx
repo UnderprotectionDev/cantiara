@@ -2,6 +2,10 @@
 
 import type { DocumentEvidenceSelection } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { useLayoutEffect, useRef } from "react";
@@ -210,9 +214,16 @@ function OpenQuestionsSession({
       ) : null}
       {saved ? <p role="status">Open Question saved.</p> : null}
       {questions.length ? (
-        <ul className="space-y-2">
-          {questions.map((item) => (
-            <li key={item.id}>
+        <VirtualList
+          className="space-y-2"
+          estimateSize={85}
+          gap={8}
+          getKey={virtualRowId}
+          rows={questions}
+          scrollToKey={selectedId}
+        >
+          {(item, rowProps) => (
+            <li {...rowProps}>
               <AppLink
                 className="underline"
                 href={`/projects/${encodeURIComponent(projectId)}#${projectSourceRecordHash("Open Question", item.id)}`}
@@ -221,8 +232,8 @@ function OpenQuestionsSession({
               </AppLink>
               <span className="ml-3 text-muted-foreground">{item.life}</span>
             </li>
-          ))}
-        </ul>
+          )}
+        </VirtualList>
       ) : (
         <p>No Open Questions yet.</p>
       )}

@@ -17,6 +17,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
 import { useState } from "react";
 import { useExternalExecutionHandoffs } from "@/features/external-handoffs/hooks/use-external-handoffs";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
@@ -55,15 +56,21 @@ function HandoffHistory({
   return (
     <section aria-label="Handoff history" className="space-y-2">
       <h5 className="text-xs font-medium">Handoff history</h5>
-      <ul className="space-y-1 text-xs text-muted-foreground">
-        {events.map((event) => (
-          <li key={event.eventId}>
+      <VirtualList
+        className="space-y-1 text-xs text-muted-foreground"
+        estimateSize={36}
+        gap={4}
+        getKey={(event) => event.eventId}
+        rows={events}
+      >
+        {(event, rowProps) => (
+          <li {...rowProps}>
             {HISTORY_EVENT_LABELS[event.eventType]} by You
             {" · "}
             <time dateTime={event.occurredAt}>{event.occurredAt}</time>
           </li>
-        ))}
-      </ul>
+        )}
+      </VirtualList>
     </section>
   );
 }
@@ -325,116 +332,127 @@ export default function ExternalExecutionHandoffPanel({
               Handoff history could not be loaded. Try again.
             </p>
           ) : null}
-          {query.data?.map((handoff) => (
-            <article
-              className="space-y-3 border-l-2 border-border/70 pl-3"
-              key={handoff.handoffId}
-            >
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="min-w-0 text-xs font-medium">
-                  {handoff.purpose}{" "}
-                  <span className="text-muted-foreground">
-                    · {handoff.status}
-                  </span>
-                </p>
-                <div className="text-right">
-                  <p className="font-mono text-[11px] text-muted-foreground">
-                    {handoff.handoffId}
-                  </p>
-                  <p className="font-mono text-[11px] text-muted-foreground">
-                    {handoff.packageProducedAt}
-                  </p>
-                </div>
-              </div>
-              {handoff.selectedWorkRevision === null ? null : (
-                <p className="font-mono text-[11px] text-muted-foreground">
-                  {work.key} · revision {handoff.selectedWorkRevision}
-                </p>
-              )}
-              {handoff.status === "Canceled" ? (
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium">Reason</span>:{" "}
-                  {handoff.cancellationReason}
-                </p>
-              ) : null}
-              {work.archivedAt === null &&
-              !isTerminalExternalExecutionHandoffStatus(handoff.status) ? (
-                <CancelHandoffForm
-                  handoffId={handoff.handoffId}
-                  onCancel={(input) => cancel.mutateAsync(input)}
-                  pending={pending}
-                />
-              ) : null}
-              <details
-                className="group rounded-sm border border-border/70 bg-card/55"
-                open
+          <VirtualList
+            as="div"
+            estimateSize={150}
+            gap={16}
+            getKey={(handoff) => handoff.handoffId}
+            rows={query.data ?? []}
+          >
+            {(handoff, rowProps) => (
+              <article
+                className="space-y-3 border-l-2 border-border/70 pl-3"
+                {...rowProps}
               >
-                <summary className="cursor-pointer px-3 py-2 text-xs font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-                  Going package
-                </summary>
-                <div className="space-y-2 border-t border-border/70 p-3">
-                  <p className="text-xs text-muted-foreground" role="note">
-                    Free text is copied as entered and is not scanned for
-                    secrets. Review the package before sharing.
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="min-w-0 text-xs font-medium">
+                    {handoff.purpose}{" "}
+                    <span className="text-muted-foreground">
+                      · {handoff.status}
+                    </span>
                   </p>
-                  <pre className="max-h-72 overflow-auto font-mono text-[11px] leading-relaxed break-words whitespace-pre-wrap">
-                    {handoff.packageMarkdown}
-                  </pre>
-                  <Button
-                    disabled={pending}
-                    onClick={() =>
-                      copyPackage(handoff.handoffId, handoff.packageMarkdown)
-                    }
-                    size="xs"
-                    type="button"
-                    variant="outline"
-                  >
-                    Copy going package
-                  </Button>
-                  {copiedHandoffId === handoff.handoffId ? (
-                    <p className="text-xs text-muted-foreground" role="status">
-                      Going package copied.
+                  <div className="text-right">
+                    <p className="font-mono text-[11px] text-muted-foreground">
+                      {handoff.handoffId}
                     </p>
-                  ) : null}
-                  {handoffObserver(recordPackageExport, handoff.handoffId)
-                    ?.error ? (
-                    <p className="text-xs text-destructive" role="alert">
-                      Going package was copied, but its Work history could not
-                      be recorded.
+                    <p className="font-mono text-[11px] text-muted-foreground">
+                      {handoff.packageProducedAt}
                     </p>
-                  ) : null}
+                  </div>
                 </div>
-              </details>
-              <HandoffResult handoff={handoff} />
-              <HandoffStatusControls
-                confirmDisabled={confirmReconcile.isPending}
-                confirmError={
-                  handoffObserver(confirmReconcile, handoff.handoffId)?.error
-                }
-                handoff={handoff}
-                onConfirm={(input) => confirmReconcile.mutateAsync(input)}
-                onPreview={(input) => {
-                  if (!confirmReconcile.isPending) {
-                    confirmReconcile.reset();
-                  }
-                  return previewReconcile.mutateAsync(input);
-                }}
-                onRecordReturn={(input) => recordReturn.mutateAsync(input)}
-                previewDisabled={
-                  previewReconcile.isPending || connection === "offline"
-                }
-                previewState={handoffObserver(
-                  previewReconcile,
-                  handoff.handoffId,
+                {handoff.selectedWorkRevision === null ? null : (
+                  <p className="font-mono text-[11px] text-muted-foreground">
+                    {work.key} · revision {handoff.selectedWorkRevision}
+                  </p>
                 )}
-                recordReturnDisabled={
-                  recordReturn.isPending || connection === "offline"
-                }
-                relatedWorks={relatedWorks.data ?? []}
-                work={work}
-              />
-            </article>
-          ))}
+                {handoff.status === "Canceled" ? (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium">Reason</span>:{" "}
+                    {handoff.cancellationReason}
+                  </p>
+                ) : null}
+                {work.archivedAt === null &&
+                !isTerminalExternalExecutionHandoffStatus(handoff.status) ? (
+                  <CancelHandoffForm
+                    handoffId={handoff.handoffId}
+                    onCancel={(input) => cancel.mutateAsync(input)}
+                    pending={pending}
+                  />
+                ) : null}
+                <details
+                  className="group rounded-sm border border-border/70 bg-card/55"
+                  open
+                >
+                  <summary className="cursor-pointer px-3 py-2 text-xs font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                    Going package
+                  </summary>
+                  <div className="space-y-2 border-t border-border/70 p-3">
+                    <p className="text-xs text-muted-foreground" role="note">
+                      Free text is copied as entered and is not scanned for
+                      secrets. Review the package before sharing.
+                    </p>
+                    <pre className="max-h-72 overflow-auto font-mono text-[11px] leading-relaxed break-words whitespace-pre-wrap">
+                      {handoff.packageMarkdown}
+                    </pre>
+                    <Button
+                      disabled={pending}
+                      onClick={() =>
+                        copyPackage(handoff.handoffId, handoff.packageMarkdown)
+                      }
+                      size="xs"
+                      type="button"
+                      variant="outline"
+                    >
+                      Copy going package
+                    </Button>
+                    {copiedHandoffId === handoff.handoffId ? (
+                      <p
+                        className="text-xs text-muted-foreground"
+                        role="status"
+                      >
+                        Going package copied.
+                      </p>
+                    ) : null}
+                    {handoffObserver(recordPackageExport, handoff.handoffId)
+                      ?.error ? (
+                      <p className="text-xs text-destructive" role="alert">
+                        Going package was copied, but its Work history could not
+                        be recorded.
+                      </p>
+                    ) : null}
+                  </div>
+                </details>
+                <HandoffResult handoff={handoff} />
+                <HandoffStatusControls
+                  confirmDisabled={confirmReconcile.isPending}
+                  confirmError={
+                    handoffObserver(confirmReconcile, handoff.handoffId)?.error
+                  }
+                  handoff={handoff}
+                  onConfirm={(input) => confirmReconcile.mutateAsync(input)}
+                  onPreview={(input) => {
+                    if (!confirmReconcile.isPending) {
+                      confirmReconcile.reset();
+                    }
+                    return previewReconcile.mutateAsync(input);
+                  }}
+                  onRecordReturn={(input) => recordReturn.mutateAsync(input)}
+                  previewDisabled={
+                    previewReconcile.isPending || connection === "offline"
+                  }
+                  previewState={handoffObserver(
+                    previewReconcile,
+                    handoff.handoffId,
+                  )}
+                  recordReturnDisabled={
+                    recordReturn.isPending || connection === "offline"
+                  }
+                  relatedWorks={relatedWorks.data ?? []}
+                  work={work}
+                />
+              </article>
+            )}
+          </VirtualList>
           {copyError ? (
             <p className="text-xs text-destructive" role="alert">
               {copyError}

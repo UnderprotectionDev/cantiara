@@ -9,9 +9,15 @@ import {
   workspaceOverviewSavedListHref,
 } from "@cantiara/api/workspace-overview";
 import { buttonVariants } from "@cantiara/ui/components/button";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { Plus } from "lucide-react";
+import { useCallback } from "react";
 import WorkspaceOverviewView from "@/features/workspace-overview/ui/components/workspace-overview";
 import {
   accountPreferencesQueryOptions,
@@ -35,6 +41,19 @@ function ProjectsListSection({
   isError: boolean;
   isPending: boolean;
 }) {
+  const editors = useCreateStore<readonly string[]>([]);
+  const editingProjects = useSelector(editors);
+  const trackEditor = useCallback(
+    (id: string, editing: boolean) => {
+      editors.setState((current) => {
+        if (current.includes(id) === editing) {
+          return current;
+        }
+        return editing ? [...current, id] : current.filter((key) => key !== id);
+      });
+    },
+    [editors],
+  );
   return (
     <section aria-labelledby="projects-list-heading" className="pt-9">
       <div className="mb-4 flex items-baseline justify-between gap-4">
@@ -62,11 +81,22 @@ function ProjectsListSection({
       ) : null}
       {data?.length === 0 ? <ProjectsEmptyState /> : null}
       {data && data.length > 0 ? (
-        <ul className="divide-y border-y border-border/70">
-          {data.map((project) => (
-            <ProjectRow key={project.id} project={project} />
-          ))}
-        </ul>
+        <VirtualList
+          className="divide-y border-y border-border/70"
+          estimateSize={100}
+          gap={12}
+          getKey={virtualRowId}
+          keepMounted={editingProjects}
+          rows={data}
+        >
+          {(project, rowProps) => (
+            <ProjectRow
+              onEditingChange={trackEditor}
+              project={project}
+              rowProps={rowProps}
+            />
+          )}
+        </VirtualList>
       ) : null}
     </section>
   );

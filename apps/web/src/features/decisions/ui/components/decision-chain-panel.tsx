@@ -4,6 +4,10 @@ import {
 } from "@cantiara/api/account-preferences";
 import { decisionChain } from "@cantiara/api/decision-chain";
 import type { DecisionSupersessionGraph } from "@cantiara/api/decision-supersession";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { AppLink } from "@/components/app-link";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 
@@ -79,8 +83,16 @@ export function DecisionChainView({
           ) : null}
         </div>
       ) : null}
-      <ol className="space-y-2">
-        {chain.records.map((record) => {
+      <VirtualList
+        as="ol"
+        className="space-y-2"
+        estimateSize={92}
+        gap={8}
+        getKey={virtualRowId}
+        rows={chain.records}
+        scrollToKey={selectedId}
+      >
+        {(record, rowProps) => {
           const transition = chain.relations.find(
             (edge) => edge.predecessorId === record.id,
           );
@@ -90,7 +102,7 @@ export function DecisionChainView({
           return (
             <li
               className="space-y-1 border-l-2 border-border pl-3"
-              key={record.id}
+              {...rowProps}
             >
               <div className="flex flex-wrap items-center gap-x-3">
                 <AppLink
@@ -117,8 +129,8 @@ export function DecisionChainView({
               ) : null}
             </li>
           );
-        })}
-      </ol>
+        }}
+      </VirtualList>
     </section>
   );
 }

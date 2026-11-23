@@ -30,6 +30,7 @@ import {
   PopoverDescription,
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import { useState } from "react";
@@ -351,98 +352,110 @@ function CustomFieldValueInputs({
 }) {
   return (
     <FieldGroup>
-      {items.map((item) => {
-        const current = customFieldValue(item, draftValues, recordId);
-        const id = valueInputId(item.definition, recordId);
-        return (
-          <Field key={id}>
-            <FieldLabel htmlFor={id}>{item.definition.name}</FieldLabel>
-            {item.definition.type === "Text" ||
-            item.definition.type === "Number" ? (
-              <CustomFieldScalarForm
-                current={current}
-                disabled={busy}
-                id={id}
-                kind={item.definition.type === "Text" ? "text" : "number"}
-                onCommit={(nextValue, baseRevision) =>
-                  commit(item, nextValue, baseRevision)
-                }
-                revision={valueRevision(item)}
-              />
-            ) : null}
-            {item.definition.type === "Boolean" ? (
-              <NativeSelect
-                disabled={busy}
-                id={id}
-                onChange={(event) =>
-                  commit(
-                    item,
-                    event.target.value === ""
-                      ? null
-                      : {
-                          boolean: event.target.value === "true",
-                          kind: "boolean",
-                        },
-                  ).catch(() => undefined)
-                }
-                value={
-                  current?.kind === "boolean" ? String(current.boolean) : ""
-                }
-              >
-                <NativeSelectOption value="">Not evaluated</NativeSelectOption>
-                <NativeSelectOption value="true">True</NativeSelectOption>
-                <NativeSelectOption value="false">False</NativeSelectOption>
-              </NativeSelect>
-            ) : null}
-            {item.definition.type === "Date" ? (
-              <DateValueInput
-                current={current}
-                disabled={busy}
-                formattingPreferences={formattingPreferences}
-                id={id}
-                label={item.definition.name}
-                onCommit={(nextValue) =>
-                  commit(item, nextValue).catch(() => undefined)
-                }
-              />
-            ) : null}
-            {item.definition.type === "Single select" ? (
-              <NativeSelect
-                disabled={busy}
-                id={id}
-                onChange={(event) =>
-                  commit(
-                    item,
-                    event.target.value
-                      ? { kind: "option", option: event.target.value }
-                      : null,
-                  ).catch(() => undefined)
-                }
-                value={current?.kind === "option" ? current.option : ""}
-              >
-                <NativeSelectOption value="">Not evaluated</NativeSelectOption>
-                {item.definition.options.map((option) => (
-                  <NativeSelectOption key={option} value={option}>
-                    {option}
+      <VirtualList
+        as="div"
+        estimateSize={120}
+        gap={16}
+        getKey={(item) => item.definition.id}
+        rows={items}
+      >
+        {(item, rowProps) => {
+          const current = customFieldValue(item, draftValues, recordId);
+          const id = valueInputId(item.definition, recordId);
+          return (
+            <Field {...rowProps}>
+              <FieldLabel htmlFor={id}>{item.definition.name}</FieldLabel>
+              {item.definition.type === "Text" ||
+              item.definition.type === "Number" ? (
+                <CustomFieldScalarForm
+                  current={current}
+                  disabled={busy}
+                  id={id}
+                  kind={item.definition.type === "Text" ? "text" : "number"}
+                  onCommit={(nextValue, baseRevision) =>
+                    commit(item, nextValue, baseRevision)
+                  }
+                  revision={valueRevision(item)}
+                />
+              ) : null}
+              {item.definition.type === "Boolean" ? (
+                <NativeSelect
+                  disabled={busy}
+                  id={id}
+                  onChange={(event) =>
+                    commit(
+                      item,
+                      event.target.value === ""
+                        ? null
+                        : {
+                            boolean: event.target.value === "true",
+                            kind: "boolean",
+                          },
+                    ).catch(() => undefined)
+                  }
+                  value={
+                    current?.kind === "boolean" ? String(current.boolean) : ""
+                  }
+                >
+                  <NativeSelectOption value="">
+                    Not evaluated
                   </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            ) : null}
-            {item.definition.type === "Multi select" ? (
-              <MultiSelectValueInput
-                current={current}
-                definition={item.definition}
-                disabled={busy}
-                id={id}
-                onCommit={(nextValue) =>
-                  commit(item, nextValue).catch(() => undefined)
-                }
-              />
-            ) : null}
-            <FieldDescription>{valueSummary(current)}</FieldDescription>
-          </Field>
-        );
-      })}
+                  <NativeSelectOption value="true">True</NativeSelectOption>
+                  <NativeSelectOption value="false">False</NativeSelectOption>
+                </NativeSelect>
+              ) : null}
+              {item.definition.type === "Date" ? (
+                <DateValueInput
+                  current={current}
+                  disabled={busy}
+                  formattingPreferences={formattingPreferences}
+                  id={id}
+                  label={item.definition.name}
+                  onCommit={(nextValue) =>
+                    commit(item, nextValue).catch(() => undefined)
+                  }
+                />
+              ) : null}
+              {item.definition.type === "Single select" ? (
+                <NativeSelect
+                  disabled={busy}
+                  id={id}
+                  onChange={(event) =>
+                    commit(
+                      item,
+                      event.target.value
+                        ? { kind: "option", option: event.target.value }
+                        : null,
+                    ).catch(() => undefined)
+                  }
+                  value={current?.kind === "option" ? current.option : ""}
+                >
+                  <NativeSelectOption value="">
+                    Not evaluated
+                  </NativeSelectOption>
+                  {item.definition.options.map((option) => (
+                    <NativeSelectOption key={option} value={option}>
+                      {option}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              ) : null}
+              {item.definition.type === "Multi select" ? (
+                <MultiSelectValueInput
+                  current={current}
+                  definition={item.definition}
+                  disabled={busy}
+                  id={id}
+                  onCommit={(nextValue) =>
+                    commit(item, nextValue).catch(() => undefined)
+                  }
+                />
+              ) : null}
+              <FieldDescription>{valueSummary(current)}</FieldDescription>
+            </Field>
+          );
+        }}
+      </VirtualList>
     </FieldGroup>
   );
 }

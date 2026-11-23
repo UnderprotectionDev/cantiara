@@ -19,6 +19,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@cantiara/ui/components/dialog";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { useRef } from "react";
@@ -101,11 +105,18 @@ function TrailHistory({
   return (
     <section aria-label="History" className="space-y-3 border-t pt-3">
       <h3 className="text-xs font-medium">History</h3>
-      <ol className="space-y-3">
-        {history.map((trail) => (
+      <VirtualList
+        as="ol"
+        className="space-y-3"
+        estimateSize={80}
+        gap={8}
+        getKey={virtualRowId}
+        rows={history}
+      >
+        {(trail, rowProps) => (
           <li
             className="space-y-1 rounded-md border border-border/70 p-3"
-            key={trail.id}
+            {...rowProps}
           >
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <Badge
@@ -130,8 +141,8 @@ function TrailHistory({
             ) : null}
             <GroundList grounds={trail.grounds} sources={sources} />
           </li>
-        ))}
-      </ol>
+        )}
+      </VirtualList>
     </section>
   );
 }

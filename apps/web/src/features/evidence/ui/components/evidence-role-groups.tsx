@@ -2,6 +2,10 @@ import {
   type DocumentEvidenceForTarget,
   groupEvidenceByRole,
 } from "@cantiara/api/document-evidence";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 
 /** Target-side surface: groups by stored Evidence Role; each count opens its exact accessible set. */
 export default function EvidenceRoleGroups({
@@ -21,9 +25,15 @@ export default function EvidenceRoleGroups({
           <summary>
             {group.role} ({group.items.length})
           </summary>
-          <ul className="space-y-1">
-            {group.items.map((item) => (
-              <li key={item.id}>
+          <VirtualList
+            className="space-y-1"
+            estimateSize={90}
+            gap={8}
+            getKey={virtualRowId}
+            rows={group.items}
+          >
+            {(item, rowProps) => (
+              <li {...rowProps}>
                 <p>{item.source.title ?? "Unavailable source"}</p>
                 {item.pin ? (
                   <p className="break-words whitespace-pre-wrap">
@@ -40,8 +50,8 @@ export default function EvidenceRoleGroups({
                   <p>{item.source.brokenReason}</p>
                 ) : null}
               </li>
-            ))}
-          </ul>
+            )}
+          </VirtualList>
         </details>
       ))}
       {withheld ? <p>{withheld} unavailable (role withheld)</p> : null}

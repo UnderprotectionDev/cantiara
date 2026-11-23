@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Record windows bind identity to the row model for this surface.
 import {
   documentMatchParts,
   type RecordDiscoveryView,
@@ -5,6 +6,10 @@ import {
   type UniversalSearchResult,
 } from "@cantiara/api/record-discovery";
 import { Badge } from "@cantiara/ui/components/badge";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
 import { AppLink } from "@/components/app-link";
 import {
   documentRecordHash,
@@ -142,14 +147,20 @@ function UniversalSearchResultItem({
   onOpenSource,
   query,
   result,
+  rowProps,
 }: {
   index: RecordDiscoveryView;
   onOpenSource?: () => void;
   query: string;
   result: UniversalSearchResult;
+  rowProps: VirtualRowProps;
 }) {
   return (
-    <li className="space-y-2 rounded-md border p-3" data-record-id={result.id}>
+    <li
+      {...rowProps}
+      className="space-y-2 rounded-md border p-3"
+      data-record-id={result.id}
+    >
       <h3 className="font-medium">{result.title}</h3>
       <IndexMetadata index={index} result={result} />
       {index === "Search" ? (
@@ -179,19 +190,23 @@ export default function UniversalSearchResults({
   onOpenSource?: () => void;
 }) {
   return (
-    <ul
+    <VirtualList
       aria-label={index === "Search" ? "Search results" : index}
       className="space-y-3"
+      estimateSize={128}
+      gap={12}
+      getKey={(result) => `${result.recordType}:${result.id}`}
+      rows={results}
     >
-      {results.map((result) => (
+      {(result, rowProps) => (
         <UniversalSearchResultItem
           index={index}
-          key={`${result.recordType}:${result.id}`}
           onOpenSource={onOpenSource}
           query={query}
           result={result}
+          rowProps={rowProps}
         />
-      ))}
-    </ul>
+      )}
+    </VirtualList>
   );
 }

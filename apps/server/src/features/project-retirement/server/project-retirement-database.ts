@@ -229,6 +229,7 @@ export function createDatabaseInFlightWork(
       database
         .select({
           applyingKey: dataImportStaging.applyingKey,
+          id: dataImportStaging.id,
           request: dataImportStaging.request,
         })
         .from(dataImportStaging)
@@ -239,7 +240,10 @@ export function createDatabaseInFlightWork(
           ),
         ),
       database
-        .select({ fileName: fileAttachmentUpload.fileName })
+        .select({
+          fileName: fileAttachmentUpload.fileName,
+          id: fileAttachmentUpload.id,
+        })
         .from(fileAttachmentUpload)
         .where(
           and(
@@ -250,7 +254,7 @@ export function createDatabaseInFlightWork(
           ),
         ),
       database
-        .select({ name: workAutomationRule.name })
+        .select({ id: workAutomationRule.id, name: workAutomationRule.name })
         .from(workAutomationRule)
         .where(
           and(
@@ -265,18 +269,22 @@ export function createDatabaseInFlightWork(
       ...imports
         .filter((row) => importScopeProjectId(row.request) === projectId)
         .map((row) => ({
+          id: row.id,
           kind: "Import" as const,
           state: row.applyingKey ? "Applying" : "Previewed, not applied",
         })),
       ...uploads.map((row) => ({
+        id: row.id,
         kind: "Upload" as const,
         state: `Staged: ${row.fileName}`,
       })),
       ...rules.map((row) => ({
+        id: row.id,
         kind: "Automation" as const,
         state: `Enabled: ${row.name}`,
       })),
       ...links.map((link) => ({
+        id: link.id,
         kind: "GitHub sync" as const,
         state: `${link.label}: ${link.state}`,
       })),

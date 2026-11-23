@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Virtual list fixture</title>
+  </head>
+  <body>
+    <div id="main-content" style="height: 320px; overflow: auto"></div>
+    <script type="module">
+    import "../src/index.css";
+    import { VirtualList } from "@cantiara/ui/components/virtual-list";
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+
+    const rows = Array.from({ length: 500 }, (_, index) => ({
+      id: `row-${index + 1}`,
+      title: `Record ${index + 1}`,
+    }));
+    const main = document.getElementById("main-content");
+    const mode = new URLSearchParams(location.search);
+    const readOnly = mode.has("read-only");
+    const horizontal = mode.has("horizontal");
+    if (horizontal) {
+      main.style.width = "600px";
+    }
+    const getKey = (row) => row.id;
+    const renderRow = (row, props) =>
+      createElement(
+        "li",
+        props,
+        createElement("input", {
+          "aria-label": row.title,
+          defaultValue: row.title,
+          disabled: readOnly && row.id === "row-2",
+        }),
+        !readOnly &&
+          createElement(
+            "details",
+            null,
+            createElement("summary", null, `Details for ${row.title}`),
+            createElement("p", { style: { height: 130 } }, "More detail"),
+          ),
+      );
+    createRoot(main).render(
+      createElement(
+        "div",
+        null,
+        createElement("h1", { style: { height: 100 } }, "Records"),
+        createElement(
+          VirtualList,
+          {
+            "aria-label": "Records",
+            estimateSize: horizontal ? 220 : 50,
+            gap: 8,
+            getKey,
+            horizontal,
+            rows,
+            scrollToKey: mode.get("row"),
+          },
+          renderRow,
+        ),
+      ),
+    );
+    </script>
+  </body>
+</html>

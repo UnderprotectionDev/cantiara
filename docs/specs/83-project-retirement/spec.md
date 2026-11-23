@@ -40,6 +40,8 @@ Kurucu Projeyi Arşiv görünümüne alır: salt okunur, hareketsiz; GitHub eşi
 
 ## Testing Decisions
 
+- **Growing lists (#551).** `archive-view.test.tsx` checks the bounded initial Project window and the supplied Archive order. The read-only preview uses the existing record identities in the delete group, living relations, External Surfaces, and in-flight work.
+
 - **Client state ownership (#547).** The archive surface keeps the selected deletion target in its local session.
 
 - **Popup lifecycle (#546).** The Project retirement control seam opens the Archive preview before a write, uses the selected Project revision, and preserves the preview during a failed request.

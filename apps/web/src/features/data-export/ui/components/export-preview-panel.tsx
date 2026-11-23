@@ -12,6 +12,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
 
 function Section({ children, title }: { children: ReactNode; title: string }) {
@@ -70,15 +74,26 @@ function RecordsSection({ records }: { records: ExportPreview["records"] }) {
             ? "1 record leaves in this file. Open the list to review it."
             : `${records.length} records leave in this file. Open the list to review each one.`}
         </CollapsibleTrigger>
-        <CollapsibleContent>
-          <ul
+        <CollapsibleContent className="pt-2">
+          <section
             aria-label="Records in this file"
-            className="max-h-48 space-y-1 overflow-y-auto pt-2"
+            className="max-h-48 overflow-y-auto"
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: Keyboard users need to scroll the preview.
+            tabIndex={0}
           >
-            {records.map((record) => (
-              <li key={record.id}>{record.label || record.id}</li>
-            ))}
-          </ul>
+            <VirtualList
+              aria-label="Records in this file"
+              className="space-y-1"
+              estimateSize={20}
+              gap={4}
+              getKey={virtualRowId}
+              rows={records}
+            >
+              {(record, rowProps) => (
+                <li {...rowProps}>{record.label || record.id}</li>
+              )}
+            </VirtualList>
+          </section>
         </CollapsibleContent>
       </Collapsible>
     </Section>

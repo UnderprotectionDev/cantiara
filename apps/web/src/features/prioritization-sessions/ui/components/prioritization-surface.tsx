@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls close over the current Project and its explicit view-local order.
+
 import type { PrioritizationSession } from "@cantiara/api/prioritization-sessions";
 import type { PriorityMetricProjectValues } from "@cantiara/api/priority-metrics";
 import {
@@ -8,6 +9,11 @@ import {
 } from "@cantiara/api/work-context";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  VirtualList,
+  type VirtualRowProps,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -197,6 +203,15 @@ function BacklogOrderSection({
   priorityValues: PriorityMetricProjectValues | undefined;
   worksById: ReadonlyMap<string, WorkProfile>;
 }) {
+  const activeDefinitions = (priorityValues?.definitions ?? []).filter(
+    (definition) => definition.enabled && !definition.trashedAt,
+  );
+  const ranks = new Map(
+    (priorityValues?.values ?? []).map((value) => [
+      JSON.stringify([value.workId, value.metricId]),
+      value.rank,
+    ]),
+  );
   return (
     <section aria-labelledby="backlog-order-heading" className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/70 pb-3">
@@ -215,8 +230,16 @@ function BacklogOrderSection({
           No active Work in Backlog.
         </p>
       ) : (
-        <ol aria-label="Backlog order" className="space-y-2">
-          {orderIds.map((workId, index) => {
+        <VirtualList
+          aria-label="Backlog order"
+          as="ol"
+          className="space-y-2"
+          estimateSize={120}
+          gap={8}
+          getKey={(workId) => workId}
+          rows={orderIds}
+        >
+          {(workId, rowProps, index) => {
             const work = worksById.get(workId);
             if (!work) {
               return null;
@@ -224,7 +247,7 @@ function BacklogOrderSection({
             return (
               <li
                 className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/70 bg-card/30 px-3 py-2.5"
-                key={workId}
+                {...rowProps}
               >
                 <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
                   <p className="min-w-0 text-sm">
@@ -243,26 +266,18 @@ function BacklogOrderSection({
                   aria-label={`${work.key} priority metrics`}
                   className="flex min-w-full flex-wrap gap-2 text-xs sm:min-w-0 sm:flex-1"
                 >
-                  {(priorityValues?.definitions ?? [])
-                    .filter(
-                      (definition) =>
-                        definition.enabled && !definition.trashedAt,
-                    )
-                    .map((definition) => (
-                      <li
-                        className="rounded-md bg-muted/60 px-2 py-1"
-                        key={definition.id}
-                      >
-                        <span className="text-muted-foreground">
-                          {definition.name}:
-                        </span>{" "}
-                        {priorityValues?.values.find(
-                          (value) =>
-                            value.metricId === definition.id &&
-                            value.workId === work.id,
-                        )?.rank ?? "Unevaluated"}
-                      </li>
-                    ))}
+                  {activeDefinitions.map((definition) => (
+                    <li
+                      className="rounded-md bg-muted/60 px-2 py-1"
+                      key={definition.id}
+                    >
+                      <span className="text-muted-foreground">
+                        {definition.name}:
+                      </span>{" "}
+                      {ranks.get(JSON.stringify([work.id, definition.id])) ??
+                        "Unevaluated"}
+                    </li>
+                  ))}
                 </ul>
                 <div className="flex gap-1">
                   <Button
@@ -286,8 +301,8 @@ function BacklogOrderSection({
                 </div>
               </li>
             );
-          })}
-        </ol>
+          }}
+        </VirtualList>
       )}
     </section>
   );
@@ -307,6 +322,7 @@ function PrioritizationSessionCard({
   works,
   worksById,
   workContextById,
+  rowProps,
 }: {
   backlogOrder: readonly string[];
   busy: boolean;
@@ -321,6 +337,7 @@ function PrioritizationSessionCard({
   works: readonly WorkProfile[];
   worksById: ReadonlyMap<string, WorkProfile>;
   workContextById: ReadonlyMap<string, UseQueryResult<WorkContextProjection>>;
+  rowProps?: VirtualRowProps;
 }) {
   const isClosed = session.closedAt !== null;
   const included = new Set(session.workIds);
@@ -328,6 +345,7 @@ function PrioritizationSessionCard({
 
   return (
     <article
+      {...rowProps}
       aria-labelledby={`session-${session.id}-heading`}
       className="space-y-4 rounded-lg border border-border/70 bg-card/40 p-4"
     >
@@ -693,13 +711,19 @@ function PrioritizationSessionCollection({
           No Prioritization Sessions yet.
         </p>
       ) : (
-        <div className="space-y-4">
-          {activeSessions.map((session) => (
+        <VirtualList
+          as="div"
+          className="space-y-4"
+          estimateSize={200}
+          gap={12}
+          getKey={virtualRowId}
+          rows={activeSessions}
+        >
+          {(session, rowProps) => (
             <PrioritizationSessionCard
               backlogOrder={orderedBacklogIds}
               busy={busy}
               formatDate={formatDate}
-              key={session.id}
               onAddWork={(workId) =>
                 updateSessionOrder.mutateAsync({
                   session,
@@ -718,13 +742,14 @@ function PrioritizationSessionCollection({
               }
               onTrash={() => trashSession.mutate(session)}
               priorityValues={priorityValues.data}
+              rowProps={rowProps}
               session={session}
               workContextById={workContextById}
               works={activeWorks}
               worksById={workById}
             />
-          ))}
-        </div>
+          )}
+        </VirtualList>
       )}
 
       {trashedSessions.length > 0 ? (
@@ -735,11 +760,17 @@ function PrioritizationSessionCollection({
           <h5 className="text-sm font-medium" id="prioritization-trash-heading">
             Trash
           </h5>
-          <ul className="space-y-2">
-            {trashedSessions.map((session) => (
+          <VirtualList
+            className="space-y-2"
+            estimateSize={80}
+            gap={8}
+            getKey={virtualRowId}
+            rows={trashedSessions}
+          >
+            {(session, rowProps) => (
               <li
                 className="flex flex-wrap items-center justify-between gap-3 text-sm"
-                key={session.id}
+                {...rowProps}
               >
                 <span>
                   {session.name} · Trashed {formatDate(session.trashedAt)}
@@ -754,8 +785,8 @@ function PrioritizationSessionCollection({
                   Restore
                 </Button>
               </li>
-            ))}
-          </ul>
+            )}
+          </VirtualList>
         </section>
       ) : null}
     </section>

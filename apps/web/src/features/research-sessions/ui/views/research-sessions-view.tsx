@@ -1,9 +1,14 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected Research Session and TanStack Form fields.
+
 import type {
   ResearchSessionFields,
   ResearchSessionRecord,
 } from "@cantiara/api/research-sessions";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useState } from "react";
 import { ResearchSessionNotes } from "../components/research-session-notes";
 import type {
@@ -93,11 +98,17 @@ export function ResearchSessionsView({
         />
       ) : null}
       {records.length ? (
-        <ul className="space-y-3">
-          {records.map((record) => (
+        <VirtualList
+          className="space-y-3"
+          estimateSize={90}
+          gap={8}
+          getKey={virtualRowId}
+          rows={records}
+        >
+          {(record, rowProps) => (
             <li
               className="rounded-lg border border-border/70 p-4"
-              key={record.id}
+              {...rowProps}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -136,8 +147,8 @@ export function ResearchSessionsView({
                 record={record}
               />
             </li>
-          ))}
-        </ul>
+          )}
+        </VirtualList>
       ) : (
         <p className="text-muted-foreground">No Research Sessions yet.</p>
       )}

@@ -1,3 +1,4 @@
+import type { FeedRow } from "@cantiara/api/feedback-feed";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
@@ -5,7 +6,13 @@ import { orpc } from "@/utils/orpc";
 import { type FeedQuery, FeedView } from "../views/feed-view";
 
 /** Read-only Feed of the Project's Feedback and long-body Source records. */
-export default function FeedSurface({ projectId }: { projectId: string }) {
+export default function FeedSurface({
+  onOpen,
+  projectId,
+}: {
+  onOpen?: (row: FeedRow) => void;
+  projectId: string;
+}) {
   const filters = useSearch({
     from: "/_auth/projects/$projectId/",
     select: (search) => search.feed,
@@ -50,6 +57,11 @@ export default function FeedSurface({ projectId }: { projectId: string }) {
     );
   }
   return (
-    <FeedView onChangeQuery={setQuery} query={query} rows={feed.data.rows} />
+    <FeedView
+      onChangeQuery={setQuery}
+      onOpen={onOpen}
+      query={query}
+      rows={feed.data.rows}
+    />
   );
 }

@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Bulk sense-making controls close over their current layout and item state.
+
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type {
   CaptureBulkCluster,
@@ -11,8 +12,12 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
@@ -26,6 +31,17 @@ import {
 } from "../../lib/capture-inbox";
 import { AddBulkClusterForm } from "../forms/add-bulk-cluster-form";
 import { CaptureInboxItemActions } from "./capture-inbox-item-actions";
+
+const COLUMN_LAYOUT_QUERY = "(min-width: 48rem)";
+
+function subscribeToColumnLayout(onChange: () => void) {
+  const query = window.matchMedia(COLUMN_LAYOUT_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+const horizontalColumns = () => window.matchMedia(COLUMN_LAYOUT_QUERY).matches;
+const stackedColumns = () => false;
 
 export default function BulkSenseMakingView({
   accountId,
@@ -42,6 +58,11 @@ export default function BulkSenseMakingView({
   triageAvailable: boolean;
   view: CaptureBulkSenseMaking;
 }) {
+  const horizontal = useSyncExternalStore(
+    subscribeToColumnLayout,
+    horizontalColumns,
+    stackedColumns,
+  );
   const queryClient = useQueryClient();
   const connection = useClientShellConnection();
   const { queryKey } = captureInboxQueryOptions(accountId);
@@ -197,118 +218,136 @@ export default function BulkSenseMakingView({
         onAdd={addCluster}
       />
 
-      <div className="grid items-start gap-4 overflow-x-auto pb-2 md:auto-cols-[minmax(18rem,1fr)] md:grid-flow-col">
-        {columns.map((column) => (
-          <section
-            aria-label={column.label}
-            className="min-w-72 border border-border/70 bg-background"
-            key={column.clusterId ?? "ungrouped"}
-          >
-            <header className="flex items-start justify-between gap-3 border-b bg-muted/25 px-3 py-3">
-              <div className="min-w-0">
-                <h3 className="truncate text-sm font-semibold">
-                  {column.label}
-                </h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {captureCountLabel(column.items.length)}
-                </p>
-              </div>
-              {column.clusterId ? (
-                <div className="flex shrink-0 gap-1">
-                  <Button
-                    aria-label={`Move ${column.label} left`}
-                    disabled={!isOnline || saveLayout.isPending}
-                    onClick={() => moveCluster(column.clusterId as string, -1)}
-                    type="button"
-                    variant="ghost"
-                  >
-                    Move left
-                  </Button>
-                  <Button
-                    aria-label={`Move ${column.label} right`}
-                    disabled={!isOnline || saveLayout.isPending}
-                    onClick={() => moveCluster(column.clusterId as string, 1)}
-                    type="button"
-                    variant="ghost"
-                  >
-                    Move right
-                  </Button>
+      <div className="overflow-x-auto pb-2" data-horizontal-scroll>
+        <VirtualList
+          as="div"
+          className="grid items-start gap-4 md:auto-cols-[minmax(18rem,1fr)] md:grid-flow-col"
+          estimateSize={horizontal ? 288 : 225}
+          gap={16}
+          getKey={(column) => column.clusterId ?? "ungrouped"}
+          horizontal={horizontal}
+          rows={columns}
+        >
+          {(column, columnProps) => (
+            <section
+              {...columnProps}
+              aria-label={column.label}
+              className="min-w-72 border border-border/70 bg-background"
+            >
+              <header className="flex items-start justify-between gap-3 border-b bg-muted/25 px-3 py-3">
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-semibold">
+                    {column.label}
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {captureCountLabel(column.items.length)}
+                  </p>
                 </div>
-              ) : null}
-            </header>
-            <ul className="divide-y">
-              {column.items.map((item) => {
-                const itemPlacement = layout.placements.find(
-                  (placement) => placement.itemId === item.id,
-                );
-                return (
-                  <li className="space-y-3 p-3" key={item.id}>
-                    <div className="flex items-center justify-between gap-2">
-                      {item.template ? (
-                        <span className="text-xs font-medium">
-                          {item.template}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          Capture
-                        </span>
-                      )}
-                      <NativeSelect
-                        aria-label={`Place ${item.id}`}
-                        disabled={!isOnline || saveLayout.isPending}
-                        onChange={(event) =>
-                          placeItem(item.id, event.target.value || null)
-                        }
-                        value={itemPlacement?.clusterId ?? ""}
-                      >
-                        <NativeSelectOption value="">
-                          Ungrouped
-                        </NativeSelectOption>
-                        {layout.clusters
-                          .slice()
-                          .sort(
-                            (left, right) =>
-                              left.position - right.position ||
-                              left.id.localeCompare(right.id),
-                          )
-                          .map((cluster) => (
-                            <NativeSelectOption
-                              key={cluster.id}
-                              value={cluster.id}
-                            >
-                              {cluster.name}
-                            </NativeSelectOption>
+                {column.clusterId ? (
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      aria-label={`Move ${column.label} left`}
+                      disabled={!isOnline || saveLayout.isPending}
+                      onClick={() =>
+                        moveCluster(column.clusterId as string, -1)
+                      }
+                      type="button"
+                      variant="ghost"
+                    >
+                      Move left
+                    </Button>
+                    <Button
+                      aria-label={`Move ${column.label} right`}
+                      disabled={!isOnline || saveLayout.isPending}
+                      onClick={() => moveCluster(column.clusterId as string, 1)}
+                      type="button"
+                      variant="ghost"
+                    >
+                      Move right
+                    </Button>
+                  </div>
+                ) : null}
+              </header>
+              <VirtualList
+                className="divide-y"
+                estimateSize={132}
+                gap={0}
+                getKey={virtualRowId}
+                rows={column.items}
+              >
+                {(item, rowProps) => {
+                  const itemPlacement = layout.placements.find(
+                    (placement) => placement.itemId === item.id,
+                  );
+                  return (
+                    <li className="space-y-3 p-3" {...rowProps}>
+                      <div className="flex items-center justify-between gap-2">
+                        {item.template ? (
+                          <span className="text-xs font-medium">
+                            {item.template}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Capture
+                          </span>
+                        )}
+                        <NativeSelect
+                          aria-label={`Place ${item.id}`}
+                          disabled={!isOnline || saveLayout.isPending}
+                          onChange={(event) =>
+                            placeItem(item.id, event.target.value || null)
+                          }
+                          value={itemPlacement?.clusterId ?? ""}
+                        >
+                          <NativeSelectOption value="">
+                            Ungrouped
+                          </NativeSelectOption>
+                          {layout.clusters
+                            .slice()
+                            .sort(
+                              (left, right) =>
+                                left.position - right.position ||
+                                left.id.localeCompare(right.id),
+                            )
+                            .map((cluster) => (
+                              <NativeSelectOption
+                                key={cluster.id}
+                                value={cluster.id}
+                              >
+                                {cluster.name}
+                              </NativeSelectOption>
+                            ))}
+                        </NativeSelect>
+                      </div>
+                      {item.content ? (
+                        <p className="text-sm/6 whitespace-pre-wrap">
+                          {item.content}
+                        </p>
+                      ) : null}
+                      {Object.entries(item.fields).length > 0 ? (
+                        <dl className="space-y-2 text-xs">
+                          {Object.entries(item.fields).map(([label, value]) => (
+                            <div key={label}>
+                              <dt className="text-muted-foreground">{label}</dt>
+                              <dd className="whitespace-pre-wrap">{value}</dd>
+                            </div>
                           ))}
-                      </NativeSelect>
-                    </div>
-                    {item.content ? (
-                      <p className="text-sm/6 whitespace-pre-wrap">
-                        {item.content}
-                      </p>
-                    ) : null}
-                    {Object.entries(item.fields).length > 0 ? (
-                      <dl className="space-y-2 text-xs">
-                        {Object.entries(item.fields).map(([label, value]) => (
-                          <div key={label}>
-                            <dt className="text-muted-foreground">{label}</dt>
-                            <dd className="whitespace-pre-wrap">{value}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    ) : null}
-                    <CaptureInboxItemActions
-                      accountId={accountId}
-                      formattingPreferences={formattingPreferences}
-                      item={item}
-                      onUndoPreview={onUndoPreview}
-                      triageAvailable={triageAvailable}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
+                        </dl>
+                      ) : null}
+                      <CaptureInboxItemActions
+                        accountId={accountId}
+                        formattingPreferences={formattingPreferences}
+                        item={item}
+                        onUndoPreview={onUndoPreview}
+                        triageAvailable={triageAvailable}
+                      />
+                    </li>
+                  );
+                }}
+              </VirtualList>
+            </section>
+          )}
+        </VirtualList>
       </div>
     </section>
   );

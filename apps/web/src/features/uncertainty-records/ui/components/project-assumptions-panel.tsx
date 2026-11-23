@@ -7,6 +7,10 @@ import type {
   AssumptionsContext,
 } from "@cantiara/api/uncertainty-records";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { type ReactNode, useLayoutEffect } from "react";
 import { AppLink } from "@/components/app-link";
@@ -158,11 +162,18 @@ export function ProjectAssumptionsView({
       {context.records.length === 0 ? (
         <p className="text-muted-foreground">No Assumptions yet.</p>
       ) : (
-        <ul className="divide-y rounded-lg border border-border/70">
-          {context.records.map((record) => (
+        <VirtualList
+          className="divide-y rounded-lg border border-border/70"
+          estimateSize={85}
+          gap={8}
+          getKey={virtualRowId}
+          rows={context.records}
+          scrollToKey={selectedId}
+        >
+          {(record, rowProps) => (
             <li
               className="flex items-center justify-between gap-4 p-4"
-              key={record.id}
+              {...rowProps}
             >
               <AppLink
                 className="min-w-0 font-medium break-words underline underline-offset-4"
@@ -174,8 +185,8 @@ export function ProjectAssumptionsView({
                 {record.life}
               </span>
             </li>
-          ))}
-        </ul>
+          )}
+        </VirtualList>
       )}
       {selectedId && !selected ? (
         <p role="alert">Assumption is unavailable.</p>
@@ -206,9 +217,15 @@ export function ProjectAssumptionsView({
           <section aria-label="Evidence" className="space-y-3 border-t pt-4">
             <h4 className="font-medium">Evidence</h4>
             {evidence.length ? (
-              <ul className="space-y-3">
-                {evidence.map((entry) => (
-                  <li key={entry.id}>
+              <VirtualList
+                className="space-y-3"
+                estimateSize={70}
+                gap={8}
+                getKey={virtualRowId}
+                rows={evidence}
+              >
+                {(entry, rowProps) => (
+                  <li {...rowProps}>
                     <p>
                       {entry.title} · Version {entry.revision}
                     </p>
@@ -218,8 +235,8 @@ export function ProjectAssumptionsView({
                       </blockquote>
                     ) : null}
                   </li>
-                ))}
-              </ul>
+                )}
+              </VirtualList>
             ) : (
               <p className="text-muted-foreground">No evidence linked.</p>
             )}

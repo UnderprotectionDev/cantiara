@@ -22,6 +22,10 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useForm } from "@tanstack/react-form";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
@@ -697,9 +701,16 @@ function StagesConfiguration({
         </addStageForm.Subscribe>
       </form>
       <ConfigurationMutationError error={error} />
-      <ul aria-label="Stages configuration" className="space-y-2">
-        {configuration.preparedStages.map((stage, index) => (
-          <li className="border bg-background p-3" key={stage.id}>
+      <VirtualList
+        aria-label="Stages configuration"
+        className="space-y-2"
+        estimateSize={110}
+        gap={8}
+        getKey={virtualRowId}
+        rows={configuration.preparedStages}
+      >
+        {(stage, rowProps, index) => (
+          <li className="border bg-background p-3" {...rowProps}>
             <div className="flex flex-wrap items-end gap-2">
               <StageNameForm
                 disabled={disabled}
@@ -802,8 +813,8 @@ function StagesConfiguration({
               </div>
             ) : null}
           </li>
-        ))}
-      </ul>
+        )}
+      </VirtualList>
       {configuration.preparedStages.length === 0 ? (
         <p className="text-sm text-muted-foreground">No stages prepared.</p>
       ) : null}

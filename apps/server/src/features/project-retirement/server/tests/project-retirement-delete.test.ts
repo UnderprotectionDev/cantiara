@@ -84,6 +84,7 @@ function build(
           {
             mark: DELETED_TARGET_MARK,
             scope: "Project other",
+            id: "relation-1",
             sourceLabel: "Other work",
             targetLabel: "Ship",
           },

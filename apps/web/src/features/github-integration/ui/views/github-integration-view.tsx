@@ -35,6 +35,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@cantiara/ui/components/dialog";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector } from "@tanstack/react-store";
 import { useId, useState } from "react";
@@ -230,9 +234,15 @@ function TriageResults({
           {preview.data.groups.map((group) => (
             <section aria-label={group.label} key={group.key}>
               <h5 className="font-medium">{`${group.label} (${group.records.length})`}</h5>
-              <ul className="list-disc pl-5">
-                {group.records.map((record) => (
-                  <li key={record.id}>
+              <VirtualList
+                className="list-disc pl-5"
+                estimateSize={80}
+                gap={8}
+                getKey={virtualRowId}
+                rows={group.records}
+              >
+                {(record, rowProps) => (
+                  <li {...rowProps}>
                     <a
                       className="underline"
                       href={record.htmlUrl}
@@ -240,8 +250,8 @@ function TriageResults({
                       target="_blank"
                     >{`#${record.number} ${record.title}`}</a>
                   </li>
-                ))}
-              </ul>
+                )}
+              </VirtualList>
             </section>
           ))}
         </div>

@@ -5,22 +5,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { stoppedActivityLabel } from "../../lib/project-retirement-labels";
 
-function List({ items, title }: { items: string[]; title: string }) {
-  return (
-    <section aria-label={title} className="space-y-1">
-      <h3 className="text-sm font-medium">{title}</h3>
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">None.</p>
-      ) : (
-        <ul className="list-disc space-y-0.5 pl-5 text-sm">
-          {items.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
+import { RetirementPreviewList } from "./retirement-preview-list";
 
 /**
  * Archive preview: what the Project leaves, what is moving right now, which
@@ -47,23 +32,29 @@ export function ArchivePreviewPanel({
         {preview.project.name} leaves the normal working surfaces. Its{" "}
         {preview.project.status} status does not change.
       </p>
-      <List items={preview.leaves} title="Leaves the working surfaces" />
-      <List
+      <RetirementPreviewList
+        items={preview.leaves}
+        title="Leaves the working surfaces"
+      />
+      <RetirementPreviewList
         items={preview.stops.map(stoppedActivityLabel)}
         title="Stops while archived"
       />
-      <List
-        items={preview.inFlight.map((work) => `${work.kind}: ${work.state}`)}
+      <RetirementPreviewList
+        items={preview.inFlight.map((work) => ({
+          id: `${work.kind}:${work.id}`,
+          label: `${work.kind}: ${work.state}`,
+        }))}
         title="In-flight work"
       />
-      <List
-        items={preview.surfaces.map(
-          (surface) =>
-            `${surface.title} · ${surface.visibility} · ${surface.sourceState}`,
-        )}
+      <RetirementPreviewList
+        items={preview.surfaces.map((surface) => ({
+          id: surface.surfaceId,
+          label: `${surface.title} · ${surface.visibility} · ${surface.sourceState}`,
+        }))}
         title="Approved External Surfaces that may stay live"
       />
-      <List
+      <RetirementPreviewList
         items={preview.allowedActions.map((entry) => entry.label)}
         title="Security actions that stay open"
       />

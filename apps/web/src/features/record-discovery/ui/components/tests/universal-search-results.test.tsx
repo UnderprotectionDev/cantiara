@@ -200,3 +200,21 @@ test("browses technical diagram type and authority mode distinctly", () => {
   expect(markup).not.toContain("secret generated SQL body");
   expect(markup).not.toContain("0 matches");
 });
+
+test("starts a large Search in the order returned by Record Discovery", () => {
+  const markup = renderToStaticMarkup(
+    <UniversalSearchResults
+      query="PostgreSQL"
+      results={Array.from({ length: 200 }, (_, index) => ({
+        ...result,
+        id: `work-${index}`,
+        title: `Search match ${200 - index}`,
+      }))}
+    />,
+  );
+  expect(markup).toContain("Search match 200");
+  expect(markup.indexOf("Search match 200")).toBeLessThan(
+    markup.indexOf("Search match 199"),
+  );
+  expect(markup).not.toContain("Search match 100");
+});

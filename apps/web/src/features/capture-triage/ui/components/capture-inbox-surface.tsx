@@ -17,6 +17,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@cantiara/ui/components/dialog";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { useCallback, useState } from "react";
 
@@ -181,68 +185,43 @@ function SequentialTriageView({
   );
 }
 
-function CaptureInboxGroupView({
-  accountId,
-  formattingPreferences,
+function CaptureInboxGroupHeading({
   group,
-  onUndoPreview,
-  triageAvailable,
+  rowProps,
 }: {
-  accountId: string;
-  formattingPreferences: AccountPreferences;
   group: CaptureInboxGroup;
-  onUndoPreview: (mergeId: string) => void;
-  triageAvailable: boolean;
+  rowProps: VirtualRowProps;
 }) {
-  const headingId = `capture-group-${group.itemIds[0]}`;
+  const headingId = `capture-group-${group.projectId ?? "workspace"}`;
   const inboxKind = group.projectId ? "Project inbox" : "Workspace inbox";
   const captureCount = group.items.length;
 
   return (
-    <section
-      aria-label={group.label}
-      aria-labelledby={headingId}
-      className="border-t border-border/70"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 py-3">
-        <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">{inboxKind}</p>
-          <h2
-            className="mt-1 text-base font-semibold tracking-tight"
-            id={headingId}
-          >
-            {group.label}
-          </h2>
-        </div>
-        <div className="shrink-0 text-right">
-          {group.projectId ? (
-            <p className="max-w-40 truncate text-sm" title={group.projectId}>
-              {group.projectId}
+    <li {...rowProps} className="border-t border-border/70">
+      <section aria-label={group.label} aria-labelledby={headingId}>
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 py-3">
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">{inboxKind}</p>
+            <h2
+              className="mt-1 text-base font-semibold tracking-tight"
+              id={headingId}
+            >
+              {group.label}
+            </h2>
+          </div>
+          <div className="shrink-0 text-right">
+            {group.projectId ? (
+              <p className="max-w-40 truncate text-sm" title={group.projectId}>
+                {group.projectId}
+              </p>
+            ) : null}
+            <p className="mt-1 text-xs text-muted-foreground">
+              {captureCountLabel(captureCount)}
             </p>
-          ) : null}
-          <p className="mt-1 text-xs text-muted-foreground">
-            {captureCountLabel(captureCount)}
-          </p>
+          </div>
         </div>
-      </div>
-      <ul className="divide-y">
-        {group.items.map((item) => (
-          <li className="space-y-3 py-4" key={item.id}>
-            <CaptureInboxItemDetails
-              formattingPreferences={formattingPreferences}
-              item={item}
-            />
-            <CaptureInboxItemActions
-              accountId={accountId}
-              formattingPreferences={formattingPreferences}
-              item={item}
-              onUndoPreview={onUndoPreview}
-              triageAvailable={triageAvailable}
-            />
-          </li>
-        ))}
-      </ul>
-    </section>
+      </section>
+    </li>
   );
 }
 
@@ -377,16 +356,39 @@ function CaptureInboxListView({
       );
     }
 
-    return groups.map((group) => (
-      <CaptureInboxGroupView
-        accountId={accountId}
-        formattingPreferences={formattingPreferences}
-        group={group}
-        key={`${group.kind}-${group.projectId ?? "workspace"}`}
-        onUndoPreview={onUndoPreview}
-        triageAvailable={triageAvailable}
-      />
-    ));
+    const rows = groups.flatMap((group) => [
+      { group, key: `group:${group.kind}:${group.projectId ?? "workspace"}` },
+      ...group.items.map((item) => ({ item, key: `capture:${item.id}` })),
+    ]);
+    return (
+      <VirtualList
+        className="divide-y"
+        estimateSize={150}
+        getKey={(row) => row.key}
+        isFocusable={(row) => "item" in row}
+        rows={rows}
+      >
+        {(row, rowProps) =>
+          "group" in row ? (
+            <CaptureInboxGroupHeading group={row.group} rowProps={rowProps} />
+          ) : (
+            <li {...rowProps} className="space-y-3 py-4">
+              <CaptureInboxItemDetails
+                formattingPreferences={formattingPreferences}
+                item={row.item}
+              />
+              <CaptureInboxItemActions
+                accountId={accountId}
+                formattingPreferences={formattingPreferences}
+                item={row.item}
+                onUndoPreview={onUndoPreview}
+                triageAvailable={triageAvailable}
+              />
+            </li>
+          )
+        }
+      </VirtualList>
+    );
   }
 
   return (

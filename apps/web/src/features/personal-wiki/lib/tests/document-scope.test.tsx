@@ -54,7 +54,9 @@ test("mixed Document results retain a scope badge and separate homes even with i
       selectedId={null}
     />,
   );
-  const rows = markup.match(/<li\b[\s\S]*?<\/li>/g) ?? [];
+  const rows = (markup.match(/<li\b[\s\S]*?<\/li>/g) ?? []).filter((row) =>
+    row.includes("data-document-id="),
+  );
   expect(rows).toHaveLength(3);
   expect(rows[0]).toContain(">Personal Wiki<");
   expect(rows[1]).toContain(">Project: project-one<");

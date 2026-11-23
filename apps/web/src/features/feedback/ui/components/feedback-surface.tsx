@@ -5,13 +5,20 @@ import type {
   FeedbackWorkType,
 } from "@cantiara/api/feedback";
 import { Button } from "@cantiara/ui/components/button";
+import type { VirtualListReveal } from "@cantiara/ui/components/virtual-list";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { client, orpc } from "@/utils/orpc";
 import type { FeedbackDraft } from "../forms/create-feedback-form";
 import type { SaveEvidence } from "../forms/evidence-quality-form";
 import { FeedbackView } from "../views/feedback-view";
 
-export default function FeedbackSurface({ projectId }: { projectId: string }) {
+export default function FeedbackSurface({
+  projectId,
+  reveal,
+}: {
+  projectId: string;
+  reveal?: VirtualListReveal;
+}) {
   const createFeedbackMutation = useMutation(
     orpc.createFeedback.mutationOptions({
       meta: { onlineWrite: true },
@@ -154,6 +161,7 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
       onSetStatus={setStatus}
       readOnly={records.data.readOnly}
       records={records.data.records}
+      reveal={reveal}
       statusWrite={setFeedbackStatusMutation}
     />
   );

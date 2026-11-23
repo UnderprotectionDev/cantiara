@@ -11,6 +11,10 @@ import {
 } from "@cantiara/api/security-redaction";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useForm } from "@tanstack/react-form";
 import { type SubmitEvent, useEffect, useRef } from "react";
 
@@ -94,11 +98,15 @@ export function PersonalDataEraseForm({
             <li key={source.kind}>
               {source.kind}: {source.items.length}
               {source.items.length > 0 ? (
-                <ul aria-label={`${source.kind} in this erase`}>
-                  {source.items.map((item) => (
-                    <li key={item.id}>{item.label}</li>
-                  ))}
-                </ul>
+                <VirtualList
+                  aria-label={`${source.kind} in this erase`}
+                  estimateSize={60}
+                  gap={4}
+                  getKey={virtualRowId}
+                  rows={source.items}
+                >
+                  {(item, rowProps) => <li {...rowProps}>{item.label}</li>}
+                </VirtualList>
               ) : null}
             </li>
           ))}
@@ -106,18 +114,22 @@ export function PersonalDataEraseForm({
       </section>
       <section className="space-y-1">
         <h4 className="text-sm font-medium">Copies elsewhere</h4>
-        <ul aria-label="Copies elsewhere" className="space-y-1 text-sm">
-          {preview.copies.length === 0 ? (
-            <li>No other copies found.</li>
-          ) : (
-            preview.copies.map((copy) => (
-              <li key={`${copy.kind}:${copy.recordId}:${copy.location}`}>
-                {SECURITY_REDACTION_LOCATOR_LABELS[copy.kind]}:{" "}
-                {copy.recordKind} {copy.recordId}, {copy.location}
-              </li>
-            ))
+        <VirtualList
+          aria-label="Copies elsewhere"
+          className="space-y-1 text-sm"
+          empty={<li>No other copies found.</li>}
+          estimateSize={32}
+          gap={4}
+          getKey={(copy) => `${copy.kind}:${copy.recordId}:${copy.location}`}
+          rows={preview.copies}
+        >
+          {(copy, rowProps) => (
+            <li {...rowProps}>
+              {SECURITY_REDACTION_LOCATOR_LABELS[copy.kind]}: {copy.recordKind}{" "}
+              {copy.recordId}, {copy.location}
+            </li>
           )}
-        </ul>
+        </VirtualList>
         {preview.notSearched.length > 0 ? (
           <p className="text-sm" role="status">
             Not searched yet:{" "}

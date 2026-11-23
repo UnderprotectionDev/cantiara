@@ -9,6 +9,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -46,10 +50,12 @@ function MilestoneCard({
   milestone,
   projectId,
   works,
+  rowProps,
 }: {
   milestone: Milestone;
   projectId: string;
   works: WorkProfile[];
+  rowProps?: VirtualRowProps;
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -143,6 +149,7 @@ function MilestoneCard({
 
   return (
     <article
+      {...rowProps}
       className="grid gap-4 rounded-lg border bg-card p-4"
       id={milestone.id}
     >
@@ -278,16 +285,23 @@ export default function ProjectMilestones({
         submitLabel="Create Milestone"
       />
       {(query.data ?? []).length ? (
-        <div className="grid gap-3">
-          {(query.data ?? []).map((milestone: Milestone) => (
+        <VirtualList
+          as="div"
+          className="grid gap-3"
+          estimateSize={120}
+          gap={12}
+          getKey={(milestone: Milestone) => milestone.id}
+          rows={query.data ?? []}
+        >
+          {(milestone: Milestone, rowProps) => (
             <MilestoneCard
-              key={milestone.id}
               milestone={milestone}
               projectId={projectId}
+              rowProps={rowProps}
               works={works}
             />
-          ))}
-        </div>
+          )}
+        </VirtualList>
       ) : (
         <p className="text-sm text-muted-foreground">No Milestone yet.</p>
       )}
@@ -346,17 +360,25 @@ function MilestoneWorkRelations({
       linkedWorks.length === 0 ? (
         <p className="text-sm text-muted-foreground">No relations yet.</p>
       ) : null}
-      {linkedWorks.map((relation: RelationView) => (
-        <Link
-          className="text-sm underline-offset-4 hover:underline"
-          hash={workRecordHash(relation.source.recordId)}
-          key={relation.id}
-          params={{ projectId }}
-          to="/projects/$projectId"
-        >
-          {relation.source.title} · {relation.label}
-        </Link>
-      ))}
+      <VirtualList
+        as="div"
+        estimateSize={32}
+        gap={4}
+        getKey={(relation: RelationView) => relation.id}
+        rows={linkedWorks}
+      >
+        {(relation: RelationView, rowProps) => (
+          <Link
+            className="text-sm underline-offset-4 hover:underline"
+            hash={workRecordHash(relation.source.recordId)}
+            {...rowProps}
+            params={{ projectId }}
+            to="/projects/$projectId"
+          >
+            {relation.source.title} · {relation.label}
+          </Link>
+        )}
+      </VirtualList>
       {works.length ? (
         <MilestoneWorkPicker
           disabled={

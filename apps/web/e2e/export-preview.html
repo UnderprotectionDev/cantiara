@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Export preview fixture</title>
+  </head>
+  <body>
+    <div id="main-content" style="height: 320px; overflow: auto"></div>
+    <script type="module">
+    import "../src/index.css";
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { ExportPreviewPanel } from "../src/features/data-export/ui/components/export-preview-panel.tsx";
+
+    const records = Array.from({ length: 10_000 }, (_, index) => ({
+      id: `export-${index}`,
+      label: `Export record ${10_000 - index}`,
+    }));
+    const exportPreview = {
+      estimatedBytes: 25_000,
+      fields: [],
+      filters: {},
+      fingerprint: "fixture",
+      format: "CSV",
+      formatAvailable: true,
+      hiddenFields: [],
+      limits: { maxBytes: 25_000_000, maxRows: 10_000 },
+      lost: [],
+      nature: "",
+      recordCount: records.length,
+      records,
+      recordType: "Task",
+      relations: [],
+      relationsOmitted: 0,
+      residency: "",
+      scope: { kind: "project", projectId: "fixture" },
+      secretsExcluded: [],
+    };
+    const noAction = () => undefined;
+    createRoot(document.getElementById("main-content")).render(
+      createElement(ExportPreviewPanel, {
+        disabled: false,
+        onCancel: noAction,
+        onConfirm: noAction,
+        preview: exportPreview,
+        produced: null,
+      }),
+    );
+    </script>
+  </body>
+</html>

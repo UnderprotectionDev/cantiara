@@ -1,12 +1,43 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Record windows bind identity to the row model for this surface.
 import type {
   ScopeTree,
   ScopeTreeFeatureNode,
   ScopeTreeNode,
   ScopeTreeReference,
 } from "@cantiara/api/work-lifecycle";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
 
 export default function ScopeTreeView({ scopeTree }: { scopeTree: ScopeTree }) {
+  const disclosures = useCreateStore<ReadonlySet<string>>(new Set<string>());
+  const collapsedFeatures = useSelector(disclosures);
+  const rows = scopeTree.features.flatMap((feature) => [
+    { feature, key: `feature:${feature.work.id}` },
+    ...(collapsedFeatures.has(feature.work.id)
+      ? []
+      : feature.includedWork.map((node) => ({
+          key: `included:${feature.work.id}:${node.work.id}`,
+          node,
+        }))),
+  ]);
+  function setFeatureOpen(id: string, open: boolean) {
+    disclosures.setState((current) => {
+      if (current.has(id) === !open) {
+        return current;
+      }
+      const next = new Set(current);
+      if (open) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
   return (
     <section
       aria-labelledby="scope-tree-heading"
@@ -31,18 +62,34 @@ export default function ScopeTreeView({ scopeTree }: { scopeTree: ScopeTree }) {
           {scopeTree.project.name}
         </summary>
         {scopeTree.features.length > 0 ? (
-          <ul
-            aria-label="Scope Tree records"
-            className="mt-3 space-y-3 border-l border-border/70 pl-4"
-          >
-            {scopeTree.features.map((feature) => (
-              <FeatureTreeNode
-                feature={feature}
-                key={feature.work.id}
-                projectId={scopeTree.project.id}
-              />
-            ))}
-          </ul>
+          <div className="mt-3 border-l border-border/70 pl-4">
+            <VirtualList
+              aria-label="Scope Tree records"
+              className="space-y-3"
+              estimateSize={110}
+              gap={12}
+              getKey={(row) => row.key}
+              rows={rows}
+            >
+              {(row, rowProps) =>
+                "feature" in row ? (
+                  <FeatureTreeNode
+                    feature={row.feature}
+                    onOpenChange={setFeatureOpen}
+                    open={!collapsedFeatures.has(row.feature.work.id)}
+                    projectId={scopeTree.project.id}
+                    rowProps={rowProps}
+                  />
+                ) : (
+                  <WorkTreeNode
+                    node={row.node}
+                    projectId={scopeTree.project.id}
+                    rowProps={rowProps}
+                  />
+                )
+              }
+            </VirtualList>
+          </div>
         ) : (
           <p className="mt-3 text-sm text-muted-foreground">
             No Features in this Scope Tree.
@@ -55,16 +102,28 @@ export default function ScopeTreeView({ scopeTree }: { scopeTree: ScopeTree }) {
 
 function FeatureTreeNode({
   feature,
+  onOpenChange,
+  open,
   projectId,
+  rowProps,
 }: {
   feature: ScopeTreeFeatureNode;
+  open: boolean;
+  onOpenChange: (id: string, open: boolean) => void;
   projectId: string;
+  rowProps?: VirtualRowProps;
 }) {
   const completedCount = feature.progress.statusCounts.Closed;
 
   return (
-    <li draggable={false} id={`work-${feature.work.id}`}>
-      <details draggable={false} open>
+    <li {...rowProps} draggable={false} id={`work-${feature.work.id}`}>
+      <details
+        draggable={false}
+        onToggle={(event) =>
+          onOpenChange(feature.work.id, event.currentTarget.open)
+        }
+        open={open}
+      >
         <summary className="cursor-pointer list-inside">
           <span className="font-medium">
             {feature.work.key} {feature.work.title}
@@ -87,17 +146,6 @@ function FeatureTreeNode({
             }}
           />
         </div>
-        {feature.includedWork.length > 0 ? (
-          <ul className="mt-3 space-y-2 border-l border-border/70 pl-4">
-            {feature.includedWork.map((node) => (
-              <WorkTreeNode
-                key={node.work.id}
-                node={node}
-                projectId={projectId}
-              />
-            ))}
-          </ul>
-        ) : null}
       </details>
     </li>
   );
@@ -106,14 +154,22 @@ function FeatureTreeNode({
 function WorkTreeNode({
   node,
   projectId,
+  rowProps,
 }: {
   node: ScopeTreeNode;
   projectId: string;
+  rowProps?: VirtualRowProps;
 }) {
   return (
-    <li draggable={false} id={`work-${node.work.id}`}>
+    <li
+      {...rowProps}
+      className="pl-5"
+      draggable={false}
+      id={`work-${node.work.id}`}
+    >
       <div className="space-y-2 pl-1 text-sm">
         <p className="font-medium">
+          <span className="sr-only">Included Work: </span>
           {node.work.key} {node.work.title}
           <span className="ml-2 text-xs font-normal text-muted-foreground">
             {node.work.type}

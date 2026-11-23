@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected record and form field.
+
 import {
   FEEDBACK_STATUSES,
   type FeedbackAttachment,
@@ -9,6 +10,12 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import {
+  VirtualList,
+  type VirtualListReveal,
+  type VirtualRowProps,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import {
   type ConfirmConvert,
   ConvertToWorkDialog,
@@ -54,6 +61,7 @@ function FeedbackRow({
   record,
   identityWrite,
   statusWrite,
+  rowProps,
 }: {
   companyOptions: IdentityOption[];
   contactOptions: IdentityOption[];
@@ -66,6 +74,7 @@ function FeedbackRow({
   record: FeedbackRecord;
   identityWrite?: FeedbackWriteState;
   statusWrite?: FeedbackWriteState;
+  rowProps?: VirtualRowProps;
 }) {
   const disableWrite =
     readOnly || statusWrite?.isPending || identityWrite?.isPending;
@@ -95,6 +104,7 @@ function FeedbackRow({
   }
   return (
     <li
+      {...rowProps}
       className="space-y-3 rounded-lg border border-border/70 p-4"
       id={`feedback-record-${record.id}`}
       tabIndex={-1}
@@ -187,9 +197,14 @@ function FeedbackRow({
       {record.workOrigins.length > 0 ? (
         <section aria-label="Origin of Work" className="space-y-1 text-sm">
           <h5 className="font-medium">Origin of</h5>
-          <ul>
-            {record.workOrigins.map((origin) => (
-              <li className="space-y-2" key={origin.id}>
+          <VirtualList
+            estimateSize={60}
+            gap={8}
+            getKey={virtualRowId}
+            rows={record.workOrigins}
+          >
+            {(origin, originRowProps) => (
+              <li className="space-y-2" {...originRowProps}>
                 <p>
                   {origin.workKey} {origin.workTitle}
                 </p>
@@ -199,8 +214,8 @@ function FeedbackRow({
                   readOnly={readOnly}
                 />
               </li>
-            ))}
-          </ul>
+            )}
+          </VirtualList>
         </section>
       ) : null}
       {readOnly ? null : (
@@ -228,6 +243,7 @@ export function FeedbackView({
   statusWrite,
   readOnly,
   records,
+  reveal,
 }: {
   attachmentOptions: FeedbackAttachment[];
   companyOptions: IdentityOption[];
@@ -242,6 +258,7 @@ export function FeedbackView({
   statusWrite?: FeedbackWriteState;
   readOnly: boolean;
   records: FeedbackRecord[];
+  reveal?: VirtualListReveal;
 }) {
   return (
     <section aria-labelledby="feedback-heading" className="space-y-4">
@@ -259,8 +276,15 @@ export function FeedbackView({
       {records.length === 0 ? (
         <p className="text-sm text-muted-foreground">No Feedback yet.</p>
       ) : (
-        <ul className="space-y-3">
-          {records.map((record) => (
+        <VirtualList
+          className="space-y-3"
+          estimateSize={120}
+          gap={8}
+          getKey={virtualRowId}
+          reveal={reveal}
+          rows={records}
+        >
+          {(record, rowProps) => (
             <FeedbackRow
               companyOptions={companyOptions}
               contactOptions={contactOptions}
@@ -269,7 +293,6 @@ export function FeedbackView({
                   ? identityWrite
                   : undefined
               }
-              key={record.id}
               onConfirmConvert={onConfirmConvert}
               onPreviewConvert={onPreviewConvert}
               onSaveEvidence={onSaveEvidence}
@@ -277,14 +300,15 @@ export function FeedbackView({
               onSetStatus={onSetStatus}
               readOnly={readOnly}
               record={record}
+              rowProps={rowProps}
               statusWrite={
                 statusWrite?.variables?.feedbackId === record.id
                   ? statusWrite
                   : undefined
               }
             />
-          ))}
-        </ul>
+          )}
+        </VirtualList>
       )}
     </section>
   );

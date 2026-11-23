@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Record Table fixture</title>
+  </head>
+  <body>
+    <div id="main-content" style="height: 320px; overflow: auto"></div>
+    <script type="module">
+    import "../src/index.css";
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { RecordTableView } from "../src/features/record-discovery/ui/components/record-table.tsx";
+
+    const decisions = Array.from({ length: 500 }, (_, index) => ({
+      createdAt: "2026-01-01T00:00:00.000Z",
+      decision: "Proceed",
+      id: `decision-${index}`,
+      life: "Valid",
+      projectId: "fixture",
+      rationale: "Recorded rationale",
+      revision: 2,
+      sourceType: "Decision",
+      title: `Decision ${String(500 - index).padStart(3, "0")}`,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    }));
+    const noAction = () => undefined;
+    createRoot(document.getElementById("main-content")).render(
+      createElement(RecordTableView, {
+        onApplyPaste: noAction,
+        onProjectChange: noAction,
+        onRecordTypeChange: noAction,
+        onSaveCell: noAction,
+        projectId: "fixture",
+        projects: [{ id: "fixture", name: "Fixture" }],
+        records: decisions,
+        recordType: "Decision",
+      }),
+    );
+    </script>
+  </body>
+</html>

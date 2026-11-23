@@ -12,6 +12,10 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
@@ -433,8 +437,15 @@ function TagRecordList({
   }
 
   return (
-    <ul aria-label="Tagged Work records" className="space-y-3">
-      {rows.map(({ id, original: record }) => {
+    <VirtualList
+      aria-label="Tagged Work records"
+      className="space-y-3"
+      estimateSize={160}
+      gap={12}
+      getKey={virtualRowId}
+      rows={rows}
+    >
+      {({ original: record }, rowProps) => {
         const availableTags = tags.filter(
           ({ tag }) =>
             !record.tags.some((recordTag) => recordTag.id === tag.id),
@@ -442,7 +453,7 @@ function TagRecordList({
         return (
           <li
             className="grid gap-4 rounded-lg border border-border/70 bg-card/40 px-4 py-4"
-            key={id}
+            {...rowProps}
           >
             <div className="min-w-0">
               <p className="text-sm font-medium">
@@ -495,7 +506,7 @@ function TagRecordList({
             />
           </li>
         );
-      })}
-    </ul>
+      }}
+    </VirtualList>
   );
 }

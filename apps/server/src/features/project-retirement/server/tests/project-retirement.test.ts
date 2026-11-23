@@ -106,7 +106,9 @@ function build(initial: RetirementProject, rows: SurfaceRow[] = [surface()]) {
       restore: () => Promise.resolve(null),
     },
     inFlight: () =>
-      Promise.resolve([{ kind: "Import" as const, state: "Applying" }]),
+      Promise.resolve([
+        { id: "import-1", kind: "Import" as const, state: "Applying" },
+      ]),
     integrations: () =>
       Promise.resolve([
         { id: "link-1", label: "acme/atlas", state: "Connected" },
@@ -189,7 +191,9 @@ describe("Project Retirement preview", () => {
     expect(preview.project.revision).toBe(3);
     expect(preview.leaves.length).toBeGreaterThan(0);
     expect(preview.stops).toEqual([...ARCHIVE_STOPPED_ACTIVITIES]);
-    expect(preview.inFlight).toEqual([{ kind: "Import", state: "Applying" }]);
+    expect(preview.inFlight).toEqual([
+      { id: "import-1", kind: "Import", state: "Applying" },
+    ]);
     expect(preview.surfaces).toEqual([
       expect.objectContaining({
         sourceState: "Unchanged since approval",

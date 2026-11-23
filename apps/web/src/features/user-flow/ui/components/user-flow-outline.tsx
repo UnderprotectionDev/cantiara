@@ -9,6 +9,10 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import {
+  VirtualList,
+  type VirtualRowProps,
+} from "@cantiara/ui/components/virtual-list";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 
 import {
@@ -143,6 +147,7 @@ function OutlineItem({
   onInspect,
   props,
   row,
+  rowProps,
 }: {
   canMoveDown: boolean;
   canMoveUp: boolean;
@@ -150,6 +155,7 @@ function OutlineItem({
   onInspect: () => void;
   props: OutlineProps;
   row: OutlineRow;
+  rowProps: VirtualRowProps;
 }) {
   const { node } = row;
   const { onChange, state } = props;
@@ -162,8 +168,13 @@ function OutlineItem({
     node.screenId === null ? null : (props.screens.get(node.screenId) ?? null);
   return (
     <li
+      {...rowProps}
       className="space-y-2 rounded-md border p-2 text-sm"
-      style={{ marginLeft: row.depth * 24 }}
+      style={{
+        ...rowProps.style,
+        marginLeft: row.depth * 24,
+        width: rowProps.style ? `calc(100% - ${row.depth * 24}px)` : undefined,
+      }}
     >
       {row.depth === 1 ? (
         <p className="sr-only">Member of the Section above</p>
@@ -289,6 +300,15 @@ export function UserFlowOutline(props: OutlineProps) {
   const inspectedId = useSelector(inspectedIdSession);
   const { setInspectedId } = inspectedIdSession.actions;
   const rows = buildOutline(state.document, collapsed);
+  const sections = new Map<string | null, string[]>();
+  const siblingPositions = new Map<string, number>();
+  for (const node of state.document.nodes) {
+    const sectionId = node.sectionId ?? null;
+    const siblings = sections.get(sectionId) ?? [];
+    siblingPositions.set(node.id, siblings.length);
+    siblings.push(node.id);
+    sections.set(sectionId, siblings);
+  }
   const groupable = state.document.nodes.some(
     ({ id, kind }) => kind !== "Section" && state.selection.includes(id),
   );
@@ -318,19 +338,23 @@ export function UserFlowOutline(props: OutlineProps) {
           The outline is empty. Add a node to start the path.
         </p>
       ) : (
-        <ul aria-label="Outline nodes" className="space-y-2">
-          {rows.map((row) => {
-            const siblings = state.document.nodes.filter(
-              ({ sectionId }) =>
-                (sectionId ?? null) === (row.node.sectionId ?? null),
-            );
-            const position = siblings.findIndex(({ id }) => id === row.node.id);
+        <VirtualList
+          aria-label="Outline nodes"
+          className="space-y-2"
+          estimateSize={68}
+          gap={8}
+          getKey={(row) => row.node.id}
+          keepMounted={inspectedId ? [inspectedId] : undefined}
+          rows={rows}
+        >
+          {(row, rowProps) => {
+            const siblings = sections.get(row.node.sectionId ?? null) ?? [];
+            const position = siblingPositions.get(row.node.id) ?? 0;
             return (
               <OutlineItem
                 canMoveDown={position < siblings.length - 1}
                 canMoveUp={position > 0}
                 inspected={inspectedId === row.node.id}
-                key={row.node.id}
                 onInspect={() =>
                   setInspectedId(
                     inspectedId === row.node.id ? null : row.node.id,
@@ -338,10 +362,11 @@ export function UserFlowOutline(props: OutlineProps) {
                 }
                 props={props}
                 row={row}
+                rowProps={rowProps}
               />
             );
-          })}
-        </ul>
+          }}
+        </VirtualList>
       )}
     </section>
   );

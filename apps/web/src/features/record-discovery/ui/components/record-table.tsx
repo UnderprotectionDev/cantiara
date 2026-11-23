@@ -16,6 +16,10 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import {
   type ColumnDef,
@@ -813,8 +817,11 @@ function RecordTableGrid({
           value={filter}
         />
       </label>
-      <div className="overflow-x-auto rounded border">
-        <table className="min-w-full border-collapse text-sm">
+      <div className="overflow-x-auto rounded border" data-horizontal-scroll>
+        <table
+          aria-rowcount={table.getRowModel().rows.length + 1}
+          className="min-w-full border-collapse text-sm"
+        >
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr
@@ -834,17 +841,10 @@ function RecordTableGrid({
               </tr>
             ))}
           </thead>
-          <tbody>
-            {table.getRowModel().rows.map((row) => (
-              <tr className="border-b last:border-0" key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <td className="px-3 py-2 align-top" key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
-            {table.getRowModel().rows.length ? null : (
+          <VirtualList
+            as="tbody"
+            columns={fields.length}
+            empty={
               <tr>
                 <td
                   className="px-3 py-6 text-center text-muted-foreground"
@@ -853,8 +853,21 @@ function RecordTableGrid({
                   No matching records.
                 </td>
               </tr>
+            }
+            estimateSize={58}
+            getKey={virtualRowId}
+            rows={table.getRowModel().rows}
+          >
+            {(row, rowProps) => (
+              <tr {...rowProps} className="border-b last:border-0">
+                {row.getVisibleCells().map((cell) => (
+                  <td className="px-3 py-2 align-top" key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
             )}
-          </tbody>
+          </VirtualList>
         </table>
       </div>
     </div>

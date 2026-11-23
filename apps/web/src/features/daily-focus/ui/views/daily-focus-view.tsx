@@ -3,6 +3,10 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { accountLocalDate } from "@cantiara/api/backlog";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
@@ -193,9 +197,15 @@ function DailyFocusCloseGroup({
       <h2 className="mb-3 text-lg font-semibold" id={headingId}>
         {label}
       </h2>
-      <ul className="divide-y border-y border-border/70">
-        {work.map((item) => (
-          <li key={item.id}>
+      <VirtualList
+        className="divide-y border-y border-border/70"
+        estimateSize={44}
+        gap={4}
+        getKey={virtualRowId}
+        rows={work}
+      >
+        {(item, rowProps) => (
+          <li {...rowProps}>
             <Link
               className="flex min-h-16 flex-col justify-center gap-1 rounded-sm py-3 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
               hash={workRecordHash(item.id)}
@@ -211,8 +221,8 @@ function DailyFocusCloseGroup({
               </span>
             </Link>
           </li>
-        ))}
-      </ul>
+        )}
+      </VirtualList>
     </section>
   );
 }
@@ -321,11 +331,17 @@ function DailyFocusDayView({
           </p>
         ) : null}
         {dailyFocus.data?.members.length ? (
-          <ul className="divide-y border-y border-border/70">
-            {dailyFocus.data.members.map((work) => (
+          <VirtualList
+            className="divide-y border-y border-border/70"
+            estimateSize={90}
+            gap={8}
+            getKey={virtualRowId}
+            rows={dailyFocus.data.members}
+          >
+            {(work, rowProps) => (
               <li
                 className="flex min-h-16 items-center gap-3 py-3"
-                key={work.id}
+                {...rowProps}
               >
                 <Link
                   className="min-w-0 flex-1 rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
@@ -351,8 +367,8 @@ function DailyFocusDayView({
                   Remove from Daily Focus
                 </Button>
               </li>
-            ))}
-          </ul>
+            )}
+          </VirtualList>
         ) : null}
       </section>
 
@@ -372,11 +388,17 @@ function DailyFocusDayView({
           </p>
         ) : null}
         {dailyFocus.data?.events.length ? (
-          <ul className="divide-y border-y border-border/70">
-            {dailyFocus.data.events.map((event) => (
+          <VirtualList
+            className="divide-y border-y border-border/70"
+            estimateSize={75}
+            gap={8}
+            getKey={virtualRowId}
+            rows={dailyFocus.data.events}
+          >
+            {(event, rowProps) => (
               <li
                 className="flex min-h-16 items-center gap-3 py-3"
-                key={event.id}
+                {...rowProps}
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">
@@ -407,8 +429,8 @@ function DailyFocusDayView({
                   Open source record
                 </Link>
               </li>
-            ))}
-          </ul>
+            )}
+          </VirtualList>
         ) : null}
       </section>
 

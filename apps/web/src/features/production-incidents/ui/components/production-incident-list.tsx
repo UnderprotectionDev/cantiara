@@ -1,8 +1,10 @@
+// biome-ignore-all lint/performance/noJsxPropsBind: Record windows bind identity to the row model for this surface.
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import {
   groupProductionIncidentsByStatus,
   type ProductionIncidentOverview,
 } from "@cantiara/api/production-incidents";
+import { VirtualList } from "@cantiara/ui/components/virtual-list";
 import type { ReactNode } from "react";
 import { AppLink } from "@/components/app-link";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
@@ -49,9 +51,15 @@ export function ProductionIncidentList({
             {status}{" "}
             <span className="text-muted-foreground">({incidents.length})</span>
           </h3>
-          <ul className="divide-y rounded-lg border border-border/70">
-            {incidents.map(({ incident, linkCount }) => (
-              <li key={incident.id}>
+          <VirtualList
+            className="divide-y rounded-lg border border-border/70"
+            estimateSize={110}
+            gap={8}
+            getKey={({ incident }) => incident.id}
+            rows={incidents}
+          >
+            {({ incident, linkCount }, rowProps) => (
+              <li {...rowProps}>
                 <AppLink
                   className="grid gap-1 p-4 underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_auto]"
                   href={productionIncidentsHref(projectId, incident.id)}
@@ -72,8 +80,8 @@ export function ProductionIncidentList({
                   </span>
                 </AppLink>
               </li>
-            ))}
-          </ul>
+            )}
+          </VirtualList>
         </section>
       ))}
     </section>

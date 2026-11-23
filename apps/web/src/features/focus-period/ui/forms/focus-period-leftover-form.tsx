@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Focus Period controls act on the selected period and Work.
+
 import {
   type FocusPeriodRecord,
   type FocusPeriodSnapshotWork,
@@ -10,6 +11,10 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import {
@@ -236,12 +241,19 @@ export function PeriodLeftoverDecisions({
           form.handleSubmit().catch(() => undefined);
         }}
       >
-        <div className="space-y-2">
-          {rows.map((row) => (
+        <VirtualList
+          as="div"
+          className="space-y-2"
+          estimateSize={45}
+          gap={8}
+          getKey={virtualRowId}
+          rows={rows}
+        >
+          {(row, rowProps) => (
             <label
               className="flex items-center gap-2"
               htmlFor={`focus-period-leftover-${row.id}`}
-              key={row.id}
+              {...rowProps}
             >
               <Checkbox
                 checked={row.getIsSelected()}
@@ -252,8 +264,8 @@ export function PeriodLeftoverDecisions({
               />
               {row.original.title} · {row.original.key}
             </label>
-          ))}
-        </div>
+          )}
+        </VirtualList>
         <form.Field name="destination">
           {(field) => (
             <label

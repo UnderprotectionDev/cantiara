@@ -7,6 +7,10 @@ import {
 import type { DecisionSupersessionGraph } from "@cantiara/api/decision-supersession";
 import type { ProjectSourceRecord } from "@cantiara/api/project-source-records";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
 import { type ReactNode, useLayoutEffect } from "react";
 import { AppLink } from "@/components/app-link";
@@ -118,11 +122,17 @@ export function ProjectDecisionsView({
       {decisions.length === 0 ? (
         <p className="text-muted-foreground">No Decisions yet.</p>
       ) : (
-        <ul className="divide-y rounded-lg border border-border/70">
-          {decisions.map((record) => (
+        <VirtualList
+          className="divide-y rounded-lg border border-border/70"
+          estimateSize={85}
+          gap={8}
+          getKey={virtualRowId}
+          rows={decisions}
+        >
+          {(record, rowProps) => (
             <li
               className="flex items-center justify-between gap-4 p-4"
-              key={record.id}
+              {...rowProps}
             >
               <AppLink
                 className="min-w-0 font-medium break-words underline underline-offset-4"
@@ -134,8 +144,8 @@ export function ProjectDecisionsView({
                 {record.life}
               </span>
             </li>
-          ))}
-        </ul>
+          )}
+        </VirtualList>
       )}
       {selectedId && !selected ? (
         <p role="alert">Decision is unavailable.</p>
