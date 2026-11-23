@@ -1,6 +1,13 @@
 import { partitionDeferredBacklog } from "@cantiara/api/backlog";
+import { useTable } from "@tanstack/react-table";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
-import { presentBacklog } from "../backlog-presentation";
+import {
+  type BacklogPresentation,
+  type BacklogSortField,
+  backlogTableOptions,
+} from "../backlog-presentation";
 
 const works = [
   {
@@ -25,6 +32,24 @@ const works = [
     targetDate: null,
   },
 ] as const;
+
+function presentedIds(
+  data: typeof works,
+  presentation: BacklogPresentation,
+  priority = new Map<string, number>(),
+  field: BacklogSortField = "Title",
+) {
+  function PresentedIds() {
+    const table = useTable(
+      backlogTableOptions(data, presentation, priority, field),
+    );
+    return table
+      .getRowModel()
+      .rows.map((row) => row.id)
+      .join(",");
+  }
+  return renderToStaticMarkup(createElement(PresentedIds)).split(",");
+}
 
 describe("Backlog presentation", () => {
   test("moves future Reappear date to Deferred and restores its saved position when the date arrives", () => {
@@ -71,21 +96,9 @@ describe("Backlog presentation", () => {
     }
   });
   test("restores the same manual order after temporary Date and Field sorts", () => {
-    expect(presentBacklog(works, "Date").map(({ id }) => id)).toEqual([
-      "b",
-      "a",
-      "c",
-    ]);
-    expect(presentBacklog(works, "Field").map(({ id }) => id)).toEqual([
-      "b",
-      "c",
-      "a",
-    ]);
-    expect(presentBacklog(works, "Manual order").map(({ id }) => id)).toEqual([
-      "a",
-      "b",
-      "c",
-    ]);
+    expect(presentedIds(works, "Date")).toEqual(["b", "a", "c"]);
+    expect(presentedIds(works, "Field")).toEqual(["b", "c", "a"]);
+    expect(presentedIds(works, "Manual order")).toEqual(["a", "b", "c"]);
   });
 
   test("uses a priority criterion without writing the Backlog order", () => {
@@ -93,16 +106,16 @@ describe("Backlog presentation", () => {
       ["b", 4],
       ["a", 1],
     ]);
-    expect(
-      presentBacklog(works, "Priority", priority).map(({ id }) => id),
-    ).toEqual(["b", "a", "c"]);
+    expect(presentedIds(works, "Priority", priority)).toEqual(["b", "a", "c"]);
     expect(works.map(({ id }) => id)).toEqual(["a", "b", "c"]);
   });
 
   test("lets Field select a named Work field", () => {
-    expect(
-      presentBacklog(works, "Field", new Map(), "Status").map(({ id }) => id),
-    ).toEqual(["c", "b", "a"]);
+    expect(presentedIds(works, "Field", new Map(), "Status")).toEqual([
+      "c",
+      "b",
+      "a",
+    ]);
     expect(works.map(({ id }) => id)).toEqual(["a", "b", "c"]);
   });
 });

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
+import type { ProjectWorkSort } from "@cantiara/api/project-shell";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
@@ -48,7 +49,11 @@ const work = (
   ...overrides,
 });
 
-function kanbanElement(view: "Board" | "List", works: readonly WorkProfile[]) {
+function kanbanElement(
+  view: "Board" | "List",
+  works: readonly WorkProfile[],
+  sort: ProjectWorkSort = { direction: "ascending", field: "number" },
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
   });
@@ -78,7 +83,7 @@ function kanbanElement(view: "Board" | "List", works: readonly WorkProfile[]) {
             "In Progress": null,
             "Not Started": null,
           }}
-          sort={{ direction: "ascending", field: "number" }}
+          sort={sort}
           view={view}
           workStatusLabels={[
             { label: "Not Started", semantic: "Not Started" },
@@ -124,6 +129,31 @@ describe("Kanban default Work scan", () => {
       vi.unstubAllGlobals();
     }
   });
+
+  test.each(["Board", "List"] as const)(
+    "%s keeps undated Work last and breaks Reappear date ties by Work number",
+    (view) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-09-27T12:00:00Z"));
+      const works = [
+        work(4),
+        work(3, { reappearDate: "2026-09-25" }),
+        work(2, { reappearDate: "2026-09-26" }),
+        work(1, { reappearDate: "2026-09-25" }),
+      ];
+      const html = renderToStaticMarkup(
+        kanbanElement(view, works, {
+          direction: "descending",
+          field: "reappearDate",
+        }),
+      );
+
+      expect(html.indexOf("CAN-2")).toBeLessThan(html.indexOf("CAN-1"));
+      expect(html.indexOf("CAN-1")).toBeLessThan(html.indexOf("CAN-3"));
+      expect(html.indexOf("CAN-3")).toBeLessThan(html.indexOf("CAN-4"));
+      expect(html).toContain("CAN-4");
+    },
+  );
 
   test.each(["Board", "List"] as const)(
     "%s follows saved sort over source order and backgrounds future or archived Work",

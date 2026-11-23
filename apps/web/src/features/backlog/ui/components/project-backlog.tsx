@@ -36,9 +36,10 @@ import {
 import { useSortable } from "@dnd-kit/react/sortable";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useTable } from "@tanstack/react-table";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ExportListAction } from "@/components/export-list-action";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import {
@@ -57,7 +58,7 @@ import { client, orpc } from "@/utils/orpc";
 import {
   type BacklogPresentation,
   type BacklogSortField,
-  presentBacklog,
+  backlogTableOptions,
 } from "../../lib/backlog-presentation";
 
 const backlogDragSensors = [pointerDragSensor, KeyboardSensor];
@@ -376,6 +377,25 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
     }),
   );
 
+  const backlogTable = useTable(
+    useMemo(() => {
+      const priorityByWorkId = new Map(
+        (priorityQuery.data?.values ?? [])
+          .filter((value) => value.metricId === priorityMetricId)
+          .map((value) => [
+            value.workId,
+            PRIORITY_METRIC_RANKS.indexOf(value.rank),
+          ]),
+      );
+      return backlogTableOptions(
+        query.data ?? [],
+        presentation,
+        priorityByWorkId,
+        field,
+      );
+    }, [query.data, presentation, priorityQuery.data, priorityMetricId, field]),
+  );
+
   if (
     query.status === "pending" ||
     [workProfilesQuery, orderQuery, preferencesQuery].some(
@@ -421,20 +441,9 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   const enabledMetrics = (priorityQuery.data?.definitions ?? []).filter(
     (definition) => definition.enabled && !definition.trashedAt,
   );
-  const priorityByWorkId = new Map(
-    (priorityQuery.data?.values ?? [])
-      .filter((value) => value.metricId === priorityMetricId)
-      .map((value) => [
-        value.workId,
-        PRIORITY_METRIC_RANKS.indexOf(value.rank),
-      ]),
-  );
-  const displayedWorks = presentBacklog(
-    works,
-    presentation,
-    priorityByWorkId,
-    field,
-  );
+  const displayedWorks = backlogTable
+    .getRowModel()
+    .rows.map((row) => row.original.work);
   const { current, deferred } = backlogGroupsForPresentation(
     displayedWorks,
     presentation,
@@ -509,16 +518,7 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
             view: {
               kind: "Work list",
               name: "Backlog",
-              // Manual, Priority and Date orders are not a record column, so
-              // the file keeps the order shown instead of the key order.
-              ...(presentation === "Field"
-                ? {
-                    sort: {
-                      direction: "asc" as const,
-                      field: field === "Status" ? "status" : "title",
-                    },
-                  }
-                : { order: "listed" as const }),
+              order: "listed",
             },
             visibleFields: WORK_LIST_EXPORT_FIELDS,
           };

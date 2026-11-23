@@ -1,64 +1,53 @@
 import type { ProjectWorkSort } from "@cantiara/api/project-shell";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
+import {
+  type ColumnDef,
+  createSortedRowModel,
+  rowSortingFeature,
+  sortFn_basic,
+  tableFeatures,
+} from "@tanstack/react-table";
 import { differenceInMinutes } from "date-fns";
 
-function compareNullableDates(
-  left: string | null,
-  right: string | null,
-  direction: ProjectWorkSort["direction"],
-) {
-  if (left === null || right === null) {
-    if (left === right) {
-      return 0;
-    }
-    if (left === null) {
-      return 1;
-    }
-    return -1;
-  }
-  const comparison = left.localeCompare(right);
-  return direction === "ascending" ? comparison : -comparison;
-}
+const kanbanFeatures = tableFeatures({
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+});
 
-export function sortKanbanWorks(
+const kanbanColumns: ColumnDef<typeof kanbanFeatures, WorkProfile>[] = [
+  { accessorKey: "number", sortFn: sortFn_basic },
+  { accessorKey: "title" },
+  { accessorKey: "createdAt" },
+  { accessorKey: "updatedAt" },
+  { accessorKey: "id" },
+  {
+    id: "reappearDate",
+    accessorFn: (work) => work.reappearDate ?? undefined,
+    sortUndefined: "last",
+  },
+];
+
+export function kanbanTableOptions(
   works: readonly WorkProfile[],
   sort: ProjectWorkSort,
 ) {
-  return [...works].sort((left, right) => {
-    let comparison = 0;
-    switch (sort.field) {
-      case "number":
-        comparison = left.number - right.number;
-        break;
-      case "title":
-        comparison = left.title.localeCompare(right.title);
-        break;
-      case "createdAt":
-        comparison = left.createdAt.localeCompare(right.createdAt);
-        break;
-      case "updatedAt":
-        comparison = left.updatedAt.localeCompare(right.updatedAt);
-        break;
-      case "reappearDate":
-        comparison = compareNullableDates(
-          left.reappearDate ?? null,
-          right.reappearDate ?? null,
-          sort.direction,
-        );
-        break;
-      default:
-        return assertNever(sort.field);
-    }
-
-    if (sort.field !== "reappearDate" && sort.direction === "descending") {
-      comparison = -comparison;
-    }
-    return (
-      comparison ||
-      left.number - right.number ||
-      left.id.localeCompare(right.id)
-    );
-  });
+  return {
+    columns: kanbanColumns,
+    data: works,
+    defaultColumn: {
+      sortFn: (left, right, columnId) =>
+        left.getValue<string>(columnId).localeCompare(right.getValue(columnId)),
+    } satisfies Partial<ColumnDef<typeof kanbanFeatures, WorkProfile>>,
+    features: kanbanFeatures,
+    getRowId: (work: WorkProfile) => work.id,
+    state: {
+      sorting: [
+        { id: sort.field, desc: sort.direction === "descending" },
+        ...(sort.field === "number" ? [] : [{ id: "number", desc: false }]),
+        { id: "id", desc: false },
+      ],
+    },
+  };
 }
 
 export function filterDefaultKanbanWorks(
@@ -90,8 +79,4 @@ export function formatTimeInStatus(statusChangedAt: string, now = Date.now()) {
     return `${hours} ${hours === 1 ? "hour" : "hours"}${minutes ? `, ${minutes} ${minutes === 1 ? "minute" : "minutes"}` : ""}`;
   }
   return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unsupported Work sort field: ${value}`);
 }
