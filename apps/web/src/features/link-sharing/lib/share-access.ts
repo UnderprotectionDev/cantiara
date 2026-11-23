@@ -29,3 +29,9 @@ export interface IssuedShareLink {
   surfaceId: string;
   token: string;
 }
+
+export interface ShareTokenDisplay {
+  beginIssuance: () => number;
+  receive: (operation: number, surfaceId: string, token: string | null) => void;
+  revoke: (surfaceId: string) => void;
+}

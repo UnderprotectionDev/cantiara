@@ -91,7 +91,9 @@ export function ShareLifecyclePanel({
   async function confirm(work: () => Promise<unknown>) {
     try {
       await work();
-      handle.close();
+      if (handle.isOpen) {
+        handle.close();
+      }
     } catch {
       // The mutation observer shows the refusal while confirmation stays open.
     }

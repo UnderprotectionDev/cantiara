@@ -2,22 +2,23 @@ import type { ApproveShareScopeInput } from "@cantiara/api/link-sharing";
 import { hashKey, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { client, orpc } from "@/utils/orpc";
-import type { IssuedShareLink } from "../lib/share-access";
+import type { ShareTokenDisplay } from "../lib/share-access";
 
 /** A changed selection starts a new approval. A retry replays its approval id. */
-export function useApproveShareScope(
-  issueLink: (link: IssuedShareLink) => void,
-) {
+export function useApproveShareScope(display: ShareTokenDisplay) {
   const queryClient = useQueryClient();
   const attempt = useRef<{ fingerprint: string; id: string } | null>(null);
   const approval = useMutation({
-    ...orpc.approveShareScope.mutationOptions(),
+    mutationKey: orpc.approveShareScope.mutationKey(),
     meta: { onlineWrite: true },
-    mutationFn: async (input: ApproveShareScopeInput) => {
+    mutationFn: async ({
+      displayOperation,
+      ...input
+    }: ApproveShareScopeInput & { displayOperation: number }) => {
       const { accessToken, ...approved } =
         await client.approveShareScope(input);
       if (accessToken) {
-        issueLink({ surfaceId: approved.surfaceId, token: accessToken });
+        display.receive(displayOperation, approved.surfaceId, accessToken);
       }
       return approved;
     },
@@ -36,6 +37,10 @@ export function useApproveShareScope(
     if (attempt.current?.fingerprint !== fingerprint) {
       attempt.current = { fingerprint, id: crypto.randomUUID() };
     }
-    return approval.mutateAsync({ ...input, approvalId: attempt.current.id });
+    return approval.mutateAsync({
+      ...input,
+      approvalId: attempt.current.id,
+      displayOperation: display.beginIssuance(),
+    });
   };
 }
