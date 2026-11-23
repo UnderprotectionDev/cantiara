@@ -5,7 +5,8 @@ import type {
 } from "@cantiara/api/file-attachments";
 import { FILE_ATTACHMENT_UI_LABELS } from "@cantiara/api/file-attachments";
 import { Button } from "@cantiara/ui/components/button";
-import { useCallback, useState } from "react";
+import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { MarkupSurface } from "./file-attachment-markup";
 
@@ -26,7 +27,7 @@ export interface FileAttachmentPdfPreviewProps {
   locationKind: "point" | "region";
   markings?: readonly FileAttachmentMarking[];
   onCreateMarking?: (input: FileAttachmentMarkingInput) => void | Promise<void>;
-  onRetry?: () => void;
+  onRetry?: () => void | Promise<void>;
   onSelectLocation: (location: FileAttachmentLocation) => void;
   pageCount: number;
   selectingLocation: boolean;
@@ -34,7 +35,37 @@ export interface FileAttachmentPdfPreviewProps {
   versionId: string;
 }
 
-export function FileAttachmentPdfPreview({
+export function FileAttachmentPdfPreview(props: FileAttachmentPdfPreviewProps) {
+  return (
+    <PdfPreviewSession
+      key={JSON.stringify([
+        props.attachmentId,
+        props.assetURL,
+        props.versionId,
+        props.pageCount,
+      ])}
+      {...props}
+    />
+  );
+}
+
+interface PdfPreviewState {
+  failed: boolean;
+  generation: number;
+  numPages: number | null;
+  renderedPages: ReadonlySet<number>;
+  retrying: boolean;
+}
+
+const initialSession: PdfPreviewState = {
+  generation: 0,
+  numPages: null,
+  renderedPages: new Set(),
+  failed: false,
+  retrying: false,
+};
+
+function PdfPreviewSession({
   attachmentId,
   assetURL,
   location,
@@ -49,58 +80,118 @@ export function FileAttachmentPdfPreview({
   tool,
   versionId,
 }: FileAttachmentPdfPreviewProps) {
-  const [loadedPages, setLoadedPages] = useState<number | null>(null);
-  const [renderedPages, setRenderedPages] = useState(0);
-  const [failed, setFailed] = useState(false);
-  const pagesToRender =
-    loadedPages === null ? 0 : Math.min(pageCount, loadedPages);
+  const session = useCreateStore(initialSession);
+  const { generation, numPages, renderedPages, failed, retrying } =
+    useSelector(session);
+  const active = useRef<boolean>(false);
+  useLayoutEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+
+  const updateCurrentGeneration = useCallback(
+    (updater: (current: PdfPreviewState) => PdfPreviewState) => {
+      if (active.current) {
+        session.setState((current) =>
+          current.generation === generation ? updater(current) : current,
+        );
+      }
+    },
+    [generation, session],
+  );
   const handleLoadSuccess = useCallback(
-    ({ numPages }: { numPages: number }) => setLoadedPages(numPages),
-    [],
+    ({ numPages: loaded }: { numPages: number }) =>
+      updateCurrentGeneration((current) => ({ ...current, numPages: loaded })),
+    [updateCurrentGeneration],
   );
-  const handleFailure = useCallback(() => setFailed(true), []);
+  const handleFailure = useCallback(
+    () =>
+      updateCurrentGeneration((current) =>
+        current.failed ? current : { ...current, failed: true },
+      ),
+    [updateCurrentGeneration],
+  );
   const handleRenderSuccess = useCallback(
-    () => setRenderedPages((current) => current + 1),
-    [],
+    ({ pageNumber }: { pageNumber: number }) =>
+      updateCurrentGeneration((current) => {
+        if (current.renderedPages.has(pageNumber)) {
+          return current;
+        }
+        return {
+          ...current,
+          renderedPages: new Set([...current.renderedPages, pageNumber]),
+        };
+      }),
+    [updateCurrentGeneration],
   );
-  let status: "loading" | "ready" | "error" = "loading";
-  if (failed) {
-    status = "error";
-  } else if (loadedPages !== null && renderedPages >= pagesToRender) {
-    status = "ready";
-  }
+  const handleRetry = useCallback(() => {
+    session.setState((current) => ({
+      ...initialSession,
+      generation: current.generation + 1,
+      retrying: true,
+    }));
+
+    const finishRetry = () => {
+      if (active.current) {
+        session.setState((current) => ({ ...current, retrying: false }));
+      }
+    };
+    const refetch = onRetry?.();
+    if (refetch) {
+      refetch.then(finishRetry, finishRetry);
+    } else {
+      finishRetry();
+    }
+  }, [onRetry, session]);
+
+  const pages = Array.from(
+    { length: Math.min(pageCount, numPages ?? 0) },
+    (_, index) => index + 1,
+  );
+  const loading =
+    !failed &&
+    (numPages === null || pages.some((page) => !renderedPages.has(page)));
 
   return (
     <section aria-label="PDF preview" className="space-y-3">
-      {status === "loading" ? (
+      {loading ? (
         <p className="text-sm text-muted-foreground" role="status">
           Loading PDF preview…
         </p>
       ) : null}
-      {status === "error" ? (
+      {failed ? (
         <div className="space-y-3" role="alert">
           <p className="text-sm text-destructive">
             PDF preview is unavailable. Download the original file instead.
           </p>
           {onRetry ? (
-            <Button onClick={onRetry} size="sm" type="button" variant="outline">
+            <Button
+              onClick={handleRetry}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
               {FILE_ATTACHMENT_UI_LABELS.retryPreview}
             </Button>
           ) : null}
         </div>
       ) : null}
-      <Document
-        error={null}
-        file={assetURL}
-        loading={null}
-        noData={null}
-        onLoadError={handleFailure}
-        onLoadSuccess={handleLoadSuccess}
-        onSourceError={handleFailure}
-      >
-        <div className="grid justify-items-center gap-4">
-          {Array.from({ length: pagesToRender }, (_, index) => index + 1).map(
-            (pageNumber) => (
+      {retrying ? null : (
+        <Document
+          error={null}
+          file={assetURL}
+          key={generation}
+          loading={null}
+          noData={null}
+          onLoadError={handleFailure}
+          onLoadSuccess={handleLoadSuccess}
+          onSourceError={handleFailure}
+          suspense={false}
+        >
+          <div className="grid justify-items-center gap-4">
+            {pages.map((pageNumber) => (
               <MarkupSurface
                 attachmentId={attachmentId}
                 disabled={disabled}
@@ -124,6 +215,7 @@ export function FileAttachmentPdfPreview({
                     error={null}
                     loading={null}
                     noData={null}
+                    onLoadError={handleFailure}
                     onRenderError={handleFailure}
                     onRenderSuccess={handleRenderSuccess}
                     pageNumber={pageNumber}
@@ -133,10 +225,10 @@ export function FileAttachmentPdfPreview({
                   />
                 </div>
               </MarkupSurface>
-            ),
-          )}
-        </div>
-      </Document>
+            ))}
+          </div>
+        </Document>
+      )}
     </section>
   );
 }

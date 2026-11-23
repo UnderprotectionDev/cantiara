@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>File Attachment PDF preview fixture</title>
+  </head>
+  <body>
+    <div id="preview"></div>
+    <script type="module">
+    import "../src/index.css";
+    import { CatchBoundary } from "@tanstack/react-router";
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { FileAttachmentPreviewView } from "../src/features/file-attachments/ui/components/file-attachment-preview.tsx";
+
+    const version = {
+      byteSize: 512,
+      contentHash: "a".repeat(64),
+      createdAt: "2026-11-19T00:00:00.000Z",
+      detectedMimeType: "application/pdf",
+      extension: ".pdf",
+      fileName: "Synthetic PDF",
+      id: "version-1",
+      mimeType: "application/pdf",
+      number: 1,
+      preview: "pdf",
+    };
+    const root = createRoot(document.getElementById("preview"));
+    root.render(
+      createElement(
+        CatchBoundary,
+        {
+          getResetKey: () => "fixture",
+          errorComponent: () =>
+            createElement("p", { role: "alert" }, "Route error"),
+        },
+        createElement("h1", null, "File Attachments"),
+        createElement(FileAttachmentPreviewView, {
+          attachment: {
+            id: "attachment-1",
+            name: version.fileName,
+            currentVersion: version,
+            createdAt: version.createdAt,
+            updatedAt: version.createdAt,
+            lifecycleStatus: "Active",
+            revision: 0,
+            scope: { kind: "project", projectId: "project-1" },
+          },
+          assetURL: "/e2e/synthetic-attachment.pdf",
+          onDownload: () => undefined,
+          onRetry: () => undefined,
+          preview: {
+            attachmentId: "attachment-1",
+            versionId: version.id,
+            kind: "pdf",
+            status: "available",
+            pageCount: 1,
+          },
+        }),
+      ),
+    );
+    </script>
+  </body>
+</html>
