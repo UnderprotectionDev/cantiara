@@ -42,6 +42,8 @@ Birleşik Takvim planlanan başlangıç, hedef ve yeniden görünme tarihlerini 
 
 ## Testing Decisions
 
+- **Growing lists (#551).** `apps/web/e2e/calendar-window.e2e.ts` starts a pointer drag in a day with 300 marks, scrolls other starting rows out of the window, and checks that the drag source remains available.
+
 - **Date drag and confirmation (#549).** The Calendar browser seam checks the old/new dates during keyboard and pointer drag, Escape, retention of the proposed date after a rejected write, and success and Undo of a single-field update. The `Day` and `Agenda` Date Picker uses a local confirmation draft. `Cancel`, a new drag, or a change to the source Work, date field or revision discards it. A failed write keeps it available for the same command to be retried, including when the Work refresh fails. The component seam checks a late rejection after the Work, revision, or mounted Calendar changes.
 
 - The Unified Calendar seam verifies that Undo keeps the active receipt after failure and reuses the same command on retry, then refreshes the affected Project’s Work.

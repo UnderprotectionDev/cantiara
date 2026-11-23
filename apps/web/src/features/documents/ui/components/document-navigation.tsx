@@ -1,7 +1,10 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Record windows bind identity to the row model for this surface.
 import type { Document } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
-import { VirtualList } from "@cantiara/ui/components/virtual-list";
+import {
+  VirtualList,
+  virtualRowId,
+} from "@cantiara/ui/components/virtual-list";
 import { type MouseEvent, useCallback, useMemo } from "react";
 
 import {
@@ -20,15 +23,19 @@ interface DocumentNavigationProps {
 }
 
 export default function DocumentNavigation(props: DocumentNavigationProps) {
-  const homes = new Map<string | null, Document[]>();
-  for (const record of documentsInScope(
-    props.documents,
-    props.scope ?? { kind: "all" },
-  )) {
-    const records = homes.get(record.projectId) ?? [];
-    records.push(record);
-    homes.set(record.projectId, records);
-  }
+  const { documents: allDocuments, scope } = props;
+  const homes = useMemo(() => {
+    const grouped = new Map<string | null, Document[]>();
+    for (const record of documentsInScope(
+      allDocuments,
+      scope ?? { kind: "all" },
+    )) {
+      const records = grouped.get(record.projectId) ?? [];
+      records.push(record);
+      grouped.set(record.projectId, records);
+    }
+    return grouped;
+  }, [allDocuments, scope]);
   return (
     <nav aria-label="Documents" className="space-y-3">
       {[...homes].map(([projectId, documents]) => (
@@ -49,8 +56,48 @@ export default function DocumentNavigation(props: DocumentNavigationProps) {
 }
 
 type NavigationRow =
-  | { key: string; folder: string }
-  | { key: string; record: Document; depth: number };
+  | { id: string; folder: string }
+  | { id: string; record: Document; depth: number; parentTitle?: string };
+
+function documentDepth(record: Document, byId: ReadonlyMap<string, Document>) {
+  let level = 1;
+  let parentId = record.parentDocumentId;
+  const visited = new Set([record.id]);
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId);
+    const parent = byId.get(parentId);
+    if (!parent) {
+      break;
+    }
+    level += 1;
+    parentId = parent.parentDocumentId;
+  }
+  return level;
+}
+
+function folderOrder(records: Document[]): Document[] {
+  const ids = new Set(records.map((record) => record.id));
+  const children = new Map<string | null, Document[]>();
+  for (const record of records) {
+    const parentId =
+      record.parentDocumentId && ids.has(record.parentDocumentId)
+        ? record.parentDocumentId
+        : null;
+    const siblings = children.get(parentId) ?? [];
+    siblings.push(record);
+    children.set(parentId, siblings);
+  }
+  const ordered: Document[] = [];
+  const stack = [...(children.get(null) ?? [])].reverse();
+  while (stack.length > 0) {
+    const record = stack.pop();
+    if (record) {
+      ordered.push(record);
+      stack.push(...[...(children.get(record.id) ?? [])].reverse());
+    }
+  }
+  return ordered;
+}
 
 function navigationRows(documents: Document[]): NavigationRow[] {
   const byId = new Map(documents.map((record) => [record.id, record]));
@@ -62,45 +109,21 @@ function navigationRows(documents: Document[]): NavigationRow[] {
     folders.set(folder, records);
   }
 
-  function depth(record: Document) {
-    let level = 1;
-    let parentId = record.parentDocumentId;
-    const visited = new Set([record.id]);
-    while (parentId && !visited.has(parentId)) {
-      visited.add(parentId);
-      const parent = byId.get(parentId);
-      if (!parent) {
-        break;
-      }
-      level += 1;
-      parentId = parent.parentDocumentId;
-    }
-    return level;
-  }
-
   const rows: NavigationRow[] = [];
   for (const [folder, records] of folders) {
     if (folder) {
-      rows.push({ folder, key: `folder:${folder}` });
+      rows.push({ folder, id: `folder:${folder}` });
     }
-    const ids = new Set(records.map((record) => record.id));
-    const children = new Map<string | null, Document[]>();
-    for (const record of records) {
-      const parentId =
-        record.parentDocumentId && ids.has(record.parentDocumentId)
-          ? record.parentDocumentId
-          : null;
-      const siblings = children.get(parentId) ?? [];
-      siblings.push(record);
-      children.set(parentId, siblings);
-    }
-    const stack = [...(children.get(null) ?? [])].reverse();
-    while (stack.length > 0) {
-      const record = stack.pop();
-      if (record) {
-        rows.push({ depth: depth(record), key: record.id, record });
-        stack.push(...[...(children.get(record.id) ?? [])].reverse());
-      }
+    for (const record of folderOrder(records)) {
+      const parent = record.parentDocumentId
+        ? byId.get(record.parentDocumentId)
+        : undefined;
+      rows.push({
+        depth: documentDepth(record, byId),
+        id: record.id,
+        parentTitle: parent?.title,
+        record,
+      });
     }
   }
   return rows;
@@ -126,7 +149,7 @@ function DocumentHomeNavigation({
       className="space-y-1"
       estimateSize={36}
       gap={4}
-      getKey={(row) => row.key}
+      getKey={virtualRowId}
       isFocusable={(row) => "record" in row}
       rows={rows}
       scrollToKey={selectedId}
@@ -154,7 +177,11 @@ function DocumentHomeNavigation({
           >
             <Button
               aria-current={record.id === selectedId ? "page" : undefined}
-              aria-describedby={`document-scope-${record.id}`}
+              aria-describedby={
+                row.parentTitle
+                  ? `document-scope-${record.id} document-parent-${record.id}`
+                  : `document-scope-${record.id}`
+              }
               className="max-w-full justify-start"
               data-document-id={record.id}
               id={documentRecordHash(record.id)}
@@ -165,6 +192,11 @@ function DocumentHomeNavigation({
               {record.title}
             </Button>
             <DocumentScopeBadge document={record} />
+            {row.parentTitle ? (
+              <span className="sr-only" id={`document-parent-${record.id}`}>
+                Child of {row.parentTitle}
+              </span>
+            ) : null}
           </li>
         );
       }}

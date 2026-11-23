@@ -30,7 +30,7 @@
         onApplyPaste: noAction,
         onProjectChange: noAction,
         onRecordTypeChange: noAction,
-        onSaveCell: noAction,
+        onSaveCell: () => Promise.reject(new Error("Fixture write refused")),
         projectId: "fixture",
         projects: [{ id: "fixture", name: "Fixture" }],
         records: decisions,

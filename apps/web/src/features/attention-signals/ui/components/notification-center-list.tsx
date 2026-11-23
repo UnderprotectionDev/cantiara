@@ -11,7 +11,9 @@ import { Button } from "@cantiara/ui/components/button";
 import {
   VirtualList,
   type VirtualRowProps,
+  virtualRowId,
 } from "@cantiara/ui/components/virtual-list";
+import { useMemo } from "react";
 import { AppLink } from "@/components/app-link";
 import {
   documentRecordHash,
@@ -219,10 +221,14 @@ function SectionView({
   panels: NotificationCenterPanels;
   section: NotificationCenter["sections"][number];
 }) {
-  const rows = section.groups.flatMap(({ group, key, signals }) => [
-    { key: `group:${key}`, title: `${group.kind} ${group.id}` } as const,
-    ...signals.map((signal) => ({ key: `signal:${signal.id}`, signal })),
-  ]);
+  const rows = useMemo(
+    () =>
+      section.groups.flatMap(({ group, key, signals }) => [
+        { id: `group:${key}`, title: `${group.kind} ${group.id}` } as const,
+        ...signals.map((signal) => ({ id: `signal:${signal.id}`, signal })),
+      ]),
+    [section.groups],
+  );
   const count = rows.length - section.groups.length;
   return (
     <details className="rounded-md border" open={section.defaultOpen}>
@@ -239,7 +245,7 @@ function SectionView({
             className="space-y-2"
             estimateSize={80}
             gap={8}
-            getKey={(row) => row.key}
+            getKey={virtualRowId}
             isFocusable={(row) => "signal" in row}
             keepMounted={[
               panels.opened && `signal:${panels.opened.signalRowId}`,

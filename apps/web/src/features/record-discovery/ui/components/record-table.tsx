@@ -17,6 +17,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import {
+  useRetainVirtualRow,
   VirtualList,
   virtualRowId,
 } from "@cantiara/ui/components/virtual-list";
@@ -537,6 +538,11 @@ function EditableCell({
   const currentValue = recordField(record, field);
   const form = useRecordTableCellForm(displayValue(currentValue), save);
   const value = useSelector(form.store, (state) => state.values.value);
+  const hasDraft = useSelector(
+    form.store,
+    (state) => state.values.editingRevision !== null,
+  );
+  useRetainVirtualRow(hasDraft);
   const validationError = useSelector(
     form.store,
     (state): string | undefined => state.errorMap.onSubmit,
@@ -856,7 +862,7 @@ function RecordTableGrid({
             }
             estimateSize={58}
             getKey={virtualRowId}
-            rows={table.getRowModel().rows}
+            rows={shownRows}
           >
             {(row, rowProps) => (
               <tr {...rowProps} className="border-b last:border-0">

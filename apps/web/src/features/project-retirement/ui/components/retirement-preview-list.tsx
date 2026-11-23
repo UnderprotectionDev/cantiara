@@ -9,7 +9,7 @@ export function RetirementPreviewList({
   title: string;
 }) {
   return (
-    <section aria-label={title} className="space-y-1">
+    <div className="space-y-1">
       <h3 className="text-sm font-medium">{title}</h3>
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">None.</p>
@@ -35,6 +35,6 @@ export function RetirementPreviewList({
           </VirtualList>
         </section>
       )}
-    </section>
+    </div>
   );
 }

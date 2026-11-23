@@ -42,6 +42,8 @@ Proje bazlı özel alan tanımları yalnız kendi Projesinde yaşar. Desteklenen
 
 ## Testing Decisions
 
+- **Growing lists (#551).** `apps/web/e2e/custom-field-draft.e2e.ts` checks that a rejected scalar draft and its error survive scrolling both the field row and the enclosing Work row out of their visible windows.
+
 - **Client state ownership (#547).** The inline field definition editor is scoped to its Project and active definition. The Custom Fields form and lifecycle seam covers Cancel, completion and removal. The form test reopens after Cancel, removes the selected definition, and switches Projects.
 
 - **#545.** The web custom-field-scalar-form.test.tsx seam checks that a failed blur write keeps the edited value and that the same input can be submitted again.

@@ -8,22 +8,29 @@ import type {
 import {
   VirtualList,
   type VirtualRowProps,
+  virtualRowId,
 } from "@cantiara/ui/components/virtual-list";
 import { useCreateStore, useSelector } from "@tanstack/react-store";
+import { useMemo } from "react";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
 
 export default function ScopeTreeView({ scopeTree }: { scopeTree: ScopeTree }) {
   const disclosures = useCreateStore<ReadonlySet<string>>(new Set<string>());
   const collapsedFeatures = useSelector(disclosures);
-  const rows = scopeTree.features.flatMap((feature) => [
-    { feature, key: `feature:${feature.work.id}` },
-    ...(collapsedFeatures.has(feature.work.id)
-      ? []
-      : feature.includedWork.map((node) => ({
-          key: `included:${feature.work.id}:${node.work.id}`,
-          node,
-        }))),
-  ]);
+  const rows = useMemo(
+    () =>
+      scopeTree.features.flatMap((feature) => [
+        { feature, id: `feature:${feature.work.id}` },
+        ...(collapsedFeatures.has(feature.work.id)
+          ? []
+          : feature.includedWork.map((node) => ({
+              id: `included:${feature.work.id}:${node.work.id}`,
+              node,
+              parentTitle: feature.work.title,
+            }))),
+      ]),
+    [collapsedFeatures, scopeTree.features],
+  );
   function setFeatureOpen(id: string, open: boolean) {
     disclosures.setState((current) => {
       if (current.has(id) === !open) {
@@ -68,7 +75,7 @@ export default function ScopeTreeView({ scopeTree }: { scopeTree: ScopeTree }) {
               className="space-y-3"
               estimateSize={110}
               gap={12}
-              getKey={(row) => row.key}
+              getKey={virtualRowId}
               rows={rows}
             >
               {(row, rowProps) =>
@@ -83,6 +90,7 @@ export default function ScopeTreeView({ scopeTree }: { scopeTree: ScopeTree }) {
                 ) : (
                   <WorkTreeNode
                     node={row.node}
+                    parentTitle={row.parentTitle}
                     projectId={scopeTree.project.id}
                     rowProps={rowProps}
                   />
@@ -153,10 +161,12 @@ function FeatureTreeNode({
 
 function WorkTreeNode({
   node,
+  parentTitle,
   projectId,
   rowProps,
 }: {
   node: ScopeTreeNode;
+  parentTitle: string;
   projectId: string;
   rowProps?: VirtualRowProps;
 }) {
@@ -169,7 +179,7 @@ function WorkTreeNode({
     >
       <div className="space-y-2 pl-1 text-sm">
         <p className="font-medium">
-          <span className="sr-only">Included Work: </span>
+          <span className="sr-only">Included Work of {parentTitle}. </span>
           {node.work.key} {node.work.title}
           <span className="ml-2 text-xs font-normal text-muted-foreground">
             {node.work.type}

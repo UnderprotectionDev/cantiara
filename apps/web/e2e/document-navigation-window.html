@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Document navigation fixture</title>
+  </head>
+  <body>
+    <div id="main-content" style="height: 320px; overflow: auto"></div>
+    <script type="module">
+    import "../src/index.css";
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+
+    const main = document.getElementById("main-content");
+
+    import DocumentNavigation from "../src/features/documents/ui/components/document-navigation.tsx";
+    import { documentRecordFromHash } from "../src/features/project-shell/lib/project-shell-navigation.ts";
+
+    const documents = Array.from({ length: 500 }, (_, index) => ({
+      id: `doc-${index + 1}`,
+      title: `Document ${index + 1}`,
+      body: "",
+      type: "General",
+      revision: 1,
+      createdAt: "",
+      updatedAt: "",
+      projectId: null,
+      parentDocumentId: index === 349 ? "doc-349" : null,
+      folder: "Reference",
+    }));
+    const selectedId =
+      documentRecordFromHash(location.hash.slice(1))?.documentId ?? null;
+    createRoot(main).render(
+      createElement(DocumentNavigation, {
+        documents,
+        onSelect: () => undefined,
+        selectedId,
+      }),
+    );
+    </script>
+  </body>
+</html>

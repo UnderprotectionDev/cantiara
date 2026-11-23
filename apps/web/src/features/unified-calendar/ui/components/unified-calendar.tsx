@@ -280,6 +280,12 @@ function CalendarDaySection({
   }[];
   view: CalendarView;
 }) {
+  const { source } = useDragOperation();
+  const draggedDate = calendarDateFromSource(source);
+  const draggedMarkKey =
+    draggedDate?.oldDate === day
+      ? `${draggedDate.workId}:${draggedDate.dateField}`
+      : undefined;
   const { isDropTarget, ref } = useDroppable({
     accept: "calendar-date",
     collisionDetector: pointerIntersection,
@@ -345,6 +351,7 @@ function CalendarDaySection({
           estimateSize={26}
           gap={4}
           getKey={({ dateField, work }) => `${work.id}:${dateField}`}
+          keepMounted={draggedMarkKey ? [draggedMarkKey] : undefined}
           rows={marks}
         >
           {({ dateField, label, work }, rowProps) => (

@@ -78,6 +78,8 @@ Birleşik Bildirim Merkezi yalnız kapalı registrydeki Dikkat sinyallerini `Act
 
 ## Testing Decisions
 
+- **Growing lists (#551).** `apps/web/e2e/notification-center-window.e2e.ts` checks the section count, ordering, bounded rendering, and access to signal actions and source-group context at the end of a 500-signal section.
+
 - **What a good test is.** Tests observe Attention Signals through its public interface: list by section; verify each registry presentation class maps to exactly one section, including `work-blocked` / `Needs Action` → `Action Required`; group by source; same Kaynak sürümü with several usages keeping separate review decisions; mark read/close without source mutation; open exact event; reject unregistered id; dedupe; follow-up preview; `public-roadmap-review-due` matrix. They do not assert queue internals. Expected values are registry rows and PRD negatives, not recomputed producer rules for foreign ids.
 - **Seam (one).** Attention Signals — the product-facing center + registry gate. Producers are adapters/test doubles behind emit. Playwright for the Dikkat sinyalleri journey is the same seam through the UI.
 - **Modules under test.** Attention Signals only. Producer packages are not in this suite except emit doubles and “source unchanged” counterparts.

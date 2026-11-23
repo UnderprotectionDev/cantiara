@@ -11,11 +11,13 @@ import {
 import {
   type ComponentPropsWithoutRef,
   type CSSProperties,
+  createContext,
   Fragment,
   type KeyboardEvent,
   type ReactNode,
   type RefCallback,
   useCallback,
+  useContext,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -44,6 +46,39 @@ export interface VirtualRowProps {
 export const virtualRowId = (row: { id: string }) => row.id;
 
 type ListTag = "div" | "ul" | "ol" | "tbody";
+
+const RowRetentionContext = createContext<(() => () => void) | null>(null);
+
+/** Keep an active editor mounted through every virtual list that contains it. */
+export function useRetainVirtualRow(active: boolean) {
+  const retain = useContext(RowRetentionContext);
+  useLayoutEffect(() => (active ? retain?.() : undefined), [active, retain]);
+}
+
+function RetainedRow({
+  children,
+  rowKey,
+  retainKey,
+}: {
+  children: ReactNode;
+  rowKey: string;
+  retainKey: (key: string) => () => void;
+}) {
+  const retainParent = useContext(RowRetentionContext);
+  const retain = useCallback(() => {
+    const releaseRow = retainKey(rowKey);
+    const releaseParent = retainParent?.();
+    return () => {
+      releaseRow();
+      releaseParent?.();
+    };
+  }, [retainKey, retainParent, rowKey]);
+  return (
+    <RowRetentionContext.Provider value={retain}>
+      {children}
+    </RowRetentionContext.Provider>
+  );
+}
 
 export interface VirtualListReveal {
   elementId: string;
@@ -101,6 +136,30 @@ export function VirtualList<Row>({
     null,
   );
   const pendingFocus = useSelector(keyboard);
+  const retention = useCreateStore<ReadonlyMap<string, number>>(
+    new Map<string, number>(),
+  );
+  const retainedKeys = useSelector(retention);
+  const retainKey = useCallback(
+    (key: string) => {
+      retention.setState((current) =>
+        new Map(current).set(key, (current.get(key) ?? 0) + 1),
+      );
+      return () => {
+        retention.setState((current) => {
+          const next = new Map(current);
+          const count = next.get(key) ?? 0;
+          if (count > 1) {
+            next.set(key, count - 1);
+          } else {
+            next.delete(key);
+          }
+          return next;
+        });
+      };
+    },
+    [retention],
+  );
   const handledReveal = useRef<VirtualListReveal | undefined>(undefined);
   const lastScrollKey = useRef<string | null>(null);
   const isTable = Tag === "tbody";
@@ -191,14 +250,19 @@ export function VirtualList<Row>({
     horizontal,
     observeElementOffset: (instance, callback) => {
       const owner = instance.scrollElement;
-      if (!(owner && isDocumentScroll(owner))) {
+      if (!owner) {
+        return;
+      }
+      // A nested list can mount after its shared scroll owner has already
+      // moved. Seed the offset before the virtualizer's first scroll write.
+      const reportOffset = () =>
+        callback(horizontal ? owner.scrollLeft : owner.scrollTop, false);
+      reportOffset();
+      if (!isDocumentScroll(owner)) {
         return observeElementOffset(instance, callback);
       }
-      const onScroll = () =>
-        callback(horizontal ? window.scrollX : window.scrollY, false);
-      onScroll();
-      window.addEventListener("scroll", onScroll, { passive: true });
-      return () => window.removeEventListener("scroll", onScroll);
+      window.addEventListener("scroll", reportOffset, { passive: true });
+      return () => window.removeEventListener("scroll", reportOffset);
     },
     observeElementRect: (instance, callback) => {
       const owner = instance.scrollElement;
@@ -222,6 +286,7 @@ export function VirtualList<Row>({
         focusedKey.current,
         reveal?.key,
         ...(keepMounted ?? []),
+        ...retainedKeys.keys(),
       ]) {
         if (key) {
           const index = indexByKey.get(key);
@@ -430,10 +495,13 @@ export function VirtualList<Row>({
               style: rowStyle(start, end),
             }
           : { "data-index": index };
+        const rowKey = getKey(row);
         return (
-          <Fragment key={getKey(row)}>
+          <Fragment key={rowKey}>
             {spacer(space)}
-            {children(row, props, index)}
+            <RetainedRow retainKey={retainKey} rowKey={rowKey}>
+              {children(row, props, index)}
+            </RetainedRow>
           </Fragment>
         );
       })}

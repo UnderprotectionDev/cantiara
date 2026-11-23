@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Notification Center fixture</title>
+  </head>
+  <body>
+    <div id="main-content" style="height: 320px; overflow: auto"></div>
+    <script type="module">
+    import "../src/index.css";
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+
+    const main = document.getElementById("main-content");
+
+    import { deriveNotificationCenter } from "@cantiara/api/attention-signals";
+    import NotificationCenterList from "../src/features/attention-signals/ui/components/notification-center-list.tsx";
+
+    const center = deriveNotificationCenter(
+      Array.from({ length: 500 }, (_, index) => {
+        const id = String(index + 1).padStart(3, "0");
+        return {
+          closedAt: null,
+          eventId: id,
+          group: { id: "CAN-1", kind: "Work" },
+          id,
+          occurredAt: "2026-10-27T09:00:00.000Z",
+          projectId: null,
+          readAt: null,
+          reason: `Signal ${id}`,
+          signalId: "work-blocked",
+          targetId: "CAN-1",
+        };
+      }),
+    );
+    const noop = () => undefined;
+    createRoot(main).render(
+      createElement(NotificationCenterList, {
+        actions: {
+          onCreateFollowUp: noop,
+          onMark: noop,
+          onOpen: noop,
+          onPreviewFollowUp: noop,
+        },
+        center,
+      }),
+    );
+    </script>
+  </body>
+</html>

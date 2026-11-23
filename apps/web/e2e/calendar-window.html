@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Calendar window fixture</title>
+  </head>
+  <body>
+    <div
+      id="main-content"
+      style="height: 400px; overflow: auto; overflow-anchor: none"
+    ></div>
+    <script type="module">
+    import "../src/index.css";
+    import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { ContextRecordPreviewProvider } from "../src/features/record-discovery/ui/components/context-record-preview.tsx";
+    import UnifiedCalendar from "../src/features/unified-calendar/ui/components/unified-calendar.tsx";
+
+    const works = Array.from({ length: 300 }, (_, index) => {
+      const sequence = String(index + 1).padStart(3, "0");
+      return {
+        archivedAt: null,
+        id: sequence,
+        key: `CAL-${sequence}`,
+        title: `Work ${sequence}`,
+        plannedStartDate: null,
+        projectId: "fixture",
+        reappearDate: null,
+        revision: 1,
+        status: "Not Started",
+        targetDate: "2026-10-03",
+      };
+    });
+    createRoot(document.getElementById("main-content")).render(
+      createElement(
+        ContextRecordPreviewProvider,
+        null,
+        createElement("button", { type: "button" }, "Outside Calendar"),
+        createElement(UnifiedCalendar, {
+          onDateChange: () => Promise.resolve(),
+          preferences: DEFAULT_ACCOUNT_PREFERENCES,
+          projects: [{ id: "fixture", name: "Fixture" }],
+          selectedDate: "2026-10-01",
+          selectedProjectId: "fixture",
+          selectedDateKinds: ["targetDate"],
+          view: "Week",
+          works,
+        }),
+      ),
+    );
+    </script>
+  </body>
+</html>
