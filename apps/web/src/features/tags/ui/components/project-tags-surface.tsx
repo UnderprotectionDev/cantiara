@@ -14,6 +14,11 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import {
+  columnFilteringFeature,
+  tableFeatures,
+  useTable,
+} from "@tanstack/react-table";
 import { useState } from "react";
 import { useTags } from "@/features/tags/hooks/use-tags";
 import { commandVariables } from "@/lib/command-variables";
@@ -265,7 +270,7 @@ export default function ProjectTagsSurface({
             apply.reset();
             remove.mutate(input);
           }}
-          records={recordsQuery.data ?? []}
+          records={recordsQuery.data ?? emptyTagRecords}
           recordsError={recordsQuery.isError}
           recordsPending={recordsQuery.isPending}
           removePending={remove.isPending}
@@ -374,6 +379,10 @@ function TagFilterControl({
   );
 }
 
+const tagRecordFeatures = tableFeatures({ columnFilteringFeature });
+const tagRecordColumns = [] as const;
+const emptyTagRecords: TagRecord[] = [];
+
 function TagRecordList({
   applyPending,
   onApply,
@@ -393,6 +402,16 @@ function TagRecordList({
   removePending: boolean;
   tags: readonly TagSuggestion[];
 }) {
+  const table = useTable({
+    columns: tagRecordColumns,
+    data: records,
+    features: tagRecordFeatures,
+    getRowId: (record) => record.id,
+    // The tag query provides the filtered Work in server order.
+    manualFiltering: true,
+  });
+  const { rows } = table.getRowModel();
+
   if (recordsPending) {
     return (
       <p className="text-sm text-muted-foreground" role="status">
@@ -407,7 +426,7 @@ function TagRecordList({
       </p>
     );
   }
-  if (records.length === 0) {
+  if (rows.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">No matching records.</p>
     );
@@ -415,7 +434,7 @@ function TagRecordList({
 
   return (
     <ul aria-label="Tagged Work records" className="space-y-3">
-      {records.map((record) => {
+      {rows.map(({ id, original: record }) => {
         const availableTags = tags.filter(
           ({ tag }) =>
             !record.tags.some((recordTag) => recordTag.id === tag.id),
@@ -423,7 +442,7 @@ function TagRecordList({
         return (
           <li
             className="grid gap-4 rounded-lg border border-border/70 bg-card/40 px-4 py-4"
-            key={record.id}
+            key={id}
           >
             <div className="min-w-0">
               <p className="text-sm font-medium">

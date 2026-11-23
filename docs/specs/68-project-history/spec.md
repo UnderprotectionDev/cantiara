@@ -54,6 +54,8 @@ Proje Hikâyesi iki ayrı yüzey sunar. Gerçekleşen olayların zaman çizelges
 
 ## Testing Decisions
 
+- **Interactive record rows (#550).** The Project Activity seam verifies that every loaded entry remains visible in server order. The mounted surface checks the cursor received by the query, the appended rows, and the first-page request after a filter change. The cluster disclosure still lists each atomic change.
+
 - **Client state ownership (#547).** The Project URL carries applied Project Activity source and event filters. Pagination starts over when either filter changes.
 
 - **What a good test is.** Tests observe Project History through its public interface: story listing in Proje and Özellik context, activity listing with filters, row actor/previous–next, cluster expand on Proje Etkinliği and on the source record’s Kayıt geçmişi view, and “this event did not become a notification.” They do not assert Drizzle row shapes, a private history table, or mock internal aggregators. Expected values are product rules (story excludes field edits; activity does not mint signals; five-minute cluster is presentation-only), not recomputed SQL.

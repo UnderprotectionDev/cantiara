@@ -1,9 +1,13 @@
+import type { ProjectWorkSort } from "@cantiara/api/project-shell";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
+import { useTable } from "@tanstack/react-table";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import {
   filterDefaultKanbanWorks,
   formatTimeInStatus,
-  sortKanbanWorks,
+  kanbanTableOptions,
 } from "../kanban-view";
 
 const work = (overrides: Partial<WorkProfile>): WorkProfile => ({
@@ -34,6 +38,17 @@ const work = (overrides: Partial<WorkProfile>): WorkProfile => ({
   ...overrides,
 });
 
+function sortedIds(works: WorkProfile[], sort: ProjectWorkSort) {
+  function SortedIds() {
+    const table = useTable(kanbanTableOptions(works, sort));
+    return table
+      .getRowModel()
+      .rows.map((row) => row.id)
+      .join(",");
+  }
+  return renderToStaticMarkup(createElement(SortedIds)).split(",");
+}
+
 describe("Kanban saved Work view", () => {
   test("uses the saved explicit sort, with stable Work number tie-breaking", () => {
     const works = [
@@ -43,17 +58,26 @@ describe("Kanban saved Work view", () => {
     ];
 
     expect(
-      sortKanbanWorks(works, { direction: "ascending", field: "title" }).map(
-        (item) => item.id,
-      ),
+      sortedIds(works, { direction: "ascending", field: "title" }),
     ).toEqual(["work-2", "work-3", "work-1"]);
     expect(
-      sortKanbanWorks(works, {
-        direction: "descending",
-        field: "title",
-      }).map((item) => item.id),
+      sortedIds(works, { direction: "descending", field: "title" }),
     ).toEqual(["work-1", "work-2", "work-3"]);
   });
+
+  test.each(["createdAt", "updatedAt"] as const)(
+    "uses the saved %s sort",
+    (field) => {
+      const works = [
+        work({ id: "work-1", number: 1, [field]: "2026-09-25T09:00:00.000Z" }),
+        work({ id: "work-2", number: 2, [field]: "2026-09-24T09:00:00.000Z" }),
+      ];
+      expect(sortedIds(works, { direction: "ascending", field })).toEqual([
+        "work-2",
+        "work-1",
+      ]);
+    },
+  );
 
   test("backgrounds future reappearing Work until its date", () => {
     const works = [

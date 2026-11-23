@@ -2,10 +2,16 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import type { ExportHandoff } from "@/features/data-export/lib/export-handoff";
 
 import ProjectBacklog from "../project-backlog";
 
-const mocks = vi.hoisted(() => ({ useQuery: vi.fn(), mutationError: false }));
+const mocks = vi.hoisted(() => ({
+  useQuery: vi.fn(),
+  describeExport: vi.fn<() => ExportHandoff>(),
+  mutationError: false,
+  search: {},
+}));
 
 vi.mock("@tanstack/react-query", async (importActual) => ({
   ...(await importActual<typeof import("@tanstack/react-query")>()),
@@ -15,7 +21,7 @@ vi.mock("@tanstack/react-query", async (importActual) => ({
 }));
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
-  useSearch: () => ({}),
+  useSearch: () => mocks.search,
   Link: ({ children }: { children: ReactNode }) => (
     <a href="#work">{children}</a>
   ),
@@ -59,11 +65,22 @@ vi.mock("@/utils/orpc", async (importActual) => {
   };
 });
 
-function renderBacklog(queryResult: unknown) {
+vi.mock("@/components/export-list-action", () => ({
+  ExportListAction: ({
+    describe: describeExport,
+  }: {
+    describe: () => ExportHandoff;
+  }) => {
+    mocks.describeExport.mockImplementation(describeExport);
+    return null;
+  },
+}));
+
+function renderBacklog(queryResult: unknown, workIds: string[] = []) {
   vi.mocked(useQuery)
     .mockReturnValueOnce(queryResult as never)
     .mockReturnValueOnce({
-      data: [],
+      data: workIds.map((id) => ({ id, type: "Task" })),
       isError: false,
       isPending: false,
     } as never)
@@ -86,6 +103,7 @@ describe("Project Backlog", () => {
   beforeEach(() => {
     vi.mocked(useQuery).mockReset();
     mocks.mutationError = false;
+    mocks.search = {};
   });
 
   test("shows the loading copy while its prepared collection loads", () => {
@@ -157,38 +175,68 @@ describe("Project Backlog", () => {
     expect(html).toContain('role="alert"');
   });
 
-  test("shows future Work in Deferred while keeping its status and manual rank available", () => {
-    const html = renderBacklog({
-      data: [
-        {
-          id: "one",
-          key: "CANT-1",
-          number: 1,
-          plannedStartDate: null,
-          reappearDate: null,
-          revision: 0,
-          status: "Not Started",
-          targetDate: null,
-          title: "First Work",
-        },
-        {
-          id: "two",
-          key: "CANT-2",
-          number: 2,
-          plannedStartDate: null,
-          reappearDate: "2099-01-01",
-          revision: 0,
-          status: "Blocked",
-          targetDate: null,
-          title: "Later Work",
-        },
-      ],
-      isError: false,
-      isPending: false,
+  test("exports the displayed Field order, including ties in manual order", () => {
+    mocks.search = { backlogSort: "Field", backlogField: "Title" };
+    const data = ["Work 2", "Work 10", "Work 2"].map((title, index) => ({
+      id: `work-${index + 1}`,
+      key: `CANT-${index + 1}`,
+      number: index + 1,
+      plannedStartDate: null,
+      reappearDate: null,
+      revision: 0,
+      status: "Not Started",
+      targetDate: null,
+      title,
+    }));
+    const html = renderBacklog(
+      { data, isError: false, isPending: false },
+      data.map(({ id }) => id),
+    );
+
+    expect(html.match(/CANT-[123]/g)).toEqual(["CANT-2", "CANT-1", "CANT-3"]);
+    expect(mocks.describeExport()).toMatchObject({
+      listedIds: ["work-2", "work-1", "work-3"],
+      view: { order: "listed" },
     });
+    expect(mocks.describeExport().view).not.toHaveProperty("sort");
+  });
+
+  test("shows future Work in Deferred while keeping its status and manual rank available", () => {
+    const html = renderBacklog(
+      {
+        data: [
+          {
+            id: "two",
+            key: "CANT-2",
+            number: 2,
+            plannedStartDate: null,
+            reappearDate: "2099-01-01",
+            revision: 0,
+            status: "Blocked",
+            targetDate: null,
+            title: "Later Work",
+          },
+          {
+            id: "one",
+            key: "CANT-1",
+            number: 1,
+            plannedStartDate: null,
+            reappearDate: null,
+            revision: 0,
+            status: "Not Started",
+            targetDate: null,
+            title: "First Work",
+          },
+        ],
+        isError: false,
+        isPending: false,
+      },
+      ["one", "two"],
+    );
+    expect(mocks.describeExport().listedIds).toEqual(["one", "two"]);
     expect(html).toContain('aria-label="Deferred"');
     expect(html.indexOf("First Work")).toBeLessThan(html.indexOf("Deferred"));
-    expect(html).toContain("Later Work");
+    expect(html.indexOf("Deferred")).toBeLessThan(html.indexOf("Later Work"));
     expect(html).toContain("Reappear date");
   });
 });

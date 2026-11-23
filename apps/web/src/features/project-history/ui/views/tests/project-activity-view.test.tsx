@@ -278,6 +278,40 @@ test("five-minute field changes form one accessible disclosure that lists every 
   expect(top[0]?.textContent).toContain("Status change");
 });
 
+test("shows all loaded changes in server order with a cursor to older changes", () => {
+  const onLoadMore = vi.fn();
+  const history = Array.from({ length: 12 }, (_, index) =>
+    entry({
+      id: `change-${index}`,
+      occurredAt: `2026-05-01T10:${String(59 - index).padStart(2, "0")}:00.000Z`,
+      source: {
+        label: `Work ${index}`,
+        recordId: `work-${index}`,
+        recordType: "Work",
+      },
+    }),
+  );
+  const view = render(history, { hasMore: true, onLoadMore });
+  const list = view.querySelector('ol[aria-label="Project Activity"]');
+  expect(
+    Array.from(
+      list?.children ?? [],
+      (row) => row.querySelector("a")?.textContent,
+    ),
+  ).toEqual(Array.from({ length: 12 }, () => "Open source record"));
+  expect(
+    Array.from(list?.querySelectorAll("a") ?? [], (link) =>
+      link.getAttribute("aria-label"),
+    ),
+  ).toEqual(history.map(({ source }) => `Open source record: ${source.label}`));
+  act(() => {
+    Array.from(view.querySelectorAll("button"))
+      .find((button) => button.textContent === "Show older changes")
+      ?.click();
+  });
+  expect(onLoadMore).toHaveBeenCalledOnce();
+});
+
 test("a failed load-more is announced and the list stays", () => {
   const view = render([entry({})], { hasMore: true, loadMoreFailed: true });
   expect(view.querySelector("[role='alert']")?.textContent).toBe(

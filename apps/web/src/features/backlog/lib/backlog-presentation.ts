@@ -1,3 +1,10 @@
+import { sortFn_basic } from "@tanstack/react-table";
+import {
+  type WorkListSortColumn,
+  workListSortingFeatures,
+  workListTextColumn,
+} from "@/lib/work-list-sorting";
+
 export type BacklogPresentation =
   | "Manual order"
   | "Priority"
@@ -13,38 +20,51 @@ interface PresentableWork {
   title: string;
 }
 
-export function presentBacklog<T extends PresentableWork>(
+interface BacklogRow<T> {
+  priority: number;
+  work: T;
+}
+
+export function backlogTableOptions<T extends PresentableWork>(
   works: readonly T[],
   presentation: BacklogPresentation,
-  priorityByWorkId: ReadonlyMap<string, number> = new Map(),
-  field: BacklogSortField = "Title",
-): T[] {
-  if (presentation === "Manual order") {
-    return [...works];
-  }
-
-  return works
-    .map((work, index) => ({ work, index }))
-    .sort((left, right) => {
-      let comparison = 0;
-      if (presentation === "Priority") {
-        comparison =
-          (priorityByWorkId.get(right.work.id) ?? -1) -
-          (priorityByWorkId.get(left.work.id) ?? -1);
-      } else if (presentation === "Date") {
-        const leftDate = left.work.targetDate ?? left.work.plannedStartDate;
-        const rightDate = right.work.targetDate ?? right.work.plannedStartDate;
-        comparison = (leftDate ?? "9999-12-31").localeCompare(
-          rightDate ?? "9999-12-31",
-        );
-      } else {
-        comparison = (
-          field === "Status" ? left.work.status : left.work.title
-        ).localeCompare(
-          field === "Status" ? right.work.status : right.work.title,
-        );
-      }
-      return comparison || left.index - right.index;
-    })
-    .map(({ work }) => work);
+  priorityByWorkId: ReadonlyMap<string, number>,
+  field: BacklogSortField,
+) {
+  const sortColumns: Record<
+    Exclude<BacklogPresentation, "Manual order">,
+    WorkListSortColumn<BacklogRow<T>>
+  > = {
+    Priority: {
+      accessorFn: ({ priority }) => priority,
+      sortFn: sortFn_basic,
+    },
+    Date: {
+      accessorFn: ({ work }) =>
+        work.targetDate ?? work.plannedStartDate ?? "9999-12-31",
+    },
+    Field: {
+      accessorFn: ({ work }) => (field === "Status" ? work.status : work.title),
+    },
+  };
+  return {
+    columns: Object.entries(sortColumns).map(([id, column]) => ({
+      ...column,
+      id,
+    })),
+    data: works.map((work) => ({
+      priority: priorityByWorkId.get(work.id) ?? -1,
+      work,
+    })),
+    defaultColumn: workListTextColumn,
+    features: workListSortingFeatures,
+    getRowId: ({ work }: BacklogRow<T>) => work.id,
+    state: {
+      // Table keeps the input order for ties and with no active sort.
+      sorting:
+        presentation === "Manual order"
+          ? []
+          : [{ id: presentation, desc: presentation === "Priority" }],
+    },
+  };
 }

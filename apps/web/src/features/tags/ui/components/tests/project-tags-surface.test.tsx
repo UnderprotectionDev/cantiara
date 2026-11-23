@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 
 const rpc = vi.hoisted(() => ({
+  filterTagId: "",
   removeTag: vi.fn(),
   renameTag: vi.fn(),
   undoTagRename: vi.fn(),
@@ -14,7 +15,7 @@ const rpc = vi.hoisted(() => ({
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
-  useSearch: () => "",
+  useSearch: () => rpc.filterTagId,
 }));
 
 vi.mock("@/utils/orpc", async (importActual) => {
@@ -62,7 +63,7 @@ const records: TagRecord[] = [
   },
 ];
 
-function renderSurface() {
+function renderSurface(filteredRecords: TagRecord[] = records) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
   });
@@ -71,9 +72,13 @@ function renderSurface() {
     tagSuggestions,
   );
   queryClient.setQueryData(
-    orpc.tagRecords.queryOptions({ input: { projectId: "project-1" } })
-      .queryKey,
-    records,
+    orpc.tagRecords.queryOptions({
+      input: {
+        projectId: "project-1",
+        ...(rpc.filterTagId ? { tagId: rpc.filterTagId } : {}),
+      },
+    }).queryKey,
+    filteredRecords,
   );
 
   return renderToStaticMarkup(
@@ -98,6 +103,19 @@ describe("Project Tags surface", () => {
     expect(html).toContain("Suggested in this Project");
     expect(html).toContain("Apply tag");
     expect(html).toContain("Remove tag");
+  });
+
+  test("lists the server's filtered Work in the returned order", () => {
+    rpc.filterTagId = "tag-2";
+    try {
+      const html = renderSurface([
+        { ...records[0], id: "work-2", key: "PAY-2", title: "Zulu" },
+        { ...records[0], id: "work-3", key: "PAY-3", title: "Alpha" },
+      ]);
+      expect(html.match(/PAY-[123]/g)).toEqual(["PAY-2", "PAY-3"]);
+    } finally {
+      rpc.filterTagId = "";
+    }
   });
 
   test("does not present a hierarchy or Project-local dictionary", () => {

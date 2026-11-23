@@ -12,7 +12,12 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import {
+  rowSelectionFeature,
+  tableFeatures,
+  useTable,
+} from "@tanstack/react-table";
+import { useEffect, useRef } from "react";
 import { fetchCurrentWork } from "@/lib/fetch-current-work";
 import { executeWrite } from "@/utils/execute-write";
 import {
@@ -20,6 +25,9 @@ import {
   invalidateSmartCollectionMembership,
   orpc,
 } from "@/utils/orpc";
+
+const leftoverFeatures = tableFeatures({ rowSelectionFeature });
+const leftoverColumns = [] as const;
 
 type CloseWorkCommand = Parameters<typeof client.closeWork>[0];
 
@@ -103,7 +111,6 @@ interface LeftoverValues {
   closeAnyway: boolean;
   confirmAbandon: boolean;
   destination: LeftoverDestination;
-  selectedWorkIds: string[];
   targetPeriodId: string;
 }
 
@@ -129,18 +136,51 @@ export function PeriodLeftoverDecisions({
 }) {
   const queryClient = useQueryClient();
   const closeAttempts = useRef(new Map<string, CloseWorkCommand>());
+  const table = useTable({
+    columns: leftoverColumns,
+    data: undecided,
+    features: leftoverFeatures,
+    getRowId: (work) => work.id,
+  });
+  const { getSelectedRowIds, setRowSelection } = table;
+  const { rows, rowsById } = table.getRowModel();
+  useEffect(() => {
+    const selectedIds = getSelectedRowIds();
+    const availableIds = selectedIds.filter((id) =>
+      Object.hasOwn(rowsById, id),
+    );
+    if (availableIds.length !== selectedIds.length) {
+      setRowSelection(Object.fromEntries(availableIds.map((id) => [id, true])));
+    }
+  }, [getSelectedRowIds, rowsById, setRowSelection]);
+
   const form = useForm({
     defaultValues: {
-      selectedWorkIds: [],
       destination: "Backlog",
       targetPeriodId: "",
       confirmAbandon: false,
       closeAnyway: false,
     } as LeftoverValues,
-    onSubmit: ({ value }) => act(() => sendDecisions(value)),
+    onSubmit: ({ value }) => {
+      const { rowsById: currentRowsById } = table.getRowModel();
+      const selectedWorkIds = getSelectedRowIds().filter((id) =>
+        Object.hasOwn(currentRowsById, id),
+      );
+      return act(() => sendDecisions(value, selectedWorkIds));
+    },
   });
-  async function sendDecisions(value: LeftoverValues) {
-    const { closeAnyway, confirmAbandon, destination, selectedWorkIds } = value;
+  function clearSelection(workId: string) {
+    table.setRowSelection((selected) => {
+      const remaining = { ...selected };
+      delete remaining[workId];
+      return remaining;
+    });
+  }
+  async function sendDecisions(
+    value: LeftoverValues,
+    selectedWorkIds: string[],
+  ) {
+    const { closeAnyway, confirmAbandon, destination } = value;
     if (!selectedWorkIds.length) {
       return;
     }
@@ -155,10 +195,7 @@ export function PeriodLeftoverDecisions({
         closeAnyway,
         closeAttempts.current,
         decide.mutateAsync,
-        (decidedWorkId) =>
-          form.setFieldValue("selectedWorkIds", (ids) =>
-            ids.filter((id) => id !== decidedWorkId),
-          ),
+        clearSelection,
       );
       await Promise.all(invalidateSmartCollectionMembership(queryClient));
     } else {
@@ -176,16 +213,15 @@ export function PeriodLeftoverDecisions({
         }
         // biome-ignore lint/performance/noAwaitInLoops: Each selected Work is recorded independently for recoverable partial sends.
         await decide.mutateAsync(parsed.data);
-        form.setFieldValue("selectedWorkIds", (ids) =>
-          ids.filter((id) => id !== selectedWorkId),
-        );
+        clearSelection(selectedWorkId);
       }
     }
-    form.setFieldValue("selectedWorkIds", []);
   }
-  const { confirmAbandon, destination, selectedWorkIds, targetPeriodId } =
-    useSelector(form.store, (state) => state.values);
-  return period.status === "Closed" && undecided.length ? (
+  const { confirmAbandon, destination, targetPeriodId } = useSelector(
+    form.store,
+    (state) => state.values,
+  );
+  return period.status === "Closed" && rows.length ? (
     <section
       aria-label="Still-open Work decisions"
       className="space-y-3 rounded-md border p-4"
@@ -200,32 +236,24 @@ export function PeriodLeftoverDecisions({
           form.handleSubmit().catch(() => undefined);
         }}
       >
-        <form.Field name="selectedWorkIds">
-          {(field) => (
-            <div className="space-y-2">
-              {undecided.map((item) => (
-                <label
-                  className="flex items-center gap-2"
-                  htmlFor={`focus-period-leftover-${item.id}`}
-                  key={item.id}
-                >
-                  <Checkbox
-                    checked={field.state.value.includes(item.id)}
-                    id={`focus-period-leftover-${item.id}`}
-                    onCheckedChange={(checked) =>
-                      field.handleChange(
-                        checked
-                          ? [...field.state.value, item.id]
-                          : field.state.value.filter((id) => id !== item.id),
-                      )
-                    }
-                  />
-                  {item.title} · {item.key}
-                </label>
-              ))}
-            </div>
-          )}
-        </form.Field>
+        <div className="space-y-2">
+          {rows.map((row) => (
+            <label
+              className="flex items-center gap-2"
+              htmlFor={`focus-period-leftover-${row.id}`}
+              key={row.id}
+            >
+              <Checkbox
+                checked={row.getIsSelected()}
+                id={`focus-period-leftover-${row.id}`}
+                onCheckedChange={(checked) =>
+                  row.toggleSelected(checked === true)
+                }
+              />
+              {row.original.title} · {row.original.key}
+            </label>
+          ))}
+        </div>
         <form.Field name="destination">
           {(field) => (
             <label
@@ -322,7 +350,7 @@ export function PeriodLeftoverDecisions({
         ) : null}
         <Button
           disabled={
-            !selectedWorkIds.length ||
+            !table.getSelectedRowModel().rows.length ||
             (destination === "Another period" && !targetPeriodId) ||
             (destination === "Abandon" && !confirmAbandon)
           }

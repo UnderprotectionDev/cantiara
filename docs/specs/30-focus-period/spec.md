@@ -50,6 +50,8 @@ Odak Dönemi farklı Projelerden İşleri isteğe bağlı 1–8 haftalık ortak 
 
 ## Testing Decisions
 
+- **Interactive record rows (#550).** The leftover-decision form seam verifies that Work removed from the available rows is omitted at Send, a successful decision clears its selection, and a failed decision remains selected for retry, and a returning Work begins unchecked. The Backlog and Abandon paths both cover partial failure. On Abandon, retry skips the closure already recorded.
+
 - **Client state ownership (#547).** The Focus Period route stores the selected period. The current period follows its deep link and browser history.
 
 - The Focus Period seam verifies that the current mutation reports server failures and preserves the defined membership conflict message.

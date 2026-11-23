@@ -5,7 +5,8 @@ import type {
 } from "@cantiara/api/project-shell";
 import type { WorkStatus } from "@cantiara/api/work-lifecycle";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useTable } from "@tanstack/react-table";
+import { useCallback, useMemo } from "react";
 import { currentDateInTimeZone } from "@/features/account-preferences/lib/account-preferences-format";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { usePreparedMutation } from "@/lib/use-prepared-mutation";
@@ -22,7 +23,7 @@ import {
 } from "../../lib/kanban-status";
 import {
   filterDefaultKanbanWorks,
-  sortKanbanWorks,
+  kanbanTableOptions,
 } from "../../lib/kanban-view";
 import KanbanBoard from "./kanban-board";
 import KanbanList from "./kanban-list";
@@ -98,6 +99,16 @@ export default function ProjectWorkKanban({
     [onExplicitStatusAction, updateStatus.mutate],
   );
 
+  const visibleWorks = useMemo(
+    () => filterDefaultKanbanWorks(query.data ?? [], today),
+    [query.data, today],
+  );
+  const tableOptions = useMemo(
+    () => kanbanTableOptions(visibleWorks, sort),
+    [visibleWorks, sort],
+  );
+  const table = useTable(tableOptions);
+
   if (query.status === "pending") {
     return <p className="text-sm text-muted-foreground">Loading Work…</p>;
   }
@@ -111,10 +122,7 @@ export default function ProjectWorkKanban({
   }
 
   const isDisabled = connection === "offline" || updateStatus.isPending;
-  const works = sortKanbanWorks(
-    filterDefaultKanbanWorks(query.data, today),
-    sort,
-  );
+  const works = table.getRowModel().rows.map((row) => row.original);
 
   if (view === "List") {
     return (

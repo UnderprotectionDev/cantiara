@@ -16,6 +16,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@cantiara/ui/components/collapsible";
+import {
+  columnFilteringFeature,
+  rowPaginationFeature,
+  tableFeatures,
+  useTable,
+} from "@tanstack/react-table";
 import { AppLink } from "@/components/app-link";
 import {
   type ProjectActivityFilters,
@@ -28,6 +34,12 @@ import {
 } from "../../lib/project-activity-format";
 import { projectRecordHref } from "../../lib/project-record-links";
 import { ProjectActivityFilterForm } from "../forms/project-activity-filter-form";
+
+const activityFeatures = tableFeatures({
+  columnFilteringFeature,
+  rowPaginationFeature,
+});
+const activityColumns = [] as const;
 
 const RECORD_HISTORY_LABEL = "Record history";
 
@@ -159,23 +171,31 @@ export function ProjectActivityEntries({
   label: string;
   projectId: string;
 }) {
+  const table = useTable({
+    columns: activityColumns,
+    data: entries,
+    features: activityFeatures,
+    getRowId: (entry) =>
+      entry.kind === "cluster" ? entry.cluster.id : entry.row.id,
+    // The query provides the filtered entries from all loaded cursor pages.
+    manualFiltering: true,
+    manualPagination: true,
+  });
   return (
     <ol aria-label={label} className="space-y-2">
-      {entries.map((entry) =>
-        entry.kind === "cluster" ? (
-          <ActivityCluster
-            cluster={entry.cluster}
-            key={entry.cluster.id}
-            projectId={projectId}
-          />
-        ) : (
-          <ActivityRow
-            key={entry.row.id}
-            projectId={projectId}
-            row={entry.row}
-          />
-        ),
-      )}
+      {table
+        .getRowModel()
+        .rows.map(({ id, original: entry }) =>
+          entry.kind === "cluster" ? (
+            <ActivityCluster
+              cluster={entry.cluster}
+              key={id}
+              projectId={projectId}
+            />
+          ) : (
+            <ActivityRow key={id} projectId={projectId} row={entry.row} />
+          ),
+        )}
     </ol>
   );
 }
