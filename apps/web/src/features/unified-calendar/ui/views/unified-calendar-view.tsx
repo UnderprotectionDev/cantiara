@@ -17,11 +17,8 @@ import { addDays, addMonths, addWeeks, format, parseISO } from "date-fns";
 import { DatePicker } from "@/components/date-picker";
 import { currentDateInTimeZone } from "@/features/account-preferences/lib/account-preferences-format";
 import UnifiedCalendar, {
-  CALENDAR_DATE_KINDS,
   type CalendarDateChange,
-  type CalendarDateKind,
   type CalendarView,
-  calendarDateKindsForSelection,
 } from "@/features/unified-calendar/ui/components/unified-calendar";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
 import { commandVariables } from "@/lib/command-variables";
@@ -34,6 +31,11 @@ import {
   orpc,
   projectsQueryOptions,
 } from "@/utils/orpc";
+import {
+  CALENDAR_DATE_KINDS,
+  type CalendarDateKind,
+  calendarDateKindsForSelection,
+} from "../../lib/calendar-date-drag";
 
 export const CALENDAR_VIEWS = ["Day", "Week", "Month", "Agenda"] as const;
 const ALL_DATE_KINDS: readonly CalendarDateKind[] = CALENDAR_DATE_KINDS.map(
@@ -131,7 +133,7 @@ export default function UnifiedCalendarView({
       ),
   });
   const queries = [preferences, projects, ...workQueries];
-  const failed = queries.some((query) => query.isError);
+  const failed = queries.some((query) => query.isLoadingError);
   const loading = !failed && queries.some((query) => query.isPending);
   const preferencesUnavailable =
     preferences.status === "pending" || preferences.isError;
@@ -143,6 +145,7 @@ export default function UnifiedCalendarView({
   }
   const updateCalendarDate = usePreparedMutation(
     orpc.updateWorkDate.mutationOptions({
+      meta: { retryInSurface: true },
       mutationFn: (input) => client.updateWorkDate(input),
       onError: (_, { workId }) => {
         const work = works.find(({ id }) => id === workId);
@@ -300,7 +303,7 @@ export default function UnifiedCalendarView({
               onDateChange={(change) => {
                 undoCalendarDate.reset();
                 readUndoWork.reset();
-                updateCalendarDate.mutate(change);
+                return updateCalendarDate.mutateAsync(change);
               }}
               preferences={formatting}
               projects={projects.data ?? []}

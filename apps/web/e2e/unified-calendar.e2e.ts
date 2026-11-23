@@ -107,6 +107,24 @@ test("previews, cancels, saves, and undoes one Calendar date drag", async ({
     destinationDay.getByText("Target date", { exact: true }),
   ).toHaveCount(0);
 
+  const dateWrite = "**/rpc/updateWorkDate";
+  const rejectedRequest = page.waitForRequest(dateWrite);
+  await page.route(
+    dateWrite,
+    (route) =>
+      route.fulfill({
+        status: 400,
+        json: {
+          json: {
+            defined: false,
+            code: "BAD_REQUEST",
+            status: 400,
+            message: "Calendar date was rejected.",
+          },
+        },
+      }),
+    { times: 1 },
+  );
   await dragDateTo(page, dateMark, destinationDay);
   await expect(preview).toContainText("Target date");
   await expect(preview).toContainText(
@@ -115,7 +133,28 @@ test("previews, cancels, saves, and undoes one Calendar date drag", async ({
   await expect(preview).toContainText(
     formatAccountDate("2026-10-04", DEFAULT_ACCOUNT_PREFERENCES),
   );
+  const workRefresh = "**/rpc/projectWorks";
+  await page.route(workRefresh, (route) => route.fulfill({ status: 503 }));
   await page.mouse.up();
+
+  await expect(
+    page.getByText("Calendar date was rejected.", { exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(
+    originalDay.getByText("Target date", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    destinationDay.getByText("Target date", { exact: true }),
+  ).toHaveCount(0);
+  await expect(preview).toContainText(
+    formatAccountDate("2026-10-04", DEFAULT_ACCOUNT_PREFERENCES),
+  );
+  await page.unroute(workRefresh);
+  const retriedRequest = page.waitForRequest(dateWrite);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await retriedRequest).postDataJSON()).toEqual(
+    (await rejectedRequest).postDataJSON(),
+  );
 
   await expect(
     destinationDay.getByText("Target date", { exact: true }),
@@ -148,4 +187,55 @@ test("previews, cancels, saves, and undoes one Calendar date drag", async ({
   await expect(
     destinationDay.getByText("Target date", { exact: true }),
   ).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  const nextDate = formatAccountDate("2026-10-04", DEFAULT_ACCOUNT_PREFERENCES);
+  const nextDayPickerButton = page.locator('[data-day="2026-10-04"] button');
+  const confirm = page.getByRole("button", { name: "Save", exact: true });
+
+  const agendaDateMark = page
+    .getByRole("region", { name: "Agenda Calendar" })
+    .getByRole("button", { name: "Target date for Calendar date check" });
+
+  async function proposeDate() {
+    await agendaDateMark.click();
+    await nextDayPickerButton.click();
+    await expect(preview).toContainText(nextDate);
+  }
+
+  await proposeDate();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(preview).toHaveCount(0);
+
+  await proposeDate();
+  const targetKind = page.getByRole("checkbox", { name: "Target date" });
+  await targetKind.click();
+  await expect(targetKind).not.toBeChecked();
+  await targetKind.click();
+  await expect(targetKind).toBeChecked();
+  await expect(preview).toHaveCount(0);
+  await expect(confirm).toHaveCount(0);
+
+  await proposeDate();
+  await page.getByRole("button", { name: "Week", exact: true }).click();
+  await expect(preview).toContainText(nextDate);
+  const weekDateMark = page
+    .getByRole("region", { name: "Week Calendar" })
+    .getByRole("button", { name: "Target date for Calendar date check" });
+  await weekDateMark.focus();
+  await page.keyboard.press("Space");
+  await expect(weekDateMark).toHaveCSS("opacity", "0.45");
+  await page.keyboard.press("Escape");
+  await expect(preview).toHaveCount(0);
+  await expect(confirm).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await proposeDate();
+  await confirm.click();
+  await expect(page.getByText("Calendar date updated.")).toBeVisible();
+  await expect(preview).toHaveCount(0);
+  await page.getByRole("button", { name: "Week", exact: true }).click();
+  await expect(
+    destinationDay.getByText("Target date", { exact: true }),
+  ).toBeVisible();
 });

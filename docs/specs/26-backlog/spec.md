@@ -47,6 +47,8 @@ Backlog hazır, dinamik bir Akıllı Koleksiyondur. Üyelik, ele alma veya başk
 
 ## Testing Decisions
 
+- **Sortable drag (#549).** The Backlog browser seam moves Work with Space and the arrow keys, checks the announcements and Escape, then rejects a reorder and checks that the saved order is still shown. A successful retry persists across presentations and reload.
+
 - **Client state ownership (#547).** The Backlog sort and applicable criterion or field are shareable Project URL state. The Backlog browser seam checks reload and Back/Forward. Account-local time continues to drive the Deferred split when a tab becomes visible.
 
 - The Backlog row seam verifies that an in-flight Reappear date displays the requested date and a rejected request leaves the server date visible.

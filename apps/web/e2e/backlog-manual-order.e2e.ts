@@ -79,9 +79,49 @@ test("Backlog drag persists its own order across alternate presentations and a s
   const backlog = page.getByRole("list", { name: "Backlog" });
   const items = backlog.locator(":scope > li");
   await expect(items).toHaveText([/Alpha Work/, /Beta Work/]);
-  await backlog
-    .getByRole("button", { name: /Drag Beta Work/ })
-    .dragTo(items.first(), { targetPosition: { x: 12, y: 4 }, steps: 20 });
+  const handle = backlog.getByRole("button", { name: "Drag Beta Work" });
+  const announcement = page.locator('div[role="status"][aria-live="polite"]');
+  await expect(announcement).toBeAttached();
+
+  async function moveBeta() {
+    await expect(handle).toBeEnabled();
+    await expect(handle).toHaveAttribute("aria-busy", "false");
+    await handle.focus();
+    await page.keyboard.press("Space");
+    await expect(
+      announcement.filter({ hasText: "Picked up Beta Work." }),
+    ).toBeAttached();
+    await page.keyboard.press("ArrowUp");
+    await expect(
+      announcement.filter({ hasText: "Beta Work is over Alpha Work." }),
+    ).toBeAttached();
+  }
+
+  await moveBeta();
+  await page.keyboard.press("Escape");
+  await expect(
+    announcement.filter({ hasText: "Moving Beta Work was cancelled." }),
+  ).toBeAttached();
+  await expect(handle).toHaveAttribute("aria-busy", "false");
+  await expect(handle).toBeFocused();
+  await expect(items).toHaveText([/Alpha Work/, /Beta Work/]);
+
+  await page.route(
+    "**/rpc/updateBacklogOrder",
+    (route) => route.fulfill({ status: 400 }),
+    {
+      times: 1,
+    },
+  );
+  await moveBeta();
+  await page.keyboard.press("Space");
+  await expect(
+    page.getByText("Backlog order could not be saved. Try again."),
+  ).toBeVisible();
+  await expect(items).toHaveText([/Alpha Work/, /Beta Work/]);
+
+  await moveBeta();
+  await page.keyboard.press("Space");
   await expect(items).toHaveText([/Beta Work/, /Alpha Work/]);
 
   for (const presentation of ["Priority", "Date", "Field"] as const) {

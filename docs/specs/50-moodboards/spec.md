@@ -48,6 +48,8 @@ Kurucu Moodboard'u Proje tasarım ana kaydı (Tasarım type `Moodboard`) olarak 
 
 ## Testing Decisions
 
+- **Outline drag (#549).** The Moodboard browser seam moves items by keyboard, cancels with Escape, and verifies that a rejected reorder keeps the saved order and keyboard focus. A successful reorder persists after reload. The Outline component seam covers button reordering and keyboard navigation in the virtualized Outline.
+
 - **Interaction timing (#548).** The `moodboard-board.test.tsx` seam verifies that the first positive measurement is applied immediately, a resize burst applies its latest size, and unmount cancels trailing measurements.
 
 - **Client state ownership (#547).** A Moodboard board keeps its own movement and measurement state. Presentation uses the current item range and resets on exit. The Moodboard board and presentation seams observe viewport and navigation. The presentation test shortens the item sequence and opens a new presentation from its first item.

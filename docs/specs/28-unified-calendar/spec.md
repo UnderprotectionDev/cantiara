@@ -42,6 +42,8 @@ Birleşik Takvim planlanan başlangıç, hedef ve yeniden görünme tarihlerini 
 
 ## Testing Decisions
 
+- **Date drag and confirmation (#549).** The Calendar browser seam checks the old/new dates during keyboard and pointer drag, Escape, retention of the proposed date after a rejected write, and success and Undo of a single-field update. The `Day` and `Agenda` Date Picker uses a local confirmation draft. `Cancel`, a new drag, or a change to the source Work, date field or revision discards it. A failed write keeps it available for the same command to be retried, including when the Work refresh fails. The component seam checks a late rejection after the Work, revision, or mounted Calendar changes.
+
 - The Unified Calendar seam verifies that Undo keeps the active receipt after failure and reuses the same command on retry, then refreshes the affected Project’s Work.
 
 - **What a good test is.** Tests observe Unified Calendar through its public interface: the same selected date kinds across day/week/month/Agenda, Agenda rows limited to the selected month's dates and selected Project scope, range vs day positions, a start–target range present on each spanned day in week/month, drag of one represented field with preview, status unchanged, no Event record. They do not assert calendar-grid internals. Expected values are product rules (kinds do not mix; drag writes one field; Agenda is not an Event).

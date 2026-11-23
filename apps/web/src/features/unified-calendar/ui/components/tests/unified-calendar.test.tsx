@@ -1,7 +1,9 @@
+// @vitest-environment happy-dom
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
-import type { ReactNode } from "react";
+import { act, type ReactNode } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup as renderMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import { ContextRecordPreviewProvider } from "@/features/record-discovery/ui/components/context-record-preview";
 
@@ -302,4 +304,73 @@ describe("Unified Calendar", () => {
     expect(html).not.toContain('aria-label="Planned start for Payment flow"');
     expect(html).not.toContain('aria-label="Reappear date for Payment flow"');
   });
+
+  test.each([
+    { scope: "a new Work revision", replacement: { ...work, revision: 1 } },
+    { scope: "a different Work", replacement: { ...work, id: "work-2" } },
+    { scope: "leaving Calendar", replacement: null },
+  ])(
+    "$scope discards the date proposal even when the write fails late",
+    async ({ replacement }) => {
+      vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+      const host = document.createElement("div");
+      document.body.append(host);
+      const root = createRoot(host);
+      const pending = Promise.withResolvers<unknown>();
+      const onDateChange = vi.fn(() => pending.promise);
+      const targetControl = 'button[aria-label="Target date for Payment flow"]';
+
+      function render(works: typeof base.works | null) {
+        act(() => {
+          root.render(
+            works ? (
+              <ContextRecordPreviewProvider>
+                <UnifiedCalendar
+                  {...base}
+                  onDateChange={onDateChange}
+                  selectedDateKinds={["targetDate"]}
+                  view="Agenda"
+                  works={works}
+                />
+              </ContextRecordPreviewProvider>
+            ) : null,
+          );
+        });
+      }
+      const save = () =>
+        Array.from(host.querySelectorAll("button")).find(
+          (button) => button.textContent === "Save",
+        );
+
+      try {
+        render([work]);
+        const editor = host.querySelector<HTMLButtonElement>(targetControl);
+        expect(editor).toBeTruthy();
+        act(() => editor?.click());
+        const nextDay = document.querySelector<HTMLButtonElement>(
+          '[data-day="2026-09-25"] button',
+        );
+        expect(nextDay).toBeTruthy();
+        act(() => nextDay?.click());
+        expect(save()).toBeTruthy();
+        act(() => save()?.click());
+        expect(onDateChange).toHaveBeenCalledExactlyOnceWith({
+          baseRevision: 0,
+          date: "2026-09-25",
+          dateField: "targetDate",
+          workId: work.id,
+        });
+
+        render(replacement ? [replacement] : null);
+        expect(save()).toBeUndefined();
+        await act(async () => pending.reject(new Error("Date write rejected")));
+        render([work]);
+        expect(save()).toBeUndefined();
+      } finally {
+        act(() => root.unmount());
+        host.remove();
+        vi.unstubAllGlobals();
+      }
+    },
+  );
 });
