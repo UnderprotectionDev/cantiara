@@ -168,11 +168,18 @@ export function claimBulkEditRecord(id: string) {
 }
 
 export function recordBulkEditResult(id: string, result: BulkEditResult) {
-  updateBulkEditOperation(id, (operation) => ({
-    ...operation,
-    completed: operation.completed + 1,
-    resultPages: appendBulkEditResults(operation.resultPages, [result]),
-  }));
+  updateBulkEditOperation(id, (operation) => {
+    const completed = operation.completed + 1;
+    return {
+      ...operation,
+      completed,
+      phase:
+        completed === operation.preview.records.length
+          ? "finalizing"
+          : operation.phase,
+      resultPages: appendBulkEditResults(operation.resultPages, [result]),
+    };
+  });
 }
 
 export function cancelBulkEditOperation(id: string) {
