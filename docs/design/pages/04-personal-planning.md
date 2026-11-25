@@ -15,6 +15,11 @@ Projeler arası kişisel planlama: Günlük Odak, Odak Dönemi ve Birleşik Takv
 
 **Artboard'lar**
 - `04.1 · Daily Focus · Default · 1440`
+- `04.1 · Daily Focus · Empty · 1440`
+- `04.1 · Daily Focus · Loading · 1440`
+- `04.1 · Daily Focus · Error · 1440`
+- `04.1 · Daily Focus · Many items · 1440`
+- `04.1 · Daily Focus · Past day · 1440`
 
 ### Başlık satırı
 Sayfa başlığı, gün seçici, isteğe bağlı kapanış eylemi.
@@ -55,6 +60,9 @@ Beşten çok aday olsa da yalnız beş satır; üye listesi uzun olduğunda böl
 
 **Artboard'lar**
 - `04.2 · Close focus · Default · 1440`
+- `04.2 · Close focus · Empty · 1440`
+- `04.2 · Close focus · Loading · 1440`
+- `04.2 · Close focus · Error · 1440`
 
 ### Başlık satırı
 Başlık, seçili gün (rota durumunda tutulur), aynı günün Günlük Odağına dönüş.
@@ -80,9 +88,15 @@ Dört grup da boşsa yalnız başlık satırı kalır; sahte metin eklenmez.
 
 **Artboard'lar**
 - `04.3 · Focus Periods · Active · 1440`
-- `04.3 · Focus Periods · Planned · 1440`
 - `04.3 · Focus Periods · Empty · 1440`
+- `04.3 · Focus Periods · Loading · 1440`
+- `04.3 · Focus Periods · Error · 1440`
+- `04.3 · Focus Periods · Membership rejected · 1440`
+- `04.3 · Focus Periods · Planned · 1440`
+- `04.3 · Focus Periods · Canceled · 1440`
 - `04.3 · Focus Periods · Dependencies open · 1440`
+- `04.3 · Focus Periods · Dependencies empty · 1440`
+- `04.3 · Focus Periods · Update failed · 1440`
 
 ### Sayfa başlığı ve oluşturma
 Başlık, tek satır açıklama, oluşturma formu.
@@ -116,7 +130,7 @@ Hiç dönem yokken liste ve detay yerine tek satır `No Focus Period yet.`; olu�
 #### Error
 `Focus Period is unavailable.`; yazma hatası `Focus Period could not be updated.`; oluşturma reddi `Focus Period could not be created.`, alan hataları `Purpose is required.` ve `Focus Period must be 1–8 weeks.` ilgili alanın altında.
 #### Membership rejected
-Alan altında ret metni; artboard çizilmez. Örtük ikinci etkin üyelik: `Work is already in an active Focus Period. Use Move.`; örtüşen pencere: `Work is already in another Focus Period.`.
+Alan altında ret metni; ayrı artboard çizilir. Örtük ikinci etkin üyelik: `Work is already in an active Focus Period. Use Move.`; örtüşen pencere: `Work is already in another Focus Period.`.
 #### Planned
 Detayda yalnız `Cancel`; üyelik kontrolü açık; `Dependencies` mevcut.
 #### Canceled
@@ -133,9 +147,13 @@ Bölüm açık, içinde `No dependencies in this Focus Period.`.
 
 **Artboard'lar**
 - `04.4 · Close Focus Period · Close review · 1440`
+- `04.4 · Close Focus Period · Close review · Empty · 1440`
 - `04.4 · Close Focus Period · Closed with decisions · 1440`
 - `04.4 · Close Focus Period · Abandon selected · 1440`
+- `04.4 · Close Focus Period · Error · 1440`
 - `04.4 · Close Focus Period · Closed account · 1440`
+- `04.4 · Close Focus Period · Closed account · No Follow-up Work · 1440`
+- `04.4 · Close Focus Period · Work is unavailable · 1440`
 - `04.4 · Close Focus Period · Follow-up preview · 1440`
 
 ### Kapanış incelemesi
@@ -196,7 +214,14 @@ Dönem kapanışı Bitiriş efekti tetiklemez (spec 23, spec 30 Out of Scope).
 - `04.5 · Calendar · Day · 1440`
 - `04.5 · Calendar · Dragging with preview · 1440`
 - `04.5 · Calendar · Saved with Undo · 1440`
+- `04.5 · Calendar · Undo conflict · 1440`
+- `04.5 · Calendar · Filtered · 1440`
+- `04.5 · Calendar · Offline · 1440`
+- `04.5 · Calendar · Empty · 1440`
+- `04.5 · Calendar · Loading · 1440`
+- `04.5 · Calendar · Error · 1440`
 - `04.5 · Calendar · Agenda · 1440`
+- `04.5 · Calendar · Agenda · Many items · 1440`
 - `04.5 · Calendar · Agenda · 768`
 
 ### Başlık
